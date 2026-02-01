@@ -13,13 +13,13 @@ $ErrorActionPreference = "Stop"
 # Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectDir = $ScriptDir
-$ProjectFile = Join-Path $ProjectDir "HelloWorld.vcxproj"
+$ProjectFile = Join-Path $ProjectDir "Wall-B-Gone.vcxproj"
 $OutputDir = Join-Path $ProjectDir "x64\$Configuration"
-$DllPath = Join-Path $OutputDir "HelloWorld.dll"
-$ModDir = Join-Path $ProjectDir "HelloWorld"
-$KenshiModPath = Join-Path $KenshiPath "mods\HelloWorld"
+$DllPath = Join-Path $OutputDir "Wall-B-Gone.dll"
+$ModDir = Join-Path $ProjectDir "Wall-B-Gone"
+$KenshiModPath = Join-Path $KenshiPath "mods\Wall-B-Gone"
 
-Write-Host "=== HelloWorld Mod Build and Deploy Script ===" -ForegroundColor Cyan
+Write-Host "=== Wall-B-Gone Mod Build and Deploy Script ===" -ForegroundColor Cyan
 Write-Host "Project: $ProjectFile" -ForegroundColor Gray
 Write-Host "Output: $OutputDir" -ForegroundColor Gray
 Write-Host "Kenshi Path: $KenshiPath" -ForegroundColor Gray
@@ -87,13 +87,13 @@ $buildArgs = @(
 try {
     $buildOutput = & $MSBuildPath $buildArgs 2>&1
     $buildSuccess = $LASTEXITCODE -eq 0
-    
+
     if (-not $buildSuccess) {
         Write-Host "`nBUILD FAILED!" -ForegroundColor Red
         Write-Host $buildOutput
         exit 1
     }
-    
+
     Write-Host "Build succeeded!" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: Build failed with exception: $_" -ForegroundColor Red
@@ -114,7 +114,7 @@ if (-not (Test-Path $KenshiModPath)) {
     Write-Host "Created mod directory: $KenshiModPath" -ForegroundColor Gray
 }
 
-# Copy mod files (HelloWorld.mod, RE_Kenshi.json, etc.)
+# Copy mod files (Wall-B-Gone.mod, RE_Kenshi.json, etc.)
 if (Test-Path $ModDir) {
     Copy-Item -Path "$ModDir\*" -Destination $KenshiModPath -Recurse -Force
     Write-Host "Copied mod files from: $ModDir" -ForegroundColor Gray
@@ -123,8 +123,8 @@ if (Test-Path $ModDir) {
     Write-Host "Only DLL will be copied." -ForegroundColor Yellow
 }
 
-# Copy DLL with Verification
-$DestDllPath = "$KenshiModPath\HelloWorld.dll"
+# Copy DLL with verification
+$DestDllPath = "$KenshiModPath\Wall-B-Gone.dll"
 try {
     Copy-Item -Path $DllPath -Destination $DestDllPath -Force
 } catch {
@@ -146,22 +146,44 @@ if ($SourceTime -ne $DestTime) {
 
 Write-Host "Copied DLL: $DllPath -> $DestDllPath" -ForegroundColor Gray
 
+# Update RE_Kenshi.json Plugins list in deploy directory
+Write-Host "Updating RE_Kenshi.json Plugins list..." -ForegroundColor Yellow
+$reKenshiJsonPath = Join-Path $KenshiModPath "RE_Kenshi.json"
+if (Test-Path $reKenshiJsonPath) {
+    try {
+        $jsonContent = Get-Content -Path $reKenshiJsonPath | ConvertFrom-Json
+        if (-not $jsonContent.PSObject.Properties.Contains('Plugins')) {
+            $jsonContent | Add-Member -MemberType NoteProperty -Name Plugins -Value @()
+        } elseif ($jsonContent.Plugins -isnot [Array]) {
+            $jsonContent.Plugins = @($jsonContent.Plugins)
+        }
+        $jsonContent.Plugins = @("Wall-B-Gone.dll")
+        $jsonContent | ConvertTo-Json -Depth 4 | Set-Content -Path $reKenshiJsonPath
+        Write-Host "Successfully updated RE_Kenshi.json in deploy directory." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Failed to update RE_Kenshi.json. Details: $_" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host "WARNING: RE_Kenshi.json not found in deploy directory. Skipping update." -ForegroundColor Yellow
+}
+
 # Verify deployment
 Write-Host "`nVerifying deployment..." -ForegroundColor Yellow
 $dllDeployed = Test-Path $DestDllPath
-$modFileDeployed = Test-Path "$KenshiModPath\HelloWorld.mod"
+$modFileDeployed = Test-Path "$KenshiModPath\Wall-B-Gone.mod"
 $jsonFileDeployed = Test-Path "$KenshiModPath\RE_Kenshi.json"
 
 if ($dllDeployed) {
-    Write-Host "[OK] HelloWorld.dll" -ForegroundColor Green
+    Write-Host "[OK] Wall-B-Gone.dll" -ForegroundColor Green
 } else {
-    Write-Host "[FAIL] HelloWorld.dll (MISSING!)" -ForegroundColor Red
+    Write-Host "[FAIL] Wall-B-Gone.dll (MISSING!)" -ForegroundColor Red
 }
 
 if ($modFileDeployed) {
-    Write-Host "[OK] HelloWorld.mod" -ForegroundColor Green
+    Write-Host "[OK] Wall-B-Gone.mod" -ForegroundColor Green
 } else {
-    Write-Host "[WARN] HelloWorld.mod (optional)" -ForegroundColor Yellow
+    Write-Host "[WARN] Wall-B-Gone.mod (optional)" -ForegroundColor Yellow
 }
 
 if ($jsonFileDeployed) {
