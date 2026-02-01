@@ -26,6 +26,43 @@ Write-Host "Kenshi Path: $KenshiPath" -ForegroundColor Gray
 Write-Host "Mod Destination: $KenshiModPath" -ForegroundColor Gray
 Write-Host ""
 
+# Ensure env vars are set and point to the intended deps for CLI builds
+$setupEnvPath = Join-Path $ScriptDir "setup_env.ps1"
+$expectedDepsDir = $null
+if (Test-Path $setupEnvPath) {
+    $expectedDepsDir = (Select-String -Path $setupEnvPath -Pattern 'KENSHILIB_DEPS_DIR' | Select-Object -First 1).Line
+    if ($expectedDepsDir -match '"([^"]+)"') {
+        $expectedDepsDir = $matches[1]
+    } else {
+        $expectedDepsDir = $null
+    }
+}
+
+$envValid = $true
+if (-not $env:KENSHILIB_DEPS_DIR -or -not $env:KENSHILIB_DIR -or -not $env:BOOST_INCLUDE_PATH) {
+    $envValid = $false
+} elseif (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0"))) {
+    $envValid = $false
+} elseif (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"))) {
+    $envValid = $false
+} elseif ($expectedDepsDir -and ($env:KENSHILIB_DEPS_DIR -ne $expectedDepsDir)) {
+    $envValid = $false
+}
+
+if (-not $envValid) {
+    if (Test-Path $setupEnvPath) {
+        . $setupEnvPath
+    } else {
+        Write-Host "ERROR: setup_env.ps1 not found and required env vars are missing or invalid." -ForegroundColor Red
+        Write-Host "Expected at: $setupEnvPath" -ForegroundColor Yellow
+        exit 1
+    }
+    if (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0")) -or -not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"))) {
+        Write-Host "ERROR: KENSHILIB_DEPS_DIR is invalid: $env:KENSHILIB_DEPS_DIR" -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Check if project file exists
 if (-not (Test-Path $ProjectFile)) {
     Write-Host "ERROR: Project file not found: $ProjectFile" -ForegroundColor Red
