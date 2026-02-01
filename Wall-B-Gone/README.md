@@ -1,16 +1,35 @@
-## Hello World plugin
-The most basic plugin, prints "Hello World!" to RE_Kenshi's debug log when loaded.
+## Wall-B-Gone (RE_Kenshi plugin)
+Safely dismantles selected walls with Hotkey X and returns materials.
 
-<img width="539" height="496" alt="Image" src="https://github.com/user-attachments/assets/fa960b2e-b723-4e1d-bf99-5ffc92aaa234" />
+## Setup
+1) Open a PowerShell terminal in this repo.
+2) Source the env script:
+   - `. .\setup_env.ps1`
 
-## Install steps:
+This sets:
+- `KENSHILIB_DEPS_DIR`
+- `KENSHILIB_DIR`
+- `BOOST_INCLUDE_PATH`
 
-Compile.
+## Build
+You can build in Visual Studio, or via the script below.
 
-Copy `KenshiLib_Examples/HelloWorld/HelloWorld/` to `[Kenshi install dir]/mods/HelloWorld/`
+### Scripted build + deploy
+Run:
+- `.\build-and-deploy.ps1`
 
-Copy `KenshiLib_Examples/x64/Release/HelloWorld.dll` to `[Kenshi install dir]/mods/HelloWorld/HelloWorld.dll`
+Optional parameters:
+- `-KenshiPath "H:\SteamLibrary\steamapps\common\Kenshi"`
+- `-Configuration "Release"`
+- `-Platform "x64"`
 
-![Image](https://github.com/user-attachments/assets/cd5c09fd-643d-42d2-8eab-37680645df9e)
+## Deploy layout
+Mod data folder name: `Wall-B-Gone`
 
+After deploy, expected files:
+- `[Kenshi install dir]\mods\Wall-B-Gone\Wall-B-Gone.mod`
+- `[Kenshi install dir]\mods\Wall-B-Gone\RE_Kenshi.json`
+- `[Kenshi install dir]\mods\Wall-B-Gone\Wall-B-Gone.dll`
+
+## Enable in game
 Run RE_Kenshi and enable the mod via Kenshi's `Mods` tab.
