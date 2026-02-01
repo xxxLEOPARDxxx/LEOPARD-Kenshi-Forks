@@ -152,7 +152,7 @@ $reKenshiJsonPath = Join-Path $KenshiModPath "RE_Kenshi.json"
 if (Test-Path $reKenshiJsonPath) {
     try {
         $jsonContent = Get-Content -Path $reKenshiJsonPath | ConvertFrom-Json
-        if (-not $jsonContent.PSObject.Properties.Contains('Plugins')) {
+if (-not ($jsonContent.PSObject.Properties.Name -contains 'Plugins')) {
             $jsonContent | Add-Member -MemberType NoteProperty -Name Plugins -Value @()
         } elseif ($jsonContent.Plugins -isnot [Array]) {
             $jsonContent.Plugins = @($jsonContent.Plugins)
