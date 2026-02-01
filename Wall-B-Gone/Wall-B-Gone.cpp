@@ -71,17 +71,11 @@ bool CheckMountedBuildingsSafely(Building* b)
 // SIMPLIFIED: Just drop materials and destroy, avoiding the complex dismantle state machine
 bool PerformDismantleLogic(Building* b, const hand& sel)
 {
-    DebugLog("Hotkey X: Dropping materials");
-    
     // Drop the materials (returns them to inventory)
     b->dropMats();
-    
-    DebugLog("Hotkey X: Materials dropped, destroying building");
-    
+
     // Destroy the building
     ou->dynamicDestroyBuilding(sel);
-    
-    DebugLog("Hotkey X: Building destroyed successfully");
     return true;
 }
 
@@ -89,20 +83,16 @@ bool PerformDismantleLogic(Building* b, const hand& sel)
 // Returns true if successful, false if it crashed
 bool SafelyDismantleWall(Building* b, const hand& sel)
 {
-    DebugLog("Hotkey X: Entered SafelyDismantleWall");
     bool success = false;
     __try
     {
-        DebugLog("Hotkey X: Inside __try block, calling PerformDismantleLogic");
         success = PerformDismantleLogic(b, sel);
-        DebugLog("Hotkey X: PerformDismantleLogic returned");
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         DebugLog("Hotkey X: CRASH AVERTED during dismantle! Wall may be connected to problematic structures.");
         success = false;
     }
-    DebugLog("Hotkey X: Exiting SafelyDismantleWall");
     return success;
 }
 
@@ -111,7 +101,7 @@ static bool g_prevXDown = false;
 
 static void HandleHotkeyX()
 {
-    // InputHandler je globál v Globals.h ako "key"
+    // InputHandler is a global in Globals.h named "key"
     if (!key || !ou || !ou->player)
         return;
 
@@ -128,16 +118,14 @@ static void HandleHotkeyX()
     if (!pressedThisFrame)
         return;
 
-    DebugLog("Hotkey X pressed");
-
-    // selectedObject je "hand" (vieme z PlayerInterface.h)
+    // selectedObject is a "hand" (per PlayerInterface.h)
     const hand& sel = ou->player->selectedObject;
 
-    // Najprv skúsime building (wall je building)
+    // First, try a building (a wall is a building)
     Building* b = sel.getBuilding();
     if (b)
     {
-        // Building.h má virtual isAWall() -> WallBuilding*
+        // Building.h has virtual isAWall() -> WallBuilding*
         if (b->isAWall())
         {
             // Check if building can be dismantled
@@ -149,7 +137,6 @@ static void HandleHotkeyX()
                 if (CheckInternalBuildingsSafely(b))
                 {
                     hasAttachedBuildings = true;
-                    DebugLog("Hotkey X: Cannot dismantle - has internal buildings");
                 }
 
                 // 2. Check mounted buildings if internal check passed
@@ -158,7 +145,6 @@ static void HandleHotkeyX()
                     if (CheckMountedBuildingsSafely(b))
                     {
                         hasAttachedBuildings = true;
-                        DebugLog("Hotkey X: Cannot dismantle - has mounted buildings (e.g. harpoons)");
                     }
                 }
                 
@@ -179,33 +165,24 @@ static void HandleHotkeyX()
                     }
                 }
                 
-                DebugLog("Hotkey X: Dismantling wall (returning materials)");
-                
                 __try
                 {
                     // Check if wall is complete before dismantling
                     Building::ConstructionState* buildState = b->getBuildState();
-                    DebugLog("Hotkey X: getBuildState() returned");
                     
                     if (buildState && !buildState->isComplete)
                     {
-                        DebugLog("Hotkey X: Wall is not complete, cannot dismantle");
                     }
                     else
                     {
-                        DebugLog("Hotkey X: Wall is complete, starting dismantle");
-                        DebugLog("Hotkey X: About to call SafelyDismantleWall");
-                        
                         // Use safe wrapper for dismantle
                         bool dismantleResult = SafelyDismantleWall(b, sel);
-                        DebugLog("Hotkey X: SafelyDismantleWall returned");
                         
                         if (!dismantleResult)
                         {
                             DebugLog("Hotkey X: Dismantle failed - wall may be connected to problematic structures");
                             // Set cooldown timer to prevent rapid retries that corrupt game state
                             g_lastFailedDismantleTime = GetTickCount();
-                            DebugLog("Hotkey X: Cooldown activated - wait 1 second before next dismantle");
                         }
                         else
                         {
@@ -219,7 +196,6 @@ static void HandleHotkeyX()
                     DebugLog("Hotkey X: CRASH AVERTED in outer dismantle wrapper!");
                     // Set cooldown timer to prevent rapid retries that corrupt game state
                     g_lastFailedDismantleTime = GetTickCount();
-                    DebugLog("Hotkey X: Cooldown activated - wait 1 second before next dismantle");
                 }
             }
             else
@@ -227,40 +203,32 @@ static void HandleHotkeyX()
                 DebugLog("Hotkey X: Wall cannot be dismantled");
             }
         }
-        else
-        {
-            DebugLog("Hotkey X: selected object is NOT wall (building)");
-        }
 
         return;
     }
 
-    // Nie je to building. Skúsime či vôbec niečo je vybraté (RootObject)
+    // Not a building. Check whether any RootObject is selected
     RootObject* ro = sel.getRootObject();
     if (ro)
     {
-        DebugLog("Hotkey X: selected object is NOT wall (non-building)");
         return;
     }
-
-    // Nič nie je vybraté
-    DebugLog("Hotkey X: NO selection");
 }
 
 // --- Hook: PlayerInterface::updateUT (runs every frame) ---
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
-    // zavolaj originál
+    // Call original
     PlayerInterface_updateUT_orig(thisptr);
 
-    // potom naša hotkey logika
+    // Then run our hotkey logic
     HandleHotkeyX();
 }
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("HelloWorld: startPlugin()");
+    DebugLog("Wall-B-Gone: startPlugin()");
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
@@ -268,9 +236,9 @@ __declspec(dllexport) void startPlugin()
         &PlayerInterface_updateUT_orig
     ))
     {
-        ErrorLog("HelloWorld: Could not hook PlayerInterface::updateUT");
+        ErrorLog("Wall-B-Gone: Could not hook PlayerInterface::updateUT");
         return;
     }
 
-    DebugLog("HelloWorld: Hooked PlayerInterface::updateUT (Hotkey X logger enabled)");
+    DebugLog("Wall-B-Gone: Hooked PlayerInterface::updateUT (Hotkey X logger enabled)");
 }
