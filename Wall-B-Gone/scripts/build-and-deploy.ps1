@@ -12,7 +12,25 @@ $ErrorActionPreference = "Stop"
 
 # Get script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectDir = $ScriptDir
+$ProjectDir = Split-Path -Parent $ScriptDir
+$LoadEnv = Join-Path $ScriptDir "load-env.ps1"
+if (Test-Path $LoadEnv) {
+    . $LoadEnv -RepoDir $ProjectDir
+}
+
+if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
+    $KenshiPath = $env:KENSHI_PATH
+}
+if (-not $PSBoundParameters.ContainsKey("Configuration") -and $env:KENSHI_CONFIGURATION) {
+    $Configuration = $env:KENSHI_CONFIGURATION
+}
+if (-not $PSBoundParameters.ContainsKey("Platform") -and $env:KENSHI_PLATFORM) {
+    $Platform = $env:KENSHI_PLATFORM
+}
+if (-not $PSBoundParameters.ContainsKey("PlatformToolset") -and $env:KENSHI_PLATFORM_TOOLSET) {
+    $PlatformToolset = $env:KENSHI_PLATFORM_TOOLSET
+}
+
 $ProjectFile = Join-Path $ProjectDir "Wall-B-Gone.vcxproj"
 $OutputDir = Join-Path $ProjectDir "x64\$Configuration"
 $DllPath = Join-Path $OutputDir "Wall-B-Gone.dll"
@@ -35,6 +53,14 @@ if (Test-Path $setupEnvPath) {
         $expectedDepsDir = $matches[1]
     } else {
         $expectedDepsDir = $null
+    }
+    if (-not $expectedDepsDir) {
+        $expectedDepsDir = (Select-String -Path $setupEnvPath -Pattern '^\$defaultDepsDir\s*=' | Select-Object -First 1).Line
+        if ($expectedDepsDir -match '"([^"]+)"') {
+            $expectedDepsDir = $matches[1]
+        } else {
+            $expectedDepsDir = $null
+        }
     }
 }
 

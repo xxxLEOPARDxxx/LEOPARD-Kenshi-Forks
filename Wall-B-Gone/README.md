@@ -3,20 +3,22 @@ Safely dismantles selected walls with Hotkey X and returns materials.
 
 ## Setup
 1) Open a PowerShell terminal in this repo.
-2) Source the env script:
-   - `. .\setup_env.ps1`
+2) (Optional) Create `.env` from `.env.example` to set local paths.
+3) Source the env script:
+   - `. .\scripts\setup_env.ps1`
 
 This sets:
 - `KENSHILIB_DEPS_DIR`
 - `KENSHILIB_DIR`
 - `BOOST_INCLUDE_PATH`
+The bash shims in `scripts/` also load `.env`.
 
 ## Build
 You can build in Visual Studio, or via the script below.
 
 ### Scripted build + deploy
 Run:
-- `.\build-and-deploy.ps1`
+- `.\scripts\build-deploy.ps1`
 
 Optional parameters:
 - `-KenshiPath "H:\SteamLibrary\steamapps\common\Kenshi"`
