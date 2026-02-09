@@ -35,3 +35,12 @@ After deploy, expected files:
 
 ## Enable in game
 Run RE_Kenshi and enable the mod via Kenshi's `Mods` tab.
+
+## Mod toggle
+This mod includes `mod-config.json` with an `enabled` boolean toggle intended for RE_Kenshi mod settings.
+At runtime, the plugin reads:
+
+- `[Kenshi install dir]\mods\Wall-B-Gone\mod-config.json`
+- `%USERPROFILE%\AppData\LocalLow\Lo-Fi Games\Kenshi\mods\Wall-B-Gone\mod-config.json`
+
+`LocalLow` is treated as an override if both exist. If neither exists or either is unreadable, the mod defaults to enabled.

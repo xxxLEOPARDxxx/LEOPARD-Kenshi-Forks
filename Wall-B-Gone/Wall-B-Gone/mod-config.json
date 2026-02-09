@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/BFrizzleFoShizzle/RE_Kenshi/master/docs/schema/mod-config.schema.json",
+  "settings": [
+    {
+      "key": "enabled",
+      "type": "bool",
+      "name": "Enable Wall-B-Gone",
+      "description": "Enable/disable Wall-B-Gone hotkey behavior.",
+      "default": true
+    }
+  ]
+}
