@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/BFrizzleFoShizzle/RE_Kenshi/master/docs/schema/mod-config.schema.json",
+  "settings": [
+    {
+      "key": "enabled",
+      "type": "bool",
+      "name": "Enable Auto Pause on Load",
+      "description": "Master toggle for the Auto Pause on Load plugin.",
+      "default": true
+    },
+    {
+      "key": "pause_on_save_load",
+      "type": "bool",
+      "name": "Pause After Save Load",
+      "description": "When enabled, the plugin arms a one-shot pause after a detected save-load lifecycle.",
+      "default": true
+    },
+    {
+      "key": "pause_debounce_ms",
+      "type": "number",
+      "name": "Pause Debounce (ms)",
+      "description": "Minimum milliseconds between auto-pause triggers.",
+      "default": 2000,
+      "min": 0,
+      "max": 600000
+    },
+    {
+      "key": "debug_log_transitions",
+      "type": "bool",
+      "name": "Debug Transition Logs",
+      "description": "Logs load-state transitions and periodic tick-alive output.",
+      "default": false
+    }
+  ]
+}

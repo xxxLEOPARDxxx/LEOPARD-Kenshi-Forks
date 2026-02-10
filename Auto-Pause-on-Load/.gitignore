@@ -1,0 +1,23 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.VC.db
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+
+# Files
+*.obj
+*.pdb
+*.ilk
+*.tlog
+
+# Local env overrides
+.env
