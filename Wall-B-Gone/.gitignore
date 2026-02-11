@@ -12,6 +12,8 @@
 [Rr]elease/
 x64/
 build/
+.packaging/
+dist/
 
 # Files
 *.obj
