@@ -1,7 +1,13 @@
-# Build + deploy script shim for Auto-Pause-on-Load mod.
+# Build + deploy script shim for Kenshi mod plugin.
 # This preserves the existing build-and-deploy.ps1 as the core implementation.
 
 param(
+    [string]$ModName = "",
+    [string]$ProjectFileName = "",
+    [string]$OutputSubdir = "",
+    [string]$DllName = "",
+    [string]$ModFileName = "",
+    [string]$ConfigFileName = "RE_Kenshi.json",
     [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
     [string]$Configuration = "Release",
     [string]$Platform = "x64",
@@ -29,6 +35,24 @@ if (-not $PSBoundParameters.ContainsKey("Platform") -and $env:KENSHI_PLATFORM) {
 if (-not $PSBoundParameters.ContainsKey("PlatformToolset") -and $env:KENSHI_PLATFORM_TOOLSET) {
     $PlatformToolset = $env:KENSHI_PLATFORM_TOOLSET
 }
+if (-not $ModName -and $env:KENSHI_MOD_NAME) {
+    $ModName = $env:KENSHI_MOD_NAME
+}
+if (-not $ProjectFileName -and $env:KENSHI_PROJECT_FILE) {
+    $ProjectFileName = $env:KENSHI_PROJECT_FILE
+}
+if (-not $OutputSubdir -and $env:KENSHI_OUTPUT_SUBDIR) {
+    $OutputSubdir = $env:KENSHI_OUTPUT_SUBDIR
+}
+if (-not $DllName -and $env:KENSHI_DLL_NAME) {
+    $DllName = $env:KENSHI_DLL_NAME
+}
+if (-not $ModFileName -and $env:KENSHI_MOD_FILE_NAME) {
+    $ModFileName = $env:KENSHI_MOD_FILE_NAME
+}
+if (-not $ConfigFileName -and $env:KENSHI_CONFIG_FILE_NAME) {
+    $ConfigFileName = $env:KENSHI_CONFIG_FILE_NAME
+}
 
 $BuildScript = Join-Path $ScriptDir "build-and-deploy.ps1"
 
@@ -37,11 +61,10 @@ if (-not (Test-Path $BuildScript)) {
     exit 1
 }
 
-Write-Host "=== Auto-Pause-on-Load Build + Deploy ===" -ForegroundColor Cyan
+Write-Host "=== Kenshi Mod Build + Deploy ===" -ForegroundColor Cyan
 
-& $BuildScript -KenshiPath $KenshiPath -Configuration $Configuration -Platform $Platform -PlatformToolset $PlatformToolset
+& $BuildScript -ModName $ModName -ProjectFileName $ProjectFileName -OutputSubdir $OutputSubdir -DllName $DllName -ModFileName $ModFileName -ConfigFileName $ConfigFileName -KenshiPath $KenshiPath -Configuration $Configuration -Platform $Platform -PlatformToolset $PlatformToolset
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: build-and-deploy.ps1 failed" -ForegroundColor Red
     exit 1
 }
-

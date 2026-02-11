@@ -1,7 +1,12 @@
-# Package-only script for Auto-Pause-on-Load mod.
+# Package-only script for Wall-B-Gone mod.
 
 param(
+    [string]$ModName = "",
     [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
+    [string]$SourceModPath = "",
+    [string]$DllName = "",
+    [string]$ModFileName = "",
+    [string]$ConfigFileName = "RE_Kenshi.json",
     [string]$OutDir = "",
     [string]$ZipName = "",
     [string]$Version = ""
@@ -19,25 +24,53 @@ if (Test-Path $LoadEnv) {
 if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
     $KenshiPath = $env:KENSHI_PATH
 }
+if (-not $ModName) {
+    if ($env:KENSHI_MOD_NAME) {
+        $ModName = $env:KENSHI_MOD_NAME
+    } else {
+        $ModName = Split-Path -Leaf $RepoDir
+    }
+}
+if (-not $DllName) {
+    if ($env:KENSHI_DLL_NAME) {
+        $DllName = $env:KENSHI_DLL_NAME
+    } else {
+        $DllName = "$ModName.dll"
+    }
+}
+if (-not $ModFileName) {
+    if ($env:KENSHI_MOD_FILE_NAME) {
+        $ModFileName = $env:KENSHI_MOD_FILE_NAME
+    } else {
+        $ModFileName = "$ModName.mod"
+    }
+}
+if (-not $ConfigFileName -and $env:KENSHI_CONFIG_FILE_NAME) {
+    $ConfigFileName = $env:KENSHI_CONFIG_FILE_NAME
+}
 
 $VersionFile = Join-Path $RepoDir "VERSION"
 
-$KenshiModPath = Join-Path $KenshiPath "mods\Auto-Pause-on-Load"
-if (-not (Test-Path $KenshiModPath)) {
-    Write-Host "ERROR: Mod folder not found: $KenshiModPath" -ForegroundColor Red
+$PackageSourcePath = $SourceModPath
+if (-not $PackageSourcePath) {
+    $PackageSourcePath = Join-Path $KenshiPath "mods\$ModName"
+}
+
+if (-not (Test-Path $PackageSourcePath)) {
+    Write-Host "ERROR: Mod folder not found: $PackageSourcePath" -ForegroundColor Red
     exit 1
 }
 
 $RequiredFiles = @(
-    "Auto-Pause-on-Load.dll",
-    "RE_Kenshi.json",
-    "Auto-Pause-on-Load.mod"
+    $DllName,
+    $ConfigFileName,
+    $ModFileName
 )
 
 foreach ($f in $RequiredFiles) {
-    $p = Join-Path $KenshiModPath $f
+    $p = Join-Path $PackageSourcePath $f
     if (-not (Test-Path $p)) {
-        Write-Host "ERROR: Missing required file in mod folder: $p" -ForegroundColor Red
+        Write-Host "ERROR: Missing required file in package source: $p" -ForegroundColor Red
         exit 1
     }
 }
@@ -58,9 +91,9 @@ if (-not $Version) {
 
 if (-not $ZipName) {
     if ($Version) {
-        $ZipName = "Auto-Pause-on-Load-$Version.zip"
+        $ZipName = "$ModName-$Version.zip"
     } else {
-        $ZipName = "Auto-Pause-on-Load-alpha.zip"
+        $ZipName = "$ModName-alpha.zip"
     }
 }
 
@@ -69,10 +102,9 @@ if (Test-Path $ZipPath) {
     Remove-Item -Path $ZipPath -Force
 }
 
-Write-Host "Packaging: $KenshiModPath" -ForegroundColor Yellow
+Write-Host "Packaging: $PackageSourcePath" -ForegroundColor Yellow
 Write-Host "Output:    $ZipPath" -ForegroundColor Gray
 
-Compress-Archive -Path $KenshiModPath -DestinationPath $ZipPath
+Compress-Archive -Path $PackageSourcePath -DestinationPath $ZipPath
 
 Write-Host "Package created: $ZipPath" -ForegroundColor Green
-

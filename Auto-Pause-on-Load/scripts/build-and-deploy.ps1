@@ -1,7 +1,13 @@
-# Build and Deploy Script for Auto-Pause-on-Load Mod
+# Build and Deploy Script for Kenshi mod plugin
 # This script builds the project and copies files to Kenshi mods directory on success
 
 param(
+    [string]$ModName = "",
+    [string]$ProjectFileName = "",
+    [string]$OutputSubdir = "",
+    [string]$DllName = "",
+    [string]$ModFileName = "",
+    [string]$ConfigFileName = "RE_Kenshi.json",
     [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
     [string]$Configuration = "Release",
     [string]$Platform = "x64",
@@ -30,14 +36,52 @@ if (-not $PSBoundParameters.ContainsKey("Platform") -and $env:KENSHI_PLATFORM) {
 if (-not $PSBoundParameters.ContainsKey("PlatformToolset") -and $env:KENSHI_PLATFORM_TOOLSET) {
     $PlatformToolset = $env:KENSHI_PLATFORM_TOOLSET
 }
+if (-not $ModName) {
+    if ($env:KENSHI_MOD_NAME) {
+        $ModName = $env:KENSHI_MOD_NAME
+    } else {
+        $ModName = Split-Path -Leaf $ProjectDir
+    }
+}
+if (-not $ProjectFileName) {
+    if ($env:KENSHI_PROJECT_FILE) {
+        $ProjectFileName = $env:KENSHI_PROJECT_FILE
+    } else {
+        $ProjectFileName = "Wall-B-Gone.vcxproj"
+    }
+}
+if (-not $OutputSubdir) {
+    if ($env:KENSHI_OUTPUT_SUBDIR) {
+        $OutputSubdir = $env:KENSHI_OUTPUT_SUBDIR
+    } else {
+        $OutputSubdir = "$Platform\$Configuration"
+    }
+}
+if (-not $DllName) {
+    if ($env:KENSHI_DLL_NAME) {
+        $DllName = $env:KENSHI_DLL_NAME
+    } else {
+        $DllName = "$ModName.dll"
+    }
+}
+if (-not $ModFileName) {
+    if ($env:KENSHI_MOD_FILE_NAME) {
+        $ModFileName = $env:KENSHI_MOD_FILE_NAME
+    } else {
+        $ModFileName = "$ModName.mod"
+    }
+}
+if (-not $ConfigFileName -and $env:KENSHI_CONFIG_FILE_NAME) {
+    $ConfigFileName = $env:KENSHI_CONFIG_FILE_NAME
+}
 
-$ProjectFile = Join-Path $ProjectDir "Auto-Pause-on-Load.vcxproj"
-$OutputDir = Join-Path $ProjectDir "x64\$Configuration"
-$DllPath = Join-Path $OutputDir "Auto-Pause-on-Load.dll"
-$ModDir = Join-Path $ProjectDir "Auto-Pause-on-Load"
-$KenshiModPath = Join-Path $KenshiPath "mods\Auto-Pause-on-Load"
+$ProjectFile = Join-Path $ProjectDir $ProjectFileName
+$OutputDir = Join-Path $ProjectDir $OutputSubdir
+$DllPath = Join-Path $OutputDir $DllName
+$ModDir = Join-Path $ProjectDir $ModName
+$KenshiModPath = Join-Path $KenshiPath "mods\$ModName"
 
-Write-Host "=== Auto-Pause-on-Load Mod Build and Deploy Script ===" -ForegroundColor Cyan
+Write-Host "=== Kenshi Mod Build and Deploy Script ===" -ForegroundColor Cyan
 Write-Host "Project: $ProjectFile" -ForegroundColor Gray
 Write-Host "Output: $OutputDir" -ForegroundColor Gray
 Write-Host "Kenshi Path: $KenshiPath" -ForegroundColor Gray
@@ -177,7 +221,7 @@ if (-not (Test-Path $KenshiModPath)) {
     Write-Host "Created mod directory: $KenshiModPath" -ForegroundColor Gray
 }
 
-# Copy mod files (Auto-Pause-on-Load.mod, RE_Kenshi.json, etc.)
+# Copy mod files (Wall-B-Gone.mod, RE_Kenshi.json, etc.)
 if (Test-Path $ModDir) {
     Copy-Item -Path "$ModDir\*" -Destination $KenshiModPath -Recurse -Force
     Write-Host "Copied mod files from: $ModDir" -ForegroundColor Gray
@@ -187,7 +231,7 @@ if (Test-Path $ModDir) {
 }
 
 # Copy DLL with verification
-$DestDllPath = "$KenshiModPath\Auto-Pause-on-Load.dll"
+$DestDllPath = Join-Path $KenshiModPath $DllName
 try {
     Copy-Item -Path $DllPath -Destination $DestDllPath -Force
 } catch {
@@ -211,7 +255,7 @@ Write-Host "Copied DLL: $DllPath -> $DestDllPath" -ForegroundColor Gray
 
 # Update RE_Kenshi.json Plugins list in deploy directory
 Write-Host "Updating RE_Kenshi.json Plugins list..." -ForegroundColor Yellow
-$reKenshiJsonPath = Join-Path $KenshiModPath "RE_Kenshi.json"
+$reKenshiJsonPath = Join-Path $KenshiModPath $ConfigFileName
 if (Test-Path $reKenshiJsonPath) {
     try {
         $jsonContent = Get-Content -Path $reKenshiJsonPath | ConvertFrom-Json
@@ -220,7 +264,7 @@ if (-not ($jsonContent.PSObject.Properties.Name -contains 'Plugins')) {
         } elseif ($jsonContent.Plugins -isnot [Array]) {
             $jsonContent.Plugins = @($jsonContent.Plugins)
         }
-        $jsonContent.Plugins = @("Auto-Pause-on-Load.dll")
+        $jsonContent.Plugins = @($DllName)
         $jsonContent | ConvertTo-Json -Depth 4 | Set-Content -Path $reKenshiJsonPath
         Write-Host "Successfully updated RE_Kenshi.json in deploy directory." -ForegroundColor Green
     } catch {
@@ -234,28 +278,27 @@ if (-not ($jsonContent.PSObject.Properties.Name -contains 'Plugins')) {
 # Verify deployment
 Write-Host "`nVerifying deployment..." -ForegroundColor Yellow
 $dllDeployed = Test-Path $DestDllPath
-$modFileDeployed = Test-Path "$KenshiModPath\Auto-Pause-on-Load.mod"
-$jsonFileDeployed = Test-Path "$KenshiModPath\RE_Kenshi.json"
+$modFileDeployed = Test-Path (Join-Path $KenshiModPath $ModFileName)
+$jsonFileDeployed = Test-Path (Join-Path $KenshiModPath $ConfigFileName)
 
 if ($dllDeployed) {
-    Write-Host "[OK] Auto-Pause-on-Load.dll" -ForegroundColor Green
+    Write-Host "[OK] $DllName" -ForegroundColor Green
 } else {
-    Write-Host "[FAIL] Auto-Pause-on-Load.dll (MISSING!)" -ForegroundColor Red
+    Write-Host "[FAIL] $DllName (MISSING!)" -ForegroundColor Red
 }
 
 if ($modFileDeployed) {
-    Write-Host "[OK] Auto-Pause-on-Load.mod" -ForegroundColor Green
+    Write-Host "[OK] $ModFileName" -ForegroundColor Green
 } else {
-    Write-Host "[WARN] Auto-Pause-on-Load.mod (optional)" -ForegroundColor Yellow
+    Write-Host "[WARN] $ModFileName (optional)" -ForegroundColor Yellow
 }
 
 if ($jsonFileDeployed) {
-    Write-Host "[OK] RE_Kenshi.json" -ForegroundColor Green
+    Write-Host "[OK] $ConfigFileName" -ForegroundColor Green
 } else {
-    Write-Host "[WARN] RE_Kenshi.json (optional)" -ForegroundColor Yellow
+    Write-Host "[WARN] $ConfigFileName (optional)" -ForegroundColor Yellow
 }
 
 Write-Host "`n=== Deployment Complete ===" -ForegroundColor Cyan
 Write-Host "Mod location: $KenshiModPath" -ForegroundColor Gray
 Write-Host "`nYou can now test the mod in Kenshi!" -ForegroundColor Green
-

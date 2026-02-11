@@ -9,13 +9,20 @@ if (Test-Path $LoadEnv) {
     . $LoadEnv -RepoDir $RepoDir
 }
 
-# This path is configured during the project scaffolding.
-$defaultDepsDir = "I:\Kenshi_modding\_deps\KenshiLib_Examples_deps"
+# Prefer explicit env override; otherwise use repo-relative defaults.
+if ($env:KENSHI_DEFAULT_DEPS_DIR) {
+    $defaultDepsDir = $env:KENSHI_DEFAULT_DEPS_DIR
+} else {
+    $workspaceRoot = Split-Path -Parent $RepoDir
+    $defaultDepsDir = Join-Path $workspaceRoot "_deps\KenshiLib_Examples_deps"
+}
+
+$expectedRoot = if ($env:KENSHI_DEPS_ROOT) { $env:KENSHI_DEPS_ROOT } else { Join-Path (Split-Path -Parent $RepoDir) "_deps" }
 $needsDepsReset = -not $env:KENSHILIB_DEPS_DIR
 if (-not $needsDepsReset) {
     $depsRoot = [IO.Path]::GetFullPath($env:KENSHILIB_DEPS_DIR)
-    $expectedRoot = [IO.Path]::GetFullPath("I:\Kenshi_modding\_deps")
-    if (-not $depsRoot.StartsWith($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    $expectedRootFull = [IO.Path]::GetFullPath($expectedRoot)
+    if (-not $depsRoot.StartsWith($expectedRootFull, [StringComparison]::OrdinalIgnoreCase)) {
         $needsDepsReset = $true
     }
 }
