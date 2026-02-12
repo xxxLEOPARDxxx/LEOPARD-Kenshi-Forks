@@ -1,8 +1,8 @@
-# Package-only script for Wall-B-Gone mod.
+# Package-only script for Auto-Pause-on-Load.
 
 param(
     [string]$ModName = "",
-    [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
+    [string]$KenshiPath = "",
     [string]$SourceModPath = "",
     [string]$DllName = "",
     [string]$ModFileName = "",
@@ -23,6 +23,9 @@ if (Test-Path $LoadEnv) {
 
 if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
     $KenshiPath = $env:KENSHI_PATH
+}
+if (-not $KenshiPath -and $env:KENSHI_DEFAULT_PATH) {
+    $KenshiPath = $env:KENSHI_DEFAULT_PATH
 }
 if (-not $ModName) {
     if ($env:KENSHI_MOD_NAME) {
@@ -53,6 +56,10 @@ $VersionFile = Join-Path $RepoDir "VERSION"
 
 $PackageSourcePath = $SourceModPath
 if (-not $PackageSourcePath) {
+    if (-not $KenshiPath) {
+        Write-Host "ERROR: Kenshi path is not set. Provide -SourceModPath or set KENSHI_PATH in .env." -ForegroundColor Red
+        exit 1
+    }
     $PackageSourcePath = Join-Path $KenshiPath "mods\$ModName"
 }
 

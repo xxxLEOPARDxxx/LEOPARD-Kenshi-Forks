@@ -11,4 +11,25 @@ elif command -v powershell.exe >/dev/null 2>&1; then
 else
   PSH="powershell"
 fi
-exec "$PSH" -NoProfile -ExecutionPolicy Bypass -File "$PS_SCRIPT" "$@"
+
+ARGS=()
+EXPECT_PATH=0
+for arg in "$@"; do
+  if [[ "$EXPECT_PATH" -eq 1 ]]; then
+    ARGS+=("$(to_windows_path "$arg")")
+    EXPECT_PATH=0
+    continue
+  fi
+
+  case "$arg" in
+    -KenshiPath|-ProjectFileName|-OutputSubdir)
+      ARGS+=("$arg")
+      EXPECT_PATH=1
+      ;;
+    *)
+      ARGS+=("$arg")
+      ;;
+  esac
+done
+
+exec "$PSH" -NoProfile -ExecutionPolicy Bypass -File "$PS_SCRIPT" "${ARGS[@]}"
