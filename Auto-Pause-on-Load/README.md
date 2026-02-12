@@ -1,7 +1,10 @@
 ## Auto Pause on Load (RE_Kenshi plugin)
 Pauses Kenshi after a save load lifecycle is detected.
 
-Current status: scaffold wired and safe by default. The state machine and config are implemented, but game-specific `is_loading_save` and `set_paused(true)` offsets are still TODO in code.
+Current status: implemented for Kenshi `1.0.65` using:
+- `SaveManager::load(...)` hooks to arm a one-shot pause.
+- `GameWorld::isLoadingFromASaveGame()` to detect load phase transitions.
+- `GameWorld::userPause(true)` to force paused state after load completes.
 
 ## Setup
 1) Open a PowerShell terminal in this repo.
@@ -41,15 +44,7 @@ At runtime, the plugin reads:
 
 Supported keys:
 - `enabled` (bool)
-- `pause_on_save_load` (bool)
 - `pause_debounce_ms` (number, 0..600000)
 - `debug_log_transitions` (bool)
 
 If config is missing or unreadable, defaults are used and written back.
-
-## Scaffold TODO
-Hook these in `Auto-Pause-on-Load.cpp`:
-- `g_fnIsLoadingSave`
-- `g_fnSetPaused`
-
-Until those are wired for each supported Kenshi binary version, the plugin logs that auto-pause is idle.
