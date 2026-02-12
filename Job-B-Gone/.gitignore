@@ -6,12 +6,15 @@
 *.sdf
 *.opensdf
 *.VC.db
+.idea
 
 # Build outputs
 [Dd]ebug/
 [Rr]elease/
 x64/
 build/
+.packaging/
+dist/
 
 # Files
 *.obj
