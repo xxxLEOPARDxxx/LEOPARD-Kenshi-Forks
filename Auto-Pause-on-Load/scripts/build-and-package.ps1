@@ -1,4 +1,4 @@
-# Build and package script for Wall-B-Gone mod.
+# Build and package script for Auto-Pause-on-Load.
 # This script builds the DLL and creates a zip package without deploying to Kenshi mods.
 
 param(
@@ -34,18 +34,18 @@ if (-not $PSBoundParameters.ContainsKey("Platform") -and $env:KENSHI_PLATFORM) {
 if (-not $PSBoundParameters.ContainsKey("PlatformToolset") -and $env:KENSHI_PLATFORM_TOOLSET) {
     $PlatformToolset = $env:KENSHI_PLATFORM_TOOLSET
 }
-if (-not $ProjectFileName) {
-    if ($env:KENSHI_PROJECT_FILE) {
-        $ProjectFileName = $env:KENSHI_PROJECT_FILE
-    } else {
-        $ProjectFileName = "Wall-B-Gone.vcxproj"
-    }
-}
 if (-not $ModName) {
     if ($env:KENSHI_MOD_NAME) {
         $ModName = $env:KENSHI_MOD_NAME
     } else {
         $ModName = Split-Path -Leaf $RepoDir
+    }
+}
+if (-not $ProjectFileName) {
+    if ($env:KENSHI_PROJECT_FILE) {
+        $ProjectFileName = $env:KENSHI_PROJECT_FILE
+    } else {
+        $ProjectFileName = "$ModName.vcxproj"
     }
 }
 if (-not $DllName) {
@@ -80,7 +80,7 @@ $ModTemplateDir = Join-Path $RepoDir $ModName
 $PackageScript = Join-Path $ScriptDir "package.ps1"
 $StagingRoot = Join-Path $RepoDir ".packaging\$ModName"
 
-Write-Host "=== Wall-B-Gone Build + Package ===" -ForegroundColor Cyan
+Write-Host "=== $ModName Build + Package ===" -ForegroundColor Cyan
 Write-Host "Project: $ProjectFile" -ForegroundColor Gray
 Write-Host "Output:  $OutputDir" -ForegroundColor Gray
 Write-Host "Staging: $StagingRoot" -ForegroundColor Gray

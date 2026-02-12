@@ -8,7 +8,7 @@ param(
     [string]$DllName = "",
     [string]$ModFileName = "",
     [string]$ConfigFileName = "RE_Kenshi.json",
-    [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
+    [string]$KenshiPath = "",
     [string]$Configuration = "Release",
     [string]$Platform = "x64",
     [string]$PlatformToolset = "v100"
@@ -26,6 +26,9 @@ if (Test-Path $LoadEnv) {
 
 if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
     $KenshiPath = $env:KENSHI_PATH
+}
+if (-not $KenshiPath -and $env:KENSHI_DEFAULT_PATH) {
+    $KenshiPath = $env:KENSHI_DEFAULT_PATH
 }
 if (-not $PSBoundParameters.ContainsKey("Configuration") -and $env:KENSHI_CONFIGURATION) {
     $Configuration = $env:KENSHI_CONFIGURATION
@@ -47,7 +50,7 @@ if (-not $ProjectFileName) {
     if ($env:KENSHI_PROJECT_FILE) {
         $ProjectFileName = $env:KENSHI_PROJECT_FILE
     } else {
-        $ProjectFileName = "Wall-B-Gone.vcxproj"
+        $ProjectFileName = "$ModName.vcxproj"
     }
 }
 if (-not $OutputSubdir) {
@@ -140,6 +143,10 @@ if (-not (Test-Path $ProjectFile)) {
 }
 
 # Check if Kenshi directory exists
+if (-not $KenshiPath) {
+    Write-Host "ERROR: Kenshi path is not set. Provide -KenshiPath or set KENSHI_PATH in .env." -ForegroundColor Red
+    exit 1
+}
 if (-not (Test-Path $KenshiPath)) {
     Write-Host "ERROR: Kenshi directory not found: $KenshiPath" -ForegroundColor Red
     Write-Host "Please update the KenshiPath parameter or create the directory." -ForegroundColor Yellow
@@ -221,7 +228,7 @@ if (-not (Test-Path $KenshiModPath)) {
     Write-Host "Created mod directory: $KenshiModPath" -ForegroundColor Gray
 }
 
-# Copy mod files (Wall-B-Gone.mod, RE_Kenshi.json, etc.)
+# Copy mod files (mod metadata, config, etc.)
 if (Test-Path $ModDir) {
     Copy-Item -Path "$ModDir\*" -Destination $KenshiModPath -Recurse -Force
     Write-Host "Copied mod files from: $ModDir" -ForegroundColor Gray
@@ -240,14 +247,13 @@ try {
     exit 1
 }
 
-# Verify timestamp to ensure it's the new file
-$SourceTime = (Get-Item $DllPath).LastWriteTime
-$DestTime = (Get-Item $DestDllPath).LastWriteTime
-
-if ($SourceTime -ne $DestTime) {
-    Write-Host "ERROR: Deployment failed! Destination file timestamp mismatch." -ForegroundColor Red
-    Write-Host "Source: $SourceTime"
-    Write-Host "Dest:   $DestTime"
+# Verify destination content in a filesystem-safe way (timestamps can differ by precision).
+$SourceInfo = Get-Item $DllPath
+$DestInfo = Get-Item $DestDllPath
+if ($SourceInfo.Length -ne $DestInfo.Length) {
+    Write-Host "ERROR: Deployment failed! Destination DLL size mismatch." -ForegroundColor Red
+    Write-Host "Source bytes: $($SourceInfo.Length)"
+    Write-Host "Dest bytes:   $($DestInfo.Length)"
     exit 1
 }
 

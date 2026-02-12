@@ -8,7 +8,7 @@ param(
     [string]$DllName = "",
     [string]$ModFileName = "",
     [string]$ConfigFileName = "RE_Kenshi.json",
-    [string]$KenshiPath = "H:\SteamLibrary\steamapps\common\Kenshi",
+    [string]$KenshiPath = "",
     [string]$Configuration = "Release",
     [string]$Platform = "x64",
     [string]$PlatformToolset = "v100"
@@ -25,6 +25,9 @@ if (Test-Path $LoadEnv) {
 
 if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
     $KenshiPath = $env:KENSHI_PATH
+}
+if (-not $KenshiPath -and $env:KENSHI_DEFAULT_PATH) {
+    $KenshiPath = $env:KENSHI_DEFAULT_PATH
 }
 if (-not $PSBoundParameters.ContainsKey("Configuration") -and $env:KENSHI_CONFIGURATION) {
     $Configuration = $env:KENSHI_CONFIGURATION
