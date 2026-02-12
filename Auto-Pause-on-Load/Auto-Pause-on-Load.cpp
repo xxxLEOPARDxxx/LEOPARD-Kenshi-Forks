@@ -2,8 +2,11 @@
 
 #include <core/Functions.h>
 
+#include <kenshi/GameWorld.h>
+#include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/SaveManager.h>
 
 #include <Windows.h>
 
@@ -15,7 +18,6 @@
 struct PluginConfig
 {
     bool enabled;
-    bool pauseOnSaveLoad;
     DWORD pauseDebounceMs;
     bool debugLogTransitions;
 };
@@ -24,28 +26,63 @@ struct RuntimeState
 {
     bool loadInProgress;
     bool pauseArmed;
-    DWORD loadStartedMs;
+    bool loadSignalSeenAfterArm;
+    DWORD armTimestampMs;
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
-    bool loggedMissingLoadSignal;
-    bool loggedMissingPauseApi;
+    bool loggedWorldUnavailable;
 };
-
-typedef bool (*FnIsLoadingSave)();
-typedef void (*FnSetPaused)(bool);
 
 static const char* kPluginName = "Auto-Pause-on-Load";
 static const char* kConfigFileName = "mod-config.json";
+static const DWORD kTickAliveIntervalMs = 5000;
+static const DWORD kNoSignalDisarmMs = 1500;
+static const DWORD kArmedTimeoutMs = 60000;
 
-static PluginConfig g_config = { true, true, 2000, false };
-static RuntimeState g_state = { false, false, 0, 0, 0, false, false };
-
-static FnIsLoadingSave g_fnIsLoadingSave = 0;
-static FnSetPaused g_fnSetPaused = 0;
+static PluginConfig g_config = { true, 2000, false };
+static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
+static bool g_hasSaveLoadHook = false;
+static bool g_configNeedsWriteBack = false;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
+static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
+static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
+
+static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
+static void DisarmPauseAfterLoad();
+
+struct ConfigParseDiagnostics
+{
+    bool foundEnabled;
+    bool invalidEnabled;
+    bool foundPauseDebounceMs;
+    bool invalidPauseDebounceMs;
+    bool clampedPauseDebounceMs;
+    bool foundDebugLogTransitions;
+    bool invalidDebugLogTransitions;
+    bool syntaxError;
+    size_t syntaxErrorOffset;
+};
+
+static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
+{
+    if (!diagnostics)
+    {
+        return;
+    }
+
+    diagnostics->foundEnabled = false;
+    diagnostics->invalidEnabled = false;
+    diagnostics->foundPauseDebounceMs = false;
+    diagnostics->invalidPauseDebounceMs = false;
+    diagnostics->clampedPauseDebounceMs = false;
+    diagnostics->foundDebugLogTransitions = false;
+    diagnostics->invalidDebugLogTransitions = false;
+    diagnostics->syntaxError = false;
+    diagnostics->syntaxErrorOffset = 0;
+}
 
 static std::string TrimAscii(const std::string& value)
 {
@@ -64,94 +101,153 @@ static std::string TrimAscii(const std::string& value)
     return value.substr(start, end - start);
 }
 
-static bool TryFindJsonValueStart(const std::string& body, const char* key, size_t* valueStartOut)
+static void SkipJsonWhitespace(const std::string& text, size_t* pos)
 {
-    if (!key || !valueStartOut)
+    if (!pos)
     {
-        return false;
+        return;
     }
 
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const size_t keyPos = body.find(quotedKey);
-    if (keyPos == std::string::npos)
+    while (*pos < text.size() && std::isspace(static_cast<unsigned char>(text[*pos])) != 0)
     {
-        return false;
+        ++(*pos);
     }
-
-    const size_t colonPos = body.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    size_t valuePos = colonPos + 1;
-    while (valuePos < body.size() && std::isspace(static_cast<unsigned char>(body[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    if (valuePos >= body.size())
-    {
-        return false;
-    }
-
-    *valueStartOut = valuePos;
-    return true;
 }
 
-static bool TryExtractJsonBool(const std::string& body, const char* key, bool* valueOut)
+static bool IsJsonLiteralTerminator(char c)
 {
-    if (!valueOut)
+    return std::isspace(static_cast<unsigned char>(c)) != 0 || c == ',' || c == '}' || c == ']';
+}
+
+static void SkipUtf8Bom(const std::string& text, size_t* pos)
+{
+    if (!pos || *pos != 0 || text.size() < 3)
+    {
+        return;
+    }
+
+    const unsigned char b0 = static_cast<unsigned char>(text[0]);
+    const unsigned char b1 = static_cast<unsigned char>(text[1]);
+    const unsigned char b2 = static_cast<unsigned char>(text[2]);
+    if (b0 == 0xEF && b1 == 0xBB && b2 == 0xBF)
+    {
+        *pos = 3;
+    }
+}
+
+static bool RecordConfigSyntaxError(ConfigParseDiagnostics* diagnostics, size_t offset)
+{
+    if (diagnostics)
+    {
+        diagnostics->syntaxError = true;
+        diagnostics->syntaxErrorOffset = offset;
+    }
+    return false;
+}
+
+static bool ParseJsonStringToken(const std::string& text, size_t* pos, std::string* valueOut)
+{
+    if (!pos || !valueOut)
     {
         return false;
     }
 
-    size_t valuePos = 0;
-    if (!TryFindJsonValueStart(body, key, &valuePos))
+    SkipJsonWhitespace(text, pos);
+    if (*pos >= text.size() || text[*pos] != '"')
     {
         return false;
     }
 
-    if (body.compare(valuePos, 4, "true") == 0)
-    {
-        *valueOut = true;
-        return true;
-    }
+    ++(*pos);
+    valueOut->clear();
 
-    if (body.compare(valuePos, 5, "false") == 0)
+    while (*pos < text.size())
     {
-        *valueOut = false;
-        return true;
+        const char c = text[*pos];
+        if (c == '"')
+        {
+            ++(*pos);
+            return true;
+        }
+
+        if (c == '\\')
+        {
+            ++(*pos);
+            if (*pos >= text.size())
+            {
+                return false;
+            }
+            valueOut->push_back(text[*pos]);
+            ++(*pos);
+            continue;
+        }
+
+        valueOut->push_back(c);
+        ++(*pos);
     }
 
     return false;
 }
 
-static bool TryExtractJsonUnsigned(const std::string& body, const char* key, DWORD* valueOut)
+static bool ParseJsonBoolValue(const std::string& text, size_t* pos, bool* valueOut)
 {
-    if (!valueOut)
+    if (!pos || !valueOut)
     {
         return false;
     }
 
-    size_t valuePos = 0;
-    if (!TryFindJsonValueStart(body, key, &valuePos))
+    SkipJsonWhitespace(text, pos);
+
+    if (*pos + 4 <= text.size() && text.compare(*pos, 4, "true") == 0)
+    {
+        const size_t end = *pos + 4;
+        if (end == text.size() || IsJsonLiteralTerminator(text[end]))
+        {
+            *valueOut = true;
+            *pos = end;
+            return true;
+        }
+    }
+
+    if (*pos + 5 <= text.size() && text.compare(*pos, 5, "false") == 0)
+    {
+        const size_t end = *pos + 5;
+        if (end == text.size() || IsJsonLiteralTerminator(text[end]))
+        {
+            *valueOut = false;
+            *pos = end;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool ParseJsonUnsignedValue(const std::string& text, size_t* pos, DWORD* valueOut, bool* clampedOut)
+{
+    if (!pos || !valueOut)
     {
         return false;
     }
 
-    size_t endPos = valuePos;
-    while (endPos < body.size() && std::isdigit(static_cast<unsigned char>(body[endPos])) != 0)
+    SkipJsonWhitespace(text, pos);
+    size_t cursor = *pos;
+    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
     {
-        ++endPos;
+        ++cursor;
     }
 
-    if (endPos == valuePos)
+    if (cursor == *pos)
     {
         return false;
     }
 
-    const std::string numberText = body.substr(valuePos, endPos - valuePos);
+    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
+    {
+        return false;
+    }
+
+    const std::string numberText = text.substr(*pos, cursor - *pos);
     unsigned long parsed = 0;
     try
     {
@@ -162,53 +258,517 @@ static bool TryExtractJsonUnsigned(const std::string& body, const char* key, DWO
         return false;
     }
 
+    bool clamped = false;
     if (parsed > 600000UL)
     {
         parsed = 600000UL;
+        clamped = true;
     }
 
     *valueOut = static_cast<DWORD>(parsed);
+    if (clampedOut)
+    {
+        *clampedOut = clamped;
+    }
+    *pos = cursor;
     return true;
 }
 
-static bool ReadConfigFromFile(const std::string& configPath, PluginConfig* configOut)
+static bool SkipJsonValue(const std::string& text, size_t* pos);
+
+static bool SkipJsonObject(const std::string& text, size_t* pos)
+{
+    if (!pos || *pos >= text.size() || text[*pos] != '{')
+    {
+        return false;
+    }
+
+    ++(*pos);
+    SkipJsonWhitespace(text, pos);
+    if (*pos < text.size() && text[*pos] == '}')
+    {
+        ++(*pos);
+        return true;
+    }
+
+    while (*pos < text.size())
+    {
+        std::string ignoredKey;
+        if (!ParseJsonStringToken(text, pos, &ignoredKey))
+        {
+            return false;
+        }
+
+        SkipJsonWhitespace(text, pos);
+        if (*pos >= text.size() || text[*pos] != ':')
+        {
+            return false;
+        }
+
+        ++(*pos);
+        if (!SkipJsonValue(text, pos))
+        {
+            return false;
+        }
+
+        SkipJsonWhitespace(text, pos);
+        if (*pos >= text.size())
+        {
+            return false;
+        }
+
+        if (text[*pos] == ',')
+        {
+            ++(*pos);
+            continue;
+        }
+
+        if (text[*pos] == '}')
+        {
+            ++(*pos);
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+static bool SkipJsonArray(const std::string& text, size_t* pos)
+{
+    if (!pos || *pos >= text.size() || text[*pos] != '[')
+    {
+        return false;
+    }
+
+    ++(*pos);
+    SkipJsonWhitespace(text, pos);
+    if (*pos < text.size() && text[*pos] == ']')
+    {
+        ++(*pos);
+        return true;
+    }
+
+    while (*pos < text.size())
+    {
+        if (!SkipJsonValue(text, pos))
+        {
+            return false;
+        }
+
+        SkipJsonWhitespace(text, pos);
+        if (*pos >= text.size())
+        {
+            return false;
+        }
+
+        if (text[*pos] == ',')
+        {
+            ++(*pos);
+            continue;
+        }
+
+        if (text[*pos] == ']')
+        {
+            ++(*pos);
+            return true;
+        }
+
+        return false;
+    }
+
+    return false;
+}
+
+static bool SkipJsonValue(const std::string& text, size_t* pos)
+{
+    if (!pos)
+    {
+        return false;
+    }
+
+    SkipJsonWhitespace(text, pos);
+    if (*pos >= text.size())
+    {
+        return false;
+    }
+
+    const char c = text[*pos];
+    if (c == '"')
+    {
+        std::string ignored;
+        return ParseJsonStringToken(text, pos, &ignored);
+    }
+
+    if (c == '{')
+    {
+        return SkipJsonObject(text, pos);
+    }
+
+    if (c == '[')
+    {
+        return SkipJsonArray(text, pos);
+    }
+
+    if (c == '-' || std::isdigit(static_cast<unsigned char>(c)) != 0)
+    {
+        size_t cursor = *pos;
+        if (text[cursor] == '-')
+        {
+            ++cursor;
+        }
+
+        bool sawDigit = false;
+        while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
+        {
+            sawDigit = true;
+            ++cursor;
+        }
+
+        if (!sawDigit)
+        {
+            return false;
+        }
+
+        if (cursor < text.size() && text[cursor] == '.')
+        {
+            ++cursor;
+            bool sawFractionDigit = false;
+            while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
+            {
+                sawFractionDigit = true;
+                ++cursor;
+            }
+            if (!sawFractionDigit)
+            {
+                return false;
+            }
+        }
+
+        if (cursor < text.size() && (text[cursor] == 'e' || text[cursor] == 'E'))
+        {
+            ++cursor;
+            if (cursor < text.size() && (text[cursor] == '+' || text[cursor] == '-'))
+            {
+                ++cursor;
+            }
+
+            bool sawExponentDigit = false;
+            while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
+            {
+                sawExponentDigit = true;
+                ++cursor;
+            }
+            if (!sawExponentDigit)
+            {
+                return false;
+            }
+        }
+
+        *pos = cursor;
+        return true;
+    }
+
+    if (*pos + 4 <= text.size() && text.compare(*pos, 4, "true") == 0)
+    {
+        *pos += 4;
+        return true;
+    }
+
+    if (*pos + 5 <= text.size() && text.compare(*pos, 5, "false") == 0)
+    {
+        *pos += 5;
+        return true;
+    }
+
+    if (*pos + 4 <= text.size() && text.compare(*pos, 4, "null") == 0)
+    {
+        *pos += 4;
+        return true;
+    }
+
+    return false;
+}
+
+static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, ConfigParseDiagnostics* diagnostics)
+{
+    if (!configOut || !diagnostics)
+    {
+        return false;
+    }
+
+    size_t pos = 0;
+    SkipUtf8Bom(body, &pos);
+    SkipJsonWhitespace(body, &pos);
+    if (pos >= body.size() || body[pos] != '{')
+    {
+        return RecordConfigSyntaxError(diagnostics, pos);
+    }
+
+    ++pos;
+    SkipJsonWhitespace(body, &pos);
+    if (pos < body.size() && body[pos] == '}')
+    {
+        ++pos;
+        SkipJsonWhitespace(body, &pos);
+        if (pos == body.size())
+        {
+            return true;
+        }
+        return RecordConfigSyntaxError(diagnostics, pos);
+    }
+
+    while (pos < body.size())
+    {
+        std::string key;
+        if (!ParseJsonStringToken(body, &pos, &key))
+        {
+            return RecordConfigSyntaxError(diagnostics, pos);
+        }
+
+        SkipJsonWhitespace(body, &pos);
+        if (pos >= body.size() || body[pos] != ':')
+        {
+            return RecordConfigSyntaxError(diagnostics, pos);
+        }
+        ++pos;
+
+        if (key == "enabled")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundEnabled = true;
+                configOut->enabled = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidEnabled = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "pause_debounce_ms")
+        {
+            DWORD parsedUnsigned = 0;
+            bool clamped = false;
+            size_t valuePos = pos;
+            if (ParseJsonUnsignedValue(body, &valuePos, &parsedUnsigned, &clamped))
+            {
+                diagnostics->foundPauseDebounceMs = true;
+                diagnostics->clampedPauseDebounceMs = diagnostics->clampedPauseDebounceMs || clamped;
+                configOut->pauseDebounceMs = parsedUnsigned;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidPauseDebounceMs = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "debug_log_transitions")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundDebugLogTransitions = true;
+                configOut->debugLogTransitions = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidDebugLogTransitions = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else
+        {
+            if (!SkipJsonValue(body, &pos))
+            {
+                return RecordConfigSyntaxError(diagnostics, pos);
+            }
+        }
+
+        SkipJsonWhitespace(body, &pos);
+        if (pos >= body.size())
+        {
+            return RecordConfigSyntaxError(diagnostics, pos);
+        }
+
+        if (body[pos] == ',')
+        {
+            ++pos;
+            SkipJsonWhitespace(body, &pos);
+            continue;
+        }
+
+        if (body[pos] == '}')
+        {
+            ++pos;
+            break;
+        }
+
+        return RecordConfigSyntaxError(diagnostics, pos);
+    }
+
+    SkipJsonWhitespace(body, &pos);
+    if (pos != body.size())
+    {
+        return RecordConfigSyntaxError(diagnostics, pos);
+    }
+
+    return true;
+}
+
+static bool RunInternalSelfChecks()
+{
+    // Keep this intentionally small: sanity-check parser and state helpers.
+    PluginConfig parsedConfig = { true, 2000, false };
+    ConfigParseDiagnostics diagnostics;
+    ResetConfigParseDiagnostics(&diagnostics);
+
+    if (!ParseConfigJson(
+            "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_log_transitions\":true}",
+            &parsedConfig,
+            &diagnostics))
+    {
+        return false;
+    }
+    if (parsedConfig.enabled || parsedConfig.pauseDebounceMs != 1234 || !parsedConfig.debugLogTransitions)
+    {
+        return false;
+    }
+
+    const std::string bomJson = std::string("\xEF\xBB\xBF") + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_log_transitions\":false}";
+    parsedConfig.enabled = false;
+    parsedConfig.pauseDebounceMs = 1;
+    parsedConfig.debugLogTransitions = true;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!parsedConfig.enabled || parsedConfig.pauseDebounceMs != 2000 || parsedConfig.debugLogTransitions)
+    {
+        return false;
+    }
+
+    parsedConfig.enabled = true;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"enabled\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidEnabled)
+    {
+        return false;
+    }
+
+    if (!DebounceWindowElapsed(100, 0, 50) || DebounceWindowElapsed(20, 0, 50))
+    {
+        return false;
+    }
+
+    const RuntimeState savedState = g_state;
+    g_state.loadInProgress = true;
+    g_state.pauseArmed = true;
+    g_state.loadSignalSeenAfterArm = true;
+    g_state.armTimestampMs = 99;
+    g_state.loggedWorldUnavailable = true;
+    DisarmPauseAfterLoad();
+    const bool disarmedOk =
+        !g_state.loadInProgress
+        && !g_state.pauseArmed
+        && !g_state.loadSignalSeenAfterArm
+        && g_state.armTimestampMs == 0
+        && !g_state.loggedWorldUnavailable;
+    g_state = savedState;
+    return disarmedOk;
+}
+
+static bool ReadConfigFromFile(
+    const std::string& configPath,
+    PluginConfig* configOut,
+    bool* foundFileOut,
+    bool* needsWriteBackOut)
 {
     if (!configOut)
     {
         return false;
     }
 
+    if (foundFileOut)
+    {
+        *foundFileOut = false;
+    }
+    if (needsWriteBackOut)
+    {
+        *needsWriteBackOut = false;
+    }
+
     std::ifstream in(configPath.c_str(), std::ios::in | std::ios::binary);
     if (!in)
     {
+        if (needsWriteBackOut)
+        {
+            *needsWriteBackOut = true;
+        }
         return true;
     }
 
+    if (foundFileOut)
+    {
+        *foundFileOut = true;
+    }
+
     const std::string body((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-
-    bool boolValue = false;
-    DWORD unsignedValue = 0;
-
-    if (TryExtractJsonBool(body, "enabled", &boolValue))
+    ConfigParseDiagnostics diagnostics;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson(body, configOut, &diagnostics))
     {
-        configOut->enabled = boolValue;
+        std::stringstream error;
+        error << kPluginName << " ERROR: mod-config.json parse error near byte offset " << diagnostics.syntaxErrorOffset;
+        ErrorLog(error.str().c_str());
+        return false;
     }
 
-    if (TryExtractJsonBool(body, "pause_on_save_load", &boolValue))
+    bool needsWriteBack = false;
+    if (!diagnostics.foundEnabled || diagnostics.invalidEnabled)
     {
-        configOut->pauseOnSaveLoad = boolValue;
+        needsWriteBack = true;
+        ErrorLog("Auto-Pause-on-Load WARN: invalid/missing key \"enabled\"; using default");
     }
-
-    if (TryExtractJsonUnsigned(body, "pause_debounce_ms", &unsignedValue))
+    if (!diagnostics.foundPauseDebounceMs || diagnostics.invalidPauseDebounceMs)
     {
-        configOut->pauseDebounceMs = unsignedValue;
+        needsWriteBack = true;
+        ErrorLog("Auto-Pause-on-Load WARN: invalid/missing key \"pause_debounce_ms\"; using default");
     }
-
-    if (TryExtractJsonBool(body, "debug_log_transitions", &boolValue))
+    if (diagnostics.clampedPauseDebounceMs)
     {
-        configOut->debugLogTransitions = boolValue;
+        needsWriteBack = true;
+        ErrorLog("Auto-Pause-on-Load WARN: \"pause_debounce_ms\" exceeded max; clamped to 600000");
     }
-
+    if (!diagnostics.foundDebugLogTransitions || diagnostics.invalidDebugLogTransitions)
+    {
+        needsWriteBack = true;
+        ErrorLog("Auto-Pause-on-Load WARN: invalid/missing key \"debug_log_transitions\"; using default");
+    }
+    if (needsWriteBackOut)
+    {
+        *needsWriteBackOut = needsWriteBack;
+    }
     return true;
 }
 
@@ -222,7 +782,6 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
-    out << "  \"pause_on_save_load\": " << (config.pauseOnSaveLoad ? "true" : "false") << ",\n";
     out << "  \"pause_debounce_ms\": " << config.pauseDebounceMs << ",\n";
     out << "  \"debug_log_transitions\": " << (config.debugLogTransitions ? "true" : "false") << "\n";
     out << "}\n";
@@ -232,8 +791,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
 static void LoadConfigState()
 {
+    g_configNeedsWriteBack = false;
     g_config.enabled = true;
-    g_config.pauseOnSaveLoad = true;
     g_config.pauseDebounceMs = 2000;
     g_config.debugLogTransitions = false;
 
@@ -242,15 +801,23 @@ static void LoadConfigState()
         return;
     }
 
-    if (!ReadConfigFromFile(g_settingsPath, &g_config))
+    bool foundConfigFile = false;
+    bool needsWriteBack = false;
+    if (!ReadConfigFromFile(g_settingsPath, &g_config, &foundConfigFile, &needsWriteBack))
     {
-        ErrorLog("Auto-Pause-on-Load ERROR: failed to read mod-config.json; using defaults");
+        ErrorLog("Auto-Pause-on-Load ERROR: failed to read mod-config.json; using defaults and rewriting file");
+        g_configNeedsWriteBack = true;
         return;
+    }
+
+    g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
+    if (!foundConfigFile)
+    {
+        DebugLog("Auto-Pause-on-Load INFO: mod-config.json not found; using defaults");
     }
 
     std::stringstream info;
     info << "Auto-Pause-on-Load INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
-         << " pause_on_save_load=" << (g_config.pauseOnSaveLoad ? "true" : "false")
          << " pause_debounce_ms=" << g_config.pauseDebounceMs
          << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false");
     DebugLog(info.str().c_str());
@@ -273,119 +840,119 @@ static bool SaveConfigState()
     return true;
 }
 
-static bool InitPauseOnLoadFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddr)
-{
-    (void)platform;
-    (void)version;
-    (void)baseAddr;
-
-    // Scaffold only: wire these once save-load signal and pause setter offsets are verified.
-    // Example shape expected:
-    // g_fnIsLoadingSave = reinterpret_cast<FnIsLoadingSave>(baseAddr + 0xDEADBEEF);
-    // g_fnSetPaused = reinterpret_cast<FnSetPaused>(baseAddr + 0xDEADBEEF);
-    g_fnIsLoadingSave = 0;
-    g_fnSetPaused = 0;
-
-    return true;
-}
-
-static bool QuerySaveLoadSignal(bool* availableOut, bool* isLoadingOut)
-{
-    if (!availableOut || !isLoadingOut)
-    {
-        return false;
-    }
-
-    *availableOut = false;
-    *isLoadingOut = false;
-
-    if (!g_fnIsLoadingSave)
-    {
-        return true;
-    }
-
-    *isLoadingOut = g_fnIsLoadingSave();
-    *availableOut = true;
-    return true;
-}
-
-static bool ForcePauseTrue()
-{
-    if (!g_fnSetPaused)
-    {
-        if (!g_state.loggedMissingPauseApi)
-        {
-            ErrorLog("Auto-Pause-on-Load WARN: pause setter not wired yet; auto-pause scaffold is idle");
-            g_state.loggedMissingPauseApi = true;
-        }
-        return false;
-    }
-
-    g_fnSetPaused(true);
-    g_state.loggedMissingPauseApi = false;
-    return true;
-}
-
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs)
 {
     const DWORD elapsed = nowMs - lastEventMs;
     return elapsed >= minGapMs;
 }
 
-static void ResetLifecycleState()
+static void DisarmPauseAfterLoad()
 {
-    g_state.loadInProgress = false;
     g_state.pauseArmed = false;
-    g_state.loadStartedMs = 0;
+    g_state.loadInProgress = false;
+    g_state.loadSignalSeenAfterArm = false;
+    g_state.armTimestampMs = 0;
+    g_state.loggedWorldUnavailable = false;
 }
 
-static void OnLoadStarted(DWORD nowMs)
+static void ArmPauseAfterLoad(const char* source)
 {
-    g_state.loadInProgress = true;
     g_state.pauseArmed = true;
-    g_state.loadStartedMs = nowMs;
+    g_state.loadInProgress = false;
+    g_state.loadSignalSeenAfterArm = false;
+    g_state.armTimestampMs = GetTickCount();
+    g_state.loggedWorldUnavailable = false;
 
     if (g_config.debugLogTransitions)
     {
-        DebugLog("Auto-Pause-on-Load DEBUG: load started; pause armed");
+        std::stringstream logline;
+        logline << "Auto-Pause-on-Load DEBUG: armed from " << source;
+        DebugLog(logline.str().c_str());
     }
 }
 
-static void OnLoadFinished(DWORD nowMs)
+static bool QuerySaveLoadSignal(bool* isLoadingOut)
 {
-    if (g_config.debugLogTransitions)
+    if (!isLoadingOut)
     {
-        DebugLog("Auto-Pause-on-Load DEBUG: load finished");
+        return false;
     }
 
-    if (!g_state.pauseArmed)
+    *isLoadingOut = false;
+    if (!ou)
     {
-        ResetLifecycleState();
-        return;
+        if (!g_state.loggedWorldUnavailable)
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: game world unavailable while waiting for save-load completion");
+            g_state.loggedWorldUnavailable = true;
+        }
+        return false;
     }
 
+    g_state.loggedWorldUnavailable = false;
+    __try
+    {
+        *isLoadingOut = ou->isLoadingFromASaveGame();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Auto-Pause-on-Load WARN: exception while querying save-load state");
+        return false;
+    }
+}
+
+static bool ForcePauseTrue()
+{
+    if (!ou)
+    {
+        if (!g_state.loggedWorldUnavailable)
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: game world unavailable; cannot force pause");
+            g_state.loggedWorldUnavailable = true;
+        }
+        return false;
+    }
+
+    g_state.loggedWorldUnavailable = false;
+    __try
+    {
+        ou->userPause(true);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Auto-Pause-on-Load WARN: exception while forcing paused state");
+        return false;
+    }
+}
+
+static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
+{
     if (!DebounceWindowElapsed(nowMs, g_state.lastPauseMs, g_config.pauseDebounceMs))
     {
         if (g_config.debugLogTransitions)
         {
             DebugLog("Auto-Pause-on-Load DEBUG: pause skipped (debounce)");
         }
-        ResetLifecycleState();
+        DisarmPauseAfterLoad();
         return;
     }
 
     if (ForcePauseTrue())
     {
         g_state.lastPauseMs = nowMs;
-        DebugLog("Auto-Pause-on-Load INFO: paused_after_load=true");
+        std::stringstream info;
+        info << "Auto-Pause-on-Load INFO: paused_after_load=true source=" << reason;
+        DebugLog(info.str().c_str());
     }
 
-    ResetLifecycleState();
+    DisarmPauseAfterLoad();
 }
 
 static void TickPauseOnLoad()
 {
-    if (!g_config.enabled || !g_config.pauseOnSaveLoad)
+    if (!g_config.enabled)
     {
         return;
     }
@@ -394,42 +961,63 @@ static void TickPauseOnLoad()
 
     if (g_config.debugLogTransitions)
     {
-        if (g_state.lastTickAliveLogMs == 0 || DebounceWindowElapsed(nowMs, g_state.lastTickAliveLogMs, 5000))
+        if (g_state.lastTickAliveLogMs == 0 || DebounceWindowElapsed(nowMs, g_state.lastTickAliveLogMs, kTickAliveIntervalMs))
         {
             DebugLog("Auto-Pause-on-Load DEBUG: tick alive");
             g_state.lastTickAliveLogMs = nowMs;
         }
     }
 
-    bool signalAvailable = false;
+    if (!g_hasSaveLoadHook || !g_state.pauseArmed)
+    {
+        return;
+    }
+
+    if (g_state.armTimestampMs != 0 && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
+    {
+        ErrorLog("Auto-Pause-on-Load WARN: armed pause timed out before load completion");
+        DisarmPauseAfterLoad();
+        return;
+    }
+
     bool isLoadingSave = false;
-    if (!QuerySaveLoadSignal(&signalAvailable, &isLoadingSave))
+    if (!QuerySaveLoadSignal(&isLoadingSave))
     {
-        ErrorLog("Auto-Pause-on-Load WARN: load signal query failed");
         return;
     }
 
-    if (!signalAvailable)
+    if (isLoadingSave)
     {
-        if (!g_state.loggedMissingLoadSignal)
+        if (!g_state.loadInProgress && g_config.debugLogTransitions)
         {
-            ErrorLog("Auto-Pause-on-Load WARN: load detection not wired yet; auto-pause scaffold is idle");
-            g_state.loggedMissingLoadSignal = true;
+            DebugLog("Auto-Pause-on-Load DEBUG: load started");
         }
+        g_state.loadInProgress = true;
+        g_state.loadSignalSeenAfterArm = true;
         return;
     }
 
-    g_state.loggedMissingLoadSignal = false;
-
-    if (!g_state.loadInProgress && isLoadingSave)
+    if (g_state.loadInProgress)
     {
-        OnLoadStarted(nowMs);
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Auto-Pause-on-Load DEBUG: load finished");
+        }
+        TryPauseAndDisarm(nowMs, "load_transition");
         return;
     }
 
-    if (g_state.loadInProgress && !isLoadingSave)
+    // Disarm if no load signal arrives shortly after arming. This avoids
+    // false-positive pauses when a load call fails or is cancelled early.
+    if (!g_state.loadSignalSeenAfterArm
+        && g_state.armTimestampMs != 0
+        && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kNoSignalDisarmMs))
     {
-        OnLoadFinished(nowMs);
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Auto-Pause-on-Load DEBUG: no load signal observed; disarming");
+        }
+        DisarmPauseAfterLoad();
     }
 }
 
@@ -437,6 +1025,24 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
     TickPauseOnLoad();
+}
+
+static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
+{
+    ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
+    if (SaveManager_loadByInfo_orig)
+    {
+        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
+    }
+}
+
+static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
+{
+    ArmPauseAfterLoad("SaveManager::load(name)");
+    if (SaveManager_loadByName_orig)
+    {
+        SaveManager_loadByName_orig(thisptr, saveName);
+    }
 }
 
 __declspec(dllexport) void startPlugin()
@@ -453,15 +1059,20 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    const uintptr_t baseAddr = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));
-    if (!InitPauseOnLoadFunctions(platform, version, baseAddr))
+    LoadConfigState();
+    if (g_configNeedsWriteBack)
     {
-        ErrorLog("Auto-Pause-on-Load: failed to initialize runtime functions");
-        return;
+        if (!SaveConfigState())
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: failed to persist normalized mod-config.json");
+        }
     }
 
-    LoadConfigState();
-    SaveConfigState();
+    if (!RunInternalSelfChecks())
+    {
+        ErrorLog("Auto-Pause-on-Load ERROR: internal self-check failed");
+        return;
+    }
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
@@ -472,10 +1083,40 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
+    g_hasSaveLoadHook = false;
+    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
+        SaveManager_loadByInfo_hook,
+        &SaveManager_loadByInfo_orig))
+    {
+        g_hasSaveLoadHook = true;
+    }
+    else
+    {
+        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(SaveInfo,bool)");
+    }
+
+    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
+        SaveManager_loadByName_hook,
+        &SaveManager_loadByName_orig))
+    {
+        g_hasSaveLoadHook = true;
+    }
+    else
+    {
+        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(std::string)");
+    }
+
+    if (!g_hasSaveLoadHook)
+    {
+        ErrorLog("Auto-Pause-on-Load: no SaveManager load hooks active; feature disabled");
+    }
+
     std::stringstream info;
     info << "Auto-Pause-on-Load INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
-         << ", pause_on_save_load=" << (g_config.pauseOnSaveLoad ? "true" : "false")
-         << ", pause_debounce_ms=" << g_config.pauseDebounceMs << ")";
+         << ", pause_debounce_ms=" << g_config.pauseDebounceMs
+         << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }
 
