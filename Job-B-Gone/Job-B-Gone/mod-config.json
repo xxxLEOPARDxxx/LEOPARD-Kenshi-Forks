@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "pause_debounce_ms": 2000,
+  "debug_log_transitions": false,
+  "enable_delete_all_jobs_selected_member_action": true,
+  "enable_experimental_single_job_delete": false,
+  "log_selected_member_job_snapshot": true
+}

@@ -1,4 +1,4 @@
-## Auto Pause on Load (RE_Kenshi plugin)
+## Job-B-Gone (RE_Kenshi plugin)
 Pauses Kenshi after a save load lifecycle is detected.
 
 Current status: implemented for Kenshi `1.0.65` using:
@@ -7,6 +7,8 @@ Current status: implemented for Kenshi `1.0.65` using:
 - `GameWorld::userPause(true)` to force paused state after load completes.
 
 ## Setup
+Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
 3) Source the env script:
@@ -30,21 +32,24 @@ Optional parameters:
 - `-Platform "x64"`
 
 ## Deploy layout
-Mod data folder name: `Auto-Pause-on-Load`
+Mod data folder name: `Job-B-Gone`
 
 After deploy, expected files:
-- `[Kenshi install dir]\mods\Auto-Pause-on-Load\Auto-Pause-on-Load.mod`
-- `[Kenshi install dir]\mods\Auto-Pause-on-Load\RE_Kenshi.json`
-- `[Kenshi install dir]\mods\Auto-Pause-on-Load\Auto-Pause-on-Load.dll`
-- `[Kenshi install dir]\mods\Auto-Pause-on-Load\mod-config.json`
+- `[Kenshi install dir]\mods\Job-B-Gone\Job-B-Gone.mod`
+- `[Kenshi install dir]\mods\Job-B-Gone\RE_Kenshi.json`
+- `[Kenshi install dir]\mods\Job-B-Gone\Job-B-Gone.dll`
+- `[Kenshi install dir]\mods\Job-B-Gone\mod-config.json`
 
 ## Config
 At runtime, the plugin reads:
-- `[Kenshi install dir]\mods\Auto-Pause-on-Load\mod-config.json`
+- `[Kenshi install dir]\mods\Job-B-Gone\mod-config.json`
 
 Supported keys:
 - `enabled` (bool)
 - `pause_debounce_ms` (number, 0..600000)
 - `debug_log_transitions` (bool)
+- `enable_delete_all_jobs_selected_member_action` (bool)
+- `enable_experimental_single_job_delete` (bool, currently reserved for future row-delete work)
+- `log_selected_member_job_snapshot` (bool, logs selected-member job rows before/after delete-all)
 
 If config is missing or unreadable, defaults are used and written back.
