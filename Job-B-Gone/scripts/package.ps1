@@ -1,117 +1,39 @@
-# Package-only script for Auto-Pause-on-Load.
-
+# Local wrapper: delegates to shared scripts submodule.
 param(
-    [string]$ModName = "",
-    [string]$KenshiPath = "",
-    [string]$SourceModPath = "",
-    [string]$DllName = "",
-    [string]$ModFileName = "",
-    [string]$ConfigFileName = "RE_Kenshi.json",
-    [string]$OutDir = "",
-    [string]$ZipName = "",
-    [string]$Version = ""
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [object[]]$PassthroughArgs
 )
 
 $ErrorActionPreference = "Stop"
-
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoDir = Split-Path -Parent $ScriptDir
-$LoadEnv = Join-Path $ScriptDir "load-env.ps1"
-if (Test-Path $LoadEnv) {
-    . $LoadEnv -RepoDir $RepoDir
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir -and $PSCommandPath) {
+    $ScriptDir = Split-Path -Parent $PSCommandPath
+}
+if ($ScriptDir) {
+    $RepoDir = Split-Path -Parent $ScriptDir
+} else {
+    $RepoDir = (Get-Location).Path
 }
 
-if (-not $PSBoundParameters.ContainsKey("KenshiPath") -and $env:KENSHI_PATH) {
-    $KenshiPath = $env:KENSHI_PATH
-}
-if (-not $KenshiPath -and $env:KENSHI_DEFAULT_PATH) {
-    $KenshiPath = $env:KENSHI_DEFAULT_PATH
-}
-if (-not $ModName) {
-    if ($env:KENSHI_MOD_NAME) {
-        $ModName = $env:KENSHI_MOD_NAME
-    } else {
-        $ModName = Split-Path -Leaf $RepoDir
-    }
-}
-if (-not $DllName) {
-    if ($env:KENSHI_DLL_NAME) {
-        $DllName = $env:KENSHI_DLL_NAME
-    } else {
-        $DllName = "$ModName.dll"
-    }
-}
-if (-not $ModFileName) {
-    if ($env:KENSHI_MOD_FILE_NAME) {
-        $ModFileName = $env:KENSHI_MOD_FILE_NAME
-    } else {
-        $ModFileName = "$ModName.mod"
-    }
-}
-if (-not $ConfigFileName -and $env:KENSHI_CONFIG_FILE_NAME) {
-    $ConfigFileName = $env:KENSHI_CONFIG_FILE_NAME
-}
+$env:KENSHI_REPO_DIR = $RepoDir
+$SharedRoot = Join-Path $RepoDir "tools\build-scripts"
+$LoadEnvScript = Join-Path $SharedRoot "load-env.ps1"
+$SharedScript = Join-Path $SharedRoot "package.ps1"
 
-$VersionFile = Join-Path $RepoDir "VERSION"
-
-$PackageSourcePath = $SourceModPath
-if (-not $PackageSourcePath) {
-    if (-not $KenshiPath) {
-        Write-Host "ERROR: Kenshi path is not set. Provide -SourceModPath or set KENSHI_PATH in .env." -ForegroundColor Red
-        exit 1
-    }
-    $PackageSourcePath = Join-Path $KenshiPath "mods\$ModName"
-}
-
-if (-not (Test-Path $PackageSourcePath)) {
-    Write-Host "ERROR: Mod folder not found: $PackageSourcePath" -ForegroundColor Red
+if (-not (Test-Path $SharedScript)) {
+    Write-Host "ERROR: Shared script not found: $SharedScript" -ForegroundColor Red
+    Write-Host "Run: git submodule update --init --recursive" -ForegroundColor Yellow
     exit 1
 }
 
-$RequiredFiles = @(
-    $DllName,
-    $ConfigFileName,
-    $ModFileName
-)
-
-foreach ($f in $RequiredFiles) {
-    $p = Join-Path $PackageSourcePath $f
-    if (-not (Test-Path $p)) {
-        Write-Host "ERROR: Missing required file in package source: $p" -ForegroundColor Red
-        exit 1
-    }
+if (Test-Path $LoadEnvScript) {
+    . $LoadEnvScript -RepoDir $RepoDir
 }
 
-if (-not $OutDir) {
-    $OutDir = Join-Path $RepoDir "dist"
+$ArgsToPass = @()
+if ($PassthroughArgs) {
+    $ArgsToPass = @($PassthroughArgs | Where-Object { $_ -ne $null -and $_.ToString() -ne "" })
 }
 
-if (-not (Test-Path $OutDir)) {
-    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
-}
-
-if (-not $Version) {
-    if (Test-Path $VersionFile) {
-        $Version = (Get-Content -Path $VersionFile | Select-Object -First 1).Trim()
-    }
-}
-
-if (-not $ZipName) {
-    if ($Version) {
-        $ZipName = "$ModName-$Version.zip"
-    } else {
-        $ZipName = "$ModName-alpha.zip"
-    }
-}
-
-$ZipPath = Join-Path $OutDir $ZipName
-if (Test-Path $ZipPath) {
-    Remove-Item -Path $ZipPath -Force
-}
-
-Write-Host "Packaging: $PackageSourcePath" -ForegroundColor Yellow
-Write-Host "Output:    $ZipPath" -ForegroundColor Gray
-
-Compress-Archive -Path $PackageSourcePath -DestinationPath $ZipPath
-
-Write-Host "Package created: $ZipPath" -ForegroundColor Green
+& $SharedScript @ArgsToPass
+exit $LASTEXITCODE

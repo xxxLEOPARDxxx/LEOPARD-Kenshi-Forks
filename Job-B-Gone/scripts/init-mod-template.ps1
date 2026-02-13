@@ -18,7 +18,7 @@ if ($ScriptDir) {
 $env:KENSHI_REPO_DIR = $RepoDir
 $SharedRoot = Join-Path $RepoDir "tools\build-scripts"
 $LoadEnvScript = Join-Path $SharedRoot "load-env.ps1"
-$SharedScript = Join-Path $SharedRoot "build-and-package.ps1"
+$SharedScript = Join-Path $SharedRoot "init-mod-template.ps1"
 
 if (-not (Test-Path $SharedScript)) {
     Write-Host "ERROR: Shared script not found: $SharedScript" -ForegroundColor Red
