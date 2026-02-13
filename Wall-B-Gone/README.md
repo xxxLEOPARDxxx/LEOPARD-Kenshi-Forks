@@ -2,6 +2,8 @@
 Safely dismantles selected walls with Hotkey X and returns materials.
 
 ## Setup
+Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
 3) Source the env script:

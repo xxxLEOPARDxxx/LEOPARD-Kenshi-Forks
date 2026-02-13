@@ -1,44 +1,20 @@
-# Run this script in your PowerShell terminal before opening Visual Studio:
-# . .\scripts\setup_env.ps1
-# The leading dot sources the script in the current scope.
-
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoDir = Split-Path -Parent $ScriptDir
-$LoadEnv = Join-Path $ScriptDir "load-env.ps1"
-if (Test-Path $LoadEnv) {
-    . $LoadEnv -RepoDir $RepoDir
+# Local wrapper: delegates to shared scripts submodule.
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir -and $PSCommandPath) {
+    $ScriptDir = Split-Path -Parent $PSCommandPath
 }
-
-# Prefer explicit env override; otherwise use repo-relative defaults.
-if ($env:KENSHI_DEFAULT_DEPS_DIR) {
-    $defaultDepsDir = $env:KENSHI_DEFAULT_DEPS_DIR
+if ($ScriptDir) {
+    $RepoDir = Split-Path -Parent $ScriptDir
 } else {
-    $workspaceRoot = Split-Path -Parent $RepoDir
-    $defaultDepsDir = Join-Path $workspaceRoot "_deps\KenshiLib_Examples_deps"
+    $RepoDir = (Get-Location).Path
+}
+$env:KENSHI_REPO_DIR = $RepoDir
+$SharedScript = Join-Path $RepoDir "tools\build-scripts\setup_env.ps1"
+
+if (-not (Test-Path $SharedScript)) {
+    Write-Host "ERROR: Shared script not found: $SharedScript" -ForegroundColor Red
+    Write-Host "Run: git submodule update --init --recursive" -ForegroundColor Yellow
+    return
 }
 
-$expectedRoot = if ($env:KENSHI_DEPS_ROOT) { $env:KENSHI_DEPS_ROOT } else { Join-Path (Split-Path -Parent $RepoDir) "_deps" }
-$needsDepsReset = -not $env:KENSHILIB_DEPS_DIR
-if (-not $needsDepsReset) {
-    $depsRoot = [IO.Path]::GetFullPath($env:KENSHILIB_DEPS_DIR)
-    $expectedRootFull = [IO.Path]::GetFullPath($expectedRoot)
-    if (-not $depsRoot.StartsWith($expectedRootFull, [StringComparison]::OrdinalIgnoreCase)) {
-        $needsDepsReset = $true
-    }
-}
-if ($needsDepsReset) {
-    $env:KENSHILIB_DEPS_DIR = $defaultDepsDir
-}
-
-$expectedKenshiLib = Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"
-if (-not $env:KENSHILIB_DIR -or ($env:KENSHILIB_DIR -ne $expectedKenshiLib)) {
-    $env:KENSHILIB_DIR = $expectedKenshiLib
-}
-
-$expectedBoost = Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0"
-if (-not $env:BOOST_INCLUDE_PATH -or ($env:BOOST_INCLUDE_PATH -ne $expectedBoost)) {
-    $env:BOOST_INCLUDE_PATH = $expectedBoost
-}
-
-Write-Host "Environment variables set for this session:"
-Write-Host "KENSHILIB_DEPS_DIR = $env:KENSHILIB_DEPS_DIR"
+. $SharedScript
