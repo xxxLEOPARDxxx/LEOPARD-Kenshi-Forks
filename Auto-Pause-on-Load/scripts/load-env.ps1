@@ -1,34 +1,27 @@
-# Loads .env from repo root into the current process environment.
-# Lines are KEY=VALUE, comments start with #, and blank lines are ignored.
-
+# Local wrapper: delegates to shared scripts submodule.
 param(
     [string]$RepoDir
 )
 
-if (-not $RepoDir) {
-    $RepoDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$ErrorActionPreference = "Stop"
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir -and $PSCommandPath) {
+    $ScriptDir = Split-Path -Parent $PSCommandPath
 }
+if (-not $RepoDir) {
+    if ($ScriptDir) {
+        $RepoDir = Split-Path -Parent $ScriptDir
+    } else {
+        $RepoDir = (Get-Location).Path
+    }
+}
+$env:KENSHI_REPO_DIR = $RepoDir
+$SharedScript = Join-Path $RepoDir "tools\build-scripts\load-env.ps1"
 
-$EnvPath = Join-Path $RepoDir ".env"
-if (-not (Test-Path $EnvPath)) {
+if (-not (Test-Path $SharedScript)) {
+    Write-Host "ERROR: Shared script not found: $SharedScript" -ForegroundColor Red
+    Write-Host "Run: git submodule update --init --recursive" -ForegroundColor Yellow
     return
 }
 
-Get-Content -Path $EnvPath | ForEach-Object {
-    $line = $_.Trim()
-    if (-not $line) { return }
-    if ($line.StartsWith("#")) { return }
-    $idx = $line.IndexOf("=")
-    if ($idx -lt 1) { return }
-    $key = $line.Substring(0, $idx).Trim()
-    $val = $line.Substring($idx + 1).Trim()
-    if ($val.Length -ge 2) {
-        if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
-            $val = $val.Substring(1, $val.Length - 2)
-        }
-    }
-    if ($key) {
-        Set-Item -Path "env:$key" -Value $val
-    }
-}
-
+. $SharedScript -RepoDir $RepoDir
