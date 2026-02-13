@@ -1,23 +1,21 @@
 # Local wrapper: delegates to shared scripts submodule.
 param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [object[]]$PassthroughArgs
+    [string]$ModName = "",
+    [string]$KenshiPath = "",
+    [string]$SourceModPath = "",
+    [string]$DllName = "",
+    [string]$ModFileName = "",
+    [string]$ConfigFileName = "RE_Kenshi.json",
+    [string]$OutDir = "",
+    [string]$ZipName = "",
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = $PSScriptRoot
-if (-not $ScriptDir -and $PSCommandPath) {
-    $ScriptDir = Split-Path -Parent $PSCommandPath
-}
-if ($ScriptDir) {
-    $RepoDir = Split-Path -Parent $ScriptDir
-} else {
-    $RepoDir = (Get-Location).Path
-}
-
+$ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $PSCommandPath }
+$RepoDir = if ($ScriptDir) { Split-Path -Parent $ScriptDir } else { (Get-Location).Path }
 $env:KENSHI_REPO_DIR = $RepoDir
 $SharedRoot = Join-Path $RepoDir "tools\build-scripts"
-$LoadEnvScript = Join-Path $SharedRoot "load-env.ps1"
 $SharedScript = Join-Path $SharedRoot "package.ps1"
 
 if (-not (Test-Path $SharedScript)) {
@@ -26,14 +24,15 @@ if (-not (Test-Path $SharedScript)) {
     exit 1
 }
 
+$LoadEnvScript = Join-Path $SharedRoot "load-env.ps1"
 if (Test-Path $LoadEnvScript) {
     . $LoadEnvScript -RepoDir $RepoDir
 }
 
-$ArgsToPass = @()
-if ($PassthroughArgs) {
-    $ArgsToPass = @($PassthroughArgs | Where-Object { $_ -ne $null -and $_.ToString() -ne "" })
+$Forward = @{}
+foreach ($k in @('ModName','KenshiPath','SourceModPath','DllName','ModFileName','ConfigFileName','OutDir','ZipName','Version')) {
+    if ($PSBoundParameters.ContainsKey($k)) { $Forward[$k] = (Get-Variable -Name $k -ValueOnly) }
 }
 
-& $SharedScript @ArgsToPass
+& $SharedScript @Forward
 exit $LASTEXITCODE

@@ -4,10 +4,12 @@ set -euo pipefail
 SCRIPT_DIR_UNIX="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR_UNIX/_env.sh"
 PS_SCRIPT="$(to_windows_path "$SCRIPT_DIR_UNIX/build-and-package.ps1")"
-if command -v pwsh >/dev/null 2>&1; then
-  PSH="pwsh"
+if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
+  PSH="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 elif command -v powershell.exe >/dev/null 2>&1; then
   PSH="powershell.exe"
+elif command -v pwsh >/dev/null 2>&1; then
+  PSH="pwsh"
 else
   PSH="powershell"
 fi
