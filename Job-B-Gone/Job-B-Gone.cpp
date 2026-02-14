@@ -25,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 struct PluginConfig
 {
@@ -48,6 +49,17 @@ struct RuntimeState
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
     bool loggedWorldUnavailable;
+};
+
+struct JobRowModel
+{
+    int slot;
+    TaskType taskType;
+    std::string taskName;
+    uintptr_t taskDataPtr;
+    std::string jobKeyBase;
+    int duplicateOrdinal;
+    std::string jobKey;
 };
 
 static const char* kPluginName = "Job-B-Gone";
@@ -160,6 +172,8 @@ static Character* ResolveSelectedMember();
 static bool TryResolveSelectedMemberForDebug();
 static bool TryGetPermajobCount(Character* member, int* countOut);
 static bool TryGetPermajobRow(Character* member, int slot, TaskType* taskTypeOut, std::string* nameOut, uintptr_t* taskDataPtrOut);
+static bool BuildSelectedMemberJobSnapshot(Character* member, std::vector<JobRowModel>* rowsOut, const char** resultOut);
+static void ValidateSelectedMemberJobKeyStability(Character* member, const std::vector<JobRowModel>& snapshotRows, const char* phase);
 static void LogSelectedMemberJobSnapshot(Character* member, const char* phase);
 static bool TryDeleteAllJobsForSelectedMember(int* beforeOut, int* afterOut, int* deletedOut, const char** resultOut);
 static bool RefreshSelectedMemberUi(const char* source);
@@ -773,6 +787,151 @@ static bool TryGetPermajobRow(
     }
 }
 
+static std::string BuildJobKeyBase(TaskType taskType, const std::string& taskName, uintptr_t taskDataPtr)
+{
+    std::stringstream keyBase;
+    if (taskDataPtr != 0)
+    {
+        // Prefer opaque task pointer identity when available to reduce reorder sensitivity.
+        keyBase << "ptr:0x" << std::hex << taskDataPtr;
+    }
+    else
+    {
+        // Fallback to deterministic signature when task pointer is unavailable.
+        keyBase << "sig:type=" << std::dec << static_cast<int>(taskType) << "|name=" << taskName;
+    }
+    return keyBase.str();
+}
+
+static int CountExistingRowsWithKeyBase(const std::vector<JobRowModel>& rows, const std::string& keyBase)
+{
+    int duplicateOrdinal = 0;
+    const size_t size = rows.size();
+    for (size_t i = 0; i < size; ++i)
+    {
+        if (rows[i].jobKeyBase == keyBase)
+        {
+            ++duplicateOrdinal;
+        }
+    }
+    return duplicateOrdinal;
+}
+
+static bool BuildSelectedMemberJobSnapshot(Character* member, std::vector<JobRowModel>* rowsOut, const char** resultOut)
+{
+    if (rowsOut)
+    {
+        rowsOut->clear();
+    }
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!member || !rowsOut)
+    {
+        if (resultOut)
+        {
+            *resultOut = "invalid_input";
+        }
+        return false;
+    }
+
+    int count = 0;
+    if (!TryGetPermajobCount(member, &count))
+    {
+        if (resultOut)
+        {
+            *resultOut = "count_read_failed";
+        }
+        return false;
+    }
+
+    rowsOut->reserve(static_cast<size_t>(count));
+    for (int slot = 0; slot < count; ++slot)
+    {
+        TaskType taskType = static_cast<TaskType>(0);
+        std::string taskName;
+        uintptr_t taskDataPtr = 0;
+        if (!TryGetPermajobRow(member, slot, &taskType, &taskName, &taskDataPtr))
+        {
+            if (resultOut)
+            {
+                *resultOut = "row_read_failed";
+            }
+            return false;
+        }
+
+        JobRowModel row;
+        row.slot = slot;
+        row.taskType = taskType;
+        row.taskName = taskName;
+        row.taskDataPtr = taskDataPtr;
+        row.jobKeyBase = BuildJobKeyBase(taskType, taskName, taskDataPtr);
+        row.duplicateOrdinal = CountExistingRowsWithKeyBase(*rowsOut, row.jobKeyBase);
+
+        std::stringstream key;
+        key << row.jobKeyBase << "|dup=" << row.duplicateOrdinal;
+        row.jobKey = key.str();
+
+        rowsOut->push_back(row);
+    }
+
+    if (resultOut)
+    {
+        *resultOut = "ok";
+    }
+    return true;
+}
+
+static void ValidateSelectedMemberJobKeyStability(Character* member, const std::vector<JobRowModel>& snapshotRows, const char* phase)
+{
+    std::vector<JobRowModel> secondSnapshotRows;
+    const char* validationResult = "not_run";
+    bool stable = false;
+    int mismatchCount = 0;
+    int duplicateKeyCount = 0;
+
+    if (BuildSelectedMemberJobSnapshot(member, &secondSnapshotRows, &validationResult))
+    {
+        stable = (snapshotRows.size() == secondSnapshotRows.size());
+        if (stable)
+        {
+            const size_t count = snapshotRows.size();
+            for (size_t i = 0; i < count; ++i)
+            {
+                if (snapshotRows[i].jobKey != secondSnapshotRows[i].jobKey)
+                {
+                    ++mismatchCount;
+                    stable = false;
+                }
+            }
+        }
+
+        const size_t count = snapshotRows.size();
+        for (size_t i = 0; i < count; ++i)
+        {
+            for (size_t j = i + 1; j < count; ++j)
+            {
+                if (snapshotRows[i].jobKey == snapshotRows[j].jobKey)
+                {
+                    ++duplicateKeyCount;
+                }
+            }
+        }
+    }
+
+    std::stringstream validationLog;
+    validationLog << "Job-B-Gone INFO: selected_member_job_key_validation phase="
+                  << (phase ? phase : "unknown")
+                  << " result=" << validationResult
+                  << " stable=" << (stable ? "true" : "false")
+                  << " size_a=" << snapshotRows.size()
+                  << " size_b=" << secondSnapshotRows.size()
+                  << " key_mismatches=" << mismatchCount
+                  << " duplicate_keys=" << duplicateKeyCount;
+    DebugLog(validationLog.str().c_str());
+}
+
 static void LogSelectedMemberJobSnapshot(Character* member, const char* phase)
 {
     if (!g_config.logSelectedMemberJobSnapshot || !member)
@@ -780,13 +939,14 @@ static void LogSelectedMemberJobSnapshot(Character* member, const char* phase)
         return;
     }
 
-    int count = 0;
-    if (!TryGetPermajobCount(member, &count))
+    std::vector<JobRowModel> rows;
+    const char* snapshotResult = "not_run";
+    if (!BuildSelectedMemberJobSnapshot(member, &rows, &snapshotResult))
     {
         std::stringstream warn;
         warn << "Job-B-Gone WARN: selected_member_job_snapshot_failed phase="
              << (phase ? phase : "unknown")
-             << " reason=count_read_failed";
+             << " reason=" << snapshotResult;
         ErrorLog(warn.str().c_str());
         return;
     }
@@ -795,33 +955,26 @@ static void LogSelectedMemberJobSnapshot(Character* member, const char* phase)
     summary << "Job-B-Gone INFO: selected_member_job_snapshot phase="
             << (phase ? phase : "unknown")
             << " selected_member_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(member)
-            << std::dec << " count=" << count;
+            << std::dec << " count=" << rows.size();
     DebugLog(summary.str().c_str());
 
-    for (int slot = 0; slot < count; ++slot)
+    const size_t rowCount = rows.size();
+    for (size_t i = 0; i < rowCount; ++i)
     {
-        TaskType taskType = static_cast<TaskType>(0);
-        std::string taskName;
-        uintptr_t taskDataPtr = 0;
-        if (!TryGetPermajobRow(member, slot, &taskType, &taskName, &taskDataPtr))
-        {
-            std::stringstream warn;
-            warn << "Job-B-Gone WARN: selected_member_job_snapshot_row_failed phase="
-                 << (phase ? phase : "unknown")
-                 << " slot=" << slot;
-            ErrorLog(warn.str().c_str());
-            continue;
-        }
+        const JobRowModel& row = rows[i];
 
         std::stringstream rowLog;
         rowLog << "Job-B-Gone INFO: selected_member_job_snapshot_row phase="
                << (phase ? phase : "unknown")
-               << " slot=" << slot
-               << " task_type=" << static_cast<int>(taskType)
-               << " task_name=\"" << taskName << "\""
-               << " task_data_ptr=0x" << std::hex << taskDataPtr;
+               << " slot=" << row.slot
+               << " task_type=" << static_cast<int>(row.taskType)
+               << " task_name=\"" << row.taskName << "\""
+               << " task_data_ptr=0x" << std::hex << row.taskDataPtr
+               << " job_key=\"" << row.jobKey << "\"";
         DebugLog(rowLog.str().c_str());
     }
+
+    ValidateSelectedMemberJobKeyStability(member, rows, phase);
 }
 
 static bool TryDeleteAllJobsForSelectedMember(int* beforeOut, int* afterOut, int* deletedOut, const char** resultOut)
