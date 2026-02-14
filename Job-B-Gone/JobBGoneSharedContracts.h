@@ -1,0 +1,71 @@
+#pragma once
+
+#include <kenshi/Character.h>
+
+#include <Windows.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+struct PluginConfig
+{
+    bool enabled;
+    DWORD pauseDebounceMs;
+    bool debugLogTransitions;
+    bool enableDeleteAllJobsSelectedMemberAction;
+    bool enableExperimentalSingleJobDelete;
+    bool logSelectedMemberJobSnapshot;
+    bool jobBGonePanelHasCustomPosition;
+    int jobBGonePanelPosX;
+    int jobBGonePanelPosY;
+};
+
+struct RuntimeState
+{
+    bool loadInProgress;
+    bool pauseArmed;
+    bool loadSignalSeenAfterArm;
+    DWORD armTimestampMs;
+    DWORD lastPauseMs;
+    DWORD lastTickAliveLogMs;
+    bool loggedWorldUnavailable;
+};
+
+struct JobRowModel
+{
+    int slot;
+    TaskType taskType;
+    std::string taskName;
+    uintptr_t taskDataPtr;
+    std::string jobKeyBase;
+    int duplicateOrdinal;
+    std::string jobKey;
+};
+
+struct ConfigParseDiagnostics
+{
+    bool foundEnabled;
+    bool invalidEnabled;
+    bool foundPauseDebounceMs;
+    bool invalidPauseDebounceMs;
+    bool clampedPauseDebounceMs;
+    bool foundDebugLogTransitions;
+    bool invalidDebugLogTransitions;
+    bool foundEnableDeleteAllJobsSelectedMemberAction;
+    bool invalidEnableDeleteAllJobsSelectedMemberAction;
+    bool foundEnableExperimentalSingleJobDelete;
+    bool invalidEnableExperimentalSingleJobDelete;
+    bool foundLogSelectedMemberJobSnapshot;
+    bool invalidLogSelectedMemberJobSnapshot;
+    bool foundJobBGonePanelHasCustomPosition;
+    bool invalidJobBGonePanelHasCustomPosition;
+    bool foundJobBGonePanelPosX;
+    bool invalidJobBGonePanelPosX;
+    bool clampedJobBGonePanelPosX;
+    bool foundJobBGonePanelPosY;
+    bool invalidJobBGonePanelPosY;
+    bool clampedJobBGonePanelPosY;
+    bool syntaxError;
+    size_t syntaxErrorOffset;
+};
