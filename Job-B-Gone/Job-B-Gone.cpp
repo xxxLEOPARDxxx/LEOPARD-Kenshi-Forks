@@ -15,6 +15,7 @@
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TabControl.h>
 #include <mygui/MyGUI_TabItem.h>
+#include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
 #include <Windows.h>
@@ -32,6 +33,9 @@ struct PluginConfig
     bool enableDeleteAllJobsSelectedMemberAction;
     bool enableExperimentalSingleJobDelete;
     bool logSelectedMemberJobSnapshot;
+    bool jobBGonePanelHasCustomPosition;
+    int jobBGonePanelPosX;
+    int jobBGonePanelPosY;
 };
 
 struct RuntimeState
@@ -50,10 +54,15 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
+static const int kPanelWidth = 500;
+static const int kPanelExpandedHeight = 112;
+static const int kPanelCollapsedHeight = 42;
+static const int kPanelViewportPadding = 20;
+static const int kPanelMaxPersistedCoord = 100000;
 static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
 
-static PluginConfig g_config = { true, 2000, false, true, false, true };
+static PluginConfig g_config = { true, 2000, false, true, false, true, false, 0, 0 };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -117,6 +126,10 @@ static ForgottenGUI* g_ptrKenshiGUI = 0;
 
 static MyGUI::Button* g_deleteAllJobsSelectedMemberButton = 0;
 static MyGUI::Widget* g_deleteAllJobsSelectedMemberButtonParent = 0;
+static MyGUI::Widget* g_jobBGonePanel = 0;
+static MyGUI::Button* g_jobBGoneHeaderButton = 0;
+static MyGUI::Button* g_jobBGoneBodyFrame = 0;
+static MyGUI::TextBox* g_jobBGoneStatusText = 0;
 static PlayerInterface* g_lastPlayerInterface = 0;
 static bool g_loggedSelectedMemberButtonCreateFailure = false;
 static bool g_lastLoggedHasSelectedMemberForButton = false;
@@ -130,6 +143,12 @@ static bool g_pendingSelectedMemberUiRefresh = false;
 static DWORD g_pendingSelectedMemberUiRefreshStartMs = 0;
 static DWORD g_lastSelectedMemberUiRefreshAttemptMs = 0;
 static int g_selectedMemberUiRefreshAttempts = 0;
+static bool g_jobBGonePanelCollapsed = false;
+static bool g_jobBGonePanelDragging = false;
+static bool g_jobBGonePanelDragMoved = false;
+static int g_jobBGonePanelDragLastMouseX = 0;
+static int g_jobBGonePanelDragLastMouseY = 0;
+static int g_jobBGonePanelDragMovedDistance = 0;
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
@@ -146,6 +165,17 @@ static bool RefreshSelectedMemberUi(const char* source);
 static void ArmSelectedMemberUiRefresh(const char* source);
 static void TickSelectedMemberUiRefresh();
 static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*);
+static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*);
+static void OnJobBGoneHeaderMousePressed(MyGUI::Widget*, int, int, MyGUI::MouseButton);
+static void OnJobBGoneHeaderMouseDrag(MyGUI::Widget*, int, int);
+static void OnJobBGoneHeaderMouseReleased(MyGUI::Widget*, int, int, MyGUI::MouseButton);
+static bool TryGetViewportSize(int* widthOut, int* heightOut);
+static int ClampIntValue(int value, int minValue, int maxValue);
+static MyGUI::IntCoord ClampPanelCoordToViewport(const MyGUI::IntCoord& inputCoord);
+static MyGUI::IntCoord BuildPanelCoordFromAnchor(int left, int top);
+static MyGUI::IntCoord ResolvePanelCoordFromConfig();
+static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord);
+static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, const char* source);
 static MyGUI::IntCoord GetFallbackButtonCoord();
 
 struct ConfigParseDiagnostics
@@ -163,6 +193,14 @@ struct ConfigParseDiagnostics
     bool invalidEnableExperimentalSingleJobDelete;
     bool foundLogSelectedMemberJobSnapshot;
     bool invalidLogSelectedMemberJobSnapshot;
+    bool foundJobBGonePanelHasCustomPosition;
+    bool invalidJobBGonePanelHasCustomPosition;
+    bool foundJobBGonePanelPosX;
+    bool invalidJobBGonePanelPosX;
+    bool clampedJobBGonePanelPosX;
+    bool foundJobBGonePanelPosY;
+    bool invalidJobBGonePanelPosY;
+    bool clampedJobBGonePanelPosY;
     bool syntaxError;
     size_t syntaxErrorOffset;
 };
@@ -187,6 +225,14 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableExperimentalSingleJobDelete = false;
     diagnostics->foundLogSelectedMemberJobSnapshot = false;
     diagnostics->invalidLogSelectedMemberJobSnapshot = false;
+    diagnostics->foundJobBGonePanelHasCustomPosition = false;
+    diagnostics->invalidJobBGonePanelHasCustomPosition = false;
+    diagnostics->foundJobBGonePanelPosX = false;
+    diagnostics->invalidJobBGonePanelPosX = false;
+    diagnostics->clampedJobBGonePanelPosX = false;
+    diagnostics->foundJobBGonePanelPosY = false;
+    diagnostics->invalidJobBGonePanelPosY = false;
+    diagnostics->clampedJobBGonePanelPosY = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
 }
@@ -373,6 +419,62 @@ static bool ParseJsonUnsignedValue(const std::string& text, size_t* pos, DWORD* 
     }
 
     *valueOut = static_cast<DWORD>(parsed);
+    if (clampedOut)
+    {
+        *clampedOut = clamped;
+    }
+    *pos = cursor;
+    return true;
+}
+
+static bool ParseJsonUnsignedIntValue(
+    const std::string& text,
+    size_t* pos,
+    int maxValue,
+    int* valueOut,
+    bool* clampedOut)
+{
+    if (!pos || !valueOut || maxValue < 0)
+    {
+        return false;
+    }
+
+    SkipJsonWhitespace(text, pos);
+    size_t cursor = *pos;
+    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
+    {
+        ++cursor;
+    }
+
+    if (cursor == *pos)
+    {
+        return false;
+    }
+
+    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
+    {
+        return false;
+    }
+
+    const std::string numberText = text.substr(*pos, cursor - *pos);
+    unsigned long parsed = 0;
+    try
+    {
+        parsed = std::stoul(numberText);
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    bool clamped = false;
+    if (parsed > static_cast<unsigned long>(maxValue))
+    {
+        parsed = static_cast<unsigned long>(maxValue);
+        clamped = true;
+    }
+
+    *valueOut = static_cast<int>(parsed);
     if (clampedOut)
     {
         *clampedOut = clamped;
@@ -757,6 +859,67 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "job_b_gone_panel_has_custom_position")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundJobBGonePanelHasCustomPosition = true;
+                configOut->jobBGonePanelHasCustomPosition = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidJobBGonePanelHasCustomPosition = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "job_b_gone_panel_pos_x")
+        {
+            int parsedInt = 0;
+            bool clamped = false;
+            size_t valuePos = pos;
+            if (ParseJsonUnsignedIntValue(body, &valuePos, kPanelMaxPersistedCoord, &parsedInt, &clamped))
+            {
+                diagnostics->foundJobBGonePanelPosX = true;
+                diagnostics->clampedJobBGonePanelPosX = diagnostics->clampedJobBGonePanelPosX || clamped;
+                configOut->jobBGonePanelPosX = parsedInt;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidJobBGonePanelPosX = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "job_b_gone_panel_pos_y")
+        {
+            int parsedInt = 0;
+            bool clamped = false;
+            size_t valuePos = pos;
+            if (ParseJsonUnsignedIntValue(body, &valuePos, kPanelMaxPersistedCoord, &parsedInt, &clamped))
+            {
+                diagnostics->foundJobBGonePanelPosY = true;
+                diagnostics->clampedJobBGonePanelPosY = diagnostics->clampedJobBGonePanelPosY || clamped;
+                configOut->jobBGonePanelPosY = parsedInt;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidJobBGonePanelPosY = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else
         {
             if (!SkipJsonValue(body, &pos))
@@ -799,7 +962,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, true, false, true };
+    PluginConfig parsedConfig = { true, 2000, false, true, false, true, false, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -807,7 +970,10 @@ static bool RunInternalSelfChecks()
             "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_log_transitions\":true,"
             "\"enable_delete_all_jobs_selected_member_action\":false,"
             "\"enable_experimental_single_job_delete\":true,"
-            "\"log_selected_member_job_snapshot\":false}",
+            "\"log_selected_member_job_snapshot\":false,"
+            "\"job_b_gone_panel_has_custom_position\":true,"
+            "\"job_b_gone_panel_pos_x\":321,"
+            "\"job_b_gone_panel_pos_y\":654}",
             &parsedConfig,
             &diagnostics))
     {
@@ -818,7 +984,10 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.debugLogTransitions
         || parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || !parsedConfig.enableExperimentalSingleJobDelete
-        || parsedConfig.logSelectedMemberJobSnapshot)
+        || parsedConfig.logSelectedMemberJobSnapshot
+        || !parsedConfig.jobBGonePanelHasCustomPosition
+        || parsedConfig.jobBGonePanelPosX != 321
+        || parsedConfig.jobBGonePanelPosY != 654)
     {
         return false;
     }
@@ -827,13 +996,19 @@ static bool RunInternalSelfChecks()
         + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_log_transitions\":false,"
           "\"enable_delete_all_jobs_selected_member_action\":true,"
           "\"enable_experimental_single_job_delete\":false,"
-          "\"log_selected_member_job_snapshot\":true}";
+          "\"log_selected_member_job_snapshot\":true,"
+          "\"job_b_gone_panel_has_custom_position\":false,"
+          "\"job_b_gone_panel_pos_x\":11,"
+          "\"job_b_gone_panel_pos_y\":22}";
     parsedConfig.enabled = false;
     parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
     parsedConfig.enableDeleteAllJobsSelectedMemberAction = false;
     parsedConfig.enableExperimentalSingleJobDelete = true;
     parsedConfig.logSelectedMemberJobSnapshot = false;
+    parsedConfig.jobBGonePanelHasCustomPosition = true;
+    parsedConfig.jobBGonePanelPosX = 0;
+    parsedConfig.jobBGonePanelPosY = 0;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
     {
@@ -844,7 +1019,10 @@ static bool RunInternalSelfChecks()
         || parsedConfig.debugLogTransitions
         || !parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || parsedConfig.enableExperimentalSingleJobDelete
-        || !parsedConfig.logSelectedMemberJobSnapshot)
+        || !parsedConfig.logSelectedMemberJobSnapshot
+        || parsedConfig.jobBGonePanelHasCustomPosition
+        || parsedConfig.jobBGonePanelPosX != 11
+        || parsedConfig.jobBGonePanelPosY != 22)
     {
         return false;
     }
@@ -966,6 +1144,31 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: invalid/missing key \"log_selected_member_job_snapshot\"; using default");
     }
+    if (!diagnostics.foundJobBGonePanelHasCustomPosition || diagnostics.invalidJobBGonePanelHasCustomPosition)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"job_b_gone_panel_has_custom_position\"; using default");
+    }
+    if (!diagnostics.foundJobBGonePanelPosX || diagnostics.invalidJobBGonePanelPosX)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"job_b_gone_panel_pos_x\"; using default");
+    }
+    if (diagnostics.clampedJobBGonePanelPosX)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: \"job_b_gone_panel_pos_x\" exceeded max; clamped");
+    }
+    if (!diagnostics.foundJobBGonePanelPosY || diagnostics.invalidJobBGonePanelPosY)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"job_b_gone_panel_pos_y\"; using default");
+    }
+    if (diagnostics.clampedJobBGonePanelPosY)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: \"job_b_gone_panel_pos_y\" exceeded max; clamped");
+    }
     if (needsWriteBackOut)
     {
         *needsWriteBackOut = needsWriteBack;
@@ -990,7 +1193,11 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_experimental_single_job_delete\": "
         << (config.enableExperimentalSingleJobDelete ? "true" : "false") << ",\n";
     out << "  \"log_selected_member_job_snapshot\": "
-        << (config.logSelectedMemberJobSnapshot ? "true" : "false") << "\n";
+        << (config.logSelectedMemberJobSnapshot ? "true" : "false") << ",\n";
+    out << "  \"job_b_gone_panel_has_custom_position\": "
+        << (config.jobBGonePanelHasCustomPosition ? "true" : "false") << ",\n";
+    out << "  \"job_b_gone_panel_pos_x\": " << config.jobBGonePanelPosX << ",\n";
+    out << "  \"job_b_gone_panel_pos_y\": " << config.jobBGonePanelPosY << "\n";
     out << "}\n";
 
     return true;
@@ -1005,6 +1212,9 @@ static void LoadConfigState()
     g_config.enableDeleteAllJobsSelectedMemberAction = true;
     g_config.enableExperimentalSingleJobDelete = false;
     g_config.logSelectedMemberJobSnapshot = true;
+    g_config.jobBGonePanelHasCustomPosition = false;
+    g_config.jobBGonePanelPosX = 0;
+    g_config.jobBGonePanelPosY = 0;
 
     if (g_settingsPath.empty())
     {
@@ -1035,7 +1245,11 @@ static void LoadConfigState()
          << " enable_experimental_single_job_delete="
          << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
          << " log_selected_member_job_snapshot="
-         << (g_config.logSelectedMemberJobSnapshot ? "true" : "false");
+         << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
+         << " job_b_gone_panel_has_custom_position="
+         << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
+         << " job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
+         << " job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY;
     DebugLog(info.str().c_str());
 }
 
@@ -1687,189 +1901,362 @@ static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*)
             << " after=" << afterCount
             << " deleted=" << deletedCount
             << " action_enabled=" << (actionEnabled ? "true" : "false")
-            << " anchor_mode=" << (g_buttonAttachedToGlobalLayer ? "global_fallback" : "selected_member_panel");
+            << " anchor_mode=job_b_gone_panel";
     DebugLog(logline.str().c_str());
+}
+
+static bool TryGetViewportSize(int* widthOut, int* heightOut)
+{
+    if (!widthOut || !heightOut)
+    {
+        return false;
+    }
+
+    MyGUI::RenderManager* renderManager = MyGUI::RenderManager::getInstancePtr();
+    if (!renderManager)
+    {
+        return false;
+    }
+
+    const MyGUI::IntSize view = renderManager->getViewSize();
+    if (view.width <= 0 || view.height <= 0)
+    {
+        return false;
+    }
+
+    *widthOut = view.width;
+    *heightOut = view.height;
+    return true;
+}
+
+static int ClampIntValue(int value, int minValue, int maxValue)
+{
+    if (value < minValue)
+    {
+        return minValue;
+    }
+    if (value > maxValue)
+    {
+        return maxValue;
+    }
+    return value;
+}
+
+static MyGUI::IntCoord BuildPanelCoordFromAnchor(int left, int top)
+{
+    const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : kPanelExpandedHeight;
+    return MyGUI::IntCoord(left, top, kPanelWidth, height);
+}
+
+static MyGUI::IntCoord ClampPanelCoordToViewport(const MyGUI::IntCoord& inputCoord)
+{
+    int left = inputCoord.left;
+    int top = inputCoord.top;
+    const int width = (inputCoord.width > 0) ? inputCoord.width : kPanelWidth;
+    const int height = (inputCoord.height > 0) ? inputCoord.height : kPanelExpandedHeight;
+
+    int viewWidth = 0;
+    int viewHeight = 0;
+    if (!TryGetViewportSize(&viewWidth, &viewHeight))
+    {
+        if (left < kPanelViewportPadding)
+        {
+            left = kPanelViewportPadding;
+        }
+        if (top < kPanelViewportPadding)
+        {
+            top = kPanelViewportPadding;
+        }
+        return MyGUI::IntCoord(left, top, width, height);
+    }
+
+    int minLeft = kPanelViewportPadding;
+    int minTop = kPanelViewportPadding;
+    int maxLeft = viewWidth - width - kPanelViewportPadding;
+    int maxTop = viewHeight - height - kPanelViewportPadding;
+
+    if (maxLeft < minLeft)
+    {
+        minLeft = 0;
+        maxLeft = viewWidth - width;
+        if (maxLeft < minLeft)
+        {
+            maxLeft = minLeft;
+        }
+    }
+
+    if (maxTop < minTop)
+    {
+        minTop = 0;
+        maxTop = viewHeight - height;
+        if (maxTop < minTop)
+        {
+            maxTop = minTop;
+        }
+    }
+
+    left = ClampIntValue(left, minLeft, maxLeft);
+    top = ClampIntValue(top, minTop, maxTop);
+    return MyGUI::IntCoord(left, top, width, height);
 }
 
 static MyGUI::IntCoord GetFallbackButtonCoord()
 {
-    const int width = 360;
-    const int height = 36;
-
     int left = 1200;
     int top = 760;
 
-    MyGUI::RenderManager* renderManager = MyGUI::RenderManager::getInstancePtr();
-    if (renderManager)
+    int viewWidth = 0;
+    int viewHeight = 0;
+    if (TryGetViewportSize(&viewWidth, &viewHeight))
     {
-        const MyGUI::IntSize view = renderManager->getViewSize();
-        if (view.width > 0 && view.height > 0)
-        {
-            // Anchor near the lower-right jobs panel with conservative insets.
-            left = view.width - 650;
-            top = view.height - 260;
-        }
+        const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : kPanelExpandedHeight;
+        // Anchor above the squad portraits panel (right-side roster block).
+        left = viewWidth - kPanelWidth - 700;
+        top = viewHeight - height - 250;
     }
 
-    if (left < 20)
+    return ClampPanelCoordToViewport(BuildPanelCoordFromAnchor(left, top));
+}
+
+static MyGUI::IntCoord ResolvePanelCoordFromConfig()
+{
+    if (g_config.jobBGonePanelHasCustomPosition)
     {
-        left = 20;
+        return ClampPanelCoordToViewport(
+            BuildPanelCoordFromAnchor(g_config.jobBGonePanelPosX, g_config.jobBGonePanelPosY));
     }
-    if (top < 20)
+    return GetFallbackButtonCoord();
+}
+
+static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
+{
+    if (!g_jobBGonePanel || !g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText
+        || !g_deleteAllJobsSelectedMemberButton)
     {
-        top = 20;
+        return;
     }
 
-    return MyGUI::IntCoord(left, top, width, height);
+    g_jobBGonePanel->setCoord(panelCoord);
+    g_jobBGoneHeaderButton->setCoord(MyGUI::IntCoord(0, 0, panelCoord.width, 34));
+    g_jobBGoneBodyFrame->setCoord(MyGUI::IntCoord(0, 36, panelCoord.width, panelCoord.height - 36));
+    g_jobBGoneStatusText->setCoord(MyGUI::IntCoord(14, 46, panelCoord.width - 28, 22));
+    g_deleteAllJobsSelectedMemberButton->setCoord(MyGUI::IntCoord(14, 70, panelCoord.width - 28, 34));
+}
+
+static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, const char* source)
+{
+    if (g_config.jobBGonePanelHasCustomPosition && g_config.jobBGonePanelPosX == panelCoord.left
+        && g_config.jobBGonePanelPosY == panelCoord.top)
+    {
+        return;
+    }
+
+    g_config.jobBGonePanelHasCustomPosition = true;
+    g_config.jobBGonePanelPosX = panelCoord.left;
+    g_config.jobBGonePanelPosY = panelCoord.top;
+    if (!SaveConfigState())
+    {
+        ErrorLog("Job-B-Gone WARN: failed to persist Job-B-Gone panel position");
+        return;
+    }
+
+    std::stringstream info;
+    info << "Job-B-Gone INFO: persisted_panel_position source=" << (source ? source : "unknown")
+         << " x=" << panelCoord.left
+         << " y=" << panelCoord.top;
+    DebugLog(info.str().c_str());
 }
 
 static void DestroySelectedMemberJobPanelButton()
 {
-    if (!g_deleteAllJobsSelectedMemberButton)
-    {
-        g_deleteAllJobsSelectedMemberButtonParent = 0;
-        return;
-    }
-
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui)
+    if (gui && g_jobBGonePanel)
     {
-        gui->destroyWidget(g_deleteAllJobsSelectedMemberButton);
+        gui->destroyWidget(g_jobBGonePanel);
     }
 
+    g_jobBGonePanel = 0;
+    g_jobBGoneHeaderButton = 0;
+    g_jobBGoneBodyFrame = 0;
+    g_jobBGoneStatusText = 0;
     g_deleteAllJobsSelectedMemberButton = 0;
     g_deleteAllJobsSelectedMemberButtonParent = 0;
     g_buttonAttachedToGlobalLayer = false;
+    g_jobBGonePanelDragging = false;
+    g_jobBGonePanelDragMoved = false;
+    g_jobBGonePanelDragLastMouseX = 0;
+    g_jobBGonePanelDragLastMouseY = 0;
+    g_jobBGonePanelDragMovedDistance = 0;
+}
+
+static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
+{
+    if (g_jobBGonePanelDragMoved)
+    {
+        g_jobBGonePanelDragMoved = false;
+        g_jobBGonePanelDragMovedDistance = 0;
+        return;
+    }
+
+    g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
+
+    if (g_jobBGonePanel)
+    {
+        const MyGUI::IntCoord currentCoord = g_jobBGonePanel->getCoord();
+        const MyGUI::IntCoord nextCoord = ClampPanelCoordToViewport(
+            BuildPanelCoordFromAnchor(currentCoord.left, currentCoord.top));
+        ApplyPanelLayout(nextCoord);
+
+        if (g_config.jobBGonePanelHasCustomPosition)
+        {
+            PersistPanelPositionIfChanged(nextCoord, "collapse_toggle");
+        }
+    }
+}
+
+static void OnJobBGoneHeaderMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    g_jobBGonePanelDragging = true;
+    g_jobBGonePanelDragMoved = false;
+    g_jobBGonePanelDragLastMouseX = left;
+    g_jobBGonePanelDragLastMouseY = top;
+    g_jobBGonePanelDragMovedDistance = 0;
+}
+
+static void OnJobBGoneHeaderMouseDrag(MyGUI::Widget*, int left, int top)
+{
+    if (!g_jobBGonePanelDragging || !g_jobBGonePanel)
+    {
+        return;
+    }
+
+    const int deltaX = left - g_jobBGonePanelDragLastMouseX;
+    const int deltaY = top - g_jobBGonePanelDragLastMouseY;
+    if (deltaX == 0 && deltaY == 0)
+    {
+        return;
+    }
+
+    const int moveX = (deltaX < 0) ? -deltaX : deltaX;
+    const int moveY = (deltaY < 0) ? -deltaY : deltaY;
+    g_jobBGonePanelDragMovedDistance += moveX + moveY;
+    if (g_jobBGonePanelDragMovedDistance >= 3)
+    {
+        g_jobBGonePanelDragMoved = true;
+    }
+
+    const MyGUI::IntCoord currentCoord = g_jobBGonePanel->getCoord();
+    const MyGUI::IntCoord movedCoord = ClampPanelCoordToViewport(
+        BuildPanelCoordFromAnchor(currentCoord.left + deltaX, currentCoord.top + deltaY));
+    ApplyPanelLayout(movedCoord);
+
+    g_jobBGonePanelDragLastMouseX = left;
+    g_jobBGonePanelDragLastMouseY = top;
+}
+
+static void OnJobBGoneHeaderMouseReleased(MyGUI::Widget*, int, int, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left || !g_jobBGonePanelDragging)
+    {
+        return;
+    }
+
+    g_jobBGonePanelDragging = false;
+    if (!g_jobBGonePanel)
+    {
+        return;
+    }
+
+    const MyGUI::IntCoord clampedCoord = ClampPanelCoordToViewport(g_jobBGonePanel->getCoord());
+    ApplyPanelLayout(clampedCoord);
+    if (g_jobBGonePanelDragMoved)
+    {
+        PersistPanelPositionIfChanged(clampedCoord, "drag_release");
+    }
+
+    g_jobBGonePanelDragMovedDistance = 0;
 }
 
 static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 {
     g_lastPlayerInterface = thisptr;
 
-    DatapanelGUI* selectedMemberInfoPanel = 0;
-    if (g_selectedMemberInfoWindowAddress != 0)
+    if (!g_jobBGonePanel)
     {
-        DatapanelGUI** infoWindowSlot = reinterpret_cast<DatapanelGUI**>(g_selectedMemberInfoWindowAddress);
-        if (infoWindowSlot)
-        {
-            selectedMemberInfoPanel = *infoWindowSlot;
-        }
-    }
-
-    const bool infoPanelNull = (selectedMemberInfoPanel == 0);
-    if (infoPanelNull != g_lastLoggedInfoPanelNull)
-    {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: selected_member_info_panel_null="
-                << (infoPanelNull ? "true" : "false")
-                << " addr=0x" << std::hex << g_selectedMemberInfoWindowAddress;
-        DebugLog(logline.str().c_str());
-        g_lastLoggedInfoPanelNull = infoPanelNull;
-        g_lastInfoPanelNullLogMs = GetTickCount();
-    }
-    else if (infoPanelNull)
-    {
-        const DWORD nowMs = GetTickCount();
-        if (DebounceWindowElapsed(nowMs, g_lastInfoPanelNullLogMs, 5000))
-        {
-            std::stringstream logline;
-            logline << "Job-B-Gone DEBUG: selected_member_info_panel_null_still_true addr=0x"
-                    << std::hex << g_selectedMemberInfoWindowAddress;
-            DebugLog(logline.str().c_str());
-            g_lastInfoPanelNullLogMs = nowMs;
-        }
-    }
-
-    MyGUI::Widget* panelWidget = selectedMemberInfoPanel ? selectedMemberInfoPanel->getWidget() : 0;
-    const bool panelWidgetAvailable = (panelWidget != 0);
-    if (panelWidgetAvailable != g_lastLoggedPanelWidgetAvailable)
-    {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: selected_member_panel_widget_available="
-                << (panelWidgetAvailable ? "true" : "false")
-                << " panel_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(selectedMemberInfoPanel)
-                << " widget_ptr=0x" << reinterpret_cast<uintptr_t>(panelWidget)
-                << " info_window_addr=0x" << g_selectedMemberInfoWindowAddress;
-        DebugLog(logline.str().c_str());
-        g_lastLoggedPanelWidgetAvailable = panelWidgetAvailable;
-    }
-
-    if (!panelWidget)
-    {
-        // Fallback: if native selected-member panel isn't available, attach button to a
-        // global layer so the feature remains visible/testable.
-        if (!g_deleteAllJobsSelectedMemberButton || !g_buttonAttachedToGlobalLayer)
-        {
-            DestroySelectedMemberJobPanelButton();
-            MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-            if (gui)
-            {
-                const MyGUI::IntCoord coord = GetFallbackButtonCoord();
-                g_deleteAllJobsSelectedMemberButton = gui->createWidget<MyGUI::Button>(
-                    "Kenshi_Button1",
-                    coord,
-                    MyGUI::Align::Default,
-                    "Main");
-                if (!g_deleteAllJobsSelectedMemberButton)
-                {
-                    g_deleteAllJobsSelectedMemberButton = gui->createWidget<MyGUI::Button>(
-                        "Kenshi_Button1",
-                        coord,
-                        MyGUI::Align::Default,
-                        "Overlapped");
-                }
-            }
-
-            if (g_deleteAllJobsSelectedMemberButton)
-            {
-                g_buttonAttachedToGlobalLayer = true;
-                g_loggedSelectedMemberButtonCreateFailure = false;
-                g_deleteAllJobsSelectedMemberButtonParent = 0;
-                g_deleteAllJobsSelectedMemberButton->setCaption("Delete All Jobs (Selected Member)");
-                g_deleteAllJobsSelectedMemberButton->setNeedToolTip(true);
-                g_deleteAllJobsSelectedMemberButton->setUserString(
-                    "ToolTip",
-                    "Delete all queued jobs for the currently selected squad member.");
-                g_deleteAllJobsSelectedMemberButton->eventMouseButtonClick
-                    += MyGUI::newDelegate(&OnDeleteAllJobsSelectedMemberButtonClicked);
-
-                DebugLog("Job-B-Gone DEBUG: attached selected-member button to global GUI layer fallback");
-                g_lastLoggedButtonExists = true;
-            }
-            else if (!g_loggedSelectedMemberButtonCreateFailure)
-            {
-                ErrorLog("Job-B-Gone: failed to create selected-member button on global GUI fallback layer");
-                g_loggedSelectedMemberButtonCreateFailure = true;
-            }
-        }
-
-        if (!g_deleteAllJobsSelectedMemberButton)
+        MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+        if (!gui)
         {
             return;
         }
 
-        g_deleteAllJobsSelectedMemberButton->setCoord(GetFallbackButtonCoord());
-    }
+        const MyGUI::IntCoord panelCoord = ResolvePanelCoordFromConfig();
+        g_jobBGonePanel = gui->createWidget<MyGUI::Widget>(
+            "PanelEmpty",
+            panelCoord,
+            MyGUI::Align::Default,
+            "Main");
+        if (!g_jobBGonePanel)
+        {
+            g_jobBGonePanel = gui->createWidget<MyGUI::Widget>(
+                "PanelEmpty",
+                panelCoord,
+                MyGUI::Align::Default,
+                "Overlapped");
+        }
 
-    if (panelWidget && g_deleteAllJobsSelectedMemberButtonParent != panelWidget)
-    {
-        DestroySelectedMemberJobPanelButton();
-        g_deleteAllJobsSelectedMemberButton = panelWidget->createWidget<MyGUI::Button>(
-            "Kenshi_Button1",
-            MyGUI::IntCoord(40, 60, 520, 40),
-            MyGUI::Align::Default);
-        if (!g_deleteAllJobsSelectedMemberButton)
+        if (!g_jobBGonePanel)
         {
             if (!g_loggedSelectedMemberButtonCreateFailure)
             {
-                ErrorLog("Job-B-Gone: failed to create selected-member delete-all-jobs button in info panel");
+                ErrorLog("Job-B-Gone: failed to create Job-B-Gone panel");
                 g_loggedSelectedMemberButtonCreateFailure = true;
             }
             return;
         }
 
+        g_jobBGoneHeaderButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(0, 0, panelCoord.width, 34),
+            MyGUI::Align::Default);
+        g_jobBGoneBodyFrame = g_jobBGonePanel->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(0, 36, panelCoord.width, panelCoord.height - 36),
+            MyGUI::Align::Default);
+        g_jobBGoneStatusText = g_jobBGonePanel->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(14, 46, panelCoord.width - 28, 22),
+            MyGUI::Align::Default);
+        g_deleteAllJobsSelectedMemberButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(14, 70, panelCoord.width - 28, 34),
+            MyGUI::Align::Default);
+
+        if (!g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_deleteAllJobsSelectedMemberButton)
+        {
+            DestroySelectedMemberJobPanelButton();
+            if (!g_loggedSelectedMemberButtonCreateFailure)
+            {
+                ErrorLog("Job-B-Gone: failed to create Job-B-Gone panel widgets");
+                g_loggedSelectedMemberButtonCreateFailure = true;
+            }
+            return;
+        }
+
+        g_buttonAttachedToGlobalLayer = true;
         g_loggedSelectedMemberButtonCreateFailure = false;
-        g_deleteAllJobsSelectedMemberButtonParent = panelWidget;
+        g_deleteAllJobsSelectedMemberButtonParent = g_jobBGonePanel;
+        g_jobBGoneBodyFrame->setCaption("");
+        g_jobBGoneBodyFrame->setEnabled(false);
+        g_jobBGoneStatusText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        g_jobBGoneHeaderButton->eventMouseButtonClick += MyGUI::newDelegate(&OnJobBGoneHeaderButtonClicked);
+        g_jobBGoneHeaderButton->eventMouseButtonPressed += MyGUI::newDelegate(&OnJobBGoneHeaderMousePressed);
+        g_jobBGoneHeaderButton->eventMouseDrag += MyGUI::newDelegate(&OnJobBGoneHeaderMouseDrag);
+        g_jobBGoneHeaderButton->eventMouseButtonReleased += MyGUI::newDelegate(&OnJobBGoneHeaderMouseReleased);
         g_deleteAllJobsSelectedMemberButton->setCaption("Delete All Jobs (Selected Member)");
         g_deleteAllJobsSelectedMemberButton->setNeedToolTip(true);
         g_deleteAllJobsSelectedMemberButton->setUserString(
@@ -1878,15 +2265,29 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_deleteAllJobsSelectedMemberButton->eventMouseButtonClick
             += MyGUI::newDelegate(&OnDeleteAllJobsSelectedMemberButtonClicked);
 
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: created selected-member button parent_widget=0x"
-                << std::hex << reinterpret_cast<uintptr_t>(panelWidget)
-                << " button_ptr=0x" << reinterpret_cast<uintptr_t>(g_deleteAllJobsSelectedMemberButton);
-        DebugLog(logline.str().c_str());
+        DebugLog("Job-B-Gone DEBUG: created Job-B-Gone collapsible panel");
         g_lastLoggedButtonExists = true;
     }
 
-    const bool hasSelectedMember = TryResolveSelectedMemberForDebug();
+    if (!g_jobBGonePanel || !g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_deleteAllJobsSelectedMemberButton)
+    {
+        return;
+    }
+
+    if (!g_jobBGonePanelDragging)
+    {
+        const MyGUI::IntCoord panelCoord = ResolvePanelCoordFromConfig();
+        ApplyPanelLayout(panelCoord);
+
+        if (g_config.jobBGonePanelHasCustomPosition
+            && (panelCoord.left != g_config.jobBGonePanelPosX || panelCoord.top != g_config.jobBGonePanelPosY))
+        {
+            PersistPanelPositionIfChanged(panelCoord, "viewport_clamp");
+        }
+    }
+
+    Character* selectedMember = ResolveSelectedMember();
+    const bool hasSelectedMember = (selectedMember != 0);
     if (hasSelectedMember != g_lastLoggedHasSelectedMemberForButton)
     {
         std::stringstream logline;
@@ -1899,18 +2300,42 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_lastLoggedHasSelectedMemberForButton = hasSelectedMember;
     }
 
+    int jobCount = 0;
+    if (selectedMember)
+    {
+        TryGetPermajobCount(selectedMember, &jobCount);
+    }
+
+    std::stringstream headerCaption;
+    headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
+    g_jobBGoneHeaderButton->setCaption(headerCaption.str());
+
+    std::stringstream statusCaption;
+    if (hasSelectedMember)
+    {
+        statusCaption << "Selected member jobs: " << jobCount;
+    }
+    else
+    {
+        statusCaption << "No member selected";
+    }
+    g_jobBGoneStatusText->setCaption(statusCaption.str());
+
     const bool shouldShowButton = hasSelectedMember && g_config.enableDeleteAllJobsSelectedMemberAction;
-    g_deleteAllJobsSelectedMemberButton->setVisible(shouldShowButton);
-    if (shouldShowButton != g_lastLoggedButtonVisibleState)
+    const bool buttonVisibleNow = shouldShowButton && !g_jobBGonePanelCollapsed;
+    g_jobBGoneBodyFrame->setVisible(!g_jobBGonePanelCollapsed);
+    g_jobBGoneStatusText->setVisible(!g_jobBGonePanelCollapsed);
+    g_deleteAllJobsSelectedMemberButton->setVisible(buttonVisibleNow);
+    if (buttonVisibleNow != g_lastLoggedButtonVisibleState)
     {
         std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: selected-member button visible="
-                << (shouldShowButton ? "true" : "false")
+        logline << "Job-B-Gone DEBUG: delete-button visible="
+                << (buttonVisibleNow ? "true" : "false")
                 << " selected_member_resolved=" << (hasSelectedMember ? "true" : "false")
                 << " action_enabled=" << (g_config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false")
                 << " button_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_deleteAllJobsSelectedMemberButton);
         DebugLog(logline.str().c_str());
-        g_lastLoggedButtonVisibleState = shouldShowButton;
+        g_lastLoggedButtonVisibleState = buttonVisibleNow;
     }
 }
 
@@ -2012,6 +2437,10 @@ __declspec(dllexport) void startPlugin()
          << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
          << ", log_selected_member_job_snapshot="
          << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
+         << ", job_b_gone_panel_has_custom_position="
+         << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
+         << ", job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
+         << ", job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }

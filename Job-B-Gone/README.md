@@ -51,5 +51,8 @@ Supported keys:
 - `enable_delete_all_jobs_selected_member_action` (bool)
 - `enable_experimental_single_job_delete` (bool, currently reserved for future row-delete work)
 - `log_selected_member_job_snapshot` (bool, logs selected-member job rows before/after delete-all)
+- `job_b_gone_panel_has_custom_position` (bool, set true after the panel is dragged)
+- `job_b_gone_panel_pos_x` (number, persisted panel X when custom positioning is enabled)
+- `job_b_gone_panel_pos_y` (number, persisted panel Y when custom positioning is enabled)
 
 If config is missing or unreadable, defaults are used and written back.
