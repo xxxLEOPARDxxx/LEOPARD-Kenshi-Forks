@@ -22,6 +22,11 @@ static bool TryGetViewportSize(int* widthOut, int* heightOut)
     return true;
 }
 
+static int GetCollapsedHeaderYOffset()
+{
+    return kPanelExpandedHeight - kPanelCollapsedHeight;
+}
+
 static bool TryGetMousePosition(int* xOut, int* yOut)
 {
     if (!xOut || !yOut)
@@ -134,8 +139,13 @@ static MyGUI::IntCoord ResolvePanelCoordFromConfig()
 {
     if (g_config.jobBGonePanelHasCustomPosition)
     {
+        int top = g_config.jobBGonePanelPosY;
+        if (g_jobBGonePanelCollapsed)
+        {
+            top += GetCollapsedHeaderYOffset();
+        }
         return ClampPanelCoordToViewport(
-            BuildPanelCoordFromAnchor(g_config.jobBGonePanelPosX, g_config.jobBGonePanelPosY));
+            BuildPanelCoordFromAnchor(g_config.jobBGonePanelPosX, top));
     }
     return GetFallbackButtonCoord();
 }
@@ -157,15 +167,25 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
 
 static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, const char* source)
 {
+    int storedTop = panelCoord.top;
+    if (g_jobBGonePanelCollapsed)
+    {
+        storedTop -= GetCollapsedHeaderYOffset();
+    }
+    if (storedTop < 0)
+    {
+        storedTop = 0;
+    }
+
     if (g_config.jobBGonePanelHasCustomPosition && g_config.jobBGonePanelPosX == panelCoord.left
-        && g_config.jobBGonePanelPosY == panelCoord.top)
+        && g_config.jobBGonePanelPosY == storedTop)
     {
         return;
     }
 
     g_config.jobBGonePanelHasCustomPosition = true;
     g_config.jobBGonePanelPosX = panelCoord.left;
-    g_config.jobBGonePanelPosY = panelCoord.top;
+    g_config.jobBGonePanelPosY = storedTop;
     if (!SaveConfigState())
     {
         ErrorLog("Job-B-Gone WARN: failed to persist Job-B-Gone panel position");
@@ -175,7 +195,7 @@ static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, con
     std::stringstream info;
     info << "Job-B-Gone INFO: persisted_panel_position source=" << (source ? source : "unknown")
          << " x=" << panelCoord.left
-         << " y=" << panelCoord.top;
+         << " y=" << storedTop;
     DebugLog(info.str().c_str());
 }
 
@@ -255,20 +275,20 @@ static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
         return;
     }
 
-    g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
-
     if (g_jobBGonePanel)
     {
-        const MyGUI::IntCoord currentCoord = g_jobBGonePanel->getCoord();
-        const MyGUI::IntCoord nextCoord = ClampPanelCoordToViewport(
-            BuildPanelCoordFromAnchor(currentCoord.left, currentCoord.top));
+        g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
+        const MyGUI::IntCoord nextCoord = ResolvePanelCoordFromConfig();
         ApplyPanelLayout(nextCoord);
 
         if (g_config.jobBGonePanelHasCustomPosition)
         {
             PersistPanelPositionIfChanged(nextCoord, "collapse_toggle");
         }
+        return;
     }
+
+    g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
 }
 
 static void OnJobBGoneHeaderMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
