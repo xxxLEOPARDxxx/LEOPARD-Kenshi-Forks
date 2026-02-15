@@ -72,42 +72,323 @@ static bool StartsWithAsciiNoCase(const std::string& value, const char* prefix)
     return true;
 }
 
-static std::string BuildCompactTaskNameForDisplay(const std::string& taskName)
+static bool ContainsAsciiNoCase(const std::string& value, const char* needle)
+{
+    if (!needle || needle[0] == '\0')
+    {
+        return false;
+    }
+
+    const size_t needleLen = std::strlen(needle);
+    if (needleLen > value.size())
+    {
+        return false;
+    }
+
+    for (size_t start = 0; start + needleLen <= value.size(); ++start)
+    {
+        bool match = true;
+        for (size_t i = 0; i < needleLen; ++i)
+        {
+            const unsigned char valueChar = static_cast<unsigned char>(value[start + i]);
+            const unsigned char needleChar = static_cast<unsigned char>(needle[i]);
+            if (std::tolower(valueChar) != std::tolower(needleChar))
+            {
+                match = false;
+                break;
+            }
+        }
+        if (match)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static std::string NormalizeTaskNameForDisplay(const std::string& taskName)
+{
+    std::string normalized;
+    normalized.reserve(taskName.size());
+
+    bool pendingSpace = false;
+    const size_t len = taskName.size();
+    for (size_t i = 0; i < len; ++i)
+    {
+        const unsigned char ch = static_cast<unsigned char>(taskName[i]);
+        if (std::isspace(ch) != 0 || ch < 32 || ch == 127)
+        {
+            pendingSpace = true;
+            continue;
+        }
+
+        if (pendingSpace && !normalized.empty())
+        {
+            normalized.push_back(' ');
+        }
+        pendingSpace = false;
+        normalized.push_back(static_cast<char>(ch));
+    }
+
+    return normalized;
+}
+
+static bool IsGenericOperatingMachineName(const std::string& taskName)
 {
     static const char* kOperatingMachinePrefix = "Operating machine";
     if (!StartsWithAsciiNoCase(taskName, kOperatingMachinePrefix))
     {
+        return false;
+    }
+
+    size_t pos = std::strlen(kOperatingMachinePrefix);
+    while (pos < taskName.size())
+    {
+        const unsigned char ch = static_cast<unsigned char>(taskName[pos]);
+        if (std::isspace(ch) != 0 || ch == ':' || ch == '-' || ch == '>')
+        {
+            ++pos;
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
+
+static bool IsPlausibleHandCandidateNoexcept(const hand* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const int typeValue = static_cast<int>(candidate->type);
+        const bool typeInRange = typeValue >= static_cast<int>(BUILDING) && typeValue < static_cast<int>(OBJECT_TYPE_MAX);
+        const bool notNullHandle = candidate->index != 0 || candidate->serial != 0;
+        return typeInRange && notNullHandle;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryResolveHandleTargetNoexcept(const hand* handle, RootObjectBase** targetOut)
+{
+    if (!handle || !targetOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        if (!(*handle) || !handle->isValid())
+        {
+            return false;
+        }
+
+        RootObjectBase* target = handle->getRootObjectBase();
+        if (!target || !target->isValid())
+        {
+            return false;
+        }
+
+        *targetOut = target;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryResolveNameFromPotentialHandle(const hand* handle, std::string* nameOut)
+{
+    if (!handle || !nameOut)
+    {
+        return false;
+    }
+
+    RootObjectBase* target = 0;
+    if (!TryResolveHandleTargetNoexcept(handle, &target) || !target)
+    {
+        return false;
+    }
+
+    const std::string normalizedName = NormalizeTaskNameForDisplay(target->getName());
+    if (normalizedName.empty())
+    {
+        return false;
+    }
+
+    *nameOut = normalizedName;
+    return true;
+}
+
+static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::string* targetNameOut)
+{
+    if (!targetNameOut || taskDataPtr == 0)
+    {
+        return false;
+    }
+
+    struct CachedTaskTargetName
+    {
+        uintptr_t taskDataPtr;
+        bool hasValue;
+        std::string value;
+    };
+    static std::vector<CachedTaskTargetName> cache;
+
+    const size_t cacheSize = cache.size();
+    for (size_t i = 0; i < cacheSize; ++i)
+    {
+        if (cache[i].taskDataPtr != taskDataPtr)
+        {
+            continue;
+        }
+
+        if (!cache[i].hasValue)
+        {
+            return false;
+        }
+
+        *targetNameOut = cache[i].value;
+        return true;
+    }
+
+    std::string firstName;
+    std::string preferredName;
+
+    // Tasker is opaque in KenshiLib. Probe first bytes for embedded handle fields.
+    static const int kScanBytes = 0x180;
+    for (int offset = 0; offset <= kScanBytes; offset += 4)
+    {
+        const hand* candidate = reinterpret_cast<const hand*>(taskDataPtr + static_cast<uintptr_t>(offset));
+        if (!IsPlausibleHandCandidateNoexcept(candidate))
+        {
+            continue;
+        }
+
+        std::string resolvedName;
+        if (!TryResolveNameFromPotentialHandle(candidate, &resolvedName))
+        {
+            continue;
+        }
+
+        if (IsGenericOperatingMachineName(resolvedName))
+        {
+            continue;
+        }
+
+        if (firstName.empty())
+        {
+            firstName = resolvedName;
+        }
+
+        if (ContainsAsciiNoCase(resolvedName, "resource")
+            || ContainsAsciiNoCase(resolvedName, "copper")
+            || ContainsAsciiNoCase(resolvedName, "iron")
+            || ContainsAsciiNoCase(resolvedName, "machine"))
+        {
+            preferredName = resolvedName;
+            break;
+        }
+    }
+
+    CachedTaskTargetName cached = { 0, false, std::string() };
+    cached.taskDataPtr = taskDataPtr;
+    if (!preferredName.empty())
+    {
+        cached.hasValue = true;
+        cached.value = preferredName;
+    }
+    else if (!firstName.empty())
+    {
+        cached.hasValue = true;
+        cached.value = firstName;
+    }
+
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: operating_machine_target_infer"
+             << " task_data_ptr=0x" << std::hex << taskDataPtr << std::dec
+             << " resolved=" << (cached.hasValue ? "true" : "false");
+        if (cached.hasValue)
+        {
+            info << " target=\"" << cached.value << "\"";
+        }
+        else
+        {
+            info << " first_candidate=\"" << firstName << "\"";
+        }
+        DebugLog(info.str().c_str());
+    }
+
+    cache.push_back(cached);
+
+    if (!cached.hasValue)
+    {
+        return false;
+    }
+
+    *targetNameOut = cached.value;
+    return true;
+}
+
+static std::string BuildCompactTaskNameForDisplay(const std::string& taskName)
+{
+    const std::string normalizedTaskName = NormalizeTaskNameForDisplay(taskName);
+    if (normalizedTaskName.empty())
+    {
         return taskName;
+    }
+
+    static const char* kOperatingMachinePrefix = "Operating machine";
+    if (!StartsWithAsciiNoCase(normalizedTaskName, kOperatingMachinePrefix))
+    {
+        return normalizedTaskName;
     }
 
     const size_t prefixLen = std::strlen(kOperatingMachinePrefix);
     size_t suffixPos = prefixLen;
 
-    const size_t colonPos = taskName.find(':', prefixLen);
+    const size_t colonPos = normalizedTaskName.find(':', prefixLen);
     if (colonPos != std::string::npos)
     {
         suffixPos = colonPos + 1;
     }
     else
     {
-        const size_t arrowPos = taskName.find("->", prefixLen);
+        const size_t arrowPos = normalizedTaskName.find("->", prefixLen);
         if (arrowPos != std::string::npos)
         {
             suffixPos = arrowPos + 2;
         }
         else
         {
-            const size_t dashPos = taskName.find(" - ", prefixLen);
+            const size_t dashPos = normalizedTaskName.find(" - ", prefixLen);
             if (dashPos != std::string::npos)
             {
                 suffixPos = dashPos + 3;
             }
+            else
+            {
+                const size_t lineBreakPos = normalizedTaskName.find_first_of("\r\n", prefixLen);
+                if (lineBreakPos != std::string::npos)
+                {
+                    suffixPos = lineBreakPos + 1;
+                }
+            }
         }
     }
 
-    while (suffixPos < taskName.size())
+    while (suffixPos < normalizedTaskName.size())
     {
-        const unsigned char ch = static_cast<unsigned char>(taskName[suffixPos]);
+        const unsigned char ch = static_cast<unsigned char>(normalizedTaskName[suffixPos]);
         if (std::isspace(ch) != 0 || ch == ':' || ch == '-' || ch == '>')
         {
             ++suffixPos;
@@ -116,14 +397,14 @@ static std::string BuildCompactTaskNameForDisplay(const std::string& taskName)
         break;
     }
 
-    if (suffixPos >= taskName.size())
+    if (suffixPos >= normalizedTaskName.size())
     {
         // Keep compact label even when no machine target can be extracted.
         return "Op. m:";
     }
 
     std::stringstream compact;
-    compact << "Op. m: " << taskName.substr(suffixPos);
+    compact << "Op. m: " << normalizedTaskName.substr(suffixPos);
     return compact.str();
 }
 
@@ -147,6 +428,18 @@ static void OnActionButtonMouseLostFocus(MyGUI::Widget*, MyGUI::Widget*)
     g_jobBGoneHoverHintText->setCaption("");
 }
 
+static void BindWidgetHoverHintHandlers(MyGUI::Widget* widget)
+{
+    if (!widget)
+    {
+        return;
+    }
+
+    widget->setNeedMouseFocus(true);
+    widget->eventMouseSetFocus += MyGUI::newDelegate(&OnActionButtonMouseSetFocus);
+    widget->eventMouseLostFocus += MyGUI::newDelegate(&OnActionButtonMouseLostFocus);
+}
+
 static void SetWidgetTooltipAndHoverHint(MyGUI::Widget* widget, const char* tooltipText)
 {
     if (!widget || !tooltipText)
@@ -154,11 +447,20 @@ static void SetWidgetTooltipAndHoverHint(MyGUI::Widget* widget, const char* tool
         return;
     }
 
+    BindWidgetHoverHintHandlers(widget);
     widget->setNeedToolTip(true);
     widget->setUserString("ToolTip", tooltipText);
     widget->setUserString("JobBGoneHoverHint", tooltipText);
-    widget->eventMouseSetFocus += MyGUI::newDelegate(&OnActionButtonMouseSetFocus);
-    widget->eventMouseLostFocus += MyGUI::newDelegate(&OnActionButtonMouseLostFocus);
+}
+
+static void SetWidgetHoverHint(MyGUI::Widget* widget, const std::string& hoverHint)
+{
+    if (!widget)
+    {
+        return;
+    }
+
+    widget->setUserString("JobBGoneHoverHint", hoverHint);
 }
 
 static void AddUniqueCharacterForSelection(std::vector<Character*>* membersOut, Character* member)
@@ -996,6 +1298,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             }
 
             rowWidgets.label->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+            BindWidgetHoverHintHandlers(rowWidgets.label);
             rowWidgets.deleteSelectedMemberButton->setCaption("Me");
             SetWidgetTooltipAndHoverHint(
                 rowWidgets.deleteSelectedMemberButton,
@@ -1254,6 +1557,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         {
             if (rowWidgets.label)
             {
+                SetWidgetHoverHint(rowWidgets.label, "");
                 rowWidgets.label->setVisible(false);
             }
             if (rowWidgets.deleteSelectedMemberButton)
@@ -1276,7 +1580,43 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         }
 
         const JobRowModel& rowModel = g_selectedMemberJobRows[i];
-        const std::string taskNameForDisplay = BuildCompactTaskNameForDisplay(rowModel.taskName);
+        std::string taskNameForDisplay = BuildCompactTaskNameForDisplay(rowModel.taskName);
+        std::string hoverTaskName = NormalizeTaskNameForDisplay(rowModel.taskName);
+        if (IsGenericOperatingMachineName(hoverTaskName))
+        {
+            std::string inferredTargetName;
+            if (TryInferOperatingMachineTargetName(rowModel.taskDataPtr, &inferredTargetName))
+            {
+                hoverTaskName = "Operating machine: " + inferredTargetName;
+            }
+            else if (StartsWithAsciiNoCase(taskNameForDisplay, "Op. m:"))
+            {
+                std::string compactSuffix = taskNameForDisplay.substr(std::strlen("Op. m:"));
+                size_t suffixStart = 0;
+                while (suffixStart < compactSuffix.size()
+                    && std::isspace(static_cast<unsigned char>(compactSuffix[suffixStart])) != 0)
+                {
+                    ++suffixStart;
+                }
+                if (suffixStart < compactSuffix.size())
+                {
+                    hoverTaskName = "Operating machine: " + compactSuffix.substr(suffixStart);
+                }
+            }
+        }
+
+        // Keep row title compact (Op. m:) while using inferred full machine target when available.
+        if (StartsWithAsciiNoCase(taskNameForDisplay, "Op. m:")
+            && StartsWithAsciiNoCase(hoverTaskName, "Operating machine"))
+        {
+            const std::string inferredCompactTitle = BuildCompactTaskNameForDisplay(hoverTaskName);
+            if (StartsWithAsciiNoCase(inferredCompactTitle, "Op. m:")
+                && inferredCompactTitle.size() > std::strlen("Op. m:"))
+            {
+                taskNameForDisplay = inferredCompactTitle;
+            }
+        }
+
         std::stringstream rowLabel;
         rowLabel << (i + 1) << ". " << taskNameForDisplay;
         if (taskNameForDisplay.empty())
@@ -1289,6 +1629,16 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         if (rowWidgets.label)
         {
             rowWidgets.label->setCaption(rowLabel.str());
+            std::stringstream hoverHintCaption;
+            if (!hoverTaskName.empty())
+            {
+                hoverHintCaption << (i + 1) << ". " << hoverTaskName;
+            }
+            else
+            {
+                hoverHintCaption << rowLabel.str();
+            }
+            SetWidgetHoverHint(rowWidgets.label, hoverHintCaption.str());
             rowWidgets.label->setVisible(true);
         }
 

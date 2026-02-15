@@ -7,6 +7,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/RootObjectBase.h>
 #include <kenshi/SaveManager.h>
 #include <kenshi/TitleScreen.h>
 #include <kenshi/util/lektor.h>
