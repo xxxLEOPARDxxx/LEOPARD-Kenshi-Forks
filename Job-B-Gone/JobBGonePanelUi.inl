@@ -37,9 +37,13 @@ static int GetJobRowTop(int rowIndex)
 static const int kScopeButtonMeWidth = 52;
 static const int kScopeButtonSelectedWidth = 114;
 static const int kScopeButtonSquadWidth = 102;
-static const int kScopeButtonAllSquadsWidth = 130;
+static const int kScopeButtonAllSquadsWidth = 102;
 static const int kScopeButtonGap = 6;
 static const int kScopeButtonHeight = 30;
+static const char* kScopeCaptionMe = "Me";
+static const char* kScopeCaptionSelected = "Selected";
+static const char* kScopeCaptionSquadWarning = "Squad";
+static const char* kScopeCaptionAllSquadsWarning = "All";
 
 static int ComputeVisibleJobRowCapacityForHeight(int expandedHeight)
 {
@@ -830,7 +834,7 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
         || !g_jobBGoneEmptyStateText
         || !g_deleteAllJobsTitleText || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
         || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton
-        || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
+        || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmTitleTextBold || !g_jobBGoneConfirmBodyText
         || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
     {
         return;
@@ -865,6 +869,7 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
 
     g_jobBGoneConfirmOverlay->setCoord(MyGUI::IntCoord(overlayLeft, overlayTop, overlayWidth, overlayHeight));
     g_jobBGoneConfirmTitleText->setCoord(MyGUI::IntCoord(12, 10, overlayWidth - 24, 24));
+    g_jobBGoneConfirmTitleTextBold->setCoord(MyGUI::IntCoord(13, 10, overlayWidth - 24, 24));
     g_jobBGoneConfirmBodyText->setCoord(MyGUI::IntCoord(12, 40, overlayWidth - 24, overlayHeight - 86));
     const int confirmButtonWidth = 110;
     const int confirmButtonHeight = 30;
@@ -1081,10 +1086,15 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobRowsScrollDownButton = 0;
     g_jobBGoneConfirmOverlay = 0;
     g_jobBGoneConfirmTitleText = 0;
+    g_jobBGoneConfirmTitleTextBold = 0;
     g_jobBGoneConfirmBodyText = 0;
     g_jobBGoneConfirmYesButton = 0;
     g_jobBGoneConfirmNoButton = 0;
     g_jobBGoneConfirmVisible = false;
+    g_dangerScopeArmed = false;
+    g_armedDangerScope = JobDeleteScope_SelectedMember;
+    g_armedDangerButton = 0;
+    g_dangerScopeArmedAtMs = 0;
     g_pendingConfirmationAction.type = PendingConfirmationAction_None;
     g_pendingConfirmationAction.scope = JobDeleteScope_SelectedMember;
     g_pendingConfirmationAction.jobKey.clear();
@@ -1365,28 +1375,28 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_jobBGoneHeaderButton->eventMouseDrag += MyGUI::newDelegate(&OnJobBGoneHeaderMouseDrag);
         g_jobBGoneHeaderButton->eventMouseButtonReleased += MyGUI::newDelegate(&OnJobBGoneHeaderMouseReleased);
         g_deleteAllJobsTitleText->setCaption("Delete All Jobs");
-        g_deleteAllJobsSelectedMemberButton->setCaption("Me");
+        g_deleteAllJobsSelectedMemberButton->setCaption(kScopeCaptionMe);
         SetWidgetTooltipAndHoverHint(
             g_deleteAllJobsSelectedMemberButton,
             "Delete all queued jobs for the currently selected member.");
         g_deleteAllJobsSelectedMemberButton->eventMouseButtonClick
             += MyGUI::newDelegate(&OnDeleteAllJobsSelectedMemberButtonClicked);
-        g_deleteAllJobsSelectedMembersButton->setCaption("Selected");
+        g_deleteAllJobsSelectedMembersButton->setCaption(kScopeCaptionSelected);
         SetWidgetTooltipAndHoverHint(
             g_deleteAllJobsSelectedMembersButton,
             "Delete all queued jobs for all selected members.");
         g_deleteAllJobsSelectedMembersButton->eventMouseButtonClick
             += MyGUI::newDelegate(&OnDeleteAllJobsSelectedMembersButtonClicked);
-        g_deleteAllJobsWholeSquadButton->setCaption("Squad");
+        g_deleteAllJobsWholeSquadButton->setCaption(kScopeCaptionSquadWarning);
         SetWidgetTooltipAndHoverHint(
             g_deleteAllJobsWholeSquadButton,
-            "Delete all queued jobs for the selected member's squad.");
+            "Warning: delete all queued jobs for the selected member's squad.");
         g_deleteAllJobsWholeSquadButton->eventMouseButtonClick
             += MyGUI::newDelegate(&OnDeleteAllJobsWholeSquadButtonClicked);
-        g_deleteAllJobsEveryoneButton->setCaption("All Squads");
+        g_deleteAllJobsEveryoneButton->setCaption(kScopeCaptionAllSquadsWarning);
         SetWidgetTooltipAndHoverHint(
             g_deleteAllJobsEveryoneButton,
-            "Delete all queued jobs for all player-controlled squads.");
+            "Warning: delete all queued jobs for all player-controlled squads.");
         g_deleteAllJobsEveryoneButton->eventMouseButtonClick
             += MyGUI::newDelegate(&OnDeleteAllJobsEveryoneButtonClicked);
 
@@ -1431,31 +1441,31 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
             rowWidgets.label->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
             BindWidgetHoverHintHandlers(rowWidgets.label);
-            rowWidgets.deleteSelectedMemberButton->setCaption("Me");
+            rowWidgets.deleteSelectedMemberButton->setCaption(kScopeCaptionMe);
             SetWidgetTooltipAndHoverHint(
                 rowWidgets.deleteSelectedMemberButton,
                 "Delete this job for selected member.");
             rowWidgets.deleteSelectedMemberButton->eventMouseButtonClick
                 += MyGUI::newDelegate(&OnDeleteJobSelectedMemberButtonClicked);
 
-            rowWidgets.deleteSelectedMembersButton->setCaption("Selected");
+            rowWidgets.deleteSelectedMembersButton->setCaption(kScopeCaptionSelected);
             SetWidgetTooltipAndHoverHint(
                 rowWidgets.deleteSelectedMembersButton,
                 "Delete this job for all selected members.");
             rowWidgets.deleteSelectedMembersButton->eventMouseButtonClick
                 += MyGUI::newDelegate(&OnDeleteJobSelectedMembersButtonClicked);
 
-            rowWidgets.deleteWholeSquadButton->setCaption("Squad");
+            rowWidgets.deleteWholeSquadButton->setCaption(kScopeCaptionSquadWarning);
             SetWidgetTooltipAndHoverHint(
                 rowWidgets.deleteWholeSquadButton,
-                "Delete this job for the whole squad.");
+                "Warning: delete this job for the whole squad.");
             rowWidgets.deleteWholeSquadButton->eventMouseButtonClick
                 += MyGUI::newDelegate(&OnDeleteJobWholeSquadButtonClicked);
 
-            rowWidgets.deleteEveryoneButton->setCaption("All Squads");
+            rowWidgets.deleteEveryoneButton->setCaption(kScopeCaptionAllSquadsWarning);
             SetWidgetTooltipAndHoverHint(
                 rowWidgets.deleteEveryoneButton,
-                "Delete this job for all player-controlled squads.");
+                "Warning: delete this job for all player-controlled squads.");
             rowWidgets.deleteEveryoneButton->eventMouseButtonClick
                 += MyGUI::newDelegate(&OnDeleteJobEveryoneButtonClicked);
 
@@ -1484,6 +1494,10 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
                 "Kenshi_TextboxStandardText",
                 MyGUI::IntCoord(12, 10, 436, 24),
                 MyGUI::Align::Default);
+            g_jobBGoneConfirmTitleTextBold = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
+                "Kenshi_TextboxStandardText",
+                MyGUI::IntCoord(13, 10, 436, 24),
+                MyGUI::Align::Default);
             g_jobBGoneConfirmBodyText = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
                 "Kenshi_TextboxStandardText",
                 MyGUI::IntCoord(12, 40, 436, 124),
@@ -1498,7 +1512,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
                 MyGUI::Align::Default);
         }
 
-        if (g_jobBGoneConfirmOverlay && g_jobBGoneConfirmTitleText && g_jobBGoneConfirmBodyText
+        if (g_jobBGoneConfirmOverlay && g_jobBGoneConfirmTitleText && g_jobBGoneConfirmTitleTextBold && g_jobBGoneConfirmBodyText
             && g_jobBGoneConfirmYesButton && g_jobBGoneConfirmNoButton)
         {
             std::stringstream info;
@@ -1513,6 +1527,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             g_jobBGoneConfirmOverlay->setNeedKeyFocus(true);
             g_jobBGoneConfirmOverlay->eventKeyButtonPressed += MyGUI::newDelegate(&OnConfirmationKeyPressed);
             g_jobBGoneConfirmTitleText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+            g_jobBGoneConfirmTitleTextBold->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
             g_jobBGoneConfirmBodyText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::Top);
             g_jobBGoneConfirmYesButton->setCaption("Confirm");
             g_jobBGoneConfirmYesButton->setNeedKeyFocus(true);
@@ -1524,6 +1539,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             g_jobBGoneConfirmNoButton->eventKeyButtonPressed += MyGUI::newDelegate(&OnConfirmationKeyPressed);
             g_jobBGoneConfirmOverlay->setVisible(false);
             g_jobBGoneConfirmTitleText->setVisible(false);
+            g_jobBGoneConfirmTitleTextBold->setVisible(false);
             g_jobBGoneConfirmBodyText->setVisible(false);
             g_jobBGoneConfirmYesButton->setVisible(false);
             g_jobBGoneConfirmNoButton->setVisible(false);
@@ -1535,7 +1551,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         || !g_deleteAllJobsTitleText || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
         || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText
         || !g_jobRowsScrollUpButton || !g_jobRowsScrollDownButton
-        || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
+        || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmTitleTextBold || !g_jobBGoneConfirmBodyText
         || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
     {
         return;
@@ -1572,6 +1588,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     int selectedMemberCount = 0;
     BuildDisplayedJobRowsForSelection(selectedMember, &g_selectedMemberJobRows, &selectedMemberCount);
     const int jobCount = static_cast<int>(g_selectedMemberJobRows.size());
+    MaybeExpireDangerScopeArmState("panel_tick_timeout");
 
     std::stringstream headerCaption;
     headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
@@ -1685,6 +1702,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     g_deleteAllJobsEveryoneButton->setEnabled(topActionsVisible && canDeleteForEveryone && !confirmationOverlayVisible);
     g_jobBGoneConfirmOverlay->setVisible(confirmationOverlayVisible);
     g_jobBGoneConfirmTitleText->setVisible(confirmationOverlayVisible);
+    g_jobBGoneConfirmTitleTextBold->setVisible(confirmationOverlayVisible);
     g_jobBGoneConfirmBodyText->setVisible(confirmationOverlayVisible);
     g_jobBGoneConfirmYesButton->setVisible(confirmationOverlayVisible);
     g_jobBGoneConfirmNoButton->setVisible(confirmationOverlayVisible);

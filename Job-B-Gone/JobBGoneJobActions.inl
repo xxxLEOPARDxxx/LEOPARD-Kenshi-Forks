@@ -394,14 +394,114 @@ static void ExecuteDeleteJobForScope(
     const std::string& jobKey,
     TaskType taskType,
     const std::string& taskName);
+static const char* GetScopeLogName(JobDeleteScope scope);
+static const char* GetScopeDisplayName(JobDeleteScope scope);
 
 static bool ShouldRequireConfirmationForScope(JobDeleteScope scope)
 {
     return scope == JobDeleteScope_WholeSquad || scope == JobDeleteScope_EveryoneGlobal;
 }
 
+static const char* GetDangerScopeCaption(JobDeleteScope scope, bool armed)
+{
+    if (scope == JobDeleteScope_WholeSquad)
+    {
+        return armed ? "Confirm" : "Squad";
+    }
+    if (scope == JobDeleteScope_EveryoneGlobal)
+    {
+        return armed ? "Confirm" : "All";
+    }
+    return "";
+}
+
+static void SetDangerButtonCaption(MyGUI::Button* button, JobDeleteScope scope, bool armed)
+{
+    if (button)
+    {
+        button->setCaption(GetDangerScopeCaption(scope, armed));
+    }
+}
+
+static void ClearDangerScopeArmState(const char* source)
+{
+    const bool hadArmedScope = g_dangerScopeArmed;
+    const JobDeleteScope previousScope = g_armedDangerScope;
+    MyGUI::Button* previousButton = g_armedDangerButton;
+    g_dangerScopeArmed = false;
+    g_armedDangerScope = JobDeleteScope_SelectedMember;
+    g_armedDangerButton = 0;
+    g_dangerScopeArmedAtMs = 0;
+    SetDangerButtonCaption(previousButton, previousScope, false);
+
+    if (hadArmedScope)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: danger_scope_disarmed"
+             << " source=" << (source ? source : "unknown")
+             << " previous_scope=" << GetScopeLogName(previousScope);
+        DebugLog(info.str().c_str());
+    }
+}
+
+static bool HandleDangerScopeTwoStep(MyGUI::Widget* sender, JobDeleteScope scope, const char* source)
+{
+    if (!ShouldRequireConfirmationForScope(scope))
+    {
+        return false;
+    }
+
+    MyGUI::Button* senderButton = static_cast<MyGUI::Button*>(sender);
+    if (!senderButton)
+    {
+        return false;
+    }
+
+    if (!g_dangerScopeArmed || g_armedDangerScope != scope || g_armedDangerButton != senderButton)
+    {
+        ClearDangerScopeArmState("danger_rearm");
+        g_dangerScopeArmed = true;
+        g_armedDangerScope = scope;
+        g_armedDangerButton = senderButton;
+        g_dangerScopeArmedAtMs = GetTickCount();
+        SetDangerButtonCaption(senderButton, scope, true);
+        if (g_jobBGoneHoverHintText)
+        {
+            std::stringstream hint;
+            hint << "Armed: " << GetScopeDisplayName(scope)
+                 << ". Click again to open confirmation.";
+            g_jobBGoneHoverHintText->setCaption(hint.str());
+        }
+
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: danger_scope_armed"
+             << " source=" << (source ? source : "unknown")
+             << " scope=" << GetScopeLogName(scope);
+        DebugLog(info.str().c_str());
+        return true;
+    }
+
+    ClearDangerScopeArmState(source ? source : "danger_second_click");
+    return false;
+}
+
+static void MaybeExpireDangerScopeArmState(const char* source)
+{
+    if (!g_dangerScopeArmed)
+    {
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (g_dangerScopeArmedAtMs == 0 || nowMs - g_dangerScopeArmedAtMs >= kDangerScopeArmTimeoutMs)
+    {
+        ClearDangerScopeArmState(source ? source : "danger_arm_timeout");
+    }
+}
+
 static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*)
 {
+    ClearDangerScopeArmState("delete_all_me_click");
     if (ShouldRequireConfirmationForScope(JobDeleteScope_SelectedMember) && ShowDeleteAllConfirmation(JobDeleteScope_SelectedMember))
     {
         return;
@@ -411,6 +511,7 @@ static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*)
 
 static void OnDeleteAllJobsSelectedMembersButtonClicked(MyGUI::Widget*)
 {
+    ClearDangerScopeArmState("delete_all_selected_click");
     if (ShouldRequireConfirmationForScope(JobDeleteScope_SelectedMembers) && ShowDeleteAllConfirmation(JobDeleteScope_SelectedMembers))
     {
         return;
@@ -418,8 +519,12 @@ static void OnDeleteAllJobsSelectedMembersButtonClicked(MyGUI::Widget*)
     ExecuteDeleteAllJobsForScope(JobDeleteScope_SelectedMembers);
 }
 
-static void OnDeleteAllJobsWholeSquadButtonClicked(MyGUI::Widget*)
+static void OnDeleteAllJobsWholeSquadButtonClicked(MyGUI::Widget* sender)
 {
+    if (HandleDangerScopeTwoStep(sender, JobDeleteScope_WholeSquad, "delete_all_squad_click"))
+    {
+        return;
+    }
     if (ShouldRequireConfirmationForScope(JobDeleteScope_WholeSquad) && ShowDeleteAllConfirmation(JobDeleteScope_WholeSquad))
     {
         return;
@@ -427,8 +532,12 @@ static void OnDeleteAllJobsWholeSquadButtonClicked(MyGUI::Widget*)
     ExecuteDeleteAllJobsForScope(JobDeleteScope_WholeSquad);
 }
 
-static void OnDeleteAllJobsEveryoneButtonClicked(MyGUI::Widget*)
+static void OnDeleteAllJobsEveryoneButtonClicked(MyGUI::Widget* sender)
 {
+    if (HandleDangerScopeTwoStep(sender, JobDeleteScope_EveryoneGlobal, "delete_all_all_squads_click"))
+    {
+        return;
+    }
     if (ShouldRequireConfirmationForScope(JobDeleteScope_EveryoneGlobal)
         && ShowDeleteAllConfirmation(JobDeleteScope_EveryoneGlobal))
     {
@@ -762,6 +871,7 @@ static bool MemberHasMatchingJobBySignature(Character* member, TaskType taskType
 
 static void HideConfirmationOverlay()
 {
+    ClearDangerScopeArmState("hide_confirmation_overlay");
     g_jobBGoneConfirmVisible = false;
     if (g_jobBGoneConfirmOverlay)
     {
@@ -771,6 +881,11 @@ static void HideConfirmationOverlay()
     {
         g_jobBGoneConfirmTitleText->setVisible(false);
         g_jobBGoneConfirmTitleText->setCaption("");
+    }
+    if (g_jobBGoneConfirmTitleTextBold)
+    {
+        g_jobBGoneConfirmTitleTextBold->setVisible(false);
+        g_jobBGoneConfirmTitleTextBold->setCaption("");
     }
     if (g_jobBGoneConfirmBodyText)
     {
@@ -806,7 +921,7 @@ static bool ShowConfirmationOverlay(
     const std::string& title,
     const std::string& body)
 {
-    if (!g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
+    if (!g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmTitleTextBold || !g_jobBGoneConfirmBodyText
         || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
     {
         DebugLog("Job-B-Gone WARN: confirmation_overlay_missing_widgets");
@@ -819,6 +934,7 @@ static bool ShowConfirmationOverlay(
     g_pendingConfirmationAction.taskType = taskType;
     g_pendingConfirmationAction.taskName = taskName;
     g_jobBGoneConfirmTitleText->setCaption(title);
+    g_jobBGoneConfirmTitleTextBold->setCaption(title);
     g_jobBGoneConfirmBodyText->setCaption(body);
     g_jobBGoneConfirmVisible = true;
 
@@ -1420,6 +1536,16 @@ static void ExecuteDeleteJobForScope(
 
 static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScope scope)
 {
+    if (HandleDangerScopeTwoStep(sender, scope, "row_scope_click"))
+    {
+        return;
+    }
+
+    if (!ShouldRequireConfirmationForScope(scope))
+    {
+        ClearDangerScopeArmState("row_non_destructive_click");
+    }
+
     std::string jobKey;
     std::string taskName;
     TaskType taskType = static_cast<TaskType>(0);

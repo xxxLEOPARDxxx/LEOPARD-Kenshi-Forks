@@ -35,6 +35,7 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
+static const DWORD kDangerScopeArmTimeoutMs = 3000;
 static const int kPanelWidth = 740;
 static const int kPanelExpandedMinHeight = 184;
 static const int kPanelExpandedMaxHeight = 440;
@@ -117,10 +118,15 @@ static MyGUI::Button* g_deleteAllJobsEveryoneButton = 0;
 static MyGUI::TextBox* g_jobBGoneHoverHintText = 0;
 static MyGUI::Button* g_jobBGoneConfirmOverlay = 0;
 static MyGUI::TextBox* g_jobBGoneConfirmTitleText = 0;
+static MyGUI::TextBox* g_jobBGoneConfirmTitleTextBold = 0;
 static MyGUI::TextBox* g_jobBGoneConfirmBodyText = 0;
 static MyGUI::Button* g_jobBGoneConfirmYesButton = 0;
 static MyGUI::Button* g_jobBGoneConfirmNoButton = 0;
 static bool g_jobBGoneConfirmVisible = false;
+static bool g_dangerScopeArmed = false;
+static JobDeleteScope g_armedDangerScope = JobDeleteScope_SelectedMember;
+static MyGUI::Button* g_armedDangerButton = 0;
+static DWORD g_dangerScopeArmedAtMs = 0;
 
 enum PendingConfirmationActionType
 {
