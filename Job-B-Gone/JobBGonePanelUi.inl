@@ -22,9 +22,16 @@ static bool TryGetViewportSize(int* widthOut, int* heightOut)
     return true;
 }
 
+static const int kJobRowsTop = 114;
+static const int kJobRowStride = 38;
+static const int kJobRowsBottomPadding = 30;
+static const int kJobRowsMinVisibleWhenExpanded = 1;
+static const int kJobRowsScrollButtonWidth = 24;
+static const int kJobRowsScrollButtonHeight = 24;
+
 static int GetJobRowTop(int rowIndex)
 {
-    return 114 + (rowIndex * 38);
+    return kJobRowsTop + (rowIndex * kJobRowStride);
 }
 
 static const int kScopeButtonMeWidth = 52;
@@ -33,6 +40,85 @@ static const int kScopeButtonSquadWidth = 102;
 static const int kScopeButtonAllSquadsWidth = 130;
 static const int kScopeButtonGap = 6;
 static const int kScopeButtonHeight = 30;
+
+static int ComputeVisibleJobRowCapacityForHeight(int expandedHeight)
+{
+    const int availableHeight = expandedHeight - kPanelExpandedMinHeight;
+    if (availableHeight <= 0)
+    {
+        return 0;
+    }
+
+    int capacity = kJobRowsMinVisibleWhenExpanded + (availableHeight / kJobRowStride);
+    capacity = ClampIntValue(capacity, 0, kMaxVisibleJobRows);
+    return capacity;
+}
+
+static int ComputeAdaptiveExpandedPanelHeight(bool showJobRows, bool showEmptyState, int jobCount, bool confirmationOverlayVisible)
+{
+    if (confirmationOverlayVisible)
+    {
+        return ClampIntValue(kPanelExpandedConfirmHeight, kPanelExpandedMinHeight, kPanelExpandedMaxHeight);
+    }
+
+    if (!showJobRows && !showEmptyState)
+    {
+        return kPanelExpandedMinHeight;
+    }
+
+    if (showEmptyState)
+    {
+        return kPanelExpandedMinHeight;
+    }
+
+    int desiredRows = jobCount;
+    if (desiredRows < 0)
+    {
+        desiredRows = 0;
+    }
+
+    if (desiredRows < kJobRowsMinVisibleWhenExpanded)
+    {
+        desiredRows = kJobRowsMinVisibleWhenExpanded;
+    }
+
+    if (desiredRows > kMaxVisibleJobRows)
+    {
+        desiredRows = kMaxVisibleJobRows;
+    }
+
+    int expandedHeight = kPanelExpandedMinHeight + ((desiredRows - kJobRowsMinVisibleWhenExpanded) * kJobRowStride);
+    expandedHeight = ClampIntValue(expandedHeight, kPanelExpandedMinHeight, kPanelExpandedMaxHeight);
+    return expandedHeight;
+}
+
+static int GetExpandedPanelHeight()
+{
+    return ClampIntValue(g_panelExpandedHeight, kPanelExpandedMinHeight, kPanelExpandedMaxHeight);
+}
+
+static void OnJobRowsScrollUpButtonClicked(MyGUI::Widget*)
+{
+    if (g_jobRowScrollOffset <= 0)
+    {
+        return;
+    }
+
+    --g_jobRowScrollOffset;
+}
+
+static void OnJobRowsScrollDownButtonClicked(MyGUI::Widget*)
+{
+    const int visibleRows = ComputeVisibleJobRowCapacityForHeight(GetExpandedPanelHeight());
+    const int totalRows = static_cast<int>(g_selectedMemberJobRows.size());
+    const int maxOffset = ClampIntValue(totalRows - visibleRows, 0, totalRows);
+    if (g_jobRowScrollOffset >= maxOffset)
+    {
+        return;
+    }
+
+    ++g_jobRowScrollOffset;
+}
 
 static void SetJobButtonPayload(MyGUI::Button* button, const JobRowModel& row)
 {
@@ -601,7 +687,7 @@ static void BuildDisplayedJobRowsForSelection(
 
 static int GetCollapsedHeaderYOffset()
 {
-    return kPanelExpandedHeight - kPanelCollapsedHeight;
+    return GetExpandedPanelHeight() - kPanelCollapsedHeight;
 }
 
 static bool TryGetMousePosition(int* xOut, int* yOut)
@@ -638,7 +724,7 @@ static int ClampIntValue(int value, int minValue, int maxValue)
 
 static MyGUI::IntCoord BuildPanelCoordFromAnchor(int left, int top)
 {
-    const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : kPanelExpandedHeight;
+    const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : GetExpandedPanelHeight();
     return MyGUI::IntCoord(left, top, kPanelWidth, height);
 }
 
@@ -647,7 +733,7 @@ static MyGUI::IntCoord ClampPanelCoordToViewport(const MyGUI::IntCoord& inputCoo
     int left = inputCoord.left;
     int top = inputCoord.top;
     const int width = (inputCoord.width > 0) ? inputCoord.width : kPanelWidth;
-    const int height = (inputCoord.height > 0) ? inputCoord.height : kPanelExpandedHeight;
+    const int height = (inputCoord.height > 0) ? inputCoord.height : GetExpandedPanelHeight();
 
     int viewWidth = 0;
     int viewHeight = 0;
@@ -703,7 +789,7 @@ static MyGUI::IntCoord GetFallbackButtonCoord()
     int viewHeight = 0;
     if (TryGetViewportSize(&viewWidth, &viewHeight))
     {
-        const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : kPanelExpandedHeight;
+        const int height = g_jobBGonePanelCollapsed ? kPanelCollapsedHeight : GetExpandedPanelHeight();
         // Anchor above the squad portraits panel (right-side roster block).
         left = viewWidth - kPanelWidth - 700;
         top = viewHeight - height - 250;
@@ -794,8 +880,15 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
     const int allButtonWidth = kScopeButtonAllSquadsWidth;
     const int buttonGap = kScopeButtonGap;
     const int buttonHeight = kScopeButtonHeight;
+    const int rowScrollControlsWidth = (g_jobRowsScrollUpButton && g_jobRowsScrollDownButton)
+        ? (kJobRowsScrollButtonWidth + 6)
+        : 0;
     const int allButtonsWidth = meButtonWidth + selectedButtonWidth + squadButtonWidth + allButtonWidth + (buttonGap * 3);
-    const int topTitleWidth = panelCoord.width - 28 - allButtonsWidth - 8;
+    int topTitleWidth = panelCoord.width - 28 - allButtonsWidth - 8 - rowScrollControlsWidth;
+    if (topTitleWidth < 90)
+    {
+        topTitleWidth = 90;
+    }
     const int topButtonsLeft = 14 + topTitleWidth + 8;
 
     g_deleteAllJobsTitleText->setCoord(MyGUI::IntCoord(14, 80, topTitleWidth, buttonHeight));
@@ -815,7 +908,7 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
             allButtonWidth,
             buttonHeight));
 
-    int labelWidth = panelCoord.width - 28 - allButtonsWidth - 8;
+    int labelWidth = panelCoord.width - 28 - allButtonsWidth - 8 - rowScrollControlsWidth;
     if (labelWidth < 90)
     {
         labelWidth = 90;
@@ -846,6 +939,22 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
                 top,
                 allButtonWidth,
                 buttonHeight));
+    }
+
+    if (g_jobRowsScrollUpButton && g_jobRowsScrollDownButton)
+    {
+        const int scrollButtonLeft = panelCoord.width - kJobRowsScrollButtonWidth - 8;
+        const int upTop = kJobRowsTop;
+        int downTop = panelCoord.height - kJobRowsBottomPadding - kJobRowsScrollButtonHeight;
+        if (downTop < upTop + kJobRowsScrollButtonHeight + 4)
+        {
+            downTop = upTop + kJobRowsScrollButtonHeight + 4;
+        }
+
+        g_jobRowsScrollUpButton->setCoord(
+            MyGUI::IntCoord(scrollButtonLeft, upTop, kJobRowsScrollButtonWidth, kJobRowsScrollButtonHeight));
+        g_jobRowsScrollDownButton->setCoord(
+            MyGUI::IntCoord(scrollButtonLeft, downTop, kJobRowsScrollButtonWidth, kJobRowsScrollButtonHeight));
     }
 }
 
@@ -968,6 +1077,8 @@ static void DestroySelectedMemberJobPanelButton()
     g_deleteAllJobsWholeSquadButton = 0;
     g_deleteAllJobsEveryoneButton = 0;
     g_jobBGoneHoverHintText = 0;
+    g_jobRowsScrollUpButton = 0;
+    g_jobRowsScrollDownButton = 0;
     g_jobBGoneConfirmOverlay = 0;
     g_jobBGoneConfirmTitleText = 0;
     g_jobBGoneConfirmBodyText = 0;
@@ -987,6 +1098,8 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobBGonePanelDragLastMouseX = 0;
     g_jobBGonePanelDragLastMouseY = 0;
     g_jobBGonePanelDragMovedDistance = 0;
+    g_panelExpandedHeight = kPanelExpandedHeight;
+    g_jobRowScrollOffset = 0;
 }
 
 static void OnSaveLoadTransitionStart(const char* source)
@@ -1198,11 +1311,24 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(14, panelCoord.height - 30, panelCoord.width - 28, 18),
             MyGUI::Align::Default);
+        g_jobRowsScrollUpButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(panelCoord.width - kJobRowsScrollButtonWidth - 8, kJobRowsTop, kJobRowsScrollButtonWidth, kJobRowsScrollButtonHeight),
+            MyGUI::Align::Default);
+        g_jobRowsScrollDownButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(
+                panelCoord.width - kJobRowsScrollButtonWidth - 8,
+                panelCoord.height - kJobRowsBottomPadding - kJobRowsScrollButtonHeight,
+                kJobRowsScrollButtonWidth,
+                kJobRowsScrollButtonHeight),
+            MyGUI::Align::Default);
 
         if (!g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_jobBGoneEmptyStateText
             || !g_deleteAllJobsTitleText
             || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
-            || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText)
+            || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText
+            || !g_jobRowsScrollUpButton || !g_jobRowsScrollDownButton)
         {
             DestroySelectedMemberJobPanelButton();
             if (!g_loggedSelectedMemberButtonCreateFailure)
@@ -1224,6 +1350,12 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_deleteAllJobsTitleText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         g_jobBGoneHoverHintText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         g_jobBGoneHoverHintText->setCaption("");
+        g_jobRowsScrollUpButton->setCaption("^");
+        SetWidgetTooltipAndHoverHint(g_jobRowsScrollUpButton, "Scroll job rows up.");
+        g_jobRowsScrollUpButton->eventMouseButtonClick += MyGUI::newDelegate(&OnJobRowsScrollUpButtonClicked);
+        g_jobRowsScrollDownButton->setCaption("v");
+        SetWidgetTooltipAndHoverHint(g_jobRowsScrollDownButton, "Scroll job rows down.");
+        g_jobRowsScrollDownButton->eventMouseButtonClick += MyGUI::newDelegate(&OnJobRowsScrollDownButtonClicked);
         g_jobBGoneHeaderButton->setNeedMouseFocus(true);
         g_jobBGoneHeaderButton->setNeedKeyFocus(true);
         g_jobBGoneHeaderButton->eventKeyButtonPressed += MyGUI::newDelegate(&OnConfirmationKeyPressed);
@@ -1402,6 +1534,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         || !g_jobBGoneEmptyStateText
         || !g_deleteAllJobsTitleText || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
         || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText
+        || !g_jobRowsScrollUpButton || !g_jobRowsScrollDownButton
         || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
         || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
     {
@@ -1444,6 +1577,58 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
     g_jobBGoneHeaderButton->setCaption(headerCaption.str());
 
+    const bool topActionsEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
+    const bool topActionsVisible = topActionsEnabled && !g_jobBGonePanelCollapsed;
+    const bool confirmationOverlayVisible = g_jobBGoneConfirmVisible && !g_jobBGonePanelCollapsed;
+    const bool topActionsActuallyVisible = topActionsVisible && !confirmationOverlayVisible;
+    const bool canDeleteForSelectedMember = hasSelectedMember;
+    const bool canDeleteForSelectedMembers = selectedMemberCount > 0;
+    const bool canDeleteForWholeSquad = hasSelectedMember;
+    const bool canDeleteForEveryone = g_lastPlayerInterface != 0;
+    const bool showJobRowsNow = selectedMemberCount > 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
+    const bool showEmptyState = selectedMemberCount > 0 && jobCount == 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
+    const bool rowActionsEnabled = selectedMemberCount > 0;
+
+    const int nextExpandedHeight = ComputeAdaptiveExpandedPanelHeight(
+        showJobRowsNow,
+        showEmptyState,
+        jobCount,
+        confirmationOverlayVisible);
+    if (nextExpandedHeight != g_panelExpandedHeight)
+    {
+        g_panelExpandedHeight = nextExpandedHeight;
+        if (!g_jobBGonePanelDragging)
+        {
+            const MyGUI::IntCoord resizedCoord = ResolvePanelCoordFromConfig();
+            ApplyPanelLayout(resizedCoord);
+
+            if (g_config.jobBGonePanelHasCustomPosition
+                && (resizedCoord.left != g_config.jobBGonePanelPosX || resizedCoord.top != g_config.jobBGonePanelPosY))
+            {
+                PersistPanelPositionIfChanged(resizedCoord, "adaptive_resize");
+            }
+        }
+    }
+
+    int visibleRows = 0;
+    if (showJobRowsNow && jobCount > 0)
+    {
+        const int rowCapacity = ComputeVisibleJobRowCapacityForHeight(GetExpandedPanelHeight());
+        visibleRows = ClampIntValue(rowCapacity, 1, kMaxVisibleJobRows);
+        if (visibleRows > jobCount)
+        {
+            visibleRows = jobCount;
+        }
+    }
+
+    const int maxScrollOffset = ClampIntValue(jobCount - visibleRows, 0, jobCount);
+    g_jobRowScrollOffset = ClampIntValue(g_jobRowScrollOffset, 0, maxScrollOffset);
+    const bool showRowScrollControls = showJobRowsNow && jobCount > visibleRows && visibleRows > 0;
+    if (!showRowScrollControls)
+    {
+        g_jobRowScrollOffset = 0;
+    }
+
     std::stringstream statusCaption;
     if (selectedMemberCount > 0)
     {
@@ -1456,9 +1641,12 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         {
             statusCaption << "Selected member jobs: " << jobCount;
         }
-        if (jobCount > kMaxVisibleJobRows)
+
+        if (showJobRowsNow && visibleRows > 0 && jobCount > visibleRows)
         {
-            statusCaption << " (showing " << kMaxVisibleJobRows << ")";
+            const int firstRowNumber = g_jobRowScrollOffset + 1;
+            const int lastRowNumber = g_jobRowScrollOffset + visibleRows;
+            statusCaption << " (showing " << firstRowNumber << "-" << lastRowNumber << ")";
         }
     }
     else
@@ -1467,17 +1655,6 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     }
     g_jobBGoneStatusText->setCaption(statusCaption.str());
 
-    const bool topActionsEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
-    const bool topActionsVisible = topActionsEnabled && !g_jobBGonePanelCollapsed;
-    const bool confirmationOverlayVisible = g_jobBGoneConfirmVisible && !g_jobBGonePanelCollapsed;
-    const bool topActionsActuallyVisible = topActionsVisible && !confirmationOverlayVisible;
-    const bool canDeleteForSelectedMember = hasSelectedMember;
-    const bool canDeleteForSelectedMembers = selectedMemberCount > 0;
-    const bool canDeleteForWholeSquad = hasSelectedMember;
-    const bool canDeleteForEveryone = g_lastPlayerInterface != 0;
-    const bool showJobRowsNow = selectedMemberCount > 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
-    const bool showEmptyState = selectedMemberCount > 0 && jobCount == 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
-    const bool rowActionsEnabled = selectedMemberCount > 0;
     g_jobBGoneBodyFrame->setVisible(!g_jobBGonePanelCollapsed);
     g_jobBGoneStatusText->setVisible(!g_jobBGonePanelCollapsed);
     g_jobBGoneEmptyStateText->setVisible(showEmptyState);
@@ -1514,6 +1691,10 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     g_jobBGoneConfirmOverlay->setEnabled(confirmationOverlayVisible);
     g_jobBGoneConfirmYesButton->setEnabled(confirmationOverlayVisible);
     g_jobBGoneConfirmNoButton->setEnabled(confirmationOverlayVisible);
+    g_jobRowsScrollUpButton->setVisible(showRowScrollControls);
+    g_jobRowsScrollDownButton->setVisible(showRowScrollControls);
+    g_jobRowsScrollUpButton->setEnabled(showRowScrollControls && g_jobRowScrollOffset > 0 && !confirmationOverlayVisible);
+    g_jobRowsScrollDownButton->setEnabled(showRowScrollControls && g_jobRowScrollOffset < maxScrollOffset && !confirmationOverlayVisible);
     if (confirmationOverlayVisible)
     {
         MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
@@ -1542,17 +1723,11 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_lastLoggedConfirmOverlayVisible = confirmationOverlayVisible;
     }
 
-    size_t visibleRows = g_selectedMemberJobRows.size();
-    if (visibleRows > static_cast<size_t>(kMaxVisibleJobRows))
-    {
-        visibleRows = static_cast<size_t>(kMaxVisibleJobRows);
-    }
-
     const size_t rowWidgetCount = g_jobRowWidgets.size();
     for (size_t i = 0; i < rowWidgetCount; ++i)
     {
         JobRowWidgets& rowWidgets = g_jobRowWidgets[i];
-        const bool rowVisible = showJobRowsNow && i < visibleRows;
+        const bool rowVisible = showJobRowsNow && static_cast<int>(i) < visibleRows;
         if (!rowVisible)
         {
             if (rowWidgets.label)
@@ -1579,7 +1754,34 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             continue;
         }
 
-        const JobRowModel& rowModel = g_selectedMemberJobRows[i];
+        const int modelIndex = g_jobRowScrollOffset + static_cast<int>(i);
+        if (modelIndex < 0 || modelIndex >= jobCount)
+        {
+            if (rowWidgets.label)
+            {
+                SetWidgetHoverHint(rowWidgets.label, "");
+                rowWidgets.label->setVisible(false);
+            }
+            if (rowWidgets.deleteSelectedMemberButton)
+            {
+                rowWidgets.deleteSelectedMemberButton->setVisible(false);
+            }
+            if (rowWidgets.deleteSelectedMembersButton)
+            {
+                rowWidgets.deleteSelectedMembersButton->setVisible(false);
+            }
+            if (rowWidgets.deleteWholeSquadButton)
+            {
+                rowWidgets.deleteWholeSquadButton->setVisible(false);
+            }
+            if (rowWidgets.deleteEveryoneButton)
+            {
+                rowWidgets.deleteEveryoneButton->setVisible(false);
+            }
+            continue;
+        }
+
+        const JobRowModel& rowModel = g_selectedMemberJobRows[static_cast<size_t>(modelIndex)];
         std::string taskNameForDisplay = BuildCompactTaskNameForDisplay(rowModel.taskName);
         std::string hoverTaskName = NormalizeTaskNameForDisplay(rowModel.taskName);
         if (IsGenericOperatingMachineName(hoverTaskName))
@@ -1618,12 +1820,12 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         }
 
         std::stringstream rowLabel;
-        rowLabel << (i + 1) << ". " << taskNameForDisplay;
+        rowLabel << (modelIndex + 1) << ". " << taskNameForDisplay;
         if (taskNameForDisplay.empty())
         {
             rowLabel.str("");
             rowLabel.clear();
-            rowLabel << (i + 1) << ". Task " << static_cast<int>(rowModel.taskType);
+            rowLabel << (modelIndex + 1) << ". Task " << static_cast<int>(rowModel.taskType);
         }
 
         if (rowWidgets.label)
@@ -1632,7 +1834,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             std::stringstream hoverHintCaption;
             if (!hoverTaskName.empty())
             {
-                hoverHintCaption << (i + 1) << ". " << hoverTaskName;
+                hoverHintCaption << (modelIndex + 1) << ". " << hoverTaskName;
             }
             else
             {

@@ -35,8 +35,11 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
-static const int kPanelWidth = 660;
-static const int kPanelExpandedHeight = 440;
+static const int kPanelWidth = 740;
+static const int kPanelExpandedMinHeight = 184;
+static const int kPanelExpandedMaxHeight = 440;
+static const int kPanelExpandedConfirmHeight = 320;
+static const int kPanelExpandedHeight = kPanelExpandedMaxHeight;
 static const int kPanelCollapsedHeight = 46;
 static const int kPanelViewportPadding = 20;
 static const int kPanelMaxPersistedCoord = 100000;
@@ -170,6 +173,10 @@ static bool g_runtimePanelHasCustomPosition = false;
 static int g_runtimePanelPosX = 0;
 static int g_runtimePanelPosY = 0;
 static bool g_lastLoggedConfirmOverlayVisible = false;
+static int g_panelExpandedHeight = kPanelExpandedHeight;
+static int g_jobRowScrollOffset = 0;
+static MyGUI::Button* g_jobRowsScrollUpButton = 0;
+static MyGUI::Button* g_jobRowsScrollDownButton = 0;
 
 struct JobRowWidgets
 {
@@ -236,6 +243,11 @@ static MyGUI::IntCoord ResolvePanelCoordFromConfig();
 static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord);
 static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, const char* source);
 static MyGUI::IntCoord GetFallbackButtonCoord();
+static int ComputeVisibleJobRowCapacityForHeight(int expandedHeight);
+static int ComputeAdaptiveExpandedPanelHeight(bool showJobRows, bool showEmptyState, int jobCount, bool confirmationOverlayVisible);
+static int GetExpandedPanelHeight();
+static void OnJobRowsScrollUpButtonClicked(MyGUI::Widget*);
+static void OnJobRowsScrollDownButtonClicked(MyGUI::Widget*);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
