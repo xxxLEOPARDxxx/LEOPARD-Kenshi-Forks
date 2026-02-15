@@ -885,6 +885,10 @@ static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScop
                     if (scope == JobDeleteScope_SelectedMember)
                     {
                         memberDeleted = TryDeleteJobForMemberByKey(member, jobKey, &memberResult);
+                        if (!memberDeleted)
+                        {
+                            memberDeleted = TryDeleteJobForMemberBySignature(member, taskType, taskName, &memberResult);
+                        }
                     }
                     else
                     {
