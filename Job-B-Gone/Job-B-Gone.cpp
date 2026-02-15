@@ -34,7 +34,7 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
-static const int kPanelWidth = 500;
+static const int kPanelWidth = 660;
 static const int kPanelExpandedHeight = 440;
 static const int kPanelCollapsedHeight = 46;
 static const int kPanelViewportPadding = 20;
@@ -105,8 +105,42 @@ static FnOptionsInit g_fnOptionsInit = 0;
 static FnOptionsInit g_fnOptionsInitOrig = 0;
 static ForgottenGUI* g_ptrKenshiGUI = 0;
 
+static MyGUI::TextBox* g_deleteAllJobsTitleText = 0;
 static MyGUI::Button* g_deleteAllJobsSelectedMemberButton = 0;
-static MyGUI::Widget* g_deleteAllJobsSelectedMemberButtonParent = 0;
+static MyGUI::Button* g_deleteAllJobsSelectedMembersButton = 0;
+static MyGUI::Button* g_deleteAllJobsWholeSquadButton = 0;
+static MyGUI::Button* g_deleteAllJobsEveryoneButton = 0;
+static MyGUI::TextBox* g_jobBGoneHoverHintText = 0;
+static MyGUI::Button* g_jobBGoneConfirmOverlay = 0;
+static MyGUI::TextBox* g_jobBGoneConfirmTitleText = 0;
+static MyGUI::TextBox* g_jobBGoneConfirmBodyText = 0;
+static MyGUI::Button* g_jobBGoneConfirmYesButton = 0;
+static MyGUI::Button* g_jobBGoneConfirmNoButton = 0;
+static bool g_jobBGoneConfirmVisible = false;
+
+enum PendingConfirmationActionType
+{
+    PendingConfirmationAction_None = 0,
+    PendingConfirmationAction_DeleteAllScope = 1,
+    PendingConfirmationAction_DeleteRowScope = 2
+};
+
+struct PendingConfirmationAction
+{
+    PendingConfirmationActionType type;
+    JobDeleteScope scope;
+    std::string jobKey;
+    TaskType taskType;
+    std::string taskName;
+};
+
+static PendingConfirmationAction g_pendingConfirmationAction = {
+    PendingConfirmationAction_None,
+    JobDeleteScope_SelectedMember,
+    std::string(),
+    static_cast<TaskType>(0),
+    std::string()
+};
 static MyGUI::Widget* g_jobBGonePanel = 0;
 static MyGUI::Button* g_jobBGoneHeaderButton = 0;
 static MyGUI::Button* g_jobBGoneBodyFrame = 0;
@@ -160,6 +194,9 @@ static bool RefreshSelectedMemberUi(const char* source);
 static void ArmSelectedMemberUiRefresh(const char* source);
 static void TickSelectedMemberUiRefresh();
 static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*);
+static void OnDeleteAllJobsSelectedMembersButtonClicked(MyGUI::Widget*);
+static void OnDeleteAllJobsWholeSquadButtonClicked(MyGUI::Widget*);
+static void OnDeleteAllJobsEveryoneButtonClicked(MyGUI::Widget*);
 static void OnDeleteJobSelectedMemberButtonClicked(MyGUI::Widget*);
 static void OnDeleteJobSelectedMembersButtonClicked(MyGUI::Widget*);
 static void OnDeleteJobWholeSquadButtonClicked(MyGUI::Widget*);
@@ -174,6 +211,17 @@ static bool TryGetMousePosition(int* xOut, int* yOut);
 static void MoveJobBGonePanelByDelta(int deltaX, int deltaY);
 static void FinalizeJobBGonePanelDrag(const char* source);
 static void TickJobBGonePanelDrag();
+static void SetWidgetTooltipAndHoverHint(MyGUI::Widget* widget, const char* tooltipText);
+static void OnActionButtonMouseSetFocus(MyGUI::Widget*, MyGUI::Widget*);
+static void OnActionButtonMouseLostFocus(MyGUI::Widget*, MyGUI::Widget*);
+static bool ShouldRequireConfirmationForScope(JobDeleteScope scope);
+static void HideConfirmationOverlay();
+static bool ShowDeleteAllConfirmation(JobDeleteScope scope);
+static bool ShowDeleteRowConfirmation(JobDeleteScope scope, const std::string& jobKey, TaskType taskType, const std::string& taskName);
+static void ExecutePendingConfirmationAction();
+static void OnConfirmationAcceptClicked(MyGUI::Widget*);
+static void OnConfirmationCancelClicked(MyGUI::Widget*);
+static void OnConfirmationKeyPressed(MyGUI::Widget*, MyGUI::KeyCode, MyGUI::Char);
 static int ClampIntValue(int value, int minValue, int maxValue);
 static MyGUI::IntCoord ClampPanelCoordToViewport(const MyGUI::IntCoord& inputCoord);
 static MyGUI::IntCoord BuildPanelCoordFromAnchor(int left, int top);

@@ -388,39 +388,53 @@ static bool TryDeleteAllJobsForSelectedMember(int* beforeOut, int* afterOut, int
     return false;
 }
 
+static void ExecuteDeleteAllJobsForScope(JobDeleteScope scope);
+static void ExecuteDeleteJobForScope(
+    JobDeleteScope scope,
+    const std::string& jobKey,
+    TaskType taskType,
+    const std::string& taskName);
+
+static bool ShouldRequireConfirmationForScope(JobDeleteScope scope)
+{
+    return scope == JobDeleteScope_WholeSquad || scope == JobDeleteScope_EveryoneGlobal;
+}
+
 static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*)
 {
-    const bool actionEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
-    int beforeCount = -1;
-    int afterCount = -1;
-    int deletedCount = -1;
-    const char* result = "disabled_by_config";
-    bool success = false;
-
-    if (actionEnabled)
+    if (ShouldRequireConfirmationForScope(JobDeleteScope_SelectedMember) && ShowDeleteAllConfirmation(JobDeleteScope_SelectedMember))
     {
-        success = TryDeleteAllJobsForSelectedMember(&beforeCount, &afterCount, &deletedCount, &result);
-        if (!result)
-        {
-            result = success ? "success" : "failed";
-        }
-        if (success)
-        {
-            RefreshSelectedMemberUi("post_delete_immediate");
-            ArmSelectedMemberUiRefresh("post_delete_deferred");
-        }
+        return;
     }
+    ExecuteDeleteAllJobsForScope(JobDeleteScope_SelectedMember);
+}
 
-    std::stringstream logline;
-    logline << "Job-B-Gone INFO: action=delete_all_jobs_selected_member"
-            << " success=" << (success ? "true" : "false")
-            << " result=" << result
-            << " before=" << beforeCount
-            << " after=" << afterCount
-            << " deleted=" << deletedCount
-            << " action_enabled=" << (actionEnabled ? "true" : "false")
-            << " anchor_mode=job_b_gone_panel";
-    DebugLog(logline.str().c_str());
+static void OnDeleteAllJobsSelectedMembersButtonClicked(MyGUI::Widget*)
+{
+    if (ShouldRequireConfirmationForScope(JobDeleteScope_SelectedMembers) && ShowDeleteAllConfirmation(JobDeleteScope_SelectedMembers))
+    {
+        return;
+    }
+    ExecuteDeleteAllJobsForScope(JobDeleteScope_SelectedMembers);
+}
+
+static void OnDeleteAllJobsWholeSquadButtonClicked(MyGUI::Widget*)
+{
+    if (ShouldRequireConfirmationForScope(JobDeleteScope_WholeSquad) && ShowDeleteAllConfirmation(JobDeleteScope_WholeSquad))
+    {
+        return;
+    }
+    ExecuteDeleteAllJobsForScope(JobDeleteScope_WholeSquad);
+}
+
+static void OnDeleteAllJobsEveryoneButtonClicked(MyGUI::Widget*)
+{
+    if (ShouldRequireConfirmationForScope(JobDeleteScope_EveryoneGlobal)
+        && ShowDeleteAllConfirmation(JobDeleteScope_EveryoneGlobal))
+    {
+        return;
+    }
+    ExecuteDeleteAllJobsForScope(JobDeleteScope_EveryoneGlobal);
 }
 
 static const char* GetScopeLogName(JobDeleteScope scope)
@@ -675,6 +689,451 @@ static bool ResolveMembersForScope(JobDeleteScope scope, std::vector<Character*>
     return false;
 }
 
+static const char* GetScopeDisplayName(JobDeleteScope scope)
+{
+    switch (scope)
+    {
+    case JobDeleteScope_SelectedMember:
+        return "Me";
+    case JobDeleteScope_SelectedMembers:
+        return "Selected";
+    case JobDeleteScope_WholeSquad:
+        return "Squad";
+    case JobDeleteScope_EveryoneGlobal:
+        return "All Squads";
+    default:
+        break;
+    }
+    return "Unknown";
+}
+
+static bool MemberHasMatchingJobByKey(Character* member, const std::string& jobKey)
+{
+    if (!member || jobKey.empty())
+    {
+        return false;
+    }
+
+    std::vector<JobRowModel> rows;
+    const char* snapshotResult = "not_run";
+    if (!BuildSelectedMemberJobSnapshot(member, &rows, &snapshotResult))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < rows.size(); ++i)
+    {
+        if (rows[i].jobKey == jobKey)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool MemberHasMatchingJobBySignature(Character* member, TaskType taskType, const std::string& taskName)
+{
+    if (!member)
+    {
+        return false;
+    }
+
+    int count = 0;
+    if (!TryGetPermajobCount(member, &count))
+    {
+        return false;
+    }
+
+    for (int slot = 0; slot < count; ++slot)
+    {
+        TaskType rowTaskType = static_cast<TaskType>(0);
+        std::string rowTaskName;
+        if (!TryGetPermajobRow(member, slot, &rowTaskType, &rowTaskName, 0))
+        {
+            continue;
+        }
+        if (rowTaskType == taskType && rowTaskName == taskName)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void HideConfirmationOverlay()
+{
+    g_jobBGoneConfirmVisible = false;
+    if (g_jobBGoneConfirmOverlay)
+    {
+        g_jobBGoneConfirmOverlay->setVisible(false);
+    }
+    if (g_jobBGoneConfirmTitleText)
+    {
+        g_jobBGoneConfirmTitleText->setVisible(false);
+        g_jobBGoneConfirmTitleText->setCaption("");
+    }
+    if (g_jobBGoneConfirmBodyText)
+    {
+        g_jobBGoneConfirmBodyText->setVisible(false);
+        g_jobBGoneConfirmBodyText->setCaption("");
+    }
+    if (g_jobBGoneConfirmYesButton)
+    {
+        g_jobBGoneConfirmYesButton->setVisible(false);
+    }
+    if (g_jobBGoneConfirmNoButton)
+    {
+        g_jobBGoneConfirmNoButton->setVisible(false);
+    }
+    if (g_jobBGoneHoverHintText)
+    {
+        g_jobBGoneHoverHintText->setCaption("");
+    }
+
+    g_pendingConfirmationAction.type = PendingConfirmationAction_None;
+    g_pendingConfirmationAction.scope = JobDeleteScope_SelectedMember;
+    g_pendingConfirmationAction.jobKey.clear();
+    g_pendingConfirmationAction.taskType = static_cast<TaskType>(0);
+    g_pendingConfirmationAction.taskName.clear();
+}
+
+static bool ShowConfirmationOverlay(
+    PendingConfirmationActionType type,
+    JobDeleteScope scope,
+    const std::string& jobKey,
+    TaskType taskType,
+    const std::string& taskName,
+    const std::string& title,
+    const std::string& body)
+{
+    if (!g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
+        || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
+    {
+        return false;
+    }
+
+    g_pendingConfirmationAction.type = type;
+    g_pendingConfirmationAction.scope = scope;
+    g_pendingConfirmationAction.jobKey = jobKey;
+    g_pendingConfirmationAction.taskType = taskType;
+    g_pendingConfirmationAction.taskName = taskName;
+    g_jobBGoneConfirmTitleText->setCaption(title);
+    g_jobBGoneConfirmBodyText->setCaption(body);
+    g_jobBGoneConfirmVisible = true;
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input && g_jobBGoneConfirmYesButton)
+    {
+        input->setKeyFocusWidget(g_jobBGoneConfirmYesButton);
+    }
+    return true;
+}
+
+static bool ShowDeleteAllConfirmation(JobDeleteScope scope)
+{
+    std::vector<Character*> targetList;
+    const char* result = "not_run";
+    if (!ResolveMembersForScope(scope, &targetList, &result))
+    {
+        return false;
+    }
+
+    int jobsToDelete = 0;
+    for (size_t i = 0; i < targetList.size(); ++i)
+    {
+        int memberCount = 0;
+        if (TryGetPermajobCount(targetList[i], &memberCount))
+        {
+            jobsToDelete += memberCount;
+        }
+    }
+
+    std::stringstream title;
+    title << "Confirm " << GetScopeDisplayName(scope) << " Delete-All";
+    std::stringstream body;
+    body << "Scope: " << GetScopeDisplayName(scope)
+         << "\nMembers affected: " << targetList.size()
+         << "\nJobs queued to delete: " << jobsToDelete
+         << "\n\nPress Enter to confirm.";
+    return ShowConfirmationOverlay(
+        PendingConfirmationAction_DeleteAllScope,
+        scope,
+        std::string(),
+        static_cast<TaskType>(0),
+        std::string(),
+        title.str(),
+        body.str());
+}
+
+static bool ShowDeleteRowConfirmation(
+    JobDeleteScope scope,
+    const std::string& jobKey,
+    TaskType taskType,
+    const std::string& taskName)
+{
+    std::vector<Character*> targetList;
+    const char* result = "not_run";
+    if (!ResolveMembersForScope(scope, &targetList, &result))
+    {
+        return false;
+    }
+
+    int jobsToDelete = 0;
+    for (size_t i = 0; i < targetList.size(); ++i)
+    {
+        bool found = false;
+        if (scope == JobDeleteScope_SelectedMember)
+        {
+            found = MemberHasMatchingJobByKey(targetList[i], jobKey);
+        }
+        else
+        {
+            found = MemberHasMatchingJobBySignature(targetList[i], taskType, taskName);
+        }
+        if (found)
+        {
+            ++jobsToDelete;
+        }
+    }
+
+    std::stringstream title;
+    title << "Confirm " << GetScopeDisplayName(scope) << " Job Delete";
+    std::stringstream body;
+    body << "Scope: " << GetScopeDisplayName(scope)
+         << "\nMembers affected: " << targetList.size()
+         << "\nJobs queued to delete: " << jobsToDelete
+         << "\nTask: " << taskName
+         << "\n\nPress Enter to confirm.";
+    return ShowConfirmationOverlay(
+        PendingConfirmationAction_DeleteRowScope,
+        scope,
+        jobKey,
+        taskType,
+        taskName,
+        title.str(),
+        body.str());
+}
+
+static void ExecutePendingConfirmationAction()
+{
+    const PendingConfirmationAction pending = g_pendingConfirmationAction;
+    HideConfirmationOverlay();
+
+    if (pending.type == PendingConfirmationAction_DeleteAllScope)
+    {
+        ExecuteDeleteAllJobsForScope(pending.scope);
+        return;
+    }
+
+    if (pending.type == PendingConfirmationAction_DeleteRowScope)
+    {
+        ExecuteDeleteJobForScope(
+            pending.scope,
+            pending.jobKey,
+            pending.taskType,
+            pending.taskName);
+    }
+}
+
+static void OnConfirmationAcceptClicked(MyGUI::Widget*)
+{
+    if (!g_jobBGoneConfirmVisible)
+    {
+        return;
+    }
+    ExecutePendingConfirmationAction();
+}
+
+static void OnConfirmationCancelClicked(MyGUI::Widget*)
+{
+    if (!g_jobBGoneConfirmVisible)
+    {
+        return;
+    }
+    HideConfirmationOverlay();
+}
+
+static void OnConfirmationKeyPressed(MyGUI::Widget*, MyGUI::KeyCode key, MyGUI::Char)
+{
+    if (!g_jobBGoneConfirmVisible)
+    {
+        return;
+    }
+
+    if (key == MyGUI::KeyCode::Return || key == MyGUI::KeyCode::NumpadEnter)
+    {
+        ExecutePendingConfirmationAction();
+        return;
+    }
+    if (key == MyGUI::KeyCode::Escape)
+    {
+        HideConfirmationOverlay();
+    }
+}
+
+static bool TryClearAllJobsForMember(Character* member, int* deletedOut, const char** resultOut)
+{
+    if (deletedOut)
+    {
+        *deletedOut = 0;
+    }
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!member)
+    {
+        if (resultOut)
+        {
+            *resultOut = "invalid_member";
+        }
+        return false;
+    }
+
+    int beforeCount = 0;
+    if (!TryGetPermajobCount(member, &beforeCount))
+    {
+        if (resultOut)
+        {
+            *resultOut = "before_count_failed";
+        }
+        return false;
+    }
+
+    __try
+    {
+        member->clearPermajobs();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (resultOut)
+        {
+            *resultOut = "clear_exception";
+        }
+        return false;
+    }
+
+    int afterCount = 0;
+    if (!TryGetPermajobCount(member, &afterCount))
+    {
+        if (resultOut)
+        {
+            *resultOut = "after_count_failed";
+        }
+        return false;
+    }
+
+    const int memberDeleted = (beforeCount >= afterCount) ? (beforeCount - afterCount) : 0;
+    if (deletedOut)
+    {
+        *deletedOut = memberDeleted;
+    }
+    if (resultOut)
+    {
+        *resultOut = (memberDeleted > 0) ? "ok" : "already_empty";
+    }
+    return true;
+}
+
+static void ExecuteDeleteAllJobsForScope(JobDeleteScope scope)
+{
+    const bool actionEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
+    bool success = false;
+    const char* result = "disabled_by_config";
+    int targetMembers = 0;
+    int affectedMembers = 0;
+    int deletedJobs = 0;
+
+    if (actionEnabled)
+    {
+        if (scope == JobDeleteScope_SelectedMember)
+        {
+            int beforeCount = -1;
+            int afterCount = -1;
+            int deletedCount = -1;
+            success = TryDeleteAllJobsForSelectedMember(&beforeCount, &afterCount, &deletedCount, &result);
+            targetMembers = (beforeCount >= 0 || afterCount >= 0) ? 1 : 0;
+            if (deletedCount > 0)
+            {
+                affectedMembers = 1;
+                deletedJobs = deletedCount;
+            }
+            else if (success && beforeCount == 0 && afterCount == 0)
+            {
+                affectedMembers = 0;
+                deletedJobs = 0;
+            }
+        }
+        else
+        {
+            std::vector<Character*> targetList;
+            if (!ResolveMembersForScope(scope, &targetList, &result))
+            {
+                if (!result)
+                {
+                    result = "resolve_members_failed";
+                }
+            }
+            else
+            {
+                targetMembers = static_cast<int>(targetList.size());
+                bool encounteredFailure = false;
+                for (size_t i = 0; i < targetList.size(); ++i)
+                {
+                    Character* member = targetList[i];
+                    int memberDeleted = 0;
+                    const char* memberResult = "not_run";
+                    if (!TryClearAllJobsForMember(member, &memberDeleted, &memberResult))
+                    {
+                        encounteredFailure = true;
+                        continue;
+                    }
+
+                    if (memberDeleted > 0)
+                    {
+                        ++affectedMembers;
+                        deletedJobs += memberDeleted;
+                    }
+                }
+
+                if (deletedJobs > 0)
+                {
+                    success = true;
+                    result = "ok";
+                }
+                else if (!encounteredFailure)
+                {
+                    success = true;
+                    result = "already_empty";
+                }
+                else
+                {
+                    success = false;
+                    result = "delete_failed_for_scope";
+                }
+            }
+        }
+    }
+
+    if (success)
+    {
+        RefreshSelectedMemberUi("post_delete_all_scope_immediate");
+        ArmSelectedMemberUiRefresh("post_delete_all_scope_deferred");
+    }
+
+    std::stringstream logline;
+    logline << "Job-B-Gone INFO: action=delete_all_jobs_scope"
+            << " scope=" << GetScopeLogName(scope)
+            << " success=" << (success ? "true" : "false")
+            << " result=" << (result ? result : "unknown")
+            << " target_members=" << targetMembers
+            << " affected_members=" << affectedMembers
+            << " deleted_jobs=" << deletedJobs
+            << " action_enabled=" << (actionEnabled ? "true" : "false")
+            << " anchor_mode=job_b_gone_panel";
+    DebugLog(logline.str().c_str());
+}
+
 static bool TryDeleteJobForMemberByKey(Character* member, const std::string& jobKey, const char** resultOut)
 {
     if (resultOut)
@@ -846,7 +1305,11 @@ static bool TryGetRowActionPayload(MyGUI::Widget* sender, std::string* jobKeyOut
     return true;
 }
 
-static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScope scope)
+static void ExecuteDeleteJobForScope(
+    JobDeleteScope scope,
+    const std::string& jobKey,
+    TaskType taskType,
+    const std::string& taskName)
 {
     const bool actionEnabled = true;
     bool success = false;
@@ -854,57 +1317,47 @@ static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScop
     int targetMembers = 0;
     int affectedMembers = 0;
     int deletedJobs = 0;
-    std::string jobKey;
-    std::string taskName;
-    TaskType taskType = static_cast<TaskType>(0);
 
     if (actionEnabled)
     {
-        if (!TryGetRowActionPayload(sender, &jobKey, &taskType, &taskName))
+        std::vector<Character*> targetList;
+        if (!ResolveMembersForScope(scope, &targetList, &result))
         {
-            result = "invalid_row_payload";
+            if (!result)
+            {
+                result = "resolve_members_failed";
+            }
         }
         else
         {
-            std::vector<Character*> targetList;
-            if (!ResolveMembersForScope(scope, &targetList, &result))
+            targetMembers = static_cast<int>(targetList.size());
+            for (size_t i = 0; i < targetList.size(); ++i)
             {
-                if (!result)
+                Character* member = targetList[i];
+                const char* memberResult = "not_run";
+                bool memberDeleted = false;
+                if (scope == JobDeleteScope_SelectedMember)
                 {
-                    result = "resolve_members_failed";
-                }
-            }
-            else
-            {
-                targetMembers = static_cast<int>(targetList.size());
-                for (size_t i = 0; i < targetList.size(); ++i)
-                {
-                    Character* member = targetList[i];
-                    const char* memberResult = "not_run";
-                    bool memberDeleted = false;
-                    if (scope == JobDeleteScope_SelectedMember)
-                    {
-                        memberDeleted = TryDeleteJobForMemberByKey(member, jobKey, &memberResult);
-                        if (!memberDeleted)
-                        {
-                            memberDeleted = TryDeleteJobForMemberBySignature(member, taskType, taskName, &memberResult);
-                        }
-                    }
-                    else
+                    memberDeleted = TryDeleteJobForMemberByKey(member, jobKey, &memberResult);
+                    if (!memberDeleted)
                     {
                         memberDeleted = TryDeleteJobForMemberBySignature(member, taskType, taskName, &memberResult);
                     }
-
-                    if (memberDeleted)
-                    {
-                        ++affectedMembers;
-                        ++deletedJobs;
-                    }
+                }
+                else
+                {
+                    memberDeleted = TryDeleteJobForMemberBySignature(member, taskType, taskName, &memberResult);
                 }
 
-                success = deletedJobs > 0;
-                result = success ? "ok" : "job_not_found_in_scope";
+                if (memberDeleted)
+                {
+                    ++affectedMembers;
+                    ++deletedJobs;
+                }
             }
+
+            success = deletedJobs > 0;
+            result = success ? "ok" : "job_not_found_in_scope";
         }
     }
 
@@ -926,6 +1379,25 @@ static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScop
             << " task_name=\"" << taskName << "\""
             << " action_enabled=" << (actionEnabled ? "true" : "false");
     DebugLog(logline.str().c_str());
+}
+
+static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScope scope)
+{
+    std::string jobKey;
+    std::string taskName;
+    TaskType taskType = static_cast<TaskType>(0);
+    if (!TryGetRowActionPayload(sender, &jobKey, &taskType, &taskName))
+    {
+        DebugLog("Job-B-Gone INFO: action=delete_job_scope success=false result=invalid_row_payload");
+        return;
+    }
+
+    if (ShouldRequireConfirmationForScope(scope) && ShowDeleteRowConfirmation(scope, jobKey, taskType, taskName))
+    {
+        return;
+    }
+
+    ExecuteDeleteJobForScope(scope, jobKey, taskType, taskName);
 }
 
 static void OnDeleteJobSelectedMemberButtonClicked(MyGUI::Widget* sender)
