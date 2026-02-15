@@ -41,6 +41,142 @@ static void SetJobButtonPayload(MyGUI::Button* button, const JobRowModel& row)
     button->setUserString("JobTaskName", row.taskName);
 }
 
+static void AddUniqueCharacterForSelection(std::vector<Character*>* membersOut, Character* member)
+{
+    if (!membersOut || !member)
+    {
+        return;
+    }
+
+    const size_t count = membersOut->size();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if ((*membersOut)[i] == member)
+        {
+            return;
+        }
+    }
+    membersOut->push_back(member);
+}
+
+static bool HasJobSignature(const std::vector<JobRowModel>& rows, TaskType taskType, const std::string& taskName)
+{
+    const size_t count = rows.size();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (rows[i].taskType == taskType && rows[i].taskName == taskName)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool TryCollectSelectedCharactersForDisplay(std::vector<Character*>* membersOut)
+{
+    if (!membersOut || !g_lastPlayerInterface)
+    {
+        return false;
+    }
+
+    __try
+    {
+        for (ogre_unordered_set<hand>::type::const_iterator it = g_lastPlayerInterface->selectedCharacters.begin();
+             it != g_lastPlayerInterface->selectedCharacters.end();
+             ++it)
+        {
+            const hand& selectedHandle = *it;
+            if (!selectedHandle || !selectedHandle.isValid())
+            {
+                continue;
+            }
+
+            Character* member = selectedHandle.getCharacter();
+            AddUniqueCharacterForSelection(membersOut, member);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static void BuildDisplayedJobRowsForSelection(
+    Character* selectedMember,
+    std::vector<JobRowModel>* rowsOut,
+    int* selectedMemberCountOut)
+{
+    if (rowsOut)
+    {
+        rowsOut->clear();
+    }
+    if (selectedMemberCountOut)
+    {
+        *selectedMemberCountOut = 0;
+    }
+    if (!rowsOut)
+    {
+        return;
+    }
+
+    std::vector<Character*> selectedMembers;
+    TryCollectSelectedCharactersForDisplay(&selectedMembers);
+
+    if (selectedMembers.empty())
+    {
+        AddUniqueCharacterForSelection(&selectedMembers, selectedMember);
+    }
+
+    if (selectedMemberCountOut)
+    {
+        *selectedMemberCountOut = static_cast<int>(selectedMembers.size());
+    }
+
+    if (selectedMembers.empty())
+    {
+        return;
+    }
+
+    if (selectedMembers.size() == 1)
+    {
+        const char* snapshotResult = "not_run";
+        if (!BuildSelectedMemberJobSnapshot(selectedMembers[0], rowsOut, &snapshotResult))
+        {
+            rowsOut->clear();
+        }
+        return;
+    }
+
+    for (size_t memberIndex = 0; memberIndex < selectedMembers.size(); ++memberIndex)
+    {
+        Character* member = selectedMembers[memberIndex];
+        if (!member)
+        {
+            continue;
+        }
+
+        std::vector<JobRowModel> memberRows;
+        const char* snapshotResult = "not_run";
+        if (!BuildSelectedMemberJobSnapshot(member, &memberRows, &snapshotResult))
+        {
+            continue;
+        }
+
+        const size_t rowCount = memberRows.size();
+        for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex)
+        {
+            const JobRowModel& row = memberRows[rowIndex];
+            if (HasJobSignature(*rowsOut, row.taskType, row.taskName))
+            {
+                continue;
+            }
+            rowsOut->push_back(row);
+        }
+    }
+}
+
 static int GetCollapsedHeaderYOffset()
 {
     return kPanelExpandedHeight - kPanelCollapsedHeight;
@@ -631,29 +767,26 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_lastLoggedHasSelectedMemberForButton = hasSelectedMember;
     }
 
-    int jobCount = 0;
-    if (selectedMember)
-    {
-        TryGetPermajobCount(selectedMember, &jobCount);
-        const char* snapshotResult = "not_run";
-        if (!BuildSelectedMemberJobSnapshot(selectedMember, &g_selectedMemberJobRows, &snapshotResult))
-        {
-            g_selectedMemberJobRows.clear();
-        }
-    }
-    else
-    {
-        g_selectedMemberJobRows.clear();
-    }
+    int selectedMemberCount = 0;
+    BuildDisplayedJobRowsForSelection(selectedMember, &g_selectedMemberJobRows, &selectedMemberCount);
+    const int jobCount = static_cast<int>(g_selectedMemberJobRows.size());
 
     std::stringstream headerCaption;
     headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
     g_jobBGoneHeaderButton->setCaption(headerCaption.str());
 
     std::stringstream statusCaption;
-    if (hasSelectedMember)
+    if (selectedMemberCount > 0)
     {
-        statusCaption << "Selected member jobs: " << jobCount;
+        statusCaption << "Selected members: " << selectedMemberCount << " | ";
+        if (selectedMemberCount > 1)
+        {
+            statusCaption << "Selected members jobs: " << jobCount;
+        }
+        else
+        {
+            statusCaption << "Selected member jobs: " << jobCount;
+        }
         if (jobCount > kMaxVisibleJobRows)
         {
             statusCaption << " (showing " << kMaxVisibleJobRows << ")";
@@ -661,14 +794,14 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     }
     else
     {
-        statusCaption << "No member selected";
+        statusCaption << "Selected members: 0";
     }
     g_jobBGoneStatusText->setCaption(statusCaption.str());
 
     const bool shouldShowButton = hasSelectedMember && g_config.enableDeleteAllJobsSelectedMemberAction;
     const bool buttonVisibleNow = shouldShowButton && !g_jobBGonePanelCollapsed;
-    const bool showJobRowsNow = hasSelectedMember && !g_jobBGonePanelCollapsed;
-    const bool rowActionsEnabled = hasSelectedMember;
+    const bool showJobRowsNow = selectedMemberCount > 0 && !g_jobBGonePanelCollapsed;
+    const bool rowActionsEnabled = selectedMemberCount > 0;
     g_jobBGoneBodyFrame->setVisible(!g_jobBGonePanelCollapsed);
     g_jobBGoneStatusText->setVisible(!g_jobBGonePanelCollapsed);
     g_deleteAllJobsSelectedMemberButton->setVisible(buttonVisibleNow);
