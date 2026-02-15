@@ -841,44 +841,8 @@ static bool ShowConfirmationOverlay(
     return true;
 }
 
-struct JobNameCountEntry
+static int CountDeleteAllJobsInScope(const std::vector<Character*>& targetList)
 {
-    std::string name;
-    int count;
-};
-
-static void AccumulateJobNameCount(std::vector<JobNameCountEntry>* namesOut, const std::string& taskName)
-{
-    if (!namesOut)
-    {
-        return;
-    }
-
-    const std::string normalizedName = taskName.empty() ? std::string("(Unnamed job)") : taskName;
-    for (size_t i = 0; i < namesOut->size(); ++i)
-    {
-        if ((*namesOut)[i].name == normalizedName)
-        {
-            ++((*namesOut)[i].count);
-            return;
-        }
-    }
-
-    JobNameCountEntry entry;
-    entry.name = normalizedName;
-    entry.count = 1;
-    namesOut->push_back(entry);
-}
-
-static int BuildDeleteAllJobNameCounts(
-    const std::vector<Character*>& targetList,
-    std::vector<JobNameCountEntry>* namesOut)
-{
-    if (namesOut)
-    {
-        namesOut->clear();
-    }
-
     int jobsToDelete = 0;
     for (size_t i = 0; i < targetList.size(); ++i)
     {
@@ -896,19 +860,11 @@ static int BuildDeleteAllJobNameCounts(
             if (TryGetPermajobCount(member, &memberCount) && memberCount > 0)
             {
                 jobsToDelete += memberCount;
-                for (int missing = 0; missing < memberCount; ++missing)
-                {
-                    AccumulateJobNameCount(namesOut, "(Unknown job)");
-                }
             }
             continue;
         }
 
         jobsToDelete += static_cast<int>(rows.size());
-        for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex)
-        {
-            AccumulateJobNameCount(namesOut, rows[rowIndex].taskName);
-        }
     }
 
     return jobsToDelete;
@@ -923,8 +879,7 @@ static bool ShowDeleteAllConfirmation(JobDeleteScope scope)
         return false;
     }
 
-    std::vector<JobNameCountEntry> jobNameCounts;
-    const int jobsToDelete = BuildDeleteAllJobNameCounts(targetList, &jobNameCounts);
+    const int jobsToDelete = CountDeleteAllJobsInScope(targetList);
 
     std::stringstream title;
     title << "Confirm " << GetScopeDisplayName(scope) << " Delete-All";
@@ -932,31 +887,7 @@ static bool ShowDeleteAllConfirmation(JobDeleteScope scope)
     body << "Scope: " << GetScopeDisplayName(scope)
          << "\nMembers affected: " << targetList.size()
          << "\nJobs queued to delete: " << jobsToDelete;
-    if (!jobNameCounts.empty())
-    {
-        body << "\n\nJobs to delete:";
-        const size_t maxVisibleJobTypes = 10;
-        size_t visibleTypes = jobNameCounts.size();
-        if (visibleTypes > maxVisibleJobTypes)
-        {
-            visibleTypes = maxVisibleJobTypes;
-        }
-
-        for (size_t i = 0; i < visibleTypes; ++i)
-        {
-            body << "\n" << (i + 1) << ". " << jobNameCounts[i].name;
-            if (jobNameCounts[i].count > 1)
-            {
-                body << " x" << jobNameCounts[i].count;
-            }
-        }
-
-        if (jobNameCounts.size() > visibleTypes)
-        {
-            body << "\n... +" << (jobNameCounts.size() - visibleTypes) << " more job types";
-        }
-    }
-    else
+    if (jobsToDelete <= 0)
     {
         body << "\n\nNo jobs found in this scope.";
     }
