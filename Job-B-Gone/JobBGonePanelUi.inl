@@ -24,7 +24,7 @@ static bool TryGetViewportSize(int* widthOut, int* heightOut)
 
 static int GetJobRowTop(int rowIndex)
 {
-    return 106 + (rowIndex * 36);
+    return 112 + (rowIndex * 38);
 }
 
 static void SetJobButtonPayload(MyGUI::Button* button, const JobRowModel& row)
@@ -178,15 +178,18 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
     }
 
     g_jobBGonePanel->setCoord(panelCoord);
-    g_jobBGoneHeaderButton->setCoord(MyGUI::IntCoord(0, 0, panelCoord.width, 34));
-    g_jobBGoneBodyFrame->setCoord(MyGUI::IntCoord(0, 36, panelCoord.width, panelCoord.height - 36));
-    g_jobBGoneStatusText->setCoord(MyGUI::IntCoord(14, 46, panelCoord.width - 28, 22));
-    g_deleteAllJobsSelectedMemberButton->setCoord(MyGUI::IntCoord(14, 70, panelCoord.width - 28, 32));
+    g_jobBGoneHeaderButton->setCoord(MyGUI::IntCoord(0, 0, panelCoord.width, 38));
+    g_jobBGoneBodyFrame->setCoord(MyGUI::IntCoord(0, 40, panelCoord.width, panelCoord.height - 40));
+    g_jobBGoneStatusText->setCoord(MyGUI::IntCoord(14, 50, panelCoord.width - 28, 22));
+    g_deleteAllJobsSelectedMemberButton->setCoord(MyGUI::IntCoord(14, 74, panelCoord.width - 28, 36));
 
-    const int buttonWidth = 64;
+    const int meButtonWidth = 58;
+    const int selectedButtonWidth = 60;
+    const int squadButtonWidth = 82;
+    const int allButtonWidth = 56;
     const int buttonGap = 6;
-    const int buttonHeight = 28;
-    const int allButtonsWidth = (buttonWidth * 4) + (buttonGap * 3);
+    const int buttonHeight = 30;
+    const int allButtonsWidth = meButtonWidth + selectedButtonWidth + squadButtonWidth + allButtonWidth + (buttonGap * 3);
     int labelWidth = panelCoord.width - 28 - allButtonsWidth - 8;
     if (labelWidth < 90)
     {
@@ -207,13 +210,17 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
         const int buttonsLeft = 14 + labelWidth + 8;
         rowWidgets.label->setCoord(MyGUI::IntCoord(14, top, labelWidth, buttonHeight));
         rowWidgets.deleteSelectedMemberButton->setCoord(
-            MyGUI::IntCoord(buttonsLeft, top, buttonWidth, buttonHeight));
+            MyGUI::IntCoord(buttonsLeft, top, meButtonWidth, buttonHeight));
         rowWidgets.deleteSelectedMembersButton->setCoord(
-            MyGUI::IntCoord(buttonsLeft + buttonWidth + buttonGap, top, buttonWidth, buttonHeight));
+            MyGUI::IntCoord(buttonsLeft + meButtonWidth + buttonGap, top, selectedButtonWidth, buttonHeight));
         rowWidgets.deleteWholeSquadButton->setCoord(
-            MyGUI::IntCoord(buttonsLeft + (buttonWidth + buttonGap) * 2, top, buttonWidth, buttonHeight));
+            MyGUI::IntCoord(buttonsLeft + meButtonWidth + selectedButtonWidth + (buttonGap * 2), top, squadButtonWidth, buttonHeight));
         rowWidgets.deleteEveryoneButton->setCoord(
-            MyGUI::IntCoord(buttonsLeft + (buttonWidth + buttonGap) * 3, top, buttonWidth, buttonHeight));
+            MyGUI::IntCoord(
+                buttonsLeft + meButtonWidth + selectedButtonWidth + squadButtonWidth + (buttonGap * 3),
+                top,
+                allButtonWidth,
+                buttonHeight));
     }
 }
 
@@ -474,19 +481,19 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
         g_jobBGoneHeaderButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
             "Kenshi_Button1",
-            MyGUI::IntCoord(0, 0, panelCoord.width, 34),
+            MyGUI::IntCoord(0, 0, panelCoord.width, 38),
             MyGUI::Align::Default);
         g_jobBGoneBodyFrame = g_jobBGonePanel->createWidget<MyGUI::Button>(
             "Kenshi_Button1",
-            MyGUI::IntCoord(0, 36, panelCoord.width, panelCoord.height - 36),
+            MyGUI::IntCoord(0, 40, panelCoord.width, panelCoord.height - 40),
             MyGUI::Align::Default);
         g_jobBGoneStatusText = g_jobBGonePanel->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(14, 46, panelCoord.width - 28, 22),
+            MyGUI::IntCoord(14, 50, panelCoord.width - 28, 22),
             MyGUI::Align::Default);
         g_deleteAllJobsSelectedMemberButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
             "Kenshi_Button1",
-            MyGUI::IntCoord(14, 70, panelCoord.width - 28, 32),
+            MyGUI::IntCoord(14, 74, panelCoord.width - 28, 36),
             MyGUI::Align::Default);
 
         if (!g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_deleteAllJobsSelectedMemberButton)
@@ -528,23 +535,23 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             const int top = GetJobRowTop(rowIndex);
             rowWidgets.label = g_jobBGonePanel->createWidget<MyGUI::TextBox>(
                 "Kenshi_TextboxStandardText",
-                MyGUI::IntCoord(14, top, 200, 28),
+                MyGUI::IntCoord(14, top, 200, 30),
                 MyGUI::Align::Default);
             rowWidgets.deleteSelectedMemberButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(220, top, 64, 28),
+                MyGUI::IntCoord(220, top, 58, 30),
                 MyGUI::Align::Default);
             rowWidgets.deleteSelectedMembersButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(290, top, 64, 28),
+                MyGUI::IntCoord(284, top, 60, 30),
                 MyGUI::Align::Default);
             rowWidgets.deleteWholeSquadButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(360, top, 64, 28),
+                MyGUI::IntCoord(350, top, 82, 30),
                 MyGUI::Align::Default);
             rowWidgets.deleteEveryoneButton = g_jobBGonePanel->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(430, top, 64, 28),
+                MyGUI::IntCoord(434, top, 56, 30),
                 MyGUI::Align::Default);
 
             if (!rowWidgets.label || !rowWidgets.deleteSelectedMemberButton || !rowWidgets.deleteSelectedMembersButton
