@@ -43,6 +43,14 @@ struct JobRowModel
     std::string jobKey;
 };
 
+enum JobDeleteScope
+{
+    JobDeleteScope_SelectedMember = 0,
+    JobDeleteScope_SelectedMembers = 1,
+    JobDeleteScope_WholeSquad = 2,
+    JobDeleteScope_EveryoneGlobal = 3
+};
+
 struct ConfigParseDiagnostics
 {
     bool foundEnabled;

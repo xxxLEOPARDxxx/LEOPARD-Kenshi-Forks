@@ -35,12 +35,13 @@ static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
 static const int kPanelWidth = 500;
-static const int kPanelExpandedHeight = 112;
+static const int kPanelExpandedHeight = 420;
 static const int kPanelCollapsedHeight = 42;
 static const int kPanelViewportPadding = 20;
 static const int kPanelMaxPersistedCoord = 100000;
 static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
+static const int kMaxVisibleJobRows = 8;
 
 static PluginConfig g_config = { true, 2000, false, true, false, true, false, 0, 0 };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
@@ -130,6 +131,18 @@ static int g_jobBGonePanelDragLastMouseX = 0;
 static int g_jobBGonePanelDragLastMouseY = 0;
 static int g_jobBGonePanelDragMovedDistance = 0;
 
+struct JobRowWidgets
+{
+    MyGUI::TextBox* label;
+    MyGUI::Button* deleteSelectedMemberButton;
+    MyGUI::Button* deleteSelectedMembersButton;
+    MyGUI::Button* deleteWholeSquadButton;
+    MyGUI::Button* deleteEveryoneButton;
+};
+
+static std::vector<JobRowWidgets> g_jobRowWidgets;
+static std::vector<JobRowModel> g_selectedMemberJobRows;
+
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static bool InitPluginMenuFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddr);
@@ -147,6 +160,10 @@ static bool RefreshSelectedMemberUi(const char* source);
 static void ArmSelectedMemberUiRefresh(const char* source);
 static void TickSelectedMemberUiRefresh();
 static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*);
+static void OnDeleteJobSelectedMemberButtonClicked(MyGUI::Widget*);
+static void OnDeleteJobSelectedMembersButtonClicked(MyGUI::Widget*);
+static void OnDeleteJobWholeSquadButtonClicked(MyGUI::Widget*);
+static void OnDeleteJobEveryoneButtonClicked(MyGUI::Widget*);
 static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*);
 static void OnJobBGoneHeaderMousePressed(MyGUI::Widget*, int, int, MyGUI::MouseButton);
 static void OnJobBGoneHeaderMouseDrag(MyGUI::Widget*, int, int, MyGUI::MouseButton);

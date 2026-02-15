@@ -422,3 +422,524 @@ static void OnDeleteAllJobsSelectedMemberButtonClicked(MyGUI::Widget*)
             << " anchor_mode=job_b_gone_panel";
     DebugLog(logline.str().c_str());
 }
+
+static const char* GetScopeLogName(JobDeleteScope scope)
+{
+    switch (scope)
+    {
+    case JobDeleteScope_SelectedMember:
+        return "selected_member";
+    case JobDeleteScope_SelectedMembers:
+        return "selected_members";
+    case JobDeleteScope_WholeSquad:
+        return "whole_squad";
+    case JobDeleteScope_EveryoneGlobal:
+        return "everyone_global";
+    default:
+        break;
+    }
+    return "unknown";
+}
+
+static bool TryRemovePermajobAtSlot(Character* member, int slot, const char** resultOut);
+
+static void AddUniqueMember(std::vector<Character*>* membersOut, Character* member)
+{
+    if (!membersOut || !member)
+    {
+        return;
+    }
+
+    const size_t count = membersOut->size();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if ((*membersOut)[i] == member)
+        {
+            return;
+        }
+    }
+    membersOut->push_back(member);
+}
+
+static bool ResolveMembersForScope(JobDeleteScope scope, std::vector<Character*>* membersOut, const char** resultOut)
+{
+    if (membersOut)
+    {
+        membersOut->clear();
+    }
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!membersOut || !g_lastPlayerInterface)
+    {
+        if (resultOut)
+        {
+            *resultOut = "player_interface_unavailable";
+        }
+        return false;
+    }
+
+    Character* selectedMember = ResolveSelectedMember();
+    if (scope == JobDeleteScope_SelectedMember)
+    {
+        if (!selectedMember)
+        {
+            if (resultOut)
+            {
+                *resultOut = "no_selected_member";
+            }
+            return false;
+        }
+        AddUniqueMember(membersOut, selectedMember);
+        if (resultOut)
+        {
+            *resultOut = "ok";
+        }
+        return true;
+    }
+
+    if (scope == JobDeleteScope_SelectedMembers)
+    {
+        __try
+        {
+            for (ogre_unordered_set<hand>::type::const_iterator it = g_lastPlayerInterface->selectedCharacters.begin();
+                 it != g_lastPlayerInterface->selectedCharacters.end();
+                 ++it)
+            {
+                const hand& selectedHandle = *it;
+                if (!selectedHandle || !selectedHandle.isValid())
+                {
+                    continue;
+                }
+                Character* member = selectedHandle.getCharacter();
+                AddUniqueMember(membersOut, member);
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            if (resultOut)
+            {
+                *resultOut = "selected_members_exception";
+            }
+            return false;
+        }
+
+        if (membersOut->empty() && selectedMember)
+        {
+            AddUniqueMember(membersOut, selectedMember);
+        }
+
+        if (membersOut->empty())
+        {
+            if (resultOut)
+            {
+                *resultOut = "no_selected_members";
+            }
+            return false;
+        }
+
+        if (resultOut)
+        {
+            *resultOut = "ok";
+        }
+        return true;
+    }
+
+    const lektor<Character*>& playerCharacters = g_lastPlayerInterface->getAllPlayerCharacters();
+    if (scope == JobDeleteScope_EveryoneGlobal)
+    {
+        const uint32_t count = playerCharacters.size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Character* member = playerCharacters[i];
+            if (!member)
+            {
+                continue;
+            }
+
+            bool isPlayer = false;
+            __try
+            {
+                isPlayer = member->isPlayerCharacter();
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                continue;
+            }
+
+            if (isPlayer)
+            {
+                AddUniqueMember(membersOut, member);
+            }
+        }
+
+        if (membersOut->empty())
+        {
+            if (resultOut)
+            {
+                *resultOut = "no_player_members";
+            }
+            return false;
+        }
+
+        if (resultOut)
+        {
+            *resultOut = "ok";
+        }
+        return true;
+    }
+
+    if (scope == JobDeleteScope_WholeSquad)
+    {
+        if (!selectedMember)
+        {
+            if (resultOut)
+            {
+                *resultOut = "no_selected_member";
+            }
+            return false;
+        }
+
+        Character* selectedLeader = 0;
+        __try
+        {
+            selectedLeader = selectedMember->getSquadLeader();
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            selectedLeader = 0;
+        }
+        if (!selectedLeader)
+        {
+            selectedLeader = selectedMember;
+        }
+
+        const uint32_t count = playerCharacters.size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            Character* member = playerCharacters[i];
+            if (!member)
+            {
+                continue;
+            }
+
+            Character* leader = 0;
+            bool isPlayer = false;
+            __try
+            {
+                leader = member->getSquadLeader();
+                isPlayer = member->isPlayerCharacter();
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                continue;
+            }
+
+            if (!leader)
+            {
+                leader = member;
+            }
+
+            if (isPlayer && leader == selectedLeader)
+            {
+                AddUniqueMember(membersOut, member);
+            }
+        }
+
+        if (membersOut->empty())
+        {
+            AddUniqueMember(membersOut, selectedMember);
+        }
+
+        if (membersOut->empty())
+        {
+            if (resultOut)
+            {
+                *resultOut = "no_whole_squad_members";
+            }
+            return false;
+        }
+
+        if (resultOut)
+        {
+            *resultOut = "ok";
+        }
+        return true;
+    }
+
+    if (resultOut)
+    {
+        *resultOut = "unsupported_scope";
+    }
+    return false;
+}
+
+static bool TryDeleteJobForMemberByKey(Character* member, const std::string& jobKey, const char** resultOut)
+{
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!member || jobKey.empty())
+    {
+        if (resultOut)
+        {
+            *resultOut = "invalid_input";
+        }
+        return false;
+    }
+
+    std::vector<JobRowModel> rows;
+    const char* snapshotResult = "not_run";
+    if (!BuildSelectedMemberJobSnapshot(member, &rows, &snapshotResult))
+    {
+        if (resultOut)
+        {
+            *resultOut = snapshotResult;
+        }
+        return false;
+    }
+
+    int slotToDelete = -1;
+    const size_t count = rows.size();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (rows[i].jobKey == jobKey)
+        {
+            slotToDelete = rows[i].slot;
+            break;
+        }
+    }
+
+    if (slotToDelete < 0)
+    {
+        if (resultOut)
+        {
+            *resultOut = "job_key_not_found";
+        }
+        return false;
+    }
+
+    return TryRemovePermajobAtSlot(member, slotToDelete, resultOut);
+}
+
+static bool TryRemovePermajobAtSlot(Character* member, int slot, const char** resultOut)
+{
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!member || slot < 0)
+    {
+        if (resultOut)
+        {
+            *resultOut = "invalid_input";
+        }
+        return false;
+    }
+
+    __try
+    {
+        member->removePermajob(slot);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (resultOut)
+        {
+            *resultOut = "remove_exception";
+        }
+        return false;
+    }
+
+    if (resultOut)
+    {
+        *resultOut = "ok";
+    }
+    return true;
+}
+
+static bool TryDeleteJobForMemberBySignature(
+    Character* member,
+    TaskType taskType,
+    const std::string& taskName,
+    const char** resultOut)
+{
+    if (resultOut)
+    {
+        *resultOut = "not_run";
+    }
+    if (!member)
+    {
+        if (resultOut)
+        {
+            *resultOut = "invalid_input";
+        }
+        return false;
+    }
+
+    int count = 0;
+    if (!TryGetPermajobCount(member, &count))
+    {
+        if (resultOut)
+        {
+            *resultOut = "count_read_failed";
+        }
+        return false;
+    }
+
+    int slotToDelete = -1;
+    for (int slot = 0; slot < count; ++slot)
+    {
+        TaskType rowTaskType = static_cast<TaskType>(0);
+        std::string rowTaskName;
+        if (!TryGetPermajobRow(member, slot, &rowTaskType, &rowTaskName, 0))
+        {
+            continue;
+        }
+
+        if (rowTaskType == taskType && rowTaskName == taskName)
+        {
+            slotToDelete = slot;
+            break;
+        }
+    }
+
+    if (slotToDelete < 0)
+    {
+        if (resultOut)
+        {
+            *resultOut = "job_signature_not_found";
+        }
+        return false;
+    }
+
+    return TryRemovePermajobAtSlot(member, slotToDelete, resultOut);
+}
+
+static bool TryGetRowActionPayload(MyGUI::Widget* sender, std::string* jobKeyOut, TaskType* taskTypeOut, std::string* taskNameOut)
+{
+    if (!sender || !jobKeyOut || !taskTypeOut || !taskNameOut)
+    {
+        return false;
+    }
+
+    const std::string jobKey = sender->getUserString("JobKey");
+    const std::string taskTypeValue = sender->getUserString("JobTaskType");
+    const std::string taskName = sender->getUserString("JobTaskName");
+    if (jobKey.empty() || taskTypeValue.empty())
+    {
+        return false;
+    }
+
+    int taskTypeInt = 0;
+    std::stringstream parser(taskTypeValue);
+    parser >> taskTypeInt;
+    if (!parser || !parser.eof())
+    {
+        return false;
+    }
+
+    *jobKeyOut = jobKey;
+    *taskTypeOut = static_cast<TaskType>(taskTypeInt);
+    *taskNameOut = taskName;
+    return true;
+}
+
+static void ExecuteDeleteJobForScopeFromRow(MyGUI::Widget* sender, JobDeleteScope scope)
+{
+    const bool actionEnabled = true;
+    bool success = false;
+    const char* result = "disabled_by_config";
+    int targetMembers = 0;
+    int affectedMembers = 0;
+    int deletedJobs = 0;
+    std::string jobKey;
+    std::string taskName;
+    TaskType taskType = static_cast<TaskType>(0);
+
+    if (actionEnabled)
+    {
+        if (!TryGetRowActionPayload(sender, &jobKey, &taskType, &taskName))
+        {
+            result = "invalid_row_payload";
+        }
+        else
+        {
+            std::vector<Character*> targetList;
+            if (!ResolveMembersForScope(scope, &targetList, &result))
+            {
+                if (!result)
+                {
+                    result = "resolve_members_failed";
+                }
+            }
+            else
+            {
+                targetMembers = static_cast<int>(targetList.size());
+                for (size_t i = 0; i < targetList.size(); ++i)
+                {
+                    Character* member = targetList[i];
+                    const char* memberResult = "not_run";
+                    bool memberDeleted = false;
+                    if (scope == JobDeleteScope_SelectedMember)
+                    {
+                        memberDeleted = TryDeleteJobForMemberByKey(member, jobKey, &memberResult);
+                    }
+                    else
+                    {
+                        memberDeleted = TryDeleteJobForMemberBySignature(member, taskType, taskName, &memberResult);
+                    }
+
+                    if (memberDeleted)
+                    {
+                        ++affectedMembers;
+                        ++deletedJobs;
+                    }
+                }
+
+                success = deletedJobs > 0;
+                result = success ? "ok" : "job_not_found_in_scope";
+            }
+        }
+    }
+
+    if (success)
+    {
+        RefreshSelectedMemberUi("post_delete_row_scope_immediate");
+        ArmSelectedMemberUiRefresh("post_delete_row_scope_deferred");
+    }
+
+    std::stringstream logline;
+    logline << "Job-B-Gone INFO: action=delete_job_scope"
+            << " scope=" << GetScopeLogName(scope)
+            << " success=" << (success ? "true" : "false")
+            << " result=" << (result ? result : "unknown")
+            << " target_members=" << targetMembers
+            << " affected_members=" << affectedMembers
+            << " deleted_jobs=" << deletedJobs
+            << " task_type=" << static_cast<int>(taskType)
+            << " task_name=\"" << taskName << "\""
+            << " action_enabled=" << (actionEnabled ? "true" : "false");
+    DebugLog(logline.str().c_str());
+}
+
+static void OnDeleteJobSelectedMemberButtonClicked(MyGUI::Widget* sender)
+{
+    ExecuteDeleteJobForScopeFromRow(sender, JobDeleteScope_SelectedMember);
+}
+
+static void OnDeleteJobSelectedMembersButtonClicked(MyGUI::Widget* sender)
+{
+    ExecuteDeleteJobForScopeFromRow(sender, JobDeleteScope_SelectedMembers);
+}
+
+static void OnDeleteJobWholeSquadButtonClicked(MyGUI::Widget* sender)
+{
+    ExecuteDeleteJobForScopeFromRow(sender, JobDeleteScope_WholeSquad);
+}
+
+static void OnDeleteJobEveryoneButtonClicked(MyGUI::Widget* sender)
+{
+    ExecuteDeleteJobForScopeFromRow(sender, JobDeleteScope_EveryoneGlobal);
+}
