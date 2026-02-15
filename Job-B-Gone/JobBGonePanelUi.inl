@@ -631,6 +631,23 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobBGonePanelDragMovedDistance = 0;
 }
 
+static void OnSaveLoadTransitionStart(const char* source)
+{
+    DestroySelectedMemberJobPanelButton();
+    g_lastPlayerInterface = 0;
+    g_pendingSelectedMemberUiRefresh = false;
+    g_pendingSelectedMemberUiRefreshStartMs = 0;
+    g_lastSelectedMemberUiRefreshAttemptMs = 0;
+    g_selectedMemberUiRefreshAttempts = 0;
+    g_lastLoggedHasSelectedMemberForButton = false;
+    g_lastLoggedButtonVisibleState = false;
+    g_lastLoggedButtonExists = false;
+
+    std::stringstream info;
+    info << "Job-B-Gone DEBUG: save_load_ui_reset source=" << (source ? source : "unknown");
+    DebugLog(info.str().c_str());
+}
+
 static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
 {
     if (g_jobBGonePanelDragMoved)

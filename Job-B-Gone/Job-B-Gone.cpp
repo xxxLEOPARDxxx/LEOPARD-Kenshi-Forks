@@ -182,6 +182,7 @@ static void DisarmPauseAfterLoad();
 static bool InitPluginMenuFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddr);
 static void OptionsWindowInitHook(OptionsWindow* self);
 static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr);
+static void OnSaveLoadTransitionStart(const char* source);
 static Character* ResolveSelectedMember();
 static bool TryResolveSelectedMemberForDebug();
 static bool TryGetPermajobCount(Character* member, int* countOut);

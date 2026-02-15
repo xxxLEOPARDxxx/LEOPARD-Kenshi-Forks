@@ -170,11 +170,16 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     PlayerInterface_updateUT_orig(thisptr);
     TickPauseOnLoad();
     TickSelectedMemberUiRefresh();
+    if (g_state.pauseArmed || g_state.loadInProgress)
+    {
+        return;
+    }
     EnsureSelectedMemberJobPanelButton(thisptr);
 }
 
 static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
 {
+    OnSaveLoadTransitionStart("SaveManager::load(saveInfo,resetPos)");
     ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
     if (SaveManager_loadByInfo_orig)
     {
@@ -184,6 +189,7 @@ static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& sa
 
 static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
 {
+    OnSaveLoadTransitionStart("SaveManager::load(name)");
     ArmPauseAfterLoad("SaveManager::load(name)");
     if (SaveManager_loadByName_orig)
     {
