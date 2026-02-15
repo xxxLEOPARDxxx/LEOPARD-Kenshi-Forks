@@ -809,6 +809,7 @@ static bool ShowConfirmationOverlay(
     if (!g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
         || !g_jobBGoneConfirmYesButton || !g_jobBGoneConfirmNoButton)
     {
+        DebugLog("Job-B-Gone WARN: confirmation_overlay_missing_widgets");
         return false;
     }
 
@@ -821,12 +822,96 @@ static bool ShowConfirmationOverlay(
     g_jobBGoneConfirmBodyText->setCaption(body);
     g_jobBGoneConfirmVisible = true;
 
+    const MyGUI::IntCoord overlayCoord = g_jobBGoneConfirmOverlay->getCoord();
+    std::stringstream info;
+    info << "Job-B-Gone DEBUG: confirmation_overlay_show"
+         << " type=" << static_cast<int>(type)
+         << " scope=" << GetScopeLogName(scope)
+         << " x=" << overlayCoord.left
+         << " y=" << overlayCoord.top
+         << " w=" << overlayCoord.width
+         << " h=" << overlayCoord.height;
+    DebugLog(info.str().c_str());
+
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
     if (input && g_jobBGoneConfirmYesButton)
     {
         input->setKeyFocusWidget(g_jobBGoneConfirmYesButton);
     }
     return true;
+}
+
+struct JobNameCountEntry
+{
+    std::string name;
+    int count;
+};
+
+static void AccumulateJobNameCount(std::vector<JobNameCountEntry>* namesOut, const std::string& taskName)
+{
+    if (!namesOut)
+    {
+        return;
+    }
+
+    const std::string normalizedName = taskName.empty() ? std::string("(Unnamed job)") : taskName;
+    for (size_t i = 0; i < namesOut->size(); ++i)
+    {
+        if ((*namesOut)[i].name == normalizedName)
+        {
+            ++((*namesOut)[i].count);
+            return;
+        }
+    }
+
+    JobNameCountEntry entry;
+    entry.name = normalizedName;
+    entry.count = 1;
+    namesOut->push_back(entry);
+}
+
+static int BuildDeleteAllJobNameCounts(
+    const std::vector<Character*>& targetList,
+    std::vector<JobNameCountEntry>* namesOut)
+{
+    if (namesOut)
+    {
+        namesOut->clear();
+    }
+
+    int jobsToDelete = 0;
+    for (size_t i = 0; i < targetList.size(); ++i)
+    {
+        Character* member = targetList[i];
+        if (!member)
+        {
+            continue;
+        }
+
+        std::vector<JobRowModel> rows;
+        const char* snapshotResult = "not_run";
+        if (!BuildSelectedMemberJobSnapshot(member, &rows, &snapshotResult))
+        {
+            int memberCount = 0;
+            if (TryGetPermajobCount(member, &memberCount) && memberCount > 0)
+            {
+                jobsToDelete += memberCount;
+                for (int missing = 0; missing < memberCount; ++missing)
+                {
+                    AccumulateJobNameCount(namesOut, "(Unknown job)");
+                }
+            }
+            continue;
+        }
+
+        jobsToDelete += static_cast<int>(rows.size());
+        for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex)
+        {
+            AccumulateJobNameCount(namesOut, rows[rowIndex].taskName);
+        }
+    }
+
+    return jobsToDelete;
 }
 
 static bool ShowDeleteAllConfirmation(JobDeleteScope scope)
@@ -838,23 +923,44 @@ static bool ShowDeleteAllConfirmation(JobDeleteScope scope)
         return false;
     }
 
-    int jobsToDelete = 0;
-    for (size_t i = 0; i < targetList.size(); ++i)
-    {
-        int memberCount = 0;
-        if (TryGetPermajobCount(targetList[i], &memberCount))
-        {
-            jobsToDelete += memberCount;
-        }
-    }
+    std::vector<JobNameCountEntry> jobNameCounts;
+    const int jobsToDelete = BuildDeleteAllJobNameCounts(targetList, &jobNameCounts);
 
     std::stringstream title;
     title << "Confirm " << GetScopeDisplayName(scope) << " Delete-All";
     std::stringstream body;
     body << "Scope: " << GetScopeDisplayName(scope)
          << "\nMembers affected: " << targetList.size()
-         << "\nJobs queued to delete: " << jobsToDelete
-         << "\n\nPress Enter to confirm.";
+         << "\nJobs queued to delete: " << jobsToDelete;
+    if (!jobNameCounts.empty())
+    {
+        body << "\n\nJobs to delete:";
+        const size_t maxVisibleJobTypes = 10;
+        size_t visibleTypes = jobNameCounts.size();
+        if (visibleTypes > maxVisibleJobTypes)
+        {
+            visibleTypes = maxVisibleJobTypes;
+        }
+
+        for (size_t i = 0; i < visibleTypes; ++i)
+        {
+            body << "\n" << (i + 1) << ". " << jobNameCounts[i].name;
+            if (jobNameCounts[i].count > 1)
+            {
+                body << " x" << jobNameCounts[i].count;
+            }
+        }
+
+        if (jobNameCounts.size() > visibleTypes)
+        {
+            body << "\n... +" << (jobNameCounts.size() - visibleTypes) << " more job types";
+        }
+    }
+    else
+    {
+        body << "\n\nNo jobs found in this scope.";
+    }
+    body << "\n\nPress Enter to confirm.";
     return ShowConfirmationOverlay(
         PendingConfirmationAction_DeleteAllScope,
         scope,
