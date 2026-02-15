@@ -145,6 +145,7 @@ static MyGUI::Widget* g_jobBGonePanel = 0;
 static MyGUI::Button* g_jobBGoneHeaderButton = 0;
 static MyGUI::Button* g_jobBGoneBodyFrame = 0;
 static MyGUI::TextBox* g_jobBGoneStatusText = 0;
+static MyGUI::TextBox* g_jobBGoneEmptyStateText = 0;
 static PlayerInterface* g_lastPlayerInterface = 0;
 static bool g_loggedSelectedMemberButtonCreateFailure = false;
 static bool g_lastLoggedHasSelectedMemberForButton = false;
@@ -164,6 +165,10 @@ static bool g_jobBGonePanelDragMoved = false;
 static int g_jobBGonePanelDragLastMouseX = 0;
 static int g_jobBGonePanelDragLastMouseY = 0;
 static int g_jobBGonePanelDragMovedDistance = 0;
+static bool g_runtimePanelHasCustomPosition = false;
+static int g_runtimePanelPosX = 0;
+static int g_runtimePanelPosY = 0;
+static bool g_lastLoggedConfirmOverlayVisible = false;
 
 struct JobRowWidgets
 {
@@ -294,6 +299,9 @@ static void LoadConfigState()
     g_config.jobBGonePanelHasCustomPosition = false;
     g_config.jobBGonePanelPosX = 0;
     g_config.jobBGonePanelPosY = 0;
+    g_runtimePanelHasCustomPosition = false;
+    g_runtimePanelPosX = 0;
+    g_runtimePanelPosY = 0;
 
     if (g_settingsPath.empty())
     {
@@ -317,6 +325,7 @@ static void LoadConfigState()
 
     std::stringstream info;
     info << "Job-B-Gone INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
+         << " settings_path=\"" << g_settingsPath << "\""
          << " pause_debounce_ms=" << g_config.pauseDebounceMs
          << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
          << " enable_delete_all_jobs_selected_member_action="
@@ -330,6 +339,13 @@ static void LoadConfigState()
          << " job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
          << " job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY;
     DebugLog(info.str().c_str());
+
+    if (g_config.jobBGonePanelHasCustomPosition)
+    {
+        g_runtimePanelHasCustomPosition = true;
+        g_runtimePanelPosX = g_config.jobBGonePanelPosX;
+        g_runtimePanelPosY = g_config.jobBGonePanelPosY;
+    }
 }
 
 static bool SaveConfigState()
@@ -342,9 +358,15 @@ static bool SaveConfigState()
 
     if (!SaveConfigToFile(g_settingsPath, g_config))
     {
-        ErrorLog("Job-B-Gone ERROR: failed to save mod-config.json");
+        std::stringstream error;
+        error << "Job-B-Gone ERROR: failed to save mod-config.json path=\"" << g_settingsPath << "\"";
+        ErrorLog(error.str().c_str());
         return false;
     }
+
+    std::stringstream info;
+    info << "Job-B-Gone INFO: saved mod-config.json path=\"" << g_settingsPath << "\"";
+    DebugLog(info.str().c_str());
 
     return true;
 }

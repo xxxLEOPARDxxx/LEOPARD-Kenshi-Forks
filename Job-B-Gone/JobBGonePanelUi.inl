@@ -80,30 +80,50 @@ static std::string BuildCompactTaskNameForDisplay(const std::string& taskName)
         return taskName;
     }
 
-    size_t suffixPos = taskName.size();
-    const size_t lastColon = taskName.find_last_of(':');
-    if (lastColon != std::string::npos)
+    const size_t prefixLen = std::strlen(kOperatingMachinePrefix);
+    size_t suffixPos = prefixLen;
+
+    const size_t colonPos = taskName.find(':', prefixLen);
+    if (colonPos != std::string::npos)
     {
-        suffixPos = lastColon + 1;
+        suffixPos = colonPos + 1;
     }
     else
     {
-        suffixPos = std::strlen(kOperatingMachinePrefix);
+        const size_t arrowPos = taskName.find("->", prefixLen);
+        if (arrowPos != std::string::npos)
+        {
+            suffixPos = arrowPos + 2;
+        }
+        else
+        {
+            const size_t dashPos = taskName.find(" - ", prefixLen);
+            if (dashPos != std::string::npos)
+            {
+                suffixPos = dashPos + 3;
+            }
+        }
     }
 
-    while (suffixPos < taskName.size() && std::isspace(static_cast<unsigned char>(taskName[suffixPos])) != 0)
+    while (suffixPos < taskName.size())
     {
-        ++suffixPos;
+        const unsigned char ch = static_cast<unsigned char>(taskName[suffixPos]);
+        if (std::isspace(ch) != 0 || ch == ':' || ch == '-' || ch == '>')
+        {
+            ++suffixPos;
+            continue;
+        }
+        break;
     }
 
     if (suffixPos >= taskName.size())
     {
-        // Keep original text when no machine target can be extracted.
-        return taskName;
+        // Keep compact label even when no machine target can be extracted.
+        return "Op. m:";
     }
 
     std::stringstream compact;
-    compact << "Op. m.: " << taskName.substr(suffixPos);
+    compact << "Op. m: " << taskName.substr(suffixPos);
     return compact.str();
 }
 
@@ -392,6 +412,17 @@ static MyGUI::IntCoord GetFallbackButtonCoord()
 
 static MyGUI::IntCoord ResolvePanelCoordFromConfig()
 {
+    if (g_runtimePanelHasCustomPosition)
+    {
+        int top = g_runtimePanelPosY;
+        if (g_jobBGonePanelCollapsed)
+        {
+            top += GetCollapsedHeaderYOffset();
+        }
+        return ClampPanelCoordToViewport(
+            BuildPanelCoordFromAnchor(g_runtimePanelPosX, top));
+    }
+
     if (g_config.jobBGonePanelHasCustomPosition)
     {
         int top = g_config.jobBGonePanelPosY;
@@ -408,6 +439,7 @@ static MyGUI::IntCoord ResolvePanelCoordFromConfig()
 static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
 {
     if (!g_jobBGonePanel || !g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText
+        || !g_jobBGoneEmptyStateText
         || !g_deleteAllJobsTitleText || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
         || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton
         || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
@@ -420,6 +452,7 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
     g_jobBGoneHeaderButton->setCoord(MyGUI::IntCoord(0, 0, panelCoord.width, 38));
     g_jobBGoneBodyFrame->setCoord(MyGUI::IntCoord(0, 40, panelCoord.width, panelCoord.height - 40));
     g_jobBGoneStatusText->setCoord(MyGUI::IntCoord(14, 50, panelCoord.width - 28, 22));
+    g_jobBGoneEmptyStateText->setCoord(MyGUI::IntCoord(14, 122, panelCoord.width - 28, 24));
     if (g_jobBGoneHoverHintText)
     {
         g_jobBGoneHoverHintText->setCoord(MyGUI::IntCoord(14, panelCoord.height - 30, panelCoord.width - 28, 18));
@@ -427,14 +460,19 @@ static void ApplyPanelLayout(const MyGUI::IntCoord& panelCoord)
 
     const int overlayWidth = 460;
     const int overlayHeight = 210;
-    int overlayLeft = panelCoord.left + ((panelCoord.width - overlayWidth) / 2);
-    int overlayTop = panelCoord.top + 70;
-    int viewWidth = 0;
-    int viewHeight = 0;
-    if (TryGetViewportSize(&viewWidth, &viewHeight))
+    int overlayLeft = (panelCoord.width - overlayWidth) / 2;
+    int overlayTop = 114;
+    if (overlayLeft < 8)
     {
-        overlayLeft = ClampIntValue(overlayLeft, 10, viewWidth - overlayWidth - 10);
-        overlayTop = ClampIntValue(overlayTop, 10, viewHeight - overlayHeight - 10);
+        overlayLeft = 8;
+    }
+    if (overlayTop + overlayHeight > panelCoord.height - 8)
+    {
+        overlayTop = panelCoord.height - overlayHeight - 8;
+    }
+    if (overlayTop < 48)
+    {
+        overlayTop = 48;
     }
 
     g_jobBGoneConfirmOverlay->setCoord(MyGUI::IntCoord(overlayLeft, overlayTop, overlayWidth, overlayHeight));
@@ -530,6 +568,9 @@ static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, con
     g_config.jobBGonePanelHasCustomPosition = true;
     g_config.jobBGonePanelPosX = panelCoord.left;
     g_config.jobBGonePanelPosY = storedTop;
+    g_runtimePanelHasCustomPosition = true;
+    g_runtimePanelPosX = panelCoord.left;
+    g_runtimePanelPosY = storedTop;
     if (!SaveConfigState())
     {
         ErrorLog("Job-B-Gone WARN: failed to persist Job-B-Gone panel position");
@@ -586,10 +627,24 @@ static void FinalizeJobBGonePanelDrag(const char* source)
     }
 
     g_jobBGonePanelDragMovedDistance = 0;
+    g_lastLoggedConfirmOverlayVisible = false;
 }
 
 static void DestroySelectedMemberJobPanelButton()
 {
+    if (g_jobBGonePanel)
+    {
+        // Save moved position even if UI is being torn down during load transition.
+        const MyGUI::IntCoord currentCoord = ClampPanelCoordToViewport(g_jobBGonePanel->getCoord());
+        const MyGUI::IntCoord expectedCoord = ResolvePanelCoordFromConfig();
+        if (g_jobBGonePanelDragging || g_jobBGonePanelDragMoved
+            || currentCoord.left != expectedCoord.left
+            || currentCoord.top != expectedCoord.top)
+        {
+            PersistPanelPositionIfChanged(currentCoord, "panel_destroy");
+        }
+    }
+
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui && g_jobBGoneConfirmOverlay)
     {
@@ -604,6 +659,7 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobBGoneHeaderButton = 0;
     g_jobBGoneBodyFrame = 0;
     g_jobBGoneStatusText = 0;
+    g_jobBGoneEmptyStateText = 0;
     g_deleteAllJobsTitleText = 0;
     g_deleteAllJobsSelectedMemberButton = 0;
     g_deleteAllJobsSelectedMembersButton = 0;
@@ -812,6 +868,10 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(14, 50, panelCoord.width - 28, 22),
             MyGUI::Align::Default);
+        g_jobBGoneEmptyStateText = g_jobBGonePanel->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(14, 122, panelCoord.width - 28, 24),
+            MyGUI::Align::Default);
         g_deleteAllJobsTitleText = g_jobBGonePanel->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(14, 80, 192, kScopeButtonHeight),
@@ -837,7 +897,8 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             MyGUI::IntCoord(14, panelCoord.height - 30, panelCoord.width - 28, 18),
             MyGUI::Align::Default);
 
-        if (!g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_deleteAllJobsTitleText
+        if (!g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText || !g_jobBGoneEmptyStateText
+            || !g_deleteAllJobsTitleText
             || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
             || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText)
         {
@@ -855,6 +916,9 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_jobBGoneBodyFrame->setCaption("");
         g_jobBGoneBodyFrame->setEnabled(false);
         g_jobBGoneStatusText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        g_jobBGoneEmptyStateText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        g_jobBGoneEmptyStateText->setCaption("Selected member has no queued jobs.");
+        g_jobBGoneEmptyStateText->setVisible(false);
         g_deleteAllJobsTitleText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         g_jobBGoneHoverHintText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         g_jobBGoneHoverHintText->setCaption("");
@@ -969,47 +1033,46 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     if (!g_jobBGoneConfirmOverlay)
     {
-        MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-        if (gui)
+        if (g_jobBGonePanel)
         {
-            g_jobBGoneConfirmOverlay = gui->createWidget<MyGUI::Button>(
+            g_jobBGoneConfirmOverlay = g_jobBGonePanel->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(180, 180, 460, 210),
-                MyGUI::Align::Default,
-                "Overlapped");
-            if (!g_jobBGoneConfirmOverlay)
-            {
-                g_jobBGoneConfirmOverlay = gui->createWidget<MyGUI::Button>(
-                    "Kenshi_Button1",
-                    MyGUI::IntCoord(180, 180, 460, 210),
-                    MyGUI::Align::Default,
-                    "Main");
-            }
+                MyGUI::IntCoord(100, 114, 460, 210),
+                MyGUI::Align::Default);
+        }
 
-            if (g_jobBGoneConfirmOverlay)
-            {
-                g_jobBGoneConfirmTitleText = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
-                    "Kenshi_TextboxStandardText",
-                    MyGUI::IntCoord(12, 10, 436, 24),
-                    MyGUI::Align::Default);
-                g_jobBGoneConfirmBodyText = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
-                    "Kenshi_TextboxStandardText",
-                    MyGUI::IntCoord(12, 40, 436, 124),
-                    MyGUI::Align::Default);
-                g_jobBGoneConfirmYesButton = g_jobBGoneConfirmOverlay->createWidget<MyGUI::Button>(
-                    "Kenshi_Button1",
-                    MyGUI::IntCoord(222, 168, 110, 30),
-                    MyGUI::Align::Default);
-                g_jobBGoneConfirmNoButton = g_jobBGoneConfirmOverlay->createWidget<MyGUI::Button>(
-                    "Kenshi_Button1",
-                    MyGUI::IntCoord(338, 168, 110, 30),
-                    MyGUI::Align::Default);
-            }
+        if (g_jobBGoneConfirmOverlay)
+        {
+            // Keep modal above panel widgets.
+            g_jobBGoneConfirmOverlay->setDepth(32000);
+            g_jobBGoneConfirmTitleText = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
+                "Kenshi_TextboxStandardText",
+                MyGUI::IntCoord(12, 10, 436, 24),
+                MyGUI::Align::Default);
+            g_jobBGoneConfirmBodyText = g_jobBGoneConfirmOverlay->createWidget<MyGUI::TextBox>(
+                "Kenshi_TextboxStandardText",
+                MyGUI::IntCoord(12, 40, 436, 124),
+                MyGUI::Align::Default);
+            g_jobBGoneConfirmYesButton = g_jobBGoneConfirmOverlay->createWidget<MyGUI::Button>(
+                "Kenshi_Button1",
+                MyGUI::IntCoord(222, 168, 110, 30),
+                MyGUI::Align::Default);
+            g_jobBGoneConfirmNoButton = g_jobBGoneConfirmOverlay->createWidget<MyGUI::Button>(
+                "Kenshi_Button1",
+                MyGUI::IntCoord(338, 168, 110, 30),
+                MyGUI::Align::Default);
         }
 
         if (g_jobBGoneConfirmOverlay && g_jobBGoneConfirmTitleText && g_jobBGoneConfirmBodyText
             && g_jobBGoneConfirmYesButton && g_jobBGoneConfirmNoButton)
         {
+            std::stringstream info;
+            info << "Job-B-Gone DEBUG: confirmation_overlay_created mode=panel_child"
+                 << " overlay_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_jobBGoneConfirmOverlay)
+                 << " panel_ptr=0x" << reinterpret_cast<uintptr_t>(g_jobBGonePanel)
+                 << std::dec;
+            DebugLog(info.str().c_str());
+
             g_jobBGoneConfirmOverlay->setCaption("");
             g_jobBGoneConfirmOverlay->setNeedMouseFocus(true);
             g_jobBGoneConfirmOverlay->setNeedKeyFocus(true);
@@ -1033,6 +1096,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     }
 
     if (!g_jobBGonePanel || !g_jobBGoneHeaderButton || !g_jobBGoneBodyFrame || !g_jobBGoneStatusText
+        || !g_jobBGoneEmptyStateText
         || !g_deleteAllJobsTitleText || !g_deleteAllJobsSelectedMemberButton || !g_deleteAllJobsSelectedMembersButton
         || !g_deleteAllJobsWholeSquadButton || !g_deleteAllJobsEveryoneButton || !g_jobBGoneHoverHintText
         || !g_jobBGoneConfirmOverlay || !g_jobBGoneConfirmTitleText || !g_jobBGoneConfirmBodyText
@@ -1103,24 +1167,38 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     const bool topActionsEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
     const bool topActionsVisible = topActionsEnabled && !g_jobBGonePanelCollapsed;
     const bool confirmationOverlayVisible = g_jobBGoneConfirmVisible && !g_jobBGonePanelCollapsed;
+    const bool topActionsActuallyVisible = topActionsVisible && !confirmationOverlayVisible;
     const bool canDeleteForSelectedMember = hasSelectedMember;
     const bool canDeleteForSelectedMembers = selectedMemberCount > 0;
     const bool canDeleteForWholeSquad = hasSelectedMember;
     const bool canDeleteForEveryone = g_lastPlayerInterface != 0;
-    const bool showJobRowsNow = selectedMemberCount > 0 && !g_jobBGonePanelCollapsed;
+    const bool showJobRowsNow = selectedMemberCount > 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
+    const bool showEmptyState = selectedMemberCount > 0 && jobCount == 0 && !g_jobBGonePanelCollapsed && !confirmationOverlayVisible;
     const bool rowActionsEnabled = selectedMemberCount > 0;
     g_jobBGoneBodyFrame->setVisible(!g_jobBGonePanelCollapsed);
     g_jobBGoneStatusText->setVisible(!g_jobBGonePanelCollapsed);
+    g_jobBGoneEmptyStateText->setVisible(showEmptyState);
+    if (showEmptyState)
+    {
+        if (selectedMemberCount > 1)
+        {
+            g_jobBGoneEmptyStateText->setCaption("Selected members have no queued jobs.");
+        }
+        else
+        {
+            g_jobBGoneEmptyStateText->setCaption("Selected member has no queued jobs.");
+        }
+    }
     g_jobBGoneHoverHintText->setVisible(!g_jobBGonePanelCollapsed && !confirmationOverlayVisible);
     if (confirmationOverlayVisible)
     {
         g_jobBGoneHoverHintText->setCaption("");
     }
-    g_deleteAllJobsTitleText->setVisible(topActionsVisible);
-    g_deleteAllJobsSelectedMemberButton->setVisible(topActionsVisible);
-    g_deleteAllJobsSelectedMembersButton->setVisible(topActionsVisible);
-    g_deleteAllJobsWholeSquadButton->setVisible(topActionsVisible);
-    g_deleteAllJobsEveryoneButton->setVisible(topActionsVisible);
+    g_deleteAllJobsTitleText->setVisible(topActionsActuallyVisible);
+    g_deleteAllJobsSelectedMemberButton->setVisible(topActionsActuallyVisible);
+    g_deleteAllJobsSelectedMembersButton->setVisible(topActionsActuallyVisible);
+    g_deleteAllJobsWholeSquadButton->setVisible(topActionsActuallyVisible);
+    g_deleteAllJobsEveryoneButton->setVisible(topActionsActuallyVisible);
     g_deleteAllJobsSelectedMemberButton->setEnabled(topActionsVisible && canDeleteForSelectedMember && !confirmationOverlayVisible);
     g_deleteAllJobsSelectedMembersButton->setEnabled(topActionsVisible && canDeleteForSelectedMembers && !confirmationOverlayVisible);
     g_deleteAllJobsWholeSquadButton->setEnabled(topActionsVisible && canDeleteForWholeSquad && !confirmationOverlayVisible);
@@ -1133,6 +1211,33 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     g_jobBGoneConfirmOverlay->setEnabled(confirmationOverlayVisible);
     g_jobBGoneConfirmYesButton->setEnabled(confirmationOverlayVisible);
     g_jobBGoneConfirmNoButton->setEnabled(confirmationOverlayVisible);
+    if (confirmationOverlayVisible)
+    {
+        MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+        if (input)
+        {
+            MyGUI::Widget* focused = input->getKeyFocusWidget();
+            if (focused != g_jobBGoneConfirmYesButton && focused != g_jobBGoneConfirmNoButton)
+            {
+                input->setKeyFocusWidget(g_jobBGoneConfirmYesButton);
+            }
+        }
+    }
+    if (confirmationOverlayVisible != g_lastLoggedConfirmOverlayVisible)
+    {
+        std::stringstream info;
+        const MyGUI::IntCoord coord = g_jobBGoneConfirmOverlay->getCoord();
+        info << "Job-B-Gone DEBUG: confirmation_overlay_visibility"
+             << " visible=" << (confirmationOverlayVisible ? "true" : "false")
+             << " widget_visible=" << (g_jobBGoneConfirmOverlay->getVisible() ? "true" : "false")
+             << " x=" << coord.left
+             << " y=" << coord.top
+             << " w=" << coord.width
+             << " h=" << coord.height
+             << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
+        DebugLog(info.str().c_str());
+        g_lastLoggedConfirmOverlayVisible = confirmationOverlayVisible;
+    }
 
     size_t visibleRows = g_selectedMemberJobRows.size();
     if (visibleRows > static_cast<size_t>(kMaxVisibleJobRows))
