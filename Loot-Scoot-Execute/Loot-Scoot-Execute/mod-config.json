@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "pause_debounce_ms": 2000,
+  "debug_log_transitions": false,
+  "enable_context_menu_probe": false,
+  "enable_context_menu_injection": false,
+  "enable_execute_action": false,
+  "debug_context_menu": false
+}
