@@ -426,6 +426,29 @@ static bool ContextMenuOrderSampleChanged(const int* orderSample, size_t orderSa
     return false;
 }
 
+static bool OrderSamplesEqual(const int* lhs, size_t lhsCount, const int* rhs, size_t rhsCount)
+{
+    if (lhsCount != rhsCount)
+    {
+        return false;
+    }
+
+    if ((!lhs && lhsCount > 0) || (!rhs && rhsCount > 0))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < lhsCount; ++i)
+    {
+        if (lhs[i] != rhs[i])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static void UpdateContextMenuProbeSnapshot(
     bool on,
     bool visible,
@@ -450,6 +473,31 @@ static void UpdateContextMenuProbeSnapshot(
     for (size_t i = 0; i < orderSampleCount; ++i)
     {
         g_lastContextMenuProbeOrderSample[i] = orderSample[i];
+    }
+}
+
+static void UpdateContextMenuShowProbeEvent(
+    bool on,
+    bool visible,
+    uintptr_t whatPtr,
+    uintptr_t mouseRightTargetPtr,
+    uint32_t ordersCount,
+    const int* orderSample,
+    size_t orderSampleCount,
+    DWORD nowMs)
+{
+    ++g_contextMenuShowProbeEventSeq;
+    g_contextMenuShowProbeEventMs = nowMs;
+    g_contextMenuShowProbeEventOn = on;
+    g_contextMenuShowProbeEventVisible = visible;
+    g_contextMenuShowProbeEventWhatPtr = whatPtr;
+    g_contextMenuShowProbeEventMouseRightTargetPtr = mouseRightTargetPtr;
+    g_contextMenuShowProbeEventOrdersCount = ordersCount;
+    g_contextMenuShowProbeEventSampleCount = orderSampleCount;
+
+    for (size_t i = 0; i < orderSampleCount; ++i)
+    {
+        g_contextMenuShowProbeEventOrderSample[i] = orderSample[i];
     }
 }
 
@@ -505,6 +553,20 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
     const uintptr_t whatPtr = reinterpret_cast<uintptr_t>(what);
     const uintptr_t mouseRightTargetPtr = reinterpret_cast<uintptr_t>(mouseRightTarget);
+    const DWORD nowMs = GetTickCount();
+    if (on)
+    {
+        UpdateContextMenuShowProbeEvent(
+            on,
+            visible,
+            whatPtr,
+            mouseRightTargetPtr,
+            ordersCount,
+            orderSample,
+            orderSampleCount,
+            nowMs);
+    }
+    const uint64_t showSeq = g_contextMenuShowProbeEventSeq;
 
     const bool transitionChanged = !g_hasContextMenuProbeSnapshot
         || g_lastContextMenuProbeOn != on
@@ -519,7 +581,6 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         || g_lastContextMenuProbeOn != on
         || g_lastContextMenuProbeVisible != visible;
 
-    const DWORD nowMs = GetTickCount();
     const bool periodicSnapshot = !g_hasContextMenuProbeSnapshot
         || DebounceWindowElapsed(nowMs, g_lastContextMenuProbeLogMs, kContextMenuProbePeriodicMs);
 
@@ -538,6 +599,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
     std::stringstream logline;
     logline << "Loot-Scoot-Execute DEBUG: context_menu_show_probe"
+            << " show_seq=" << std::dec << showSeq
             << " on=" << (on ? "true" : "false")
             << " visible=" << (visible ? "true" : "false")
             << " context_menu_name=\"" << contextMenuName << "\""
@@ -619,6 +681,218 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         nowMs);
 }
 
+static bool TryReadContextMenuObserverSnapshot(
+    PlayerInterface* player,
+    bool* visibleOut,
+    uintptr_t* mouseRightTargetPtrOut,
+    uint32_t* ordersCountOut,
+    int* orderSampleOut,
+    size_t* orderSampleCountOut)
+{
+    if (!player || !visibleOut || !mouseRightTargetPtrOut || !ordersCountOut || !orderSampleOut || !orderSampleCountOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        ContextMenu* menu = &player->contextMenu;
+        *visibleOut = menu->isVisible();
+
+        const uint32_t orderCount = menu->orders.size();
+        *ordersCountOut = orderCount;
+
+        size_t sampleCount = static_cast<size_t>(orderCount);
+        if (sampleCount > kContextMenuProbeOrderSampleCount)
+        {
+            sampleCount = kContextMenuProbeOrderSampleCount;
+        }
+
+        for (size_t i = 0; i < sampleCount; ++i)
+        {
+            orderSampleOut[i] = menu->orders[static_cast<uint32_t>(i)];
+        }
+        *orderSampleCountOut = sampleCount;
+
+        RootObject* mouseRightTarget = 0;
+        if (player->mouseRightTargetSet)
+        {
+            mouseRightTarget = player->mouseRightTarget;
+        }
+        *mouseRightTargetPtrOut = reinterpret_cast<uintptr_t>(mouseRightTarget);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static void UpdateContextMenuObserverSnapshot(
+    bool visible,
+    uintptr_t mouseRightTargetPtr,
+    uint32_t ordersCount,
+    const int* orderSample,
+    size_t orderSampleCount,
+    DWORD nowMs)
+{
+    g_hasContextMenuObserverSnapshot = true;
+    g_lastContextMenuObserverSampleMs = nowMs;
+    g_lastContextMenuObserverVisible = visible;
+    g_lastContextMenuObserverMouseRightTargetPtr = mouseRightTargetPtr;
+    g_lastContextMenuObserverOrdersCount = ordersCount;
+    g_lastContextMenuObserverSampleCount = orderSampleCount;
+
+    for (size_t i = 0; i < orderSampleCount; ++i)
+    {
+        g_lastContextMenuObserverOrderSample[i] = orderSample[i];
+    }
+}
+
+static void ObserveContextMenuInUpdateUT(PlayerInterface* thisptr)
+{
+    if (!g_effectiveEnableContextMenuProbe || !thisptr)
+    {
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (g_lastContextMenuObserverSampleMs != 0
+        && !DebounceWindowElapsed(nowMs, g_lastContextMenuObserverSampleMs, kContextMenuObserverSampleMinIntervalMs))
+    {
+        return;
+    }
+
+    bool visible = false;
+    uintptr_t mouseRightTargetPtr = 0;
+    uint32_t ordersCount = 0;
+    int orderSample[kContextMenuProbeOrderSampleCount] = { 0 };
+    size_t orderSampleCount = 0;
+    if (!TryReadContextMenuObserverSnapshot(
+        thisptr,
+        &visible,
+        &mouseRightTargetPtr,
+        &ordersCount,
+        orderSample,
+        &orderSampleCount))
+    {
+        g_lastContextMenuObserverSampleMs = nowMs;
+        if (g_config.debugContextMenu
+            && (g_lastContextMenuObserverLogMs == 0
+                || DebounceWindowElapsed(nowMs, g_lastContextMenuObserverLogMs, kContextMenuObserverPeriodicMs)))
+        {
+            ErrorLog("Loot-Scoot-Execute WARN: context_menu_updateut_probe_snapshot_failed");
+            g_lastContextMenuObserverLogMs = nowMs;
+        }
+        return;
+    }
+
+    const bool hasShowEvent = g_contextMenuShowProbeEventSeq != 0;
+    const bool newShowEvent = hasShowEvent
+        && g_contextMenuShowProbeEventSeq != g_lastContextMenuObserverShowEventSeq;
+    const DWORD showAgeMs = hasShowEvent ? (nowMs - g_contextMenuShowProbeEventMs) : 0;
+    const bool showEventRecent = hasShowEvent
+        && showAgeMs <= kContextMenuObserverCorrelationWindowMs;
+    const bool sameTargetAsShow = hasShowEvent
+        && mouseRightTargetPtr == g_contextMenuShowProbeEventMouseRightTargetPtr;
+    const bool ordersChangedSinceShow = hasShowEvent
+        && (ordersCount != g_contextMenuShowProbeEventOrdersCount
+            || !OrderSamplesEqual(
+                orderSample,
+                orderSampleCount,
+                g_contextMenuShowProbeEventOrderSample,
+                g_contextMenuShowProbeEventSampleCount));
+
+    const bool sampleChangedSinceLast = !g_hasContextMenuObserverSnapshot
+        || g_lastContextMenuObserverVisible != visible
+        || g_lastContextMenuObserverMouseRightTargetPtr != mouseRightTargetPtr
+        || g_lastContextMenuObserverOrdersCount != ordersCount
+        || !OrderSamplesEqual(
+            orderSample,
+            orderSampleCount,
+            g_lastContextMenuObserverOrderSample,
+            g_lastContextMenuObserverSampleCount);
+
+    const bool periodicSnapshot = !g_hasContextMenuObserverSnapshot
+        || g_lastContextMenuObserverLogMs == 0
+        || DebounceWindowElapsed(nowMs, g_lastContextMenuObserverLogMs, kContextMenuObserverPeriodicMs);
+
+    const bool correlatedOrderChange = showEventRecent && sameTargetAsShow && ordersChangedSinceShow;
+    const bool shouldLog = newShowEvent || correlatedOrderChange || periodicSnapshot;
+    if (shouldLog)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: context_menu_updateut_probe"
+                << " show_seq=" << std::dec << g_contextMenuShowProbeEventSeq
+                << " show_age_ms=" << showAgeMs
+                << " show_recent=" << (showEventRecent ? "true" : "false")
+                << " show_on=" << (g_contextMenuShowProbeEventOn ? "true" : "false")
+                << " show_visible=" << (g_contextMenuShowProbeEventVisible ? "true" : "false")
+                << " visible=" << (visible ? "true" : "false")
+                << " same_target_as_show=" << (sameTargetAsShow ? "true" : "false")
+                << " sample_changed_since_last=" << (sampleChangedSinceLast ? "true" : "false")
+                << " orders_changed_since_show=" << (ordersChangedSinceShow ? "true" : "false")
+                << " show_orders_count=" << g_contextMenuShowProbeEventOrdersCount
+                << " orders_count=" << ordersCount
+                << " show_what=0x" << std::hex << g_contextMenuShowProbeEventWhatPtr
+                << " show_target=0x" << g_contextMenuShowProbeEventMouseRightTargetPtr
+                << " target=0x" << mouseRightTargetPtr
+                << " show_first_orders=[";
+
+        for (size_t i = 0; i < g_contextMenuShowProbeEventSampleCount; ++i)
+        {
+            if (i > 0)
+            {
+                logline << ",";
+            }
+            logline << std::dec << g_contextMenuShowProbeEventOrderSample[i];
+        }
+        if (static_cast<size_t>(g_contextMenuShowProbeEventOrdersCount) > g_contextMenuShowProbeEventSampleCount)
+        {
+            if (g_contextMenuShowProbeEventSampleCount > 0)
+            {
+                logline << ",";
+            }
+            logline << "...";
+        }
+
+        logline << "] current_first_orders=[";
+        for (size_t i = 0; i < orderSampleCount; ++i)
+        {
+            if (i > 0)
+            {
+                logline << ",";
+            }
+            logline << std::dec << orderSample[i];
+        }
+        if (static_cast<size_t>(ordersCount) > orderSampleCount)
+        {
+            if (orderSampleCount > 0)
+            {
+                logline << ",";
+            }
+            logline << "...";
+        }
+        logline << "]";
+
+        DebugLog(logline.str().c_str());
+        g_lastContextMenuObserverLogMs = nowMs;
+    }
+
+    if (newShowEvent)
+    {
+        g_lastContextMenuObserverShowEventSeq = g_contextMenuShowProbeEventSeq;
+    }
+
+    UpdateContextMenuObserverSnapshot(
+        visible,
+        mouseRightTargetPtr,
+        ordersCount,
+        orderSample,
+        orderSampleCount,
+        nowMs);
+}
+
 static void TickPauseOnLoad()
 {
     if (!g_config.enabled)
@@ -692,8 +966,8 @@ static void TickPauseOnLoad()
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
-    (void)thisptr;
     PlayerInterface_updateUT_orig(thisptr);
+    ObserveContextMenuInUpdateUT(thisptr);
     TickPauseOnLoad();
 }
 
