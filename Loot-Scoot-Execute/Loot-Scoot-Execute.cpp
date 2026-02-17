@@ -6,6 +6,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
+#include <kenshi/Damages.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
 #include <kenshi/SaveManager.h>
@@ -32,6 +33,8 @@ static const DWORD kContextMenuObserverSampleMinIntervalMs = 120;
 static const DWORD kContextMenuObserverPeriodicMs = 3000;
 static const DWORD kContextMenuObserverCorrelationWindowMs = 2000;
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
+static const DWORD kDebugExecuteContextTargetMaxAgeMs = 1500;
+static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
 static const uint32_t kContextMenuMappingConfidenceMinSamples = 3;
 static const uint32_t kContextMenuMappingConfidenceMinStabilityPercent = 95;
 static const size_t kContextMenuProbeOrderSampleCount = 6;
@@ -39,7 +42,7 @@ static const uintptr_t kExpectedRvaContextMenuShow_1_0_65 = 0x007A5960;
 static const uintptr_t kExpectedRvaContextMenuUpdate_1_0_65 = 0x008055A0;
 static const uintptr_t kExpectedRvaPlayerInterfaceUpdateUT_1_0_65 = 0x007F6C80;
 
-static PluginConfig g_config = { true, 2000, false, false, false, false, false };
+static PluginConfig g_config = { true, 2000, false, false, false, false, false, false };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -116,6 +119,9 @@ static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
 static bool g_hasLastCanExecuteDecision = false;
 static bool g_lastCanExecuteDecisionResult = false;
+static bool g_debugExecuteHotkeyWasDown = false;
+static uintptr_t g_lastDebugExecuteContextTargetPtr = 0;
+static DWORD g_lastDebugExecuteContextTargetCaptureMs = 0;
 
 enum ExecutePredicateEntryPoint
 {
@@ -160,6 +166,10 @@ static bool CanExecuteTarget(
 static bool CanExecuteFromDebugTrigger(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
 static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
 static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
+static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
+static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
+static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
+static void TickDebugExecuteHotkey(PlayerInterface* thisptr);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -183,6 +193,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableExecuteAction = false;
     diagnostics->foundDebugContextMenu = false;
     diagnostics->invalidDebugContextMenu = false;
+    diagnostics->foundEnableDebugDirectDamageFallback = false;
+    diagnostics->invalidEnableDebugDirectDamageFallback = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
 }
@@ -216,6 +228,7 @@ static void LoadConfigState()
     g_config.enableContextMenuInjection = false;
     g_config.enableExecuteAction = false;
     g_config.debugContextMenu = false;
+    g_config.enableDebugDirectDamageFallback = false;
     g_effectiveEnableContextMenuProbe = false;
     g_effectiveEnableContextMenuInjection = false;
     g_effectiveEnableExecuteAction = false;
@@ -248,7 +261,8 @@ static void LoadConfigState()
          << " enable_context_menu_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
          << " enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << " enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
-         << " debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false");
+         << " debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false")
+         << " enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false");
     DebugLog(info.str().c_str());
 }
 
@@ -1002,6 +1016,414 @@ static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* targ
 static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
 {
     return CanExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, diagnosticsOut, verboseLog);
+}
+
+static bool TryResolvePlayerInterface(PlayerInterface** playerOut)
+{
+    if (!playerOut)
+    {
+        return false;
+    }
+
+    *playerOut = 0;
+    if (!ou)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *playerOut = ou->player;
+        return *playerOut != 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryApplyDamageToAnatomyParts(Character* targetCharacter, const Damages& damage)
+{
+    if (!targetCharacter)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const int anatomyCount = static_cast<int>(targetCharacter->medical.anatomy.size());
+        if (anatomyCount <= 0)
+        {
+            return false;
+        }
+        for (int i = 0; i < anatomyCount; ++i)
+        {
+            if (targetCharacter->medical.anatomy[i])
+            {
+                targetCharacter->medical.anatomy[i]->applyDamage(damage);
+            }
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryApplyDirectDamageExecuteFallback(Character* targetCharacter)
+{
+    const Damages damage(100, 100, 100, 100, 0);
+    return TryApplyDamageToAnatomyParts(targetCharacter, damage);
+}
+
+static bool TryReadActorDispatchState(
+    Character* actor,
+    bool* isPlayerCharacterOut,
+    bool* isDeadOut,
+    bool* isUnconsciousOut)
+{
+    if (!actor || !isPlayerCharacterOut || !isDeadOut || !isUnconsciousOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *isPlayerCharacterOut = actor->isPlayerCharacter();
+        *isDeadOut = actor->isDead();
+        *isUnconsciousOut = actor->isUnconcious();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryResolveTargetHandleValidity(RootObject* target, bool* isValidOut)
+{
+    if (!target || !isValidOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const hand targetHandle = target->getHandle();
+        *isValidOut = targetHandle.isValid();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        *isValidOut = false;
+        return false;
+    }
+}
+
+static bool TryIsCharacterDead(Character* targetCharacter, bool* isDeadOut)
+{
+    if (!targetCharacter || !isDeadOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *isDeadOut = targetCharacter->isDead();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        *isDeadOut = false;
+        return false;
+    }
+}
+
+static bool TryDeclareCharacterDead(Character* targetCharacter)
+{
+    if (!targetCharacter)
+    {
+        return false;
+    }
+
+    __try
+    {
+        targetCharacter->declareDead();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryReadContextMenuVisible(PlayerInterface* player, bool* visibleOut)
+{
+    if (!player || !visibleOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *visibleOut = player->contextMenu.isVisible();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        *visibleOut = false;
+        return false;
+    }
+}
+
+static bool DispatchExecuteTarget(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    bool verboseLog)
+{
+    const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+
+    const char* failureReason = "none";
+    bool hasFailure = false;
+    bool actorIsPlayerCharacter = false;
+    bool actorIsDead = false;
+    bool actorIsUnconscious = false;
+    bool targetHandleValid = false;
+    bool directDamageDispatchSucceeded = false;
+    bool targetDeadAfterDamageCheck = false;
+    bool declareDeadAttempted = false;
+    bool declareDeadCallSucceeded = false;
+    bool targetDeadAfterFinalizeCheck = false;
+
+    CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    const bool canExecute = [&]() -> bool
+    {
+        switch (entryPoint)
+        {
+        case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
+            return CanExecuteFromDebugTrigger(actor, target, &canExecuteDiagnostics, verboseLog);
+        case ExecutePredicateEntryPoint_NATIVE_MENU:
+            return CanExecuteFromNativeMenuSelection(actor, target, &canExecuteDiagnostics, verboseLog);
+        case ExecutePredicateEntryPoint_FALLBACK_POPUP:
+            return CanExecuteFromFallbackPopup(actor, target, &canExecuteDiagnostics, verboseLog);
+        default:
+            return false;
+        }
+    }();
+
+    if (!g_effectiveEnableExecuteAction)
+    {
+        failureReason = "execute_action_disabled";
+        hasFailure = true;
+    }
+    else if (!actor)
+    {
+        failureReason = "actor_null";
+        hasFailure = true;
+    }
+    else if (!target)
+    {
+        failureReason = "target_null";
+        hasFailure = true;
+    }
+    else
+    {
+        PlayerInterface* player = 0;
+        if (!TryResolvePlayerInterface(&player))
+        {
+            failureReason = "player_unavailable";
+            hasFailure = true;
+        }
+        else
+        {
+            if (!TryReadActorDispatchState(actor, &actorIsPlayerCharacter, &actorIsDead, &actorIsUnconscious))
+            {
+                failureReason = "actor_state_exception";
+                hasFailure = true;
+            }
+
+            if (!hasFailure && !actorIsPlayerCharacter)
+            {
+                failureReason = "actor_not_player_character";
+                hasFailure = true;
+            }
+            else if (!hasFailure && (actorIsDead || actorIsUnconscious))
+            {
+                failureReason = "actor_invalid_state";
+                hasFailure = true;
+            }
+            else if (!hasFailure && !canExecute)
+            {
+                failureReason = "can_execute_false";
+                hasFailure = true;
+            }
+
+            if (!hasFailure)
+            {
+                const bool handleRead = TryResolveTargetHandleValidity(target, &targetHandleValid);
+                if (!handleRead)
+                {
+                    failureReason = "target_handle_exception";
+                    hasFailure = true;
+                }
+                else if (!targetHandleValid)
+                {
+                    failureReason = "target_handle_invalid";
+                    hasFailure = true;
+                }
+            }
+
+            if (!hasFailure)
+            {
+                Character* targetCharacter = static_cast<Character*>(target);
+                directDamageDispatchSucceeded = TryApplyDirectDamageExecuteFallback(targetCharacter);
+                if (!directDamageDispatchSucceeded)
+                {
+                    failureReason = "direct_damage_dispatch_failed";
+                    hasFailure = true;
+                }
+                else if (!TryIsCharacterDead(targetCharacter, &targetDeadAfterDamageCheck))
+                {
+                    failureReason = "post_damage_dead_check_failed";
+                    hasFailure = true;
+                }
+                else if (!targetDeadAfterDamageCheck)
+                {
+                    declareDeadAttempted = true;
+                    declareDeadCallSucceeded = TryDeclareCharacterDead(targetCharacter);
+                    if (!declareDeadCallSucceeded)
+                    {
+                        failureReason = "declare_dead_failed";
+                        hasFailure = true;
+                    }
+                    else if (!TryIsCharacterDead(targetCharacter, &targetDeadAfterFinalizeCheck))
+                    {
+                        failureReason = "post_finalize_dead_check_failed";
+                        hasFailure = true;
+                    }
+                    else if (!targetDeadAfterFinalizeCheck)
+                    {
+                        failureReason = "target_still_alive_after_dispatch";
+                        hasFailure = true;
+                    }
+                }
+                else
+                {
+                    targetDeadAfterFinalizeCheck = true;
+                }
+            }
+        }
+    }
+
+    const bool dispatchSucceeded = directDamageDispatchSucceeded && !hasFailure;
+    if (verboseLog || !dispatchSucceeded)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: dispatch_execute"
+                << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+                << " result=" << (dispatchSucceeded ? "true" : "false")
+                << " actor=0x" << std::hex << actorPtr
+                << " target=0x" << targetPtr
+                << " actor_is_player_character=" << (actorIsPlayerCharacter ? "true" : "false")
+                << " actor_is_dead=" << (actorIsDead ? "true" : "false")
+                << " actor_is_unconscious=" << (actorIsUnconscious ? "true" : "false")
+                << " can_execute=" << (canExecute ? "true" : "false")
+                << " target_handle_valid=" << (targetHandleValid ? "true" : "false")
+                << " direct_damage_dispatch_succeeded=" << (directDamageDispatchSucceeded ? "true" : "false")
+                << " target_dead_after_damage_check=" << (targetDeadAfterDamageCheck ? "true" : "false")
+                << " declare_dead_attempted=" << (declareDeadAttempted ? "true" : "false")
+                << " declare_dead_call_succeeded=" << (declareDeadCallSucceeded ? "true" : "false")
+                << " target_dead_after_finalize_check=" << (targetDeadAfterFinalizeCheck ? "true" : "false")
+                << " reason=" << (dispatchSucceeded ? "none" : failureReason);
+        DebugLog(logline.str().c_str());
+    }
+
+    return dispatchSucceeded;
+}
+
+static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog)
+{
+    return DispatchExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, verboseLog);
+}
+
+static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
+{
+    return DispatchExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
+}
+
+static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog)
+{
+    return DispatchExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, verboseLog);
+}
+
+static void LogDebugExecuteTargetSourceFromContextMenu(uintptr_t targetPtr)
+{
+    std::stringstream logline;
+    logline << "Loot-Scoot-Execute DEBUG: debug_execute_target_source source=context_menu_show_target"
+            << " target=0x" << std::hex << targetPtr;
+    DebugLog(logline.str().c_str());
+}
+
+static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
+{
+    if (!thisptr || !g_effectiveEnableExecuteAction || !g_config.debugContextMenu)
+    {
+        g_debugExecuteHotkeyWasDown = false;
+        g_lastDebugExecuteContextTargetPtr = 0;
+        g_lastDebugExecuteContextTargetCaptureMs = 0;
+        return;
+    }
+
+    const bool keyDown = (GetAsyncKeyState(kDebugExecuteHotkeyVirtualKey) & 0x8000) != 0;
+    const bool pressedThisFrame = keyDown && !g_debugExecuteHotkeyWasDown;
+    g_debugExecuteHotkeyWasDown = keyDown;
+    if (!pressedThisFrame)
+    {
+        return;
+    }
+
+    RootObject* target = 0;
+    bool usedContextTargetFallback = false;
+    bool contextMenuVisible = false;
+    bool contextMenuVisibleResolved = TryReadContextMenuVisible(thisptr, &contextMenuVisible);
+    const DWORD nowMs = GetTickCount();
+    __try
+    {
+        if (thisptr->mouseRightTargetSet)
+        {
+            target = thisptr->mouseRightTarget;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        target = 0;
+    }
+    const bool fallbackTargetFresh = g_lastDebugExecuteContextTargetCaptureMs != 0
+        && !DebounceWindowElapsed(nowMs, g_lastDebugExecuteContextTargetCaptureMs, kDebugExecuteContextTargetMaxAgeMs);
+    if (!target
+        && g_lastDebugExecuteContextTargetPtr != 0
+        && fallbackTargetFresh
+        && contextMenuVisibleResolved
+        && contextMenuVisible)
+    {
+        target = reinterpret_cast<RootObject*>(g_lastDebugExecuteContextTargetPtr);
+        usedContextTargetFallback = true;
+    }
+    else if (!target)
+    {
+        g_lastDebugExecuteContextTargetPtr = 0;
+        g_lastDebugExecuteContextTargetCaptureMs = 0;
+    }
+
+    Character* actor = ResolveExecuteActorForPredicate();
+    if (usedContextTargetFallback)
+    {
+        LogDebugExecuteTargetSourceFromContextMenu(reinterpret_cast<uintptr_t>(target));
+    }
+    (void)DispatchExecuteFromDebugTrigger(actor, target, true);
 }
 
 #include "LootScootExecuteHooksEntry.inl"

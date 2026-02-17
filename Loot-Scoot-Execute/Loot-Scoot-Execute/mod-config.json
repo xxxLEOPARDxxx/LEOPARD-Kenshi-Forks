@@ -2,8 +2,9 @@
   "enabled": true,
   "pause_debounce_ms": 2000,
   "debug_log_transitions": false,
-  "enable_context_menu_probe": false,
-  "enable_context_menu_injection": false,
-  "enable_execute_action": false,
-  "debug_context_menu": false
+  "enable_context_menu_probe": true,
+  "enable_context_menu_injection": true,
+  "enable_execute_action": true,
+  "debug_context_menu": true,
+  "enable_debug_direct_damage_fallback": false
 }

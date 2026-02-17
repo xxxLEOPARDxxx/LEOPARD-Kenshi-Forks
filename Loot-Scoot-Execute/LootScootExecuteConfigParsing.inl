@@ -622,6 +622,25 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "enable_debug_direct_damage_fallback")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundEnableDebugDirectDamageFallback = true;
+                configOut->enableDebugDirectDamageFallback = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidEnableDebugDirectDamageFallback = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else
         {
             if (!SkipJsonValue(body, &pos))
@@ -664,7 +683,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, false, false, false, false };
+    PluginConfig parsedConfig = { true, 2000, false, false, false, false, false, false };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -673,7 +692,8 @@ static bool RunInternalSelfChecks()
             "\"enable_context_menu_probe\":true,"
             "\"enable_context_menu_injection\":true,"
             "\"enable_execute_action\":true,"
-            "\"debug_context_menu\":true}",
+            "\"debug_context_menu\":true,"
+            "\"enable_debug_direct_damage_fallback\":true}",
             &parsedConfig,
             &diagnostics))
     {
@@ -685,7 +705,8 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.enableContextMenuProbe
         || !parsedConfig.enableContextMenuInjection
         || !parsedConfig.enableExecuteAction
-        || !parsedConfig.debugContextMenu)
+        || !parsedConfig.debugContextMenu
+        || !parsedConfig.enableDebugDirectDamageFallback)
     {
         return false;
     }
@@ -695,7 +716,8 @@ static bool RunInternalSelfChecks()
           "\"enable_context_menu_probe\":false,"
           "\"enable_context_menu_injection\":false,"
           "\"enable_execute_action\":false,"
-          "\"debug_context_menu\":false}";
+          "\"debug_context_menu\":false,"
+          "\"enable_debug_direct_damage_fallback\":false}";
     parsedConfig.enabled = false;
     parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
@@ -703,6 +725,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.enableContextMenuInjection = true;
     parsedConfig.enableExecuteAction = true;
     parsedConfig.debugContextMenu = true;
+    parsedConfig.enableDebugDirectDamageFallback = true;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
     {
@@ -714,7 +737,8 @@ static bool RunInternalSelfChecks()
         || parsedConfig.enableContextMenuProbe
         || parsedConfig.enableContextMenuInjection
         || parsedConfig.enableExecuteAction
-        || parsedConfig.debugContextMenu)
+        || parsedConfig.debugContextMenu
+        || parsedConfig.enableDebugDirectDamageFallback)
     {
         return false;
     }
@@ -839,6 +863,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"debug_context_menu\"; using default");
     }
+    if (!diagnostics.foundEnableDebugDirectDamageFallback || diagnostics.invalidEnableDebugDirectDamageFallback)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_debug_direct_damage_fallback\"; using default");
+    }
     if (needsWriteBackOut)
     {
         *needsWriteBackOut = needsWriteBack;
@@ -861,7 +890,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_context_menu_probe\": " << (config.enableContextMenuProbe ? "true" : "false") << ",\n";
     out << "  \"enable_context_menu_injection\": " << (config.enableContextMenuInjection ? "true" : "false") << ",\n";
     out << "  \"enable_execute_action\": " << (config.enableExecuteAction ? "true" : "false") << ",\n";
-    out << "  \"debug_context_menu\": " << (config.debugContextMenu ? "true" : "false") << "\n";
+    out << "  \"debug_context_menu\": " << (config.debugContextMenu ? "true" : "false") << ",\n";
+    out << "  \"enable_debug_direct_damage_fallback\": " << (config.enableDebugDirectDamageFallback ? "true" : "false") << "\n";
     out << "}\n";
 
     return true;

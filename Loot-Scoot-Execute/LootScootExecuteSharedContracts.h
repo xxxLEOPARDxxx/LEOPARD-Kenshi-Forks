@@ -15,6 +15,7 @@ struct PluginConfig
     bool enableContextMenuInjection;
     bool enableExecuteAction;
     bool debugContextMenu;
+    bool enableDebugDirectDamageFallback;
 };
 
 struct RuntimeState
@@ -45,6 +46,8 @@ struct ConfigParseDiagnostics
     bool invalidEnableExecuteAction;
     bool foundDebugContextMenu;
     bool invalidDebugContextMenu;
+    bool foundEnableDebugDirectDamageFallback;
+    bool invalidEnableDebugDirectDamageFallback;
     bool syntaxError;
     size_t syntaxErrorOffset;
 };

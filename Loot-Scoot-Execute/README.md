@@ -52,5 +52,9 @@ Supported keys:
 - `enable_context_menu_injection` (bool, default false; guarded native menu mutation switch)
 - `enable_execute_action` (bool, default false; guarded execute action switch)
 - `debug_context_menu` (bool, default false; enables extra compatibility/probe diagnostics)
+- `enable_debug_direct_damage_fallback` (bool, default false; debug-only fallback when task-based execute dispatch fails)
 
 If config is missing or unreadable, defaults are used and written back.
+
+Debug execute hotkey:
+- `F8` triggers internal execute dispatch against the current `mouseRightTarget` while `enable_execute_action=true` and `debug_context_menu=true`.

@@ -579,6 +579,16 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     const uintptr_t whatPtr = reinterpret_cast<uintptr_t>(what);
     const uintptr_t mouseRightTargetPtr = reinterpret_cast<uintptr_t>(mouseRightTarget);
     const DWORD nowMs = GetTickCount();
+    if (on && visible && canExecuteTarget && whatPtr != 0)
+    {
+        g_lastDebugExecuteContextTargetPtr = whatPtr;
+        g_lastDebugExecuteContextTargetCaptureMs = nowMs;
+    }
+    else if (!on || !visible || !canExecuteTarget)
+    {
+        g_lastDebugExecuteContextTargetPtr = 0;
+        g_lastDebugExecuteContextTargetCaptureMs = 0;
+    }
     if (on)
     {
         UpdateContextMenuShowProbeEvent(
@@ -1025,6 +1035,7 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
     ObserveContextMenuInUpdateUT(thisptr);
+    TickDebugExecuteHotkey(thisptr);
     TickPauseOnLoad();
 }
 
@@ -1176,6 +1187,8 @@ __declspec(dllexport) void startPlugin()
          << ", enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << ", enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
          << ", debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false")
+         << ", enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false")
+         << ", debug_execute_hotkey_vk=" << kDebugExecuteHotkeyVirtualKey
          << ", effective_context_menu_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
          << ", effective_execute_action=" << (g_effectiveEnableExecuteAction ? "true" : "false")
