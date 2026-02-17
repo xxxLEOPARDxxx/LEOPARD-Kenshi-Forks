@@ -259,8 +259,9 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
 static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
 {
     const bool gateAllowsFeatures = g_contextMenuCompatibilityGatePassed && g_contextMenuHookInstallVerified;
+    const bool mappingAllowsInjection = g_contextMenuMappingConfidenceGatePassed;
     g_effectiveEnableContextMenuProbe = gateAllowsFeatures && g_config.enableContextMenuProbe;
-    g_effectiveEnableContextMenuInjection = gateAllowsFeatures && g_config.enableContextMenuInjection;
+    g_effectiveEnableContextMenuInjection = gateAllowsFeatures && mappingAllowsInjection && g_config.enableContextMenuInjection;
     g_effectiveEnableExecuteAction = gateAllowsFeatures && g_config.enableExecuteAction;
 
     const bool anyConfiguredOn = g_config.enableContextMenuProbe || g_config.enableContextMenuInjection || g_config.enableExecuteAction;
@@ -275,10 +276,22 @@ static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
         ErrorLog(warn.str().c_str());
     }
 
+    if (g_config.enableContextMenuInjection && gateAllowsFeatures && !mappingAllowsInjection)
+    {
+        std::stringstream warn;
+        warn << "Loot-Scoot-Execute WARN: fail_closed_context_menu_injection source="
+             << (source ? source : "unknown")
+             << " reason=" << g_contextMenuMappingGateFailureReason
+             << " injection=false";
+        ErrorLog(warn.str().c_str());
+    }
+
     std::stringstream detail;
     detail << "Loot-Scoot-Execute DEBUG: context_menu_feature_flags source=" << (source ? source : "unknown")
            << " gate_passed=" << (g_contextMenuCompatibilityGatePassed ? "true" : "false")
            << " hooks_verified=" << (g_contextMenuHookInstallVerified ? "true" : "false")
+           << " mapping_gate_passed=" << (g_contextMenuMappingConfidenceGatePassed ? "true" : "false")
+           << " mapping_gate_reason=" << (g_contextMenuMappingConfidenceGatePassed ? "none" : g_contextMenuMappingGateFailureReason)
            << " cfg_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
            << " cfg_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
            << " cfg_execute=" << (g_config.enableExecuteAction ? "true" : "false")
@@ -565,6 +578,29 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
             orderSample,
             orderSampleCount,
             nowMs);
+
+        if (visible)
+        {
+            const ContextTypeKey contextType = InferContextTypeKeyFromProbe(
+                whatTypeResolved,
+                whatType,
+                contextMenuName,
+                ordersCount,
+                orderSample,
+                orderSampleCount);
+
+            RecordContextMenuMappingSample(
+                "show_context_menu_open",
+                contextType,
+                ordersCount,
+                orderSample,
+                orderSampleCount);
+
+            if (ReevaluateContextMenuMappingConfidenceGate("show_context_menu_open", false))
+            {
+                RefreshEffectiveContextMenuFeatureFlags("context_menu_mapping_gate_changed");
+            }
+        }
     }
     const uint64_t showSeq = g_contextMenuShowProbeEventSeq;
 
@@ -1010,6 +1046,18 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
+    g_runtimeGameVersion = version;
+    g_runtimeLocaleTag = DetectRuntimeLocaleTag();
+    SeedContextMenuMappingTable();
+    ReevaluateContextMenuMappingConfidenceGate("startup", true);
+
+    {
+        std::stringstream runtimeKey;
+        runtimeKey << "Loot-Scoot-Execute INFO: runtime_mapping_key version=" << g_runtimeGameVersion
+                   << " locale=" << g_runtimeLocaleTag;
+        DebugLog(runtimeKey.str().c_str());
+    }
+
     LoadConfigState();
     if (g_configNeedsWriteBack)
     {
@@ -1102,6 +1150,7 @@ __declspec(dllexport) void startPlugin()
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
          << ", pause_debounce_ms=" << g_config.pauseDebounceMs
+         << ", runtime_mapping_key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy"
          << ", enable_context_menu_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
          << ", enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << ", enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
@@ -1109,6 +1158,8 @@ __declspec(dllexport) void startPlugin()
          << ", effective_context_menu_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
          << ", effective_execute_action=" << (g_effectiveEnableExecuteAction ? "true" : "false")
+         << ", mapping_gate=" << (g_contextMenuMappingConfidenceGatePassed ? "passed" : "failed")
+         << ", mapping_reason=" << (g_contextMenuMappingConfidenceGatePassed ? "none" : g_contextMenuMappingGateFailureReason)
          << ", compatibility_gate=" << (g_contextMenuCompatibilityGatePassed ? "passed" : "failed")
          << ", hook_verification=" << (g_contextMenuHookInstallVerified ? "passed" : "failed")
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";

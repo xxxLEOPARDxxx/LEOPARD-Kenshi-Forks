@@ -16,6 +16,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "LootScootExecuteSharedContracts.h"
 
@@ -29,6 +30,8 @@ static const DWORD kContextMenuProbePeriodicMs = 3000;
 static const DWORD kContextMenuObserverSampleMinIntervalMs = 120;
 static const DWORD kContextMenuObserverPeriodicMs = 3000;
 static const DWORD kContextMenuObserverCorrelationWindowMs = 2000;
+static const uint32_t kContextMenuMappingConfidenceMinSamples = 3;
+static const uint32_t kContextMenuMappingConfidenceMinStabilityPercent = 95;
 static const size_t kContextMenuProbeOrderSampleCount = 6;
 static const uintptr_t kExpectedRvaContextMenuShow_1_0_65 = 0x007A5960;
 static const uintptr_t kExpectedRvaContextMenuUpdate_1_0_65 = 0x008055A0;
@@ -77,6 +80,36 @@ static uint32_t g_lastContextMenuObserverOrdersCount = 0;
 static size_t g_lastContextMenuObserverSampleCount = 0;
 static int g_lastContextMenuObserverOrderSample[kContextMenuProbeOrderSampleCount] = { 0 };
 static uint64_t g_lastContextMenuObserverShowEventSeq = 0;
+static std::string g_runtimeGameVersion;
+static std::string g_runtimeLocaleTag;
+static bool g_contextMenuMappingConfidenceGatePassed = false;
+static std::string g_contextMenuMappingGateFailureReason;
+
+enum ContextTypeKey
+{
+    ContextTypeKey_UNKNOWN = 0,
+    ContextTypeKey_DOWNED_ENEMY = 1,
+    ContextTypeKey_CONSCIOUS_ENEMY = 2,
+    ContextTypeKey_ALLY_DOWNED = 3,
+    ContextTypeKey_CORPSE = 4,
+    ContextTypeKey_ITEM_CONTAINER = 5,
+    ContextTypeKey_BUILDING = 6
+};
+
+struct ContextMenuMappingEntry
+{
+    std::string gameVersion;
+    std::string localeTag;
+    ContextTypeKey contextType;
+    uint32_t sampleCount;
+    uint32_t stableSampleCount;
+    uint32_t mismatchSampleCount;
+    uint32_t baselineOrdersCount;
+    size_t baselineSampleCount;
+    int baselineOrderSample[kContextMenuProbeOrderSampleCount];
+};
+
+static std::vector<ContextMenuMappingEntry> g_contextMenuMappingTable;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static void (*ContextMenu_showContextMenu_orig)(ContextMenu*, bool, RootObject*) = 0;
@@ -85,6 +118,9 @@ static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
+static const char* ContextTypeKeyToString(ContextTypeKey type);
+static std::string DetectRuntimeLocaleTag();
+static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool forceLog);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -308,6 +344,380 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
     }
 
     DisarmPauseAfterLoad();
+}
+
+static const char* ContextTypeKeyToString(ContextTypeKey type)
+{
+    switch (type)
+    {
+    case ContextTypeKey_DOWNED_ENEMY:
+        return "downed_enemy";
+    case ContextTypeKey_CONSCIOUS_ENEMY:
+        return "conscious_enemy";
+    case ContextTypeKey_ALLY_DOWNED:
+        return "ally_downed";
+    case ContextTypeKey_CORPSE:
+        return "corpse";
+    case ContextTypeKey_ITEM_CONTAINER:
+        return "item_container";
+    case ContextTypeKey_BUILDING:
+        return "building";
+    default:
+        return "unknown";
+    }
+}
+
+static std::string ToLowerAscii(const std::string& value)
+{
+    std::string lowered(value);
+    for (size_t i = 0; i < lowered.size(); ++i)
+    {
+        lowered[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[i])));
+    }
+    return lowered;
+}
+
+static bool ContainsInsensitive(const std::string& haystack, const char* needle)
+{
+    if (!needle || !needle[0])
+    {
+        return false;
+    }
+
+    const std::string loweredHaystack = ToLowerAscii(haystack);
+    std::string loweredNeedle;
+    for (size_t i = 0; needle[i] != '\0'; ++i)
+    {
+        loweredNeedle.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(needle[i]))));
+    }
+
+    return loweredHaystack.find(loweredNeedle) != std::string::npos;
+}
+
+static bool IsOrderSampleEqual(
+    uint32_t lhsOrdersCount,
+    const int* lhsOrderSample,
+    size_t lhsSampleCount,
+    uint32_t rhsOrdersCount,
+    const int* rhsOrderSample,
+    size_t rhsSampleCount)
+{
+    if (lhsOrdersCount != rhsOrdersCount || lhsSampleCount != rhsSampleCount)
+    {
+        return false;
+    }
+
+    if ((!lhsOrderSample && lhsSampleCount > 0) || (!rhsOrderSample && rhsSampleCount > 0))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < lhsSampleCount; ++i)
+    {
+        if (lhsOrderSample[i] != rhsOrderSample[i])
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool IsProvisionalDownedEnemyOrderSignature(
+    uint32_t ordersCount,
+    const int* orderSample,
+    size_t orderSampleCount)
+{
+    return ordersCount == 3
+        && orderSample
+        && orderSampleCount >= 3
+        && orderSample[0] == 26
+        && orderSample[1] == 225
+        && orderSample[2] == 25;
+}
+
+static ContextTypeKey InferContextTypeKeyFromProbe(
+    bool whatTypeResolved,
+    int whatType,
+    const std::string& contextMenuName,
+    uint32_t ordersCount,
+    const int* orderSample,
+    size_t orderSampleCount)
+{
+    if (IsProvisionalDownedEnemyOrderSignature(ordersCount, orderSample, orderSampleCount))
+    {
+        return ContextTypeKey_DOWNED_ENEMY;
+    }
+
+    if (ContainsInsensitive(contextMenuName, "corpse"))
+    {
+        return ContextTypeKey_CORPSE;
+    }
+
+    if (ContainsInsensitive(contextMenuName, "building")
+        || ContainsInsensitive(contextMenuName, "house")
+        || ContainsInsensitive(contextMenuName, "gate"))
+    {
+        return ContextTypeKey_BUILDING;
+    }
+
+    if (ContainsInsensitive(contextMenuName, "container")
+        || ContainsInsensitive(contextMenuName, "chest")
+        || ContainsInsensitive(contextMenuName, "barrel")
+        || ContainsInsensitive(contextMenuName, "crate"))
+    {
+        return ContextTypeKey_ITEM_CONTAINER;
+    }
+
+    if (whatTypeResolved && whatType == 1)
+    {
+        return ContextTypeKey_CONSCIOUS_ENEMY;
+    }
+
+    return ContextTypeKey_UNKNOWN;
+}
+
+static uint32_t ComputeStabilityPercent(const ContextMenuMappingEntry& entry)
+{
+    if (entry.sampleCount == 0)
+    {
+        return 0;
+    }
+    return static_cast<uint32_t>((entry.stableSampleCount * 100U) / entry.sampleCount);
+}
+
+static ContextMenuMappingEntry* FindContextMenuMappingEntry(
+    const std::string& gameVersion,
+    const std::string& localeTag,
+    ContextTypeKey contextType)
+{
+    for (size_t i = 0; i < g_contextMenuMappingTable.size(); ++i)
+    {
+        ContextMenuMappingEntry& entry = g_contextMenuMappingTable[i];
+        if (entry.gameVersion == gameVersion
+            && entry.localeTag == localeTag
+            && entry.contextType == contextType)
+        {
+            return &entry;
+        }
+    }
+    return 0;
+}
+
+static const ContextMenuMappingEntry* FindContextMenuMappingEntryConst(
+    const std::string& gameVersion,
+    const std::string& localeTag,
+    ContextTypeKey contextType)
+{
+    for (size_t i = 0; i < g_contextMenuMappingTable.size(); ++i)
+    {
+        const ContextMenuMappingEntry& entry = g_contextMenuMappingTable[i];
+        if (entry.gameVersion == gameVersion
+            && entry.localeTag == localeTag
+            && entry.contextType == contextType)
+        {
+            return &entry;
+        }
+    }
+    return 0;
+}
+
+static std::string DetectRuntimeLocaleTag()
+{
+    wchar_t localeName[LOCALE_NAME_MAX_LENGTH] = { 0 };
+    const int localeLen = GetUserDefaultLocaleName(localeName, LOCALE_NAME_MAX_LENGTH);
+    if (localeLen > 0)
+    {
+        char utf8[LOCALE_NAME_MAX_LENGTH * 4] = { 0 };
+        const int utf8Len = WideCharToMultiByte(
+            CP_UTF8,
+            0,
+            localeName,
+            -1,
+            utf8,
+            static_cast<int>(sizeof(utf8)),
+            0,
+            0);
+        if (utf8Len > 0 && utf8[0] != '\0')
+        {
+            return std::string(utf8);
+        }
+    }
+
+    return "unknown";
+}
+
+static void SeedContextMenuMappingTable()
+{
+    g_contextMenuMappingTable.clear();
+
+    if (g_runtimeGameVersion != "1.0.65" || g_runtimeLocaleTag != "en-US")
+    {
+        return;
+    }
+
+    ContextMenuMappingEntry entry;
+    entry.gameVersion = g_runtimeGameVersion;
+    entry.localeTag = g_runtimeLocaleTag;
+    entry.contextType = ContextTypeKey_DOWNED_ENEMY;
+    entry.sampleCount = 4;
+    entry.stableSampleCount = 4;
+    entry.mismatchSampleCount = 0;
+    entry.baselineOrdersCount = 3;
+    entry.baselineSampleCount = 3;
+    entry.baselineOrderSample[0] = 26;
+    entry.baselineOrderSample[1] = 225;
+    entry.baselineOrderSample[2] = 25;
+    for (size_t i = 3; i < kContextMenuProbeOrderSampleCount; ++i)
+    {
+        entry.baselineOrderSample[i] = 0;
+    }
+
+    g_contextMenuMappingTable.push_back(entry);
+
+    DebugLog("Loot-Scoot-Execute INFO: seeded context-menu mapping key=1.0.65|en-US|downed_enemy samples=4 stability=100");
+}
+
+static void RecordContextMenuMappingSample(
+    const char* source,
+    ContextTypeKey contextType,
+    uint32_t ordersCount,
+    const int* orderSample,
+    size_t orderSampleCount)
+{
+    if (g_runtimeGameVersion.empty() || g_runtimeLocaleTag.empty())
+    {
+        return;
+    }
+
+    if (orderSampleCount > kContextMenuProbeOrderSampleCount)
+    {
+        orderSampleCount = kContextMenuProbeOrderSampleCount;
+    }
+
+    ContextMenuMappingEntry* entry = FindContextMenuMappingEntry(g_runtimeGameVersion, g_runtimeLocaleTag, contextType);
+    if (!entry)
+    {
+        ContextMenuMappingEntry newEntry;
+        newEntry.gameVersion = g_runtimeGameVersion;
+        newEntry.localeTag = g_runtimeLocaleTag;
+        newEntry.contextType = contextType;
+        newEntry.sampleCount = 0;
+        newEntry.stableSampleCount = 0;
+        newEntry.mismatchSampleCount = 0;
+        newEntry.baselineOrdersCount = ordersCount;
+        newEntry.baselineSampleCount = orderSampleCount;
+        for (size_t i = 0; i < orderSampleCount; ++i)
+        {
+            newEntry.baselineOrderSample[i] = orderSample[i];
+        }
+        for (size_t i = orderSampleCount; i < kContextMenuProbeOrderSampleCount; ++i)
+        {
+            newEntry.baselineOrderSample[i] = 0;
+        }
+        g_contextMenuMappingTable.push_back(newEntry);
+        entry = &g_contextMenuMappingTable[g_contextMenuMappingTable.size() - 1];
+    }
+
+    entry->sampleCount += 1;
+    const bool matchedBaseline = IsOrderSampleEqual(
+        ordersCount,
+        orderSample,
+        orderSampleCount,
+        entry->baselineOrdersCount,
+        entry->baselineOrderSample,
+        entry->baselineSampleCount);
+    if (matchedBaseline)
+    {
+        entry->stableSampleCount += 1;
+    }
+    else
+    {
+        entry->mismatchSampleCount += 1;
+    }
+
+    std::stringstream detail;
+    detail << "Loot-Scoot-Execute DEBUG: context_menu_mapping_sample"
+           << " source=" << (source ? source : "unknown")
+           << " key=" << entry->gameVersion << "|" << entry->localeTag << "|" << ContextTypeKeyToString(entry->contextType)
+           << " sample_count=" << entry->sampleCount
+           << " stable_count=" << entry->stableSampleCount
+           << " mismatch_count=" << entry->mismatchSampleCount
+           << " stability_percent=" << ComputeStabilityPercent(*entry)
+           << " observed_orders_count=" << ordersCount
+           << " baseline_orders_count=" << entry->baselineOrdersCount
+           << " matched_baseline=" << (matchedBaseline ? "true" : "false");
+    DebugLog(detail.str().c_str());
+}
+
+static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool forceLog)
+{
+    const bool previousState = g_contextMenuMappingConfidenceGatePassed;
+    const std::string previousReason = g_contextMenuMappingGateFailureReason;
+
+    g_contextMenuMappingConfidenceGatePassed = false;
+    g_contextMenuMappingGateFailureReason = "unknown";
+
+    if (g_runtimeGameVersion.empty() || g_runtimeLocaleTag.empty())
+    {
+        g_contextMenuMappingGateFailureReason = "runtime_key_uninitialized";
+    }
+    else
+    {
+        const ContextMenuMappingEntry* downedEnemyEntry = FindContextMenuMappingEntryConst(
+            g_runtimeGameVersion,
+            g_runtimeLocaleTag,
+            ContextTypeKey_DOWNED_ENEMY);
+
+        if (!downedEnemyEntry)
+        {
+            g_contextMenuMappingGateFailureReason = "downed_enemy_no_samples";
+        }
+        else if (downedEnemyEntry->sampleCount < kContextMenuMappingConfidenceMinSamples)
+        {
+            std::stringstream reason;
+            reason << "downed_enemy_samples_below_threshold("
+                   << downedEnemyEntry->sampleCount
+                   << "<"
+                   << kContextMenuMappingConfidenceMinSamples
+                   << ")";
+            g_contextMenuMappingGateFailureReason = reason.str();
+        }
+        else
+        {
+            const uint32_t stabilityPercent = ComputeStabilityPercent(*downedEnemyEntry);
+            if (stabilityPercent < kContextMenuMappingConfidenceMinStabilityPercent)
+            {
+                std::stringstream reason;
+                reason << "downed_enemy_stability_below_threshold("
+                       << stabilityPercent
+                       << "<"
+                       << kContextMenuMappingConfidenceMinStabilityPercent
+                       << ")";
+                g_contextMenuMappingGateFailureReason = reason.str();
+            }
+            else
+            {
+                g_contextMenuMappingConfidenceGatePassed = true;
+                g_contextMenuMappingGateFailureReason.clear();
+            }
+        }
+    }
+
+    const bool changed = (previousState != g_contextMenuMappingConfidenceGatePassed)
+        || (previousReason != g_contextMenuMappingGateFailureReason);
+    if (changed || forceLog)
+    {
+        std::stringstream detail;
+        detail << "Loot-Scoot-Execute INFO: context_menu_mapping_gate"
+               << " source=" << (source ? source : "unknown")
+               << " passed=" << (g_contextMenuMappingConfidenceGatePassed ? "true" : "false")
+               << " reason="
+               << (g_contextMenuMappingConfidenceGatePassed ? "none" : g_contextMenuMappingGateFailureReason)
+               << " key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy";
+        DebugLog(detail.str().c_str());
+    }
+
+    return changed;
 }
 
 #include "LootScootExecuteHooksEntry.inl"
