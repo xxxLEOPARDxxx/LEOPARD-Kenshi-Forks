@@ -5,6 +5,7 @@
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
+#include <kenshi/Character.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
 #include <kenshi/SaveManager.h>
@@ -30,6 +31,7 @@ static const DWORD kContextMenuProbePeriodicMs = 3000;
 static const DWORD kContextMenuObserverSampleMinIntervalMs = 120;
 static const DWORD kContextMenuObserverPeriodicMs = 3000;
 static const DWORD kContextMenuObserverCorrelationWindowMs = 2000;
+static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const uint32_t kContextMenuMappingConfidenceMinSamples = 3;
 static const uint32_t kContextMenuMappingConfidenceMinStabilityPercent = 95;
 static const size_t kContextMenuProbeOrderSampleCount = 6;
@@ -110,6 +112,33 @@ struct ContextMenuMappingEntry
 };
 
 static std::vector<ContextMenuMappingEntry> g_contextMenuMappingTable;
+static DWORD g_lastCanExecuteDecisionLogMs = 0;
+static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
+static bool g_hasLastCanExecuteDecision = false;
+static bool g_lastCanExecuteDecisionResult = false;
+
+enum ExecutePredicateEntryPoint
+{
+    ExecutePredicateEntryPoint_DEBUG_TRIGGER = 0,
+    ExecutePredicateEntryPoint_NATIVE_MENU = 1,
+    ExecutePredicateEntryPoint_FALLBACK_POPUP = 2
+};
+
+struct CanExecuteDiagnostics
+{
+    bool actorResolved;
+    bool targetResolved;
+    bool targetIsCharacter;
+    bool targetIsEnemy;
+    bool targetIsIncapacitated;
+    bool targetIsDead;
+    bool targetIsDown;
+    bool targetIsUnconscious;
+    bool targetIsLiterallyUnconscious;
+    itemType targetType;
+    uintptr_t actorPtr;
+    uintptr_t targetPtr;
+};
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static void (*ContextMenu_showContextMenu_orig)(ContextMenu*, bool, RootObject*) = 0;
@@ -121,6 +150,16 @@ static void DisarmPauseAfterLoad();
 static const char* ContextTypeKeyToString(ContextTypeKey type);
 static std::string DetectRuntimeLocaleTag();
 static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool forceLog);
+static Character* ResolveExecuteActorForPredicate();
+static bool CanExecuteTarget(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    CanExecuteDiagnostics* diagnosticsOut,
+    bool verboseLog);
+static bool CanExecuteFromDebugTrigger(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
+static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
+static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -468,7 +507,10 @@ static ContextTypeKey InferContextTypeKeyFromProbe(
         return ContextTypeKey_ITEM_CONTAINER;
     }
 
-    if (whatTypeResolved && whatType == 1)
+    if (whatTypeResolved
+        && (whatType == static_cast<int>(CHARACTER)
+            || whatType == static_cast<int>(HUMAN_CHARACTER)
+            || whatType == static_cast<int>(ANIMAL_CHARACTER)))
     {
         return ContextTypeKey_CONSCIOUS_ENEMY;
     }
@@ -718,6 +760,248 @@ static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool 
     }
 
     return changed;
+}
+
+static const char* ExecutePredicateEntryPointToString(ExecutePredicateEntryPoint entryPoint)
+{
+    switch (entryPoint)
+    {
+    case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
+        return "debug_trigger";
+    case ExecutePredicateEntryPoint_NATIVE_MENU:
+        return "native_menu";
+    case ExecutePredicateEntryPoint_FALLBACK_POPUP:
+        return "fallback_popup";
+    default:
+        return "unknown";
+    }
+}
+
+static bool IsCharacterDataType(itemType type)
+{
+    return type == CHARACTER
+        || type == HUMAN_CHARACTER
+        || type == ANIMAL_CHARACTER
+        || type == WORLDMAP_CHARACTER;
+}
+
+static bool TryGetRootObjectTypeForExecutePredicate(RootObject* target, itemType* typeOut)
+{
+    if (!target || !typeOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *typeOut = target->getDataType();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryEvaluateCharacterExecuteFlags(
+    Character* actor,
+    Character* targetCharacter,
+    bool* targetIsEnemyOut,
+    bool* targetIsDeadOut,
+    bool* targetIsDownOut,
+    bool* targetIsUnconsciousOut,
+    bool* targetIsLiterallyUnconsciousOut)
+{
+    if (!targetCharacter
+        || !targetIsEnemyOut
+        || !targetIsDeadOut
+        || !targetIsDownOut
+        || !targetIsUnconsciousOut
+        || !targetIsLiterallyUnconsciousOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *targetIsEnemyOut = false;
+        *targetIsDeadOut = targetCharacter->isDead();
+        *targetIsDownOut = false;
+        *targetIsUnconsciousOut = false;
+        *targetIsLiterallyUnconsciousOut = false;
+
+        if (!*targetIsDeadOut)
+        {
+            *targetIsDownOut = targetCharacter->isDown();
+            *targetIsUnconsciousOut = targetCharacter->isUnconcious();
+            *targetIsLiterallyUnconsciousOut = targetCharacter->isLiterallyUnconciousNotPretending();
+
+            PlayerInterface* player = (ou ? ou->player : 0);
+            if (player)
+            {
+                *targetIsEnemyOut = player->isEnemy(targetCharacter);
+            }
+            if (!*targetIsEnemyOut && actor)
+            {
+                *targetIsEnemyOut = actor->isEnemy(targetCharacter, true);
+            }
+        }
+
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static Character* ResolveExecuteActorForPredicate()
+{
+    if (!ou)
+    {
+        return 0;
+    }
+
+    PlayerInterface* player = 0;
+    __try
+    {
+        player = ou->player;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+
+    if (!player)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return player->getAnyPlayerCharacter();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static bool CanExecuteTarget(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    CanExecuteDiagnostics* diagnosticsOut,
+    bool verboseLog)
+{
+    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    diagnostics.actorResolved = actor != 0;
+    diagnostics.targetResolved = target != 0;
+    diagnostics.actorPtr = reinterpret_cast<uintptr_t>(actor);
+    diagnostics.targetPtr = reinterpret_cast<uintptr_t>(target);
+
+    Character* targetCharacter = 0;
+    if (target)
+    {
+        itemType targetType = NULL_ITEM;
+        if (!TryGetRootObjectTypeForExecutePredicate(target, &targetType))
+        {
+            targetType = NULL_ITEM;
+        }
+        diagnostics.targetType = targetType;
+
+        if (IsCharacterDataType(targetType))
+        {
+            diagnostics.targetIsCharacter = true;
+            targetCharacter = static_cast<Character*>(target);
+        }
+    }
+
+    if (targetCharacter)
+    {
+        if (TryEvaluateCharacterExecuteFlags(
+            actor,
+            targetCharacter,
+            &diagnostics.targetIsEnemy,
+            &diagnostics.targetIsDead,
+            &diagnostics.targetIsDown,
+            &diagnostics.targetIsUnconscious,
+            &diagnostics.targetIsLiterallyUnconscious))
+        {
+            diagnostics.targetIsIncapacitated = diagnostics.targetIsDown
+                || diagnostics.targetIsUnconscious
+                || diagnostics.targetIsLiterallyUnconscious;
+        }
+        else
+        {
+            diagnostics.targetIsCharacter = false;
+            diagnostics.targetIsEnemy = false;
+            diagnostics.targetIsIncapacitated = false;
+            diagnostics.targetIsDead = false;
+            diagnostics.targetIsDown = false;
+            diagnostics.targetIsUnconscious = false;
+            diagnostics.targetIsLiterallyUnconscious = false;
+        }
+    }
+
+    const bool canExecute = diagnostics.targetIsCharacter
+        && diagnostics.targetIsEnemy
+        && diagnostics.targetIsIncapacitated
+        && !diagnostics.targetIsDead;
+
+    if (diagnosticsOut)
+    {
+        *diagnosticsOut = diagnostics;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    const bool shouldLog = verboseLog
+        && (!g_hasLastCanExecuteDecision
+            || g_lastCanExecuteDecisionTargetPtr != diagnostics.targetPtr
+            || g_lastCanExecuteDecisionResult != canExecute
+            || DebounceWindowElapsed(nowMs, g_lastCanExecuteDecisionLogMs, kCanExecuteDecisionMinIntervalMs));
+    if (shouldLog)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: can_execute_evaluate"
+                << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+                << " result=" << (canExecute ? "true" : "false")
+                << " actor_resolved=" << (diagnostics.actorResolved ? "true" : "false")
+                << " actor=0x" << std::hex << diagnostics.actorPtr
+                << " target_resolved=" << (diagnostics.targetResolved ? "true" : "false")
+                << " target=0x" << diagnostics.targetPtr
+                << " target_type=" << std::dec << static_cast<int>(diagnostics.targetType)
+                << " target_is_character=" << (diagnostics.targetIsCharacter ? "true" : "false")
+                << " target_is_enemy=" << (diagnostics.targetIsEnemy ? "true" : "false")
+                << " target_is_down=" << (diagnostics.targetIsDown ? "true" : "false")
+                << " target_is_unconscious=" << (diagnostics.targetIsUnconscious ? "true" : "false")
+                << " target_is_literally_unconscious=" << (diagnostics.targetIsLiterallyUnconscious ? "true" : "false")
+                << " target_is_incapacitated=" << (diagnostics.targetIsIncapacitated ? "true" : "false")
+                << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
+        DebugLog(logline.str().c_str());
+
+        g_hasLastCanExecuteDecision = true;
+        g_lastCanExecuteDecisionTargetPtr = diagnostics.targetPtr;
+        g_lastCanExecuteDecisionResult = canExecute;
+        g_lastCanExecuteDecisionLogMs = nowMs;
+    }
+
+    return canExecute;
+}
+
+static bool CanExecuteFromDebugTrigger(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
+{
+    return CanExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, diagnosticsOut, verboseLog);
+}
+
+static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
+{
+    return CanExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, diagnosticsOut, verboseLog);
+}
+
+static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
+{
+    return CanExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, diagnosticsOut, verboseLog);
 }
 
 #include "LootScootExecuteHooksEntry.inl"

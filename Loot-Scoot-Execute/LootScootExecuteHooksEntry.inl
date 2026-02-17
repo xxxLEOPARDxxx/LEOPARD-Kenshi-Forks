@@ -557,6 +557,18 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
     int whatType = 0;
     const bool whatTypeResolved = TryResolveRootObjectType(what, &whatType);
+    Character* executeActor = ResolveExecuteActorForPredicate();
+    CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    const bool canExecuteTarget = CanExecuteFromNativeMenuSelection(
+        executeActor,
+        what,
+        &canExecuteDiagnostics,
+        g_config.debugContextMenu);
+    if (g_config.debugContextMenu)
+    {
+        (void)CanExecuteFromDebugTrigger(executeActor, what, 0, false);
+        (void)CanExecuteFromFallbackPopup(executeActor, what, 0, false);
+    }
 
     int mouseRightTargetType = 0;
     const bool mouseRightTargetTypeResolved = mouseRightTargetResolved
@@ -588,10 +600,13 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
                 ordersCount,
                 orderSample,
                 orderSampleCount);
+            const ContextTypeKey mappingContextType = canExecuteTarget
+                ? ContextTypeKey_DOWNED_ENEMY
+                : contextType;
 
             RecordContextMenuMappingSample(
                 "show_context_menu_open",
-                contextType,
+                mappingContextType,
                 ordersCount,
                 orderSample,
                 orderSampleCount);
@@ -702,6 +717,12 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     {
         logline << "unresolved";
     }
+
+    logline << " can_execute_target=" << (canExecuteTarget ? "true" : "false")
+            << " execute_actor_resolved=" << (canExecuteDiagnostics.actorResolved ? "true" : "false")
+            << " execute_target_is_enemy=" << (canExecuteDiagnostics.targetIsEnemy ? "true" : "false")
+            << " execute_target_is_incapacitated=" << (canExecuteDiagnostics.targetIsIncapacitated ? "true" : "false")
+            << " execute_target_is_dead=" << (canExecuteDiagnostics.targetIsDead ? "true" : "false");
 
     DebugLog(logline.str().c_str());
 
