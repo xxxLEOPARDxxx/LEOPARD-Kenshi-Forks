@@ -124,6 +124,52 @@ static void OnJobRowsScrollDownButtonClicked(MyGUI::Widget*)
     ++g_jobRowScrollOffset;
 }
 
+static int NormalizeMouseWheelNotches(int rel)
+{
+    if (rel == 0)
+    {
+        return 0;
+    }
+
+    const int absRel = (rel < 0) ? -rel : rel;
+    int notches = absRel / 120;
+    if (notches <= 0)
+    {
+        notches = 1;
+    }
+    return (rel > 0) ? notches : -notches;
+}
+
+static void ScrollJobRowsByNotches(int notches)
+{
+    if (notches == 0)
+    {
+        return;
+    }
+
+    if (g_jobBGonePanelCollapsed || g_jobBGoneConfirmVisible)
+    {
+        return;
+    }
+
+    const int visibleRows = ComputeVisibleJobRowCapacityForHeight(GetExpandedPanelHeight());
+    const int totalRows = static_cast<int>(g_selectedMemberJobRows.size());
+    const int maxOffset = ClampIntValue(totalRows - visibleRows, 0, totalRows);
+    if (maxOffset <= 0)
+    {
+        g_jobRowScrollOffset = 0;
+        return;
+    }
+
+    const int delta = (notches > 0) ? -notches : (-notches);
+    g_jobRowScrollOffset = ClampIntValue(g_jobRowScrollOffset + delta, 0, maxOffset);
+}
+
+static void OnJobBGonePanelMouseWheel(MyGUI::Widget*, int rel)
+{
+    ScrollJobRowsByNotches(NormalizeMouseWheelNotches(rel));
+}
+
 static void SetJobButtonPayload(MyGUI::Button* button, const JobRowModel& row)
 {
     if (!button)
@@ -528,6 +574,7 @@ static void BindWidgetHoverHintHandlers(MyGUI::Widget* widget)
     widget->setNeedMouseFocus(true);
     widget->eventMouseSetFocus += MyGUI::newDelegate(&OnActionButtonMouseSetFocus);
     widget->eventMouseLostFocus += MyGUI::newDelegate(&OnActionButtonMouseLostFocus);
+    widget->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
 }
 
 static void SetWidgetTooltipAndHoverHint(MyGUI::Widget* widget, const char* tooltipText)
@@ -1374,6 +1421,15 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         g_jobBGoneHeaderButton->eventMouseMove += MyGUI::newDelegate(&OnJobBGoneHeaderMouseMove);
         g_jobBGoneHeaderButton->eventMouseDrag += MyGUI::newDelegate(&OnJobBGoneHeaderMouseDrag);
         g_jobBGoneHeaderButton->eventMouseButtonReleased += MyGUI::newDelegate(&OnJobBGoneHeaderMouseReleased);
+        g_jobBGonePanel->setNeedMouseFocus(true);
+        g_jobBGonePanel->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
+        g_jobBGoneHeaderButton->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
+        g_jobBGoneBodyFrame->setNeedMouseFocus(true);
+        g_jobBGoneBodyFrame->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
+        g_jobBGoneStatusText->setNeedMouseFocus(true);
+        g_jobBGoneStatusText->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
+        g_jobBGoneEmptyStateText->setNeedMouseFocus(true);
+        g_jobBGoneEmptyStateText->eventMouseWheel += MyGUI::newDelegate(&OnJobBGonePanelMouseWheel);
         g_deleteAllJobsTitleText->setCaption("Delete All Jobs");
         g_deleteAllJobsSelectedMemberButton->setCaption(kScopeCaptionMe);
         SetWidgetTooltipAndHoverHint(

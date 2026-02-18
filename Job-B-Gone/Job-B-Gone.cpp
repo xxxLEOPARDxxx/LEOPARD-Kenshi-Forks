@@ -254,6 +254,7 @@ static int ComputeAdaptiveExpandedPanelHeight(bool showJobRows, bool showEmptySt
 static int GetExpandedPanelHeight();
 static void OnJobRowsScrollUpButtonClicked(MyGUI::Widget*);
 static void OnJobRowsScrollDownButtonClicked(MyGUI::Widget*);
+static void OnJobBGonePanelMouseWheel(MyGUI::Widget*, int rel);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
