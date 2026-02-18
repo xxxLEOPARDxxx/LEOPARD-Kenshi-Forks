@@ -269,15 +269,22 @@ static std::string NormalizeTaskNameForDisplay(const std::string& taskName)
     return normalized;
 }
 
-static bool IsGenericOperatingMachineName(const std::string& taskName)
+enum TaskTargetInferenceKind
 {
-    static const char* kOperatingMachinePrefix = "Operating machine";
-    if (!StartsWithAsciiNoCase(taskName, kOperatingMachinePrefix))
+    TaskTargetInference_None = 0,
+    TaskTargetInference_OperatingMachine = 1,
+    TaskTargetInference_Follow = 2,
+    TaskTargetInference_Bodyguard = 3
+};
+
+static bool IsPrefixOnlyTaskName(const std::string& taskName, const char* prefix)
+{
+    if (!prefix || !StartsWithAsciiNoCase(taskName, prefix))
     {
         return false;
     }
 
-    size_t pos = std::strlen(kOperatingMachinePrefix);
+    size_t pos = std::strlen(prefix);
     while (pos < taskName.size())
     {
         const unsigned char ch = static_cast<unsigned char>(taskName[pos]);
@@ -289,6 +296,144 @@ static bool IsGenericOperatingMachineName(const std::string& taskName)
         return false;
     }
     return true;
+}
+
+static bool IsGenericOperatingMachineName(const std::string& taskName)
+{
+    return IsPrefixOnlyTaskName(taskName, "Operating machine");
+}
+
+static bool IsGenericFollowName(const std::string& taskName)
+{
+    return IsPrefixOnlyTaskName(taskName, "Follow")
+        || IsPrefixOnlyTaskName(taskName, "Following")
+        || IsPrefixOnlyTaskName(taskName, "Staying close");
+}
+
+static bool IsGenericBodyguardName(const std::string& taskName)
+{
+    return IsPrefixOnlyTaskName(taskName, "Bodyguard")
+        || IsPrefixOnlyTaskName(taskName, "Bodyguarding");
+}
+
+static TaskTargetInferenceKind DetectTaskTargetInferenceKind(const std::string& normalizedTaskName)
+{
+    if (StartsWithAsciiNoCase(normalizedTaskName, "Operating machine"))
+    {
+        return TaskTargetInference_OperatingMachine;
+    }
+    if (StartsWithAsciiNoCase(normalizedTaskName, "Follow")
+        || StartsWithAsciiNoCase(normalizedTaskName, "Following")
+        || StartsWithAsciiNoCase(normalizedTaskName, "Staying close"))
+    {
+        return TaskTargetInference_Follow;
+    }
+    if (StartsWithAsciiNoCase(normalizedTaskName, "Bodyguard")
+        || StartsWithAsciiNoCase(normalizedTaskName, "Bodyguarding"))
+    {
+        return TaskTargetInference_Bodyguard;
+    }
+    return TaskTargetInference_None;
+}
+
+static TaskTargetInferenceKind DetectTaskTargetInferenceKindByTaskType(TaskType taskType)
+{
+    switch (taskType)
+    {
+    case OPERATE_MACHINERY:
+    case OPERATE_AUTOMATIC_MACHINERY:
+    case PRETEND_TO_OPERATE_MACHINERY:
+        return TaskTargetInference_OperatingMachine;
+    case FOLLOW_PLAYER_ORDER:
+    case FOLLOW_SQUADLEADER:
+    case FOLLOW_WHILE_TALKING:
+    case FOLLOW_SLAVEMASTER:
+    case FOLLOW_URGENT_ESCAPE:
+    case STAY_CLOSE_TO_TARGET:
+    case STAY_CLOSE_TO_TARGET_ANIMAL:
+    case SWITCH_FOLLOW_ME_MODE_ON:
+        return TaskTargetInference_Follow;
+    case BODYGUARD:
+        return TaskTargetInference_Bodyguard;
+    default:
+        break;
+    }
+    return TaskTargetInference_None;
+}
+
+static bool TaskNameHasExplicitTargetDelimiter(const std::string& normalizedTaskName)
+{
+    return normalizedTaskName.find(':') != std::string::npos
+        || normalizedTaskName.find("->") != std::string::npos;
+}
+
+static bool IsTaskNameMissingTarget(TaskTargetInferenceKind kind, const std::string& normalizedTaskName)
+{
+    switch (kind)
+    {
+    case TaskTargetInference_OperatingMachine:
+        return IsGenericOperatingMachineName(normalizedTaskName);
+    case TaskTargetInference_Follow:
+        return IsGenericFollowName(normalizedTaskName);
+    case TaskTargetInference_Bodyguard:
+        return IsGenericBodyguardName(normalizedTaskName);
+    default:
+        break;
+    }
+    return false;
+}
+
+static const char* GetTaskTargetInferenceKindLogName(TaskTargetInferenceKind kind)
+{
+    switch (kind)
+    {
+    case TaskTargetInference_OperatingMachine:
+        return "operating_machine";
+    case TaskTargetInference_Follow:
+        return "follow";
+    case TaskTargetInference_Bodyguard:
+        return "bodyguard";
+    default:
+        break;
+    }
+    return "unknown";
+}
+
+static std::string BuildExpandedTaskNameWithTarget(TaskTargetInferenceKind kind, const std::string& targetName)
+{
+    switch (kind)
+    {
+    case TaskTargetInference_OperatingMachine:
+        return "Operating machine: " + targetName;
+    case TaskTargetInference_Follow:
+        return "Follow: " + targetName;
+    case TaskTargetInference_Bodyguard:
+        return "Bodyguard: " + targetName;
+    default:
+        break;
+    }
+    return targetName;
+}
+
+static bool IsLikelyGenericTargetCandidate(TaskTargetInferenceKind kind, const std::string& candidateName)
+{
+    if (candidateName.empty())
+    {
+        return true;
+    }
+
+    switch (kind)
+    {
+    case TaskTargetInference_OperatingMachine:
+        return IsGenericOperatingMachineName(candidateName);
+    case TaskTargetInference_Follow:
+        return IsGenericFollowName(candidateName);
+    case TaskTargetInference_Bodyguard:
+        return IsGenericBodyguardName(candidateName);
+    default:
+        break;
+    }
+    return false;
 }
 
 static bool IsPlausibleHandCandidateNoexcept(const hand* candidate)
@@ -363,9 +508,9 @@ static bool TryResolveNameFromPotentialHandle(const hand* handle, std::string* n
     return true;
 }
 
-static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::string* targetNameOut)
+static bool TryInferTaskTargetName(uintptr_t taskDataPtr, TaskTargetInferenceKind kind, std::string* targetNameOut)
 {
-    if (!targetNameOut || taskDataPtr == 0)
+    if (!targetNameOut || taskDataPtr == 0 || kind == TaskTargetInference_None)
     {
         return false;
     }
@@ -373,6 +518,7 @@ static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::strin
     struct CachedTaskTargetName
     {
         uintptr_t taskDataPtr;
+        TaskTargetInferenceKind kind;
         bool hasValue;
         std::string value;
     };
@@ -381,7 +527,7 @@ static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::strin
     const size_t cacheSize = cache.size();
     for (size_t i = 0; i < cacheSize; ++i)
     {
-        if (cache[i].taskDataPtr != taskDataPtr)
+        if (cache[i].taskDataPtr != taskDataPtr || cache[i].kind != kind)
         {
             continue;
         }
@@ -414,7 +560,7 @@ static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::strin
             continue;
         }
 
-        if (IsGenericOperatingMachineName(resolvedName))
+        if (IsLikelyGenericTargetCandidate(kind, resolvedName))
         {
             continue;
         }
@@ -424,18 +570,32 @@ static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::strin
             firstName = resolvedName;
         }
 
-        if (ContainsAsciiNoCase(resolvedName, "resource")
-            || ContainsAsciiNoCase(resolvedName, "copper")
-            || ContainsAsciiNoCase(resolvedName, "iron")
-            || ContainsAsciiNoCase(resolvedName, "machine"))
+        if (kind == TaskTargetInference_OperatingMachine
+            && (ContainsAsciiNoCase(resolvedName, "resource")
+                || ContainsAsciiNoCase(resolvedName, "copper")
+                || ContainsAsciiNoCase(resolvedName, "iron")
+                || ContainsAsciiNoCase(resolvedName, "machine")))
         {
             preferredName = resolvedName;
             break;
         }
+
+        if (kind == TaskTargetInference_Follow || kind == TaskTargetInference_Bodyguard)
+        {
+            // Character names are typically not machine/resource labels.
+            if (!ContainsAsciiNoCase(resolvedName, "machine")
+                && !ContainsAsciiNoCase(resolvedName, "resource")
+                && !ContainsAsciiNoCase(resolvedName, "ore"))
+            {
+                preferredName = resolvedName;
+                break;
+            }
+        }
     }
 
-    CachedTaskTargetName cached = { 0, false, std::string() };
+    CachedTaskTargetName cached = { 0, TaskTargetInference_None, false, std::string() };
     cached.taskDataPtr = taskDataPtr;
+    cached.kind = kind;
     if (!preferredName.empty())
     {
         cached.hasValue = true;
@@ -450,7 +610,8 @@ static bool TryInferOperatingMachineTargetName(uintptr_t taskDataPtr, std::strin
     if (g_config.debugLogTransitions)
     {
         std::stringstream info;
-        info << "Job-B-Gone DEBUG: operating_machine_target_infer"
+        info << "Job-B-Gone DEBUG: task_target_infer"
+             << " kind=" << GetTaskTargetInferenceKindLogName(kind)
              << " task_data_ptr=0x" << std::hex << taskDataPtr << std::dec
              << " resolved=" << (cached.hasValue ? "true" : "false");
         if (cached.hasValue)
@@ -1858,14 +2019,31 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         const JobRowModel& rowModel = g_selectedMemberJobRows[static_cast<size_t>(modelIndex)];
         std::string taskNameForDisplay = BuildCompactTaskNameForDisplay(rowModel.taskName);
         std::string hoverTaskName = NormalizeTaskNameForDisplay(rowModel.taskName);
-        if (IsGenericOperatingMachineName(hoverTaskName))
+        const TaskTargetInferenceKind inferenceKindFromType = DetectTaskTargetInferenceKindByTaskType(rowModel.taskType);
+        const TaskTargetInferenceKind inferenceKind = (inferenceKindFromType != TaskTargetInference_None)
+            ? inferenceKindFromType
+            : DetectTaskTargetInferenceKind(hoverTaskName);
+        bool missingTarget = false;
+        if (inferenceKind != TaskTargetInference_None)
+        {
+            missingTarget = IsTaskNameMissingTarget(inferenceKind, hoverTaskName);
+            if (!missingTarget && inferenceKindFromType != TaskTargetInference_None)
+            {
+                // Type-driven fallback: if this is a known target-bearing task and no
+                // explicit separator is present, treat it as a missing-target label.
+                missingTarget = !TaskNameHasExplicitTargetDelimiter(hoverTaskName);
+            }
+        }
+        if (inferenceKind != TaskTargetInference_None && missingTarget)
         {
             std::string inferredTargetName;
-            if (TryInferOperatingMachineTargetName(rowModel.taskDataPtr, &inferredTargetName))
+            if (TryInferTaskTargetName(rowModel.taskDataPtr, inferenceKind, &inferredTargetName))
             {
-                hoverTaskName = "Operating machine: " + inferredTargetName;
+                hoverTaskName = BuildExpandedTaskNameWithTarget(inferenceKind, inferredTargetName);
+                taskNameForDisplay = BuildCompactTaskNameForDisplay(hoverTaskName);
             }
-            else if (StartsWithAsciiNoCase(taskNameForDisplay, "Op. m:"))
+            else if (inferenceKind == TaskTargetInference_OperatingMachine
+                && StartsWithAsciiNoCase(taskNameForDisplay, "Op. m:"))
             {
                 std::string compactSuffix = taskNameForDisplay.substr(std::strlen("Op. m:"));
                 size_t suffixStart = 0;
