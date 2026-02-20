@@ -7,6 +7,8 @@
 #include <kenshi/InputHandler.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Building.h>
+#include <kenshi/Character.h>
+#include <kenshi/GameData.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/TitleScreen.h>
 #include <kenshi/util/hand.h>
@@ -20,6 +22,7 @@
 #include <mygui/MyGUI_ScrollView.h>
 #include <string>
 #include <sstream>
+#include <cstring>
 #include <cctype>
 #include <Windows.h>
 #include <fstream>
@@ -55,6 +58,7 @@ enum HotkeyValidationResult
 
 // Runtime toggle persisted to JSON and exposed in Plugins menu.
 static bool g_modEnabled = true;
+static bool g_sleepingBagDismantleEnabled = true;
 static std::string g_settingsPath;
 static const char* kWallBGoneTabName = "Wall-B-Gone";
 static const char* kWallBGonePanelName = "wall_b_gone_options";
@@ -145,7 +149,7 @@ static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
     }
 
     const int panelW = parentWidget->getWidth();
-    const int y = 146;
+    const int y = 206;
     const int labelX = 43;
     const int rebindW = 360;
     const int resetW = 120;
@@ -602,6 +606,30 @@ static bool ReadEnabledFromBody(const std::string& body, bool* foundValue)
     return true;
 }
 
+static bool ReadSleepingBagDismantleEnabledFromBody(const std::string& body, bool* foundValue)
+{
+    const size_t keyPos = body.find("\"sleepingBagDismantleEnabled\"");
+    if (keyPos == std::string::npos)
+    {
+        return true;
+    }
+
+    const size_t truePos = body.find("true", keyPos);
+    const size_t falsePos = body.find("false", keyPos);
+
+    if (foundValue)
+    {
+        *foundValue = true;
+    }
+
+    if (falsePos != std::string::npos && (truePos == std::string::npos || falsePos < truePos))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
 {
     if (!hotkeyOut)
@@ -643,9 +671,13 @@ static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
     return true;
 }
 
-static bool ReadConfigFromFile(const std::string& configPath, bool* enabledOut, OIS::KeyCode* hotkeyOut)
+static bool ReadConfigFromFile(
+    const std::string& configPath,
+    bool* enabledOut,
+    bool* sleepingBagDismantleEnabledOut,
+    OIS::KeyCode* hotkeyOut)
 {
-    if (!enabledOut || !hotkeyOut)
+    if (!enabledOut || !sleepingBagDismantleEnabledOut || !hotkeyOut)
     {
         return false;
     }
@@ -660,10 +692,16 @@ static bool ReadConfigFromFile(const std::string& configPath, bool* enabledOut, 
 
     bool foundEnabled = false;
     *enabledOut = ReadEnabledFromBody(body, &foundEnabled);
+    bool foundSleepingBagDismantleEnabled = false;
+    *sleepingBagDismantleEnabledOut = ReadSleepingBagDismantleEnabledFromBody(body, &foundSleepingBagDismantleEnabled);
     return ReadHotkeyFromBody(body, hotkeyOut);
 }
 
-static bool SaveConfigToFile(const std::string& configPath, bool enabled, OIS::KeyCode hotkey)
+static bool SaveConfigToFile(
+    const std::string& configPath,
+    bool enabled,
+    bool sleepingBagDismantleEnabled,
+    OIS::KeyCode hotkey)
 {
     std::string validationReason;
     const HotkeyValidationResult validationResult = ValidateHotkey(hotkey, &validationReason);
@@ -684,6 +722,7 @@ static bool SaveConfigToFile(const std::string& configPath, bool enabled, OIS::K
 
     out << "{\n";
     out << "  \"enabled\": " << (enabled ? "true" : "false") << ",\n";
+    out << "  \"sleepingBagDismantleEnabled\": " << (sleepingBagDismantleEnabled ? "true" : "false") << ",\n";
     out << "  \"hotkey\": \"" << KeyCodeToName(hotkey) << "\"\n";
     out << "}\n";
 
@@ -693,6 +732,7 @@ static bool SaveConfigToFile(const std::string& configPath, bool enabled, OIS::K
 static void LoadConfigState()
 {
     g_modEnabled = true;
+    g_sleepingBagDismantleEnabled = true;
     g_hotkeyPrimary = kDefaultHotkey;
     g_pendingHotkeyPrimary = kDefaultHotkey;
 
@@ -702,20 +742,27 @@ static void LoadConfigState()
     }
 
     bool loadedEnabled = true;
+    bool loadedSleepingBagDismantleEnabled = true;
     OIS::KeyCode loadedHotkey = kDefaultHotkey;
-    if (!ReadConfigFromFile(g_settingsPath, &loadedEnabled, &loadedHotkey))
+    if (!ReadConfigFromFile(
+        g_settingsPath,
+        &loadedEnabled,
+        &loadedSleepingBagDismantleEnabled,
+        &loadedHotkey))
     {
         ErrorLog("Wall-B-Gone ERROR: failed to read mod-config.json; using defaults");
         return;
     }
 
     g_modEnabled = loadedEnabled;
+    g_sleepingBagDismantleEnabled = loadedSleepingBagDismantleEnabled;
     g_hotkeyPrimary = loadedHotkey;
     g_pendingHotkeyPrimary = loadedHotkey;
     SyncNativeBindingFromHotkey();
 
     std::stringstream info;
     info << "Wall-B-Gone INFO: loaded config enabled=" << (g_modEnabled ? "true" : "false")
+        << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
         << " hotkey=" << KeyCodeToName(g_hotkeyPrimary);
     DebugLog(info.str().c_str());
 }
@@ -728,7 +775,11 @@ static bool SaveConfigState()
         return false;
     }
 
-    if (!SaveConfigToFile(g_settingsPath, g_modEnabled, g_hotkeyPrimary))
+    if (!SaveConfigToFile(
+        g_settingsPath,
+        g_modEnabled,
+        g_sleepingBagDismantleEnabled,
+        g_hotkeyPrimary))
     {
         ErrorLog("Wall-B-Gone: failed to save mod-config.json");
         return false;
@@ -736,6 +787,7 @@ static bool SaveConfigState()
 
     std::stringstream info;
     info << "Wall-B-Gone INFO: saved config enabled=" << (g_modEnabled ? "true" : "false")
+        << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
         << " hotkey=" << KeyCodeToName(g_hotkeyPrimary);
     DebugLog(info.str().c_str());
 
@@ -854,6 +906,18 @@ static void OptionsWindowInitHook(OptionsWindow* self)
         toggleLine->setTooltip("Enable or disable Wall-B-Gone hotkey behavior.", self->tooltip);
     }
 
+    DataPanelLine_CheckBox* sleepingBagToggleLine = g_fnCreateCheckboxLine(
+        pluginOptionPanel,
+        "   Enable sleeping bag dismantle",
+        g_sleepingBagDismantleEnabled,
+        tabID);
+    if (sleepingBagToggleLine && self->tooltip)
+    {
+        sleepingBagToggleLine->setTooltip(
+            "Allow hotkey dismantle for sleeping bags and compatible medical variants. Occupied bags are always protected.",
+            self->tooltip);
+    }
+
     g_hotkeyRebindButton = 0;
     g_hotkeyResetButton = 0;
     g_hotkeyLabelWidget = 0;
@@ -964,6 +1028,185 @@ static bool CheckMountedBuildingsSafely(Building* b)
     return hasMounted;
 }
 
+static char ToLowerAsciiChar(char value)
+{
+    if (value >= 'A' && value <= 'Z')
+    {
+        return static_cast<char>(value + ('a' - 'A'));
+    }
+
+    return value;
+}
+
+static bool ContainsAsciiInsensitive(const std::string& haystack, const char* needle)
+{
+    if (!needle || needle[0] == '\0')
+    {
+        return false;
+    }
+
+    const size_t needleLen = std::strlen(needle);
+    if (needleLen > haystack.size())
+    {
+        return false;
+    }
+
+    for (size_t start = 0; start + needleLen <= haystack.size(); ++start)
+    {
+        size_t i = 0;
+        for (; i < needleLen; ++i)
+        {
+            if (ToLowerAsciiChar(haystack[start + i]) != ToLowerAsciiChar(needle[i]))
+            {
+                break;
+            }
+        }
+
+        if (i == needleLen)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool IsBaseSleepingBagText(const std::string& value)
+{
+    return ContainsAsciiInsensitive(value, "sleeping bag")
+        || ContainsAsciiInsensitive(value, "sleeping-bag")
+        || ContainsAsciiInsensitive(value, "sleeping_bag")
+        || ContainsAsciiInsensitive(value, "sleepingbag")
+        || ContainsAsciiInsensitive(value, "camp bed")
+        || ContainsAsciiInsensitive(value, "camp_bed")
+        || ContainsAsciiInsensitive(value, "campbed")
+        || ContainsAsciiInsensitive(value, "bedroll");
+}
+
+static bool IsMedicalSleepingBagText(const std::string& value)
+{
+    const bool hasMedical = ContainsAsciiInsensitive(value, "medical");
+    const bool hasSleepBagHint = ContainsAsciiInsensitive(value, "sleep")
+        || ContainsAsciiInsensitive(value, "bag")
+        || ContainsAsciiInsensitive(value, "bedroll")
+        || ContainsAsciiInsensitive(value, "camp");
+
+    if (hasMedical && hasSleepBagHint)
+    {
+        return true;
+    }
+
+    // Compatibility IDs used by some sleeping-bag mods.
+    return ContainsAsciiInsensitive(value, "medicalbed")
+        || ContainsAsciiInsensitive(value, "medical_bed")
+        || ContainsAsciiInsensitive(value, "advancedmedicalbed")
+        || ContainsAsciiInsensitive(value, "advanced_medical_bed");
+}
+
+static bool IsSleepingBagGameData(const GameData* data)
+{
+    if (!data)
+    {
+        return false;
+    }
+
+    const std::string& name = data->name;
+    const std::string& stringId = data->stringID;
+
+    return IsBaseSleepingBagText(name) || IsBaseSleepingBagText(stringId);
+}
+
+static bool IsOutsideFurnitureSafely(Building* b)
+{
+    bool isOutsideFurniture = false;
+    __try
+    {
+        isOutsideFurniture = b->getIsOutsideFurniture();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        DebugLog("Hotkey action: CRASH AVERTED in IsOutsideFurnitureSafely");
+        isOutsideFurniture = false;
+    }
+
+    return isOutsideFurniture;
+}
+
+static bool IsSleepingBagBuilding(Building* b)
+{
+    if (!b)
+    {
+        return false;
+    }
+
+    if (b->getSpecialFunction() != BF_BED)
+    {
+        return false;
+    }
+
+    const GameData* data = b->getGameData();
+    if (IsSleepingBagGameData(data))
+    {
+        return true;
+    }
+
+    if (!data)
+    {
+        return false;
+    }
+
+    const bool isMedicalSleepingBag = IsMedicalSleepingBagText(data->name) || IsMedicalSleepingBagText(data->stringID);
+    if (!isMedicalSleepingBag)
+    {
+        return false;
+    }
+
+    // Keep medical-bed matching scoped to camp-style (outside) furniture.
+    return IsOutsideFurnitureSafely(b);
+}
+
+static bool CheckSleepingBagOccupiedSafely(const hand& sleepingBagHandle)
+{
+    bool occupied = false;
+    __try
+    {
+        if (!ou)
+        {
+            occupied = true;
+        }
+        else
+        {
+            const ogre_unordered_set<Character*>::type& characters = ou->getCharacterUpdateList();
+            for (ogre_unordered_set<Character*>::type::const_iterator it = characters.begin(); it != characters.end(); ++it)
+            {
+                Character* character = *it;
+                if (!character)
+                {
+                    continue;
+                }
+
+                if (character->inSomething != IN_BED)
+                {
+                    continue;
+                }
+
+                if (character->inWhat == sleepingBagHandle)
+                {
+                    occupied = true;
+                    break;
+                }
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        DebugLog("Hotkey action: CRASH AVERTED in CheckSleepingBagOccupiedSafely");
+        occupied = true;
+    }
+
+    return occupied;
+}
+
 static bool PerformDismantleLogic(Building* b, const hand& sel)
 {
     b->dropMats();
@@ -971,7 +1214,7 @@ static bool PerformDismantleLogic(Building* b, const hand& sel)
     return true;
 }
 
-static bool SafelyDismantleWall(Building* b, const hand& sel)
+static bool SafelyDismantleTarget(Building* b, const hand& sel)
 {
     bool success = false;
     __try
@@ -980,7 +1223,7 @@ static bool SafelyDismantleWall(Building* b, const hand& sel)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog("Hotkey action: CRASH AVERTED during dismantle! Wall may be connected to problematic structures.");
+        DebugLog("Hotkey action: CRASH AVERTED during dismantle!");
         success = false;
     }
     return success;
@@ -1018,9 +1261,17 @@ static void HandleHotkeyAction()
     Building* b = sel.getBuilding();
     if (b)
     {
-        if (b->isAWall())
+        const bool isWallTarget = (b->isAWall() != 0);
+        const bool isSleepingBagTarget = (g_sleepingBagDismantleEnabled && IsSleepingBagBuilding(b));
+
+        if (!isWallTarget && !isSleepingBagTarget)
         {
-            if (b->canDismantle())
+            return;
+        }
+
+        if (b->canDismantle())
+        {
+            if (isWallTarget)
             {
                 bool hasAttachedBuildings = false;
 
@@ -1041,50 +1292,69 @@ static void HandleHotkeyAction()
                 {
                     return;
                 }
-
-                DWORD currentTime = GetTickCount();
-                if (g_lastFailedDismantleTime != 0)
-                {
-                    DWORD timeSinceLastFailure = currentTime - g_lastFailedDismantleTime;
-                    if (timeSinceLastFailure < DISMANTLE_COOLDOWN_MS)
-                    {
-                        return;
-                    }
-                }
-
-                __try
-                {
-                    Building::ConstructionState* buildState = b->getBuildState();
-
-                    if (buildState && !buildState->isComplete)
-                    {
-                    }
-                    else
-                    {
-                        bool dismantleResult = SafelyDismantleWall(b, sel);
-
-                        if (!dismantleResult)
-                        {
-                            DebugLog("Hotkey action: Dismantle failed - wall may be connected to problematic structures");
-                            g_lastFailedDismantleTime = GetTickCount();
-                        }
-                        else
-                        {
-                            g_lastFailedDismantleTime = 0;
-                        }
-                    }
-                }
-                __except (EXCEPTION_EXECUTE_HANDLER)
-                {
-                    DebugLog("Hotkey action: CRASH AVERTED in outer dismantle wrapper!");
-                    g_lastFailedDismantleTime = GetTickCount();
-                }
             }
             else
             {
+                if (CheckSleepingBagOccupiedSafely(b->getHandle()))
+                {
+                    return;
+                }
+            }
+
+            DWORD currentTime = GetTickCount();
+            if (g_lastFailedDismantleTime != 0)
+            {
+                DWORD timeSinceLastFailure = currentTime - g_lastFailedDismantleTime;
+                if (timeSinceLastFailure < DISMANTLE_COOLDOWN_MS)
+                {
+                    return;
+                }
+            }
+
+            __try
+            {
+                Building::ConstructionState* buildState = b->getBuildState();
+
+                if (buildState && !buildState->isComplete)
+                {
+                }
+                else
+                {
+                    bool dismantleResult = SafelyDismantleTarget(b, sel);
+
+                    if (!dismantleResult)
+                    {
+                        if (isWallTarget)
+                        {
+                            DebugLog("Hotkey action: Dismantle failed - wall may be connected to problematic structures");
+                        }
+                        else
+                        {
+                            DebugLog("Hotkey action: Dismantle failed - sleeping bag may be in an invalid state");
+                        }
+
+                        g_lastFailedDismantleTime = GetTickCount();
+                    }
+                    else
+                    {
+                        g_lastFailedDismantleTime = 0;
+                    }
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                if (isWallTarget)
+                {
+                    DebugLog("Hotkey action: CRASH AVERTED in outer dismantle wrapper!");
+                }
+                else
+                {
+                    DebugLog("Hotkey action: CRASH AVERTED while dismantling sleeping bag");
+                }
+
+                g_lastFailedDismantleTime = GetTickCount();
             }
         }
-
         return;
     }
 
