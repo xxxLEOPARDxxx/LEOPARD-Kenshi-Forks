@@ -12,6 +12,7 @@
 #include <kenshi/SaveManager.h>
 
 #include <Windows.h>
+#include <intrin.h>
 
 #include <cctype>
 #include <cstring>
@@ -32,15 +33,42 @@ static const DWORD kContextMenuProbePeriodicMs = 3000;
 static const DWORD kContextMenuObserverSampleMinIntervalMs = 120;
 static const DWORD kContextMenuObserverPeriodicMs = 3000;
 static const DWORD kContextMenuObserverCorrelationWindowMs = 2000;
+static const DWORD kContextMenuCloseBlockWindowMs = 2000;
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const DWORD kDebugExecuteContextTargetMaxAgeMs = 1500;
+static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
 static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
+static const size_t kContextMenuRowMaterializationMaxRows = 12;
+static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
+static const bool kDebugEnableRowInsertSubstitute = false;
+static const bool kDebugEnableShowContextMenuOrderMutationFallback = false;
+static const bool kEnableBuildRowsPreloopInjection = false;
+static const bool kEnableRowInsertLateInjection = false;
+static bool g_enableShowContextMenuPreInjection = false;
+static bool g_forceMenuPersistence = false;
+static bool g_enableBlockCloseForDebug = false;
+static const int kContextMenuOrderIdLoot = 26;
+static const int kContextMenuOrderIdLiftPersonPlayerOrder = static_cast<int>(LIFT_PERSON_PLAYER_ORDER);
+static const int kContextMenuOrderIdStealthKill = static_cast<int>(STEALTH_KILL);
+static const int kContextMenuOrderIdExecuteProxy = static_cast<int>(KILL_CAGE_OCCUPANT);
 static const uint32_t kContextMenuMappingConfidenceMinSamples = 3;
 static const uint32_t kContextMenuMappingConfidenceMinStabilityPercent = 95;
 static const size_t kContextMenuProbeOrderSampleCount = 6;
 static const uintptr_t kExpectedRvaContextMenuShow_1_0_65 = 0x007A5960;
+static const uintptr_t kExpectedRvaContextMenuBuildRows_1_0_65 = 0x007A7FE0;
 static const uintptr_t kExpectedRvaContextMenuUpdate_1_0_65 = 0x008055A0;
 static const uintptr_t kExpectedRvaPlayerInterfaceUpdateUT_1_0_65 = 0x007F6C80;
+static const uintptr_t kExpectedRvaPlayerInterfaceAddOrderSelectedCharacters_1_0_65 = 0x007F8BC0;
+static const uintptr_t kExpectedRvaPlayerInterfaceGetPlayerTaskProbability_1_0_65 = 0x007F5380;
+static const uintptr_t kExpectedRvaPlayerInterfaceContextMenuOrderFilterThunk_1_0_65 = 0x000193B7;
+static const uintptr_t kExpectedRvaPlayerInterfaceContextMenuTaskProbabilityThunk_1_0_65 = 0x000210D0;
+static const uintptr_t kExpectedRvaPlayerInterfaceIsOrderValidForSelection_1_0_65 = 0x007F1150;
+static const uintptr_t kExpectedRvaContextMenuAppendOrderThunk_1_0_65 = 0x000115CC;
+static const uintptr_t kExpectedRvaContextMenuTaskLabelThunk_1_0_65 = 0x00024758;
+static const uintptr_t kExpectedRvaContextMenuOrderFilterCallReturn_1_0_65 = 0x007A75A2;
+static const uintptr_t kExpectedRvaContextMenuTaskProbabilityCallReturn_1_0_65 = 0x007A787D;
+static const uintptr_t kExpectedRvaContextMenuRowInsertCallReturn_1_0_65 = 0x007A7698;
+static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
 static PluginConfig g_config = { true, 2000, false, false, false, false, false, false };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
@@ -55,8 +83,33 @@ static bool g_effectiveEnableContextMenuInjection = false;
 static bool g_effectiveEnableExecuteAction = false;
 static std::string g_contextMenuGateFailureReason;
 static uintptr_t g_resolvedContextMenuShowAddress = 0;
+static uintptr_t g_contextMenuLoopScanSeedAddr = 0;
+static int g_contextMenuLoopScanBaseReg = -1;
+static uintptr_t g_resolvedContextMenuBuildRowsAddress = 0;
 static uintptr_t g_resolvedContextMenuUpdateAddress = 0;
 static uintptr_t g_resolvedPlayerInterfaceUpdateUTAddress = 0;
+static uintptr_t g_resolvedPlayerInterfaceAddOrderSelectedCharactersAddress = 0;
+static uintptr_t g_resolvedPlayerInterfaceGetPlayerTaskProbabilityAddress = 0;
+static uintptr_t g_resolvedPlayerInterfaceContextMenuOrderFilterThunkAddress = 0;
+static uintptr_t g_resolvedPlayerInterfaceContextMenuTaskProbabilityThunkAddress = 0;
+static uintptr_t g_resolvedPlayerInterfaceIsOrderValidForSelectionAddress = 0;
+static uintptr_t g_resolvedContextMenuAppendOrderThunkAddress = 0;
+static uintptr_t g_resolvedContextMenuTaskLabelThunkAddress = 0;
+static uintptr_t g_hookPlayerInterfaceContextMenuOrderFilterAddress = 0;
+static uintptr_t g_hookPlayerInterfaceContextMenuTaskProbabilityAddress = 0;
+static uintptr_t g_hookContextMenuAppendOrderAddress = 0;
+static uintptr_t g_hookContextMenuTaskLabelAddress = 0;
+static uintptr_t g_resolvedContextMenuOrderFilterCallReturnAddress = 0;
+static uintptr_t g_resolvedContextMenuOrderFilterCallTargetAddress = 0;
+static uintptr_t g_resolvedContextMenuTaskProbabilityCallReturnAddress = 0;
+static uintptr_t g_resolvedContextMenuTaskProbabilityCallTargetAddress = 0;
+static uintptr_t g_resolvedContextMenuRowInsertCallReturnAddress = 0;
+static uintptr_t g_resolvedContextMenuRowInsertCallTargetAddress = 0;
+static uintptr_t g_resolvedContextMenuLoopEntryAddress = 0;
+static uintptr_t g_hookPlayerInterfaceContextMenuOrderFilterAlternateAddress = 0;
+static uintptr_t g_hookPlayerInterfaceContextMenuTaskProbabilityAlternateAddress = 0;
+static uintptr_t g_hookContextMenuAppendOrderAlternateAddress = 0;
+static uintptr_t g_hookContextMenuTaskLabelAlternateAddress = 0;
 static DWORD g_lastContextMenuProbeLogMs = 0;
 static bool g_hasContextMenuProbeSnapshot = false;
 static bool g_lastContextMenuProbeOn = false;
@@ -76,6 +129,14 @@ static uintptr_t g_contextMenuShowProbeEventMouseRightTargetPtr = 0;
 static uint32_t g_contextMenuShowProbeEventOrdersCount = 0;
 static size_t g_contextMenuShowProbeEventSampleCount = 0;
 static int g_contextMenuShowProbeEventOrderSample[kContextMenuProbeOrderSampleCount] = { 0 };
+static uint64_t g_currentShowSeq = 0;
+static uint64_t g_lastShowSeq = 0;
+static DWORD g_lastShowTimeMs = 0;
+static uintptr_t g_lastMenuPtr = 0;
+static bool g_lastWasDownedEnemy = false;
+static bool g_lastShowTargetIsEnemy = false;
+static bool g_lastShowTargetIsIncapacitated = false;
+static bool g_lastShowTargetIsDead = false;
 static DWORD g_lastContextMenuObserverSampleMs = 0;
 static DWORD g_lastContextMenuObserverLogMs = 0;
 static bool g_hasContextMenuObserverSnapshot = false;
@@ -85,6 +146,8 @@ static uint32_t g_lastContextMenuObserverOrdersCount = 0;
 static size_t g_lastContextMenuObserverSampleCount = 0;
 static int g_lastContextMenuObserverOrderSample[kContextMenuProbeOrderSampleCount] = { 0 };
 static uint64_t g_lastContextMenuObserverShowEventSeq = 0;
+static uint64_t g_lastContextMenuRowSnapshotShowSeq = 0;
+static DWORD g_lastContextMenuRowSnapshotMs = 0;
 static std::string g_runtimeGameVersion;
 static std::string g_runtimeLocaleTag;
 static bool g_contextMenuMappingConfidenceGatePassed = false;
@@ -122,6 +185,45 @@ static bool g_lastCanExecuteDecisionResult = false;
 static bool g_debugExecuteHotkeyWasDown = false;
 static uintptr_t g_lastDebugExecuteContextTargetPtr = 0;
 static DWORD g_lastDebugExecuteContextTargetCaptureMs = 0;
+static bool g_nativeExecuteSelectionHookInstallVerified = false;
+static bool g_nativeExecuteProbabilityHookInstallVerified = false;
+static bool g_nativeExecuteOrderFilterHookInstallVerified = false;
+static bool g_nativeExecuteContextMenuProbabilityHookInstallVerified = false;
+static bool g_nativeExecuteOrderValidityHookInstallVerified = false;
+static bool g_nativeExecuteOrderAppendHookInstallVerified = false;
+static bool g_nativeExecuteTaskLabelHookInstallVerified = false;
+static bool g_nativeExecuteMenuBuildHookInstallVerified = false;
+static bool g_nativeExecuteRowInsertHookInstallVerified = false;
+static bool g_nativeExecuteLoopEntryHookInstallVerified = false;
+static bool g_nativeExecuteOrderFilterAlternateHookInstallVerified = false;
+static bool g_nativeExecuteContextMenuProbabilityAlternateHookInstallVerified = false;
+static bool g_nativeExecuteOrderAppendAlternateHookInstallVerified = false;
+static bool g_nativeExecuteTaskLabelAlternateHookInstallVerified = false;
+static bool g_nativeMenuExecuteDispatchArmed = false;
+static uintptr_t g_nativeMenuExecuteDispatchTargetPtr = 0;
+static DWORD g_nativeMenuExecuteDispatchArmMs = 0;
+static bool g_nativeMenuOrderRemapArmed = false;
+static uintptr_t g_nativeMenuOrderRemapOrdersPtr = 0;
+static uintptr_t g_nativeMenuOrderRemapTargetPtr = 0;
+static DWORD g_nativeMenuOrderRemapArmMs = 0;
+static bool g_menuLatchActive = false;
+static DWORD g_menuLatchTimestampMs = 0;
+static uintptr_t g_nativeMenuExecuteRowInjectedOrdersPtr = 0;
+static DWORD g_nativeMenuExecuteRowInjectedArmMs = 0;
+static uintptr_t g_nativeMenuBuildRowsInjectedOrdersPtr = 0;
+static uint64_t g_nativeMenuBuildRowsInjectedShowSeq = 0;
+static uintptr_t g_nativeMenuRowDescriptorTemplate = 0;
+static uintptr_t g_nativeMenuRowDescriptorTemplateOrdersPtr = 0;
+static DWORD g_nativeMenuRowDescriptorTemplateArmMs = 0;
+static __declspec(thread) bool g_nativeMenuAppendInjectionInProgress = false;
+static uintptr_t g_nativeMenuLoopEntryInjectedOrdersPtr = 0;
+static DWORD g_nativeMenuLoopEntryInjectedArmMs = 0;
+static __declspec(thread) bool g_nativeMenuLoopEntryInjectionInProgress = false;
+static bool g_contextMenuLoopEntryInlineHookInstalled = false;
+static uintptr_t g_contextMenuLoopEntryInlineTargetAddress = 0;
+static uintptr_t g_contextMenuLoopEntryInlineReturnAddress = 0;
+static void* g_contextMenuLoopEntryInlineStubAddress = 0;
+static unsigned char g_contextMenuLoopEntryInlineOriginalBytes[16] = { 0 };
 
 enum ExecutePredicateEntryPoint
 {
@@ -147,7 +249,21 @@ struct CanExecuteDiagnostics
 };
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
+static void (*PlayerInterface_addOrderSelectedCharacters_orig)(PlayerInterface*, Building*, TaskType, RootObject*, bool, bool, const Ogre::Vector3&) = 0;
+static bool (*PlayerInterface_getPlayerTaskProbability_orig)(PlayerInterface*, TaskType, RootObject*, float&) = 0;
+static bool (*PlayerInterface_contextMenuOrderFilterThunk_orig)(PlayerInterface*, TaskType) = 0;
+static bool (*PlayerInterface_getContextMenuTaskProbabilityThunk_orig)(PlayerInterface*, TaskType, RootObject*, float&) = 0;
+static bool (*PlayerInterface_isOrderValidForSelection_orig)(PlayerInterface*, TaskType) = 0;
+static void (__fastcall *ContextMenu_appendOrderThunk_orig)(lektor<int>*, int) = 0;
+static void (*ContextMenu_taskLabelThunk_orig)(std::string*, int, void*) = 0;
+static void* (*ContextMenu_rowInsertCall_orig)(void*, void*, unsigned char, void*, void*) = 0;
+static bool (*PlayerInterface_contextMenuOrderFilterThunk_probe_orig)(PlayerInterface*, TaskType) = 0;
+static bool (*PlayerInterface_getContextMenuTaskProbabilityThunk_probe_orig)(PlayerInterface*, TaskType, RootObject*, float&) = 0;
+static void (__fastcall *ContextMenu_appendOrderThunk_probe_orig)(lektor<int>*, int) = 0;
+static void (*ContextMenu_taskLabelThunk_probe_orig)(std::string*, int, void*) = 0;
 static void (*ContextMenu_showContextMenu_orig)(ContextMenu*, bool, RootObject*) = 0;
+static void (*ContextMenu_buildRows_orig)(ContextMenu*, void*, void*, void*) = 0;
+static void (*ContextMenu_update_orig)(ContextMenu*) = 0;
 static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
 static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
 
@@ -716,6 +832,14 @@ static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool 
     if (g_runtimeGameVersion.empty() || g_runtimeLocaleTag.empty())
     {
         g_contextMenuMappingGateFailureReason = "runtime_key_uninitialized";
+    }
+    else if (g_runtimeGameVersion == "1.0.65" && g_runtimeLocaleTag == "en-US")
+    {
+        // For the validated runtime key we intentionally keep injection enabled.
+        // Downed-enemy menus can legitimately vary (for example [26,225] vs [26,225,25]),
+        // so strict stability gating causes false fail-close behavior.
+        g_contextMenuMappingConfidenceGatePassed = true;
+        g_contextMenuMappingGateFailureReason.clear();
     }
     else
     {
