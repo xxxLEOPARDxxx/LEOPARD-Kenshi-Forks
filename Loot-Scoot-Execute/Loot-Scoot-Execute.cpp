@@ -23,6 +23,7 @@
 
 #include <cctype>
 #include <climits>
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -45,7 +46,12 @@ static const DWORD kContextMenuCloseBlockWindowMs = 2000;
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const DWORD kDebugExecuteContextTargetMaxAgeMs = 1500;
 static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
+static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
+static const DWORD kQueuedExecuteRepathIntervalMs = 600;
+static const DWORD kQueuedExecuteStateLogMinIntervalMs = 500;
 static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
+static const float kQueuedExecuteMaxDistanceMeters = 2.0f;
+static const float kQueuedExecuteFacingDotMin = 0.90f;
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
 static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
 static const bool kDebugEnableRowInsertSubstitute = false;
@@ -214,6 +220,14 @@ static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
 static bool g_hasLastCanExecuteDecision = false;
 static bool g_lastCanExecuteDecisionResult = false;
+static bool g_queuedExecuteActive = false;
+static hand g_queuedExecuteActorHandle;
+static hand g_queuedExecuteTargetHandle;
+static uintptr_t g_queuedExecuteActorPtr = 0;
+static uintptr_t g_queuedExecuteTargetPtr = 0;
+static DWORD g_queuedExecuteArmedMs = 0;
+static DWORD g_queuedExecuteLastApproachCommandMs = 0;
+static DWORD g_queuedExecuteLastStateLogMs = 0;
 static bool g_debugExecuteHotkeyWasDown = false;
 static uintptr_t g_lastDebugExecuteContextTargetPtr = 0;
 static DWORD g_lastDebugExecuteContextTargetCaptureMs = 0;
@@ -317,6 +331,13 @@ static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, Ca
 static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
 static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
+static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog);
+static bool QueueExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
+static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
+static bool QueueExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
+static void TickQueuedExecuteAction(PlayerInterface* player);
+static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
+static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor);
 static bool IsNativeExecuteMenuMutationEnabled();
 static bool IsCustomExecutePanelOverlayEnabled();
 static void DisarmNativeMenuExecuteDispatchContext();
@@ -544,6 +565,7 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
         {
             DebugLog("Loot-Scoot-Execute DEBUG: pause skipped (debounce)");
         }
+        DisarmQueuedExecuteAction("pause_debounce_disarm", false);
         DisarmPauseAfterLoad();
         return;
     }
@@ -556,6 +578,7 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
         DebugLog(info.str().c_str());
     }
 
+    DisarmQueuedExecuteAction("pause_after_load_disarm", false);
     DisarmPauseAfterLoad();
 }
 
@@ -1345,6 +1368,454 @@ static bool TryReadContextMenuVisible(PlayerInterface* player, bool* visibleOut)
     }
 }
 
+static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor)
+{
+    PlayerInterface* player = 0;
+    if (!TryResolvePlayerInterface(&player) || !player)
+    {
+        return fallbackActor;
+    }
+
+    Ogre::Vector3 targetPos;
+    if (!TryReadRootObjectPosition(target, &targetPos))
+    {
+        return fallbackActor;
+    }
+
+    Character* selectedActor = 0;
+    __try
+    {
+        selectedActor = player->getNearestSelectedCharacterTo(targetPos);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        selectedActor = 0;
+    }
+
+    if (selectedActor)
+    {
+        return selectedActor;
+    }
+
+    return fallbackActor;
+}
+
+static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
+{
+    if (verboseLog && g_queuedExecuteActive)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute INFO: queued_execute_disarmed"
+                << " reason=" << (reason ? reason : "none")
+                << " actor=0x" << std::hex << g_queuedExecuteActorPtr
+                << " target=0x" << g_queuedExecuteTargetPtr;
+        DebugLog(logline.str().c_str());
+    }
+
+    g_queuedExecuteActive = false;
+    g_queuedExecuteActorHandle.setNull();
+    g_queuedExecuteTargetHandle.setNull();
+    g_queuedExecuteActorPtr = 0;
+    g_queuedExecuteTargetPtr = 0;
+    g_queuedExecuteArmedMs = 0;
+    g_queuedExecuteLastApproachCommandMs = 0;
+    g_queuedExecuteLastStateLogMs = 0;
+}
+
+static bool TryResolveQueuedExecuteParticipants(
+    Character** actorOut,
+    RootObject** targetOut,
+    const char** reasonOut)
+{
+    if (!actorOut || !targetOut)
+    {
+        return false;
+    }
+
+    *actorOut = 0;
+    *targetOut = 0;
+    if (reasonOut)
+    {
+        *reasonOut = "none";
+    }
+
+    if (!g_queuedExecuteActive)
+    {
+        if (reasonOut)
+        {
+            *reasonOut = "queue_inactive";
+        }
+        return false;
+    }
+
+    Character* actor = 0;
+    RootObject* target = 0;
+    __try
+    {
+        if (g_queuedExecuteActorHandle.isValid())
+        {
+            actor = g_queuedExecuteActorHandle.getCharacter();
+        }
+        if (g_queuedExecuteTargetHandle.isValid())
+        {
+            target = g_queuedExecuteTargetHandle.getRootObject();
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (reasonOut)
+        {
+            *reasonOut = "queue_handle_exception";
+        }
+        return false;
+    }
+
+    if (!actor)
+    {
+        if (reasonOut)
+        {
+            *reasonOut = "queue_actor_missing";
+        }
+        return false;
+    }
+
+    if (!target)
+    {
+        if (reasonOut)
+        {
+            *reasonOut = "queue_target_missing";
+        }
+        return false;
+    }
+
+    *actorOut = actor;
+    *targetOut = target;
+    return true;
+}
+
+static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut)
+{
+    if (!object || !positionOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *positionOut = object->getPosition();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static float ComputeSquaredDistanceXZ(const Ogre::Vector3& a, const Ogre::Vector3& b)
+{
+    const float dx = a.x - b.x;
+    const float dz = a.z - b.z;
+    return (dx * dx) + (dz * dz);
+}
+
+static bool ComputeFacingDotToTarget(Character* actor, RootObject* target, float* dotOut)
+{
+    if (!actor || !target || !dotOut)
+    {
+        return false;
+    }
+
+    Ogre::Vector3 actorPos;
+    Ogre::Vector3 targetPos;
+    if (!TryReadRootObjectPosition(actor, &actorPos)
+        || !TryReadRootObjectPosition(target, &targetPos))
+    {
+        return false;
+    }
+
+    Ogre::Vector3 toTarget = targetPos - actorPos;
+    toTarget.y = 0.0f;
+    const float toTargetLenSq = toTarget.squaredLength();
+    if (toTargetLenSq <= 1.0e-6f)
+    {
+        *dotOut = 1.0f;
+        return true;
+    }
+
+    Ogre::Vector3 facingDir(0.0f, 0.0f, 0.0f);
+    __try
+    {
+        facingDir = actor->getMovementDirection();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    facingDir.y = 0.0f;
+    const float facingLenSq = facingDir.squaredLength();
+    if (facingLenSq <= 1.0e-6f)
+    {
+        *dotOut = -1.0f;
+        return true;
+    }
+
+    const float invToTarget = 1.0f / std::sqrt(toTargetLenSq);
+    const float invFacing = 1.0f / std::sqrt(facingLenSq);
+    toTarget *= invToTarget;
+    facingDir *= invFacing;
+    *dotOut = facingDir.dotProduct(toTarget);
+    return true;
+}
+
+static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
+{
+    if (!actor || !target)
+    {
+        return false;
+    }
+
+    Ogre::Vector3 targetPos;
+    if (!TryReadRootObjectPosition(target, &targetPos))
+    {
+        return false;
+    }
+
+    bool moveIssued = false;
+    __try
+    {
+        actor->setDestination(targetPos, false);
+        actor->lookatPosition(targetPos, true);
+        moveIssued = true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        moveIssued = false;
+    }
+    return moveIssued;
+}
+
+static bool TryAssignQueuedExecuteHandles(Character* actor, RootObject* target)
+{
+    if (!actor || !target)
+    {
+        return false;
+    }
+
+    __try
+    {
+        g_queuedExecuteActorHandle = actor;
+        g_queuedExecuteTargetHandle = target;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* target, bool targetIsCharacter)
+{
+    (void)actor;
+    (void)target;
+    (void)targetIsCharacter;
+    return kQueuedExecuteMaxDistanceMeters;
+}
+
+static bool QueueExecuteTarget(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    bool verboseLog)
+{
+    if (!g_effectiveEnableExecuteAction)
+    {
+        return false;
+    }
+
+    if (!target)
+    {
+        return false;
+    }
+
+    if (!actor)
+    {
+        actor = ResolveExecuteActorForPredicate();
+    }
+    actor = ResolvePreferredExecuteActorForQueue(target, actor);
+    if (!actor)
+    {
+        return false;
+    }
+
+    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    const bool canQueue = [&]() -> bool
+    {
+        switch (entryPoint)
+        {
+        case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
+            return CanExecuteFromDebugTrigger(actor, target, &diagnostics, verboseLog);
+        case ExecutePredicateEntryPoint_NATIVE_MENU:
+            return CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, verboseLog);
+        case ExecutePredicateEntryPoint_FALLBACK_POPUP:
+            return CanExecuteFromFallbackPopup(actor, target, &diagnostics, verboseLog);
+        default:
+            return false;
+        }
+    }();
+    if (!canQueue)
+    {
+        return false;
+    }
+
+    if (!TryAssignQueuedExecuteHandles(actor, target))
+    {
+        return false;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    g_queuedExecuteActive = true;
+    g_queuedExecuteActorPtr = reinterpret_cast<uintptr_t>(actor);
+    g_queuedExecuteTargetPtr = reinterpret_cast<uintptr_t>(target);
+    g_queuedExecuteArmedMs = nowMs;
+    g_queuedExecuteLastApproachCommandMs = 0;
+    g_queuedExecuteLastStateLogMs = 0;
+
+    if (TryIssueQueuedExecuteApproach(actor, target))
+    {
+        g_queuedExecuteLastApproachCommandMs = nowMs;
+    }
+
+    if (verboseLog)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute INFO: queued_execute_armed"
+                << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+                << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+                << " target=0x" << reinterpret_cast<uintptr_t>(target)
+                << " can_execute=true";
+        DebugLog(logline.str().c_str());
+    }
+
+    return true;
+}
+
+static bool QueueExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog)
+{
+    return QueueExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, verboseLog);
+}
+
+static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
+{
+    return QueueExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
+}
+
+static bool QueueExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog)
+{
+    return QueueExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, verboseLog);
+}
+
+static void TickQueuedExecuteAction(PlayerInterface* player)
+{
+    if (!player || !g_queuedExecuteActive)
+    {
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (g_queuedExecuteArmedMs != 0
+        && DebounceWindowElapsed(nowMs, g_queuedExecuteArmedMs, kQueuedExecuteMaxLifetimeMs))
+    {
+        DisarmQueuedExecuteAction("queue_timeout", true);
+        return;
+    }
+
+    Character* actor = 0;
+    RootObject* target = 0;
+    const char* resolveReason = "none";
+    if (!TryResolveQueuedExecuteParticipants(&actor, &target, &resolveReason))
+    {
+        DisarmQueuedExecuteAction(resolveReason, true);
+        return;
+    }
+
+    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    if (!CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false))
+    {
+        DisarmQueuedExecuteAction("target_not_executable", true);
+        return;
+    }
+
+    Ogre::Vector3 actorPos;
+    Ogre::Vector3 targetPos;
+    if (!TryReadRootObjectPosition(actor, &actorPos)
+        || !TryReadRootObjectPosition(target, &targetPos))
+    {
+        DisarmQueuedExecuteAction("position_read_failed", true);
+        return;
+    }
+
+    const float executeDistance = ComputeQueuedExecuteDistanceMeters(actor, target, diagnostics.targetIsCharacter);
+
+    const float distanceSq = ComputeSquaredDistanceXZ(actorPos, targetPos);
+    const float maxDistanceSq = executeDistance * executeDistance;
+    const bool inRange = distanceSq <= maxDistanceSq;
+
+    float facingDot = -1.0f;
+    const bool facingResolved = ComputeFacingDotToTarget(actor, target, &facingDot);
+    const bool facingTarget = facingResolved && facingDot >= kQueuedExecuteFacingDotMin;
+
+    if (!inRange || !facingTarget)
+    {
+        const bool shouldIssueApproach = g_queuedExecuteLastApproachCommandMs == 0
+            || DebounceWindowElapsed(nowMs, g_queuedExecuteLastApproachCommandMs, kQueuedExecuteRepathIntervalMs);
+        if (shouldIssueApproach && TryIssueQueuedExecuteApproach(actor, target))
+        {
+            g_queuedExecuteLastApproachCommandMs = nowMs;
+        }
+
+        if (g_config.debugContextMenu
+            && (g_queuedExecuteLastStateLogMs == 0
+                || DebounceWindowElapsed(nowMs, g_queuedExecuteLastStateLogMs, kQueuedExecuteStateLogMinIntervalMs)))
+        {
+            std::stringstream logline;
+            logline << "Loot-Scoot-Execute DEBUG: queued_execute_waiting"
+                    << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+                    << " target=0x" << reinterpret_cast<uintptr_t>(target)
+                    << " in_range=" << (inRange ? "true" : "false")
+                    << " facing_target=" << (facingTarget ? "true" : "false")
+                    << " distance_sq=" << std::dec << distanceSq
+                    << " max_distance_sq=" << maxDistanceSq
+                    << " facing_dot=" << facingDot;
+            DebugLog(logline.str().c_str());
+            g_queuedExecuteLastStateLogMs = nowMs;
+        }
+        return;
+    }
+
+    if (g_config.debugContextMenu)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: queued_execute_ready"
+                << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+                << " target=0x" << reinterpret_cast<uintptr_t>(target)
+                << " distance_sq=" << std::dec << distanceSq
+                << " max_distance_sq=" << maxDistanceSq
+                << " facing_dot=" << facingDot;
+        DebugLog(logline.str().c_str());
+    }
+
+    const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
+    if (dispatched)
+    {
+        DisarmQueuedExecuteAction("queue_completed", true);
+    }
+    else
+    {
+        DisarmQueuedExecuteAction("dispatch_failed", true);
+    }
+}
+
 static bool DispatchExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
     Character* actor,
@@ -1591,7 +2062,7 @@ static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
     {
         LogDebugExecuteTargetSourceFromContextMenu(reinterpret_cast<uintptr_t>(target));
     }
-    (void)DispatchExecuteFromDebugTrigger(actor, target, true);
+    (void)QueueExecuteFromDebugTrigger(actor, target, true);
 }
 
 static bool IsNativeExecuteMenuMutationEnabled()
@@ -1657,12 +2128,12 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
 
     RootObject* target = reinterpret_cast<RootObject*>(targetPtr);
     Character* actor = ResolveExecuteActorForPredicate();
-    const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
+    const bool queued = QueueExecuteFromNativeMenuSelection(actor, target, true);
 
     std::stringstream logline;
     logline << "Loot-Scoot-Execute INFO: custom_execute_panel_dispatch"
             << " source=" << (sourceTag ? sourceTag : "unknown")
-            << " dispatched=" << (dispatched ? "true" : "false")
+            << " queued=" << (queued ? "true" : "false")
             << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
             << " target=0x" << targetPtr;
     DebugLog(logline.str().c_str());
@@ -1670,7 +2141,7 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
     HideCustomExecutePanelOverlay();
     DisarmNativeMenuExecuteDispatchContext();
     DisarmNativeMenuOrderRemapContext();
-    return dispatched;
+    return queued;
 }
 
 static void OnCustomExecutePanelButtonPressed(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)

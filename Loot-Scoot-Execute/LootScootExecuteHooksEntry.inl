@@ -5865,11 +5865,11 @@ static void PlayerInterface_addOrderSelectedCharacters_hook(
     if (shouldIntercept)
     {
         Character* actor = ResolveExecuteActorForNativeMenuDispatch(thisptr);
-        const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, dispatchSubject, true);
+        const bool queued = QueueExecuteFromNativeMenuSelection(actor, dispatchSubject, true);
         std::stringstream logline;
         logline << "Loot-Scoot-Execute DEBUG: native_execute_menu_select"
                 << " intercepted=true"
-                << " dispatched=" << (dispatched ? "true" : "false")
+                << " queued=" << (queued ? "true" : "false")
                 << " task=" << taskValue
                 << " effective_task=" << effectiveTaskValue
                 << " rewrite_lift_to_execute=" << (rewriteLiftToExecuteProxy ? "true" : "false")
@@ -5906,6 +5906,7 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     PlayerInterface_updateUT_orig(thisptr);
     ObserveContextMenuInUpdateUT(thisptr);
     TickDebugExecuteHotkey(thisptr);
+    TickQueuedExecuteAction(thisptr);
     TickPauseOnLoad();
 }
 
