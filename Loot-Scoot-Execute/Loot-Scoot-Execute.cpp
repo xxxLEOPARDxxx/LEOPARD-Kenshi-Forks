@@ -11,10 +11,18 @@
 #include <kenshi/RootObject.h>
 #include <kenshi/SaveManager.h>
 
+#include <mygui/MyGUI_Button.h>
+#include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_InputManager.h>
+#include <mygui/MyGUI_MouseButton.h>
+#include <mygui/MyGUI_TextBox.h>
+#include <mygui/MyGUI_Widget.h>
+
 #include <Windows.h>
 #include <intrin.h>
 
 #include <cctype>
+#include <climits>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -44,6 +52,18 @@ static const bool kDebugEnableRowInsertSubstitute = false;
 static const bool kDebugEnableShowContextMenuOrderMutationFallback = false;
 static const bool kEnableBuildRowsPreloopInjection = false;
 static const bool kEnableRowInsertLateInjection = false;
+static const bool kEnableCustomExecutePanelOverlay = true;
+static const int kCustomExecutePanelMinWidth = 280;
+static const int kCustomExecutePanelMinRowHeight = 24;
+static const int kCustomExecutePanelVerticalGap = 1;
+static const int kCustomExecutePanelExtraWidth = 30;
+static const int kCustomExecutePanelExtraHeight = 8;
+static const int kCustomExecutePanelHorizontalOffset = 5;
+static const int kCustomExecutePanelBottomExtraYOffset = 6;
+static const int kCustomExecutePanelAdditionalYOffset = 5;
+static const int kCustomExecutePanelFallbackExtraYOffset = 6;
+static const std::string kContextMenuOptionsListWidgetName = "OptionsList";
+static const std::string kContextMenuNameTextWidgetName = "NameText";
 static bool g_enableShowContextMenuPreInjection = false;
 static bool g_forceMenuPersistence = false;
 static bool g_enableBlockCloseForDebug = false;
@@ -178,6 +198,18 @@ struct ContextMenuMappingEntry
 };
 
 static std::vector<ContextMenuMappingEntry> g_contextMenuMappingTable;
+static MyGUI::Widget* g_customExecutePanelRoot = 0;
+static MyGUI::Button* g_customExecutePanelButton = 0;
+static MyGUI::TextBox* g_customExecutePanelValue = 0;
+static bool g_customExecutePanelVisible = false;
+static bool g_customExecutePanelArmed = false;
+static bool g_customExecutePanelRightMouseWasDown = false;
+static uintptr_t g_customExecutePanelTargetPtr = 0;
+static uintptr_t g_customExecutePanelMenuPtr = 0;
+static uint32_t g_customExecutePanelOrdersCount = 0;
+static uint64_t g_customExecutePanelShowSeq = 0;
+static DWORD g_customExecutePanelArmMs = 0;
+static int g_customExecutePanelAnchorSource = 0;
 static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
 static bool g_hasLastCanExecuteDecision = false;
@@ -285,6 +317,18 @@ static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, Ca
 static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
 static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
+static bool IsNativeExecuteMenuMutationEnabled();
+static bool IsCustomExecutePanelOverlayEnabled();
+static void DisarmNativeMenuExecuteDispatchContext();
+static void DisarmNativeMenuOrderRemapContext();
+static void HideCustomExecutePanelOverlay();
+static void ArmCustomExecutePanelOverlay(
+    ContextMenu* menu,
+    RootObject* target,
+    uint32_t ordersCount,
+    uint64_t showSeq,
+    DWORD nowMs);
+static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs);
 static void TickDebugExecuteHotkey(PlayerInterface* thisptr);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
@@ -1548,6 +1592,685 @@ static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
         LogDebugExecuteTargetSourceFromContextMenu(reinterpret_cast<uintptr_t>(target));
     }
     (void)DispatchExecuteFromDebugTrigger(actor, target, true);
+}
+
+static bool IsNativeExecuteMenuMutationEnabled()
+{
+    return g_effectiveEnableContextMenuInjection
+        && g_effectiveEnableExecuteAction
+        && !kEnableCustomExecutePanelOverlay;
+}
+
+static bool IsCustomExecutePanelOverlayEnabled()
+{
+    return kEnableCustomExecutePanelOverlay
+        && g_effectiveEnableContextMenuInjection
+        && g_effectiveEnableExecuteAction;
+}
+
+static bool IsCustomExecutePanelButtonHovered()
+{
+    if (!g_customExecutePanelButton || !g_customExecutePanelVisible)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (!input)
+    {
+        return false;
+    }
+
+    MyGUI::IntCoord buttonRect(0, 0, 0, 0);
+    __try
+    {
+        if (!g_customExecutePanelButton->getInheritedVisible())
+        {
+            return false;
+        }
+        buttonRect = g_customExecutePanelButton->getAbsoluteCoord();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    const MyGUI::IntPoint mousePos = input->getMousePosition();
+    return mousePos.left >= buttonRect.left
+        && mousePos.left < (buttonRect.left + buttonRect.width)
+        && mousePos.top >= buttonRect.top
+        && mousePos.top < (buttonRect.top + buttonRect.height);
+}
+
+static bool DispatchCustomExecutePanelAction(const char* sourceTag)
+{
+    if (!IsCustomExecutePanelOverlayEnabled())
+    {
+        return false;
+    }
+
+    uintptr_t targetPtr = g_customExecutePanelTargetPtr;
+    if (targetPtr == 0 && g_nativeMenuExecuteDispatchTargetPtr != 0)
+    {
+        targetPtr = g_nativeMenuExecuteDispatchTargetPtr;
+    }
+
+    RootObject* target = reinterpret_cast<RootObject*>(targetPtr);
+    Character* actor = ResolveExecuteActorForPredicate();
+    const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
+
+    std::stringstream logline;
+    logline << "Loot-Scoot-Execute INFO: custom_execute_panel_dispatch"
+            << " source=" << (sourceTag ? sourceTag : "unknown")
+            << " dispatched=" << (dispatched ? "true" : "false")
+            << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+            << " target=0x" << targetPtr;
+    DebugLog(logline.str().c_str());
+
+    HideCustomExecutePanelOverlay();
+    DisarmNativeMenuExecuteDispatchContext();
+    DisarmNativeMenuOrderRemapContext();
+    return dispatched;
+}
+
+static void OnCustomExecutePanelButtonPressed(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
+{
+    (void)sender;
+    (void)left;
+    (void)top;
+
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    (void)DispatchCustomExecutePanelAction("mouse_pressed");
+}
+
+static void OnCustomExecutePanelButtonClick(MyGUI::Widget* sender)
+{
+    (void)sender;
+    (void)DispatchCustomExecutePanelAction("mouse_click");
+}
+
+static void DestroyCustomExecutePanelOverlayWidgets()
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui && g_customExecutePanelRoot)
+    {
+        gui->destroyWidget(g_customExecutePanelRoot);
+    }
+
+    g_customExecutePanelRoot = 0;
+    g_customExecutePanelButton = 0;
+    g_customExecutePanelValue = 0;
+}
+
+static bool EnsureCustomExecutePanelOverlayWidgets()
+{
+    if (g_customExecutePanelRoot && g_customExecutePanelButton)
+    {
+        return true;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (!gui)
+    {
+        return false;
+    }
+
+    DestroyCustomExecutePanelOverlayWidgets();
+
+    try
+    {
+        g_customExecutePanelRoot = gui->createWidget<MyGUI::Widget>(
+            "PanelEmpty",
+            MyGUI::IntCoord(0, 0, kCustomExecutePanelMinWidth, kCustomExecutePanelMinRowHeight),
+            MyGUI::Align::Default,
+            "Popup",
+            "LSE_CustomExecuteOverlayRoot");
+        if (!g_customExecutePanelRoot)
+        {
+            return false;
+        }
+
+        g_customExecutePanelRoot->setNeedMouseFocus(true);
+        g_customExecutePanelRoot->setInheritsPick(true);
+
+        g_customExecutePanelButton = g_customExecutePanelRoot->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(
+                2,
+                1,
+                kCustomExecutePanelMinWidth - 4,
+                kCustomExecutePanelMinRowHeight - 2),
+            MyGUI::Align::Default,
+            "LSE_CustomExecuteOverlayButton");
+        if (!g_customExecutePanelButton)
+        {
+            g_customExecutePanelButton = g_customExecutePanelRoot->createWidget<MyGUI::Button>(
+                "Button",
+                MyGUI::IntCoord(
+                    2,
+                    1,
+                    kCustomExecutePanelMinWidth - 4,
+                    kCustomExecutePanelMinRowHeight - 2),
+                MyGUI::Align::Default,
+                "LSE_CustomExecuteOverlayButtonFallback");
+        }
+        if (!g_customExecutePanelButton)
+        {
+            DestroyCustomExecutePanelOverlayWidgets();
+            return false;
+        }
+
+        g_customExecutePanelButton->setCaption("Execute");
+        g_customExecutePanelButton->setNeedMouseFocus(true);
+        g_customExecutePanelButton->setNeedKeyFocus(true);
+        g_customExecutePanelButton->setEnabled(true);
+        g_customExecutePanelButton->eventMouseButtonPressed += MyGUI::newDelegate(&OnCustomExecutePanelButtonPressed);
+        g_customExecutePanelButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCustomExecutePanelButtonClick);
+        g_customExecutePanelValue = 0;
+
+        g_customExecutePanelRoot->setVisible(false);
+        return true;
+    }
+    catch (...)
+    {
+        DestroyCustomExecutePanelOverlayWidgets();
+        return false;
+    }
+}
+
+static bool TryResolveAnchorFromContextMenuRootWidget(
+    MyGUI::Widget* root,
+    MyGUI::IntCoord* anchorOut)
+{
+    if (!root || !anchorOut)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* options = 0;
+    MyGUI::Widget* nameText = 0;
+    MyGUI::IntCoord optionsRect;
+    MyGUI::IntCoord rootRect;
+    __try
+    {
+        if (!root->getInheritedVisible())
+        {
+            return false;
+        }
+
+        options = root->findWidget(kContextMenuOptionsListWidgetName);
+        nameText = root->findWidget(kContextMenuNameTextWidgetName);
+        if (!options || !nameText)
+        {
+            return false;
+        }
+
+        optionsRect = options->getAbsoluteCoord();
+        rootRect = root->getAbsoluteCoord();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    const int left = rootRect.left;
+    const int top = optionsRect.top;
+    const int right = rootRect.left + rootRect.width;
+    const int bottom = optionsRect.top + optionsRect.height;
+    const int width = right - left;
+    const int height = bottom - top;
+    if (width <= 0 || height <= 0)
+    {
+        return false;
+    }
+
+    *anchorOut = MyGUI::IntCoord(left, top, width, height);
+    return true;
+}
+
+static bool TryReadUintptrAtOffset(const void* base, size_t offset, uintptr_t* valueOut)
+{
+    if (!base || !valueOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const uintptr_t basePtr = reinterpret_cast<uintptr_t>(base);
+        *valueOut = *reinterpret_cast<const uintptr_t*>(basePtr + offset);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryResolveAnchorFromContextMenuGuiObject(
+    ContextMenu* menu,
+    MyGUI::IntCoord* anchorOut)
+{
+    if (!menu || !anchorOut)
+    {
+        return false;
+    }
+
+    uintptr_t guiPtrs[2] = {
+        reinterpret_cast<uintptr_t>(menu->menuGUI),
+        reinterpret_cast<uintptr_t>(menu->menuGUI2)
+    };
+
+    for (size_t i = 0; i < 2; ++i)
+    {
+        const uintptr_t guiPtr = guiPtrs[i];
+        if (guiPtr == 0)
+        {
+            continue;
+        }
+
+        for (size_t offset = 0; offset <= 0x180; offset += sizeof(uintptr_t))
+        {
+            uintptr_t candidatePtr = 0;
+            if (!TryReadUintptrAtOffset(reinterpret_cast<const void*>(guiPtr), offset, &candidatePtr)
+                || candidatePtr == 0)
+            {
+                continue;
+            }
+
+            if (TryResolveAnchorFromContextMenuRootWidget(
+                reinterpret_cast<MyGUI::Widget*>(candidatePtr),
+                anchorOut))
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+static bool TryResolveCustomExecutePanelAnchorRect(ContextMenu* menu, MyGUI::IntCoord* anchorOut)
+{
+    if (!anchorOut)
+    {
+        return false;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    bool mouseKnown = false;
+    MyGUI::IntPoint mousePoint(0, 0);
+    if (input)
+    {
+        mousePoint = input->getMousePosition();
+        mouseKnown = true;
+    }
+
+    if (gui)
+    {
+        bool bestFound = false;
+        bool bestContainsMouse = false;
+        int bestDistanceScore = INT_MAX;
+        int bestAreaScore = INT_MAX;
+        MyGUI::IntCoord bestRect(0, 0, 0, 0);
+
+        MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+        while (roots.next())
+        {
+            MyGUI::Widget* root = roots.current();
+            if (!root)
+            {
+                continue;
+            }
+
+            MyGUI::IntCoord rootAnchor;
+            if (!TryResolveAnchorFromContextMenuRootWidget(root, &rootAnchor))
+            {
+                continue;
+            }
+            const int left = rootAnchor.left;
+            const int top = rootAnchor.top;
+            const int right = rootAnchor.left + rootAnchor.width;
+            const int bottom = rootAnchor.top + rootAnchor.height;
+            const int width = rootAnchor.width;
+            const int height = rootAnchor.height;
+
+            bool containsMouse = false;
+            int distanceScore = INT_MAX;
+            if (mouseKnown)
+            {
+                const bool inX = mousePoint.left >= left && mousePoint.left < right;
+                const bool inY = mousePoint.top >= top && mousePoint.top < bottom;
+                containsMouse = inX && inY;
+
+                int dx = 0;
+                if (mousePoint.left < left)
+                {
+                    dx = left - mousePoint.left;
+                }
+                else if (mousePoint.left >= right)
+                {
+                    dx = mousePoint.left - right + 1;
+                }
+
+                int dy = 0;
+                if (mousePoint.top < top)
+                {
+                    dy = top - mousePoint.top;
+                }
+                else if (mousePoint.top >= bottom)
+                {
+                    dy = mousePoint.top - bottom + 1;
+                }
+
+                distanceScore = dx + dy;
+            }
+
+            const int areaScore = width * height;
+            const bool betterContains = !bestFound || (containsMouse && !bestContainsMouse);
+            const bool sameContainment = bestFound && (containsMouse == bestContainsMouse);
+            const bool betterDistance = sameContainment && distanceScore < bestDistanceScore;
+            const bool sameDistance = sameContainment && distanceScore == bestDistanceScore;
+            const bool betterArea = sameContainment && (betterDistance || (sameDistance && areaScore < bestAreaScore));
+
+            if (betterContains || betterArea)
+            {
+                bestFound = true;
+                bestContainsMouse = containsMouse;
+                bestDistanceScore = distanceScore;
+                bestAreaScore = areaScore;
+                bestRect = MyGUI::IntCoord(left, top, width, height);
+            }
+        }
+
+        if (bestFound)
+        {
+            *anchorOut = bestRect;
+            g_customExecutePanelAnchorSource = 1;
+            return true;
+        }
+    }
+
+    if (TryResolveAnchorFromContextMenuGuiObject(menu, anchorOut))
+    {
+        g_customExecutePanelAnchorSource = 2;
+        return true;
+    }
+
+    if (menu)
+    {
+        if (!menu->isVisible())
+        {
+            return false;
+        }
+    }
+
+    if (input)
+    {
+        int ordersGuess = static_cast<int>(g_customExecutePanelOrdersCount);
+        if (ordersGuess < 3)
+        {
+            ordersGuess = 3;
+        }
+        int estimatedMenuHeight = ((ordersGuess + 1) * 34) + 8;
+        if (estimatedMenuHeight < 120)
+        {
+            estimatedMenuHeight = 120;
+        }
+        if (estimatedMenuHeight > 260)
+        {
+            estimatedMenuHeight = 260;
+        }
+
+        *anchorOut = MyGUI::IntCoord(
+            mousePoint.left,
+            mousePoint.top,
+            kCustomExecutePanelMinWidth,
+            estimatedMenuHeight);
+        g_customExecutePanelAnchorSource = 3;
+        return true;
+    }
+
+    g_customExecutePanelAnchorSource = 0;
+    return false;
+}
+
+static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
+{
+    if (!g_customExecutePanelRoot || !g_customExecutePanelButton)
+    {
+        return;
+    }
+
+    MyGUI::IntCoord anchor;
+    if (!TryResolveCustomExecutePanelAnchorRect(menu, &anchor))
+    {
+        return;
+    }
+
+    int ordersCount = static_cast<int>(g_customExecutePanelOrdersCount);
+    if (ordersCount <= 0)
+    {
+        ordersCount = 3;
+    }
+
+    int rowHeight = kCustomExecutePanelMinRowHeight;
+    if (anchor.height > 0 && ordersCount > 0)
+    {
+        const int candidateHeight = anchor.height / ordersCount;
+        if (candidateHeight > rowHeight)
+        {
+            rowHeight = candidateHeight;
+        }
+    }
+    if (rowHeight < 30)
+    {
+        rowHeight = 30;
+    }
+    if (rowHeight > 48)
+    {
+        rowHeight = 48;
+    }
+    rowHeight += kCustomExecutePanelExtraHeight;
+    if (rowHeight > 60)
+    {
+        rowHeight = 60;
+    }
+
+    int width = anchor.width + kCustomExecutePanelExtraWidth;
+    if (width < kCustomExecutePanelMinWidth)
+    {
+        width = kCustomExecutePanelMinWidth;
+    }
+
+    int panelTop = anchor.top + anchor.height + rowHeight + kCustomExecutePanelVerticalGap;
+    if (g_customExecutePanelAnchorSource == 3)
+    {
+        panelTop += kCustomExecutePanelFallbackExtraYOffset;
+    }
+    else
+    {
+        panelTop += kCustomExecutePanelBottomExtraYOffset;
+    }
+    panelTop += kCustomExecutePanelAdditionalYOffset;
+
+    g_customExecutePanelRoot->setCoord(
+        anchor.left + kCustomExecutePanelHorizontalOffset,
+        panelTop,
+        width,
+        rowHeight);
+
+    if (g_config.debugContextMenu)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: custom_execute_panel_layout"
+                << " anchor_source=" << std::dec << g_customExecutePanelAnchorSource
+                << " anchor_left=" << std::dec << anchor.left
+                << " anchor_top=" << anchor.top
+                << " anchor_width=" << anchor.width
+                << " anchor_height=" << anchor.height
+                << " panel_left=" << g_customExecutePanelRoot->getLeft()
+                << " panel_top=" << g_customExecutePanelRoot->getTop()
+                << " panel_width=" << g_customExecutePanelRoot->getWidth()
+                << " panel_height=" << g_customExecutePanelRoot->getHeight()
+                << " horizontal_offset=" << kCustomExecutePanelHorizontalOffset
+                << " bottom_extra_y=" << kCustomExecutePanelBottomExtraYOffset
+                << " additional_y=" << kCustomExecutePanelAdditionalYOffset
+                << " fallback_extra_y=" << kCustomExecutePanelFallbackExtraYOffset;
+        DebugLog(logline.str().c_str());
+    }
+
+    int buttonLeft = width / 48;           // 2.0833%
+    if (buttonLeft < 2)
+    {
+        buttonLeft = 2;
+    }
+
+    int innerTop = rowHeight / 20;         // ~5%
+    if (innerTop < 1)
+    {
+        innerTop = 1;
+    }
+    int innerHeight = rowHeight - (innerTop * 2);
+    if (innerHeight < 1)
+    {
+        innerTop = 0;
+        innerHeight = rowHeight;
+    }
+
+    int buttonWidth = width - (buttonLeft * 2);
+    if (buttonWidth < 20)
+    {
+        buttonWidth = 20;
+    }
+
+    g_customExecutePanelButton->setCoord(buttonLeft, innerTop, buttonWidth, innerHeight);
+    if (g_customExecutePanelValue)
+    {
+        g_customExecutePanelValue->setVisible(false);
+    }
+}
+
+static void HideCustomExecutePanelOverlay()
+{
+    if (g_customExecutePanelRoot)
+    {
+        g_customExecutePanelRoot->setVisible(false);
+    }
+
+    g_customExecutePanelVisible = false;
+    g_customExecutePanelArmed = false;
+    g_customExecutePanelRightMouseWasDown = false;
+    g_customExecutePanelTargetPtr = 0;
+    g_customExecutePanelMenuPtr = 0;
+    g_customExecutePanelOrdersCount = 0;
+    g_customExecutePanelShowSeq = 0;
+    g_customExecutePanelArmMs = 0;
+    g_customExecutePanelAnchorSource = 0;
+}
+
+static void ArmCustomExecutePanelOverlay(
+    ContextMenu* menu,
+    RootObject* target,
+    uint32_t ordersCount,
+    uint64_t showSeq,
+    DWORD nowMs)
+{
+    if (!IsCustomExecutePanelOverlayEnabled() || !menu || !target)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    if (!EnsureCustomExecutePanelOverlayWidgets())
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    g_customExecutePanelArmed = true;
+    g_customExecutePanelTargetPtr = reinterpret_cast<uintptr_t>(target);
+    g_customExecutePanelMenuPtr = reinterpret_cast<uintptr_t>(menu);
+    g_customExecutePanelOrdersCount = ordersCount;
+    g_customExecutePanelShowSeq = showSeq;
+    g_customExecutePanelArmMs = nowMs;
+    g_customExecutePanelRightMouseWasDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+
+    LayoutCustomExecutePanelOverlay(menu);
+    g_customExecutePanelRoot->setVisible(true);
+    g_customExecutePanelVisible = true;
+
+    if (g_config.debugContextMenu)
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute INFO: custom_execute_panel_armed"
+                << " show_seq=" << std::dec << showSeq
+                << " menu=0x" << std::hex << reinterpret_cast<uintptr_t>(menu)
+                << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(target)
+                << " orders_count=" << std::dec << ordersCount;
+        DebugLog(logline.str().c_str());
+    }
+}
+
+static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
+{
+    (void)nowMs;
+    if (!IsCustomExecutePanelOverlayEnabled() || !menu)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    if (!g_customExecutePanelArmed
+        || g_customExecutePanelTargetPtr == 0
+        || g_customExecutePanelMenuPtr == 0
+        || g_customExecutePanelMenuPtr != reinterpret_cast<uintptr_t>(menu))
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    bool menuVisible = false;
+    menuVisible = menu->isVisible();
+    if (!menuVisible)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    RootObject* target = reinterpret_cast<RootObject*>(g_customExecutePanelTargetPtr);
+    Character* actor = ResolveExecuteActorForPredicate();
+    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    const bool canExecute = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
+    if (!canExecute)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    if (!EnsureCustomExecutePanelOverlayWidgets())
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
+    LayoutCustomExecutePanelOverlay(menu);
+    g_customExecutePanelRoot->setVisible(true);
+    g_customExecutePanelVisible = true;
+
+    const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+    const bool rightReleasedThisFrame = g_customExecutePanelRightMouseWasDown && !rightDown;
+    g_customExecutePanelRightMouseWasDown = rightDown;
+    if (rightReleasedThisFrame && IsCustomExecutePanelButtonHovered())
+    {
+        (void)DispatchCustomExecutePanelAction("right_release_hover");
+        return;
+    }
 }
 
 #include "LootScootExecuteHooksEntry.inl"

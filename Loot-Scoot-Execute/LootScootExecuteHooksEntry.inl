@@ -3717,7 +3717,7 @@ static void* ContextMenu_rowInsertCall_hook(
     const bool latchFresh = g_menuLatchActive
         && g_menuLatchTimestampMs != 0
         && !DebounceWindowElapsed(nowMs, g_menuLatchTimestampMs, 500);
-    const bool rowInsertReadonly = !latchFresh;
+    const bool rowInsertReadonly = !IsNativeExecuteMenuMutationEnabled() || !latchFresh;
     const bool rowInsertMutationEnabled = !rowInsertReadonly;
 
     if (g_config.debugContextMenu)
@@ -4090,6 +4090,18 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     }
 
     const DWORD showHookNowMs = GetTickCount();
+    if (!on
+        && IsCustomExecutePanelOverlayEnabled()
+        && g_customExecutePanelVisible
+        && IsCustomExecutePanelButtonHovered())
+    {
+        const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+        if (!rightDown)
+        {
+            (void)DispatchCustomExecutePanelAction("show_close_right_release_hover");
+        }
+    }
+
     if (!on && thisptr)
     {
         const uint64_t showSeq = g_currentShowSeq;
@@ -4119,8 +4131,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     bool showPreInjectionApplied = false;
 
     if (thisptr
-        && g_effectiveEnableContextMenuInjection
-        && g_effectiveEnableExecuteAction
+        && IsNativeExecuteMenuMutationEnabled()
         && on
         && what)
     {
@@ -4152,18 +4163,21 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         g_lastShowTargetIsEnemy = false;
         g_lastShowTargetIsIncapacitated = false;
         g_lastShowTargetIsDead = false;
+        HideCustomExecutePanelOverlay();
     }
 
     if (!thisptr)
     {
+        HideCustomExecutePanelOverlay();
         DisarmNativeMenuExecuteDispatchContext();
         DisarmNativeMenuOrderRemapContext();
         return;
     }
 
     const bool shouldProbe = g_effectiveEnableContextMenuProbe;
-    const bool shouldInject = g_effectiveEnableContextMenuInjection && g_effectiveEnableExecuteAction;
-    if (!shouldProbe && !shouldInject)
+    const bool shouldInject = IsNativeExecuteMenuMutationEnabled();
+    const bool shouldCustomPanel = IsCustomExecutePanelOverlayEnabled();
+    if (!shouldProbe && !shouldInject && !shouldCustomPanel)
     {
         if (!on)
         {
@@ -4190,6 +4204,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         {
             ErrorLog("Loot-Scoot-Execute WARN: context_menu_probe_snapshot_failed");
         }
+        HideCustomExecutePanelOverlay();
         DisarmNativeMenuExecuteDispatchContext();
         return;
     }
@@ -4246,6 +4261,15 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         g_lastShowTargetIsEnemy = canExecuteDiagnostics.targetIsEnemy;
         g_lastShowTargetIsIncapacitated = canExecuteDiagnostics.targetIsIncapacitated;
         g_lastShowTargetIsDead = canExecuteDiagnostics.targetIsDead;
+    }
+
+    if (shouldCustomPanel && on && visible && canExecuteTarget && whatPtr != 0)
+    {
+        ArmCustomExecutePanelOverlay(thisptr, what, ordersCount, g_currentShowSeq, nowMs);
+    }
+    else if (!on || !visible || !canExecuteTarget || !shouldCustomPanel)
+    {
+        HideCustomExecutePanelOverlay();
     }
 
     bool injectionAttempted = showPreInjectionAttempted;
@@ -4602,6 +4626,15 @@ static void ContextMenu_buildRows_hook(ContextMenu* thisptr, void* argRdx, void*
 
 static void ContextMenu_update_hook(ContextMenu* thisptr)
 {
+    if (thisptr)
+    {
+        TickCustomExecutePanelOverlay(thisptr, GetTickCount());
+    }
+    else
+    {
+        HideCustomExecutePanelOverlay();
+    }
+
     if (g_config.debugContextMenu && thisptr)
     {
         bool visibleForSnapshot = false;
@@ -4993,7 +5026,7 @@ static bool TryOverrideExecuteTaskProbability(
     float& probability,
     const char* sourceTag)
 {
-    if (!g_effectiveEnableContextMenuInjection || !g_effectiveEnableExecuteAction)
+    if (!IsNativeExecuteMenuMutationEnabled())
     {
         return false;
     }
@@ -5059,7 +5092,7 @@ static bool TryForceExecuteProxyProbabilityOne(
     float& probability,
     const char* sourceTag)
 {
-    if (!g_effectiveEnableContextMenuInjection || !g_effectiveEnableExecuteAction)
+    if (!IsNativeExecuteMenuMutationEnabled())
     {
         return false;
     }
@@ -5239,6 +5272,11 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_hook(
     if (PlayerInterface_contextMenuOrderFilterThunk_orig)
     {
         originalResult = PlayerInterface_contextMenuOrderFilterThunk_orig(thisptr, task);
+    }
+
+    if (!IsNativeExecuteMenuMutationEnabled())
+    {
+        return originalResult;
     }
 
     const int taskValue = static_cast<int>(task);
@@ -5462,6 +5500,11 @@ static bool PlayerInterface_getContextMenuTaskProbabilityThunk_hook(
         originalProbability = probability;
     }
 
+    if (!IsNativeExecuteMenuMutationEnabled())
+    {
+        return originalResult;
+    }
+
     const bool forcedProxyProbability = TryForceExecuteProxyProbabilityOne(
         thisptr,
         task,
@@ -5663,7 +5706,7 @@ static bool PlayerInterface_isOrderValidForSelection_hook(
         return true;
     }
 
-    if (!g_effectiveEnableContextMenuInjection || !g_effectiveEnableExecuteAction)
+    if (!IsNativeExecuteMenuMutationEnabled())
     {
         return false;
     }
@@ -5946,6 +5989,7 @@ __declspec(dllexport) void startPlugin()
     g_lastContextMenuRowSnapshotMs = 0;
     DisarmNativeMenuExecuteDispatchContext();
     DisarmNativeMenuOrderRemapContext();
+    HideCustomExecutePanelOverlay();
     EvaluateContextMenuCompatibilityGate(platform, version, baseAddr);
     RefreshEffectiveContextMenuFeatureFlags("post_compatibility_gate");
 
