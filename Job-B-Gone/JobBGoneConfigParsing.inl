@@ -603,6 +603,63 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "hide_panel_during_character_creation")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundHidePanelDuringCharacterCreation = true;
+                configOut->hidePanelDuringCharacterCreation = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidHidePanelDuringCharacterCreation = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "hide_panel_during_inventory_open")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundHidePanelDuringInventoryOpen = true;
+                configOut->hidePanelDuringInventoryOpen = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidHidePanelDuringInventoryOpen = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "hide_panel_during_character_interaction")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundHidePanelDuringCharacterInteraction = true;
+                configOut->hidePanelDuringCharacterInteraction = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidHidePanelDuringCharacterInteraction = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "job_b_gone_panel_has_custom_position")
         {
             bool parsedBool = false;
@@ -706,7 +763,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, true, false, true, false, 0, 0 };
+    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -715,6 +772,9 @@ static bool RunInternalSelfChecks()
             "\"enable_delete_all_jobs_selected_member_action\":false,"
             "\"enable_experimental_single_job_delete\":true,"
             "\"log_selected_member_job_snapshot\":false,"
+            "\"hide_panel_during_character_creation\":false,"
+            "\"hide_panel_during_inventory_open\":false,"
+            "\"hide_panel_during_character_interaction\":false,"
             "\"job_b_gone_panel_has_custom_position\":true,"
             "\"job_b_gone_panel_pos_x\":321,"
             "\"job_b_gone_panel_pos_y\":654}",
@@ -729,6 +789,9 @@ static bool RunInternalSelfChecks()
         || parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || !parsedConfig.enableExperimentalSingleJobDelete
         || parsedConfig.logSelectedMemberJobSnapshot
+        || parsedConfig.hidePanelDuringCharacterCreation
+        || parsedConfig.hidePanelDuringInventoryOpen
+        || parsedConfig.hidePanelDuringCharacterInteraction
         || !parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 321
         || parsedConfig.jobBGonePanelPosY != 654)
@@ -741,6 +804,9 @@ static bool RunInternalSelfChecks()
           "\"enable_delete_all_jobs_selected_member_action\":true,"
           "\"enable_experimental_single_job_delete\":false,"
           "\"log_selected_member_job_snapshot\":true,"
+          "\"hide_panel_during_character_creation\":true,"
+          "\"hide_panel_during_inventory_open\":true,"
+          "\"hide_panel_during_character_interaction\":true,"
           "\"job_b_gone_panel_has_custom_position\":false,"
           "\"job_b_gone_panel_pos_x\":11,"
           "\"job_b_gone_panel_pos_y\":22}";
@@ -750,6 +816,9 @@ static bool RunInternalSelfChecks()
     parsedConfig.enableDeleteAllJobsSelectedMemberAction = false;
     parsedConfig.enableExperimentalSingleJobDelete = true;
     parsedConfig.logSelectedMemberJobSnapshot = false;
+    parsedConfig.hidePanelDuringCharacterCreation = false;
+    parsedConfig.hidePanelDuringInventoryOpen = false;
+    parsedConfig.hidePanelDuringCharacterInteraction = false;
     parsedConfig.jobBGonePanelHasCustomPosition = true;
     parsedConfig.jobBGonePanelPosX = 0;
     parsedConfig.jobBGonePanelPosY = 0;
@@ -764,6 +833,9 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || parsedConfig.enableExperimentalSingleJobDelete
         || !parsedConfig.logSelectedMemberJobSnapshot
+        || !parsedConfig.hidePanelDuringCharacterCreation
+        || !parsedConfig.hidePanelDuringInventoryOpen
+        || !parsedConfig.hidePanelDuringCharacterInteraction
         || parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 11
         || parsedConfig.jobBGonePanelPosY != 22)
@@ -888,6 +960,21 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: invalid/missing key \"log_selected_member_job_snapshot\"; using default");
     }
+    if (!diagnostics.foundHidePanelDuringCharacterCreation || diagnostics.invalidHidePanelDuringCharacterCreation)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"hide_panel_during_character_creation\"; using default");
+    }
+    if (!diagnostics.foundHidePanelDuringInventoryOpen || diagnostics.invalidHidePanelDuringInventoryOpen)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"hide_panel_during_inventory_open\"; using default");
+    }
+    if (!diagnostics.foundHidePanelDuringCharacterInteraction || diagnostics.invalidHidePanelDuringCharacterInteraction)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"hide_panel_during_character_interaction\"; using default");
+    }
     if (!diagnostics.foundJobBGonePanelHasCustomPosition || diagnostics.invalidJobBGonePanelHasCustomPosition)
     {
         needsWriteBack = true;
@@ -938,6 +1025,12 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
         << (config.enableExperimentalSingleJobDelete ? "true" : "false") << ",\n";
     out << "  \"log_selected_member_job_snapshot\": "
         << (config.logSelectedMemberJobSnapshot ? "true" : "false") << ",\n";
+    out << "  \"hide_panel_during_character_creation\": "
+        << (config.hidePanelDuringCharacterCreation ? "true" : "false") << ",\n";
+    out << "  \"hide_panel_during_inventory_open\": "
+        << (config.hidePanelDuringInventoryOpen ? "true" : "false") << ",\n";
+    out << "  \"hide_panel_during_character_interaction\": "
+        << (config.hidePanelDuringCharacterInteraction ? "true" : "false") << ",\n";
     out << "  \"job_b_gone_panel_has_custom_position\": "
         << (config.jobBGonePanelHasCustomPosition ? "true" : "false") << ",\n";
     out << "  \"job_b_gone_panel_pos_x\": " << config.jobBGonePanelPosX << ",\n";

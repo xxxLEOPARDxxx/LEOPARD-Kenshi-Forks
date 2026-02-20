@@ -823,6 +823,518 @@ static bool TryCollectSelectedCharactersForDisplay(std::vector<Character*>* memb
     return true;
 }
 
+enum PanelUiSuppressionReason
+{
+    PanelUiSuppressionReason_None = 0,
+    PanelUiSuppressionReason_CharacterCreation = 1 << 0,
+    PanelUiSuppressionReason_InventoryOpen = 1 << 1,
+    PanelUiSuppressionReason_CharacterInteraction = 1 << 2,
+    PanelUiSuppressionReason_MenuOpen = 1 << 3
+};
+
+static bool TryGetCharacterCreationModeActive(bool* activeOut)
+{
+    if (!activeOut || !g_lastPlayerInterface)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *activeOut = g_lastPlayerInterface->getCharacterEditMode() || g_lastPlayerInterface->characterEditorMode;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+enum EscMenuCaptionMask
+{
+    EscMenuCaptionMask_None = 0,
+    EscMenuCaptionMask_Resume = 1 << 0,
+    EscMenuCaptionMask_SaveGame = 1 << 1,
+    EscMenuCaptionMask_LoadGame = 1 << 2,
+    EscMenuCaptionMask_Options = 1 << 3,
+    EscMenuCaptionMask_Exit = 1 << 4,
+    EscMenuCaptionMask_NewGame = 1 << 5,
+    EscMenuCaptionMask_MainMenu = 1 << 6,
+    EscMenuCaptionMask_All =
+        EscMenuCaptionMask_Resume
+        | EscMenuCaptionMask_SaveGame
+        | EscMenuCaptionMask_LoadGame
+        | EscMenuCaptionMask_Options
+        | EscMenuCaptionMask_Exit
+        | EscMenuCaptionMask_NewGame
+        | EscMenuCaptionMask_MainMenu
+};
+
+static int CountSetBits32(unsigned int value)
+{
+    int count = 0;
+    while (value != 0)
+    {
+        count += (value & 1u) ? 1 : 0;
+        value >>= 1;
+    }
+    return count;
+}
+
+static unsigned int BuildEscMenuCaptionMaskFromCaption(const std::string& caption)
+{
+    if (caption.empty())
+    {
+        return EscMenuCaptionMask_None;
+    }
+
+    std::string normalized;
+    normalized.reserve(caption.size());
+    for (size_t i = 0; i < caption.size(); ++i)
+    {
+        const unsigned char ch = static_cast<unsigned char>(caption[i]);
+        if (std::isalnum(ch) == 0)
+        {
+            continue;
+        }
+        normalized.push_back(static_cast<char>(std::toupper(ch)));
+    }
+
+    if (normalized == "RESUME")
+    {
+        return EscMenuCaptionMask_Resume;
+    }
+    if (normalized == "SAVEGAME")
+    {
+        return EscMenuCaptionMask_SaveGame;
+    }
+    if (normalized == "LOADGAME")
+    {
+        return EscMenuCaptionMask_LoadGame;
+    }
+    if (normalized == "OPTIONS")
+    {
+        return EscMenuCaptionMask_Options;
+    }
+    if (normalized == "EXIT")
+    {
+        return EscMenuCaptionMask_Exit;
+    }
+    if (normalized == "NEWGAME")
+    {
+        return EscMenuCaptionMask_NewGame;
+    }
+    if (normalized == "MAINMENU")
+    {
+        return EscMenuCaptionMask_MainMenu;
+    }
+
+    return EscMenuCaptionMask_None;
+}
+
+static void AccumulateEscMenuCaptionMaskFromWidgetTree(MyGUI::Widget* widget, unsigned int* maskOut)
+{
+    if (!widget || !maskOut)
+    {
+        return;
+    }
+
+    if ((widget->getVisible() == false) || ((*maskOut & EscMenuCaptionMask_All) == EscMenuCaptionMask_All))
+    {
+        return;
+    }
+
+    MyGUI::Button* button = widget->castType<MyGUI::Button>(false);
+    if (button && button->getInheritedVisible())
+    {
+        const std::string caption = TrimAscii(button->getCaption().asUTF8());
+        *maskOut |= BuildEscMenuCaptionMaskFromCaption(caption);
+    }
+
+    const size_t childCount = widget->getChildCount();
+    for (size_t i = 0; i < childCount; ++i)
+    {
+        AccumulateEscMenuCaptionMaskFromWidgetTree(widget->getChildAt(i), maskOut);
+    }
+}
+
+static bool TryDetectEscMenuOpenState(bool* openOut)
+{
+    if (!openOut)
+    {
+        return false;
+    }
+
+    *openOut = false;
+    const DWORD nowMs = GetTickCount();
+    static DWORD s_lastScanMs = 0;
+    static bool s_hasLastScanResult = false;
+    static bool s_lastScanMenuVisible = false;
+    if (s_hasLastScanResult && s_lastScanMs != 0 && !DebounceWindowElapsed(nowMs, s_lastScanMs, 80))
+    {
+        *openOut = s_lastScanMenuVisible;
+        return true;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (!gui)
+    {
+        s_lastScanMs = nowMs;
+        s_hasLastScanResult = true;
+        s_lastScanMenuVisible = false;
+        return true;
+    }
+
+    unsigned int captionMask = EscMenuCaptionMask_None;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        AccumulateEscMenuCaptionMaskFromWidgetTree(roots.current(), &captionMask);
+        if ((captionMask & EscMenuCaptionMask_All) == EscMenuCaptionMask_All)
+        {
+            break;
+        }
+    }
+
+    // Require several canonical pause-menu captions to avoid normal gameplay false positives.
+    const bool menuVisible = CountSetBits32(captionMask) >= 3;
+    s_lastScanMs = nowMs;
+    s_hasLastScanResult = true;
+    s_lastScanMenuVisible = menuVisible;
+    *openOut = menuVisible;
+    return true;
+}
+
+static bool TryGetMenuOpenState(bool* openOut)
+{
+    if (!openOut)
+    {
+        return false;
+    }
+
+    *openOut = false;
+    __try
+    {
+        SaveManager* saveManager = SaveManager::getSingleton();
+        if (saveManager && saveManager->isVisible() != 0)
+        {
+            *openOut = true;
+            return true;
+        }
+
+        bool escMenuOpen = false;
+        TryDetectEscMenuOpenState(&escMenuOpen);
+
+        TitleScreen* titleScreen = TitleScreen::getSingleton();
+        if (titleScreen && titleScreen->isVisible())
+        {
+            *openOut = true;
+            return true;
+        }
+
+        *openOut = escMenuOpen;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryGetDialogueConversationTargetNoexcept(Character* member, Character** targetOut)
+{
+    if (!member || !targetOut)
+    {
+        return false;
+    }
+
+    *targetOut = 0;
+    __try
+    {
+        Dialogue* dialogue = member->dialogue;
+        if (!dialogue)
+        {
+            return false;
+        }
+
+        const hand conversationTargetHandle = dialogue->getConversationTarget();
+        if (!conversationTargetHandle || !conversationTargetHandle.isValid())
+        {
+            return false;
+        }
+
+        Character* target = conversationTargetHandle.getCharacter();
+        if (!target)
+        {
+            return false;
+        }
+
+        *targetOut = target;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryGetDialogueActiveNoexcept(Character* member, bool* activeOut)
+{
+    if (!member || !activeOut)
+    {
+        return false;
+    }
+
+    *activeOut = false;
+    __try
+    {
+        Dialogue* dialogue = member->dialogue;
+        if (!dialogue)
+        {
+            return true;
+        }
+
+        *activeOut = !dialogue->conversationHasEndedPrettyMuch();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryResolveCharacterInventoryVisible(Character* character, bool* visibleOut)
+{
+    if (!visibleOut)
+    {
+        return false;
+    }
+
+    *visibleOut = false;
+    if (!character)
+    {
+        return true;
+    }
+
+    __try
+    {
+        if (character->inventory && character->inventory->isVisible())
+        {
+            *visibleOut = true;
+            return true;
+        }
+
+        *visibleOut = character->isInventoryVisible();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static void CollectUiSuppressionCharacters(Character* selectedMember, std::vector<Character*>* membersOut)
+{
+    if (!membersOut)
+    {
+        return;
+    }
+
+    TryCollectSelectedCharactersForDisplay(membersOut);
+    AddUniqueCharacterForSelection(membersOut, selectedMember);
+
+    if (!g_lastPlayerInterface)
+    {
+        return;
+    }
+
+    __try
+    {
+        AddUniqueCharacterForSelection(membersOut, g_lastPlayerInterface->selectedObject.getCharacter());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+
+    __try
+    {
+        const lektor<Character*>& allPlayerCharacters = g_lastPlayerInterface->getAllPlayerCharacters();
+        const uint32_t count = allPlayerCharacters.size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            AddUniqueCharacterForSelection(membersOut, allPlayerCharacters[i]);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+
+    const size_t initialCount = membersOut->size();
+    for (size_t i = 0; i < initialCount; ++i)
+    {
+        Character* conversationTarget = 0;
+        if (TryGetDialogueConversationTargetNoexcept((*membersOut)[i], &conversationTarget))
+        {
+            AddUniqueCharacterForSelection(membersOut, conversationTarget);
+        }
+    }
+}
+
+static int DetectMemberUiSuppressionReasonMask(Character* member)
+{
+    if (!member)
+    {
+        return PanelUiSuppressionReason_None;
+    }
+
+    int reasonMask = PanelUiSuppressionReason_None;
+    __try
+    {
+        bool memberInventoryVisible = false;
+        TryResolveCharacterInventoryVisible(member, &memberInventoryVisible);
+        bool memberDialogueActive = false;
+        TryGetDialogueActiveNoexcept(member, &memberDialogueActive);
+
+        Character* conversationTarget = 0;
+        const bool hasConversationTarget = TryGetDialogueConversationTargetNoexcept(member, &conversationTarget);
+        bool targetInventoryVisible = false;
+        bool targetEngaged = false;
+        bool targetDialogueActive = false;
+        if (conversationTarget)
+        {
+            TryResolveCharacterInventoryVisible(conversationTarget, &targetInventoryVisible);
+            targetEngaged = conversationTarget->_isEngagedWithAPlayer;
+            TryGetDialogueActiveNoexcept(conversationTarget, &targetDialogueActive);
+        }
+
+        const bool memberEngaged = member->_isEngagedWithAPlayer;
+        const bool dialogueOrInteractionActive =
+            memberEngaged
+            || targetEngaged
+            || hasConversationTarget
+            || memberDialogueActive
+            || targetDialogueActive;
+        const bool tradeLikeInteractionActive =
+            hasConversationTarget
+            && (memberEngaged || targetEngaged)
+            && (memberInventoryVisible || targetInventoryVisible);
+
+        if (g_config.hidePanelDuringInventoryOpen && (memberInventoryVisible || targetInventoryVisible))
+        {
+            reasonMask |= PanelUiSuppressionReason_InventoryOpen;
+        }
+        if (g_config.hidePanelDuringCharacterInteraction && (dialogueOrInteractionActive || tradeLikeInteractionActive))
+        {
+            reasonMask |= PanelUiSuppressionReason_CharacterInteraction;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return PanelUiSuppressionReason_None;
+    }
+
+    return reasonMask;
+}
+
+static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
+{
+    int reasonMask = PanelUiSuppressionReason_None;
+
+    bool menuOpen = false;
+    if (TryGetMenuOpenState(&menuOpen) && menuOpen)
+    {
+        reasonMask |= PanelUiSuppressionReason_MenuOpen;
+    }
+
+    bool characterCreationModeActive = false;
+    if (g_config.hidePanelDuringCharacterCreation
+        && TryGetCharacterCreationModeActive(&characterCreationModeActive)
+        && characterCreationModeActive)
+    {
+        reasonMask |= PanelUiSuppressionReason_CharacterCreation;
+    }
+
+    std::vector<Character*> selectedMembers;
+    CollectUiSuppressionCharacters(selectedMember, &selectedMembers);
+    if (selectedMembers.empty())
+    {
+        return reasonMask;
+    }
+
+    int desiredSuppressionMask = PanelUiSuppressionReason_None;
+    if (g_config.hidePanelDuringInventoryOpen)
+    {
+        desiredSuppressionMask |= PanelUiSuppressionReason_InventoryOpen;
+    }
+    if (g_config.hidePanelDuringCharacterInteraction)
+    {
+        desiredSuppressionMask |= PanelUiSuppressionReason_CharacterInteraction;
+    }
+
+    for (size_t i = 0; i < selectedMembers.size(); ++i)
+    {
+        Character* member = selectedMembers[i];
+        if (!member)
+        {
+            continue;
+        }
+
+        reasonMask |= DetectMemberUiSuppressionReasonMask(member);
+
+        if (desiredSuppressionMask != PanelUiSuppressionReason_None
+            && (reasonMask & desiredSuppressionMask) == desiredSuppressionMask)
+        {
+            break;
+        }
+    }
+
+    return reasonMask;
+}
+
+static std::string BuildPanelUiSuppressionReasonSummary(int reasonMask)
+{
+    if (reasonMask == PanelUiSuppressionReason_None)
+    {
+        return "none";
+    }
+
+    std::stringstream summary;
+    bool wroteAny = false;
+    if ((reasonMask & PanelUiSuppressionReason_CharacterCreation) != 0)
+    {
+        summary << "character_creation";
+        wroteAny = true;
+    }
+    if ((reasonMask & PanelUiSuppressionReason_InventoryOpen) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "inventory_open";
+        wroteAny = true;
+    }
+    if ((reasonMask & PanelUiSuppressionReason_CharacterInteraction) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "character_interaction";
+        wroteAny = true;
+    }
+    if ((reasonMask & PanelUiSuppressionReason_MenuOpen) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "menu_open";
+    }
+
+    return summary.str();
+}
+
 static void BuildDisplayedJobRowsForSelection(
     Character* selectedMember,
     std::vector<JobRowModel>* rowsOut,
@@ -1318,6 +1830,8 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobBGonePanelDragMovedDistance = 0;
     g_panelExpandedHeight = kPanelExpandedHeight;
     g_jobRowScrollOffset = 0;
+    g_lastLoggedPanelSuppressedByUiState = false;
+    g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
 }
 
 static void OnSaveLoadTransitionStart(const char* source)
@@ -1331,6 +1845,8 @@ static void OnSaveLoadTransitionStart(const char* source)
     g_lastLoggedHasSelectedMemberForButton = false;
     g_lastLoggedButtonVisibleState = false;
     g_lastLoggedButtonExists = false;
+    g_lastLoggedPanelSuppressedByUiState = false;
+    g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
 
     std::stringstream info;
     info << "Job-B-Gone DEBUG: save_load_ui_reset source=" << (source ? source : "unknown");
@@ -1800,6 +2316,32 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
                     && g_lastPlayerInterface->selectedCharacter.isValid()) ? "true" : "false");
         DebugLog(logline.str().c_str());
         g_lastLoggedHasSelectedMemberForButton = hasSelectedMember;
+    }
+
+    const int panelUiSuppressionReasonMask = DetectPanelUiSuppressionReasonMask(selectedMember);
+    const bool suppressPanelByUiState = (panelUiSuppressionReasonMask != PanelUiSuppressionReason_None);
+    if (suppressPanelByUiState)
+    {
+        HideConfirmationOverlay();
+    }
+
+    g_jobBGonePanel->setVisible(!suppressPanelByUiState);
+
+    if (suppressPanelByUiState != g_lastLoggedPanelSuppressedByUiState
+        || panelUiSuppressionReasonMask != g_lastLoggedPanelSuppressionReasonMask)
+    {
+        std::stringstream logline;
+        logline << "Job-B-Gone DEBUG: panel_visibility_gate"
+                << " suppressed=" << (suppressPanelByUiState ? "true" : "false")
+                << " reasons=" << BuildPanelUiSuppressionReasonSummary(panelUiSuppressionReasonMask);
+        DebugLog(logline.str().c_str());
+        g_lastLoggedPanelSuppressedByUiState = suppressPanelByUiState;
+        g_lastLoggedPanelSuppressionReasonMask = panelUiSuppressionReasonMask;
+    }
+
+    if (suppressPanelByUiState)
+    {
+        return;
     }
 
     int selectedMemberCount = 0;

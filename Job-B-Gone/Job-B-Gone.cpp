@@ -6,6 +6,7 @@
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
+#include <kenshi/Inventory.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObjectBase.h>
 #include <kenshi/SaveManager.h>
@@ -48,7 +49,7 @@ static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
 static const int kMaxVisibleJobRows = 8;
 
-static PluginConfig g_config = { true, 2000, false, true, false, true, false, 0, 0 };
+static PluginConfig g_config = { true, 2000, false, true, false, true, true, true, true, false, 0, 0 };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -63,6 +64,12 @@ static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0
 class ToolTip;
 class ForgottenGUI;
 class DatapanelGUI;
+class Dialogue
+{
+public:
+    hand getConversationTarget();
+    bool conversationHasEndedPrettyMuch() const;
+};
 
 class OptionsWindow : public GUIWindow, public wraps::BaseLayout
 {
@@ -164,6 +171,8 @@ static bool g_lastLoggedButtonVisibleState = false;
 static bool g_lastLoggedButtonExists = false;
 static bool g_lastLoggedInfoPanelNull = false;
 static DWORD g_lastInfoPanelNullLogMs = 0;
+static bool g_lastLoggedPanelSuppressedByUiState = false;
+static int g_lastLoggedPanelSuppressionReasonMask = 0;
 static bool g_buttonAttachedToGlobalLayer = false;
 static bool g_pendingSelectedMemberUiRefresh = false;
 static DWORD g_pendingSelectedMemberUiRefreshStartMs = 0;
@@ -276,6 +285,12 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableExperimentalSingleJobDelete = false;
     diagnostics->foundLogSelectedMemberJobSnapshot = false;
     diagnostics->invalidLogSelectedMemberJobSnapshot = false;
+    diagnostics->foundHidePanelDuringCharacterCreation = false;
+    diagnostics->invalidHidePanelDuringCharacterCreation = false;
+    diagnostics->foundHidePanelDuringInventoryOpen = false;
+    diagnostics->invalidHidePanelDuringInventoryOpen = false;
+    diagnostics->foundHidePanelDuringCharacterInteraction = false;
+    diagnostics->invalidHidePanelDuringCharacterInteraction = false;
     diagnostics->foundJobBGonePanelHasCustomPosition = false;
     diagnostics->invalidJobBGonePanelHasCustomPosition = false;
     diagnostics->foundJobBGonePanelPosX = false;
@@ -316,6 +331,9 @@ static void LoadConfigState()
     g_config.enableDeleteAllJobsSelectedMemberAction = true;
     g_config.enableExperimentalSingleJobDelete = false;
     g_config.logSelectedMemberJobSnapshot = true;
+    g_config.hidePanelDuringCharacterCreation = true;
+    g_config.hidePanelDuringInventoryOpen = true;
+    g_config.hidePanelDuringCharacterInteraction = true;
     g_config.jobBGonePanelHasCustomPosition = false;
     g_config.jobBGonePanelPosX = 0;
     g_config.jobBGonePanelPosY = 0;
@@ -354,6 +372,12 @@ static void LoadConfigState()
          << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
          << " log_selected_member_job_snapshot="
          << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
+         << " hide_panel_during_character_creation="
+         << (g_config.hidePanelDuringCharacterCreation ? "true" : "false")
+         << " hide_panel_during_inventory_open="
+         << (g_config.hidePanelDuringInventoryOpen ? "true" : "false")
+         << " hide_panel_during_character_interaction="
+         << (g_config.hidePanelDuringCharacterInteraction ? "true" : "false")
          << " job_b_gone_panel_has_custom_position="
          << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
          << " job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX

@@ -16,6 +16,9 @@ struct PluginConfig
     bool enableDeleteAllJobsSelectedMemberAction;
     bool enableExperimentalSingleJobDelete;
     bool logSelectedMemberJobSnapshot;
+    bool hidePanelDuringCharacterCreation;
+    bool hidePanelDuringInventoryOpen;
+    bool hidePanelDuringCharacterInteraction;
     bool jobBGonePanelHasCustomPosition;
     int jobBGonePanelPosX;
     int jobBGonePanelPosY;
@@ -66,6 +69,12 @@ struct ConfigParseDiagnostics
     bool invalidEnableExperimentalSingleJobDelete;
     bool foundLogSelectedMemberJobSnapshot;
     bool invalidLogSelectedMemberJobSnapshot;
+    bool foundHidePanelDuringCharacterCreation;
+    bool invalidHidePanelDuringCharacterCreation;
+    bool foundHidePanelDuringInventoryOpen;
+    bool invalidHidePanelDuringInventoryOpen;
+    bool foundHidePanelDuringCharacterInteraction;
+    bool invalidHidePanelDuringCharacterInteraction;
     bool foundJobBGonePanelHasCustomPosition;
     bool invalidJobBGonePanelHasCustomPosition;
     bool foundJobBGonePanelPosX;

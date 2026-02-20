@@ -5,6 +5,9 @@
   "enable_delete_all_jobs_selected_member_action": true,
   "enable_experimental_single_job_delete": false,
   "log_selected_member_job_snapshot": true,
+  "hide_panel_during_character_creation": true,
+  "hide_panel_during_inventory_open": true,
+  "hide_panel_during_character_interaction": true,
   "job_b_gone_panel_has_custom_position": false,
   "job_b_gone_panel_pos_x": 0,
   "job_b_gone_panel_pos_y": 0
