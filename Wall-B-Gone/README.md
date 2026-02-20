@@ -1,5 +1,5 @@
 ## Wall-B-Gone (RE_Kenshi plugin)
-Safely dismantles selected walls with Hotkey X and returns materials.
+Safely dismantles selected walls and sleeping bags (only when not occupied) with Hotkey X and returns materials.
 
 ## Setup
 Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
@@ -39,7 +39,7 @@ After deploy, expected files:
 Run RE_Kenshi and enable the mod via Kenshi's `Mods` tab.
 
 ## Mod toggle
-This mod includes `mod-config.json` with an `enabled` boolean toggle intended for RE_Kenshi mod settings.
+This mod includes `mod-config.json` toggles for `enabled` and `sleepingBagDismantleEnabled`.
 At runtime, the plugin reads:
 
 - `[Kenshi install dir]\mods\Wall-B-Gone\mod-config.json`
