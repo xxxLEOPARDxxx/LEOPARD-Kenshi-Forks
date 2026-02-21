@@ -343,6 +343,8 @@ __declspec(dllexport) void startPlugin()
          << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
          << ", log_selected_member_job_snapshot="
          << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
+         << ", job_b_gone_panel_collapsed="
+         << (g_config.jobBGonePanelCollapsed ? "true" : "false")
          << ", job_b_gone_panel_has_custom_position="
          << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
          << ", job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX

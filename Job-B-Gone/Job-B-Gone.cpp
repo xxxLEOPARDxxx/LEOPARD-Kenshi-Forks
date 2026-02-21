@@ -49,7 +49,7 @@ static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
 static const int kMaxVisibleJobRows = 8;
 
-static PluginConfig g_config = { true, 2000, false, true, false, true, true, true, true, false, 0, 0 };
+static PluginConfig g_config = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0 };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -291,6 +291,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidHidePanelDuringInventoryOpen = false;
     diagnostics->foundHidePanelDuringCharacterInteraction = false;
     diagnostics->invalidHidePanelDuringCharacterInteraction = false;
+    diagnostics->foundJobBGonePanelCollapsed = false;
+    diagnostics->invalidJobBGonePanelCollapsed = false;
     diagnostics->foundJobBGonePanelHasCustomPosition = false;
     diagnostics->invalidJobBGonePanelHasCustomPosition = false;
     diagnostics->foundJobBGonePanelPosX = false;
@@ -334,6 +336,7 @@ static void LoadConfigState()
     g_config.hidePanelDuringCharacterCreation = true;
     g_config.hidePanelDuringInventoryOpen = true;
     g_config.hidePanelDuringCharacterInteraction = true;
+    g_config.jobBGonePanelCollapsed = false;
     g_config.jobBGonePanelHasCustomPosition = false;
     g_config.jobBGonePanelPosX = 0;
     g_config.jobBGonePanelPosY = 0;
@@ -378,6 +381,8 @@ static void LoadConfigState()
          << (g_config.hidePanelDuringInventoryOpen ? "true" : "false")
          << " hide_panel_during_character_interaction="
          << (g_config.hidePanelDuringCharacterInteraction ? "true" : "false")
+         << " job_b_gone_panel_collapsed="
+         << (g_config.jobBGonePanelCollapsed ? "true" : "false")
          << " job_b_gone_panel_has_custom_position="
          << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
          << " job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
@@ -390,6 +395,8 @@ static void LoadConfigState()
         g_runtimePanelPosX = g_config.jobBGonePanelPosX;
         g_runtimePanelPosY = g_config.jobBGonePanelPosY;
     }
+
+    g_jobBGonePanelCollapsed = g_config.jobBGonePanelCollapsed;
 }
 
 static bool SaveConfigState()

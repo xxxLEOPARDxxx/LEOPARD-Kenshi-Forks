@@ -1720,6 +1720,26 @@ static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, con
     DebugLog(info.str().c_str());
 }
 
+static void PersistPanelCollapsedStateIfChanged(const char* source)
+{
+    if (g_config.jobBGonePanelCollapsed == g_jobBGonePanelCollapsed)
+    {
+        return;
+    }
+
+    g_config.jobBGonePanelCollapsed = g_jobBGonePanelCollapsed;
+    if (!SaveConfigState())
+    {
+        ErrorLog("Job-B-Gone WARN: failed to persist Job-B-Gone panel collapsed state");
+        return;
+    }
+
+    std::stringstream info;
+    info << "Job-B-Gone INFO: persisted_panel_collapsed_state source=" << (source ? source : "unknown")
+         << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
+    DebugLog(info.str().c_str());
+}
+
 static void MoveJobBGonePanelByDelta(int deltaX, int deltaY)
 {
     if (!g_jobBGonePanel || (deltaX == 0 && deltaY == 0))
@@ -1865,6 +1885,7 @@ static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
     if (g_jobBGonePanel)
     {
         g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
+        PersistPanelCollapsedStateIfChanged("collapse_toggle");
         const MyGUI::IntCoord nextCoord = ResolvePanelCoordFromConfig();
         ApplyPanelLayout(nextCoord);
 
@@ -1876,6 +1897,7 @@ static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
     }
 
     g_jobBGonePanelCollapsed = !g_jobBGonePanelCollapsed;
+    PersistPanelCollapsedStateIfChanged("collapse_toggle_no_panel");
 }
 
 static void OnJobBGoneHeaderMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)

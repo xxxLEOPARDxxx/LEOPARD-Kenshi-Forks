@@ -19,6 +19,7 @@ struct PluginConfig
     bool hidePanelDuringCharacterCreation;
     bool hidePanelDuringInventoryOpen;
     bool hidePanelDuringCharacterInteraction;
+    bool jobBGonePanelCollapsed;
     bool jobBGonePanelHasCustomPosition;
     int jobBGonePanelPosX;
     int jobBGonePanelPosY;
@@ -75,6 +76,8 @@ struct ConfigParseDiagnostics
     bool invalidHidePanelDuringInventoryOpen;
     bool foundHidePanelDuringCharacterInteraction;
     bool invalidHidePanelDuringCharacterInteraction;
+    bool foundJobBGonePanelCollapsed;
+    bool invalidJobBGonePanelCollapsed;
     bool foundJobBGonePanelHasCustomPosition;
     bool invalidJobBGonePanelHasCustomPosition;
     bool foundJobBGonePanelPosX;

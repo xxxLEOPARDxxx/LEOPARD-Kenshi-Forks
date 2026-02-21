@@ -660,6 +660,25 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "job_b_gone_panel_collapsed")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundJobBGonePanelCollapsed = true;
+                configOut->jobBGonePanelCollapsed = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidJobBGonePanelCollapsed = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "job_b_gone_panel_has_custom_position")
         {
             bool parsedBool = false;
@@ -763,7 +782,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, 0, 0 };
+    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -775,6 +794,7 @@ static bool RunInternalSelfChecks()
             "\"hide_panel_during_character_creation\":false,"
             "\"hide_panel_during_inventory_open\":false,"
             "\"hide_panel_during_character_interaction\":false,"
+            "\"job_b_gone_panel_collapsed\":true,"
             "\"job_b_gone_panel_has_custom_position\":true,"
             "\"job_b_gone_panel_pos_x\":321,"
             "\"job_b_gone_panel_pos_y\":654}",
@@ -792,6 +812,7 @@ static bool RunInternalSelfChecks()
         || parsedConfig.hidePanelDuringCharacterCreation
         || parsedConfig.hidePanelDuringInventoryOpen
         || parsedConfig.hidePanelDuringCharacterInteraction
+        || !parsedConfig.jobBGonePanelCollapsed
         || !parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 321
         || parsedConfig.jobBGonePanelPosY != 654)
@@ -807,6 +828,7 @@ static bool RunInternalSelfChecks()
           "\"hide_panel_during_character_creation\":true,"
           "\"hide_panel_during_inventory_open\":true,"
           "\"hide_panel_during_character_interaction\":true,"
+          "\"job_b_gone_panel_collapsed\":false,"
           "\"job_b_gone_panel_has_custom_position\":false,"
           "\"job_b_gone_panel_pos_x\":11,"
           "\"job_b_gone_panel_pos_y\":22}";
@@ -819,6 +841,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.hidePanelDuringCharacterCreation = false;
     parsedConfig.hidePanelDuringInventoryOpen = false;
     parsedConfig.hidePanelDuringCharacterInteraction = false;
+    parsedConfig.jobBGonePanelCollapsed = true;
     parsedConfig.jobBGonePanelHasCustomPosition = true;
     parsedConfig.jobBGonePanelPosX = 0;
     parsedConfig.jobBGonePanelPosY = 0;
@@ -836,6 +859,7 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.hidePanelDuringCharacterCreation
         || !parsedConfig.hidePanelDuringInventoryOpen
         || !parsedConfig.hidePanelDuringCharacterInteraction
+        || parsedConfig.jobBGonePanelCollapsed
         || parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 11
         || parsedConfig.jobBGonePanelPosY != 22)
@@ -975,6 +999,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: invalid/missing key \"hide_panel_during_character_interaction\"; using default");
     }
+    if (!diagnostics.foundJobBGonePanelCollapsed || diagnostics.invalidJobBGonePanelCollapsed)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"job_b_gone_panel_collapsed\"; using default");
+    }
     if (!diagnostics.foundJobBGonePanelHasCustomPosition || diagnostics.invalidJobBGonePanelHasCustomPosition)
     {
         needsWriteBack = true;
@@ -1031,6 +1060,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
         << (config.hidePanelDuringInventoryOpen ? "true" : "false") << ",\n";
     out << "  \"hide_panel_during_character_interaction\": "
         << (config.hidePanelDuringCharacterInteraction ? "true" : "false") << ",\n";
+    out << "  \"job_b_gone_panel_collapsed\": "
+        << (config.jobBGonePanelCollapsed ? "true" : "false") << ",\n";
     out << "  \"job_b_gone_panel_has_custom_position\": "
         << (config.jobBGonePanelHasCustomPosition ? "true" : "false") << ",\n";
     out << "  \"job_b_gone_panel_pos_x\": " << config.jobBGonePanelPosX << ",\n";

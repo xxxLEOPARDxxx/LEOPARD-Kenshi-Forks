@@ -81,6 +81,7 @@ Supported keys:
 - `hide_panel_during_character_creation` (bool): hide the panel while in character creation/edit mode. Default: `true`.
 - `hide_panel_during_inventory_open` (bool): hide the panel while an inventory/trade window is open. Default: `true`.
 - `hide_panel_during_character_interaction` (bool): hide the panel while characters are engaged in dialogue/interaction. Default: `true`.
+- `job_b_gone_panel_collapsed` (bool): persist the panel collapsed/expanded state. Default: `false`.
 - `job_b_gone_panel_has_custom_position` (bool): true after panel position is customized.
 - `job_b_gone_panel_pos_x` (number): persisted panel X coordinate.
 - `job_b_gone_panel_pos_y` (number): persisted panel Y coordinate.
