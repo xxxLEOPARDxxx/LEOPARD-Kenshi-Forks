@@ -1012,6 +1012,7 @@ static bool TryEvaluateCharacterExecuteFlags(
     Character* actor,
     Character* targetCharacter,
     bool* targetIsEnemyOut,
+    bool* targetIsPlayerCharacterOut,
     bool* targetIsDeadOut,
     bool* targetIsDownOut,
     bool* targetIsUnconsciousOut,
@@ -1019,6 +1020,7 @@ static bool TryEvaluateCharacterExecuteFlags(
 {
     if (!targetCharacter
         || !targetIsEnemyOut
+        || !targetIsPlayerCharacterOut
         || !targetIsDeadOut
         || !targetIsDownOut
         || !targetIsUnconsciousOut
@@ -1030,6 +1032,7 @@ static bool TryEvaluateCharacterExecuteFlags(
     __try
     {
         *targetIsEnemyOut = false;
+        *targetIsPlayerCharacterOut = targetCharacter->isPlayerCharacter();
         *targetIsDeadOut = targetCharacter->isDead();
         *targetIsDownOut = false;
         *targetIsUnconsciousOut = false;
@@ -1124,10 +1127,12 @@ static bool CanExecuteTarget(
 
     if (targetCharacter)
     {
+        bool targetIsPlayerCharacter = false;
         if (TryEvaluateCharacterExecuteFlags(
             actor,
             targetCharacter,
             &diagnostics.targetIsEnemy,
+            &targetIsPlayerCharacter,
             &diagnostics.targetIsDead,
             &diagnostics.targetIsDown,
             &diagnostics.targetIsUnconscious,
@@ -1136,6 +1141,10 @@ static bool CanExecuteTarget(
             diagnostics.targetIsIncapacitated = diagnostics.targetIsDown
                 || diagnostics.targetIsUnconscious
                 || diagnostics.targetIsLiterallyUnconscious;
+            if (targetIsPlayerCharacter)
+            {
+                diagnostics.targetIsEnemy = false;
+            }
         }
         else
         {
