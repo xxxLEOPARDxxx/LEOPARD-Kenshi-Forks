@@ -641,6 +641,25 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "enable_execute_kill_sound")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundEnableExecuteKillSound = true;
+                configOut->enableExecuteKillSound = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidEnableExecuteKillSound = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else
         {
             if (!SkipJsonValue(body, &pos))
@@ -683,7 +702,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, false, false, false, false, false };
+    PluginConfig parsedConfig = { true, 2000, false, false, false, false, false, false, true };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -693,7 +712,8 @@ static bool RunInternalSelfChecks()
             "\"enable_context_menu_injection\":true,"
             "\"enable_execute_action\":true,"
             "\"debug_context_menu\":true,"
-            "\"enable_debug_direct_damage_fallback\":true}",
+            "\"enable_debug_direct_damage_fallback\":true,"
+            "\"enable_execute_kill_sound\":false}",
             &parsedConfig,
             &diagnostics))
     {
@@ -706,7 +726,8 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.enableContextMenuInjection
         || !parsedConfig.enableExecuteAction
         || !parsedConfig.debugContextMenu
-        || !parsedConfig.enableDebugDirectDamageFallback)
+        || !parsedConfig.enableDebugDirectDamageFallback
+        || parsedConfig.enableExecuteKillSound)
     {
         return false;
     }
@@ -717,7 +738,8 @@ static bool RunInternalSelfChecks()
           "\"enable_context_menu_injection\":false,"
           "\"enable_execute_action\":false,"
           "\"debug_context_menu\":false,"
-          "\"enable_debug_direct_damage_fallback\":false}";
+          "\"enable_debug_direct_damage_fallback\":false,"
+          "\"enable_execute_kill_sound\":true}";
     parsedConfig.enabled = false;
     parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
@@ -726,6 +748,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.enableExecuteAction = true;
     parsedConfig.debugContextMenu = true;
     parsedConfig.enableDebugDirectDamageFallback = true;
+    parsedConfig.enableExecuteKillSound = false;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
     {
@@ -738,7 +761,8 @@ static bool RunInternalSelfChecks()
         || parsedConfig.enableContextMenuInjection
         || parsedConfig.enableExecuteAction
         || parsedConfig.debugContextMenu
-        || parsedConfig.enableDebugDirectDamageFallback)
+        || parsedConfig.enableDebugDirectDamageFallback
+        || !parsedConfig.enableExecuteKillSound)
     {
         return false;
     }
@@ -868,6 +892,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_debug_direct_damage_fallback\"; using default");
     }
+    if (!diagnostics.foundEnableExecuteKillSound || diagnostics.invalidEnableExecuteKillSound)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_kill_sound\"; using default");
+    }
     if (needsWriteBackOut)
     {
         *needsWriteBackOut = needsWriteBack;
@@ -891,7 +920,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_context_menu_injection\": " << (config.enableContextMenuInjection ? "true" : "false") << ",\n";
     out << "  \"enable_execute_action\": " << (config.enableExecuteAction ? "true" : "false") << ",\n";
     out << "  \"debug_context_menu\": " << (config.debugContextMenu ? "true" : "false") << ",\n";
-    out << "  \"enable_debug_direct_damage_fallback\": " << (config.enableDebugDirectDamageFallback ? "true" : "false") << "\n";
+    out << "  \"enable_debug_direct_damage_fallback\": " << (config.enableDebugDirectDamageFallback ? "true" : "false") << ",\n";
+    out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << "\n";
     out << "}\n";
 
     return true;

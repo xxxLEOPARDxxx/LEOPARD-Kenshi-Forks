@@ -16,6 +16,7 @@ struct PluginConfig
     bool enableExecuteAction;
     bool debugContextMenu;
     bool enableDebugDirectDamageFallback;
+    bool enableExecuteKillSound;
 };
 
 struct RuntimeState
@@ -48,6 +49,8 @@ struct ConfigParseDiagnostics
     bool invalidDebugContextMenu;
     bool foundEnableDebugDirectDamageFallback;
     bool invalidEnableDebugDirectDamageFallback;
+    bool foundEnableExecuteKillSound;
+    bool invalidEnableExecuteKillSound;
     bool syntaxError;
     size_t syntaxErrorOffset;
 };

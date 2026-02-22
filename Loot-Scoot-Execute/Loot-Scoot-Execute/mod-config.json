@@ -6,5 +6,6 @@
   "enable_context_menu_injection": true,
   "enable_execute_action": true,
   "debug_context_menu": true,
-  "enable_debug_direct_damage_fallback": false
+  "enable_debug_direct_damage_fallback": false,
+  "enable_execute_kill_sound": true
 }

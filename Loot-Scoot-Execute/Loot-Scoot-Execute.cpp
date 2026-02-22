@@ -58,6 +58,21 @@ static const float kQueuedExecuteMaxDistanceMeters = 2.0f;
 static const float kQueuedExecuteFacingDotMin = 0.90f;
 static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const std::string kQueuedExecuteSlaveAnimName = "salute";
+static const char* kExecuteKillSoundEventCandidates[] =
+{
+    "Heavy_Hit",
+    "Play_Heavy_Hit",
+    "Light_Hit",
+    "Play_Light_Hit",
+    "VO_Get_Hit",
+    "Play_VO_Get_Hit",
+    "VO_Creature_Die",
+    "Play_VO_Creature_Die",
+    "VO_Creature_Victory",
+    "Play_VO_Creature_Victory"
+};
+static const size_t kExecuteKillSoundEventCandidateCount =
+    sizeof(kExecuteKillSoundEventCandidates) / sizeof(kExecuteKillSoundEventCandidates[0]);
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
 static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
 static const bool kDebugEnableRowInsertSubstitute = false;
@@ -102,7 +117,7 @@ static const uintptr_t kExpectedRvaContextMenuTaskProbabilityCallReturn_1_0_65 =
 static const uintptr_t kExpectedRvaContextMenuRowInsertCallReturn_1_0_65 = 0x007A7698;
 static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
-static PluginConfig g_config = { true, 2000, false, false, false, false, false, false };
+static PluginConfig g_config = { true, 2000, false, false, false, false, false, false, true };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -358,6 +373,12 @@ static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle)
 static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor);
 static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
 static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target);
+static bool TryPlayCharacterAudioEvent(Character* character, const char* eventName, SoundRange range);
+static bool TryPlayExecuteKillSound(
+    Character* actor,
+    Character* targetCharacter,
+    const char** playedEventOut,
+    const char** playedEmitterOut);
 static bool IsNativeExecuteMenuMutationEnabled();
 static bool IsCustomExecutePanelOverlayEnabled();
 static void DisarmNativeMenuExecuteDispatchContext();
@@ -396,6 +417,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidDebugContextMenu = false;
     diagnostics->foundEnableDebugDirectDamageFallback = false;
     diagnostics->invalidEnableDebugDirectDamageFallback = false;
+    diagnostics->foundEnableExecuteKillSound = false;
+    diagnostics->invalidEnableExecuteKillSound = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
 }
@@ -430,6 +453,7 @@ static void LoadConfigState()
     g_config.enableExecuteAction = false;
     g_config.debugContextMenu = false;
     g_config.enableDebugDirectDamageFallback = false;
+    g_config.enableExecuteKillSound = true;
     g_effectiveEnableContextMenuProbe = false;
     g_effectiveEnableContextMenuInjection = false;
     g_effectiveEnableExecuteAction = false;
@@ -463,7 +487,8 @@ static void LoadConfigState()
          << " enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << " enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
          << " debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false")
-         << " enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false");
+         << " enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false")
+         << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false");
     DebugLog(info.str().c_str());
 }
 
@@ -1410,6 +1435,75 @@ static bool TryDeclareCharacterDead(Character* targetCharacter)
     }
 }
 
+static bool TryPlayCharacterAudioEvent(Character* character, const char* eventName, SoundRange range)
+{
+    if (!character || !eventName || eventName[0] == '\0')
+    {
+        return false;
+    }
+
+    __try
+    {
+        return character->audioEvent(eventName, range);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryPlayExecuteKillSound(
+    Character* actor,
+    Character* targetCharacter,
+    const char** playedEventOut,
+    const char** playedEmitterOut)
+{
+    if (playedEventOut)
+    {
+        *playedEventOut = "none";
+    }
+    if (playedEmitterOut)
+    {
+        *playedEmitterOut = "none";
+    }
+
+    for (size_t i = 0; i < kExecuteKillSoundEventCandidateCount; ++i)
+    {
+        const char* eventName = kExecuteKillSoundEventCandidates[i];
+        if (TryPlayCharacterAudioEvent(actor, eventName, SOUNDRANGE_ALWAYS))
+        {
+            if (playedEventOut)
+            {
+                *playedEventOut = eventName;
+            }
+            if (playedEmitterOut)
+            {
+                *playedEmitterOut = "actor";
+            }
+            return true;
+        }
+    }
+
+    for (size_t i = 0; i < kExecuteKillSoundEventCandidateCount; ++i)
+    {
+        const char* eventName = kExecuteKillSoundEventCandidates[i];
+        if (TryPlayCharacterAudioEvent(targetCharacter, eventName, SOUNDRANGE_ALWAYS))
+        {
+            if (playedEventOut)
+            {
+                *playedEventOut = eventName;
+            }
+            if (playedEmitterOut)
+            {
+                *playedEmitterOut = "target";
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool TryReadContextMenuVisible(PlayerInterface* player, bool* visibleOut)
 {
     if (!player || !visibleOut)
@@ -2083,6 +2177,10 @@ static bool DispatchExecuteTarget(
     bool declareDeadAttempted = false;
     bool declareDeadCallSucceeded = false;
     bool targetDeadAfterFinalizeCheck = false;
+    const bool killSoundEnabled = g_config.enableExecuteKillSound;
+    bool killSoundPlayed = false;
+    const char* killSoundEvent = "none";
+    const char* killSoundEmitter = "none";
 
     CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool canExecute = [&]() -> bool
@@ -2205,6 +2303,12 @@ static bool DispatchExecuteTarget(
     }
 
     const bool dispatchSucceeded = directDamageDispatchSucceeded && !hasFailure;
+    if (dispatchSucceeded && targetDeadAfterFinalizeCheck && killSoundEnabled)
+    {
+        Character* targetCharacter = static_cast<Character*>(target);
+        killSoundPlayed = TryPlayExecuteKillSound(actor, targetCharacter, &killSoundEvent, &killSoundEmitter);
+    }
+
     if (verboseLog || !dispatchSucceeded)
     {
         std::stringstream logline;
@@ -2223,6 +2327,10 @@ static bool DispatchExecuteTarget(
                 << " declare_dead_attempted=" << (declareDeadAttempted ? "true" : "false")
                 << " declare_dead_call_succeeded=" << (declareDeadCallSucceeded ? "true" : "false")
                 << " target_dead_after_finalize_check=" << (targetDeadAfterFinalizeCheck ? "true" : "false")
+                << " kill_sound_enabled=" << (killSoundEnabled ? "true" : "false")
+                << " kill_sound_played=" << (killSoundPlayed ? "true" : "false")
+                << " kill_sound_event=" << killSoundEvent
+                << " kill_sound_emitter=" << killSoundEmitter
                 << " reason=" << (dispatchSucceeded ? "none" : failureReason);
         DebugLog(logline.str().c_str());
     }
