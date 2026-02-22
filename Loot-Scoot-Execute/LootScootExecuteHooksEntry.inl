@@ -1914,7 +1914,7 @@ static void ContextMenu_loopEntryInjectHelper(
     RootObject* remapTarget = remapWindowFresh
         ? reinterpret_cast<RootObject*>(g_nativeMenuOrderRemapTargetPtr)
         : 0;
-    Character* remapActor = ResolveExecuteActorForPredicate();
+    Character* remapActor = ResolveExecuteActorForPredicateWithTarget(remapTarget, true);
     CanExecuteDiagnostics remapDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool remapDownedEnemyContext = remapTarget
         && CanExecuteFromNativeMenuSelection(remapActor, remapTarget, &remapDiagnostics, false);
@@ -3118,7 +3118,7 @@ static void TryInjectExecuteOrderInBuildRows(ContextMenu* menu)
     RootObject* remapTarget = remapWindowFresh
         ? reinterpret_cast<RootObject*>(g_nativeMenuOrderRemapTargetPtr)
         : 0;
-    Character* remapActor = ResolveExecuteActorForPredicate();
+    Character* remapActor = ResolveExecuteActorForPredicateWithTarget(remapTarget, true);
     CanExecuteDiagnostics remapDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool remapDownedEnemyContext = remapTarget
         && CanExecuteFromNativeMenuSelection(remapActor, remapTarget, &remapDiagnostics, false);
@@ -3381,7 +3381,7 @@ static void ContextMenu_appendOrderThunk_hook(lektor<int>* orders, int orderId)
     RootObject* remapTarget = remapWindowFresh
         ? reinterpret_cast<RootObject*>(g_nativeMenuOrderRemapTargetPtr)
         : 0;
-    Character* remapActor = ResolveExecuteActorForPredicate();
+    Character* remapActor = ResolveExecuteActorForPredicateWithTarget(remapTarget, true);
     CanExecuteDiagnostics remapDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool remapDownedEnemyContext = remapTarget
         && CanExecuteFromNativeMenuSelection(remapActor, remapTarget, &remapDiagnostics, false);
@@ -3686,10 +3686,10 @@ static void* ContextMenu_rowInsertCall_hook(
     const bool taskFromArg5NodeKeyResolved = stackArg5
         && TryReadInt32At(reinterpret_cast<const void*>(reinterpret_cast<uintptr_t>(stackArg5) + 0x18), &taskFromArg5NodeKey);
 
-    Character* remapActor = ResolveExecuteActorForPredicate();
     RootObject* remapTarget = remapWindowFresh
         ? reinterpret_cast<RootObject*>(g_nativeMenuOrderRemapTargetPtr)
         : 0;
+    Character* remapActor = ResolveExecuteActorForPredicateWithTarget(remapTarget, true);
     CanExecuteDiagnostics remapDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool remapDownedEnemyContext = remapTarget
         && CanExecuteFromNativeMenuSelection(remapActor, remapTarget, &remapDiagnostics, false);
@@ -4220,7 +4220,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
     int whatType = 0;
     const bool whatTypeResolved = TryResolveRootObjectType(what, &whatType);
-    Character* executeActor = ResolveExecuteActorForPredicate();
+    Character* executeActor = ResolveExecuteActorForPredicateWithTarget(what, true);
     CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool canExecuteTarget = CanExecuteFromNativeMenuSelection(
         executeActor,
@@ -4685,7 +4685,7 @@ static void ContextMenu_update_hook(ContextMenu* thisptr)
             const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
             if (targetPtr != 0)
             {
-                Character* actor = ResolveExecuteActorForPredicate();
+                Character* actor = ResolveExecuteActorForPredicateWithTarget(target, true);
                 CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
                 const bool canExecuteTarget = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
                 if (canExecuteTarget)
@@ -5008,15 +5008,19 @@ static Character* ResolveExecuteActorForNativeMenuDispatch(PlayerInterface* play
     {
         return 0;
     }
-
+    RootObject* preferredTarget = 0;
     __try
     {
-        return player->getAnyPlayerCharacter();
+        if (player->mouseRightTargetSet)
+        {
+            preferredTarget = player->mouseRightTarget;
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        return 0;
+        preferredTarget = 0;
     }
+    return ResolveExecuteActorForPredicateWithTarget(preferredTarget, true);
 }
 
 static bool TryOverrideExecuteTaskProbability(

@@ -47,11 +47,17 @@ static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const DWORD kDebugExecuteContextTargetMaxAgeMs = 1500;
 static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
 static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
-static const DWORD kQueuedExecuteRepathIntervalMs = 600;
+static const DWORD kQueuedExecuteRepathIntervalMs = 200;
 static const DWORD kQueuedExecuteStateLogMinIntervalMs = 500;
+static const DWORD kQueuedExecuteAttackWindupMs = 180;
+static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
+static const DWORD kQueuedExecuteFacingGraceMs = 1500;
+static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
 static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
 static const float kQueuedExecuteMaxDistanceMeters = 2.0f;
 static const float kQueuedExecuteFacingDotMin = 0.90f;
+static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
+static const std::string kQueuedExecuteSlaveAnimName = "salute";
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
 static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
 static const bool kDebugEnableRowInsertSubstitute = false;
@@ -210,11 +216,16 @@ static MyGUI::TextBox* g_customExecutePanelValue = 0;
 static bool g_customExecutePanelVisible = false;
 static bool g_customExecutePanelArmed = false;
 static bool g_customExecutePanelRightMouseWasDown = false;
+static hand g_customExecutePanelActorHandle;
+static uintptr_t g_customExecutePanelActorPtr = 0;
 static uintptr_t g_customExecutePanelTargetPtr = 0;
 static uintptr_t g_customExecutePanelMenuPtr = 0;
 static uint32_t g_customExecutePanelOrdersCount = 0;
 static uint64_t g_customExecutePanelShowSeq = 0;
 static DWORD g_customExecutePanelArmMs = 0;
+static DWORD g_customExecutePanelLastDispatchMs = 0;
+static uintptr_t g_customExecutePanelLastDispatchActorPtr = 0;
+static uintptr_t g_customExecutePanelLastDispatchTargetPtr = 0;
 static int g_customExecutePanelAnchorSource = 0;
 static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
@@ -228,6 +239,11 @@ static uintptr_t g_queuedExecuteTargetPtr = 0;
 static DWORD g_queuedExecuteArmedMs = 0;
 static DWORD g_queuedExecuteLastApproachCommandMs = 0;
 static DWORD g_queuedExecuteLastStateLogMs = 0;
+static bool g_queuedExecuteAttackTriggered = false;
+static DWORD g_queuedExecuteAttackTriggeredMs = 0;
+static DWORD g_queuedExecuteInRangeSinceMs = 0;
+static const char* g_queuedExecuteAnimationMode = "none";
+static bool g_queuedExecuteSlaveAnimPlaying = false;
 static bool g_debugExecuteHotkeyWasDown = false;
 static uintptr_t g_lastDebugExecuteContextTargetPtr = 0;
 static DWORD g_lastDebugExecuteContextTargetCaptureMs = 0;
@@ -319,6 +335,7 @@ static const char* ContextTypeKeyToString(ContextTypeKey type);
 static std::string DetectRuntimeLocaleTag();
 static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool forceLog);
 static Character* ResolveExecuteActorForPredicate();
+static Character* ResolveExecuteActorForPredicateWithTarget(RootObject* target, bool allowAnyFallback);
 static bool CanExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
     Character* actor,
@@ -337,7 +354,10 @@ static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* ta
 static bool QueueExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
+static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
 static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor);
+static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
+static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target);
 static bool IsNativeExecuteMenuMutationEnabled();
 static bool IsCustomExecutePanelOverlayEnabled();
 static void DisarmNativeMenuExecuteDispatchContext();
@@ -1063,7 +1083,7 @@ static bool TryEvaluateCharacterExecuteFlags(
     }
 }
 
-static Character* ResolveExecuteActorForPredicate()
+static Character* ResolveExecuteActorForPredicateWithTarget(RootObject* target, bool allowAnyFallback)
 {
     if (!ou)
     {
@@ -1085,6 +1105,33 @@ static Character* ResolveExecuteActorForPredicate()
         return 0;
     }
 
+    Character* selectedActor = 0;
+    if (target)
+    {
+        Ogre::Vector3 targetPos;
+        if (TryReadRootObjectPosition(target, &targetPos))
+        {
+            __try
+            {
+                selectedActor = player->getNearestSelectedCharacterTo(targetPos);
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                selectedActor = 0;
+            }
+        }
+    }
+
+    if (selectedActor)
+    {
+        return selectedActor;
+    }
+
+    if (!allowAnyFallback)
+    {
+        return 0;
+    }
+
     __try
     {
         return player->getAnyPlayerCharacter();
@@ -1093,6 +1140,11 @@ static Character* ResolveExecuteActorForPredicate()
     {
         return 0;
     }
+}
+
+static Character* ResolveExecuteActorForPredicate()
+{
+    return ResolveExecuteActorForPredicateWithTarget(0, true);
 }
 
 static bool CanExecuteTarget(
@@ -1409,8 +1461,30 @@ static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Chara
     return fallbackActor;
 }
 
+static void TryEndQueuedExecuteSlaveAnim(Character* actor)
+{
+    if (!actor)
+    {
+        return;
+    }
+
+    __try
+    {
+        actor->endSlaveAnim(kQueuedExecuteSlaveAnimName);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
 {
+    Character* queuedActor = TryResolveCharacterFromHandleSafe(g_queuedExecuteActorHandle);
+    if (g_queuedExecuteSlaveAnimPlaying && queuedActor)
+    {
+        TryEndQueuedExecuteSlaveAnim(queuedActor);
+    }
+
     if (verboseLog && g_queuedExecuteActive)
     {
         std::stringstream logline;
@@ -1429,6 +1503,11 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteArmedMs = 0;
     g_queuedExecuteLastApproachCommandMs = 0;
     g_queuedExecuteLastStateLogMs = 0;
+    g_queuedExecuteAttackTriggered = false;
+    g_queuedExecuteAttackTriggeredMs = 0;
+    g_queuedExecuteInRangeSinceMs = 0;
+    g_queuedExecuteAnimationMode = "none";
+    g_queuedExecuteSlaveAnimPlaying = false;
 }
 
 static bool TryResolveQueuedExecuteParticipants(
@@ -1593,8 +1672,9 @@ static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
     bool moveIssued = false;
     __try
     {
+        // Keep execute approach at the front so combat AI doesn't steal the actor.
+        actor->addOrder(0, GET_NEAR_TO, target, false, true, targetPos);
         actor->setDestination(targetPos, false);
-        actor->lookatPosition(targetPos, true);
         moveIssued = true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1602,6 +1682,54 @@ static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
         moveIssued = false;
     }
     return moveIssued;
+}
+
+static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos)
+{
+    (void)actor;
+    (void)targetPos;
+    return false;
+}
+
+static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target)
+{
+    if (!actor || !target)
+    {
+        return false;
+    }
+
+    itemType targetType = NULL_ITEM;
+    if (!TryGetRootObjectTypeForExecutePredicate(target, &targetType)
+        || !IsCharacterDataType(targetType))
+    {
+        return false;
+    }
+
+    bool slaveAnimTriggered = false;
+    __try
+    {
+        actor->runSlaveAnim(kQueuedExecuteSlaveAnimName, 1.0f, 0.0f);
+        slaveAnimTriggered = true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        slaveAnimTriggered = false;
+    }
+
+    g_queuedExecuteSlaveAnimPlaying = slaveAnimTriggered;
+    if (slaveAnimTriggered)
+    {
+        g_queuedExecuteAnimationMode = "slave_anim_salute";
+        return true;
+    }
+
+    Ogre::Vector3 actorPos;
+    const bool actorPosResolved = TryReadRootObjectPosition(actor, &actorPos);
+    const Ogre::Vector3 crouchLocation = actorPosResolved ? actorPos : actor->getPosition();
+    const bool queueToFront = true;
+    actor->addOrder(0, CROUCH, actor, false, queueToFront, crouchLocation);
+    g_queuedExecuteAnimationMode = "crouch_order_fallback";
+    return true;
 }
 
 static bool TryAssignQueuedExecuteHandles(Character* actor, RootObject* target)
@@ -1621,6 +1749,23 @@ static bool TryAssignQueuedExecuteHandles(Character* actor, RootObject* target)
     {
         return false;
     }
+}
+
+static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle)
+{
+    Character* resolved = 0;
+    __try
+    {
+        if (characterHandle.isValid())
+        {
+            resolved = characterHandle.getCharacter();
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        resolved = 0;
+    }
+    return resolved;
 }
 
 static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* target, bool targetIsCharacter)
@@ -1649,12 +1794,35 @@ static bool QueueExecuteTarget(
 
     if (!actor)
     {
-        actor = ResolveExecuteActorForPredicate();
+        actor = ResolveExecuteActorForPredicateWithTarget(target, true);
     }
-    actor = ResolvePreferredExecuteActorForQueue(target, actor);
+    // For menu/fallback dispatch, keep the actor chosen by the user.
+    // Auto-resolving nearest selected can switch actors mid-combat.
+    if (entryPoint == ExecutePredicateEntryPoint_DEBUG_TRIGGER)
+    {
+        actor = ResolvePreferredExecuteActorForQueue(target, actor);
+    }
     if (!actor)
     {
         return false;
+    }
+
+    const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    if (g_queuedExecuteActive
+        && g_queuedExecuteActorPtr == actorPtr
+        && g_queuedExecuteTargetPtr == targetPtr)
+    {
+        if (verboseLog)
+        {
+            std::stringstream dedup;
+            dedup << "Loot-Scoot-Execute INFO: queued_execute_rearm_ignored"
+                  << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+                  << " actor=0x" << std::hex << actorPtr
+                  << " target=0x" << targetPtr;
+            DebugLog(dedup.str().c_str());
+        }
+        return true;
     }
 
     CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
@@ -1684,11 +1852,15 @@ static bool QueueExecuteTarget(
 
     const DWORD nowMs = GetTickCount();
     g_queuedExecuteActive = true;
-    g_queuedExecuteActorPtr = reinterpret_cast<uintptr_t>(actor);
-    g_queuedExecuteTargetPtr = reinterpret_cast<uintptr_t>(target);
+    g_queuedExecuteActorPtr = actorPtr;
+    g_queuedExecuteTargetPtr = targetPtr;
     g_queuedExecuteArmedMs = nowMs;
     g_queuedExecuteLastApproachCommandMs = 0;
     g_queuedExecuteLastStateLogMs = 0;
+    g_queuedExecuteAttackTriggered = false;
+    g_queuedExecuteAttackTriggeredMs = 0;
+    g_queuedExecuteInRangeSinceMs = 0;
+    g_queuedExecuteAnimationMode = "none";
 
     if (TryIssueQueuedExecuteApproach(actor, target))
     {
@@ -1769,12 +1941,39 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
     const float distanceSq = ComputeSquaredDistanceXZ(actorPos, targetPos);
     const float maxDistanceSq = executeDistance * executeDistance;
     const bool inRange = distanceSq <= maxDistanceSq;
+    if (inRange)
+    {
+        if (g_queuedExecuteInRangeSinceMs == 0)
+        {
+            g_queuedExecuteInRangeSinceMs = nowMs;
+        }
+    }
+    else
+    {
+        g_queuedExecuteInRangeSinceMs = 0;
+        if (g_queuedExecuteAttackTriggered)
+        {
+            g_queuedExecuteAttackTriggered = false;
+            g_queuedExecuteAttackTriggeredMs = 0;
+            g_queuedExecuteAnimationMode = "none";
+            g_queuedExecuteSlaveAnimPlaying = false;
+        }
+    }
+    const bool inRangeGraceElapsed = g_queuedExecuteInRangeSinceMs != 0
+        && DebounceWindowElapsed(nowMs, g_queuedExecuteInRangeSinceMs, kQueuedExecuteFacingGraceMs);
+    const bool inRangeConfirmed = g_queuedExecuteInRangeSinceMs != 0
+        && DebounceWindowElapsed(nowMs, g_queuedExecuteInRangeSinceMs, kQueuedExecuteInRangeConfirmMs);
 
     float facingDot = -1.0f;
     const bool facingResolved = ComputeFacingDotToTarget(actor, target, &facingDot);
-    const bool facingTarget = facingResolved && facingDot >= kQueuedExecuteFacingDotMin;
+    const bool facingTargetStrict = facingResolved && facingDot >= kQueuedExecuteFacingDotMin;
+    const bool facingTargetGrace = facingResolved
+        && facingDot >= kQueuedExecuteFacingDotGraceMin
+        && inRangeGraceElapsed;
+    const bool facingTargetFallback = inRangeGraceElapsed;
+    const bool facingTarget = facingTargetStrict || facingTargetGrace || facingTargetFallback;
 
-    if (!inRange || !facingTarget)
+    if (!inRange)
     {
         const bool shouldIssueApproach = g_queuedExecuteLastApproachCommandMs == 0
             || DebounceWindowElapsed(nowMs, g_queuedExecuteLastApproachCommandMs, kQueuedExecuteRepathIntervalMs);
@@ -1782,7 +1981,6 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
         {
             g_queuedExecuteLastApproachCommandMs = nowMs;
         }
-
         if (g_config.debugContextMenu
             && (g_queuedExecuteLastStateLogMs == 0
                 || DebounceWindowElapsed(nowMs, g_queuedExecuteLastStateLogMs, kQueuedExecuteStateLogMinIntervalMs)))
@@ -1793,12 +1991,51 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                     << " target=0x" << reinterpret_cast<uintptr_t>(target)
                     << " in_range=" << (inRange ? "true" : "false")
                     << " facing_target=" << (facingTarget ? "true" : "false")
+                    << " facing_required=false"
+                    << " facing_target_strict=" << (facingTargetStrict ? "true" : "false")
+                    << " facing_target_grace=" << (facingTargetGrace ? "true" : "false")
+                    << " facing_target_fallback=" << (facingTargetFallback ? "true" : "false")
+                    << " in_range_grace_elapsed=" << (inRangeGraceElapsed ? "true" : "false")
                     << " distance_sq=" << std::dec << distanceSq
                     << " max_distance_sq=" << maxDistanceSq
-                    << " facing_dot=" << facingDot;
+                    << " facing_dot=" << facingDot
+                    << " in_range_since_ms=" << std::dec << g_queuedExecuteInRangeSinceMs;
             DebugLog(logline.str().c_str());
             g_queuedExecuteLastStateLogMs = nowMs;
         }
+        return;
+    }
+
+    if (!inRangeConfirmed)
+    {
+        return;
+    }
+
+    if (!g_queuedExecuteAttackTriggered)
+    {
+        const bool attackTriggered = diagnostics.targetIsCharacter
+            && TryTriggerQueuedExecuteAttackAnimation(actor, target);
+        g_queuedExecuteAttackTriggered = true;
+        g_queuedExecuteAttackTriggeredMs = attackTriggered ? nowMs : 0;
+
+        if (g_config.debugContextMenu)
+        {
+            std::stringstream logline;
+            logline << "Loot-Scoot-Execute DEBUG: queued_execute_attack_trigger"
+                    << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+                    << " target=0x" << reinterpret_cast<uintptr_t>(target)
+                    << " triggered=" << (attackTriggered ? "true" : "false")
+                    << " mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none")
+                    << " distance_sq=" << std::dec << distanceSq
+                    << " max_distance_sq=" << maxDistanceSq
+                    << " fallback_to_direct_dispatch=" << (attackTriggered ? "false" : "true");
+            DebugLog(logline.str().c_str());
+        }
+    }
+
+    if (g_queuedExecuteAttackTriggeredMs != 0
+        && !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecuteAttackWindupMs))
+    {
         return;
     }
 
@@ -1810,7 +2047,8 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                 << " target=0x" << reinterpret_cast<uintptr_t>(target)
                 << " distance_sq=" << std::dec << distanceSq
                 << " max_distance_sq=" << maxDistanceSq
-                << " facing_dot=" << facingDot;
+                << " facing_dot=" << facingDot
+                << " in_range_confirmed=" << (inRangeConfirmed ? "true" : "false");
         DebugLog(logline.str().c_str());
     }
 
@@ -2066,7 +2304,7 @@ static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
         g_lastDebugExecuteContextTargetCaptureMs = 0;
     }
 
-    Character* actor = ResolveExecuteActorForPredicate();
+    Character* actor = ResolveExecuteActorForPredicateWithTarget(target, true);
     if (usedContextTargetFallback)
     {
         LogDebugExecuteTargetSourceFromContextMenu(reinterpret_cast<uintptr_t>(target));
@@ -2136,14 +2374,38 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
     }
 
     RootObject* target = reinterpret_cast<RootObject*>(targetPtr);
-    Character* actor = ResolveExecuteActorForPredicate();
+    Character* actor = TryResolveCharacterFromHandleSafe(g_customExecutePanelActorHandle);
+    if (!actor)
+    {
+        actor = ResolveExecuteActorForPredicateWithTarget(target, false);
+    }
+    const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
+
+    const DWORD nowMs = GetTickCount();
+    const bool dedupDispatch = actorPtr != 0
+        && targetPtr != 0
+        && g_customExecutePanelLastDispatchActorPtr == actorPtr
+        && g_customExecutePanelLastDispatchTargetPtr == targetPtr
+        && g_customExecutePanelLastDispatchMs != 0
+        && !DebounceWindowElapsed(nowMs, g_customExecutePanelLastDispatchMs, kCustomExecutePanelDispatchDedupMs);
+    if (dedupDispatch)
+    {
+        return false;
+    }
+
     const bool queued = QueueExecuteFromNativeMenuSelection(actor, target, true);
+    if (queued)
+    {
+        g_customExecutePanelLastDispatchMs = nowMs;
+        g_customExecutePanelLastDispatchActorPtr = actorPtr;
+        g_customExecutePanelLastDispatchTargetPtr = targetPtr;
+    }
 
     std::stringstream logline;
     logline << "Loot-Scoot-Execute INFO: custom_execute_panel_dispatch"
             << " source=" << (sourceTag ? sourceTag : "unknown")
             << " queued=" << (queued ? "true" : "false")
-            << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+            << " actor=0x" << std::hex << actorPtr
             << " target=0x" << targetPtr;
     DebugLog(logline.str().c_str());
 
@@ -2646,6 +2908,8 @@ static void HideCustomExecutePanelOverlay()
     g_customExecutePanelVisible = false;
     g_customExecutePanelArmed = false;
     g_customExecutePanelRightMouseWasDown = false;
+    g_customExecutePanelActorHandle.setNull();
+    g_customExecutePanelActorPtr = 0;
     g_customExecutePanelTargetPtr = 0;
     g_customExecutePanelMenuPtr = 0;
     g_customExecutePanelOrdersCount = 0;
@@ -2673,7 +2937,16 @@ static void ArmCustomExecutePanelOverlay(
         return;
     }
 
+    Character* actor = ResolveExecuteActorForPredicateWithTarget(target, false);
+    if (!actor)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
+
     g_customExecutePanelArmed = true;
+    g_customExecutePanelActorHandle = actor;
+    g_customExecutePanelActorPtr = reinterpret_cast<uintptr_t>(actor);
     g_customExecutePanelTargetPtr = reinterpret_cast<uintptr_t>(target);
     g_customExecutePanelMenuPtr = reinterpret_cast<uintptr_t>(menu);
     g_customExecutePanelOrdersCount = ordersCount;
@@ -2691,6 +2964,7 @@ static void ArmCustomExecutePanelOverlay(
         logline << "Loot-Scoot-Execute INFO: custom_execute_panel_armed"
                 << " show_seq=" << std::dec << showSeq
                 << " menu=0x" << std::hex << reinterpret_cast<uintptr_t>(menu)
+                << " actor=0x" << std::hex << g_customExecutePanelActorPtr
                 << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(target)
                 << " orders_count=" << std::dec << ordersCount;
         DebugLog(logline.str().c_str());
@@ -2724,7 +2998,21 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
     }
 
     RootObject* target = reinterpret_cast<RootObject*>(g_customExecutePanelTargetPtr);
-    Character* actor = ResolveExecuteActorForPredicate();
+    Character* actor = TryResolveCharacterFromHandleSafe(g_customExecutePanelActorHandle);
+    if (!actor)
+    {
+        actor = ResolveExecuteActorForPredicateWithTarget(target, false);
+        if (actor)
+        {
+            g_customExecutePanelActorHandle = actor;
+            g_customExecutePanelActorPtr = reinterpret_cast<uintptr_t>(actor);
+        }
+    }
+    if (!actor)
+    {
+        HideCustomExecutePanelOverlay();
+        return;
+    }
     CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
     const bool canExecute = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
     if (!canExecute)
