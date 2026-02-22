@@ -129,7 +129,7 @@ static bool ValidateExpectedRvaForSymbol(
            << " executable=" << (executable ? "true" : "false")
            << " signature_ok=" << (signatureLooksReasonable ? "true" : "false")
            << " first_bytes=\"" << FormatCodeBytes(resolvedAddr, 6) << "\"";
-    DebugLog(detail.str().c_str());
+    PluginLog(detail.str().c_str());
 
     if (!executable)
     {
@@ -172,7 +172,7 @@ static uintptr_t NormalizeThunkEntryAddress(const char* symbolName, uintptr_t ca
                  << (symbolName ? symbolName : "unknown")
                  << " entry=0x" << std::hex << candidateAddress
                  << " jump_at=0x" << std::hex << (candidateAddress + 2);
-        DebugLog(prefixed.str().c_str());
+        PluginLog(prefixed.str().c_str());
     }
 
     return candidateAddress;
@@ -249,7 +249,7 @@ static uintptr_t ResolvePreferredThunkHookAddress(const char* symbolName, uintpt
                << " callee=0x" << std::hex << calleeAddress
                << " entry_first_bytes=\"" << FormatCodeBytes(thunkEntryAddress, 6) << "\""
                << " callee_first_bytes=\"" << FormatCodeBytes(calleeAddress, 6) << "\"";
-        DebugLog(detail.str().c_str());
+        PluginLog(detail.str().c_str());
         return calleeAddress;
     }
 
@@ -258,7 +258,7 @@ static uintptr_t ResolvePreferredThunkHookAddress(const char* symbolName, uintpt
              << (symbolName ? symbolName : "unknown")
              << " entry=0x" << std::hex << thunkEntryAddress
              << " entry_first_bytes=\"" << FormatCodeBytes(thunkEntryAddress, 6) << "\"";
-    DebugLog(fallback.str().c_str());
+    PluginLog(fallback.str().c_str());
     return thunkEntryAddress;
 }
 
@@ -384,7 +384,7 @@ static bool ResolveDirectCallTargetFromReturnRva(
                << " return_rva=0x" << std::hex << expectedReturnRva
                << " delta=0x" << std::hex << candidateDelta
                << " call_bytes=\"" << FormatCodeBytes(candidateReturnAddress - 5, 5) << "\"";
-        DebugLog(detail.str().c_str());
+        PluginLog(detail.str().c_str());
         return true;
     }
 
@@ -472,7 +472,7 @@ static void LogDirectCallTargetsFromAddressWindow(
         logline << " calls_found=" << std::dec << foundCalls;
     }
 
-    DebugLog(logline.str().c_str());
+    PluginLog(logline.str().c_str());
 }
 
 static void LogAcceptedBranchCallTraceOnce(
@@ -581,7 +581,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
     begin << "Loot-Scoot-Execute DEBUG: compatibility_gate_begin platform=" << platform
           << " version=" << version
           << " base=0x" << std::hex << baseAddr;
-    DebugLog(begin.str().c_str());
+    PluginLog(begin.str().c_str());
 
     if (platform == KenshiLib::BinaryVersion::UNKNOWN)
     {
@@ -758,7 +758,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
                     << " seed=0x" << std::hex << g_contextMenuLoopScanSeedAddr
                     << " base=0x" << std::hex << loopEntryScanBase
                     << " bytes=\"" << FormatCodeBytes(loopEntryScanBase, 16) << "\"";
-        DebugLog(scanBaseLog.str().c_str());
+        PluginLog(scanBaseLog.str().c_str());
     }
 
     static const size_t kLoopHeadScanMax = 0x800;
@@ -1082,7 +1082,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
             std::stringstream dumpChunk;
             dumpChunk << "Loot-Scoot-Execute DEBUG: loop-head scan dump offset=0x" << std::hex << dumpOffset
                       << " bytes=\"" << FormatCodeBytes(loopEntryScanBase + dumpOffset, 0x40) << "\"";
-            DebugLog(dumpChunk.str().c_str());
+            PluginLog(dumpChunk.str().c_str());
         }
         return false;
     }
@@ -1094,7 +1094,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
                  << " base_addr=0x" << std::hex << loopEntryScanBase
                  << " found_addr=0x" << std::hex << g_resolvedContextMenuLoopEntryAddress
                  << " bytes=\"" << FormatCodeBytes(g_resolvedContextMenuLoopEntryAddress, 8) << "\"";
-        DebugLog(loopHead.str().c_str());
+        PluginLog(loopHead.str().c_str());
     }
 
     g_resolvedContextMenuBuildRowsAddress = baseAddr + kExpectedRvaContextMenuBuildRows_1_0_65 + coreRvaDelta;
@@ -1226,7 +1226,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
                 << " row_insert_call_return=0x" << std::hex << g_resolvedContextMenuRowInsertCallReturnAddress
                 << " row_insert_call_target=0x" << std::hex << g_resolvedContextMenuRowInsertCallTargetAddress
                 << " loop_entry=0x" << std::hex << g_resolvedContextMenuLoopEntryAddress;
-    DebugLog(hookTargets.str().c_str());
+    PluginLog(hookTargets.str().c_str());
 
     if (orderFilterThunkDelta != 0
         || taskProbabilityThunkDelta != 0
@@ -1239,7 +1239,7 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
                       << " task_probability_delta=0x" << taskProbabilityThunkDelta
                       << " append_order_delta=0x" << appendOrderThunkDelta
                       << " task_label_delta=0x" << taskLabelThunkDelta;
-        DebugLog(shiftedThunks.str().c_str());
+        PluginLog(shiftedThunks.str().c_str());
     }
 
     if (consistentDelta)
@@ -1247,10 +1247,10 @@ static bool EvaluateContextMenuCompatibilityGate(unsigned int platform, const st
         std::stringstream shifted;
         shifted << "Loot-Scoot-Execute INFO: compatibility gate accepted consistent RVA shift"
                 << " delta=0x" << std::hex << showDelta;
-        DebugLog(shifted.str().c_str());
+        PluginLog(shifted.str().c_str());
     }
 
-    DebugLog("Loot-Scoot-Execute INFO: compatibility gate passed for native context-menu work");
+    PluginLog("Loot-Scoot-Execute INFO: compatibility gate passed for native context-menu work");
     return true;
 }
 
@@ -1400,7 +1400,7 @@ static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
            << " effective_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
            << " effective_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
            << " effective_execute=" << (g_effectiveEnableExecuteAction ? "true" : "false");
-    DebugLog(detail.str().c_str());
+    PluginLog(detail.str().c_str());
 }
 
 static bool TryResolveRootObjectType(RootObject* object, int* dataTypeOut)
@@ -1958,7 +1958,7 @@ static void ContextMenu_loopEntryInjectHelper(
                          << " valid=" << (candidateValid ? 1 : 0)
                          << " size=" << std::dec << (candidateValid ? candidateCount : 0)
                          << " data=0x" << std::hex << (candidateValid ? candidateDataPtr : 0);
-            DebugLog(candidateLog.str().c_str());
+            PluginLog(candidateLog.str().c_str());
         }
 
         if (selectedOrdersPtr == 0 && candidateValid)
@@ -1982,7 +1982,7 @@ static void ContextMenu_loopEntryInjectHelper(
                  << " ptr=0x" << std::hex << ordersPtr
                  << " size=" << std::dec << selectedOrdersCount
                  << " data=0x" << std::hex << selectedOrdersDataPtr;
-        DebugLog(selected.str().c_str());
+        PluginLog(selected.str().c_str());
     }
 
     lektor<int>* orders = reinterpret_cast<lektor<int>*>(ordersPtr);
@@ -2020,7 +2020,7 @@ static void ContextMenu_loopEntryInjectHelper(
         AppendOrderSampleForLog(preLog, preSample, preSampleCount, preCount);
         preLog << " has225=" << (hasCarryResolved && hasCarryOrder ? 1 : 0)
                << " has134=" << (hasExecuteResolved && hasExecuteOrder ? 1 : 0);
-        DebugLog(preLog.str().c_str());
+        PluginLog(preLog.str().c_str());
     }
 
     if (!(hasCarryResolved && hasExecuteResolved && hasCarryOrder && !hasExecuteOrder))
@@ -2062,7 +2062,7 @@ static void ContextMenu_loopEntryInjectHelper(
                 << " first_orders=";
         AppendOrderSampleForLog(postLog, postSample, postSampleCount, postCount);
         postLog << " appended=134";
-        DebugLog(postLog.str().c_str());
+        PluginLog(postLog.str().c_str());
     }
 }
 
@@ -2080,7 +2080,7 @@ static void ContextMenu_callDetourInjectHelper(uintptr_t ordersCandidateRsi)
         std::stringstream hit;
         hit << "Loot-Scoot-Execute INFO: LOOPHEAD_CALL_DETOUR hit rsi=0x"
             << std::hex << ordersCandidateRsi;
-        DebugLog(hit.str().c_str());
+        PluginLog(hit.str().c_str());
         ++s_loopHeadCallDetourHitCount;
     }
 
@@ -2158,7 +2158,7 @@ static void ContextMenu_callDetourInjectHelper(uintptr_t ordersCandidateRsi)
         {
             seen << "unresolved";
         }
-        DebugLog(seen.str().c_str());
+        PluginLog(seen.str().c_str());
         ++s_callDetourSeen;
     }
 
@@ -2230,7 +2230,7 @@ static void ContextMenu_callDetourInjectHelper(uintptr_t ordersCandidateRsi)
             inject << "unresolved";
         }
         inject << "]";
-        DebugLog(inject.str().c_str());
+        PluginLog(inject.str().c_str());
     }
 
     if (afterCountResolved
@@ -2241,7 +2241,7 @@ static void ContextMenu_callDetourInjectHelper(uintptr_t ordersCandidateRsi)
         && afterSample[2] == 25
         && afterSample[3] == kContextMenuOrderIdExecuteProxy)
     {
-        DebugLog("Loot-Scoot-Execute INFO: LOOPHEAD_APPEND OK size 3->4 first=[26,225,25,134]");
+        PluginLog("Loot-Scoot-Execute INFO: LOOPHEAD_APPEND OK size 3->4 first=[26,225,25,134]");
     }
 }
 
@@ -2436,7 +2436,7 @@ static bool InstallContextMenuLoopEntryInlineHook(uintptr_t targetAddress)
               << " patch_site=0x" << std::hex << patchAddress
               << " original_call_target=0x" << std::hex << originalCallTarget
               << " patch_bytes=\"" << FormatCodeBytes(patchAddress, 5) << "\"";
-    DebugLog(installed.str().c_str());
+    PluginLog(installed.str().c_str());
 
     return true;
 }
@@ -2515,7 +2515,7 @@ static void LogContextMenuRowMaterializationSnapshot(
     }
     logline << "]";
 
-    DebugLog(logline.str().c_str());
+    PluginLog(logline.str().c_str());
     ++s_rowSnapshotHit;
 }
 
@@ -2863,7 +2863,7 @@ static bool TryResolveBuildRowsOrdersPointer(
               << " valid=" << (valid ? 1 : 0)
               << " size=" << std::dec << (valid ? candidateCount : 0)
               << " data=0x" << std::hex << (valid ? candidateDataPtr : 0);
-        DebugLog(probe.str().c_str());
+        PluginLog(probe.str().c_str());
     }
 
     if (!valid)
@@ -3010,7 +3010,7 @@ static bool TryInjectExecuteOrderInShowContextMenuPre(ContextMenu* menu, RootObj
                 skip << "unresolved";
             }
             skip << "]";
-            DebugLog(skip.str().c_str());
+            PluginLog(skip.str().c_str());
         }
         return false;
     }
@@ -3081,7 +3081,7 @@ static bool TryInjectExecuteOrderInShowContextMenuPre(ContextMenu* menu, RootObj
             info << "unresolved";
         }
         info << "] applied=" << (appended ? 1 : 0);
-        DebugLog(info.str().c_str());
+        PluginLog(info.str().c_str());
     }
 
     if (!appended)
@@ -3201,7 +3201,7 @@ static void TryInjectExecuteOrderInBuildRows(ContextMenu* menu)
             preloop << "unresolved";
         }
         preloop << "]";
-        DebugLog(preloop.str().c_str());
+        PluginLog(preloop.str().c_str());
     }
 
     const bool baselineValid = beforeCountResolved
@@ -3333,7 +3333,7 @@ static void TryInjectExecuteOrderInBuildRows(ContextMenu* menu)
             logline << "unresolved";
         }
         logline << " injection_applied=" << (appended ? "true" : "false");
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     if (appended
@@ -3348,7 +3348,7 @@ static void TryInjectExecuteOrderInBuildRows(ContextMenu* menu)
         std::stringstream ok;
         ok << "Loot-Scoot-Execute INFO: BUILDROWS_INJECT_OK orders=0x" << std::hex << ordersPtr
            << " size 3->4";
-        DebugLog(ok.str().c_str());
+        PluginLog(ok.str().c_str());
     }
 }
 
@@ -3359,7 +3359,7 @@ static void ContextMenu_appendOrderThunk_hook(lektor<int>* orders, int orderId)
         std::stringstream seen134;
         seen134 << "Loot-Scoot-Execute INFO: appendOrder_seen_134"
                 << " orders_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(orders);
-        DebugLog(seen134.str().c_str());
+        PluginLog(seen134.str().c_str());
     }
 
     if (!ContextMenu_appendOrderThunk_orig)
@@ -3422,7 +3422,7 @@ static void ContextMenu_appendOrderThunk_hook(lektor<int>* orders, int orderId)
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_appendOrderHookSeen;
         }
     }
@@ -3478,7 +3478,7 @@ static void ContextMenu_appendOrderThunk_hook(lektor<int>* orders, int orderId)
             {
                 result << "unresolved";
             }
-            DebugLog(result.str().c_str());
+            PluginLog(result.str().c_str());
             ++s_appendOrderHookResultSeen;
         }
     }
@@ -3493,7 +3493,7 @@ static void ContextMenu_taskLabelThunk_hook(std::string* outLabel, int taskValue
         {
             std::stringstream catchAll;
             catchAll << "Loot-Scoot-Execute DEBUG: task_label_called task=" << std::dec << taskValue;
-            DebugLog(catchAll.str().c_str());
+            PluginLog(catchAll.str().c_str());
             ++s_taskLabelCalledCatchAll;
         }
     }
@@ -3520,7 +3520,7 @@ static void ContextMenu_taskLabelThunk_hook(std::string* outLabel, int taskValue
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_taskLabelHookSeen;
         }
     }
@@ -3550,7 +3550,7 @@ static void ContextMenu_taskLabelThunk_hook(std::string* outLabel, int taskValue
                    << " effective_task=" << effectiveTaskValue
                    << " label=\"" << SanitizeMenuLabelForLog(*outLabel) << "\""
                    << " force_execute_label=" << (forceExecuteLabel ? "true" : "false");
-            DebugLog(result.str().c_str());
+            PluginLog(result.str().c_str());
             ++s_taskLabelHookResultSeen;
         }
     }
@@ -3560,14 +3560,14 @@ static void ContextMenu_taskLabelThunk_hook(std::string* outLabel, int taskValue
         std::stringstream called;
         called << "Loot-Scoot-Execute DEBUG: task_label_called task=" << std::dec << taskValue << " returning='"
                << SanitizeMenuLabelForLog(*outLabel) << "'";
-        DebugLog(called.str().c_str());
+        PluginLog(called.str().c_str());
 
         std::stringstream logline;
         logline << "Loot-Scoot-Execute DEBUG: context_menu_task_label_override"
                 << " from_task=" << taskValue
                 << " via_task=" << effectiveTaskValue
                 << " label=\"[[[ EXECUTE !!! ]]]\"";
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 }
 
@@ -3594,7 +3594,7 @@ static void ContextMenu_appendOrderThunk_probe_hook(lektor<int>* orders, int ord
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_appendOrderAltHookSeen;
         }
     }
@@ -3628,7 +3628,7 @@ static void ContextMenu_taskLabelThunk_probe_hook(std::string* outLabel, int tas
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_taskLabelAltHookSeen;
         }
     }
@@ -3729,7 +3729,7 @@ static void* ContextMenu_rowInsertCall_hook(
              << " fresh=" << (remapWindowFreshForInjection ? 1 : 0)
              << " downed=" << (remapDownedEnemyContextForInjection ? 1 : 0)
              << " orders=0x" << std::hex << remapOrdersPtrForInjection;
-        DebugLog(mode.str().c_str());
+        PluginLog(mode.str().c_str());
 
         std::stringstream observe;
         observe << "Loot-Scoot-Execute DEBUG: row_insert_observe"
@@ -3746,7 +3746,7 @@ static void* ContextMenu_rowInsertCall_hook(
         }
         observe << " first_row_loot=" << (firstRowLootDetected ? 1 : 0)
                 << " already_injected=" << (executeRowAlreadyInjected ? 1 : 0);
-        DebugLog(observe.str().c_str());
+        PluginLog(observe.str().c_str());
     }
 
     void* rowInsertResult = 0;
@@ -3818,7 +3818,7 @@ static void* ContextMenu_rowInsertCall_hook(
                      << " rewrote_stack20=" << (rewroteStackSlot20 ? 1 : 0)
                      << " rewrote_stack_window=" << (rewroteStackWindow ? 1 : 0)
                      << " rewrote_arg5_node=" << (rewroteArg5Node ? 1 : 0);
-            DebugLog(injectOk.str().c_str());
+            PluginLog(injectOk.str().c_str());
         }
     }
 
@@ -3901,7 +3901,7 @@ static void* ContextMenu_rowInsertCall_hook(
                 {
                     descriptorLog << "unresolved";
                 }
-                DebugLog(descriptorLog.str().c_str());
+                PluginLog(descriptorLog.str().c_str());
             }
         }
     }
@@ -4055,7 +4055,7 @@ static void* ContextMenu_rowInsertCall_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_rowInsertHookSeen;
         }
     }
@@ -4084,7 +4084,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_showHookSeen;
         }
     }
@@ -4122,7 +4122,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
             block << "Loot-Scoot-Execute INFO: BLOCK_CLOSE"
                   << " show_seq=" << std::dec << showSeq
                   << " age_ms=" << showAgeMs;
-            DebugLog(block.str().c_str());
+            PluginLog(block.str().c_str());
             return;
         }
     }
@@ -4378,7 +4378,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
                     << " carry_order_remapped=" << (injectionOrderRemapped ? "true" : "false")
                     << " mutation_failed=" << (injectionMutationFailed ? "true" : "false")
                     << " target=0x" << std::hex << whatPtr;
-            DebugLog(logline.str().c_str());
+            PluginLog(logline.str().c_str());
         }
         return;
     }
@@ -4497,7 +4497,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
             << " injection_mutation_failed=" << (injectionMutationFailed ? "true" : "false")
             << " native_execute_armed=" << (g_nativeMenuExecuteDispatchArmed ? "true" : "false");
 
-    DebugLog(logline.str().c_str());
+    PluginLog(logline.str().c_str());
 
     UpdateContextMenuProbeSnapshot(
         on,
@@ -4582,7 +4582,7 @@ static void ContextMenu_buildRows_hook(ContextMenu* thisptr, void* argRdx, void*
               << " rdx=0x" << std::hex << reinterpret_cast<uintptr_t>(argRdx)
               << " r8=0x" << std::hex << reinterpret_cast<uintptr_t>(argR8)
               << " r9=0x" << std::hex << reinterpret_cast<uintptr_t>(argR9);
-        DebugLog(entry.str().c_str());
+        PluginLog(entry.str().c_str());
     }
 
     if (thisptr)
@@ -4603,7 +4603,7 @@ static void ContextMenu_buildRows_hook(ContextMenu* thisptr, void* argRdx, void*
                  << " menu_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(thisptr)
                  << " orders_count=" << std::dec << ordersCount
                  << " remap_armed=" << (g_nativeMenuOrderRemapArmed ? "true" : "false");
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_buildRowsHookSeen;
         }
     }
@@ -4913,7 +4913,7 @@ static void ObserveContextMenuInUpdateUT(PlayerInterface* thisptr)
         }
         logline << "]";
 
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
         g_lastContextMenuObserverLogMs = nowMs;
     }
 
@@ -4944,7 +4944,7 @@ static void TickPauseOnLoad()
     {
         if (g_state.lastTickAliveLogMs == 0 || DebounceWindowElapsed(nowMs, g_state.lastTickAliveLogMs, kTickAliveIntervalMs))
         {
-            DebugLog("Loot-Scoot-Execute DEBUG: tick alive");
+            PluginLog("Loot-Scoot-Execute DEBUG: tick alive");
             g_state.lastTickAliveLogMs = nowMs;
         }
     }
@@ -4971,7 +4971,7 @@ static void TickPauseOnLoad()
     {
         if (!g_state.loadInProgress && g_config.debugLogTransitions)
         {
-            DebugLog("Loot-Scoot-Execute DEBUG: load started");
+            PluginLog("Loot-Scoot-Execute DEBUG: load started");
         }
         g_state.loadInProgress = true;
         g_state.loadSignalSeenAfterArm = true;
@@ -4982,7 +4982,7 @@ static void TickPauseOnLoad()
     {
         if (g_config.debugLogTransitions)
         {
-            DebugLog("Loot-Scoot-Execute DEBUG: load finished");
+            PluginLog("Loot-Scoot-Execute DEBUG: load finished");
         }
         TryPauseAndDisarm(nowMs, "load_transition");
         return;
@@ -4996,7 +4996,7 @@ static void TickPauseOnLoad()
     {
         if (g_config.debugLogTransitions)
         {
-            DebugLog("Loot-Scoot-Execute DEBUG: no load signal observed; disarming");
+            PluginLog("Loot-Scoot-Execute DEBUG: no load signal observed; disarming");
         }
         DisarmPauseAfterLoad();
     }
@@ -5083,7 +5083,7 @@ static bool TryOverrideExecuteTaskProbability(
                 << " remap_context_downed_enemy=" << (remapDownedEnemyContext ? "true" : "false")
                 << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(resolvedTarget)
                 << " probability=" << std::dec << probability;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     return true;
@@ -5139,7 +5139,7 @@ static bool TryForceExecuteProxyProbabilityOne(
                << " original_prob=" << originalProbability
                << " final_prob=" << probability
                << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(resolvedTarget);
-        DebugLog(forced.str().c_str());
+        PluginLog(forced.str().c_str());
     }
 
     return true;
@@ -5169,7 +5169,7 @@ static bool PlayerInterface_getPlayerTaskProbability_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_playerProbHookSeen;
         }
     }
@@ -5218,7 +5218,7 @@ static bool PlayerInterface_getPlayerTaskProbability_hook(
                            << " task=" << std::dec << taskValue
                            << " original_prob=" << originalProbability
                            << " final_prob=" << probability;
-            DebugLog(persistenceLog.str().c_str());
+            PluginLog(persistenceLog.str().c_str());
         }
 
         return true;
@@ -5267,7 +5267,7 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_orderFilterHookSeen;
         }
     }
@@ -5308,7 +5308,7 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_hook(
         latch << "Loot-Scoot-Execute INFO: LATCH set=" << (g_menuLatchActive ? 1 : 0)
               << " downed=" << (downedEnemyContext ? 1 : 0)
               << " task=26";
-        DebugLog(latch.str().c_str());
+        PluginLog(latch.str().c_str());
     }
 
     if (taskValue == kContextMenuOrderIdLoot
@@ -5385,7 +5385,7 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_hook(
                 inject << " after_count=" << std::dec << afterCount
                        << " after_first=";
                 AppendOrderSampleForLog(inject, afterSample, afterSampleCount, afterCount);
-                DebugLog(inject.str().c_str());
+                PluginLog(inject.str().c_str());
             }
         }
     }
@@ -5456,7 +5456,7 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_hook(
                 << " target_is_enemy=" << (diagnostics.targetIsEnemy ? "true" : "false")
                 << " target_is_incapacitated=" << (diagnostics.targetIsIncapacitated ? "true" : "false")
                 << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     LogAcceptedBranchCallTraceOnce("order_filter", callerAddress, finalAccepted);
@@ -5491,7 +5491,7 @@ static bool PlayerInterface_getContextMenuTaskProbabilityThunk_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_contextProbHookSeen;
         }
     }
@@ -5581,7 +5581,7 @@ static bool PlayerInterface_getContextMenuTaskProbabilityThunk_hook(
                 << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false")
                 << " original_probability=" << std::dec << originalProbability
                 << " final_probability=" << probability;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     if (forcedProxyProbability || forcedOverride)
@@ -5622,7 +5622,7 @@ static bool PlayerInterface_contextMenuOrderFilterThunk_probe_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_orderFilterAltHookSeen;
         }
     }
@@ -5661,7 +5661,7 @@ static bool PlayerInterface_getContextMenuTaskProbabilityThunk_probe_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_contextProbAltHookSeen;
         }
     }
@@ -5694,7 +5694,7 @@ static bool PlayerInterface_isOrderValidForSelection_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_orderValidHookSeen;
         }
     }
@@ -5845,7 +5845,7 @@ static void PlayerInterface_addOrderSelectedCharacters_hook(
                 seen << " caller_rva=0x" << std::hex << callerRva;
             }
             seen << " caller_first_bytes=\"" << FormatCodeBytes(callerAddress, 6) << "\"";
-            DebugLog(seen.str().c_str());
+            PluginLog(seen.str().c_str());
             ++s_addOrderHookSeen;
         }
 
@@ -5862,7 +5862,7 @@ static void PlayerInterface_addOrderSelectedCharacters_hook(
                           << " dispatch_subject=0x" << std::hex << reinterpret_cast<uintptr_t>(dispatchSubject)
                           << " show_seq=" << std::dec << g_contextMenuShowProbeEventSeq
                           << " show_orders_count=" << std::dec << g_contextMenuShowProbeEventOrdersCount;
-            DebugLog(dispatchProbe.str().c_str());
+            PluginLog(dispatchProbe.str().c_str());
         }
     }
 
@@ -5882,7 +5882,7 @@ static void PlayerInterface_addOrderSelectedCharacters_hook(
                 << " task_is_lift_person=" << (taskIsLiftPerson ? "true" : "false")
                 << " subject=0x" << std::hex << subjectPtr
                 << " dispatch_subject=0x" << std::hex << reinterpret_cast<uintptr_t>(dispatchSubject);
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
         DisarmNativeMenuExecuteDispatchContext();
         return;
     }
@@ -5934,7 +5934,7 @@ static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string&
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("Loot-Scoot-Execute: startPlugin()");
+    PluginLog("Loot-Scoot-Execute: startPlugin()");
 
     KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
     const unsigned int platform = versionInfo.GetPlatform();
@@ -5944,7 +5944,7 @@ __declspec(dllexport) void startPlugin()
         std::stringstream detected;
         detected << "Loot-Scoot-Execute INFO: detected platform=" << platform
                  << " version=" << version;
-        DebugLog(detected.str().c_str());
+        PluginLog(detected.str().c_str());
     }
 
     if (platform == KenshiLib::BinaryVersion::UNKNOWN || version != "1.0.65")
@@ -5962,7 +5962,7 @@ __declspec(dllexport) void startPlugin()
         std::stringstream runtimeKey;
         runtimeKey << "Loot-Scoot-Execute INFO: runtime_mapping_key version=" << g_runtimeGameVersion
                    << " locale=" << g_runtimeLocaleTag;
-        DebugLog(runtimeKey.str().c_str());
+        PluginLog(runtimeKey.str().c_str());
     }
 
     LoadConfigState();
@@ -6024,7 +6024,7 @@ __declspec(dllexport) void startPlugin()
             &PlayerInterface_addOrderSelectedCharacters_orig))
         {
             addOrderSelectedCharactersHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: PlayerInterface::addOrderSelectedCharacters hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: PlayerInterface::addOrderSelectedCharacters hook verification passed");
         }
         else
         {
@@ -6046,7 +6046,7 @@ __declspec(dllexport) void startPlugin()
             &PlayerInterface_getPlayerTaskProbability_orig))
         {
             getPlayerTaskProbabilityHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: PlayerInterface::getPlayerTaskProbability hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: PlayerInterface::getPlayerTaskProbability hook verification passed");
         }
         else
         {
@@ -6072,7 +6072,7 @@ __declspec(dllexport) void startPlugin()
             info << "Loot-Scoot-Execute INFO: PlayerInterface context-menu order filter hook verification passed"
                  << " entry=0x" << std::hex << g_resolvedPlayerInterfaceContextMenuOrderFilterThunkAddress
                  << " target=0x" << std::hex << g_hookPlayerInterfaceContextMenuOrderFilterAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6097,7 +6097,7 @@ __declspec(dllexport) void startPlugin()
                  << " reason=overlapping_targets"
                  << " primary=0x" << std::hex << g_hookPlayerInterfaceContextMenuOrderFilterAddress
                  << " alternate=0x" << std::hex << g_hookPlayerInterfaceContextMenuOrderFilterAlternateAddress;
-            DebugLog(skip.str().c_str());
+            PluginLog(skip.str().c_str());
         }
         else if (KenshiLib::SUCCESS == KenshiLib::AddHook(
             reinterpret_cast<void*>(g_hookPlayerInterfaceContextMenuOrderFilterAlternateAddress),
@@ -6108,7 +6108,7 @@ __declspec(dllexport) void startPlugin()
             std::stringstream info;
             info << "Loot-Scoot-Execute INFO: PlayerInterface context-menu order filter alternate thunk hook verification passed"
                  << " target=0x" << std::hex << g_hookPlayerInterfaceContextMenuOrderFilterAlternateAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6130,7 +6130,7 @@ __declspec(dllexport) void startPlugin()
             info << "Loot-Scoot-Execute INFO: PlayerInterface context-menu task probability hook verification passed"
                  << " entry=0x" << std::hex << g_resolvedPlayerInterfaceContextMenuTaskProbabilityThunkAddress
                  << " target=0x" << std::hex << g_hookPlayerInterfaceContextMenuTaskProbabilityAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6155,7 +6155,7 @@ __declspec(dllexport) void startPlugin()
                  << " reason=overlapping_targets"
                  << " primary=0x" << std::hex << g_hookPlayerInterfaceContextMenuTaskProbabilityAddress
                  << " alternate=0x" << std::hex << g_hookPlayerInterfaceContextMenuTaskProbabilityAlternateAddress;
-            DebugLog(skip.str().c_str());
+            PluginLog(skip.str().c_str());
         }
         else if (KenshiLib::SUCCESS == KenshiLib::AddHook(
             reinterpret_cast<void*>(g_hookPlayerInterfaceContextMenuTaskProbabilityAlternateAddress),
@@ -6166,7 +6166,7 @@ __declspec(dllexport) void startPlugin()
             std::stringstream info;
             info << "Loot-Scoot-Execute INFO: PlayerInterface context-menu task probability alternate thunk hook verification passed"
                  << " target=0x" << std::hex << g_hookPlayerInterfaceContextMenuTaskProbabilityAlternateAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6184,7 +6184,7 @@ __declspec(dllexport) void startPlugin()
             &PlayerInterface_isOrderValidForSelection_orig))
         {
             isOrderValidForSelectionHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: PlayerInterface::isOrderValidForSelection hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: PlayerInterface::isOrderValidForSelection hook verification passed");
         }
         else
         {
@@ -6210,7 +6210,7 @@ __declspec(dllexport) void startPlugin()
             info << "Loot-Scoot-Execute INFO: ContextMenu append-order thunk hook verification passed"
                  << " entry=0x" << std::hex << g_resolvedContextMenuAppendOrderThunkAddress
                  << " target=0x" << std::hex << g_hookContextMenuAppendOrderAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6235,7 +6235,7 @@ __declspec(dllexport) void startPlugin()
                  << " reason=overlapping_targets"
                  << " primary=0x" << std::hex << g_hookContextMenuAppendOrderAddress
                  << " alternate=0x" << std::hex << g_hookContextMenuAppendOrderAlternateAddress;
-            DebugLog(skip.str().c_str());
+            PluginLog(skip.str().c_str());
         }
         else if (KenshiLib::SUCCESS == KenshiLib::AddHook(
             reinterpret_cast<void*>(g_hookContextMenuAppendOrderAlternateAddress),
@@ -6246,7 +6246,7 @@ __declspec(dllexport) void startPlugin()
             std::stringstream info;
             info << "Loot-Scoot-Execute INFO: ContextMenu append-order alternate thunk hook verification passed"
                  << " target=0x" << std::hex << g_hookContextMenuAppendOrderAlternateAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6269,7 +6269,7 @@ __declspec(dllexport) void startPlugin()
             info << "Loot-Scoot-Execute INFO: ContextMenu task-label thunk hook verification passed"
                  << " entry=0x" << std::hex << g_resolvedContextMenuTaskLabelThunkAddress
                  << " target=0x" << std::hex << preferredTaskLabelHookTarget;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
 
         // Fallback: some runtimes keep task-label call sites at unshifted thunk RVAs.
@@ -6300,7 +6300,7 @@ __declspec(dllexport) void startPlugin()
                 info << "Loot-Scoot-Execute INFO: ContextMenu task-label thunk hook fallback verification passed"
                      << " preferred_target=0x" << std::hex << preferredTaskLabelHookTarget
                      << " fallback_target=0x" << std::hex << unshiftedTaskLabelThunkAddress;
-                DebugLog(info.str().c_str());
+                PluginLog(info.str().c_str());
             }
         }
 
@@ -6329,7 +6329,7 @@ __declspec(dllexport) void startPlugin()
             info << "Loot-Scoot-Execute INFO: ContextMenu row-insert call hook verification passed"
                  << " return=0x" << std::hex << g_resolvedContextMenuRowInsertCallReturnAddress
                  << " target=0x" << std::hex << g_resolvedContextMenuRowInsertCallTargetAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6354,7 +6354,7 @@ __declspec(dllexport) void startPlugin()
                  << " reason=overlapping_targets"
                  << " primary=0x" << std::hex << g_hookContextMenuTaskLabelAddress
                  << " alternate=0x" << std::hex << g_hookContextMenuTaskLabelAlternateAddress;
-            DebugLog(skip.str().c_str());
+            PluginLog(skip.str().c_str());
         }
         else if (KenshiLib::SUCCESS == KenshiLib::AddHook(
             reinterpret_cast<void*>(g_hookContextMenuTaskLabelAlternateAddress),
@@ -6365,7 +6365,7 @@ __declspec(dllexport) void startPlugin()
             std::stringstream info;
             info << "Loot-Scoot-Execute INFO: ContextMenu task-label alternate thunk hook verification passed"
                  << " target=0x" << std::hex << g_hookContextMenuTaskLabelAlternateAddress;
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6383,7 +6383,7 @@ __declspec(dllexport) void startPlugin()
             &ContextMenu_buildRows_orig))
         {
             contextMenuBuildRowsHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: ContextMenu::buildRows hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: ContextMenu::buildRows hook verification passed");
         }
         else
         {
@@ -6407,7 +6407,7 @@ __declspec(dllexport) void startPlugin()
                  << " target=0x" << std::hex << g_resolvedContextMenuLoopEntryAddress
                  << " return=0x" << std::hex << g_contextMenuLoopEntryInlineReturnAddress
                  << " stub=0x" << std::hex << reinterpret_cast<uintptr_t>(g_contextMenuLoopEntryInlineStubAddress);
-            DebugLog(info.str().c_str());
+            PluginLog(info.str().c_str());
         }
         else
         {
@@ -6432,7 +6432,7 @@ __declspec(dllexport) void startPlugin()
             &ContextMenu_showContextMenu_orig))
         {
             contextMenuShowHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: ContextMenu::showContextMenu hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: ContextMenu::showContextMenu hook verification passed");
         }
         else
         {
@@ -6445,7 +6445,7 @@ __declspec(dllexport) void startPlugin()
             &ContextMenu_update_orig))
         {
             contextMenuUpdateHookInstalled = true;
-            DebugLog("Loot-Scoot-Execute INFO: ContextMenu::update hook verification passed");
+            PluginLog("Loot-Scoot-Execute INFO: ContextMenu::update hook verification passed");
         }
         else
         {
@@ -6493,7 +6493,7 @@ __declspec(dllexport) void startPlugin()
     }
     else
     {
-        DebugLog("Loot-Scoot-Execute INFO: SaveManager load hook verification passed");
+        PluginLog("Loot-Scoot-Execute INFO: SaveManager load hook verification passed");
     }
 
     std::stringstream info;
@@ -6523,7 +6523,7 @@ __declspec(dllexport) void startPlugin()
          << ", execute_loop_entry_hook=" << (g_nativeExecuteLoopEntryHookInstallVerified ? "passed" : "failed")
          << ", execute_row_insert_hook=" << (g_nativeExecuteRowInsertHookInstallVerified ? "passed" : "failed")
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
-    DebugLog(info.str().c_str());
+    PluginLog(info.str().c_str());
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)

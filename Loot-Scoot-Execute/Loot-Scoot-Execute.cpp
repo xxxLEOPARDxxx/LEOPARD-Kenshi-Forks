@@ -94,6 +94,7 @@ static const int kCustomExecutePanelAdditionalYOffset = 5;
 static const int kCustomExecutePanelFallbackExtraYOffset = 6;
 static const std::string kContextMenuOptionsListWidgetName = "OptionsList";
 static const std::string kContextMenuNameTextWidgetName = "NameText";
+static const bool kEnableInternalDebugLogs = false;
 static bool g_enableShowContextMenuPreInjection = false;
 static bool g_forceMenuPersistence = false;
 static bool g_enableBlockCloseForDebug = false;
@@ -213,6 +214,31 @@ enum ContextTypeKey
     ContextTypeKey_ITEM_CONTAINER = 5,
     ContextTypeKey_BUILDING = 6
 };
+
+static bool IsInternalDebugLogLine(const char* message)
+{
+    if (!message || message[0] == '\0')
+    {
+        return false;
+    }
+
+    return std::strstr(message, " DEBUG:") != nullptr;
+}
+
+static void PluginLog(const char* message)
+{
+    if (!message || message[0] == '\0')
+    {
+        return;
+    }
+
+    if (!kEnableInternalDebugLogs && IsInternalDebugLogLine(message))
+    {
+        return;
+    }
+
+    DebugLog(message);
+}
 
 struct ContextMenuMappingEntry
 {
@@ -485,7 +511,7 @@ static void LoadConfigState()
     g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
     if (!foundConfigFile)
     {
-        DebugLog("Loot-Scoot-Execute INFO: mod-config.json not found; using defaults");
+        PluginLog("Loot-Scoot-Execute INFO: mod-config.json not found; using defaults");
     }
 
     std::stringstream info;
@@ -494,7 +520,7 @@ static void LoadConfigState()
          << " enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << " enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false");
-    DebugLog(info.str().c_str());
+    PluginLog(info.str().c_str());
 }
 
 static bool SaveConfigState()
@@ -515,7 +541,7 @@ static bool SaveConfigState()
 
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: saved mod-config.json path=\"" << g_settingsPath << "\"";
-    DebugLog(info.str().c_str());
+    PluginLog(info.str().c_str());
 
     return true;
 }
@@ -547,7 +573,7 @@ static void ArmPauseAfterLoad(const char* source)
     {
         std::stringstream logline;
         logline << "Loot-Scoot-Execute DEBUG: armed from " << source;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 }
 
@@ -613,7 +639,7 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
     {
         if (g_config.debugLogTransitions)
         {
-            DebugLog("Loot-Scoot-Execute DEBUG: pause skipped (debounce)");
+            PluginLog("Loot-Scoot-Execute DEBUG: pause skipped (debounce)");
         }
         DisarmQueuedExecuteAction("pause_debounce_disarm", false);
         DisarmPauseAfterLoad();
@@ -625,7 +651,7 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
         g_state.lastPauseMs = nowMs;
         std::stringstream info;
         info << "Loot-Scoot-Execute INFO: paused_after_load=true source=" << reason;
-        DebugLog(info.str().c_str());
+        PluginLog(info.str().c_str());
     }
 
     DisarmQueuedExecuteAction("pause_after_load_disarm", false);
@@ -863,7 +889,7 @@ static void SeedContextMenuMappingTable()
 
     g_contextMenuMappingTable.push_back(entry);
 
-    DebugLog("Loot-Scoot-Execute INFO: seeded context-menu mapping key=1.0.65|en-US|downed_enemy samples=4 stability=100");
+    PluginLog("Loot-Scoot-Execute INFO: seeded context-menu mapping key=1.0.65|en-US|downed_enemy samples=4 stability=100");
 }
 
 static void RecordContextMenuMappingSample(
@@ -935,7 +961,7 @@ static void RecordContextMenuMappingSample(
            << " observed_orders_count=" << ordersCount
            << " baseline_orders_count=" << entry->baselineOrdersCount
            << " matched_baseline=" << (matchedBaseline ? "true" : "false");
-    DebugLog(detail.str().c_str());
+    PluginLog(detail.str().c_str());
 }
 
 static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool forceLog)
@@ -1011,7 +1037,7 @@ static bool ReevaluateContextMenuMappingConfidenceGate(const char* source, bool 
                << " reason="
                << (g_contextMenuMappingConfidenceGatePassed ? "none" : g_contextMenuMappingGateFailureReason)
                << " key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy";
-        DebugLog(detail.str().c_str());
+        PluginLog(detail.str().c_str());
     }
 
     return changed;
@@ -1274,7 +1300,7 @@ static bool CanExecuteTarget(
                 << " target_is_literally_unconscious=" << (diagnostics.targetIsLiterallyUnconscious ? "true" : "false")
                 << " target_is_incapacitated=" << (diagnostics.targetIsIncapacitated ? "true" : "false")
                 << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
 
         g_hasLastCanExecuteDecision = true;
         g_lastCanExecuteDecisionTargetPtr = diagnostics.targetPtr;
@@ -1591,7 +1617,7 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
                 << " reason=" << (reason ? reason : "none")
                 << " actor=0x" << std::hex << g_queuedExecuteActorPtr
                 << " target=0x" << g_queuedExecuteTargetPtr;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     g_queuedExecuteActive = false;
@@ -1919,7 +1945,7 @@ static bool QueueExecuteTarget(
                   << " source=" << ExecutePredicateEntryPointToString(entryPoint)
                   << " actor=0x" << std::hex << actorPtr
                   << " target=0x" << targetPtr;
-            DebugLog(dedup.str().c_str());
+            PluginLog(dedup.str().c_str());
         }
         return true;
     }
@@ -1974,7 +2000,7 @@ static bool QueueExecuteTarget(
                 << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
                 << " target=0x" << reinterpret_cast<uintptr_t>(target)
                 << " can_execute=true";
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     return true;
@@ -2118,7 +2144,7 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                     << " post_trigger_dispatch_range=" << (inPostTriggerDispatchRange ? "true" : "false")
                     << " facing_dot=" << facingDot
                     << " in_range_since_ms=" << std::dec << g_queuedExecuteInRangeSinceMs;
-            DebugLog(logline.str().c_str());
+            PluginLog(logline.str().c_str());
             g_queuedExecuteLastStateLogMs = nowMs;
         }
         if (!postTriggerCommitHold || !inPostTriggerDispatchRange)
@@ -2151,7 +2177,7 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                     << " distance_sq=" << std::dec << distanceSq
                     << " max_distance_sq=" << maxDistanceSq
                     << " fallback_to_direct_dispatch=" << (attackTriggered ? "false" : "true");
-            DebugLog(logline.str().c_str());
+            PluginLog(logline.str().c_str());
         }
     }
 
@@ -2173,7 +2199,7 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                 << " queue_ready_by_range=" << (queueReadyByRange ? "true" : "false")
                 << " facing_dot=" << facingDot
                 << " in_range_confirmed=" << (inRangeConfirmed ? "true" : "false");
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
@@ -2362,7 +2388,7 @@ static bool DispatchExecuteTarget(
                 << " kill_sound_event=" << killSoundEvent
                 << " kill_sound_emitter=" << killSoundEmitter
                 << " reason=" << (dispatchSucceeded ? "none" : failureReason);
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     return dispatchSucceeded;
@@ -2388,7 +2414,7 @@ static void LogDebugExecuteTargetSourceFromContextMenu(uintptr_t targetPtr)
     std::stringstream logline;
     logline << "Loot-Scoot-Execute DEBUG: debug_execute_target_source source=context_menu_show_target"
             << " target=0x" << std::hex << targetPtr;
-    DebugLog(logline.str().c_str());
+    PluginLog(logline.str().c_str());
 }
 
 static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
@@ -2545,7 +2571,7 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
             << " queued=" << (queued ? "true" : "false")
             << " actor=0x" << std::hex << actorPtr
             << " target=0x" << targetPtr;
-    DebugLog(logline.str().c_str());
+    PluginLog(logline.str().c_str());
 
     HideCustomExecutePanelOverlay();
     DisarmNativeMenuExecuteDispatchContext();
@@ -3002,7 +3028,7 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
                 << " bottom_extra_y=" << kCustomExecutePanelBottomExtraYOffset
                 << " additional_y=" << kCustomExecutePanelAdditionalYOffset
                 << " fallback_extra_y=" << kCustomExecutePanelFallbackExtraYOffset;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 
     int buttonLeft = width / 48;           // 2.0833%
@@ -3105,7 +3131,7 @@ static void ArmCustomExecutePanelOverlay(
                 << " actor=0x" << std::hex << g_customExecutePanelActorPtr
                 << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(target)
                 << " orders_count=" << std::dec << ordersCount;
-        DebugLog(logline.str().c_str());
+        PluginLog(logline.str().c_str());
     }
 }
 
