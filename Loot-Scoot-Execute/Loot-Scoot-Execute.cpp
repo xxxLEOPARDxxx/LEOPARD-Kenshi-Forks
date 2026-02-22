@@ -80,6 +80,7 @@ static const size_t kContextMenuRowMaterializationMaxRows = 12;
 static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
 static const bool kDebugEnableRowInsertSubstitute = false;
 static const bool kDebugEnableShowContextMenuOrderMutationFallback = false;
+static const bool kEnableNativeContextMenuIntegration = false;
 static const bool kEnableBuildRowsPreloopInjection = false;
 static const bool kEnableRowInsertLateInjection = false;
 static const bool kEnableCustomExecutePanelOverlay = true;
@@ -1161,7 +1162,14 @@ static Character* ResolveExecuteActorForPredicateWithTarget(RootObject* target, 
         return 0;
     }
 
-    Character* selectedActor = 0;
+    // Prefer the currently active selected character so execute dispatch
+    // stays bound to the exact user-selected actor.
+    Character* selectedActor = TryResolveCharacterFromHandleSafe(player->selectedCharacter);
+    if (selectedActor)
+    {
+        return selectedActor;
+    }
+
     if (target)
     {
         Ogre::Vector3 targetPos;
@@ -1605,6 +1613,10 @@ static void TryEndQueuedExecuteSlaveAnim(Character* actor)
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
 {
     Character* queuedActor = TryResolveCharacterFromHandleSafe(g_queuedExecuteActorHandle);
+    if (!queuedActor && g_queuedExecuteActorPtr != 0)
+    {
+        queuedActor = reinterpret_cast<Character*>(g_queuedExecuteActorPtr);
+    }
     if (g_queuedExecuteSlaveAnimPlaying && queuedActor)
     {
         TryEndQueuedExecuteSlaveAnim(queuedActor);
@@ -1948,6 +1960,13 @@ static bool QueueExecuteTarget(
             PluginLog(dedup.str().c_str());
         }
         return true;
+    }
+
+    // If a different execute queue is already active, tear it down first so
+    // any running slave animation is ended on the old actor.
+    if (g_queuedExecuteActive)
+    {
+        DisarmQueuedExecuteAction("queue_replaced", false);
     }
 
     CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
@@ -2478,7 +2497,8 @@ static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
 
 static bool IsNativeExecuteMenuMutationEnabled()
 {
-    return g_effectiveEnableContextMenuInjection
+    return kEnableNativeContextMenuIntegration
+        && g_effectiveEnableContextMenuInjection
         && g_effectiveEnableExecuteAction
         && !kEnableCustomExecutePanelOverlay;
 }
