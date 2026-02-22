@@ -6498,15 +6498,10 @@ __declspec(dllexport) void startPlugin()
 
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
-         << ", pause_debounce_ms=" << g_config.pauseDebounceMs
          << ", runtime_mapping_key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy"
-         << ", enable_context_menu_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
          << ", enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << ", enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
-         << ", debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false")
-         << ", enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false")
-         << ", debug_execute_hotkey_vk=" << kDebugExecuteHotkeyVirtualKey
-         << ", effective_context_menu_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
+         << ", enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
          << ", effective_execute_action=" << (g_effectiveEnableExecuteAction ? "true" : "false")
          << ", mapping_gate=" << (g_contextMenuMappingConfidenceGatePassed ? "passed" : "failed")

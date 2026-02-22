@@ -506,65 +506,6 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "pause_debounce_ms")
-        {
-            DWORD parsedUnsigned = 0;
-            bool clamped = false;
-            size_t valuePos = pos;
-            if (ParseJsonUnsignedValue(body, &valuePos, &parsedUnsigned, &clamped))
-            {
-                diagnostics->foundPauseDebounceMs = true;
-                diagnostics->clampedPauseDebounceMs = diagnostics->clampedPauseDebounceMs || clamped;
-                configOut->pauseDebounceMs = parsedUnsigned;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidPauseDebounceMs = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "debug_log_transitions")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundDebugLogTransitions = true;
-                configOut->debugLogTransitions = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidDebugLogTransitions = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "enable_context_menu_probe")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundEnableContextMenuProbe = true;
-                configOut->enableContextMenuProbe = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidEnableContextMenuProbe = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
         else if (key == "enable_context_menu_injection")
         {
             bool parsedBool = false;
@@ -597,44 +538,6 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
             else
             {
                 diagnostics->invalidEnableExecuteAction = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "debug_context_menu")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundDebugContextMenu = true;
-                configOut->debugContextMenu = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidDebugContextMenu = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "enable_debug_direct_damage_fallback")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundEnableDebugDirectDamageFallback = true;
-                configOut->enableDebugDirectDamageFallback = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidEnableDebugDirectDamageFallback = true;
                 if (!SkipJsonValue(body, &pos))
                 {
                     return RecordConfigSyntaxError(diagnostics, pos);
@@ -707,12 +610,9 @@ static bool RunInternalSelfChecks()
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
-            "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_log_transitions\":true,"
-            "\"enable_context_menu_probe\":true,"
+            "{\"enabled\":false,"
             "\"enable_context_menu_injection\":true,"
             "\"enable_execute_action\":true,"
-            "\"debug_context_menu\":true,"
-            "\"enable_debug_direct_damage_fallback\":true,"
             "\"enable_execute_kill_sound\":false}",
             &parsedConfig,
             &diagnostics))
@@ -720,34 +620,21 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (parsedConfig.enabled
-        || parsedConfig.pauseDebounceMs != 1234
-        || !parsedConfig.debugLogTransitions
-        || !parsedConfig.enableContextMenuProbe
         || !parsedConfig.enableContextMenuInjection
         || !parsedConfig.enableExecuteAction
-        || !parsedConfig.debugContextMenu
-        || !parsedConfig.enableDebugDirectDamageFallback
         || parsedConfig.enableExecuteKillSound)
     {
         return false;
     }
 
     const std::string bomJson = std::string("\xEF\xBB\xBF")
-        + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_log_transitions\":false,"
-          "\"enable_context_menu_probe\":false,"
+        + "{\"enabled\":true,"
           "\"enable_context_menu_injection\":false,"
           "\"enable_execute_action\":false,"
-          "\"debug_context_menu\":false,"
-          "\"enable_debug_direct_damage_fallback\":false,"
           "\"enable_execute_kill_sound\":true}";
     parsedConfig.enabled = false;
-    parsedConfig.pauseDebounceMs = 1;
-    parsedConfig.debugLogTransitions = true;
-    parsedConfig.enableContextMenuProbe = true;
     parsedConfig.enableContextMenuInjection = true;
     parsedConfig.enableExecuteAction = true;
-    parsedConfig.debugContextMenu = true;
-    parsedConfig.enableDebugDirectDamageFallback = true;
     parsedConfig.enableExecuteKillSound = false;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
@@ -755,13 +642,8 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!parsedConfig.enabled
-        || parsedConfig.pauseDebounceMs != 2000
-        || parsedConfig.debugLogTransitions
-        || parsedConfig.enableContextMenuProbe
         || parsedConfig.enableContextMenuInjection
         || parsedConfig.enableExecuteAction
-        || parsedConfig.debugContextMenu
-        || parsedConfig.enableDebugDirectDamageFallback
         || !parsedConfig.enableExecuteKillSound)
     {
         return false;
@@ -852,26 +734,6 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enabled\"; using default");
     }
-    if (!diagnostics.foundPauseDebounceMs || diagnostics.invalidPauseDebounceMs)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"pause_debounce_ms\"; using default");
-    }
-    if (diagnostics.clampedPauseDebounceMs)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: \"pause_debounce_ms\" exceeded max; clamped to 600000");
-    }
-    if (!diagnostics.foundDebugLogTransitions || diagnostics.invalidDebugLogTransitions)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"debug_log_transitions\"; using default");
-    }
-    if (!diagnostics.foundEnableContextMenuProbe || diagnostics.invalidEnableContextMenuProbe)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_context_menu_probe\"; using default");
-    }
     if (!diagnostics.foundEnableContextMenuInjection || diagnostics.invalidEnableContextMenuInjection)
     {
         needsWriteBack = true;
@@ -881,16 +743,6 @@ static bool ReadConfigFromFile(
     {
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_action\"; using default");
-    }
-    if (!diagnostics.foundDebugContextMenu || diagnostics.invalidDebugContextMenu)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"debug_context_menu\"; using default");
-    }
-    if (!diagnostics.foundEnableDebugDirectDamageFallback || diagnostics.invalidEnableDebugDirectDamageFallback)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_debug_direct_damage_fallback\"; using default");
     }
     if (!diagnostics.foundEnableExecuteKillSound || diagnostics.invalidEnableExecuteKillSound)
     {
@@ -914,13 +766,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
-    out << "  \"pause_debounce_ms\": " << config.pauseDebounceMs << ",\n";
-    out << "  \"debug_log_transitions\": " << (config.debugLogTransitions ? "true" : "false") << ",\n";
-    out << "  \"enable_context_menu_probe\": " << (config.enableContextMenuProbe ? "true" : "false") << ",\n";
     out << "  \"enable_context_menu_injection\": " << (config.enableContextMenuInjection ? "true" : "false") << ",\n";
     out << "  \"enable_execute_action\": " << (config.enableExecuteAction ? "true" : "false") << ",\n";
-    out << "  \"debug_context_menu\": " << (config.debugContextMenu ? "true" : "false") << ",\n";
-    out << "  \"enable_debug_direct_damage_fallback\": " << (config.enableDebugDirectDamageFallback ? "true" : "false") << ",\n";
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << "\n";
     out << "}\n";
 

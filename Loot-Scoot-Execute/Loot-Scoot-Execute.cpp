@@ -50,11 +50,14 @@ static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
 static const DWORD kQueuedExecuteRepathIntervalMs = 200;
 static const DWORD kQueuedExecuteStateLogMinIntervalMs = 500;
 static const DWORD kQueuedExecuteAttackWindupMs = 180;
+static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
 static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
 static const DWORD kQueuedExecuteFacingGraceMs = 1500;
 static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
 static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
 static const float kQueuedExecuteMaxDistanceMeters = 2.0f;
+static const float kQueuedExecutePostTriggerDispatchExtraDistanceMeters = 1.5f;
+static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
 static const float kQueuedExecuteFacingDotMin = 0.90f;
 static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const std::string kQueuedExecuteSlaveAnimName = "salute";
@@ -472,6 +475,13 @@ static void LoadConfigState()
         return;
     }
 
+    // Legacy/internal-only fields are not user-configurable.
+    g_config.pauseDebounceMs = 2000;
+    g_config.debugLogTransitions = false;
+    g_config.enableContextMenuProbe = false;
+    g_config.debugContextMenu = false;
+    g_config.enableDebugDirectDamageFallback = false;
+
     g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
     if (!foundConfigFile)
     {
@@ -481,13 +491,8 @@ static void LoadConfigState()
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
-         << " pause_debounce_ms=" << g_config.pauseDebounceMs
-         << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
-         << " enable_context_menu_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
          << " enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
          << " enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
-         << " debug_context_menu=" << (g_config.debugContextMenu ? "true" : "false")
-         << " enable_debug_direct_damage_fallback=" << (g_config.enableDebugDirectDamageFallback ? "true" : "false")
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false");
     DebugLog(info.str().c_str());
 }
@@ -2034,7 +2039,28 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
 
     const float distanceSq = ComputeSquaredDistanceXZ(actorPos, targetPos);
     const float maxDistanceSq = executeDistance * executeDistance;
+    const float postTriggerDispatchDistance = executeDistance + kQueuedExecutePostTriggerDispatchExtraDistanceMeters;
+    const float postTriggerDispatchDistanceSq = postTriggerDispatchDistance * postTriggerDispatchDistance;
+    const float postTriggerAbortDistance = executeDistance + kQueuedExecutePostTriggerAbortExtraDistanceMeters;
+    const float postTriggerAbortDistanceSq = postTriggerAbortDistance * postTriggerAbortDistance;
     const bool inRange = distanceSq <= maxDistanceSq;
+    const bool inPostTriggerDispatchRange = distanceSq <= postTriggerDispatchDistanceSq;
+    const bool postTriggerAbortDistanceExceeded = distanceSq > postTriggerAbortDistanceSq;
+    const bool postTriggerTimedOut = g_queuedExecuteAttackTriggeredMs != 0
+        && DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecutePostTriggerMaxDurationMs);
+
+    if (g_queuedExecuteAttackTriggered && postTriggerTimedOut)
+    {
+        DisarmQueuedExecuteAction("post_trigger_timeout", true);
+        return;
+    }
+
+    if (g_queuedExecuteAttackTriggered && postTriggerAbortDistanceExceeded)
+    {
+        DisarmQueuedExecuteAction("post_trigger_drift_too_far", true);
+        return;
+    }
+
     if (inRange)
     {
         if (g_queuedExecuteInRangeSinceMs == 0)
@@ -2045,13 +2071,6 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
     else
     {
         g_queuedExecuteInRangeSinceMs = 0;
-        if (g_queuedExecuteAttackTriggered)
-        {
-            g_queuedExecuteAttackTriggered = false;
-            g_queuedExecuteAttackTriggeredMs = 0;
-            g_queuedExecuteAnimationMode = "none";
-            g_queuedExecuteSlaveAnimPlaying = false;
-        }
     }
     const bool inRangeGraceElapsed = g_queuedExecuteInRangeSinceMs != 0
         && DebounceWindowElapsed(nowMs, g_queuedExecuteInRangeSinceMs, kQueuedExecuteFacingGraceMs);
@@ -2069,8 +2088,10 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
 
     if (!inRange)
     {
-        const bool shouldIssueApproach = g_queuedExecuteLastApproachCommandMs == 0
-            || DebounceWindowElapsed(nowMs, g_queuedExecuteLastApproachCommandMs, kQueuedExecuteRepathIntervalMs);
+        const bool postTriggerCommitHold = g_queuedExecuteAttackTriggered;
+        const bool shouldIssueApproach = !postTriggerCommitHold
+            && (g_queuedExecuteLastApproachCommandMs == 0
+                || DebounceWindowElapsed(nowMs, g_queuedExecuteLastApproachCommandMs, kQueuedExecuteRepathIntervalMs));
         if (shouldIssueApproach && TryIssueQueuedExecuteApproach(actor, target))
         {
             g_queuedExecuteLastApproachCommandMs = nowMs;
@@ -2092,15 +2113,22 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                     << " in_range_grace_elapsed=" << (inRangeGraceElapsed ? "true" : "false")
                     << " distance_sq=" << std::dec << distanceSq
                     << " max_distance_sq=" << maxDistanceSq
+                    << " post_trigger_dispatch_distance_sq=" << postTriggerDispatchDistanceSq
+                    << " post_trigger_commit_hold=" << (postTriggerCommitHold ? "true" : "false")
+                    << " post_trigger_dispatch_range=" << (inPostTriggerDispatchRange ? "true" : "false")
                     << " facing_dot=" << facingDot
                     << " in_range_since_ms=" << std::dec << g_queuedExecuteInRangeSinceMs;
             DebugLog(logline.str().c_str());
             g_queuedExecuteLastStateLogMs = nowMs;
         }
-        return;
+        if (!postTriggerCommitHold || !inPostTriggerDispatchRange)
+        {
+            return;
+        }
     }
 
-    if (!inRangeConfirmed)
+    const bool queueReadyByRange = inRangeConfirmed || (g_queuedExecuteAttackTriggered && inPostTriggerDispatchRange);
+    if (!queueReadyByRange)
     {
         return;
     }
@@ -2141,6 +2169,8 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
                 << " target=0x" << reinterpret_cast<uintptr_t>(target)
                 << " distance_sq=" << std::dec << distanceSq
                 << " max_distance_sq=" << maxDistanceSq
+                << " post_trigger_dispatch_distance_sq=" << postTriggerDispatchDistanceSq
+                << " queue_ready_by_range=" << (queueReadyByRange ? "true" : "false")
                 << " facing_dot=" << facingDot
                 << " in_range_confirmed=" << (inRangeConfirmed ? "true" : "false");
         DebugLog(logline.str().c_str());
