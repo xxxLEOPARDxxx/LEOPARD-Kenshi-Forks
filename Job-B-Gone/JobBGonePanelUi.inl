@@ -829,8 +829,12 @@ enum PanelUiSuppressionReason
     PanelUiSuppressionReason_CharacterCreation = 1 << 0,
     PanelUiSuppressionReason_InventoryOpen = 1 << 1,
     PanelUiSuppressionReason_CharacterInteraction = 1 << 2,
-    PanelUiSuppressionReason_MenuOpen = 1 << 3
+    PanelUiSuppressionReason_MenuOpen = 1 << 3,
+    PanelUiSuppressionReason_HudHidden = 1 << 4
 };
+
+static bool g_hudHiddenByToggleEvent = false;
+static bool g_hudHiddenByToggleEventKnown = false;
 
 static bool TryGetCharacterCreationModeActive(bool* activeOut)
 {
@@ -848,6 +852,353 @@ static bool TryGetCharacterCreationModeActive(bool* activeOut)
     {
         return false;
     }
+}
+
+static bool TryGetSelectedMemberInfoPanelNoexcept(DatapanelGUI** panelOut)
+{
+    if (!panelOut)
+    {
+        return false;
+    }
+
+    *panelOut = 0;
+    if (g_selectedMemberInfoWindowAddress == 0)
+    {
+        return true;
+    }
+
+    __try
+    {
+        DatapanelGUI** infoWindowSlot = reinterpret_cast<DatapanelGUI**>(g_selectedMemberInfoWindowAddress);
+        if (!infoWindowSlot)
+        {
+            return true;
+        }
+
+        *panelOut = *infoWindowSlot;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool TryGetHudHiddenStateFromWidgetHierarchy(bool* hiddenOut)
+{
+    if (!hiddenOut)
+    {
+        return false;
+    }
+
+    *hiddenOut = false;
+
+    DatapanelGUI* selectedMemberInfoPanel = 0;
+    if (!TryGetSelectedMemberInfoPanelNoexcept(&selectedMemberInfoPanel))
+    {
+        return false;
+    }
+
+    if (!selectedMemberInfoPanel)
+    {
+        return true;
+    }
+
+    __try
+    {
+        MyGUI::Widget* panelWidget = selectedMemberInfoPanel->getWidget();
+        if (!panelWidget)
+        {
+            *hiddenOut = !selectedMemberInfoPanel->isVisible();
+            return true;
+        }
+
+        const bool hasSelectedMember = (ResolveSelectedMember() != 0);
+        const bool panelVisible = panelWidget->getInheritedVisible();
+
+        // Parent container captures global HUD hidden states.
+        MyGUI::Widget* hudSignalWidget = panelWidget->getParent();
+        if (!hudSignalWidget)
+        {
+            *hiddenOut = !panelVisible;
+            return true;
+        }
+
+        const bool hudContainerVisible = hudSignalWidget->getInheritedVisible();
+
+        // If the container is hidden, HUD is hidden.
+        // If a member is selected and the selected-member panel itself is hidden,
+        // treat that as HUD hidden as well.
+        *hiddenOut = (!hudContainerVisible) || (hasSelectedMember && !panelVisible);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static void CaptureHudToggleEventSignal()
+{
+    bool toggleEventSeen = false;
+    bool hiddenNow = false;
+    bool knownNow = false;
+    __try
+    {
+        if (!key)
+        {
+            return;
+        }
+
+        InputHandler::Command* toggleBarCommand = key->getCommand(kToggleBarCommandName);
+        if (!toggleBarCommand)
+        {
+            return;
+        }
+
+        if (key->events.count(toggleBarCommand) == 0)
+        {
+            return;
+        }
+
+        if (!g_hudHiddenByToggleEventKnown)
+        {
+            g_hudHiddenByToggleEventKnown = true;
+        }
+        g_hudHiddenByToggleEvent = !g_hudHiddenByToggleEvent;
+        toggleEventSeen = true;
+        hiddenNow = g_hudHiddenByToggleEvent;
+        knownNow = g_hudHiddenByToggleEventKnown;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return;
+    }
+
+    if (!toggleEventSeen)
+    {
+        return;
+    }
+
+    if (hiddenNow)
+    {
+        DebugLog(knownNow
+            ? "Job-B-Gone DEBUG: hud_toggle_event_seen hidden=true known=true"
+            : "Job-B-Gone DEBUG: hud_toggle_event_seen hidden=true known=false");
+        return;
+    }
+
+    DebugLog(knownNow
+        ? "Job-B-Gone DEBUG: hud_toggle_event_seen hidden=false known=true"
+        : "Job-B-Gone DEBUG: hud_toggle_event_seen hidden=false known=false");
+}
+
+static void LogHudSignalProbe(
+    bool keyPointerSeen,
+    bool toggleBarCommandFound,
+    bool toggleBarBooleanFound,
+    bool hasCommandSignal,
+    bool commandState,
+    bool commandHidden,
+    bool commandPolarityKnown,
+    bool commandTrueMeansHidden,
+    bool toggleEventKnown,
+    bool toggleEventHidden,
+    bool hasWidgetSignal,
+    bool widgetHidden,
+    int sourceCode,
+    bool finalHidden)
+{
+    static bool s_initialized = false;
+    static bool s_lastKeyPointerSeen = false;
+    static bool s_lastToggleBarCommandFound = false;
+    static bool s_lastToggleBarBooleanFound = false;
+    static bool s_lastHasCommandSignal = false;
+    static bool s_lastCommandState = false;
+    static bool s_lastCommandHidden = false;
+    static bool s_lastCommandPolarityKnown = false;
+    static bool s_lastCommandTrueMeansHidden = false;
+    static bool s_lastToggleEventKnown = false;
+    static bool s_lastToggleEventHidden = false;
+    static bool s_lastHasWidgetSignal = false;
+    static bool s_lastWidgetHidden = false;
+    static int s_lastSourceCode = -1;
+    static bool s_lastFinalHidden = false;
+
+    const bool changed =
+        (!s_initialized)
+        || s_lastKeyPointerSeen != keyPointerSeen
+        || s_lastToggleBarCommandFound != toggleBarCommandFound
+        || s_lastToggleBarBooleanFound != toggleBarBooleanFound
+        || s_lastHasCommandSignal != hasCommandSignal
+        || s_lastCommandState != commandState
+        || s_lastCommandHidden != commandHidden
+        || s_lastCommandPolarityKnown != commandPolarityKnown
+        || s_lastCommandTrueMeansHidden != commandTrueMeansHidden
+        || s_lastToggleEventKnown != toggleEventKnown
+        || s_lastToggleEventHidden != toggleEventHidden
+        || s_lastHasWidgetSignal != hasWidgetSignal
+        || s_lastWidgetHidden != widgetHidden
+        || s_lastSourceCode != sourceCode
+        || s_lastFinalHidden != finalHidden;
+    if (!changed)
+    {
+        return;
+    }
+
+    const char* sourceName = "none";
+    if (sourceCode == 1)
+    {
+        sourceName = "command_toggle_bar";
+    }
+    else if (sourceCode == 2)
+    {
+        sourceName = "widget_fallback";
+    }
+    else if (sourceCode == 3)
+    {
+        sourceName = "toggle_event_latched";
+    }
+
+    std::stringstream info;
+    info << "Job-B-Gone DEBUG: hud_signal_probe"
+         << " source=" << sourceName
+         << " hidden=" << (finalHidden ? "true" : "false")
+         << " key_ptr=" << (keyPointerSeen ? "true" : "false")
+         << " command_found=" << (toggleBarCommandFound ? "true" : "false")
+         << " command_bool_ptr=" << (toggleBarBooleanFound ? "true" : "false")
+         << " command_signal=" << (hasCommandSignal ? "true" : "false")
+         << " command_state=" << (commandState ? "true" : "false")
+         << " command_hidden=" << (commandHidden ? "true" : "false")
+         << " polarity_known=" << (commandPolarityKnown ? "true" : "false")
+         << " true_means_hidden=" << (commandTrueMeansHidden ? "true" : "false")
+         << " toggle_event_known=" << (toggleEventKnown ? "true" : "false")
+         << " toggle_event_hidden=" << (toggleEventHidden ? "true" : "false")
+         << " widget_signal=" << (hasWidgetSignal ? "true" : "false")
+         << " widget_hidden=" << (widgetHidden ? "true" : "false");
+    DebugLog(info.str().c_str());
+
+    s_initialized = true;
+    s_lastKeyPointerSeen = keyPointerSeen;
+    s_lastToggleBarCommandFound = toggleBarCommandFound;
+    s_lastToggleBarBooleanFound = toggleBarBooleanFound;
+    s_lastHasCommandSignal = hasCommandSignal;
+    s_lastCommandState = commandState;
+    s_lastCommandHidden = commandHidden;
+    s_lastCommandPolarityKnown = commandPolarityKnown;
+    s_lastCommandTrueMeansHidden = commandTrueMeansHidden;
+    s_lastToggleEventKnown = toggleEventKnown;
+    s_lastToggleEventHidden = toggleEventHidden;
+    s_lastHasWidgetSignal = hasWidgetSignal;
+    s_lastWidgetHidden = widgetHidden;
+    s_lastSourceCode = sourceCode;
+    s_lastFinalHidden = finalHidden;
+}
+
+static bool TryGetHudHiddenState(bool* hiddenOut)
+{
+    if (!hiddenOut)
+    {
+        return false;
+    }
+
+    *hiddenOut = false;
+
+    bool widgetHidden = false;
+    const bool hasWidgetSignal = TryGetHudHiddenStateFromWidgetHierarchy(&widgetHidden);
+    if (!g_hudHiddenByToggleEventKnown && hasWidgetSignal)
+    {
+        g_hudHiddenByToggleEvent = widgetHidden;
+        g_hudHiddenByToggleEventKnown = true;
+    }
+
+    bool commandHidden = false;
+    bool hasCommandSignal = false;
+    bool commandState = false;
+    bool commandPolarityKnown = false;
+    bool commandTrueMeansHidden = false;
+    bool keyPointerSeen = false;
+    bool toggleBarCommandFound = false;
+    bool toggleBarBooleanFound = false;
+    __try
+    {
+        if (key)
+        {
+            keyPointerSeen = true;
+            InputHandler::Command* toggleBarCommand = key->getCommand(kToggleBarCommandName);
+            if (toggleBarCommand)
+            {
+                toggleBarCommandFound = true;
+                if (toggleBarCommand->boolean)
+                {
+                    toggleBarBooleanFound = true;
+                    commandState = *(toggleBarCommand->boolean);
+                    static bool s_commandPolarityKnown = false;
+                    static bool s_commandTrueMeansHidden = false;
+                    if (!s_commandPolarityKnown)
+                    {
+                        if (hasWidgetSignal)
+                        {
+                            s_commandTrueMeansHidden = (commandState == widgetHidden);
+                        }
+                        else
+                        {
+                            // Default assumption: toggle_bar=true means bars shown.
+                            s_commandTrueMeansHidden = false;
+                        }
+                        s_commandPolarityKnown = true;
+                    }
+
+                    commandPolarityKnown = s_commandPolarityKnown;
+                    commandTrueMeansHidden = s_commandTrueMeansHidden;
+                    commandHidden = s_commandTrueMeansHidden ? commandState : !commandState;
+                    hasCommandSignal = true;
+                }
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    int sourceCode = 0;
+    bool finalHidden = false;
+
+    if (g_hudHiddenByToggleEventKnown)
+    {
+        sourceCode = 3;
+        finalHidden = g_hudHiddenByToggleEvent;
+    }
+    else if (hasCommandSignal)
+    {
+        sourceCode = 1;
+        finalHidden = commandHidden;
+    }
+    else if (hasWidgetSignal)
+    {
+        sourceCode = 2;
+        finalHidden = widgetHidden;
+    }
+
+    LogHudSignalProbe(
+        keyPointerSeen,
+        toggleBarCommandFound,
+        toggleBarBooleanFound,
+        hasCommandSignal,
+        commandState,
+        commandHidden,
+        commandPolarityKnown,
+        commandTrueMeansHidden,
+        g_hudHiddenByToggleEventKnown,
+        g_hudHiddenByToggleEvent,
+        hasWidgetSignal,
+        widgetHidden,
+        sourceCode,
+        finalHidden);
+
+    *hiddenOut = finalHidden;
+    return true;
 }
 
 enum EscMenuCaptionMask
@@ -1246,6 +1597,12 @@ static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
         reasonMask |= PanelUiSuppressionReason_MenuOpen;
     }
 
+    bool hudHidden = false;
+    if (TryGetHudHiddenState(&hudHidden) && hudHidden)
+    {
+        reasonMask |= PanelUiSuppressionReason_HudHidden;
+    }
+
     bool characterCreationModeActive = false;
     if (g_config.hidePanelDuringCharacterCreation
         && TryGetCharacterCreationModeActive(&characterCreationModeActive)
@@ -1330,6 +1687,15 @@ static std::string BuildPanelUiSuppressionReasonSummary(int reasonMask)
             summary << ",";
         }
         summary << "menu_open";
+        wroteAny = true;
+    }
+    if ((reasonMask & PanelUiSuppressionReason_HudHidden) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "hud_hidden";
     }
 
     return summary.str();
@@ -1852,6 +2218,8 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobRowScrollOffset = 0;
     g_lastLoggedPanelSuppressedByUiState = false;
     g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
+    g_hudHiddenByToggleEvent = false;
+    g_hudHiddenByToggleEventKnown = false;
 }
 
 static void OnSaveLoadTransitionStart(const char* source)
@@ -1867,6 +2235,8 @@ static void OnSaveLoadTransitionStart(const char* source)
     g_lastLoggedButtonExists = false;
     g_lastLoggedPanelSuppressedByUiState = false;
     g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
+    g_hudHiddenByToggleEvent = false;
+    g_hudHiddenByToggleEventKnown = false;
 
     std::stringstream info;
     info << "Job-B-Gone DEBUG: save_load_ui_reset source=" << (source ? source : "unknown");

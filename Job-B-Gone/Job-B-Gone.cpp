@@ -7,6 +7,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Inventory.h>
+#include <kenshi/InputHandler.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObjectBase.h>
 #include <kenshi/SaveManager.h>
@@ -48,6 +49,7 @@ static const int kPanelMaxPersistedCoord = 100000;
 static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
 static const int kMaxVisibleJobRows = 8;
+static const std::string kToggleBarCommandName = "toggle_bar";
 
 static PluginConfig g_config = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0 };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };

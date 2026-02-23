@@ -167,6 +167,7 @@ static void TickSelectedMemberUiRefresh()
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
+    CaptureHudToggleEventSignal();
     PlayerInterface_updateUT_orig(thisptr);
     TickPauseOnLoad();
     TickSelectedMemberUiRefresh();
