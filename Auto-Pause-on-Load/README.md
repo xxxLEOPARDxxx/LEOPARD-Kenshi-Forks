@@ -48,5 +48,9 @@ Supported keys:
 - `enabled` (bool)
 - `pause_debounce_ms` (number, 0..600000)
 - `debug_log_transitions` (bool)
+- `pause_on_trade` (bool)
+- `resume_after_trade` (bool, only applies when `pause_on_trade=true`)
+- `pause_on_inventory_open` (bool)
+- `resume_after_inventory_close` (bool, only applies when `pause_on_inventory_open=true`)
 
 If config is missing or unreadable, defaults are used and written back.
