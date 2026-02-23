@@ -1232,6 +1232,252 @@ static int CountSetBits32(unsigned int value)
     return count;
 }
 
+enum DialogueUiSignalMask
+{
+    DialogueUiSignalMask_None = 0,
+    DialogueUiSignalMask_PlayerPanel = 1 << 0,
+    DialogueUiSignalMask_NpcPanel = 1 << 1,
+    DialogueUiSignalMask_PlayerDialog = 1 << 2,
+    DialogueUiSignalMask_NpcDialog = 1 << 3,
+    DialogueUiSignalMask_SpeechText = 1 << 4,
+    DialogueUiSignalMask_ConversationRoot = 1 << 5
+};
+
+static std::string NormalizeAsciiAlphaNumericUpper(const std::string& input)
+{
+    std::string normalized;
+    normalized.reserve(input.size());
+    for (size_t i = 0; i < input.size(); ++i)
+    {
+        const unsigned char ch = static_cast<unsigned char>(input[i]);
+        if (std::isalnum(ch) == 0)
+        {
+            continue;
+        }
+        normalized.push_back(static_cast<char>(std::toupper(ch)));
+    }
+    return normalized;
+}
+
+static unsigned int BuildDialogueUiSignalMaskFromWidgetName(const std::string& widgetName)
+{
+    if (widgetName.empty())
+    {
+        return DialogueUiSignalMask_None;
+    }
+
+    const std::string normalized = NormalizeAsciiAlphaNumericUpper(widgetName);
+
+    unsigned int mask = DialogueUiSignalMask_None;
+    if (normalized.find("PLAYERPANEL") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_PlayerPanel;
+    }
+    if (normalized.find("NPCPANEL") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_NpcPanel;
+    }
+    if (normalized.find("PLAYERDIALOG") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_PlayerDialog;
+    }
+    if (normalized.find("NPCDIALOG") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_NpcDialog;
+    }
+    if (normalized.find("SPEECHTEXT") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_SpeechText;
+    }
+    if (normalized.find("CONVERSATIONPANEL") != std::string::npos)
+    {
+        mask |= DialogueUiSignalMask_ConversationRoot;
+    }
+
+    return mask;
+}
+
+static void AccumulateDialogueUiSignalMaskFromWidgetTree(MyGUI::Widget* widget, unsigned int* maskOut)
+{
+    if (!widget || !maskOut)
+    {
+        return;
+    }
+
+    if (!widget->getInheritedVisible())
+    {
+        return;
+    }
+
+    *maskOut |= BuildDialogueUiSignalMaskFromWidgetName(widget->getName());
+
+    const size_t childCount = widget->getChildCount();
+    for (size_t i = 0; i < childCount; ++i)
+    {
+        AccumulateDialogueUiSignalMaskFromWidgetTree(widget->getChildAt(i), maskOut);
+    }
+}
+
+static std::string BuildDialogueUiSignalMaskSummary(unsigned int mask)
+{
+    if (mask == DialogueUiSignalMask_None)
+    {
+        return "none";
+    }
+
+    std::stringstream summary;
+    bool wroteAny = false;
+    if ((mask & DialogueUiSignalMask_PlayerPanel) != 0)
+    {
+        summary << "player_panel";
+        wroteAny = true;
+    }
+    if ((mask & DialogueUiSignalMask_NpcPanel) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "npc_panel";
+        wroteAny = true;
+    }
+    if ((mask & DialogueUiSignalMask_PlayerDialog) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "player_dialog";
+        wroteAny = true;
+    }
+    if ((mask & DialogueUiSignalMask_NpcDialog) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "npc_dialog";
+        wroteAny = true;
+    }
+    if ((mask & DialogueUiSignalMask_SpeechText) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "speech_text";
+        wroteAny = true;
+    }
+    if ((mask & DialogueUiSignalMask_ConversationRoot) != 0)
+    {
+        if (wroteAny)
+        {
+            summary << ",";
+        }
+        summary << "conversation_root";
+    }
+
+    return summary.str();
+}
+
+static bool TryDetectDialogueWindowOpenState(bool* openOut, unsigned int* signalMaskOut)
+{
+    if (!openOut)
+    {
+        return false;
+    }
+
+    *openOut = false;
+    if (signalMaskOut)
+    {
+        *signalMaskOut = DialogueUiSignalMask_None;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    static DWORD s_lastScanMs = 0;
+    static bool s_hasLastScanResult = false;
+    static bool s_lastScanDialogueVisible = false;
+    static unsigned int s_lastScanSignalMask = DialogueUiSignalMask_None;
+    // Keep dialogue probe latency near frame-time to avoid brief panel overlap
+    // while the conversation window is appearing.
+    if (s_hasLastScanResult && s_lastScanMs != 0 && !DebounceWindowElapsed(nowMs, s_lastScanMs, 16))
+    {
+        *openOut = s_lastScanDialogueVisible;
+        if (signalMaskOut)
+        {
+            *signalMaskOut = s_lastScanSignalMask;
+        }
+        return true;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (!gui)
+    {
+        s_lastScanMs = nowMs;
+        s_hasLastScanResult = true;
+        s_lastScanDialogueVisible = false;
+        s_lastScanSignalMask = DialogueUiSignalMask_None;
+        return true;
+    }
+
+    unsigned int signalMask = DialogueUiSignalMask_None;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        AccumulateDialogueUiSignalMaskFromWidgetTree(roots.current(), &signalMask);
+        const unsigned int conversationBits =
+            DialogueUiSignalMask_PlayerPanel
+            | DialogueUiSignalMask_NpcPanel
+            | DialogueUiSignalMask_PlayerDialog
+            | DialogueUiSignalMask_NpcDialog;
+        if ((signalMask & conversationBits) == conversationBits)
+        {
+            break;
+        }
+    }
+
+    const unsigned int conversationMask =
+        signalMask
+        & (DialogueUiSignalMask_PlayerPanel
+            | DialogueUiSignalMask_NpcPanel
+            | DialogueUiSignalMask_PlayerDialog
+            | DialogueUiSignalMask_NpcDialog);
+    const int conversationBitCount = CountSetBits32(conversationMask);
+    const bool hasConversationRoot = (signalMask & DialogueUiSignalMask_ConversationRoot) != 0;
+    const bool dialogueVisible =
+        conversationBitCount >= 2
+        || (signalMask & DialogueUiSignalMask_PlayerDialog) != 0
+        || (signalMask & DialogueUiSignalMask_NpcDialog) != 0
+        || (hasConversationRoot && ((signalMask & DialogueUiSignalMask_SpeechText) != 0 || conversationBitCount > 0));
+
+    s_lastScanMs = nowMs;
+    s_hasLastScanResult = true;
+    s_lastScanDialogueVisible = dialogueVisible;
+    s_lastScanSignalMask = signalMask;
+
+    static bool s_hasLoggedState = false;
+    static bool s_lastLoggedVisible = false;
+    static unsigned int s_lastLoggedMask = DialogueUiSignalMask_None;
+    if (!s_hasLoggedState || s_lastLoggedVisible != dialogueVisible || s_lastLoggedMask != signalMask)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: dialogue_window_probe"
+             << " open=" << (dialogueVisible ? "true" : "false")
+             << " signals=" << BuildDialogueUiSignalMaskSummary(signalMask);
+        DebugLog(info.str().c_str());
+        s_hasLoggedState = true;
+        s_lastLoggedVisible = dialogueVisible;
+        s_lastLoggedMask = signalMask;
+    }
+
+    *openOut = dialogueVisible;
+    if (signalMaskOut)
+    {
+        *signalMaskOut = signalMask;
+    }
+    return true;
+}
+
 static unsigned int BuildEscMenuCaptionMaskFromCaption(const std::string& caption)
 {
     if (caption.empty())
@@ -1590,6 +1836,14 @@ static int DetectMemberUiSuppressionReasonMask(Character* member)
 static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
 {
     int reasonMask = PanelUiSuppressionReason_None;
+
+    bool dialogueWindowOpen = false;
+    if (g_config.hidePanelDuringCharacterInteraction
+        && TryDetectDialogueWindowOpenState(&dialogueWindowOpen, 0)
+        && dialogueWindowOpen)
+    {
+        reasonMask |= PanelUiSuppressionReason_CharacterInteraction;
+    }
 
     bool menuOpen = false;
     if (TryGetMenuOpenState(&menuOpen) && menuOpen)
