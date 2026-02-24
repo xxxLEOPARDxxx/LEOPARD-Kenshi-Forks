@@ -1,3 +1,6 @@
 {
-  "enabled": true
+  "enabled": true,
+  "update_interval_ms": 150,
+  "only_when_alt_held": true,
+  "max_highlight_distance_m": 150
 }
