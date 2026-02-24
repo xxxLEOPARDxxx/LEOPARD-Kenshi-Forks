@@ -39,7 +39,7 @@ struct PluginConfig
     DWORD maxHighlightDistanceMeters;
 };
 
-PluginConfig g_config = { true, 150, true, 150 };
+PluginConfig g_config = { true, 150, true, 3500 };
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
@@ -212,7 +212,7 @@ bool LoadConfigState()
     g_config.enabled = true;
     g_config.updateIntervalMs = 150;
     g_config.onlyWhenAltHeld = true;
-    g_config.maxHighlightDistanceMeters = 150;
+    g_config.maxHighlightDistanceMeters = 3500;
 
     if (g_settingsPath.empty())
     {
@@ -263,10 +263,10 @@ bool LoadConfigState()
             g_config.maxHighlightDistanceMeters = 5;
             LogWarn("max_highlight_distance_m too low; clamped to 5");
         }
-        else if (parsedDistanceMeters > 500)
+        else if (parsedDistanceMeters > 20000)
         {
-            g_config.maxHighlightDistanceMeters = 500;
-            LogWarn("max_highlight_distance_m too high; clamped to 500");
+            g_config.maxHighlightDistanceMeters = 20000;
+            LogWarn("max_highlight_distance_m too high; clamped to 20000");
         }
         else
         {
