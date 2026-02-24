@@ -8,6 +8,7 @@
 #include <kenshi/PlayerInterface.h>
 #include <mygui/MyGUI_Colour.h>
 #include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_ImageBox.h>
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TextBox.h>
 
@@ -68,13 +69,20 @@ struct CachedKoTarget
 
 std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<hand> g_visibleKoHandlesScratch;
-std::vector<MyGUI::TextBox*> g_koMarkerWidgets;
+struct KoMarkerWidget
+{
+    MyGUI::ImageBox* icon;
+    MyGUI::TextBox* fallbackText;
+};
+std::vector<KoMarkerWidget> g_koMarkerWidgets;
+std::vector<std::string> g_iconTextureOkLogs;
+std::vector<std::string> g_iconTextureWarnLogs;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
 
 const size_t kMaxKoMarkerWidgets = 48;
-const int kKoMarkerWidthPx = 36;
+const int kKoMarkerWidthPx = 64;
 const int kKoMarkerHeightPx = 18;
 const int kKoMarkerYOffsetPx = 24;
 
@@ -337,16 +345,54 @@ bool VisibleHandleListContains(const hand& targetHandle)
     return false;
 }
 
-void SetKoMarkerVisible(MyGUI::TextBox* marker, bool visible)
+bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
-    if (!marker)
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        if (values[i] == needle)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void LogIconTextureOnce(std::vector<std::string>& sink, const std::string& message, const char* textureName, bool warn)
+{
+    if (!textureName || !*textureName)
+    {
+        return;
+    }
+
+    const std::string texture(textureName);
+    if (StringListContains(sink, texture))
+    {
+        return;
+    }
+    sink.push_back(texture);
+
+    std::stringstream ss;
+    ss << message << " texture=" << texture;
+    if (warn)
+    {
+        LogWarn(ss.str());
+    }
+    else
+    {
+        LogInfo(ss.str());
+    }
+}
+
+void SetWidgetVisible(MyGUI::Widget* widget, bool visible)
+{
+    if (!widget)
     {
         return;
     }
 
     __try
     {
-        marker->setVisible(visible);
+        widget->setVisible(visible);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -369,7 +415,7 @@ void SetKoMarkerCaption(MyGUI::TextBox* marker, const char* caption)
     }
 }
 
-void SetKoMarkerColour(MyGUI::TextBox* marker, const MyGUI::Colour& colour)
+void SetKoMarkerTextColour(MyGUI::TextBox* marker, const MyGUI::Colour& colour)
 {
     if (!marker)
     {
@@ -385,7 +431,7 @@ void SetKoMarkerColour(MyGUI::TextBox* marker, const MyGUI::Colour& colour)
     }
 }
 
-void SetKoMarkerPosition(MyGUI::TextBox* marker, int left, int top)
+void SetKoMarkerIconColour(MyGUI::ImageBox* marker, const MyGUI::Colour& colour)
 {
     if (!marker)
     {
@@ -394,61 +440,211 @@ void SetKoMarkerPosition(MyGUI::TextBox* marker, int left, int top)
 
     try
     {
-        marker->setCoord(left, top, kKoMarkerWidthPx, kKoMarkerHeightPx);
+        marker->setColour(colour);
     }
     catch (...)
     {
     }
 }
 
-void ApplyKoMarkerVisualState(MyGUI::TextBox* marker, int markerState, int markerRelation)
+void SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
+{
+    if (!marker || !texture)
+    {
+        return;
+    }
+
+    bool primaryApplied = false;
+    try
+    {
+        marker->setImageTexture(texture);
+        primaryApplied = true;
+    }
+    catch (...)
+    {
+        LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture apply threw exception", texture, true);
+    }
+
+    bool validPrimarySize = false;
+    if (primaryApplied)
+    {
+        try
+        {
+            const MyGUI::IntSize size = marker->getImageSize();
+            if (size.width > 0 && size.height > 0)
+            {
+                validPrimarySize = true;
+                LogIconTextureOnce(g_iconTextureOkLogs, "icon texture ready", texture, false);
+            }
+            else
+            {
+                LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture applied with zero size", texture, true);
+            }
+        }
+        catch (...)
+        {
+            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture size probe failed", texture, true);
+        }
+    }
+
+    if (validPrimarySize)
+    {
+        return;
+    }
+
+    const char* fallbackTexture = "Kenshi_UI.png";
+    try
+    {
+        marker->setImageTexture(fallbackTexture);
+        LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture fallback engaged", texture, true);
+    }
+    catch (...)
+    {
+        LogIconTextureOnce(g_iconTextureWarnLogs, "icon fallback texture apply failed", fallbackTexture, true);
+        return;
+    }
+
+    try
+    {
+        const MyGUI::IntSize fallbackSize = marker->getImageSize();
+        if (fallbackSize.width > 0 && fallbackSize.height > 0)
+        {
+            LogIconTextureOnce(g_iconTextureOkLogs, "icon fallback ready", fallbackTexture, false);
+        }
+        else
+        {
+            LogIconTextureOnce(g_iconTextureWarnLogs, "icon fallback has zero size", fallbackTexture, true);
+        }
+    }
+    catch (...)
+    {
+        LogIconTextureOnce(g_iconTextureWarnLogs, "icon fallback size probe failed", fallbackTexture, true);
+    }
+}
+
+void SetKoMarkerIconCoord(MyGUI::ImageBox* marker, const MyGUI::IntCoord& coord)
 {
     if (!marker)
     {
         return;
     }
 
-    if (markerState == CachedKoTarget::STATE_LITERAL_KO)
+    try
     {
-        SetKoMarkerCaption(marker, "KO");
+        marker->setImageCoord(coord);
     }
-    else
+    catch (...)
     {
-        SetKoMarkerCaption(marker, "ZZ");
+    }
+}
+
+void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
+{
+    if (marker.icon)
+    {
+        try
+        {
+            marker.icon->setCoord(left, top, kKoMarkerHeightPx, kKoMarkerHeightPx);
+        }
+        catch (...)
+        {
+        }
     }
 
+    if (marker.fallbackText)
+    {
+        try
+        {
+            if (marker.icon)
+            {
+                marker.fallbackText->setCoord(left + kKoMarkerHeightPx + 1, top, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx);
+            }
+            else
+            {
+                marker.fallbackText->setCoord(left, top, kKoMarkerWidthPx, kKoMarkerHeightPx);
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+}
+
+void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
+{
+    SetWidgetVisible(marker.icon, visible);
+    SetWidgetVisible(marker.fallbackText, visible);
+}
+
+const char* ResolveMarkerCaption(int markerState)
+{
+    return (markerState == CachedKoTarget::STATE_LITERAL_KO) ? "KO" : "ZZ";
+}
+
+const char* ResolveMarkerIconTexture(int markerState, int markerRelation)
+{
+    return "Kenshi_UI.png";
+}
+
+MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
+{
     if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f));
-        }
-        else
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f));
-        }
+        // Enemy: down/right cues.
+        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+            ? MyGUI::IntCoord(543, 475, 17, 12)  // Kenshi_SmallArrowDownSkin
+            : MyGUI::IntCoord(580, 471, 13, 18); // Kenshi_SmallArrowRightSkin
     }
-    else if (markerRelation == CachedKoTarget::RELATION_SQUAD)
+
+    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(0.1f, 1.0f, 0.2f, 1.0f));
-        }
-        else
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f));
-        }
+        // Squad: up/left cues.
+        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+            ? MyGUI::IntCoord(543, 451, 17, 12)  // Kenshi_SmallArrowUpSkin
+            : MyGUI::IntCoord(565, 471, 11, 18); // Kenshi_SmallArrowLeftSkin
     }
-    else
+
+    // Ally: bar-like neutral cues.
+    return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+        ? MyGUI::IntCoord(543, 465, 17, 7)   // Kenshi_SmallBarSkin
+        : MyGUI::IntCoord(574, 452, 7, 16);  // Kenshi_SmallBarHSkin composite region
+}
+
+MyGUI::Colour ResolveMarkerColour(int markerState, int markerRelation)
+{
+    if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(0.55f, 0.95f, 0.2f, 1.0f));
-        }
-        else
-        {
-            SetKoMarkerColour(marker, MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f));
-        }
+        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+            ? MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f)
+            : MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f);
+    }
+
+    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
+    {
+        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+            ? MyGUI::Colour(0.1f, 1.0f, 0.2f, 1.0f)
+            : MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f);
+    }
+
+    return (markerState == CachedKoTarget::STATE_LITERAL_KO)
+        ? MyGUI::Colour(0.55f, 0.95f, 0.2f, 1.0f)
+        : MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f);
+}
+
+void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
+{
+    const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
+    if (marker.icon)
+    {
+        SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
+        SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
+        SetKoMarkerIconColour(marker.icon, colour);
+    }
+
+    if (marker.fallbackText)
+    {
+        SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(markerState));
+        SetKoMarkerTextColour(marker.fallbackText, colour);
     }
 }
 
@@ -473,32 +669,64 @@ bool CreateKoMarkerWidgetAt(size_t index)
         std::stringstream name;
         name << "VS_KOMarker_" << index << "_" << g_koMarkerWidgetSerial++;
 
-        MyGUI::TextBox* marker = gui->createWidget<MyGUI::TextBox>(
+        MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
+            "ImageBox",
+            MyGUI::IntCoord(0, 0, kKoMarkerHeightPx, kKoMarkerHeightPx),
+            MyGUI::Align::Default,
+            "Popup",
+            name.str() + "_icon");
+
+        MyGUI::TextBox* fallbackText = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(0, 0, kKoMarkerWidthPx, kKoMarkerHeightPx),
+            MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
             MyGUI::Align::Default,
             "Popup",
             name.str());
-        if (!marker)
+        if (!fallbackText)
         {
-            marker = gui->createWidget<MyGUI::TextBox>(
+            fallbackText = gui->createWidget<MyGUI::TextBox>(
                 "TextBox",
-                MyGUI::IntCoord(0, 0, kKoMarkerWidthPx, kKoMarkerHeightPx),
+                MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
                 MyGUI::Align::Default,
                 "Popup",
                 name.str() + "_fallback");
         }
-        if (!marker)
+        if (!icon && !fallbackText)
         {
             return false;
         }
+        if (!icon && fallbackText)
+        {
+            LogWarn("ImageBox marker unavailable; using text fallback");
+        }
+        if (index == 0)
+        {
+            std::stringstream ss;
+            ss << "marker widget init icon=" << (icon ? "true" : "false")
+               << ", text=" << (fallbackText ? "true" : "false")
+               << ", width=" << kKoMarkerWidthPx
+               << ", height=" << kKoMarkerHeightPx;
+            LogInfo(ss.str());
+        }
 
-        marker->setNeedMouseFocus(false);
-        marker->setCaption("KO");
-        marker->setTextAlign(MyGUI::Align::Center);
-        marker->setTextColour(MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f));
-        marker->setTextShadow(true);
-        marker->setVisible(false);
+        if (icon)
+        {
+            icon->setNeedMouseFocus(false);
+            icon->setImageTexture("default_icon.png");
+            icon->setVisible(false);
+        }
+
+        if (fallbackText)
+        {
+            fallbackText->setNeedMouseFocus(false);
+            fallbackText->setCaption("KO");
+            fallbackText->setTextAlign(MyGUI::Align::Left);
+            fallbackText->setTextColour(MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f));
+            fallbackText->setTextShadow(true);
+            fallbackText->setVisible(false);
+        }
+
+        KoMarkerWidget marker = { icon, fallbackText };
 
         if (index >= g_koMarkerWidgets.size())
         {
@@ -533,7 +761,7 @@ bool EnsureKoMarkerPool(size_t requiredCount)
 
     for (size_t i = 0; i < requiredCount; ++i)
     {
-        if (!g_koMarkerWidgets[i] && !CreateKoMarkerWidgetAt(i))
+        if (!g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
         {
             return false;
         }
@@ -786,7 +1014,7 @@ void TickKoMarkerRender()
             markerTop = clampedTop;
         }
 
-        MyGUI::TextBox* marker = g_koMarkerWidgets[visibleMarkerCount];
+        KoMarkerWidget& marker = g_koMarkerWidgets[visibleMarkerCount];
         ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation);
         SetKoMarkerPosition(marker, markerLeft, markerTop);
         SetKoMarkerVisible(marker, true);
