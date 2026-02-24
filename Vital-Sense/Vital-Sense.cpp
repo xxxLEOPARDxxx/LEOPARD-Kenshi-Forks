@@ -56,6 +56,7 @@ std::vector<hand> g_visibleKoHandlesScratch;
 std::vector<MyGUI::TextBox*> g_koMarkerWidgets;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
+bool g_highlightRuntimeActive = false;
 
 const size_t kMaxKoMarkerWidgets = 48;
 const int kKoMarkerWidthPx = 36;
@@ -782,26 +783,18 @@ bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3&
 
 void TickKoProbe()
 {
-    if (!g_config.enabled)
+    const bool canRun = g_config.enabled && IsHighlightGateOpen() && ou;
+    if (!canRun)
     {
-        g_koTargetCache.clear();
-        HideAllKoMarkerWidgets();
+        if (g_highlightRuntimeActive)
+        {
+            g_koTargetCache.clear();
+            HideAllKoMarkerWidgets();
+            g_highlightRuntimeActive = false;
+        }
         return;
     }
-
-    if (!IsHighlightGateOpen())
-    {
-        g_koTargetCache.clear();
-        HideAllKoMarkerWidgets();
-        return;
-    }
-
-    if (!ou)
-    {
-        g_koTargetCache.clear();
-        HideAllKoMarkerWidgets();
-        return;
-    }
+    g_highlightRuntimeActive = true;
 
     const DWORD nowMs = GetTickCount();
     if (g_lastProbeTickMs != 0 && (nowMs - g_lastProbeTickMs) < g_config.updateIntervalMs)
