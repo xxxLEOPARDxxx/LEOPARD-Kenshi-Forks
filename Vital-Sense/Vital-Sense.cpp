@@ -46,9 +46,24 @@ void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 
 struct CachedKoTarget
 {
+    enum MarkerState
+    {
+        STATE_UNCONSCIOUS = 0,
+        STATE_LITERAL_KO = 1
+    };
+
+    enum MarkerRelation
+    {
+        RELATION_SQUAD = 0,
+        RELATION_ALLY = 1,
+        RELATION_ENEMY = 2
+    };
+
     hand targetHandle;
     Ogre::Vector3 worldPos;
     DWORD lastSeenMs;
+    int markerState;
+    int markerRelation;
 };
 
 std::vector<CachedKoTarget> g_koTargetCache;
@@ -354,6 +369,22 @@ void SetKoMarkerCaption(MyGUI::TextBox* marker, const char* caption)
     }
 }
 
+void SetKoMarkerColour(MyGUI::TextBox* marker, const MyGUI::Colour& colour)
+{
+    if (!marker)
+    {
+        return;
+    }
+
+    try
+    {
+        marker->setTextColour(colour);
+    }
+    catch (...)
+    {
+    }
+}
+
 void SetKoMarkerPosition(MyGUI::TextBox* marker, int left, int top)
 {
     if (!marker)
@@ -367,6 +398,57 @@ void SetKoMarkerPosition(MyGUI::TextBox* marker, int left, int top)
     }
     catch (...)
     {
+    }
+}
+
+void ApplyKoMarkerVisualState(MyGUI::TextBox* marker, int markerState, int markerRelation)
+{
+    if (!marker)
+    {
+        return;
+    }
+
+    if (markerState == CachedKoTarget::STATE_LITERAL_KO)
+    {
+        SetKoMarkerCaption(marker, "KO");
+    }
+    else
+    {
+        SetKoMarkerCaption(marker, "ZZ");
+    }
+
+    if (markerRelation == CachedKoTarget::RELATION_ENEMY)
+    {
+        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f));
+        }
+        else
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f));
+        }
+    }
+    else if (markerRelation == CachedKoTarget::RELATION_SQUAD)
+    {
+        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(0.1f, 1.0f, 0.2f, 1.0f));
+        }
+        else
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f));
+        }
+    }
+    else
+    {
+        if (markerState == CachedKoTarget::STATE_LITERAL_KO)
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(0.55f, 0.95f, 0.2f, 1.0f));
+        }
+        else
+        {
+            SetKoMarkerColour(marker, MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f));
+        }
     }
 }
 
@@ -705,7 +787,7 @@ void TickKoMarkerRender()
         }
 
         MyGUI::TextBox* marker = g_koMarkerWidgets[visibleMarkerCount];
-        SetKoMarkerCaption(marker, "KO");
+        ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation);
         SetKoMarkerPosition(marker, markerLeft, markerTop);
         SetKoMarkerVisible(marker, true);
 
@@ -718,18 +800,9 @@ void TickKoMarkerRender()
     }
 }
 
-bool IsKoOrUnconscious(Character* candidate, bool* isUnconsciousOut, bool* isLiteralOut)
+bool TryResolveMarkerState(Character* candidate, int* markerStateOut)
 {
-    if (isUnconsciousOut)
-    {
-        *isUnconsciousOut = false;
-    }
-    if (isLiteralOut)
-    {
-        *isLiteralOut = false;
-    }
-
-    if (!candidate)
+    if (!candidate || !markerStateOut)
     {
         return false;
     }
@@ -746,15 +819,19 @@ bool IsKoOrUnconscious(Character* candidate, bool* isUnconsciousOut, bool* isLit
         return false;
     }
 
-    if (isUnconsciousOut)
+    if (isLiteral)
     {
-        *isUnconsciousOut = isUnconscious;
+        *markerStateOut = CachedKoTarget::STATE_LITERAL_KO;
+        return true;
     }
-    if (isLiteralOut)
+
+    if (isUnconscious)
     {
-        *isLiteralOut = isLiteral;
+        *markerStateOut = CachedKoTarget::STATE_UNCONSCIOUS;
+        return true;
     }
-    return isUnconscious || isLiteral;
+
+    return false;
 }
 
 bool IsHighlightGateOpen()
@@ -765,6 +842,61 @@ bool IsHighlightGateOpen()
     }
 
     return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+}
+
+bool IsPlayerSquadMember(Character* candidate)
+{
+    if (!candidate || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
+    if (!playerCharacters.valid())
+    {
+        return false;
+    }
+
+    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
+    {
+        if (*it == candidate)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsSameFactionAsPlayer(Character* candidate)
+{
+    if (!candidate || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    Faction* playerFaction = ou->player->participant;
+    if (!playerFaction)
+    {
+        return false;
+    }
+
+    return candidate->owner == playerFaction;
+}
+
+int ResolveMarkerRelation(Character* candidate)
+{
+    if (IsPlayerSquadMember(candidate))
+    {
+        return CachedKoTarget::RELATION_SQUAD;
+    }
+
+    if (IsSameFactionAsPlayer(candidate))
+    {
+        return CachedKoTarget::RELATION_ALLY;
+    }
+
+    return CachedKoTarget::RELATION_ENEMY;
 }
 
 bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3& targetPos)
@@ -832,13 +964,16 @@ void TickKoProbe()
             continue;
         }
 
-        if (IsKoOrUnconscious(candidate, 0, 0))
+        int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
+        if (TryResolveMarkerState(candidate, &markerState))
         {
             const hand targetHandle = candidate->getHandle();
             if (targetHandle.isNull())
             {
                 continue;
             }
+
+            const int markerRelation = ResolveMarkerRelation(candidate);
 
             if (!VisibleHandleListContains(targetHandle))
             {
@@ -851,10 +986,18 @@ void TickKoProbe()
                 CachedKoTarget& existing = g_koTargetCache[existingIndex];
                 existing.worldPos = candidate->getPosition();
                 existing.lastSeenMs = nowMs;
+                existing.markerState = markerState;
+                existing.markerRelation = markerRelation;
             }
             else
             {
-                CachedKoTarget created = { targetHandle, candidate->getPosition(), nowMs };
+                CachedKoTarget created = {
+                    targetHandle,
+                    candidate->getPosition(),
+                    nowMs,
+                    markerState,
+                    markerRelation
+                };
                 g_koTargetCache.push_back(created);
             }
         }
