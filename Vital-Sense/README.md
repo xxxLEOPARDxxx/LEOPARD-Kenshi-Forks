@@ -38,3 +38,9 @@ After deploy, expected files:
 
 ## Config
 `mod-config.json` is currently a minimal placeholder for future plugin settings.
+
+Current keys:
+- `enabled` (bool): master toggle.
+- `update_interval_ms` (number): KO target refresh interval.
+- `only_when_alt_held` (bool): when true, KO highlights are visible only while `ALT` is pressed.
+- `max_highlight_distance_m` (number): max horizontal distance from camera center for KO highlights (default `150`).
