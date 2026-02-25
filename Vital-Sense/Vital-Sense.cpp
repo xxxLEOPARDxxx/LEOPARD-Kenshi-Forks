@@ -43,9 +43,11 @@ struct PluginConfig
     DWORD updateIntervalMs;
     bool onlyWhenAltHeld;
     DWORD maxHighlightDistanceMeters;
+    std::string customDyingIconTexture;
+    DWORD customDyingIconSizePx;
 };
 
-PluginConfig g_config = { true, 150, true, 3500 };
+PluginConfig g_config = { true, 150, true, 3500, "", 64 };
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
@@ -516,12 +518,99 @@ bool ParseUnsignedFromJson(const std::string& body, const char* keyName, DWORD* 
     return true;
 }
 
+bool ParseStringFromJson(const std::string& body, const char* keyName, std::string* valueOut)
+{
+    if (!keyName || !valueOut)
+    {
+        return false;
+    }
+
+    const std::string key = std::string("\"") + keyName + "\"";
+    const size_t keyPos = body.find(key);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    size_t pos = keyPos + key.size();
+    SkipWhitespace(body, &pos);
+    if (pos >= body.size() || body[pos] != ':')
+    {
+        return false;
+    }
+
+    ++pos;
+    SkipWhitespace(body, &pos);
+    if (pos >= body.size() || body[pos] != '"')
+    {
+        return false;
+    }
+
+    ++pos;
+    std::string parsed;
+    while (pos < body.size())
+    {
+        const char ch = body[pos];
+        if (ch == '"')
+        {
+            *valueOut = parsed;
+            return true;
+        }
+        if (ch == '\\')
+        {
+            ++pos;
+            if (pos >= body.size())
+            {
+                return false;
+            }
+            const char esc = body[pos];
+            if (esc == '"' || esc == '\\' || esc == '/')
+            {
+                parsed.push_back(esc);
+            }
+            else if (esc == 'b')
+            {
+                parsed.push_back('\b');
+            }
+            else if (esc == 'f')
+            {
+                parsed.push_back('\f');
+            }
+            else if (esc == 'n')
+            {
+                parsed.push_back('\n');
+            }
+            else if (esc == 'r')
+            {
+                parsed.push_back('\r');
+            }
+            else if (esc == 't')
+            {
+                parsed.push_back('\t');
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            parsed.push_back(ch);
+        }
+        ++pos;
+    }
+
+    return false;
+}
+
 bool LoadConfigState()
 {
     g_config.enabled = true;
     g_config.updateIntervalMs = 150;
     g_config.onlyWhenAltHeld = true;
     g_config.maxHighlightDistanceMeters = 3500;
+    g_config.customDyingIconTexture.clear();
+    g_config.customDyingIconSizePx = 64;
 
     if (g_settingsPath.empty())
     {
@@ -587,6 +676,39 @@ bool LoadConfigState()
     if (ParseBoolFromJson(body, "only_when_alt_held", &parsedAltGate))
     {
         g_config.onlyWhenAltHeld = parsedAltGate;
+    }
+
+    std::string parsedDyingIconTexture;
+    if (ParseStringFromJson(body, "dying_icon_texture", &parsedDyingIconTexture))
+    {
+        g_config.customDyingIconTexture = TrimAscii(parsedDyingIconTexture);
+    }
+
+    DWORD parsedDyingIconSize = 0;
+    if (ParseUnsignedFromJson(body, "dying_icon_size_px", &parsedDyingIconSize))
+    {
+        if (parsedDyingIconSize < 8)
+        {
+            g_config.customDyingIconSizePx = 8;
+            LogWarn("dying_icon_size_px too low; clamped to 8");
+        }
+        else if (parsedDyingIconSize > 512)
+        {
+            g_config.customDyingIconSizePx = 512;
+            LogWarn("dying_icon_size_px too high; clamped to 512");
+        }
+        else
+        {
+            g_config.customDyingIconSizePx = parsedDyingIconSize;
+        }
+    }
+
+    if (!g_config.customDyingIconTexture.empty())
+    {
+        std::stringstream iconInfo;
+        iconInfo << "custom DY icon configured texture=" << g_config.customDyingIconTexture
+            << " size=" << g_config.customDyingIconSizePx;
+        LogInfo(iconInfo.str());
     }
 
     return true;
@@ -733,52 +855,91 @@ void SetKoMarkerIconColour(MyGUI::ImageBox* marker, const MyGUI::Colour& colour)
     }
 }
 
-void SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
+bool SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
 {
     if (!marker || !texture)
     {
-        return;
+        return false;
     }
 
-    bool primaryApplied = false;
-    try
+    const char* fallbackTexture = "Kenshi_UI.png";
+    const bool requestIsFallbackTexture = (std::strcmp(texture, fallbackTexture) == 0);
+    std::vector<std::string> textureCandidates;
+    textureCandidates.push_back(texture);
+    const bool hasPathSeparator = (std::strchr(texture, '/') != 0 || std::strchr(texture, '\\') != 0);
+    if (!hasPathSeparator)
     {
-        marker->setImageTexture(texture);
-        primaryApplied = true;
-    }
-    catch (...)
-    {
-        LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture apply threw exception", texture, true);
+        textureCandidates.push_back(std::string("gui/gfx/") + texture);
+        textureCandidates.push_back(std::string("mods/") + kPluginName + "/gui/gfx/" + texture);
+        textureCandidates.push_back(std::string("mods/") + kPluginName + "/" + texture);
     }
 
-    bool validPrimarySize = false;
-    if (primaryApplied)
+    for (size_t i = 0; i < textureCandidates.size(); ++i)
     {
+        const std::string& candidate = textureCandidates[i];
+        bool applied = false;
+        try
+        {
+            marker->setImageTexture(candidate);
+            applied = true;
+        }
+        catch (...)
+        {
+            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture apply threw exception", candidate.c_str(), true);
+        }
+
+        if (!applied)
+        {
+            continue;
+        }
+
+        bool validSize = false;
         try
         {
             const MyGUI::IntSize size = marker->getImageSize();
             if (size.width > 0 && size.height > 0)
             {
-                validPrimarySize = true;
-                LogIconTextureOnce(g_iconTextureOkLogs, "icon texture ready", texture, false);
+                const bool suspiciousOversize = (!requestIsFallbackTexture && (size.width > 512 || size.height > 512));
+                if (suspiciousOversize)
+                {
+                    std::stringstream ss;
+                    ss << "icon texture suspicious size " << size.width << "x" << size.height;
+                    LogIconTextureOnce(g_iconTextureWarnLogs, ss.str(), candidate.c_str(), true);
+                }
+                else
+                {
+                    validSize = true;
+                }
             }
             else
             {
-                LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture applied with zero size", texture, true);
+                LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture applied with zero size", candidate.c_str(), true);
+            }
+
+            if (validSize)
+            {
+                LogIconTextureOnce(g_iconTextureOkLogs, "icon texture ready", candidate.c_str(), false);
+                if (candidate != texture)
+                {
+                    LogIconTextureOnce(g_iconTextureOkLogs, "icon texture resolved alias", texture, false);
+                }
+                if (candidate != fallbackTexture)
+                {
+                    return true;
+                }
             }
         }
         catch (...)
         {
-            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture size probe failed", texture, true);
+            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture size probe failed", candidate.c_str(), true);
+        }
+
+        if (validSize)
+        {
+            return false;
         }
     }
 
-    if (validPrimarySize)
-    {
-        return;
-    }
-
-    const char* fallbackTexture = "Kenshi_UI.png";
     try
     {
         marker->setImageTexture(fallbackTexture);
@@ -787,7 +948,7 @@ void SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
     catch (...)
     {
         LogIconTextureOnce(g_iconTextureWarnLogs, "icon fallback texture apply failed", fallbackTexture, true);
-        return;
+        return false;
     }
 
     try
@@ -806,6 +967,8 @@ void SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
     {
         LogIconTextureOnce(g_iconTextureWarnLogs, "icon fallback size probe failed", fallbackTexture, true);
     }
+
+    return false;
 }
 
 void SetKoMarkerIconCoord(MyGUI::ImageBox* marker, const MyGUI::IntCoord& coord)
@@ -818,6 +981,7 @@ void SetKoMarkerIconCoord(MyGUI::ImageBox* marker, const MyGUI::IntCoord& coord)
     try
     {
         marker->setImageCoord(coord);
+        marker->setImageTile(MyGUI::IntSize(coord.width, coord.height));
     }
     catch (...)
     {
@@ -877,61 +1041,55 @@ const char* ResolveMarkerCaption(int markerState)
 
 const char* ResolveMarkerIconTexture(int markerState, int markerRelation)
 {
+    (void)markerState;
+    (void)markerRelation;
     return "Kenshi_UI.png";
 }
 
 MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
 {
-    if (markerRelation == CachedKoTarget::RELATION_ENEMY)
-    {
-        if (markerState == CachedKoTarget::STATE_DYING)
-        {
-            return MyGUI::IntCoord(580, 471, 13, 18); // Kenshi_SmallArrowRightSkin
-        }
-        return MyGUI::IntCoord(543, 475, 17, 12); // Kenshi_SmallArrowDownSkin
-    }
-
-    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
-    {
-        if (markerState == CachedKoTarget::STATE_DYING)
-        {
-            return MyGUI::IntCoord(565, 471, 11, 18); // Kenshi_SmallArrowLeftSkin
-        }
-        return MyGUI::IntCoord(543, 451, 17, 12); // Kenshi_SmallArrowUpSkin
-    }
-
+    (void)markerRelation;
     if (markerState == CachedKoTarget::STATE_DYING)
     {
-        return MyGUI::IntCoord(574, 452, 7, 16); // Kenshi_SmallBarHSkin composite region
+        // pic_PointerInvalid from data/gui/images/kenshi_images.xml.
+        // This has a stronger silhouette than map markers against sandy backgrounds.
+        return MyGUI::IntCoord(108, 49, 34, 34);
     }
-    return MyGUI::IntCoord(543, 465, 17, 7); // Kenshi_SmallBarSkin
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        // Kenshi_CharacterNameTags::Stealth (38x27 @ 80,126).
+        return MyGUI::IntCoord(80, 126, 38, 27);
+    }
+
+    // pic_PointerKnockout (32x32 @ 45,122).
+    return MyGUI::IntCoord(45, 122, 32, 32);
 }
 
 MyGUI::Colour ResolveMarkerColour(int markerState, int markerRelation)
 {
+    (void)markerState;
     if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        if (markerState == CachedKoTarget::STATE_DYING)
-        {
-            return MyGUI::Colour(1.0f, 0.75f, 0.1f, 1.0f);
-        }
-        return MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f);
+        return MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f);
     }
 
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        if (markerState == CachedKoTarget::STATE_DYING)
-        {
-            return MyGUI::Colour(0.75f, 1.0f, 0.15f, 1.0f);
-        }
-        return MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f);
+        return MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
     }
 
-    if (markerState == CachedKoTarget::STATE_DYING)
+    return MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f);
+}
+
+MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int fallbackSize)
+{
+    (void)marker;
+    int size = fallbackSize;
+    if (size <= 0)
     {
-        return MyGUI::Colour(0.95f, 0.95f, 0.2f, 1.0f);
+        size = 64;
     }
-    return MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f);
+    return MyGUI::IntCoord(0, 0, size, size);
 }
 
 void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
@@ -939,9 +1097,30 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
     const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
     if (marker.icon)
     {
-        SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
-        SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
-        SetKoMarkerIconColour(marker.icon, colour);
+        const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
+        bool customDyingReady = false;
+        if (wantsCustomDyingIcon)
+        {
+            customDyingReady = SetKoMarkerIconTexture(marker.icon, g_config.customDyingIconTexture.c_str());
+            const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
+            if (customDyingReady)
+            {
+                // Preserve custom icon authoring colors (no relation tint).
+                SetKoMarkerIconCoord(marker.icon, ResolveCustomIconCoordFromImageSize(marker.icon, fallbackSize));
+                SetKoMarkerIconColour(marker.icon, MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f));
+            }
+            else
+            {
+                SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
+                SetKoMarkerIconColour(marker.icon, colour);
+            }
+        }
+        else
+        {
+            SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
+            SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
+            SetKoMarkerIconColour(marker.icon, colour);
+        }
     }
 
     if (marker.fallbackText)
@@ -976,14 +1155,14 @@ bool CreateKoMarkerWidgetAt(size_t index)
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx, kKoMarkerHeightPx),
             MyGUI::Align::Default,
-            "Popup",
+            "Top",
             name.str() + "_icon");
 
         MyGUI::TextBox* fallbackText = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
             MyGUI::Align::Default,
-            "Popup",
+            "Top",
             name.str());
         if (!fallbackText)
         {
@@ -991,7 +1170,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
                 "TextBox",
                 MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
                 MyGUI::Align::Default,
-                "Popup",
+                "Top",
                 name.str() + "_fallback");
         }
         if (!icon && !fallbackText)
