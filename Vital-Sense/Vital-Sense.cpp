@@ -12,9 +12,14 @@
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TextBox.h>
 
+#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/DatapanelGUI.h"
+#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/ForgottenGUI.h"
+#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/StateBroadcastData.h"
+
 #include <Windows.h>
 
 #include <cctype>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -50,7 +55,8 @@ struct CachedKoTarget
     enum MarkerState
     {
         STATE_UNCONSCIOUS = 0,
-        STATE_LITERAL_KO = 1
+        STATE_DYING = 1,
+        STATE_PLAYING_DEAD = 2
     };
 
     enum MarkerRelation
@@ -67,6 +73,31 @@ struct CachedKoTarget
     int markerRelation;
 };
 
+struct MarkerStateDebugInfo
+{
+    bool isUnconscious;
+    bool isPlayingDead;
+    bool isLiteral;
+    bool isProbablyDying;
+    bool dyingByProbablyLiteral;
+    bool dyingByProbablyLowBlood;
+    bool dyingByProbablySub50Ko;
+    bool dyingByActiveBleed;
+    bool dyingByTrauma;
+    bool dyingByBloodThreshold;
+    bool medicalUnconsciousFlag;
+    bool medicalSub50KoFlag;
+    bool medicalBloodlossTraumaFlag;
+    float currentBleedRate;
+    int proneState;
+    bool hasSleepState;
+    int sleepState;
+    bool hasSlaveState;
+    int slaveState;
+    float bloodLevel;
+    float pointOfNoReturn;
+};
+
 std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<hand> g_visibleKoHandlesScratch;
 struct KoMarkerWidget
@@ -77,6 +108,27 @@ struct KoMarkerWidget
 std::vector<KoMarkerWidget> g_koMarkerWidgets;
 std::vector<std::string> g_iconTextureOkLogs;
 std::vector<std::string> g_iconTextureWarnLogs;
+unsigned int g_markerDebugLogCount = 0;
+const unsigned int kMarkerDebugLogMaxPerSession = 120;
+bool g_loggedDyingByTrauma = false;
+bool g_loggedDyingByBloodThreshold = false;
+bool g_loggedDyingBySub50Ko = false;
+bool g_loggedDyingByProbably = false;
+bool g_loggedDyingByProbablyLiteral = false;
+bool g_loggedDyingByProbablyLowBlood = false;
+hand g_lastSelectedDebugHandle;
+int g_lastSelectedDebugState = -1;
+int g_lastSelectedDebugRelation = -1;
+DWORD g_lastSelectedDebugTickMs = 0;
+hand g_lastSelectedDeepDumpHandle;
+DWORD g_lastSelectedDeepDumpTickMs = 0;
+hand g_lastSelectedPanelDumpHandle;
+DWORD g_lastSelectedPanelDumpTickMs = 0;
+hand g_lastSelectionSnapshotCharacter;
+hand g_lastSelectionSnapshotObject;
+size_t g_lastSelectionSnapshotCount = 0;
+DWORD g_lastSelectionSnapshotTickMs = 0;
+DWORD g_lastSelectionNoMatchTickMs = 0;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
@@ -85,6 +137,8 @@ const size_t kMaxKoMarkerWidgets = 48;
 const int kKoMarkerWidthPx = 64;
 const int kKoMarkerHeightPx = 18;
 const int kKoMarkerYOffsetPx = 24;
+const float kProbablyDyingBloodMax = 50.0f;
+const bool kEnableUnsafePanelProbe = false;
 
 void LogWithPrefix(void (*sink)(const char*), const char* level, const std::string& message)
 {
@@ -111,6 +165,238 @@ void LogWarn(const std::string& message)
 void LogError(const std::string& message)
 {
     LogWithPrefix(&ErrorLog, "ERROR", message);
+}
+
+void LogDyingDetection(const char* trigger, float bloodLevel, float pointOfNoReturn)
+{
+    std::stringstream info;
+    info << "DY detected via " << trigger << " (blood=" << bloodLevel
+         << ", point_of_no_return=" << pointOfNoReturn << ")";
+    LogInfo(info.str());
+}
+
+const char* MarkerStateName(int markerState)
+{
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return "DY";
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return "PD";
+    }
+    return "ZZ";
+}
+
+const char* MarkerRelationName(int markerRelation)
+{
+    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
+    {
+        return "SQUAD";
+    }
+    if (markerRelation == CachedKoTarget::RELATION_ALLY)
+    {
+        return "ALLY";
+    }
+    return "ENEMY";
+}
+
+bool HandsEqualExact(const hand& a, const hand& b)
+{
+    return a.type == b.type &&
+        a.container == b.container &&
+        a.containerSerial == b.containerSerial &&
+        a.index == b.index &&
+        a.serial == b.serial;
+}
+
+bool HandsEqualWithFallback(const hand& a, const hand& b)
+{
+    if (HandsEqualExact(a, b))
+    {
+        return true;
+    }
+    if (a.isNull() || b.isNull())
+    {
+        return false;
+    }
+    return a.toString() == b.toString();
+}
+
+std::string ClipForLog(const std::string& value, size_t maxLen)
+{
+    size_t start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])) != 0)
+    {
+        ++start;
+    }
+
+    size_t end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0)
+    {
+        --end;
+    }
+
+    std::string trimmed = value.substr(start, end - start);
+    if (trimmed.size() <= maxLen)
+    {
+        return trimmed;
+    }
+
+    if (maxLen < 4)
+    {
+        return trimmed.substr(0, maxLen);
+    }
+    return trimmed.substr(0, maxLen - 3) + "...";
+}
+
+std::string ToLowerAsciiCopy(const std::string& value)
+{
+    std::string lowered = value;
+    for (size_t i = 0; i < lowered.size(); ++i)
+    {
+        lowered[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[i])));
+    }
+    return lowered;
+}
+
+bool ContainsStatusToken(const std::string& loweredText)
+{
+    return loweredText.find("state") != std::string::npos ||
+        loweredText.find("status") != std::string::npos ||
+        loweredText.find("dying") != std::string::npos ||
+        loweredText.find("unconc") != std::string::npos ||
+        loweredText.find("playing dead") != std::string::npos ||
+        loweredText.find("ko") != std::string::npos;
+}
+
+bool TryGetKenshiGuiOffset(uintptr_t* offsetOut)
+{
+    if (!offsetOut)
+    {
+        return false;
+    }
+
+    *offsetOut = 0;
+    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    const unsigned int platform = versionInfo.GetPlatform();
+    const std::string version = versionInfo.GetVersion();
+
+    if (platform == KenshiLib::BinaryVersion::STEAM)
+    {
+        if (version == "1.0.65")
+        {
+            *offsetOut = 0x02132750;
+            return true;
+        }
+        if (version == "1.0.68")
+        {
+            *offsetOut = 0x021337b0;
+            return true;
+        }
+        return false;
+    }
+
+    if (platform == KenshiLib::BinaryVersion::GOG)
+    {
+        if (version == "1.0.65")
+        {
+            *offsetOut = 0x021306c0;
+            return true;
+        }
+        if (version == "1.0.68")
+        {
+            *offsetOut = 0x021326e0;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+ForgottenGUI* ResolveKenshiGui()
+{
+    uintptr_t guiOffset = 0;
+    if (!TryGetKenshiGuiOffset(&guiOffset))
+    {
+        return 0;
+    }
+
+    HMODULE exeHandle = GetModuleHandleA(0);
+    if (!exeHandle)
+    {
+        return 0;
+    }
+
+    const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(exeHandle);
+    if (!baseAddress)
+    {
+        return 0;
+    }
+
+    return reinterpret_cast<ForgottenGUI*>(baseAddress + guiOffset);
+}
+
+hand GetPrimarySelectionHandle()
+{
+    if (!ou || !ou->player)
+    {
+        return hand();
+    }
+
+    if (!ou->player->selectedObject.isNull())
+    {
+        return ou->player->selectedObject;
+    }
+
+    return ou->player->selectedCharacter;
+}
+
+void LogMarkerStateDecision(const char* reason, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, bool isSelected)
+{
+    if (!reason)
+    {
+        return;
+    }
+
+    const bool isSelectedProbe = (std::strcmp(reason, "selected_probe") == 0);
+    if (!isSelectedProbe && g_markerDebugLogCount >= kMarkerDebugLogMaxPerSession)
+    {
+        return;
+    }
+    if (!isSelectedProbe)
+    {
+        ++g_markerDebugLogCount;
+    }
+
+    std::stringstream info;
+    info << "marker_state reason=" << reason
+         << " handle=" << targetHandle.toString()
+         << " state=" << MarkerStateName(markerState)
+         << " relation=" << MarkerRelationName(markerRelation)
+         << " selected=" << (isSelected ? "true" : "false")
+         << " unconscious=" << (debugInfo.isUnconscious ? "true" : "false")
+         << " playing_dead=" << (debugInfo.isPlayingDead ? "true" : "false")
+         << " literal_ko=" << (debugInfo.isLiteral ? "true" : "false")
+         << " probably_dying=" << (debugInfo.isProbablyDying ? "true" : "false")
+         << " probably_literal=" << (debugInfo.dyingByProbablyLiteral ? "true" : "false")
+         << " probably_low_blood=" << (debugInfo.dyingByProbablyLowBlood ? "true" : "false")
+         << " probably_sub50_ko=" << (debugInfo.dyingByProbablySub50Ko ? "true" : "false")
+         << " active_bleed_dying=" << (debugInfo.dyingByActiveBleed ? "true" : "false")
+         << " bloodloss_trauma=" << (debugInfo.dyingByTrauma ? "true" : "false")
+         << " blood_threshold=" << (debugInfo.dyingByBloodThreshold ? "true" : "false")
+         << " medical_unconcious_flag=" << (debugInfo.medicalUnconsciousFlag ? "true" : "false")
+         << " medical_sub50_ko_flag=" << (debugInfo.medicalSub50KoFlag ? "true" : "false")
+         << " medical_bloodloss_trauma_flag=" << (debugInfo.medicalBloodlossTraumaFlag ? "true" : "false")
+         << " bleed_rate=" << debugInfo.currentBleedRate
+         << " prone_state=" << debugInfo.proneState
+         << " has_sleep_state=" << (debugInfo.hasSleepState ? "true" : "false")
+         << " sleep_state=" << debugInfo.sleepState
+         << " has_slave_state=" << (debugInfo.hasSlaveState ? "true" : "false")
+         << " slave_state=" << debugInfo.slaveState
+         << " blood=" << debugInfo.bloodLevel
+         << " point_of_no_return=" << debugInfo.pointOfNoReturn;
+    LogInfo(info.str());
 }
 
 std::string TrimAscii(const std::string& value)
@@ -578,7 +864,15 @@ void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
 
 const char* ResolveMarkerCaption(int markerState)
 {
-    return (markerState == CachedKoTarget::STATE_LITERAL_KO) ? "KO" : "ZZ";
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return "DY";
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return "PD";
+    }
+    return "ZZ";
 }
 
 const char* ResolveMarkerIconTexture(int markerState, int markerRelation)
@@ -590,45 +884,54 @@ MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
 {
     if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        // Enemy: down/right cues.
-        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-            ? MyGUI::IntCoord(543, 475, 17, 12)  // Kenshi_SmallArrowDownSkin
-            : MyGUI::IntCoord(580, 471, 13, 18); // Kenshi_SmallArrowRightSkin
+        if (markerState == CachedKoTarget::STATE_DYING)
+        {
+            return MyGUI::IntCoord(580, 471, 13, 18); // Kenshi_SmallArrowRightSkin
+        }
+        return MyGUI::IntCoord(543, 475, 17, 12); // Kenshi_SmallArrowDownSkin
     }
 
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        // Squad: up/left cues.
-        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-            ? MyGUI::IntCoord(543, 451, 17, 12)  // Kenshi_SmallArrowUpSkin
-            : MyGUI::IntCoord(565, 471, 11, 18); // Kenshi_SmallArrowLeftSkin
+        if (markerState == CachedKoTarget::STATE_DYING)
+        {
+            return MyGUI::IntCoord(565, 471, 11, 18); // Kenshi_SmallArrowLeftSkin
+        }
+        return MyGUI::IntCoord(543, 451, 17, 12); // Kenshi_SmallArrowUpSkin
     }
 
-    // Ally: bar-like neutral cues.
-    return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-        ? MyGUI::IntCoord(543, 465, 17, 7)   // Kenshi_SmallBarSkin
-        : MyGUI::IntCoord(574, 452, 7, 16);  // Kenshi_SmallBarHSkin composite region
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return MyGUI::IntCoord(574, 452, 7, 16); // Kenshi_SmallBarHSkin composite region
+    }
+    return MyGUI::IntCoord(543, 465, 17, 7); // Kenshi_SmallBarSkin
 }
 
 MyGUI::Colour ResolveMarkerColour(int markerState, int markerRelation)
 {
     if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-            ? MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f)
-            : MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f);
+        if (markerState == CachedKoTarget::STATE_DYING)
+        {
+            return MyGUI::Colour(1.0f, 0.75f, 0.1f, 1.0f);
+        }
+        return MyGUI::Colour(1.0f, 0.6f, 0.2f, 1.0f);
     }
 
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-            ? MyGUI::Colour(0.1f, 1.0f, 0.2f, 1.0f)
-            : MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f);
+        if (markerState == CachedKoTarget::STATE_DYING)
+        {
+            return MyGUI::Colour(0.75f, 1.0f, 0.15f, 1.0f);
+        }
+        return MyGUI::Colour(0.35f, 0.95f, 0.35f, 1.0f);
     }
 
-    return (markerState == CachedKoTarget::STATE_LITERAL_KO)
-        ? MyGUI::Colour(0.55f, 0.95f, 0.2f, 1.0f)
-        : MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f);
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return MyGUI::Colour(0.95f, 0.95f, 0.2f, 1.0f);
+    }
+    return MyGUI::Colour(0.7f, 0.9f, 0.4f, 1.0f);
 }
 
 void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
@@ -719,7 +1022,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
         if (fallbackText)
         {
             fallbackText->setNeedMouseFocus(false);
-            fallbackText->setCaption("KO");
+            fallbackText->setCaption("ZZ");
             fallbackText->setTextAlign(MyGUI::Align::Left);
             fallbackText->setTextColour(MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f));
             fallbackText->setTextShadow(true);
@@ -1028,7 +1331,7 @@ void TickKoMarkerRender()
     }
 }
 
-bool TryResolveMarkerState(Character* candidate, int* markerStateOut)
+bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStateDebugInfo* debugInfoOut)
 {
     if (!candidate || !markerStateOut)
     {
@@ -1036,25 +1339,164 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut)
     }
 
     bool isUnconscious = false;
+    bool isDying = false;
+    bool isPlayingDead = false;
     bool isLiteral = false;
+    bool isProbablyDying = false;
+    bool dyingByProbablyLiteral = false;
+    bool dyingByProbablyLowBlood = false;
+    bool dyingByProbablySub50Ko = false;
+    bool dyingByActiveBleed = false;
+    bool dyingByTrauma = false;
+    bool dyingByBloodThreshold = false;
+    bool medicalUnconsciousFlag = false;
+    bool medicalSub50KoFlag = false;
+    bool medicalBloodlossTraumaFlag = false;
+    float currentBleedRate = 0.0f;
+    int proneState = -1;
+    bool hasSleepState = false;
+    int sleepState = -1;
+    bool hasSlaveState = false;
+    int slaveState = -1;
+    float bloodLevel = 0.0f;
+    float pointOfNoReturn = 0.0f;
+
+    if (debugInfoOut)
+    {
+        debugInfoOut->isUnconscious = false;
+        debugInfoOut->isPlayingDead = false;
+        debugInfoOut->isLiteral = false;
+        debugInfoOut->isProbablyDying = false;
+        debugInfoOut->dyingByProbablyLiteral = false;
+        debugInfoOut->dyingByProbablyLowBlood = false;
+        debugInfoOut->dyingByProbablySub50Ko = false;
+        debugInfoOut->dyingByActiveBleed = false;
+        debugInfoOut->dyingByTrauma = false;
+        debugInfoOut->dyingByBloodThreshold = false;
+        debugInfoOut->medicalUnconsciousFlag = false;
+        debugInfoOut->medicalSub50KoFlag = false;
+        debugInfoOut->medicalBloodlossTraumaFlag = false;
+        debugInfoOut->currentBleedRate = 0.0f;
+        debugInfoOut->proneState = -1;
+        debugInfoOut->hasSleepState = false;
+        debugInfoOut->sleepState = -1;
+        debugInfoOut->hasSlaveState = false;
+        debugInfoOut->slaveState = -1;
+        debugInfoOut->bloodLevel = 0.0f;
+        debugInfoOut->pointOfNoReturn = 0.0f;
+    }
+
     __try
     {
         isUnconscious = candidate->isUnconcious();
-        isLiteral = candidate->isLiterallyUnconciousNotPretending();
+        if (isUnconscious)
+        {
+            proneState = static_cast<int>(candidate->_currentProneState);
+            isPlayingDead = (candidate->_currentProneState == PS_PLAYING_DEAD);
+            isLiteral = candidate->isLiterallyUnconciousNotPretending();
+            isProbablyDying = candidate->medical.isProbablyDying();
+            dyingByTrauma = candidate->medical.isInBloodlossTrauma();
+            medicalUnconsciousFlag = candidate->medical.unconcious;
+            medicalSub50KoFlag = candidate->medical.sub50KO;
+            medicalBloodlossTraumaFlag = candidate->medical.bloodlossTrauma;
+            currentBleedRate = candidate->medical.currentBleedRate;
+            bloodLevel = candidate->medical.blood;
+            pointOfNoReturn = candidate->medical.pointOfNoReturn();
+            dyingByBloodThreshold = (bloodLevel <= pointOfNoReturn);
+            dyingByProbablyLiteral = (isProbablyDying && isLiteral);
+            dyingByProbablyLowBlood = (isProbablyDying && bloodLevel <= kProbablyDyingBloodMax);
+            dyingByProbablySub50Ko = medicalSub50KoFlag;
+            dyingByActiveBleed = (isProbablyDying && (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f));
+
+            StateBroadcastData* stateBroadcast = candidate->getStateBroadcast();
+            if (stateBroadcast)
+            {
+                sleepState = stateBroadcast->sleepState;
+                hasSleepState = true;
+                slaveState = static_cast<int>(stateBroadcast->slaveState);
+                hasSlaveState = true;
+            }
+
+            // Match in-game DY closer: sub50 KO and no-return blood are the stable signals.
+            isDying = dyingByProbablySub50Ko || dyingByBloodThreshold;
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         return false;
     }
 
-    if (isLiteral)
+    if (debugInfoOut)
     {
-        *markerStateOut = CachedKoTarget::STATE_LITERAL_KO;
-        return true;
+        debugInfoOut->isUnconscious = isUnconscious;
+        debugInfoOut->isPlayingDead = isPlayingDead;
+        debugInfoOut->isLiteral = isLiteral;
+        debugInfoOut->isProbablyDying = isProbablyDying;
+        debugInfoOut->dyingByProbablyLiteral = dyingByProbablyLiteral;
+        debugInfoOut->dyingByProbablyLowBlood = dyingByProbablyLowBlood;
+        debugInfoOut->dyingByProbablySub50Ko = dyingByProbablySub50Ko;
+        debugInfoOut->dyingByActiveBleed = dyingByActiveBleed;
+        debugInfoOut->dyingByTrauma = dyingByTrauma;
+        debugInfoOut->dyingByBloodThreshold = dyingByBloodThreshold;
+        debugInfoOut->medicalUnconsciousFlag = medicalUnconsciousFlag;
+        debugInfoOut->medicalSub50KoFlag = medicalSub50KoFlag;
+        debugInfoOut->medicalBloodlossTraumaFlag = medicalBloodlossTraumaFlag;
+        debugInfoOut->currentBleedRate = currentBleedRate;
+        debugInfoOut->proneState = proneState;
+        debugInfoOut->hasSleepState = hasSleepState;
+        debugInfoOut->sleepState = sleepState;
+        debugInfoOut->hasSlaveState = hasSlaveState;
+        debugInfoOut->slaveState = slaveState;
+        debugInfoOut->bloodLevel = bloodLevel;
+        debugInfoOut->pointOfNoReturn = pointOfNoReturn;
+    }
+
+    if (isUnconscious && isDying)
+    {
+        if (isProbablyDying && !g_loggedDyingByProbably)
+        {
+            LogDyingDetection("isProbablyDying", bloodLevel, pointOfNoReturn);
+            g_loggedDyingByProbably = true;
+        }
+        if (dyingByProbablyLiteral && !g_loggedDyingByProbablyLiteral)
+        {
+            LogDyingDetection("isProbablyDying+literal", bloodLevel, pointOfNoReturn);
+            g_loggedDyingByProbablyLiteral = true;
+        }
+        if (dyingByProbablyLowBlood && !g_loggedDyingByProbablyLowBlood)
+        {
+            LogDyingDetection("isProbablyDying+low_blood", bloodLevel, pointOfNoReturn);
+            g_loggedDyingByProbablyLowBlood = true;
+        }
+        if (dyingByProbablySub50Ko && !g_loggedDyingBySub50Ko)
+        {
+            LogDyingDetection("sub50KO", bloodLevel, pointOfNoReturn);
+            g_loggedDyingBySub50Ko = true;
+        }
+        if (dyingByTrauma && !g_loggedDyingByTrauma)
+        {
+            LogDyingDetection("bloodloss trauma", bloodLevel, pointOfNoReturn);
+            g_loggedDyingByTrauma = true;
+        }
+        if (dyingByBloodThreshold && !g_loggedDyingByBloodThreshold)
+        {
+            LogDyingDetection("blood threshold", bloodLevel, pointOfNoReturn);
+            g_loggedDyingByBloodThreshold = true;
+        }
     }
 
     if (isUnconscious)
     {
+        if (isPlayingDead)
+        {
+            *markerStateOut = CachedKoTarget::STATE_PLAYING_DEAD;
+            return true;
+        }
+        if (isDying)
+        {
+            *markerStateOut = CachedKoTarget::STATE_DYING;
+            return true;
+        }
         *markerStateOut = CachedKoTarget::STATE_UNCONSCIOUS;
         return true;
     }
@@ -1094,6 +1536,459 @@ bool IsPlayerSquadMember(Character* candidate)
     }
 
     return false;
+}
+
+bool IsTargetSelected(const hand& targetHandle)
+{
+    if (targetHandle.isNull() || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    const hand selectedCharacter = ou->player->selectedCharacter;
+    if (HandsEqualExact(selectedCharacter, targetHandle))
+    {
+        return true;
+    }
+    if (!selectedCharacter.isNull() && selectedCharacter.toString() == targetHandle.toString())
+    {
+        return true;
+    }
+
+    const hand selectedObject = ou->player->selectedObject;
+    if (HandsEqualExact(selectedObject, targetHandle))
+    {
+        return true;
+    }
+    if (!selectedObject.isNull() && selectedObject.toString() == targetHandle.toString())
+    {
+        return true;
+    }
+
+    const ogre_unordered_set<hand>::type& selectedCharacters = ou->player->selectedCharacters;
+    const std::string targetText = targetHandle.toString();
+    for (ogre_unordered_set<hand>::type::const_iterator it = selectedCharacters.begin(); it != selectedCharacters.end(); ++it)
+    {
+        if (HandsEqualExact(*it, targetHandle))
+        {
+            return true;
+        }
+        if (!it->isNull() && it->toString() == targetText)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool HasAnySelection()
+{
+    if (!ou || !ou->player)
+    {
+        return false;
+    }
+
+    if (!ou->player->selectedCharacter.isNull())
+    {
+        return true;
+    }
+
+    if (!ou->player->selectedObject.isNull())
+    {
+        return true;
+    }
+
+    return !ou->player->selectedCharacters.empty();
+}
+
+void LogSelectionSnapshot(DWORD nowMs)
+{
+    if (!ou || !ou->player)
+    {
+        return;
+    }
+
+    const hand selectedCharacter = ou->player->selectedCharacter;
+    const hand selectedObject = ou->player->selectedObject;
+    const ogre_unordered_set<hand>::type& selectedCharacters = ou->player->selectedCharacters;
+    const size_t selectedCount = selectedCharacters.size();
+
+    const bool selectionChanged = (selectedCharacter != g_lastSelectionSnapshotCharacter) ||
+        (selectedObject != g_lastSelectionSnapshotObject) ||
+        (selectedCount != g_lastSelectionSnapshotCount);
+    if (!selectionChanged && g_lastSelectionSnapshotTickMs != 0 && (nowMs - g_lastSelectionSnapshotTickMs) < 1500)
+    {
+        return;
+    }
+
+    g_lastSelectionSnapshotCharacter = selectedCharacter;
+    g_lastSelectionSnapshotObject = selectedObject;
+    g_lastSelectionSnapshotCount = selectedCount;
+    g_lastSelectionSnapshotTickMs = nowMs;
+
+    std::stringstream info;
+    info << "selection_snapshot selected_character="
+         << (selectedCharacter.isNull() ? "null" : selectedCharacter.toString())
+         << " selected_object="
+         << (selectedObject.isNull() ? "null" : selectedObject.toString())
+         << " selected_set_count=" << selectedCount;
+    if (selectedCount > 0)
+    {
+        info << " selected_set=";
+        size_t emitted = 0;
+        for (ogre_unordered_set<hand>::type::const_iterator it = selectedCharacters.begin(); it != selectedCharacters.end() && emitted < 4; ++it)
+        {
+            if (emitted > 0)
+            {
+                info << ",";
+            }
+            info << it->toString();
+            ++emitted;
+        }
+        if (selectedCount > 4)
+        {
+            info << ",...";
+        }
+    }
+    LogInfo(info.str());
+}
+
+void MaybeLogSelectionNoMatch(DWORD nowMs)
+{
+    if (!HasAnySelection())
+    {
+        return;
+    }
+
+    if (g_lastSelectionNoMatchTickMs != 0 && (nowMs - g_lastSelectionNoMatchTickMs) < 1500)
+    {
+        return;
+    }
+    g_lastSelectionNoMatchTickMs = nowMs;
+    LogInfo("selection_probe no selected handles matched visible KO marker targets");
+}
+
+void LogSelectedDeepDebug(Character* candidate, const hand& targetHandle, int markerState, DWORD nowMs)
+{
+    if (!candidate || !candidate->isValid())
+    {
+        return;
+    }
+
+    bool sameHandle = HandsEqualExact(g_lastSelectedDeepDumpHandle, targetHandle);
+    if (!sameHandle && !g_lastSelectedDeepDumpHandle.isNull())
+    {
+        sameHandle = (g_lastSelectedDeepDumpHandle.toString() == targetHandle.toString());
+    }
+    if (sameHandle && g_lastSelectedDeepDumpTickMs != 0 && (nowMs - g_lastSelectedDeepDumpTickMs) < 1200)
+    {
+        return;
+    }
+
+    g_lastSelectedDeepDumpHandle = targetHandle;
+    g_lastSelectedDeepDumpTickMs = nowMs;
+
+    bool charIsUnconscious = false;
+    bool charIsDead = false;
+    bool charLiteralKo = false;
+    int charProneState = -1;
+    bool charOnScreen = false;
+    bool charVisibleNear = false;
+    int charInSomething = -1;
+    std::string charInWhat = "null";
+    bool charBeingCarried = false;
+    std::string charCarryingObject = "null";
+
+    bool medMethodUnconscious = false;
+    bool medMethodDead = false;
+    bool medCanGetUp = false;
+    bool medHungerKo = false;
+    bool medProbablyDying = false;
+    bool medMethodTrauma = false;
+    bool medFlagUnconscious = false;
+    bool medFlagSub50Ko = false;
+    bool medFlagTrauma = false;
+    bool medFlagDead = false;
+    bool medFlagCrippled = false;
+    float medHunger = 0.0f;
+    float medFed = 0.0f;
+    float medBlood = 0.0f;
+    float medMaxBlood = 0.0f;
+    float medBleedRate = 0.0f;
+    float medExtraBloodLoss = 0.0f;
+    float medKnockoutTimer = 0.0f;
+    float medNextKoTime = 0.0f;
+    float medPointCollapse = 0.0f;
+    float medPointNoReturn = 0.0f;
+    float medRestedState = 0.0f;
+    float medWorstDamage = 0.0f;
+    float medDazedOrAlert = 0.0f;
+
+    bool sbPresent = false;
+    int sbSleepState = -1;
+    int sbSlaveState = -1;
+    bool sbUnavailable = false;
+    double sbSsct = 0.0;
+    float sbStrong = 0.0f;
+    float sbMoveSpeed = 0.0f;
+    int sbPersonality = -1;
+    int sbNpcClass = -1;
+    bool sbEscap = false;
+    bool sbKidn = false;
+    bool sbTn = false;
+    float sbSlaveness = 0.0f;
+    float sbDisguise = 0.0f;
+    float sbDisguiseBlown = 0.0f;
+    bool sbUnprovoked = false;
+
+    charIsUnconscious = candidate->isUnconcious();
+    charIsDead = candidate->isDead();
+    charLiteralKo = candidate->isLiterallyUnconciousNotPretending();
+    charProneState = static_cast<int>(candidate->_currentProneState);
+    charOnScreen = candidate->isOnScreen;
+    charVisibleNear = candidate->isVisibleAndNear;
+    charInSomething = static_cast<int>(candidate->inSomething);
+    if (!candidate->inWhat.isNull())
+    {
+        charInWhat = candidate->inWhat.toString();
+    }
+    charBeingCarried = candidate->isBeingCarried();
+    const hand carryingObject = candidate->getCarryingObject();
+    if (!carryingObject.isNull())
+    {
+        charCarryingObject = carryingObject.toString();
+    }
+
+    medMethodUnconscious = candidate->medical.isUnconcious();
+    medMethodDead = candidate->medical.isDead();
+    medCanGetUp = candidate->medical.canGetUpWakeUp();
+    medHungerKo = candidate->medical.isHungerKO();
+    medProbablyDying = candidate->medical.isProbablyDying();
+    medMethodTrauma = candidate->medical.isInBloodlossTrauma();
+    medFlagUnconscious = candidate->medical.unconcious;
+    medFlagSub50Ko = candidate->medical.sub50KO;
+    medFlagTrauma = candidate->medical.bloodlossTrauma;
+    medFlagDead = candidate->medical.dead;
+    medFlagCrippled = candidate->medical.crippled;
+    medHunger = candidate->medical.hunger;
+    medFed = candidate->medical.fed;
+    medBlood = candidate->medical.blood;
+    medMaxBlood = candidate->medical.getMaxBlood();
+    medBleedRate = candidate->medical.currentBleedRate;
+    medExtraBloodLoss = candidate->medical.extraBloodLossFromBodyparts;
+    medKnockoutTimer = candidate->medical.knockoutTimer;
+    medNextKoTime = candidate->medical.nextKOTime;
+    medPointCollapse = candidate->medical.pointOfCollapseBloodloss();
+    medPointNoReturn = candidate->medical.pointOfNoReturn();
+    medRestedState = candidate->medical.restedState;
+    medWorstDamage = candidate->medical.worstDamage;
+    medDazedOrAlert = candidate->medical.dazedOrAlert;
+
+    StateBroadcastData* stateBroadcast = candidate->getStateBroadcast();
+    if (stateBroadcast)
+    {
+        sbPresent = true;
+        sbSleepState = stateBroadcast->sleepState;
+        sbSlaveState = static_cast<int>(stateBroadcast->slaveState);
+        sbUnavailable = stateBroadcast->unavailble;
+        sbSsct = stateBroadcast->ssct;
+        sbStrong = stateBroadcast->strong;
+        sbMoveSpeed = stateBroadcast->moveSpeed;
+        sbPersonality = static_cast<int>(stateBroadcast->personality);
+        sbNpcClass = static_cast<int>(stateBroadcast->npcClass);
+        sbEscap = stateBroadcast->escap;
+        sbKidn = stateBroadcast->kidn;
+        sbTn = stateBroadcast->tn;
+        sbSlaveness = stateBroadcast->slaveness;
+        sbDisguise = stateBroadcast->disguise;
+        sbDisguiseBlown = stateBroadcast->disguiseblown;
+        sbUnprovoked = stateBroadcast->unprovoked;
+    }
+
+    std::stringstream info;
+    info << "selected_deep_dump handle=" << targetHandle.toString()
+         << " marker_state=" << MarkerStateName(markerState)
+         << " char_unconcious=" << (charIsUnconscious ? "true" : "false")
+         << " char_dead=" << (charIsDead ? "true" : "false")
+         << " char_literal_ko=" << (charLiteralKo ? "true" : "false")
+         << " char_prone_state=" << charProneState
+         << " char_on_screen=" << (charOnScreen ? "true" : "false")
+         << " char_visible_near=" << (charVisibleNear ? "true" : "false")
+         << " char_in_something=" << charInSomething
+         << " char_in_what=" << charInWhat
+         << " char_being_carried=" << (charBeingCarried ? "true" : "false")
+         << " char_carrying_object=" << charCarryingObject
+         << " med_unconcious_method=" << (medMethodUnconscious ? "true" : "false")
+         << " med_dead_method=" << (medMethodDead ? "true" : "false")
+         << " med_can_get_up=" << (medCanGetUp ? "true" : "false")
+         << " med_hunger_ko=" << (medHungerKo ? "true" : "false")
+         << " med_probably_dying=" << (medProbablyDying ? "true" : "false")
+         << " med_trauma_method=" << (medMethodTrauma ? "true" : "false")
+         << " med_unconcious_flag=" << (medFlagUnconscious ? "true" : "false")
+         << " med_sub50_ko_flag=" << (medFlagSub50Ko ? "true" : "false")
+         << " med_trauma_flag=" << (medFlagTrauma ? "true" : "false")
+         << " med_dead_flag=" << (medFlagDead ? "true" : "false")
+         << " med_crippled_flag=" << (medFlagCrippled ? "true" : "false")
+         << " med_hunger=" << medHunger
+         << " med_fed=" << medFed
+         << " med_blood=" << medBlood
+         << " med_max_blood=" << medMaxBlood
+         << " med_bleed_rate=" << medBleedRate
+         << " med_extra_blood_loss=" << medExtraBloodLoss
+         << " med_knockout_timer=" << medKnockoutTimer
+         << " med_next_ko_time=" << medNextKoTime
+         << " med_point_of_collapse=" << medPointCollapse
+         << " med_point_of_no_return=" << medPointNoReturn
+         << " med_rested_state=" << medRestedState
+         << " med_worst_damage=" << medWorstDamage
+         << " med_dazed_or_alert=" << medDazedOrAlert
+         << " sb_present=" << (sbPresent ? "true" : "false")
+         << " sb_sleep_state=" << sbSleepState
+         << " sb_slave_state=" << sbSlaveState
+         << " sb_unavailable=" << (sbUnavailable ? "true" : "false")
+         << " sb_ssct=" << sbSsct
+         << " sb_strong=" << sbStrong
+         << " sb_move_speed=" << sbMoveSpeed
+         << " sb_personality=" << sbPersonality
+         << " sb_npc_class=" << sbNpcClass
+         << " sb_escap=" << (sbEscap ? "true" : "false")
+         << " sb_kidn=" << (sbKidn ? "true" : "false")
+         << " sb_tn=" << (sbTn ? "true" : "false")
+         << " sb_slaveness=" << sbSlaveness
+         << " sb_disguise=" << sbDisguise
+         << " sb_disguise_blown=" << sbDisguiseBlown
+         << " sb_unprovoked=" << (sbUnprovoked ? "true" : "false");
+    LogInfo(info.str());
+}
+
+void MaybeLogSelectedPanelStatus(const hand& targetHandle, DWORD nowMs)
+{
+    if (!kEnableUnsafePanelProbe)
+    {
+        return;
+    }
+
+    const hand primarySelection = GetPrimarySelectionHandle();
+    if (primarySelection.isNull() || !HandsEqualWithFallback(primarySelection, targetHandle))
+    {
+        return;
+    }
+
+    const bool sameHandle = HandsEqualWithFallback(g_lastSelectedPanelDumpHandle, targetHandle);
+    if (sameHandle && g_lastSelectedPanelDumpTickMs != 0 && (nowMs - g_lastSelectedPanelDumpTickMs) < 1200)
+    {
+        return;
+    }
+
+    g_lastSelectedPanelDumpHandle = targetHandle;
+    g_lastSelectedPanelDumpTickMs = nowMs;
+
+    ForgottenGUI* gui = ResolveKenshiGui();
+    if (!gui)
+    {
+        LogWarn("selected_panel_probe gui_unavailable=true");
+        return;
+    }
+
+    DatapanelGUI* panel = gui->_0x18;
+    if (!panel)
+    {
+        LogWarn("selected_panel_probe panel_unavailable=true");
+        return;
+    }
+
+    std::stringstream header;
+    header << "selected_panel_probe handle=" << targetHandle.toString()
+           << " gui_display_handle=" << (ou && !ou->guiDisplayObject.isNull() ? ou->guiDisplayObject.toString() : "null")
+           << " category_count=" << panel->_0x60.size()
+           << " flat_line_count=" << panel->_0x88.size();
+    LogInfo(header.str());
+
+    size_t statusLineCount = 0;
+    size_t previewCount = 0;
+    std::vector<std::string> previewLines;
+    previewLines.reserve(12);
+
+    for (Ogre::map<int, Ogre::map<std::string, DataPanelLine*>::type>::type::const_iterator catIt = panel->_0x60.begin(); catIt != panel->_0x60.end(); ++catIt)
+    {
+        const int categoryId = catIt->first;
+        const Ogre::map<std::string, DataPanelLine*>::type& lineMap = catIt->second;
+        for (Ogre::map<std::string, DataPanelLine*>::type::const_iterator lineIt = lineMap.begin(); lineIt != lineMap.end(); ++lineIt)
+        {
+            DataPanelLine* line = lineIt->second;
+            if (!line)
+            {
+                continue;
+            }
+
+            const std::string keyText = ClipForLog(lineIt->first, 48);
+            const std::string s1 = ClipForLog(line->_0x28, 64);
+            const std::string s2 = ClipForLog(line->_0x50, 64);
+            const std::string s3 = ClipForLog(line->_0x78, 64);
+            const std::string s4 = ClipForLog(line->_0xa8, 64);
+            const std::string s5 = ClipForLog(line->_0xd0, 64);
+
+            std::stringstream lineInfo;
+            lineInfo << "selected_panel_line cat=" << categoryId
+                     << " key=" << keyText
+                     << " id=" << line->id
+                     << " type=" << line->type
+                     << " s1=" << s1
+                     << " s2=" << s2
+                     << " s3=" << s3
+                     << " s4=" << s4
+                     << " s5=" << s5;
+
+            if (previewCount < 12)
+            {
+                previewLines.push_back(lineInfo.str());
+                ++previewCount;
+            }
+
+            const std::string joined = ToLowerAsciiCopy(keyText + " " + s1 + " " + s2 + " " + s3 + " " + s4 + " " + s5);
+            if (ContainsStatusToken(joined))
+            {
+                ++statusLineCount;
+                LogInfo(lineInfo.str());
+            }
+        }
+    }
+
+    if (statusLineCount == 0)
+    {
+        LogInfo("selected_panel_probe status_line_count=0 preview=true");
+        for (size_t i = 0; i < previewLines.size(); ++i)
+        {
+            LogInfo(previewLines[i]);
+        }
+    }
+}
+
+void MaybeLogSelectedMarkerState(Character* candidate, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, DWORD nowMs)
+{
+    if (!IsTargetSelected(targetHandle))
+    {
+        return;
+    }
+
+    bool sameHandle = HandsEqualExact(g_lastSelectedDebugHandle, targetHandle);
+    if (!sameHandle && !g_lastSelectedDebugHandle.isNull())
+    {
+        sameHandle = (g_lastSelectedDebugHandle.toString() == targetHandle.toString());
+    }
+    const bool sameState = (g_lastSelectedDebugState == markerState && g_lastSelectedDebugRelation == markerRelation);
+    if (sameHandle && sameState && g_lastSelectedDebugTickMs != 0 && (nowMs - g_lastSelectedDebugTickMs) < 1500)
+    {
+        return;
+    }
+
+    g_lastSelectedDebugHandle = targetHandle;
+    g_lastSelectedDebugState = markerState;
+    g_lastSelectedDebugRelation = markerRelation;
+    g_lastSelectedDebugTickMs = nowMs;
+    LogMarkerStateDecision("selected_probe", targetHandle, markerState, markerRelation, debugInfo, true);
+    LogSelectedDeepDebug(candidate, targetHandle, markerState, nowMs);
 }
 
 bool IsSameFactionAsPlayer(Character* candidate)
@@ -1157,6 +2052,8 @@ void TickKoProbe()
     g_highlightRuntimeActive = true;
 
     const DWORD nowMs = GetTickCount();
+    LogSelectionSnapshot(nowMs);
+
     if (g_lastProbeTickMs != 0 && (nowMs - g_lastProbeTickMs) < g_config.updateIntervalMs)
     {
         TickKoMarkerRender();
@@ -1168,6 +2065,7 @@ void TickKoProbe()
 
     const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
     g_visibleKoHandlesScratch.clear();
+    bool anySelectedMarkerMatched = false;
 
     for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
     {
@@ -1193,7 +2091,8 @@ void TickKoProbe()
         }
 
         int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
-        if (TryResolveMarkerState(candidate, &markerState))
+        MarkerStateDebugInfo markerDebugInfo = {};
+        if (TryResolveMarkerState(candidate, &markerState, &markerDebugInfo))
         {
             const hand targetHandle = candidate->getHandle();
             if (targetHandle.isNull())
@@ -1202,6 +2101,12 @@ void TickKoProbe()
             }
 
             const int markerRelation = ResolveMarkerRelation(candidate);
+            const bool isSelected = IsTargetSelected(targetHandle);
+            if (isSelected)
+            {
+                anySelectedMarkerMatched = true;
+            }
+            MaybeLogSelectedMarkerState(candidate, targetHandle, markerState, markerRelation, markerDebugInfo, nowMs);
 
             if (!VisibleHandleListContains(targetHandle))
             {
@@ -1212,6 +2117,10 @@ void TickKoProbe()
             if (existingIndex >= 0)
             {
                 CachedKoTarget& existing = g_koTargetCache[existingIndex];
+                if (existing.markerState != markerState || existing.markerRelation != markerRelation)
+                {
+                    LogMarkerStateDecision("state_changed", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
+                }
                 existing.worldPos = candidate->getPosition();
                 existing.lastSeenMs = nowMs;
                 existing.markerState = markerState;
@@ -1227,8 +2136,17 @@ void TickKoProbe()
                     markerRelation
                 };
                 g_koTargetCache.push_back(created);
+                if (isSelected || markerState == CachedKoTarget::STATE_UNCONSCIOUS)
+                {
+                    LogMarkerStateDecision("first_seen", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
+                }
             }
         }
+    }
+
+    if (!anySelectedMarkerMatched)
+    {
+        MaybeLogSelectionNoMatch(nowMs);
     }
 
     for (int i = static_cast<int>(g_koTargetCache.size()) - 1; i >= 0; --i)
