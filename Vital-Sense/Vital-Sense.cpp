@@ -12,6 +12,14 @@
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TextBox.h>
 
+#ifndef BOOST_ALL_NO_LIB
+#define BOOST_ALL_NO_LIB
+#endif
+
+#ifndef BOOST_ERROR_CODE_HEADER_ONLY
+#define BOOST_ERROR_CODE_HEADER_ONLY
+#endif
+
 #include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/DatapanelGUI.h"
 #include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/ForgottenGUI.h"
 #include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/StateBroadcastData.h"
@@ -104,6 +112,7 @@ std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<hand> g_visibleKoHandlesScratch;
 struct KoMarkerWidget
 {
+    MyGUI::ImageBox* beacon;
     MyGUI::ImageBox* icon;
     MyGUI::TextBox* fallbackText;
 };
@@ -131,6 +140,7 @@ hand g_lastSelectionSnapshotObject;
 size_t g_lastSelectionSnapshotCount = 0;
 DWORD g_lastSelectionSnapshotTickMs = 0;
 DWORD g_lastSelectionNoMatchTickMs = 0;
+DWORD g_lastHighlightGateOpenTickMs = 0;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
@@ -139,8 +149,18 @@ const size_t kMaxKoMarkerWidgets = 48;
 const int kKoMarkerWidthPx = 64;
 const int kKoMarkerHeightPx = 18;
 const int kKoMarkerYOffsetPx = 24;
+const float kKoMarkerHeadAnchorYOffset = 2.0f;
+const int kKoBeaconSizePx = 34;
+const float kKoBeaconAlpha = 0.80f;
 const float kProbablyDyingBloodMax = 50.0f;
+const DWORD kHighlightGateReleaseDebounceMs = 250;
 const bool kEnableUnsafePanelProbe = false;
+const bool kEnableUiBeaconOverlay = false;
+const bool kEnableVerboseRuntimeLogs = false;
+const bool kEnableTextureInfoLogs = false;
+
+void LogInfo(const std::string& message);
+void LogWarn(const std::string& message);
 
 void LogWithPrefix(void (*sink)(const char*), const char* level, const std::string& message)
 {
@@ -171,6 +191,10 @@ void LogError(const std::string& message)
 
 void LogDyingDetection(const char* trigger, float bloodLevel, float pointOfNoReturn)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
     std::stringstream info;
     info << "DY detected via " << trigger << " (blood=" << bloodLevel
          << ", point_of_no_return=" << pointOfNoReturn << ")";
@@ -356,6 +380,11 @@ hand GetPrimarySelectionHandle()
 
 void LogMarkerStateDecision(const char* reason, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, bool isSelected)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!reason)
     {
         return;
@@ -753,6 +782,26 @@ bool VisibleHandleListContains(const hand& targetHandle)
     return false;
 }
 
+bool HandlesEqualByKey(const hand& a, const hand& b)
+{
+    return a.type == b.type
+        && a.index == b.index
+        && a.serial == b.serial;
+}
+
+bool HandleVectorContains(const std::vector<hand>& handles, const hand& targetHandle)
+{
+    for (size_t i = 0; i < handles.size(); ++i)
+    {
+        const hand& value = handles[i];
+        if (HandlesEqualByKey(value, targetHandle))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
     for (size_t i = 0; i < values.size(); ++i)
@@ -767,6 +816,11 @@ bool StringListContains(const std::vector<std::string>& values, const std::strin
 
 void LogIconTextureOnce(std::vector<std::string>& sink, const std::string& message, const char* textureName, bool warn)
 {
+    if (!warn && !kEnableTextureInfoLogs)
+    {
+        return;
+    }
+
     if (!textureName || !*textureName)
     {
         return;
@@ -990,6 +1044,23 @@ void SetKoMarkerIconCoord(MyGUI::ImageBox* marker, const MyGUI::IntCoord& coord)
 
 void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
 {
+    if (marker.beacon)
+    {
+        try
+        {
+            const int centerX = left + (kKoMarkerWidthPx / 2);
+            const int centerY = top + (kKoMarkerHeightPx / 2);
+            marker.beacon->setCoord(
+                centerX - (kKoBeaconSizePx / 2),
+                centerY - (kKoBeaconSizePx / 2),
+                kKoBeaconSizePx,
+                kKoBeaconSizePx);
+        }
+        catch (...)
+        {
+        }
+    }
+
     if (marker.icon)
     {
         try
@@ -1022,6 +1093,7 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
 
 void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
 {
+    SetWidgetVisible(marker.beacon, visible && kEnableUiBeaconOverlay);
     SetWidgetVisible(marker.icon, visible);
     SetWidgetVisible(marker.fallbackText, visible);
 }
@@ -1095,6 +1167,36 @@ MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int
 void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
 {
     const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
+    const MyGUI::Colour beaconColour(colour.red, colour.green, colour.blue, kKoBeaconAlpha);
+
+    if (marker.beacon && kEnableUiBeaconOverlay)
+    {
+        const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
+        bool customDyingReady = false;
+        if (wantsCustomDyingIcon)
+        {
+            customDyingReady = SetKoMarkerIconTexture(marker.beacon, g_config.customDyingIconTexture.c_str());
+            const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
+            if (customDyingReady)
+            {
+                SetKoMarkerIconCoord(marker.beacon, ResolveCustomIconCoordFromImageSize(marker.beacon, fallbackSize));
+                SetKoMarkerIconColour(marker.beacon, MyGUI::Colour(1.0f, 1.0f, 1.0f, kKoBeaconAlpha));
+            }
+            else
+            {
+                SetKoMarkerIconTexture(marker.beacon, ResolveMarkerIconTexture(markerState, markerRelation));
+                SetKoMarkerIconCoord(marker.beacon, ResolveMarkerIconCoord(markerState, markerRelation));
+                SetKoMarkerIconColour(marker.beacon, beaconColour);
+            }
+        }
+        else
+        {
+            SetKoMarkerIconTexture(marker.beacon, ResolveMarkerIconTexture(markerState, markerRelation));
+            SetKoMarkerIconCoord(marker.beacon, ResolveMarkerIconCoord(markerState, markerRelation));
+            SetKoMarkerIconColour(marker.beacon, beaconColour);
+        }
+    }
+
     if (marker.icon)
     {
         const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
@@ -1151,6 +1253,13 @@ bool CreateKoMarkerWidgetAt(size_t index)
         std::stringstream name;
         name << "VS_KOMarker_" << index << "_" << g_koMarkerWidgetSerial++;
 
+        MyGUI::ImageBox* beacon = gui->createWidget<MyGUI::ImageBox>(
+            "ImageBox",
+            MyGUI::IntCoord(0, 0, kKoBeaconSizePx, kKoBeaconSizePx),
+            MyGUI::Align::Default,
+            "Top",
+            name.str() + "_beacon");
+
         MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx, kKoMarkerHeightPx),
@@ -1173,7 +1282,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
                 "Top",
                 name.str() + "_fallback");
         }
-        if (!icon && !fallbackText)
+        if (!beacon && !icon && !fallbackText)
         {
             return false;
         }
@@ -1181,14 +1290,12 @@ bool CreateKoMarkerWidgetAt(size_t index)
         {
             LogWarn("ImageBox marker unavailable; using text fallback");
         }
-        if (index == 0)
+
+        if (beacon)
         {
-            std::stringstream ss;
-            ss << "marker widget init icon=" << (icon ? "true" : "false")
-               << ", text=" << (fallbackText ? "true" : "false")
-               << ", width=" << kKoMarkerWidthPx
-               << ", height=" << kKoMarkerHeightPx;
-            LogInfo(ss.str());
+            beacon->setNeedMouseFocus(false);
+            beacon->setImageTexture("default_icon.png");
+            beacon->setVisible(false);
         }
 
         if (icon)
@@ -1208,7 +1315,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
             fallbackText->setVisible(false);
         }
 
-        KoMarkerWidget marker = { icon, fallbackText };
+        KoMarkerWidget marker = { beacon, icon, fallbackText };
 
         if (index >= g_koMarkerWidgets.size())
         {
@@ -1243,7 +1350,7 @@ bool EnsureKoMarkerPool(size_t requiredCount)
 
     for (size_t i = 0; i < requiredCount; ++i)
     {
-        if (!g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
+        if (!g_koMarkerWidgets[i].beacon && !g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
         {
             return false;
         }
@@ -1454,17 +1561,19 @@ void TickKoMarkerRender()
     {
         const CachedKoTarget& cached = g_koTargetCache[i];
 
-        Ogre::Vector3 anchor = cached.worldPos;
+        Ogre::Vector3 characterWorldPos = cached.worldPos;
         Character* targetCharacter = cached.targetHandle.getCharacter();
         if (targetCharacter && targetCharacter->isValid())
         {
-            anchor = targetCharacter->getPosition();
+            characterWorldPos = targetCharacter->getPosition();
         }
-        anchor.y += 2.0f;
+
+        Ogre::Vector3 markerAnchor = characterWorldPos;
+        markerAnchor.y += kKoMarkerHeadAnchorYOffset;
 
         float screenX = 0.0f;
         float screenY = 0.0f;
-        if (!TryProjectWorldToScreenPx(anchor, &screenX, &screenY))
+        if (!TryProjectWorldToScreenPx(markerAnchor, &screenX, &screenY))
         {
             continue;
         }
@@ -1687,10 +1796,44 @@ bool IsHighlightGateOpen()
 {
     if (!g_config.onlyWhenAltHeld)
     {
+        g_lastHighlightGateOpenTickMs = GetTickCount();
         return true;
     }
 
-    return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    const bool rawOpen = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    const DWORD nowMs = GetTickCount();
+    if (rawOpen)
+    {
+        g_lastHighlightGateOpenTickMs = nowMs;
+        return true;
+    }
+
+    if (g_lastHighlightGateOpenTickMs != 0 && (nowMs - g_lastHighlightGateOpenTickMs) <= kHighlightGateReleaseDebounceMs)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool IsGamePausedSafe()
+{
+    if (!ou)
+    {
+        return false;
+    }
+
+    bool paused = false;
+    __try
+    {
+        paused = ou->isPaused();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    return paused;
 }
 
 bool IsPlayerSquadMember(Character* candidate)
@@ -1783,6 +1926,11 @@ bool HasAnySelection()
 
 void LogSelectionSnapshot(DWORD nowMs)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!ou || !ou->player)
     {
         return;
@@ -1835,6 +1983,11 @@ void LogSelectionSnapshot(DWORD nowMs)
 
 void MaybeLogSelectionNoMatch(DWORD nowMs)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!HasAnySelection())
     {
         return;
@@ -1850,6 +2003,11 @@ void MaybeLogSelectionNoMatch(DWORD nowMs)
 
 void LogSelectedDeepDebug(Character* candidate, const hand& targetHandle, int markerState, DWORD nowMs)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!candidate || !candidate->isValid())
     {
         return;
@@ -2043,6 +2201,11 @@ void LogSelectedDeepDebug(Character* candidate, const hand& targetHandle, int ma
 
 void MaybeLogSelectedPanelStatus(const hand& targetHandle, DWORD nowMs)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!kEnableUnsafePanelProbe)
     {
         return;
@@ -2146,6 +2309,11 @@ void MaybeLogSelectedPanelStatus(const hand& targetHandle, DWORD nowMs)
 
 void MaybeLogSelectedMarkerState(Character* candidate, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, DWORD nowMs)
 {
+    if (!kEnableVerboseRuntimeLogs)
+    {
+        return;
+    }
+
     if (!IsTargetSelected(targetHandle))
     {
         return;
@@ -2220,6 +2388,7 @@ void TickKoProbe()
     const bool canRun = g_config.enabled && IsHighlightGateOpen() && ou;
     if (!canRun)
     {
+        g_lastHighlightGateOpenTickMs = 0;
         if (g_highlightRuntimeActive)
         {
             g_koTargetCache.clear();
@@ -2365,6 +2534,7 @@ __declspec(dllexport) void startPlugin()
     info << "loaded (enabled=" << (g_config.enabled ? "true" : "false")
          << ", update_interval_ms=" << g_config.updateIntervalMs
          << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
+         << ", alt_release_debounce_ms=" << kHighlightGateReleaseDebounceMs
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
     LogInfo(info.str());
