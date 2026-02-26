@@ -2,6 +2,8 @@
   "enabled": true,
   "update_interval_ms": 150,
   "only_when_alt_held": true,
+  "show_icons": true,
+  "show_text": true,
   "max_highlight_distance_m": 3500,
   "dying_icon_texture": "death_64px.png",
   "dying_icon_size_px": 64

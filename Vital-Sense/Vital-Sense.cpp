@@ -53,9 +53,11 @@ struct PluginConfig
     DWORD maxHighlightDistanceMeters;
     std::string customDyingIconTexture;
     DWORD customDyingIconSizePx;
+    bool showMarkerIcons;
+    bool showMarkerText;
 };
 
-PluginConfig g_config = { true, 150, true, 3500, "", 64 };
+PluginConfig g_config = { true, 150, true, 3500, "", 64, true, true };
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
@@ -640,6 +642,8 @@ bool LoadConfigState()
     g_config.maxHighlightDistanceMeters = 3500;
     g_config.customDyingIconTexture.clear();
     g_config.customDyingIconSizePx = 64;
+    g_config.showMarkerIcons = true;
+    g_config.showMarkerText = true;
 
     if (g_settingsPath.empty())
     {
@@ -705,6 +709,18 @@ bool LoadConfigState()
     if (ParseBoolFromJson(body, "only_when_alt_held", &parsedAltGate))
     {
         g_config.onlyWhenAltHeld = parsedAltGate;
+    }
+
+    bool parsedShowIcons = true;
+    if (ParseBoolFromJson(body, "show_icons", &parsedShowIcons))
+    {
+        g_config.showMarkerIcons = parsedShowIcons;
+    }
+
+    bool parsedShowText = true;
+    if (ParseBoolFromJson(body, "show_text", &parsedShowText))
+    {
+        g_config.showMarkerText = parsedShowText;
     }
 
     std::string parsedDyingIconTexture;
@@ -1076,7 +1092,7 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
     {
         try
         {
-            if (marker.icon)
+            if (marker.icon && g_config.showMarkerIcons)
             {
                 marker.fallbackText->setCoord(left + kKoMarkerHeightPx + 1, top, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx);
             }
@@ -1094,8 +1110,8 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
 void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
 {
     SetWidgetVisible(marker.beacon, visible && kEnableUiBeaconOverlay);
-    SetWidgetVisible(marker.icon, visible);
-    SetWidgetVisible(marker.fallbackText, visible);
+    SetWidgetVisible(marker.icon, visible && g_config.showMarkerIcons);
+    SetWidgetVisible(marker.fallbackText, visible && g_config.showMarkerText);
 }
 
 const char* ResolveMarkerCaption(int markerState)
@@ -1199,33 +1215,36 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
 
     if (marker.icon)
     {
-        const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
-        bool customDyingReady = false;
-        if (wantsCustomDyingIcon)
+        if (g_config.showMarkerIcons)
         {
-            customDyingReady = SetKoMarkerIconTexture(marker.icon, g_config.customDyingIconTexture.c_str());
-            const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
-            if (customDyingReady)
+            const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
+            bool customDyingReady = false;
+            if (wantsCustomDyingIcon)
             {
-                // Preserve custom icon authoring colors (no relation tint).
-                SetKoMarkerIconCoord(marker.icon, ResolveCustomIconCoordFromImageSize(marker.icon, fallbackSize));
-                SetKoMarkerIconColour(marker.icon, MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f));
+                customDyingReady = SetKoMarkerIconTexture(marker.icon, g_config.customDyingIconTexture.c_str());
+                const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
+                if (customDyingReady)
+                {
+                    // Preserve custom icon authoring colors (no relation tint).
+                    SetKoMarkerIconCoord(marker.icon, ResolveCustomIconCoordFromImageSize(marker.icon, fallbackSize));
+                    SetKoMarkerIconColour(marker.icon, MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f));
+                }
+                else
+                {
+                    SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
+                    SetKoMarkerIconColour(marker.icon, colour);
+                }
             }
             else
             {
+                SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
                 SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
                 SetKoMarkerIconColour(marker.icon, colour);
             }
         }
-        else
-        {
-            SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
-            SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
-            SetKoMarkerIconColour(marker.icon, colour);
-        }
     }
 
-    if (marker.fallbackText)
+    if (marker.fallbackText && g_config.showMarkerText)
     {
         SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(markerState));
         SetKoMarkerTextColour(marker.fallbackText, colour);
@@ -1529,6 +1548,12 @@ bool TryProjectWorldToScreenPx(const Ogre::Vector3& worldPos, float* xOut, float
 void TickKoMarkerRender()
 {
     if (!g_config.enabled)
+    {
+        HideAllKoMarkerWidgets();
+        return;
+    }
+
+    if (!g_config.showMarkerIcons && !g_config.showMarkerText)
     {
         HideAllKoMarkerWidgets();
         return;
@@ -2385,7 +2410,8 @@ bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3&
 
 void TickKoProbe()
 {
-    const bool canRun = g_config.enabled && IsHighlightGateOpen() && ou;
+    const bool anyMarkerVisualEnabled = (g_config.showMarkerIcons || g_config.showMarkerText);
+    const bool canRun = g_config.enabled && anyMarkerVisualEnabled && IsHighlightGateOpen() && ou;
     if (!canRun)
     {
         g_lastHighlightGateOpenTickMs = 0;
@@ -2534,6 +2560,8 @@ __declspec(dllexport) void startPlugin()
     info << "loaded (enabled=" << (g_config.enabled ? "true" : "false")
          << ", update_interval_ms=" << g_config.updateIntervalMs
          << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
+         << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
+         << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
          << ", alt_release_debounce_ms=" << kHighlightGateReleaseDebounceMs
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
