@@ -51,6 +51,12 @@ struct PluginConfig
     DWORD updateIntervalMs;
     bool onlyWhenAltHeld;
     DWORD maxHighlightDistanceMeters;
+    std::string unconsciousText;
+    std::string dyingText;
+    std::string playingDeadText;
+    MyGUI::Colour enemyMarkerColour;
+    MyGUI::Colour allyMarkerColour;
+    MyGUI::Colour squadMarkerColour;
     std::string customUnconsciousIconTexture;
     DWORD customUnconsciousIconSizePx;
     std::string customDyingIconTexture;
@@ -61,7 +67,26 @@ struct PluginConfig
     bool showMarkerText;
 };
 
-PluginConfig g_config = { true, 150, true, 3500, "", 64, "", 64, "", 64, true, true };
+PluginConfig g_config = {
+    true,
+    150,
+    true,
+    3500,
+    "ZZ",
+    "DY",
+    "PD",
+    MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f),
+    MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f),
+    MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f),
+    "",
+    64,
+    "",
+    64,
+    "",
+    64,
+    true,
+    true
+};
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
@@ -638,12 +663,135 @@ bool ParseStringFromJson(const std::string& body, const char* keyName, std::stri
     return false;
 }
 
+bool TryParseHexNibble(char value, unsigned int* nibbleOut)
+{
+    if (!nibbleOut)
+    {
+        return false;
+    }
+
+    if (value >= '0' && value <= '9')
+    {
+        *nibbleOut = static_cast<unsigned int>(value - '0');
+        return true;
+    }
+    if (value >= 'a' && value <= 'f')
+    {
+        *nibbleOut = static_cast<unsigned int>(10 + (value - 'a'));
+        return true;
+    }
+    if (value >= 'A' && value <= 'F')
+    {
+        *nibbleOut = static_cast<unsigned int>(10 + (value - 'A'));
+        return true;
+    }
+    return false;
+}
+
+bool TryParseHexByte(const std::string& value, size_t pos, unsigned int* byteOut)
+{
+    if (!byteOut || pos + 1 >= value.size())
+    {
+        return false;
+    }
+
+    unsigned int hi = 0;
+    unsigned int lo = 0;
+    if (!TryParseHexNibble(value[pos], &hi) || !TryParseHexNibble(value[pos + 1], &lo))
+    {
+        return false;
+    }
+
+    *byteOut = (hi << 4) | lo;
+    return true;
+}
+
+bool TryParseColourHex(const std::string& rawValue, MyGUI::Colour* colourOut)
+{
+    if (!colourOut)
+    {
+        return false;
+    }
+
+    std::string value = TrimAscii(rawValue);
+    if (value.empty())
+    {
+        return false;
+    }
+
+    if (!value.empty() && value[0] == '#')
+    {
+        value.erase(0, 1);
+    }
+
+    if (value.size() != 6 && value.size() != 8)
+    {
+        return false;
+    }
+
+    unsigned int r = 0;
+    unsigned int g = 0;
+    unsigned int b = 0;
+    unsigned int a = 255;
+    if (!TryParseHexByte(value, 0, &r) ||
+        !TryParseHexByte(value, 2, &g) ||
+        !TryParseHexByte(value, 4, &b))
+    {
+        return false;
+    }
+    if (value.size() == 8 && !TryParseHexByte(value, 6, &a))
+    {
+        return false;
+    }
+
+    *colourOut = MyGUI::Colour(
+        static_cast<float>(r) / 255.0f,
+        static_cast<float>(g) / 255.0f,
+        static_cast<float>(b) / 255.0f,
+        static_cast<float>(a) / 255.0f);
+    return true;
+}
+
+std::string ColourToHexRgb(const MyGUI::Colour& colour)
+{
+    auto toByte = [](float channel) -> unsigned int
+    {
+        if (channel < 0.0f)
+        {
+            channel = 0.0f;
+        }
+        if (channel > 1.0f)
+        {
+            channel = 1.0f;
+        }
+        return static_cast<unsigned int>(channel * 255.0f + 0.5f);
+    };
+
+    const unsigned int r = toByte(colour.red);
+    const unsigned int g = toByte(colour.green);
+    const unsigned int b = toByte(colour.blue);
+
+    std::stringstream ss;
+    ss << "#";
+    const char* kHex = "0123456789ABCDEF";
+    ss << kHex[(r >> 4) & 0xF] << kHex[r & 0xF]
+       << kHex[(g >> 4) & 0xF] << kHex[g & 0xF]
+       << kHex[(b >> 4) & 0xF] << kHex[b & 0xF];
+    return ss.str();
+}
+
 bool LoadConfigState()
 {
     g_config.enabled = true;
     g_config.updateIntervalMs = 150;
     g_config.onlyWhenAltHeld = true;
     g_config.maxHighlightDistanceMeters = 3500;
+    g_config.unconsciousText = "ZZ";
+    g_config.dyingText = "DY";
+    g_config.playingDeadText = "PD";
+    g_config.enemyMarkerColour = MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f);
+    g_config.allyMarkerColour = MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f);
+    g_config.squadMarkerColour = MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
     g_config.customUnconsciousIconTexture.clear();
     g_config.customUnconsciousIconSizePx = 64;
     g_config.customDyingIconTexture.clear();
@@ -729,6 +877,90 @@ bool LoadConfigState()
     if (ParseBoolFromJson(body, "show_text", &parsedShowText))
     {
         g_config.showMarkerText = parsedShowText;
+    }
+
+    std::string parsedUnconsciousText;
+    if (ParseStringFromJson(body, "unconscious_text", &parsedUnconsciousText))
+    {
+        const std::string trimmed = TrimAscii(parsedUnconsciousText);
+        if (!trimmed.empty())
+        {
+            g_config.unconsciousText = trimmed;
+        }
+        else
+        {
+            LogWarn("unconscious_text is empty; using default");
+        }
+    }
+
+    std::string parsedDyingText;
+    if (ParseStringFromJson(body, "dying_text", &parsedDyingText))
+    {
+        const std::string trimmed = TrimAscii(parsedDyingText);
+        if (!trimmed.empty())
+        {
+            g_config.dyingText = trimmed;
+        }
+        else
+        {
+            LogWarn("dying_text is empty; using default");
+        }
+    }
+
+    std::string parsedPlayingDeadText;
+    if (ParseStringFromJson(body, "playing_dead_text", &parsedPlayingDeadText))
+    {
+        const std::string trimmed = TrimAscii(parsedPlayingDeadText);
+        if (!trimmed.empty())
+        {
+            g_config.playingDeadText = trimmed;
+        }
+        else
+        {
+            LogWarn("playing_dead_text is empty; using default");
+        }
+    }
+
+    std::string parsedEnemyColorHex;
+    if (ParseStringFromJson(body, "enemy_color_hex", &parsedEnemyColorHex))
+    {
+        MyGUI::Colour parsed = g_config.enemyMarkerColour;
+        if (TryParseColourHex(parsedEnemyColorHex, &parsed))
+        {
+            g_config.enemyMarkerColour = parsed;
+        }
+        else
+        {
+            LogWarn("enemy_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedAllyColorHex;
+    if (ParseStringFromJson(body, "ally_color_hex", &parsedAllyColorHex))
+    {
+        MyGUI::Colour parsed = g_config.allyMarkerColour;
+        if (TryParseColourHex(parsedAllyColorHex, &parsed))
+        {
+            g_config.allyMarkerColour = parsed;
+        }
+        else
+        {
+            LogWarn("ally_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedSquadColorHex;
+    if (ParseStringFromJson(body, "squad_color_hex", &parsedSquadColorHex))
+    {
+        MyGUI::Colour parsed = g_config.squadMarkerColour;
+        if (TryParseColourHex(parsedSquadColorHex, &parsed))
+        {
+            g_config.squadMarkerColour = parsed;
+        }
+        else
+        {
+            LogWarn("squad_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
     }
 
     std::string parsedUnconsciousIconTexture;
@@ -1192,13 +1424,13 @@ const char* ResolveMarkerCaption(int markerState)
 {
     if (markerState == CachedKoTarget::STATE_DYING)
     {
-        return "DY";
+        return g_config.dyingText.empty() ? "DY" : g_config.dyingText.c_str();
     }
     if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
     {
-        return "PD";
+        return g_config.playingDeadText.empty() ? "PD" : g_config.playingDeadText.c_str();
     }
-    return "ZZ";
+    return g_config.unconsciousText.empty() ? "ZZ" : g_config.unconsciousText.c_str();
 }
 
 const char* ResolveMarkerIconTexture(int markerState, int markerRelation)
@@ -1232,15 +1464,15 @@ MyGUI::Colour ResolveMarkerColour(int markerState, int markerRelation)
     (void)markerState;
     if (markerRelation == CachedKoTarget::RELATION_ENEMY)
     {
-        return MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f);
+        return g_config.enemyMarkerColour;
     }
 
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        return MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
+        return g_config.squadMarkerColour;
     }
 
-    return MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f);
+    return g_config.allyMarkerColour;
 }
 
 MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int fallbackSize)
@@ -2668,6 +2900,12 @@ __declspec(dllexport) void startPlugin()
          << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
          << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
+         << ", unconscious_text=" << g_config.unconsciousText
+         << ", dying_text=" << g_config.dyingText
+         << ", playing_dead_text=" << g_config.playingDeadText
+         << ", enemy_color_hex=" << ColourToHexRgb(g_config.enemyMarkerColour)
+         << ", ally_color_hex=" << ColourToHexRgb(g_config.allyMarkerColour)
+         << ", squad_color_hex=" << ColourToHexRgb(g_config.squadMarkerColour)
          << ", alt_release_debounce_ms=" << kHighlightGateReleaseDebounceMs
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
