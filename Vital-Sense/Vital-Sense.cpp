@@ -51,13 +51,17 @@ struct PluginConfig
     DWORD updateIntervalMs;
     bool onlyWhenAltHeld;
     DWORD maxHighlightDistanceMeters;
+    std::string customUnconsciousIconTexture;
+    DWORD customUnconsciousIconSizePx;
     std::string customDyingIconTexture;
     DWORD customDyingIconSizePx;
+    std::string customPlayingDeadIconTexture;
+    DWORD customPlayingDeadIconSizePx;
     bool showMarkerIcons;
     bool showMarkerText;
 };
 
-PluginConfig g_config = { true, 150, true, 3500, "", 64, true, true };
+PluginConfig g_config = { true, 150, true, 3500, "", 64, "", 64, "", 64, true, true };
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
@@ -640,8 +644,12 @@ bool LoadConfigState()
     g_config.updateIntervalMs = 150;
     g_config.onlyWhenAltHeld = true;
     g_config.maxHighlightDistanceMeters = 3500;
+    g_config.customUnconsciousIconTexture.clear();
+    g_config.customUnconsciousIconSizePx = 64;
     g_config.customDyingIconTexture.clear();
     g_config.customDyingIconSizePx = 64;
+    g_config.customPlayingDeadIconTexture.clear();
+    g_config.customPlayingDeadIconSizePx = 64;
     g_config.showMarkerIcons = true;
     g_config.showMarkerText = true;
 
@@ -723,6 +731,31 @@ bool LoadConfigState()
         g_config.showMarkerText = parsedShowText;
     }
 
+    std::string parsedUnconsciousIconTexture;
+    if (ParseStringFromJson(body, "unconscious_icon_texture", &parsedUnconsciousIconTexture))
+    {
+        g_config.customUnconsciousIconTexture = TrimAscii(parsedUnconsciousIconTexture);
+    }
+
+    DWORD parsedUnconsciousIconSize = 0;
+    if (ParseUnsignedFromJson(body, "unconscious_icon_size_px", &parsedUnconsciousIconSize))
+    {
+        if (parsedUnconsciousIconSize < 8)
+        {
+            g_config.customUnconsciousIconSizePx = 8;
+            LogWarn("unconscious_icon_size_px too low; clamped to 8");
+        }
+        else if (parsedUnconsciousIconSize > 512)
+        {
+            g_config.customUnconsciousIconSizePx = 512;
+            LogWarn("unconscious_icon_size_px too high; clamped to 512");
+        }
+        else
+        {
+            g_config.customUnconsciousIconSizePx = parsedUnconsciousIconSize;
+        }
+    }
+
     std::string parsedDyingIconTexture;
     if (ParseStringFromJson(body, "dying_icon_texture", &parsedDyingIconTexture))
     {
@@ -748,11 +781,52 @@ bool LoadConfigState()
         }
     }
 
+    std::string parsedPlayingDeadIconTexture;
+    if (ParseStringFromJson(body, "playing_dead_icon_texture", &parsedPlayingDeadIconTexture))
+    {
+        g_config.customPlayingDeadIconTexture = TrimAscii(parsedPlayingDeadIconTexture);
+    }
+
+    DWORD parsedPlayingDeadIconSize = 0;
+    if (ParseUnsignedFromJson(body, "playing_dead_icon_size_px", &parsedPlayingDeadIconSize))
+    {
+        if (parsedPlayingDeadIconSize < 8)
+        {
+            g_config.customPlayingDeadIconSizePx = 8;
+            LogWarn("playing_dead_icon_size_px too low; clamped to 8");
+        }
+        else if (parsedPlayingDeadIconSize > 512)
+        {
+            g_config.customPlayingDeadIconSizePx = 512;
+            LogWarn("playing_dead_icon_size_px too high; clamped to 512");
+        }
+        else
+        {
+            g_config.customPlayingDeadIconSizePx = parsedPlayingDeadIconSize;
+        }
+    }
+
+    if (!g_config.customUnconsciousIconTexture.empty())
+    {
+        std::stringstream iconInfo;
+        iconInfo << "custom ZZ icon configured texture=" << g_config.customUnconsciousIconTexture
+            << " size=" << g_config.customUnconsciousIconSizePx;
+        LogInfo(iconInfo.str());
+    }
+
     if (!g_config.customDyingIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom DY icon configured texture=" << g_config.customDyingIconTexture
             << " size=" << g_config.customDyingIconSizePx;
+        LogInfo(iconInfo.str());
+    }
+
+    if (!g_config.customPlayingDeadIconTexture.empty())
+    {
+        std::stringstream iconInfo;
+        iconInfo << "custom PD icon configured texture=" << g_config.customPlayingDeadIconTexture
+            << " size=" << g_config.customPlayingDeadIconSizePx;
         LogInfo(iconInfo.str());
     }
 
@@ -1180,22 +1254,55 @@ MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int
     return MyGUI::IntCoord(0, 0, size, size);
 }
 
+const std::string* ResolveCustomMarkerIconTexture(int markerState)
+{
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return &g_config.customDyingIconTexture;
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return &g_config.customPlayingDeadIconTexture;
+    }
+    return &g_config.customUnconsciousIconTexture;
+}
+
+DWORD ResolveCustomMarkerIconSizePx(int markerState)
+{
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return g_config.customDyingIconSizePx;
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return g_config.customPlayingDeadIconSizePx;
+    }
+    return g_config.customUnconsciousIconSizePx;
+}
+
+bool HasCustomMarkerIcon(int markerState)
+{
+    const std::string* texture = ResolveCustomMarkerIconTexture(markerState);
+    return texture && !texture->empty();
+}
+
 void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
 {
     const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
     const MyGUI::Colour beaconColour(colour.red, colour.green, colour.blue, kKoBeaconAlpha);
+    const bool wantsCustomIcon = HasCustomMarkerIcon(markerState);
+    const std::string* customTexture = ResolveCustomMarkerIconTexture(markerState);
+    const int customIconSize = static_cast<int>(ResolveCustomMarkerIconSizePx(markerState));
 
     if (marker.beacon && kEnableUiBeaconOverlay)
     {
-        const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
-        bool customDyingReady = false;
-        if (wantsCustomDyingIcon)
+        bool customIconReady = false;
+        if (wantsCustomIcon && customTexture)
         {
-            customDyingReady = SetKoMarkerIconTexture(marker.beacon, g_config.customDyingIconTexture.c_str());
-            const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
-            if (customDyingReady)
+            customIconReady = SetKoMarkerIconTexture(marker.beacon, customTexture->c_str());
+            if (customIconReady)
             {
-                SetKoMarkerIconCoord(marker.beacon, ResolveCustomIconCoordFromImageSize(marker.beacon, fallbackSize));
+                SetKoMarkerIconCoord(marker.beacon, ResolveCustomIconCoordFromImageSize(marker.beacon, customIconSize));
                 SetKoMarkerIconColour(marker.beacon, MyGUI::Colour(1.0f, 1.0f, 1.0f, kKoBeaconAlpha));
             }
             else
@@ -1217,20 +1324,19 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
     {
         if (g_config.showMarkerIcons)
         {
-            const bool wantsCustomDyingIcon = (markerState == CachedKoTarget::STATE_DYING && !g_config.customDyingIconTexture.empty());
-            bool customDyingReady = false;
-            if (wantsCustomDyingIcon)
+            bool customIconReady = false;
+            if (wantsCustomIcon && customTexture)
             {
-                customDyingReady = SetKoMarkerIconTexture(marker.icon, g_config.customDyingIconTexture.c_str());
-                const int fallbackSize = static_cast<int>(g_config.customDyingIconSizePx);
-                if (customDyingReady)
+                customIconReady = SetKoMarkerIconTexture(marker.icon, customTexture->c_str());
+                if (customIconReady)
                 {
                     // Preserve custom icon authoring colors (no relation tint).
-                    SetKoMarkerIconCoord(marker.icon, ResolveCustomIconCoordFromImageSize(marker.icon, fallbackSize));
+                    SetKoMarkerIconCoord(marker.icon, ResolveCustomIconCoordFromImageSize(marker.icon, customIconSize));
                     SetKoMarkerIconColour(marker.icon, MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f));
                 }
                 else
                 {
+                    SetKoMarkerIconTexture(marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
                     SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
                     SetKoMarkerIconColour(marker.icon, colour);
                 }

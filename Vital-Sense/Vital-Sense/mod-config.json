@@ -4,7 +4,11 @@
   "only_when_alt_held": true,
   "show_icons": true,
   "show_text": true,
+  "unconscious_icon_texture": "",
+  "unconscious_icon_size_px": 64,
   "max_highlight_distance_m": 3500,
   "dying_icon_texture": "death_64px.png",
-  "dying_icon_size_px": 64
+  "dying_icon_size_px": 64,
+  "playing_dead_icon_texture": "",
+  "playing_dead_icon_size_px": 64
 }
