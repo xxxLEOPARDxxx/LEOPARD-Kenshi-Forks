@@ -52,14 +52,17 @@ struct PluginConfig
     bool onlyWhenAltHeld;
     DWORD maxHighlightDistanceMeters;
     bool enableUnconsciousState;
+    bool enableRecoveryComaState;
     bool enableDyingState;
     bool enablePlayingDeadState;
     bool enableDeadState;
     std::string unconsciousText;
+    std::string recoveryComaText;
     std::string dyingText;
     std::string playingDeadText;
     std::string deadText;
     DWORD unconsciousTextSizePx;
+    DWORD recoveryComaTextSizePx;
     DWORD dyingTextSizePx;
     DWORD playingDeadTextSizePx;
     DWORD deadTextSizePx;
@@ -68,6 +71,8 @@ struct PluginConfig
     MyGUI::Colour squadMarkerColour;
     std::string customUnconsciousIconTexture;
     DWORD customUnconsciousIconSizePx;
+    std::string customRecoveryComaIconTexture;
+    DWORD customRecoveryComaIconSizePx;
     std::string customDyingIconTexture;
     DWORD customDyingIconSizePx;
     std::string customPlayingDeadIconTexture;
@@ -87,7 +92,9 @@ PluginConfig g_config = {
     true,
     true,
     true,
+    true,
     "ZZ",
+    "RC",
     "DY",
     "PD",
     "DE",
@@ -95,9 +102,12 @@ PluginConfig g_config = {
     18,
     18,
     18,
+    18,
     MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f),
     MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f),
     MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f),
+    "",
+    64,
     "",
     64,
     "",
@@ -118,9 +128,10 @@ struct CachedKoTarget
     enum MarkerState
     {
         STATE_UNCONSCIOUS = 0,
-        STATE_DYING = 1,
-        STATE_PLAYING_DEAD = 2,
-        STATE_DEAD = 3
+        STATE_RECOVERY_COMA = 1,
+        STATE_DYING = 2,
+        STATE_PLAYING_DEAD = 3,
+        STATE_DEAD = 4
     };
 
     enum MarkerRelation
@@ -140,6 +151,7 @@ struct CachedKoTarget
 struct MarkerStateDebugInfo
 {
     bool isUnconscious;
+    bool isRecoveryComa;
     bool isPlayingDead;
     bool isLiteral;
     bool isProbablyDying;
@@ -149,6 +161,8 @@ struct MarkerStateDebugInfo
     bool dyingByActiveBleed;
     bool dyingByTrauma;
     bool dyingByBloodThreshold;
+    bool recoveryComaBySub50Ko;
+    bool recoveryComaByCannotWake;
     bool medicalUnconsciousFlag;
     bool medicalSub50KoFlag;
     bool medicalBloodlossTraumaFlag;
@@ -263,6 +277,10 @@ const char* MarkerStateName(int markerState)
     if (markerState == CachedKoTarget::STATE_DEAD)
     {
         return "DE";
+    }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return "RC";
     }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
@@ -468,6 +486,7 @@ void LogMarkerStateDecision(const char* reason, const hand& targetHandle, int ma
          << " relation=" << MarkerRelationName(markerRelation)
          << " selected=" << (isSelected ? "true" : "false")
          << " unconscious=" << (debugInfo.isUnconscious ? "true" : "false")
+         << " recovery_coma=" << (debugInfo.isRecoveryComa ? "true" : "false")
          << " playing_dead=" << (debugInfo.isPlayingDead ? "true" : "false")
          << " literal_ko=" << (debugInfo.isLiteral ? "true" : "false")
          << " probably_dying=" << (debugInfo.isProbablyDying ? "true" : "false")
@@ -477,6 +496,8 @@ void LogMarkerStateDecision(const char* reason, const hand& targetHandle, int ma
          << " active_bleed_dying=" << (debugInfo.dyingByActiveBleed ? "true" : "false")
          << " bloodloss_trauma=" << (debugInfo.dyingByTrauma ? "true" : "false")
          << " blood_threshold=" << (debugInfo.dyingByBloodThreshold ? "true" : "false")
+         << " recovery_coma_sub50_ko=" << (debugInfo.recoveryComaBySub50Ko ? "true" : "false")
+         << " recovery_coma_cannot_wake=" << (debugInfo.recoveryComaByCannotWake ? "true" : "false")
          << " medical_unconcious_flag=" << (debugInfo.medicalUnconsciousFlag ? "true" : "false")
          << " medical_sub50_ko_flag=" << (debugInfo.medicalSub50KoFlag ? "true" : "false")
          << " medical_bloodloss_trauma_flag=" << (debugInfo.medicalBloodlossTraumaFlag ? "true" : "false")
@@ -817,14 +838,17 @@ bool LoadConfigState()
     g_config.onlyWhenAltHeld = true;
     g_config.maxHighlightDistanceMeters = 3500;
     g_config.enableUnconsciousState = true;
+    g_config.enableRecoveryComaState = true;
     g_config.enableDyingState = true;
     g_config.enablePlayingDeadState = true;
     g_config.enableDeadState = true;
     g_config.unconsciousText = "ZZ";
+    g_config.recoveryComaText = "RC";
     g_config.dyingText = "DY";
     g_config.playingDeadText = "PD";
     g_config.deadText = "DE";
     g_config.unconsciousTextSizePx = kDefaultMarkerTextSizePx;
+    g_config.recoveryComaTextSizePx = kDefaultMarkerTextSizePx;
     g_config.dyingTextSizePx = kDefaultMarkerTextSizePx;
     g_config.playingDeadTextSizePx = kDefaultMarkerTextSizePx;
     g_config.deadTextSizePx = kDefaultMarkerTextSizePx;
@@ -833,6 +857,8 @@ bool LoadConfigState()
     g_config.squadMarkerColour = MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
     g_config.customUnconsciousIconTexture.clear();
     g_config.customUnconsciousIconSizePx = 64;
+    g_config.customRecoveryComaIconTexture.clear();
+    g_config.customRecoveryComaIconSizePx = 64;
     g_config.customDyingIconTexture.clear();
     g_config.customDyingIconSizePx = 64;
     g_config.customPlayingDeadIconTexture.clear();
@@ -926,6 +952,12 @@ bool LoadConfigState()
         g_config.enableUnconsciousState = parsedEnableUnconsciousState;
     }
 
+    bool parsedEnableRecoveryComaState = true;
+    if (ParseBoolFromJson(body, "enable_recovery_coma", &parsedEnableRecoveryComaState))
+    {
+        g_config.enableRecoveryComaState = parsedEnableRecoveryComaState;
+    }
+
     bool parsedEnableDyingState = true;
     if (ParseBoolFromJson(body, "enable_dying", &parsedEnableDyingState))
     {
@@ -969,6 +1001,20 @@ bool LoadConfigState()
         else
         {
             LogWarn("dying_text is empty; using default");
+        }
+    }
+
+    std::string parsedRecoveryComaText;
+    if (ParseStringFromJson(body, "recovery_coma_text", &parsedRecoveryComaText))
+    {
+        const std::string trimmed = TrimAscii(parsedRecoveryComaText);
+        if (!trimmed.empty())
+        {
+            g_config.recoveryComaText = trimmed;
+        }
+        else
+        {
+            LogWarn("recovery_coma_text is empty; using default");
         }
     }
 
@@ -1045,6 +1091,30 @@ bool LoadConfigState()
         else
         {
             g_config.dyingTextSizePx = parsedDyingTextSize;
+        }
+    }
+
+    DWORD parsedRecoveryComaTextSize = 0;
+    if (ParseUnsignedFromJson(body, "recovery_coma_text_size_px", &parsedRecoveryComaTextSize))
+    {
+        if (parsedRecoveryComaTextSize == 0)
+        {
+            g_config.recoveryComaTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("recovery_coma_text_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedRecoveryComaTextSize < 8)
+        {
+            g_config.recoveryComaTextSizePx = 8;
+            LogWarn("recovery_coma_text_size_px too low; clamped to 8");
+        }
+        else if (parsedRecoveryComaTextSize > 128)
+        {
+            g_config.recoveryComaTextSizePx = 128;
+            LogWarn("recovery_coma_text_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.recoveryComaTextSizePx = parsedRecoveryComaTextSize;
         }
     }
 
@@ -1163,6 +1233,31 @@ bool LoadConfigState()
         }
     }
 
+    std::string parsedRecoveryComaIconTexture;
+    if (ParseStringFromJson(body, "recovery_coma_icon_texture", &parsedRecoveryComaIconTexture))
+    {
+        g_config.customRecoveryComaIconTexture = TrimAscii(parsedRecoveryComaIconTexture);
+    }
+
+    DWORD parsedRecoveryComaIconSize = 0;
+    if (ParseUnsignedFromJson(body, "recovery_coma_icon_size_px", &parsedRecoveryComaIconSize))
+    {
+        if (parsedRecoveryComaIconSize < 8)
+        {
+            g_config.customRecoveryComaIconSizePx = 8;
+            LogWarn("recovery_coma_icon_size_px too low; clamped to 8");
+        }
+        else if (parsedRecoveryComaIconSize > 512)
+        {
+            g_config.customRecoveryComaIconSizePx = 512;
+            LogWarn("recovery_coma_icon_size_px too high; clamped to 512");
+        }
+        else
+        {
+            g_config.customRecoveryComaIconSizePx = parsedRecoveryComaIconSize;
+        }
+    }
+
     std::string parsedDyingIconTexture;
     if (ParseStringFromJson(body, "dying_icon_texture", &parsedDyingIconTexture))
     {
@@ -1251,6 +1346,14 @@ bool LoadConfigState()
         std::stringstream iconInfo;
         iconInfo << "custom DY icon configured texture=" << g_config.customDyingIconTexture
             << " size=" << g_config.customDyingIconSizePx;
+        LogInfo(iconInfo.str());
+    }
+
+    if (!g_config.customRecoveryComaIconTexture.empty())
+    {
+        std::stringstream iconInfo;
+        iconInfo << "custom RC icon configured texture=" << g_config.customRecoveryComaIconTexture
+            << " size=" << g_config.customRecoveryComaIconSizePx;
         LogInfo(iconInfo.str());
     }
 
@@ -1720,6 +1823,10 @@ const char* ResolveMarkerCaption(int markerState)
     {
         return g_config.deadText.empty() ? "DE" : g_config.deadText.c_str();
     }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return g_config.recoveryComaText.empty() ? "RC" : g_config.recoveryComaText.c_str();
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return g_config.dyingText.empty() ? "DY" : g_config.dyingText.c_str();
@@ -1751,6 +1858,11 @@ MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
         // pic_PointerInvalid from data/gui/images/kenshi_images.xml.
         // This has a stronger silhouette than map markers against sandy backgrounds.
         return MyGUI::IntCoord(108, 49, 34, 34);
+    }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        // pic_PointerKnockout (32x32 @ 45,122).
+        return MyGUI::IntCoord(45, 122, 32, 32);
     }
     if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
     {
@@ -1795,6 +1907,10 @@ const std::string* ResolveCustomMarkerIconTexture(int markerState)
     {
         return &g_config.customDeadIconTexture;
     }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return &g_config.customRecoveryComaIconTexture;
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return &g_config.customDyingIconTexture;
@@ -1812,6 +1928,10 @@ DWORD ResolveCustomMarkerIconSizePx(int markerState)
     {
         return g_config.customDeadIconSizePx;
     }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return g_config.customRecoveryComaIconSizePx;
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return g_config.customDyingIconSizePx;
@@ -1828,6 +1948,10 @@ DWORD ResolveMarkerTextSizePx(int markerState)
     if (markerState == CachedKoTarget::STATE_DEAD)
     {
         return g_config.deadTextSizePx;
+    }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return g_config.recoveryComaTextSizePx;
     }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
@@ -2321,6 +2445,7 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
 
     bool isDead = false;
     bool isUnconscious = false;
+    bool isRecoveryComa = false;
     bool isDying = false;
     bool isPlayingDead = false;
     bool isLiteral = false;
@@ -2331,6 +2456,8 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     bool dyingByActiveBleed = false;
     bool dyingByTrauma = false;
     bool dyingByBloodThreshold = false;
+    bool recoveryComaBySub50Ko = false;
+    bool recoveryComaByCannotWake = false;
     bool medicalUnconsciousFlag = false;
     bool medicalSub50KoFlag = false;
     bool medicalBloodlossTraumaFlag = false;
@@ -2341,11 +2468,13 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     bool hasSlaveState = false;
     int slaveState = -1;
     float bloodLevel = 0.0f;
+    float pointOfCollapse = 0.0f;
     float pointOfNoReturn = 0.0f;
 
     if (debugInfoOut)
     {
         debugInfoOut->isUnconscious = false;
+        debugInfoOut->isRecoveryComa = false;
         debugInfoOut->isPlayingDead = false;
         debugInfoOut->isLiteral = false;
         debugInfoOut->isProbablyDying = false;
@@ -2355,6 +2484,8 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         debugInfoOut->dyingByActiveBleed = false;
         debugInfoOut->dyingByTrauma = false;
         debugInfoOut->dyingByBloodThreshold = false;
+        debugInfoOut->recoveryComaBySub50Ko = false;
+        debugInfoOut->recoveryComaByCannotWake = false;
         debugInfoOut->medicalUnconsciousFlag = false;
         debugInfoOut->medicalSub50KoFlag = false;
         debugInfoOut->medicalBloodlossTraumaFlag = false;
@@ -2387,12 +2518,15 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
             medicalBloodlossTraumaFlag = candidate->medical.bloodlossTrauma;
             currentBleedRate = candidate->medical.currentBleedRate;
             bloodLevel = candidate->medical.blood;
+            pointOfCollapse = candidate->medical.pointOfCollapseBloodloss();
             pointOfNoReturn = candidate->medical.pointOfNoReturn();
             dyingByBloodThreshold = (bloodLevel <= pointOfNoReturn);
             dyingByProbablyLiteral = (isProbablyDying && isLiteral);
             dyingByProbablyLowBlood = (isProbablyDying && bloodLevel <= kProbablyDyingBloodMax);
             dyingByProbablySub50Ko = medicalSub50KoFlag;
-            dyingByActiveBleed = (isProbablyDying && (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f));
+            dyingByActiveBleed = (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f);
+            recoveryComaBySub50Ko = medicalSub50KoFlag;
+            recoveryComaByCannotWake = (!candidate->medical.canGetUpWakeUp() && medicalSub50KoFlag);
 
             StateBroadcastData* stateBroadcast = candidate->getStateBroadcast();
             if (stateBroadcast)
@@ -2403,8 +2537,11 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
                 hasSlaveState = true;
             }
 
-            // Match in-game DY closer: sub50 KO and no-return blood are the stable signals.
-            isDying = dyingByProbablySub50Ko || dyingByBloodThreshold;
+            // DY = active medical danger (bleed/collapse/no-return/trauma/probable dying).
+            // RC = stable KO-coma (sub50 KO + cannot wake) while not DY.
+            const bool dyingByCollapseThreshold = (bloodLevel <= pointOfCollapse);
+            isDying = dyingByBloodThreshold || dyingByCollapseThreshold || dyingByTrauma || dyingByActiveBleed || isProbablyDying;
+            isRecoveryComa = (!isDying) && recoveryComaByCannotWake;
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -2421,6 +2558,7 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     if (debugInfoOut)
     {
         debugInfoOut->isUnconscious = isUnconscious;
+        debugInfoOut->isRecoveryComa = isRecoveryComa;
         debugInfoOut->isPlayingDead = isPlayingDead;
         debugInfoOut->isLiteral = isLiteral;
         debugInfoOut->isProbablyDying = isProbablyDying;
@@ -2430,6 +2568,8 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         debugInfoOut->dyingByActiveBleed = dyingByActiveBleed;
         debugInfoOut->dyingByTrauma = dyingByTrauma;
         debugInfoOut->dyingByBloodThreshold = dyingByBloodThreshold;
+        debugInfoOut->recoveryComaBySub50Ko = recoveryComaBySub50Ko;
+        debugInfoOut->recoveryComaByCannotWake = recoveryComaByCannotWake;
         debugInfoOut->medicalUnconsciousFlag = medicalUnconsciousFlag;
         debugInfoOut->medicalSub50KoFlag = medicalSub50KoFlag;
         debugInfoOut->medicalBloodlossTraumaFlag = medicalBloodlossTraumaFlag;
@@ -2488,6 +2628,11 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         {
             *markerStateOut = CachedKoTarget::STATE_DYING;
             return IsMarkerStateEnabled(CachedKoTarget::STATE_DYING);
+        }
+        if (isRecoveryComa)
+        {
+            *markerStateOut = CachedKoTarget::STATE_RECOVERY_COMA;
+            return IsMarkerStateEnabled(CachedKoTarget::STATE_RECOVERY_COMA);
         }
         *markerStateOut = CachedKoTarget::STATE_UNCONSCIOUS;
         return IsMarkerStateEnabled(CachedKoTarget::STATE_UNCONSCIOUS);
@@ -3079,6 +3224,10 @@ bool IsMarkerStateEnabled(int markerState)
     {
         return g_config.enableDeadState;
     }
+    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
+    {
+        return g_config.enableRecoveryComaState;
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return g_config.enableDyingState;
@@ -3330,16 +3479,19 @@ __declspec(dllexport) void startPlugin()
          << ", update_interval_ms=" << g_config.updateIntervalMs
          << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
          << ", enable_unconscious=" << (g_config.enableUnconsciousState ? "true" : "false")
+         << ", enable_recovery_coma=" << (g_config.enableRecoveryComaState ? "true" : "false")
          << ", enable_dying=" << (g_config.enableDyingState ? "true" : "false")
          << ", enable_playing_dead=" << (g_config.enablePlayingDeadState ? "true" : "false")
          << ", enable_dead=" << (g_config.enableDeadState ? "true" : "false")
          << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
          << ", unconscious_text=" << g_config.unconsciousText
+         << ", recovery_coma_text=" << g_config.recoveryComaText
          << ", dying_text=" << g_config.dyingText
          << ", playing_dead_text=" << g_config.playingDeadText
          << ", dead_text=" << g_config.deadText
          << ", unconscious_text_size_px=" << g_config.unconsciousTextSizePx
+         << ", recovery_coma_text_size_px=" << g_config.recoveryComaTextSizePx
          << ", dying_text_size_px=" << g_config.dyingTextSizePx
          << ", playing_dead_text_size_px=" << g_config.playingDeadTextSizePx
          << ", dead_text_size_px=" << g_config.deadTextSizePx
