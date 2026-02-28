@@ -208,7 +208,6 @@ hand g_lastSelectionSnapshotObject;
 size_t g_lastSelectionSnapshotCount = 0;
 DWORD g_lastSelectionSnapshotTickMs = 0;
 DWORD g_lastSelectionNoMatchTickMs = 0;
-DWORD g_lastHighlightGateOpenTickMs = 0;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
@@ -221,7 +220,6 @@ const float kKoMarkerHeadAnchorYOffset = 2.0f;
 const int kKoBeaconSizePx = 34;
 const float kKoBeaconAlpha = 0.80f;
 const float kProbablyDyingBloodMax = 50.0f;
-const DWORD kHighlightGateReleaseDebounceMs = 250;
 const DWORD kDefaultMarkerTextSizePx = 18;
 const bool kEnableUnsafePanelProbe = false;
 const bool kEnableUiBeaconOverlay = false;
@@ -2653,24 +2651,10 @@ bool IsHighlightGateOpen()
 {
     if (!g_config.onlyWhenAltHeld)
     {
-        g_lastHighlightGateOpenTickMs = GetTickCount();
         return true;
     }
 
-    const bool rawOpen = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-    const DWORD nowMs = GetTickCount();
-    if (rawOpen)
-    {
-        g_lastHighlightGateOpenTickMs = nowMs;
-        return true;
-    }
-
-    if (g_lastHighlightGateOpenTickMs != 0 && (nowMs - g_lastHighlightGateOpenTickMs) <= kHighlightGateReleaseDebounceMs)
-    {
-        return true;
-    }
-
-    return false;
+    return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
 }
 
 bool IsGamePausedSafe()
@@ -3267,7 +3251,6 @@ void TickKoProbe()
     const bool canRun = g_config.enabled && anyMarkerVisualEnabled && IsHighlightGateOpen() && ou;
     if (!canRun)
     {
-        g_lastHighlightGateOpenTickMs = 0;
         if (g_highlightRuntimeActive)
         {
             g_koTargetCache.clear();
@@ -3506,7 +3489,6 @@ __declspec(dllexport) void startPlugin()
          << ", enemy_color_hex=" << ColourToHexRgb(g_config.enemyMarkerColour)
          << ", ally_color_hex=" << ColourToHexRgb(g_config.allyMarkerColour)
          << ", squad_color_hex=" << ColourToHexRgb(g_config.squadMarkerColour)
-         << ", alt_release_debounce_ms=" << kHighlightGateReleaseDebounceMs
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
     LogInfo(info.str());
