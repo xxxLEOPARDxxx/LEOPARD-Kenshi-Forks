@@ -51,9 +51,18 @@ struct PluginConfig
     DWORD updateIntervalMs;
     bool onlyWhenAltHeld;
     DWORD maxHighlightDistanceMeters;
+    bool enableUnconsciousState;
+    bool enableDyingState;
+    bool enablePlayingDeadState;
+    bool enableDeadState;
     std::string unconsciousText;
     std::string dyingText;
     std::string playingDeadText;
+    std::string deadText;
+    DWORD unconsciousTextSizePx;
+    DWORD dyingTextSizePx;
+    DWORD playingDeadTextSizePx;
+    DWORD deadTextSizePx;
     MyGUI::Colour enemyMarkerColour;
     MyGUI::Colour allyMarkerColour;
     MyGUI::Colour squadMarkerColour;
@@ -63,6 +72,8 @@ struct PluginConfig
     DWORD customDyingIconSizePx;
     std::string customPlayingDeadIconTexture;
     DWORD customPlayingDeadIconSizePx;
+    std::string customDeadIconTexture;
+    DWORD customDeadIconSizePx;
     bool showMarkerIcons;
     bool showMarkerText;
 };
@@ -72,12 +83,23 @@ PluginConfig g_config = {
     150,
     true,
     3500,
+    true,
+    true,
+    true,
+    true,
     "ZZ",
     "DY",
     "PD",
+    "DE",
+    18,
+    18,
+    18,
+    18,
     MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f),
     MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f),
     MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f),
+    "",
+    64,
     "",
     64,
     "",
@@ -97,7 +119,8 @@ struct CachedKoTarget
     {
         STATE_UNCONSCIOUS = 0,
         STATE_DYING = 1,
-        STATE_PLAYING_DEAD = 2
+        STATE_PLAYING_DEAD = 2,
+        STATE_DEAD = 3
     };
 
     enum MarkerRelation
@@ -185,6 +208,7 @@ const int kKoBeaconSizePx = 34;
 const float kKoBeaconAlpha = 0.80f;
 const float kProbablyDyingBloodMax = 50.0f;
 const DWORD kHighlightGateReleaseDebounceMs = 250;
+const DWORD kDefaultMarkerTextSizePx = 18;
 const bool kEnableUnsafePanelProbe = false;
 const bool kEnableUiBeaconOverlay = false;
 const bool kEnableVerboseRuntimeLogs = false;
@@ -192,6 +216,8 @@ const bool kEnableTextureInfoLogs = false;
 
 void LogInfo(const std::string& message);
 void LogWarn(const std::string& message);
+bool IsMarkerStateEnabled(int markerState);
+void LogIconTextureOnce(std::vector<std::string>& sink, const std::string& message, const char* textureName, bool warn);
 
 void LogWithPrefix(void (*sink)(const char*), const char* level, const std::string& message)
 {
@@ -234,6 +260,10 @@ void LogDyingDetection(const char* trigger, float bloodLevel, float pointOfNoRet
 
 const char* MarkerStateName(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return "DE";
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return "DY";
@@ -786,9 +816,18 @@ bool LoadConfigState()
     g_config.updateIntervalMs = 150;
     g_config.onlyWhenAltHeld = true;
     g_config.maxHighlightDistanceMeters = 3500;
+    g_config.enableUnconsciousState = true;
+    g_config.enableDyingState = true;
+    g_config.enablePlayingDeadState = true;
+    g_config.enableDeadState = true;
     g_config.unconsciousText = "ZZ";
     g_config.dyingText = "DY";
     g_config.playingDeadText = "PD";
+    g_config.deadText = "DE";
+    g_config.unconsciousTextSizePx = kDefaultMarkerTextSizePx;
+    g_config.dyingTextSizePx = kDefaultMarkerTextSizePx;
+    g_config.playingDeadTextSizePx = kDefaultMarkerTextSizePx;
+    g_config.deadTextSizePx = kDefaultMarkerTextSizePx;
     g_config.enemyMarkerColour = MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f);
     g_config.allyMarkerColour = MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f);
     g_config.squadMarkerColour = MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
@@ -798,6 +837,8 @@ bool LoadConfigState()
     g_config.customDyingIconSizePx = 64;
     g_config.customPlayingDeadIconTexture.clear();
     g_config.customPlayingDeadIconSizePx = 64;
+    g_config.customDeadIconTexture.clear();
+    g_config.customDeadIconSizePx = 64;
     g_config.showMarkerIcons = true;
     g_config.showMarkerText = true;
 
@@ -879,6 +920,30 @@ bool LoadConfigState()
         g_config.showMarkerText = parsedShowText;
     }
 
+    bool parsedEnableUnconsciousState = true;
+    if (ParseBoolFromJson(body, "enable_unconscious", &parsedEnableUnconsciousState))
+    {
+        g_config.enableUnconsciousState = parsedEnableUnconsciousState;
+    }
+
+    bool parsedEnableDyingState = true;
+    if (ParseBoolFromJson(body, "enable_dying", &parsedEnableDyingState))
+    {
+        g_config.enableDyingState = parsedEnableDyingState;
+    }
+
+    bool parsedEnablePlayingDeadState = true;
+    if (ParseBoolFromJson(body, "enable_playing_dead", &parsedEnablePlayingDeadState))
+    {
+        g_config.enablePlayingDeadState = parsedEnablePlayingDeadState;
+    }
+
+    bool parsedEnableDeadState = true;
+    if (ParseBoolFromJson(body, "enable_dead", &parsedEnableDeadState))
+    {
+        g_config.enableDeadState = parsedEnableDeadState;
+    }
+
     std::string parsedUnconsciousText;
     if (ParseStringFromJson(body, "unconscious_text", &parsedUnconsciousText))
     {
@@ -918,6 +983,116 @@ bool LoadConfigState()
         else
         {
             LogWarn("playing_dead_text is empty; using default");
+        }
+    }
+
+    std::string parsedDeadText;
+    if (ParseStringFromJson(body, "dead_text", &parsedDeadText))
+    {
+        const std::string trimmed = TrimAscii(parsedDeadText);
+        if (!trimmed.empty())
+        {
+            g_config.deadText = trimmed;
+        }
+        else
+        {
+            LogWarn("dead_text is empty; using default");
+        }
+    }
+
+    DWORD parsedUnconsciousTextSize = 0;
+    if (ParseUnsignedFromJson(body, "unconscious_text_size_px", &parsedUnconsciousTextSize))
+    {
+        if (parsedUnconsciousTextSize == 0)
+        {
+            g_config.unconsciousTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("unconscious_text_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedUnconsciousTextSize < 8)
+        {
+            g_config.unconsciousTextSizePx = 8;
+            LogWarn("unconscious_text_size_px too low; clamped to 8");
+        }
+        else if (parsedUnconsciousTextSize > 128)
+        {
+            g_config.unconsciousTextSizePx = 128;
+            LogWarn("unconscious_text_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.unconsciousTextSizePx = parsedUnconsciousTextSize;
+        }
+    }
+
+    DWORD parsedDyingTextSize = 0;
+    if (ParseUnsignedFromJson(body, "dying_text_size_px", &parsedDyingTextSize))
+    {
+        if (parsedDyingTextSize == 0)
+        {
+            g_config.dyingTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("dying_text_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedDyingTextSize < 8)
+        {
+            g_config.dyingTextSizePx = 8;
+            LogWarn("dying_text_size_px too low; clamped to 8");
+        }
+        else if (parsedDyingTextSize > 128)
+        {
+            g_config.dyingTextSizePx = 128;
+            LogWarn("dying_text_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.dyingTextSizePx = parsedDyingTextSize;
+        }
+    }
+
+    DWORD parsedPlayingDeadTextSize = 0;
+    if (ParseUnsignedFromJson(body, "playing_dead_text_size_px", &parsedPlayingDeadTextSize))
+    {
+        if (parsedPlayingDeadTextSize == 0)
+        {
+            g_config.playingDeadTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("playing_dead_text_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedPlayingDeadTextSize < 8)
+        {
+            g_config.playingDeadTextSizePx = 8;
+            LogWarn("playing_dead_text_size_px too low; clamped to 8");
+        }
+        else if (parsedPlayingDeadTextSize > 128)
+        {
+            g_config.playingDeadTextSizePx = 128;
+            LogWarn("playing_dead_text_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.playingDeadTextSizePx = parsedPlayingDeadTextSize;
+        }
+    }
+
+    DWORD parsedDeadTextSize = 0;
+    if (ParseUnsignedFromJson(body, "dead_text_size_px", &parsedDeadTextSize))
+    {
+        if (parsedDeadTextSize == 0)
+        {
+            g_config.deadTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("dead_text_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedDeadTextSize < 8)
+        {
+            g_config.deadTextSizePx = 8;
+            LogWarn("dead_text_size_px too low; clamped to 8");
+        }
+        else if (parsedDeadTextSize > 128)
+        {
+            g_config.deadTextSizePx = 128;
+            LogWarn("dead_text_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.deadTextSizePx = parsedDeadTextSize;
         }
     }
 
@@ -1038,6 +1213,31 @@ bool LoadConfigState()
         }
     }
 
+    std::string parsedDeadIconTexture;
+    if (ParseStringFromJson(body, "dead_icon_texture", &parsedDeadIconTexture))
+    {
+        g_config.customDeadIconTexture = TrimAscii(parsedDeadIconTexture);
+    }
+
+    DWORD parsedDeadIconSize = 0;
+    if (ParseUnsignedFromJson(body, "dead_icon_size_px", &parsedDeadIconSize))
+    {
+        if (parsedDeadIconSize < 8)
+        {
+            g_config.customDeadIconSizePx = 8;
+            LogWarn("dead_icon_size_px too low; clamped to 8");
+        }
+        else if (parsedDeadIconSize > 512)
+        {
+            g_config.customDeadIconSizePx = 512;
+            LogWarn("dead_icon_size_px too high; clamped to 512");
+        }
+        else
+        {
+            g_config.customDeadIconSizePx = parsedDeadIconSize;
+        }
+    }
+
     if (!g_config.customUnconsciousIconTexture.empty())
     {
         std::stringstream iconInfo;
@@ -1059,6 +1259,14 @@ bool LoadConfigState()
         std::stringstream iconInfo;
         iconInfo << "custom PD icon configured texture=" << g_config.customPlayingDeadIconTexture
             << " size=" << g_config.customPlayingDeadIconSizePx;
+        LogInfo(iconInfo.str());
+    }
+
+    if (!g_config.customDeadIconTexture.empty())
+    {
+        std::stringstream iconInfo;
+        iconInfo << "custom DE icon configured texture=" << g_config.customDeadIconTexture
+            << " size=" << g_config.customDeadIconSizePx;
         LogInfo(iconInfo.str());
     }
 
@@ -1215,6 +1423,22 @@ void SetKoMarkerTextColour(MyGUI::TextBox* marker, const MyGUI::Colour& colour)
     }
 }
 
+void SetKoMarkerTextFontHeight(MyGUI::TextBox* marker, int fontHeight)
+{
+    if (!marker || fontHeight <= 0)
+    {
+        return;
+    }
+
+    try
+    {
+        marker->setFontHeight(fontHeight);
+    }
+    catch (...)
+    {
+    }
+}
+
 void SetKoMarkerIconColour(MyGUI::ImageBox* marker, const MyGUI::Colour& colour)
 {
     if (!marker)
@@ -1241,13 +1465,86 @@ bool SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
     const char* fallbackTexture = "Kenshi_UI.png";
     const bool requestIsFallbackTexture = (std::strcmp(texture, fallbackTexture) == 0);
     std::vector<std::string> textureCandidates;
-    textureCandidates.push_back(texture);
+    const std::string requestedTexture(texture);
+
+    const auto addCandidate = [&textureCandidates](const std::string& candidate)
+    {
+        if (!candidate.empty() && !StringListContains(textureCandidates, candidate))
+        {
+            textureCandidates.push_back(candidate);
+        }
+    };
+
+    const auto addCandidateWithSeparatorVariants = [&addCandidate](const std::string& candidate)
+    {
+        if (candidate.empty())
+        {
+            return;
+        }
+
+        addCandidate(candidate);
+
+        std::string withForwardSlashes = candidate;
+        bool changedToForward = false;
+        for (size_t i = 0; i < withForwardSlashes.size(); ++i)
+        {
+            if (withForwardSlashes[i] == '\\')
+            {
+                withForwardSlashes[i] = '/';
+                changedToForward = true;
+            }
+        }
+        if (changedToForward)
+        {
+            addCandidate(withForwardSlashes);
+        }
+
+        std::string withBackSlashes = candidate;
+        bool changedToBack = false;
+        for (size_t i = 0; i < withBackSlashes.size(); ++i)
+        {
+            if (withBackSlashes[i] == '/')
+            {
+                withBackSlashes[i] = '\\';
+                changedToBack = true;
+            }
+        }
+        if (changedToBack)
+        {
+            addCandidate(withBackSlashes);
+        }
+    };
+
+    addCandidateWithSeparatorVariants(requestedTexture);
+
     const bool hasPathSeparator = (std::strchr(texture, '/') != 0 || std::strchr(texture, '\\') != 0);
+    const bool isAbsolutePath = (requestedTexture.size() >= 2 && requestedTexture[1] == ':') ||
+        (!requestedTexture.empty() && (requestedTexture[0] == '/' || requestedTexture[0] == '\\'));
+    const bool isModQualified = (requestedTexture.rfind("mods/", 0) == 0 || requestedTexture.rfind("mods\\", 0) == 0);
+
     if (!hasPathSeparator)
     {
-        textureCandidates.push_back(std::string("gui/gfx/") + texture);
-        textureCandidates.push_back(std::string("mods/") + kPluginName + "/gui/gfx/" + texture);
-        textureCandidates.push_back(std::string("mods/") + kPluginName + "/" + texture);
+        addCandidateWithSeparatorVariants(std::string("icons/") + requestedTexture);
+        addCandidateWithSeparatorVariants(std::string("gui/gfx/") + requestedTexture);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/icons/" + requestedTexture);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/gui/gfx/" + requestedTexture);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + requestedTexture);
+    }
+    else if (!isAbsolutePath && !isModQualified)
+    {
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + requestedTexture);
+
+        const size_t fileNameStart = requestedTexture.find_last_of("/\\");
+        if (fileNameStart != std::string::npos && (fileNameStart + 1) < requestedTexture.size())
+        {
+            const std::string fileName = requestedTexture.substr(fileNameStart + 1);
+            addCandidateWithSeparatorVariants(fileName);
+            addCandidateWithSeparatorVariants(std::string("icons/") + fileName);
+            addCandidateWithSeparatorVariants(std::string("gui/gfx/") + fileName);
+            addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/icons/" + fileName);
+            addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/gui/gfx/" + fileName);
+            addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + fileName);
+        }
     }
 
     for (size_t i = 0; i < textureCandidates.size(); ++i)
@@ -1261,7 +1558,6 @@ bool SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
         }
         catch (...)
         {
-            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture apply threw exception", candidate.c_str(), true);
         }
 
         if (!applied)
@@ -1289,7 +1585,6 @@ bool SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
             }
             else
             {
-                LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture applied with zero size", candidate.c_str(), true);
             }
 
             if (validSize)
@@ -1307,7 +1602,6 @@ bool SetKoMarkerIconTexture(MyGUI::ImageBox* marker, const char* texture)
         }
         catch (...)
         {
-            LogIconTextureOnce(g_iconTextureWarnLogs, "icon texture size probe failed", candidate.c_str(), true);
         }
 
         if (validSize)
@@ -1422,6 +1716,10 @@ void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
 
 const char* ResolveMarkerCaption(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return g_config.deadText.empty() ? "DE" : g_config.deadText.c_str();
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return g_config.dyingText.empty() ? "DY" : g_config.dyingText.c_str();
@@ -1443,6 +1741,11 @@ const char* ResolveMarkerIconTexture(int markerState, int markerRelation)
 MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
 {
     (void)markerRelation;
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        // pic_PointerInvalid from data/gui/images/kenshi_images.xml.
+        return MyGUI::IntCoord(108, 49, 34, 34);
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         // pic_PointerInvalid from data/gui/images/kenshi_images.xml.
@@ -1488,6 +1791,10 @@ MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int
 
 const std::string* ResolveCustomMarkerIconTexture(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return &g_config.customDeadIconTexture;
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return &g_config.customDyingIconTexture;
@@ -1501,6 +1808,10 @@ const std::string* ResolveCustomMarkerIconTexture(int markerState)
 
 DWORD ResolveCustomMarkerIconSizePx(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return g_config.customDeadIconSizePx;
+    }
     if (markerState == CachedKoTarget::STATE_DYING)
     {
         return g_config.customDyingIconSizePx;
@@ -1510,6 +1821,23 @@ DWORD ResolveCustomMarkerIconSizePx(int markerState)
         return g_config.customPlayingDeadIconSizePx;
     }
     return g_config.customUnconsciousIconSizePx;
+}
+
+DWORD ResolveMarkerTextSizePx(int markerState)
+{
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return g_config.deadTextSizePx;
+    }
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return g_config.dyingTextSizePx;
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return g_config.playingDeadTextSizePx;
+    }
+    return g_config.unconsciousTextSizePx;
 }
 
 bool HasCustomMarkerIcon(int markerState)
@@ -1584,6 +1912,8 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
 
     if (marker.fallbackText && g_config.showMarkerText)
     {
+        const int fontHeight = static_cast<int>(ResolveMarkerTextSizePx(markerState));
+        SetKoMarkerTextFontHeight(marker.fallbackText, fontHeight);
         SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(markerState));
         SetKoMarkerTextColour(marker.fallbackText, colour);
     }
@@ -1989,6 +2319,7 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         return false;
     }
 
+    bool isDead = false;
     bool isUnconscious = false;
     bool isDying = false;
     bool isPlayingDead = false;
@@ -2039,6 +2370,10 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
 
     __try
     {
+        const bool isDeadByCharacter = candidate->isDead();
+        const bool isDeadByMedicalMethod = candidate->medical.isDead();
+        const bool isDeadByMedicalFlag = candidate->medical.dead;
+        isDead = (isDeadByCharacter || isDeadByMedicalMethod || isDeadByMedicalFlag);
         isUnconscious = candidate->isUnconcious();
         if (isUnconscious)
         {
@@ -2075,6 +2410,12 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
         return false;
+    }
+
+    if (isDead)
+    {
+        *markerStateOut = CachedKoTarget::STATE_DEAD;
+        return IsMarkerStateEnabled(CachedKoTarget::STATE_DEAD);
     }
 
     if (debugInfoOut)
@@ -2141,15 +2482,15 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         if (isPlayingDead)
         {
             *markerStateOut = CachedKoTarget::STATE_PLAYING_DEAD;
-            return true;
+            return IsMarkerStateEnabled(CachedKoTarget::STATE_PLAYING_DEAD);
         }
         if (isDying)
         {
             *markerStateOut = CachedKoTarget::STATE_DYING;
-            return true;
+            return IsMarkerStateEnabled(CachedKoTarget::STATE_DYING);
         }
         *markerStateOut = CachedKoTarget::STATE_UNCONSCIOUS;
-        return true;
+        return IsMarkerStateEnabled(CachedKoTarget::STATE_UNCONSCIOUS);
     }
 
     return false;
@@ -2732,6 +3073,23 @@ int ResolveMarkerRelation(Character* candidate)
     return CachedKoTarget::RELATION_ENEMY;
 }
 
+bool IsMarkerStateEnabled(int markerState)
+{
+    if (markerState == CachedKoTarget::STATE_DEAD)
+    {
+        return g_config.enableDeadState;
+    }
+    if (markerState == CachedKoTarget::STATE_DYING)
+    {
+        return g_config.enableDyingState;
+    }
+    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return g_config.enablePlayingDeadState;
+    }
+    return g_config.enableUnconsciousState;
+}
+
 bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3& targetPos)
 {
     if (g_config.maxHighlightDistanceMeters == 0)
@@ -2776,84 +3134,157 @@ void TickKoProbe()
     const Ogre::Vector3 cameraCenter = ou->getCameraCenter();
 
     const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
+    const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
     g_visibleKoHandlesScratch.clear();
     bool anySelectedMarkerMatched = false;
 
-    for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
+    const auto processMarkerCandidate = [&](Character* candidate)
     {
-        Character* candidate = *iter;
-        if (!candidate || !candidate->isValid())
+        if (!candidate)
         {
-            continue;
+            return;
         }
 
-        if (!candidate->isOnScreen)
+        bool candidateValid = false;
+        __try
         {
-            continue;
+            candidateValid = candidate->isValid();
         }
-
-        if (candidate->isDead())
+        __except (EXCEPTION_EXECUTE_HANDLER)
         {
-            continue;
+            return;
         }
-
-        if (!IsWithinHighlightRange(cameraCenter, candidate->getPosition()))
+        if (!candidateValid)
         {
-            continue;
+            return;
         }
 
         int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
         MarkerStateDebugInfo markerDebugInfo = {};
-        if (TryResolveMarkerState(candidate, &markerState, &markerDebugInfo))
+        if (!TryResolveMarkerState(candidate, &markerState, &markerDebugInfo))
         {
-            const hand targetHandle = candidate->getHandle();
-            if (targetHandle.isNull())
+            return;
+        }
+
+        bool isOnScreen = false;
+        Ogre::Vector3 candidatePos;
+        hand targetHandle;
+        __try
+        {
+            isOnScreen = candidate->isOnScreen;
+            candidatePos = candidate->getPosition();
+            targetHandle = candidate->getHandle();
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return;
+        }
+
+        const bool isDeadState = (markerState == CachedKoTarget::STATE_DEAD);
+        if (!isDeadState && !isOnScreen)
+        {
+            return;
+        }
+
+        if (!IsWithinHighlightRange(cameraCenter, candidatePos))
+        {
+            return;
+        }
+
+        if (isDeadState && !isOnScreen)
+        {
+            if (!g_projectionUtility)
             {
-                continue;
+                return;
             }
 
-            const int markerRelation = ResolveMarkerRelation(candidate);
-            const bool isSelected = IsTargetSelected(targetHandle);
-            if (isSelected)
+            float probeX = 0.0f;
+            float probeY = 0.0f;
+            const Ogre::Vector3 anchorPos = candidatePos + Ogre::Vector3(0, kKoMarkerHeadAnchorYOffset, 0);
+            if (!g_projectionUtility->worldToScreenPX(anchorPos, probeX, probeY))
             {
-                anySelectedMarkerMatched = true;
-            }
-            MaybeLogSelectedMarkerState(candidate, targetHandle, markerState, markerRelation, markerDebugInfo, nowMs);
-
-            if (!VisibleHandleListContains(targetHandle))
-            {
-                g_visibleKoHandlesScratch.push_back(targetHandle);
-            }
-
-            const int existingIndex = FindCachedKoTargetIndex(targetHandle);
-            if (existingIndex >= 0)
-            {
-                CachedKoTarget& existing = g_koTargetCache[existingIndex];
-                if (existing.markerState != markerState || existing.markerRelation != markerRelation)
-                {
-                    LogMarkerStateDecision("state_changed", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
-                }
-                existing.worldPos = candidate->getPosition();
-                existing.lastSeenMs = nowMs;
-                existing.markerState = markerState;
-                existing.markerRelation = markerRelation;
-            }
-            else
-            {
-                CachedKoTarget created = {
-                    targetHandle,
-                    candidate->getPosition(),
-                    nowMs,
-                    markerState,
-                    markerRelation
-                };
-                g_koTargetCache.push_back(created);
-                if (isSelected || markerState == CachedKoTarget::STATE_UNCONSCIOUS)
-                {
-                    LogMarkerStateDecision("first_seen", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
-                }
+                return;
             }
         }
+
+        if (targetHandle.isNull())
+        {
+            return;
+        }
+
+        int markerRelation = CachedKoTarget::RELATION_ENEMY;
+        __try
+        {
+            markerRelation = ResolveMarkerRelation(candidate);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            markerRelation = CachedKoTarget::RELATION_ENEMY;
+        }
+
+        const bool isSelected = IsTargetSelected(targetHandle);
+        if (isSelected)
+        {
+            anySelectedMarkerMatched = true;
+        }
+        MaybeLogSelectedMarkerState(candidate, targetHandle, markerState, markerRelation, markerDebugInfo, nowMs);
+
+        if (!VisibleHandleListContains(targetHandle))
+        {
+            g_visibleKoHandlesScratch.push_back(targetHandle);
+        }
+
+        const int existingIndex = FindCachedKoTargetIndex(targetHandle);
+        if (existingIndex >= 0)
+        {
+            CachedKoTarget& existing = g_koTargetCache[existingIndex];
+            if (existing.markerState != markerState || existing.markerRelation != markerRelation)
+            {
+                LogMarkerStateDecision("state_changed", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
+            }
+            existing.worldPos = candidatePos;
+            existing.lastSeenMs = nowMs;
+            existing.markerState = markerState;
+            existing.markerRelation = markerRelation;
+        }
+        else
+        {
+            CachedKoTarget created = {
+                targetHandle,
+                candidatePos,
+                nowMs,
+                markerState,
+                markerRelation
+            };
+            g_koTargetCache.push_back(created);
+            if (isSelected || markerState == CachedKoTarget::STATE_UNCONSCIOUS)
+            {
+                LogMarkerStateDecision("first_seen", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
+            }
+        }
+    };
+
+    for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
+    {
+        processMarkerCandidate(*iter);
+    }
+
+    for (auto iter = deathParadeCharacters.begin(); iter != deathParadeCharacters.end(); ++iter)
+    {
+        Character* deathParadeCandidate = 0;
+        __try
+        {
+            deathParadeCandidate = ou->getFromDeathParade(iter->first);
+            if (!deathParadeCandidate)
+            {
+                deathParadeCandidate = iter->second;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            deathParadeCandidate = 0;
+        }
+        processMarkerCandidate(deathParadeCandidate);
     }
 
     if (!anySelectedMarkerMatched)
@@ -2898,11 +3329,20 @@ __declspec(dllexport) void startPlugin()
     info << "loaded (enabled=" << (g_config.enabled ? "true" : "false")
          << ", update_interval_ms=" << g_config.updateIntervalMs
          << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
+         << ", enable_unconscious=" << (g_config.enableUnconsciousState ? "true" : "false")
+         << ", enable_dying=" << (g_config.enableDyingState ? "true" : "false")
+         << ", enable_playing_dead=" << (g_config.enablePlayingDeadState ? "true" : "false")
+         << ", enable_dead=" << (g_config.enableDeadState ? "true" : "false")
          << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
          << ", unconscious_text=" << g_config.unconsciousText
          << ", dying_text=" << g_config.dyingText
          << ", playing_dead_text=" << g_config.playingDeadText
+         << ", dead_text=" << g_config.deadText
+         << ", unconscious_text_size_px=" << g_config.unconsciousTextSizePx
+         << ", dying_text_size_px=" << g_config.dyingTextSizePx
+         << ", playing_dead_text_size_px=" << g_config.playingDeadTextSizePx
+         << ", dead_text_size_px=" << g_config.deadTextSizePx
          << ", enemy_color_hex=" << ColourToHexRgb(g_config.enemyMarkerColour)
          << ", ally_color_hex=" << ColourToHexRgb(g_config.allyMarkerColour)
          << ", squad_color_hex=" << ColourToHexRgb(g_config.squadMarkerColour)
