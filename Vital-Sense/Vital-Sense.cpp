@@ -2468,7 +2468,6 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     bool hasSlaveState = false;
     int slaveState = -1;
     float bloodLevel = 0.0f;
-    float pointOfCollapse = 0.0f;
     float pointOfNoReturn = 0.0f;
 
     if (debugInfoOut)
@@ -2518,13 +2517,12 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
             medicalBloodlossTraumaFlag = candidate->medical.bloodlossTrauma;
             currentBleedRate = candidate->medical.currentBleedRate;
             bloodLevel = candidate->medical.blood;
-            pointOfCollapse = candidate->medical.pointOfCollapseBloodloss();
             pointOfNoReturn = candidate->medical.pointOfNoReturn();
             dyingByBloodThreshold = (bloodLevel <= pointOfNoReturn);
             dyingByProbablyLiteral = (isProbablyDying && isLiteral);
             dyingByProbablyLowBlood = (isProbablyDying && bloodLevel <= kProbablyDyingBloodMax);
             dyingByProbablySub50Ko = medicalSub50KoFlag;
-            dyingByActiveBleed = (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f);
+            dyingByActiveBleed = (isProbablyDying && (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f));
             recoveryComaBySub50Ko = medicalSub50KoFlag;
             recoveryComaByCannotWake = (!candidate->medical.canGetUpWakeUp() && medicalSub50KoFlag);
 
@@ -2537,11 +2535,21 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
                 hasSlaveState = true;
             }
 
-            // DY = active medical danger (bleed/collapse/no-return/trauma/probable dying).
-            // RC = stable KO-coma (sub50 KO + cannot wake) while not DY.
-            const bool dyingByCollapseThreshold = (bloodLevel <= pointOfCollapse);
-            isDying = dyingByBloodThreshold || dyingByCollapseThreshold || dyingByTrauma || dyingByActiveBleed || isProbablyDying;
-            isRecoveryComa = (!isDying) && recoveryComaByCannotWake;
+            // Preserve prior stable DY behavior (sub50 KO + no-return blood), then carve out RC
+            // only for stable, non-dying coma cases.
+            const bool knockoutTimerElapsed = (candidate->medical.knockoutTimer <= 0.0f);
+            isRecoveryComa = recoveryComaByCannotWake
+                && knockoutTimerElapsed
+                && !isProbablyDying
+                && !dyingByBloodThreshold
+                && !dyingByTrauma
+                && !dyingByActiveBleed
+                && !dyingByProbablyLowBlood;
+            isDying = dyingByBloodThreshold || dyingByProbablySub50Ko;
+            if (isRecoveryComa)
+            {
+                isDying = false;
+            }
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
