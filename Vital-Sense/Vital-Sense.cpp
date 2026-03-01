@@ -20,10 +20,6 @@
 #define BOOST_ERROR_CODE_HEADER_ONLY
 #endif
 
-#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/DatapanelGUI.h"
-#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/ForgottenGUI.h"
-#include "../_deps/KenshiExtensionPlugin/KenshiExtensionPlugin/include/extern/StateBroadcastData.h"
-
 #include <Windows.h>
 
 #include <cctype>
@@ -82,6 +78,25 @@ struct PluginConfig
     bool showMarkerIcons;
     bool showMarkerText;
     bool showBountyGlow;
+    bool showBountySymbol;
+    std::string bountySymbolText;
+    DWORD bountySymbolTextSizePx;
+    bool showBountySymbolOnAllCharacters;
+    bool placeBountySymbolBeforeStateIcon;
+    DWORD bountyTierTrivialMax;
+    DWORD bountyTierLowMax;
+    DWORD bountyTierModestMax;
+    DWORD bountyTierNotableMax;
+    DWORD bountyTierHighValueMax;
+    DWORD bountyTierEliteMax;
+    MyGUI::Colour bountyTierTrivialColour;
+    MyGUI::Colour bountyTierLowColour;
+    MyGUI::Colour bountyTierModestColour;
+    MyGUI::Colour bountyTierNotableColour;
+    MyGUI::Colour bountyTierHighValueColour;
+    MyGUI::Colour bountyTierEliteColour;
+    MyGUI::Colour bountyTierLegendaryColour;
+    DWORD bountySymbolLiveAnchorYOffsetCm;
 };
 
 PluginConfig g_config = {
@@ -119,7 +134,26 @@ PluginConfig g_config = {
     64,
     true,
     true,
-    true
+    true,
+    true,
+    "$",
+    18,
+    true,
+    true,
+    1999,
+    4999,
+    9999,
+    19999,
+    39999,
+    74999,
+    MyGUI::Colour(0.690196f, 0.690196f, 0.690196f, 0.784314f),
+    MyGUI::Colour(0.788235f, 0.647059f, 0.482353f, 0.831373f),
+    MyGUI::Colour(0.623529f, 0.741176f, 0.411765f, 0.878431f),
+    MyGUI::Colour(0.435294f, 0.650980f, 0.850980f, 0.925490f),
+    MyGUI::Colour(1.000000f, 0.760784f, 0.278431f, 0.960784f),
+    MyGUI::Colour(1.000000f, 0.541176f, 0.168627f, 0.980392f),
+    MyGUI::Colour(0.878431f, 0.192157f, 0.192157f, 1.000000f),
+    420
 };
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
@@ -133,7 +167,8 @@ struct CachedKoTarget
         STATE_RECOVERY_COMA = 1,
         STATE_DYING = 2,
         STATE_PLAYING_DEAD = 3,
-        STATE_DEAD = 4
+        STATE_DEAD = 4,
+        STATE_BOUNTY_ONLY = 5
     };
 
     enum MarkerRelation
@@ -151,67 +186,18 @@ struct CachedKoTarget
     int totalBounty;
 };
 
-struct MarkerStateDebugInfo
-{
-    bool isUnconscious;
-    bool isRecoveryComa;
-    bool isPlayingDead;
-    bool isLiteral;
-    bool isProbablyDying;
-    bool dyingByProbablyLiteral;
-    bool dyingByProbablyLowBlood;
-    bool dyingByProbablySub50Ko;
-    bool dyingByActiveBleed;
-    bool dyingByTrauma;
-    bool dyingByBloodThreshold;
-    bool recoveryComaBySub50Ko;
-    bool recoveryComaByCannotWake;
-    bool medicalUnconsciousFlag;
-    bool medicalSub50KoFlag;
-    bool medicalBloodlossTraumaFlag;
-    float currentBleedRate;
-    int proneState;
-    bool hasSleepState;
-    int sleepState;
-    bool hasSlaveState;
-    int slaveState;
-    float bloodLevel;
-    float pointOfNoReturn;
-};
-
 std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<hand> g_visibleKoHandlesScratch;
 struct KoMarkerWidget
 {
-    MyGUI::ImageBox* beacon;
     MyGUI::ImageBox* bountyGlow;
     MyGUI::ImageBox* icon;
+    MyGUI::TextBox* bountySymbol;
     MyGUI::TextBox* fallbackText;
 };
 std::vector<KoMarkerWidget> g_koMarkerWidgets;
 std::vector<std::string> g_iconTextureOkLogs;
 std::vector<std::string> g_iconTextureWarnLogs;
-unsigned int g_markerDebugLogCount = 0;
-const unsigned int kMarkerDebugLogMaxPerSession = 120;
-bool g_loggedDyingByTrauma = false;
-bool g_loggedDyingByBloodThreshold = false;
-bool g_loggedDyingBySub50Ko = false;
-bool g_loggedDyingByProbably = false;
-bool g_loggedDyingByProbablyLiteral = false;
-bool g_loggedDyingByProbablyLowBlood = false;
-hand g_lastSelectedDebugHandle;
-int g_lastSelectedDebugState = -1;
-int g_lastSelectedDebugRelation = -1;
-DWORD g_lastSelectedDebugTickMs = 0;
-hand g_lastSelectedDeepDumpHandle;
-DWORD g_lastSelectedDeepDumpTickMs = 0;
-hand g_lastSelectedPanelDumpHandle;
-DWORD g_lastSelectedPanelDumpTickMs = 0;
-hand g_lastSelectionSnapshotCharacter;
-hand g_lastSelectionSnapshotObject;
-size_t g_lastSelectionSnapshotCount = 0;
-DWORD g_lastSelectionSnapshotTickMs = 0;
-DWORD g_lastSelectionNoMatchTickMs = 0;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
@@ -219,10 +205,11 @@ bool g_highlightRuntimeActive = false;
 const size_t kMaxKoMarkerWidgets = 48;
 const int kKoMarkerWidthPx = 64;
 const int kKoMarkerHeightPx = 18;
+const int kKoBountySymbolMinWidthPx = 12;
+const int kKoBountySymbolGapPx = 1;
 const int kKoMarkerYOffsetPx = 24;
 const float kKoMarkerHeadAnchorYOffset = 2.0f;
-const int kKoBeaconSizePx = 34;
-const float kKoBeaconAlpha = 0.80f;
+const float kKoCentimetersToWorldUnits = 0.01f;
 const int kKoBountyGlowPaddingPx = 3;
 const int kKoBountyGlowOffsetXPx = -kKoBountyGlowPaddingPx;
 const int kKoBountyGlowOffsetYPx = -kKoBountyGlowPaddingPx;
@@ -232,15 +219,21 @@ const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
 const int kKoBountyGlowTextureSizePx = 64;
 const float kProbablyDyingBloodMax = 50.0f;
 const DWORD kDefaultMarkerTextSizePx = 18;
-const bool kEnableUnsafePanelProbe = false;
-const bool kEnableUiBeaconOverlay = false;
-const bool kEnableVerboseRuntimeLogs = false;
+const DWORD kDefaultBountyTierTrivialMax = 1999;
+const DWORD kDefaultBountyTierLowMax = 4999;
+const DWORD kDefaultBountyTierModestMax = 9999;
+const DWORD kDefaultBountyTierNotableMax = 19999;
+const DWORD kDefaultBountyTierHighValueMax = 39999;
+const DWORD kDefaultBountyTierEliteMax = 74999;
+const DWORD kDefaultBountySymbolLiveAnchorYOffsetCm = 420;
 const bool kEnableTextureInfoLogs = false;
 
 void LogInfo(const std::string& message);
 void LogWarn(const std::string& message);
 bool IsMarkerStateEnabled(int markerState);
 void LogIconTextureOnce(std::vector<std::string>& sink, const std::string& message, const char* textureName, bool warn);
+int ResolveBountySymbolFontHeightPx(int totalBounty);
+int ResolveBountySymbolWidthPx(int totalBounty);
 
 void LogWithPrefix(void (*sink)(const char*), const char* level, const std::string& message)
 {
@@ -269,101 +262,6 @@ void LogError(const std::string& message)
     LogWithPrefix(&ErrorLog, "ERROR", message);
 }
 
-void LogDyingDetection(const char* trigger, float bloodLevel, float pointOfNoReturn)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-    std::stringstream info;
-    info << "DY detected via " << trigger << " (blood=" << bloodLevel
-         << ", point_of_no_return=" << pointOfNoReturn << ")";
-    LogInfo(info.str());
-}
-
-const char* MarkerStateName(int markerState)
-{
-    if (markerState == CachedKoTarget::STATE_DEAD)
-    {
-        return "DE";
-    }
-    if (markerState == CachedKoTarget::STATE_RECOVERY_COMA)
-    {
-        return "RC";
-    }
-    if (markerState == CachedKoTarget::STATE_DYING)
-    {
-        return "DY";
-    }
-    if (markerState == CachedKoTarget::STATE_PLAYING_DEAD)
-    {
-        return "PD";
-    }
-    return "ZZ";
-}
-
-const char* MarkerRelationName(int markerRelation)
-{
-    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
-    {
-        return "SQUAD";
-    }
-    if (markerRelation == CachedKoTarget::RELATION_ALLY)
-    {
-        return "ALLY";
-    }
-    return "ENEMY";
-}
-
-bool HandsEqualExact(const hand& a, const hand& b)
-{
-    return a.type == b.type &&
-        a.container == b.container &&
-        a.containerSerial == b.containerSerial &&
-        a.index == b.index &&
-        a.serial == b.serial;
-}
-
-bool HandsEqualWithFallback(const hand& a, const hand& b)
-{
-    if (HandsEqualExact(a, b))
-    {
-        return true;
-    }
-    if (a.isNull() || b.isNull())
-    {
-        return false;
-    }
-    return a.toString() == b.toString();
-}
-
-std::string ClipForLog(const std::string& value, size_t maxLen)
-{
-    size_t start = 0;
-    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])) != 0)
-    {
-        ++start;
-    }
-
-    size_t end = value.size();
-    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0)
-    {
-        --end;
-    }
-
-    std::string trimmed = value.substr(start, end - start);
-    if (trimmed.size() <= maxLen)
-    {
-        return trimmed;
-    }
-
-    if (maxLen < 4)
-    {
-        return trimmed.substr(0, maxLen);
-    }
-    return trimmed.substr(0, maxLen - 3) + "...";
-}
-
 std::string ToLowerAsciiCopy(const std::string& value)
 {
     std::string lowered = value;
@@ -372,153 +270,6 @@ std::string ToLowerAsciiCopy(const std::string& value)
         lowered[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[i])));
     }
     return lowered;
-}
-
-bool ContainsStatusToken(const std::string& loweredText)
-{
-    return loweredText.find("state") != std::string::npos ||
-        loweredText.find("status") != std::string::npos ||
-        loweredText.find("dying") != std::string::npos ||
-        loweredText.find("unconc") != std::string::npos ||
-        loweredText.find("playing dead") != std::string::npos ||
-        loweredText.find("ko") != std::string::npos;
-}
-
-bool TryGetKenshiGuiOffset(uintptr_t* offsetOut)
-{
-    if (!offsetOut)
-    {
-        return false;
-    }
-
-    *offsetOut = 0;
-    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
-    const unsigned int platform = versionInfo.GetPlatform();
-    const std::string version = versionInfo.GetVersion();
-
-    if (platform == KenshiLib::BinaryVersion::STEAM)
-    {
-        if (version == "1.0.65")
-        {
-            *offsetOut = 0x02132750;
-            return true;
-        }
-        if (version == "1.0.68")
-        {
-            *offsetOut = 0x021337b0;
-            return true;
-        }
-        return false;
-    }
-
-    if (platform == KenshiLib::BinaryVersion::GOG)
-    {
-        if (version == "1.0.65")
-        {
-            *offsetOut = 0x021306c0;
-            return true;
-        }
-        if (version == "1.0.68")
-        {
-            *offsetOut = 0x021326e0;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-ForgottenGUI* ResolveKenshiGui()
-{
-    uintptr_t guiOffset = 0;
-    if (!TryGetKenshiGuiOffset(&guiOffset))
-    {
-        return 0;
-    }
-
-    HMODULE exeHandle = GetModuleHandleA(0);
-    if (!exeHandle)
-    {
-        return 0;
-    }
-
-    const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(exeHandle);
-    if (!baseAddress)
-    {
-        return 0;
-    }
-
-    return reinterpret_cast<ForgottenGUI*>(baseAddress + guiOffset);
-}
-
-hand GetPrimarySelectionHandle()
-{
-    if (!ou || !ou->player)
-    {
-        return hand();
-    }
-
-    if (!ou->player->selectedObject.isNull())
-    {
-        return ou->player->selectedObject;
-    }
-
-    return ou->player->selectedCharacter;
-}
-
-void LogMarkerStateDecision(const char* reason, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, bool isSelected)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!reason)
-    {
-        return;
-    }
-
-    const bool isSelectedProbe = (std::strcmp(reason, "selected_probe") == 0);
-    if (!isSelectedProbe && g_markerDebugLogCount >= kMarkerDebugLogMaxPerSession)
-    {
-        return;
-    }
-    if (!isSelectedProbe)
-    {
-        ++g_markerDebugLogCount;
-    }
-
-    std::stringstream info;
-    info << "marker_state reason=" << reason
-         << " handle=" << targetHandle.toString()
-         << " state=" << MarkerStateName(markerState)
-         << " relation=" << MarkerRelationName(markerRelation)
-         << " selected=" << (isSelected ? "true" : "false")
-         << " unconscious=" << (debugInfo.isUnconscious ? "true" : "false")
-         << " recovery_coma=" << (debugInfo.isRecoveryComa ? "true" : "false")
-         << " playing_dead=" << (debugInfo.isPlayingDead ? "true" : "false")
-         << " literal_ko=" << (debugInfo.isLiteral ? "true" : "false")
-         << " probably_dying=" << (debugInfo.isProbablyDying ? "true" : "false")
-         << " probably_literal=" << (debugInfo.dyingByProbablyLiteral ? "true" : "false")
-         << " probably_low_blood=" << (debugInfo.dyingByProbablyLowBlood ? "true" : "false")
-         << " probably_sub50_ko=" << (debugInfo.dyingByProbablySub50Ko ? "true" : "false")
-         << " active_bleed_dying=" << (debugInfo.dyingByActiveBleed ? "true" : "false")
-         << " bloodloss_trauma=" << (debugInfo.dyingByTrauma ? "true" : "false")
-         << " blood_threshold=" << (debugInfo.dyingByBloodThreshold ? "true" : "false")
-         << " recovery_coma_sub50_ko=" << (debugInfo.recoveryComaBySub50Ko ? "true" : "false")
-         << " recovery_coma_cannot_wake=" << (debugInfo.recoveryComaByCannotWake ? "true" : "false")
-         << " medical_unconcious_flag=" << (debugInfo.medicalUnconsciousFlag ? "true" : "false")
-         << " medical_sub50_ko_flag=" << (debugInfo.medicalSub50KoFlag ? "true" : "false")
-         << " medical_bloodloss_trauma_flag=" << (debugInfo.medicalBloodlossTraumaFlag ? "true" : "false")
-         << " bleed_rate=" << debugInfo.currentBleedRate
-         << " prone_state=" << debugInfo.proneState
-         << " has_sleep_state=" << (debugInfo.hasSleepState ? "true" : "false")
-         << " sleep_state=" << debugInfo.sleepState
-         << " has_slave_state=" << (debugInfo.hasSlaveState ? "true" : "false")
-         << " slave_state=" << debugInfo.slaveState
-         << " blood=" << debugInfo.bloodLevel
-         << " point_of_no_return=" << debugInfo.pointOfNoReturn;
-    LogInfo(info.str());
 }
 
 std::string TrimAscii(const std::string& value)
@@ -877,6 +628,25 @@ bool LoadConfigState()
     g_config.showMarkerIcons = true;
     g_config.showMarkerText = true;
     g_config.showBountyGlow = true;
+    g_config.showBountySymbol = true;
+    g_config.bountySymbolText = "$";
+    g_config.bountySymbolTextSizePx = kDefaultMarkerTextSizePx;
+    g_config.showBountySymbolOnAllCharacters = true;
+    g_config.placeBountySymbolBeforeStateIcon = true;
+    g_config.bountyTierTrivialMax = kDefaultBountyTierTrivialMax;
+    g_config.bountyTierLowMax = kDefaultBountyTierLowMax;
+    g_config.bountyTierModestMax = kDefaultBountyTierModestMax;
+    g_config.bountyTierNotableMax = kDefaultBountyTierNotableMax;
+    g_config.bountyTierHighValueMax = kDefaultBountyTierHighValueMax;
+    g_config.bountyTierEliteMax = kDefaultBountyTierEliteMax;
+    g_config.bountyTierTrivialColour = MyGUI::Colour(0.690196f, 0.690196f, 0.690196f, 0.784314f);
+    g_config.bountyTierLowColour = MyGUI::Colour(0.788235f, 0.647059f, 0.482353f, 0.831373f);
+    g_config.bountyTierModestColour = MyGUI::Colour(0.623529f, 0.741176f, 0.411765f, 0.878431f);
+    g_config.bountyTierNotableColour = MyGUI::Colour(0.435294f, 0.650980f, 0.850980f, 0.925490f);
+    g_config.bountyTierHighValueColour = MyGUI::Colour(1.000000f, 0.760784f, 0.278431f, 0.960784f);
+    g_config.bountyTierEliteColour = MyGUI::Colour(1.000000f, 0.541176f, 0.168627f, 0.980392f);
+    g_config.bountyTierLegendaryColour = MyGUI::Colour(0.878431f, 0.192157f, 0.192157f, 1.000000f);
+    g_config.bountySymbolLiveAnchorYOffsetCm = kDefaultBountySymbolLiveAnchorYOffsetCm;
 
     if (g_settingsPath.empty())
     {
@@ -960,6 +730,88 @@ bool LoadConfigState()
     if (ParseBoolFromJson(body, "show_bounty_glow", &parsedShowBountyGlow))
     {
         g_config.showBountyGlow = parsedShowBountyGlow;
+    }
+
+    bool parsedShowBountySymbol = true;
+    if (ParseBoolFromJson(body, "show_bounty_symbol", &parsedShowBountySymbol))
+    {
+        g_config.showBountySymbol = parsedShowBountySymbol;
+    }
+
+    bool parsedShowBountySymbolOnAllCharacters = false;
+    if (ParseBoolFromJson(body, "show_bounty_symbol_on_all_characters", &parsedShowBountySymbolOnAllCharacters))
+    {
+        g_config.showBountySymbolOnAllCharacters = parsedShowBountySymbolOnAllCharacters;
+    }
+
+    std::string parsedBountySymbol;
+    if (ParseStringFromJson(body, "bounty_symbol", &parsedBountySymbol))
+    {
+        const std::string trimmed = TrimAscii(parsedBountySymbol);
+        if (!trimmed.empty())
+        {
+            g_config.bountySymbolText = trimmed;
+        }
+        else
+        {
+            LogWarn("bounty_symbol is empty; using default");
+        }
+    }
+
+    DWORD parsedBountySymbolSize = 0;
+    if (ParseUnsignedFromJson(body, "bounty_symbol_size_px", &parsedBountySymbolSize))
+    {
+        if (parsedBountySymbolSize == 0)
+        {
+            g_config.bountySymbolTextSizePx = kDefaultMarkerTextSizePx;
+            LogWarn("bounty_symbol_size_px=0 deprecated; using default 18");
+        }
+        else if (parsedBountySymbolSize < 8)
+        {
+            g_config.bountySymbolTextSizePx = 8;
+            LogWarn("bounty_symbol_size_px too low; clamped to 8");
+        }
+        else if (parsedBountySymbolSize > 128)
+        {
+            g_config.bountySymbolTextSizePx = 128;
+            LogWarn("bounty_symbol_size_px too high; clamped to 128");
+        }
+        else
+        {
+            g_config.bountySymbolTextSizePx = parsedBountySymbolSize;
+        }
+    }
+
+    std::string parsedBountySymbolPosition;
+    if (ParseStringFromJson(body, "bounty_symbol_position", &parsedBountySymbolPosition))
+    {
+        const std::string lowered = ToLowerAsciiCopy(TrimAscii(parsedBountySymbolPosition));
+        if (lowered == "before_state_icon" || lowered == "icon")
+        {
+            g_config.placeBountySymbolBeforeStateIcon = true;
+        }
+        else if (lowered == "before_state_text" || lowered == "text")
+        {
+            g_config.placeBountySymbolBeforeStateIcon = false;
+        }
+        else
+        {
+            LogWarn("bounty_symbol_position invalid; expected before_state_icon|before_state_text; using default");
+        }
+    }
+
+    DWORD parsedBountySymbolLiveAnchorYOffsetCm = 0;
+    if (ParseUnsignedFromJson(body, "bounty_symbol_live_anchor_y_offset_cm", &parsedBountySymbolLiveAnchorYOffsetCm))
+    {
+        if (parsedBountySymbolLiveAnchorYOffsetCm > 20000)
+        {
+            g_config.bountySymbolLiveAnchorYOffsetCm = 20000;
+            LogWarn("bounty_symbol_live_anchor_y_offset_cm too high; clamped to 20000");
+        }
+        else
+        {
+            g_config.bountySymbolLiveAnchorYOffsetCm = parsedBountySymbolLiveAnchorYOffsetCm;
+        }
     }
 
     bool parsedEnableUnconsciousState = true;
@@ -1221,6 +1073,136 @@ bool LoadConfigState()
         else
         {
             LogWarn("squad_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    DWORD parsedBountyTierTrivialMax = g_config.bountyTierTrivialMax;
+    DWORD parsedBountyTierLowMax = g_config.bountyTierLowMax;
+    DWORD parsedBountyTierModestMax = g_config.bountyTierModestMax;
+    DWORD parsedBountyTierNotableMax = g_config.bountyTierNotableMax;
+    DWORD parsedBountyTierHighValueMax = g_config.bountyTierHighValueMax;
+    DWORD parsedBountyTierEliteMax = g_config.bountyTierEliteMax;
+
+    ParseUnsignedFromJson(body, "bounty_tier_trivial_max", &parsedBountyTierTrivialMax);
+    ParseUnsignedFromJson(body, "bounty_tier_low_max", &parsedBountyTierLowMax);
+    ParseUnsignedFromJson(body, "bounty_tier_modest_max", &parsedBountyTierModestMax);
+    ParseUnsignedFromJson(body, "bounty_tier_notable_max", &parsedBountyTierNotableMax);
+    ParseUnsignedFromJson(body, "bounty_tier_high_value_max", &parsedBountyTierHighValueMax);
+    ParseUnsignedFromJson(body, "bounty_tier_elite_max", &parsedBountyTierEliteMax);
+
+    if (parsedBountyTierTrivialMax < parsedBountyTierLowMax &&
+        parsedBountyTierLowMax < parsedBountyTierModestMax &&
+        parsedBountyTierModestMax < parsedBountyTierNotableMax &&
+        parsedBountyTierNotableMax < parsedBountyTierHighValueMax &&
+        parsedBountyTierHighValueMax < parsedBountyTierEliteMax)
+    {
+        g_config.bountyTierTrivialMax = parsedBountyTierTrivialMax;
+        g_config.bountyTierLowMax = parsedBountyTierLowMax;
+        g_config.bountyTierModestMax = parsedBountyTierModestMax;
+        g_config.bountyTierNotableMax = parsedBountyTierNotableMax;
+        g_config.bountyTierHighValueMax = parsedBountyTierHighValueMax;
+        g_config.bountyTierEliteMax = parsedBountyTierEliteMax;
+    }
+    else
+    {
+        LogWarn("bounty tier max keys invalid; expected strict ascending order; using defaults");
+    }
+
+    std::string parsedBountyTrivialColorHex;
+    if (ParseStringFromJson(body, "bounty_color_trivial_hex", &parsedBountyTrivialColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierTrivialColour;
+        if (TryParseColourHex(parsedBountyTrivialColorHex, &parsed))
+        {
+            g_config.bountyTierTrivialColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_trivial_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyLowColorHex;
+    if (ParseStringFromJson(body, "bounty_color_low_hex", &parsedBountyLowColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierLowColour;
+        if (TryParseColourHex(parsedBountyLowColorHex, &parsed))
+        {
+            g_config.bountyTierLowColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_low_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyModestColorHex;
+    if (ParseStringFromJson(body, "bounty_color_modest_hex", &parsedBountyModestColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierModestColour;
+        if (TryParseColourHex(parsedBountyModestColorHex, &parsed))
+        {
+            g_config.bountyTierModestColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_modest_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyNotableColorHex;
+    if (ParseStringFromJson(body, "bounty_color_notable_hex", &parsedBountyNotableColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierNotableColour;
+        if (TryParseColourHex(parsedBountyNotableColorHex, &parsed))
+        {
+            g_config.bountyTierNotableColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_notable_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyHighValueColorHex;
+    if (ParseStringFromJson(body, "bounty_color_high_value_hex", &parsedBountyHighValueColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierHighValueColour;
+        if (TryParseColourHex(parsedBountyHighValueColorHex, &parsed))
+        {
+            g_config.bountyTierHighValueColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_high_value_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyEliteColorHex;
+    if (ParseStringFromJson(body, "bounty_color_elite_hex", &parsedBountyEliteColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierEliteColour;
+        if (TryParseColourHex(parsedBountyEliteColorHex, &parsed))
+        {
+            g_config.bountyTierEliteColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_elite_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+
+    std::string parsedBountyLegendaryColorHex;
+    if (ParseStringFromJson(body, "bounty_color_legendary_hex", &parsedBountyLegendaryColorHex))
+    {
+        MyGUI::Colour parsed = g_config.bountyTierLegendaryColour;
+        if (TryParseColourHex(parsedBountyLegendaryColorHex, &parsed))
+        {
+            g_config.bountyTierLegendaryColour = parsed;
+        }
+        else
+        {
+            LogWarn("bounty_color_legendary_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
         }
     }
 
@@ -1777,30 +1759,65 @@ void SetKoMarkerIconCoord(MyGUI::ImageBox* marker, const MyGUI::IntCoord& coord)
     }
 }
 
-void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
+void SetKoMarkerPosition(
+    KoMarkerWidget& marker,
+    int left,
+    int top,
+    int totalBounty,
+    bool showStateIcon,
+    bool showStateText,
+    bool showBountySymbol,
+    bool isBountyOnlyState)
 {
-    if (marker.beacon)
+    const bool placeSymbolBeforeIcon = showBountySymbol && showStateIcon && g_config.placeBountySymbolBeforeStateIcon;
+    const int symbolWidth = showBountySymbol ? ResolveBountySymbolWidthPx(totalBounty) : kKoBountySymbolMinWidthPx;
+    int layoutLeft = left;
+    int iconLeft = left;
+    int symbolLeft = left;
+    bool hasSymbolPlacement = false;
+
+    if (showBountySymbol && isBountyOnlyState && !showStateIcon && !showStateText)
     {
-        try
-        {
-            const int centerX = left + (kKoMarkerWidthPx / 2);
-            const int centerY = top + (kKoMarkerHeightPx / 2);
-            marker.beacon->setCoord(
-                centerX - (kKoBeaconSizePx / 2),
-                centerY - (kKoBeaconSizePx / 2),
-                kKoBeaconSizePx,
-                kKoBeaconSizePx);
-        }
-        catch (...)
-        {
-        }
+        symbolLeft = left + ((kKoMarkerWidthPx - symbolWidth) / 2);
+        hasSymbolPlacement = true;
+    }
+
+    if (!isBountyOnlyState && placeSymbolBeforeIcon)
+    {
+        symbolLeft = layoutLeft;
+        hasSymbolPlacement = true;
+        layoutLeft += symbolWidth + kKoBountySymbolGapPx;
+    }
+
+    if (showStateIcon)
+    {
+        iconLeft = layoutLeft;
+        layoutLeft += kKoMarkerHeightPx + 1;
+    }
+
+    if (!isBountyOnlyState && showBountySymbol && !placeSymbolBeforeIcon)
+    {
+        symbolLeft = layoutLeft;
+        hasSymbolPlacement = true;
+        layoutLeft += symbolWidth + kKoBountySymbolGapPx;
     }
 
     if (marker.icon)
     {
         try
         {
-            marker.icon->setCoord(left, top, kKoMarkerHeightPx, kKoMarkerHeightPx);
+            marker.icon->setCoord(iconLeft, top, kKoMarkerHeightPx, kKoMarkerHeightPx);
+        }
+        catch (...)
+        {
+        }
+    }
+
+    if (marker.bountySymbol)
+    {
+        try
+        {
+            marker.bountySymbol->setCoord(symbolLeft, top, symbolWidth, kKoMarkerHeightPx);
         }
         catch (...)
         {
@@ -1811,8 +1828,17 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
     {
         try
         {
+            int glowAnchorLeft = left;
+            if (showStateIcon)
+            {
+                glowAnchorLeft = iconLeft;
+            }
+            else if (hasSymbolPlacement)
+            {
+                glowAnchorLeft = symbolLeft;
+            }
             marker.bountyGlow->setCoord(
-                left + kKoBountyGlowOffsetXPx,
+                glowAnchorLeft + kKoBountyGlowOffsetXPx,
                 top + kKoBountyGlowOffsetYPx,
                 kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2),
                 kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2));
@@ -1826,13 +1852,22 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
     {
         try
         {
-            if (marker.icon && g_config.showMarkerIcons)
+            int textWidth = kKoMarkerWidthPx - (layoutLeft - left);
+            if (textWidth < 0)
             {
-                marker.fallbackText->setCoord(left + kKoMarkerHeightPx + 1, top, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx);
+                textWidth = 0;
+            }
+            if (textWidth > kKoMarkerWidthPx)
+            {
+                textWidth = kKoMarkerWidthPx;
+            }
+            if (showStateText)
+            {
+                marker.fallbackText->setCoord(layoutLeft, top, textWidth, kKoMarkerHeightPx);
             }
             else
             {
-                marker.fallbackText->setCoord(left, top, kKoMarkerWidthPx, kKoMarkerHeightPx);
+                marker.fallbackText->setCoord(layoutLeft, top, 0, kKoMarkerHeightPx);
             }
         }
         catch (...)
@@ -1841,16 +1876,20 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
     }
 }
 
-void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible, bool showBountyGlow)
+void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible, bool showBountyGlow, bool showStateIcon, bool showStateText, bool showBountySymbol)
 {
-    SetWidgetVisible(marker.beacon, visible && kEnableUiBeaconOverlay);
     SetWidgetVisible(marker.bountyGlow, visible && g_config.showMarkerIcons && showBountyGlow);
-    SetWidgetVisible(marker.icon, visible && g_config.showMarkerIcons);
-    SetWidgetVisible(marker.fallbackText, visible && g_config.showMarkerText);
+    SetWidgetVisible(marker.icon, visible && showStateIcon);
+    SetWidgetVisible(marker.bountySymbol, visible && showBountySymbol);
+    SetWidgetVisible(marker.fallbackText, visible && showStateText);
 }
 
 const char* ResolveMarkerCaption(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_BOUNTY_ONLY)
+    {
+        return "";
+    }
     if (markerState == CachedKoTarget::STATE_DEAD)
     {
         return g_config.deadText.empty() ? "DE" : g_config.deadText.c_str();
@@ -1920,6 +1959,127 @@ MyGUI::Colour ResolveMarkerColour(int markerState, int markerRelation)
     }
 
     return g_config.allyMarkerColour;
+}
+
+bool IsBountyOnlyMarkerState(int markerState)
+{
+    return markerState == CachedKoTarget::STATE_BOUNTY_ONLY;
+}
+
+int ResolveBountyTierIndex(int totalBounty)
+{
+    if (totalBounty <= 0)
+    {
+        return -1;
+    }
+
+    const DWORD bounty = static_cast<DWORD>(totalBounty);
+    if (bounty <= g_config.bountyTierTrivialMax)
+    {
+        return 0;
+    }
+    if (bounty <= g_config.bountyTierLowMax)
+    {
+        return 1;
+    }
+    if (bounty <= g_config.bountyTierModestMax)
+    {
+        return 2;
+    }
+    if (bounty <= g_config.bountyTierNotableMax)
+    {
+        return 3;
+    }
+    if (bounty <= g_config.bountyTierHighValueMax)
+    {
+        return 4;
+    }
+    if (bounty <= g_config.bountyTierEliteMax)
+    {
+        return 5;
+    }
+    return 6;
+}
+
+MyGUI::Colour ResolveBountyTierColour(int totalBounty)
+{
+    const int tier = ResolveBountyTierIndex(totalBounty);
+    if (tier < 0)
+    {
+        return MyGUI::Colour(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    if (tier == 0)
+    {
+        return g_config.bountyTierTrivialColour;
+    }
+    if (tier == 1)
+    {
+        return g_config.bountyTierLowColour;
+    }
+    if (tier == 2)
+    {
+        return g_config.bountyTierModestColour;
+    }
+    if (tier == 3)
+    {
+        return g_config.bountyTierNotableColour;
+    }
+    if (tier == 4)
+    {
+        return g_config.bountyTierHighValueColour;
+    }
+    if (tier == 5)
+    {
+        return g_config.bountyTierEliteColour;
+    }
+    return g_config.bountyTierLegendaryColour;
+}
+
+int ResolveBountySymbolFontHeightPx(int totalBounty)
+{
+    int fontHeight = static_cast<int>(g_config.bountySymbolTextSizePx);
+    if (g_config.bountySymbolText == "$")
+    {
+        // '$' is visually narrow in Kenshi fonts; bump slightly for readability.
+        fontHeight += 4;
+    }
+
+    const int tier = ResolveBountyTierIndex(totalBounty);
+    if (tier >= 0)
+    {
+        // Escalate prominence with bounty value.
+        static const int kTierBonusPx[7] = { 0, 0, 1, 2, 3, 4, 6 };
+        fontHeight += kTierBonusPx[tier];
+    }
+
+    if (fontHeight < 8)
+    {
+        fontHeight = 8;
+    }
+    if (fontHeight > 128)
+    {
+        fontHeight = 128;
+    }
+    return fontHeight;
+}
+
+int ResolveBountySymbolWidthPx(int totalBounty)
+{
+    int width = (ResolveBountySymbolFontHeightPx(totalBounty) * 3) / 4 + 6;
+    if (g_config.bountySymbolText == "$" && width < 20)
+    {
+        width = 20;
+    }
+    if (width < kKoBountySymbolMinWidthPx)
+    {
+        width = kKoBountySymbolMinWidthPx;
+    }
+    if (width > 32)
+    {
+        width = 32;
+    }
+    return width;
 }
 
 MyGUI::IntCoord ResolveCustomIconCoordFromImageSize(MyGUI::ImageBox* marker, int fallbackSize)
@@ -2002,41 +2162,15 @@ bool HasCustomMarkerIcon(int markerState)
     return texture && !texture->empty();
 }
 
-void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation, bool showBountyGlow)
+void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation, int totalBounty, bool showBountyGlow, bool showBountySymbol)
 {
+    const bool isBountyOnlyState = IsBountyOnlyMarkerState(markerState);
     const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
-    const MyGUI::Colour beaconColour(colour.red, colour.green, colour.blue, kKoBeaconAlpha);
-    const bool wantsCustomIcon = HasCustomMarkerIcon(markerState);
+    const bool wantsCustomIcon = !isBountyOnlyState && HasCustomMarkerIcon(markerState);
     const std::string* customTexture = ResolveCustomMarkerIconTexture(markerState);
     const int customIconSize = static_cast<int>(ResolveCustomMarkerIconSizePx(markerState));
 
-    if (marker.beacon && kEnableUiBeaconOverlay)
-    {
-        bool customIconReady = false;
-        if (wantsCustomIcon && customTexture)
-        {
-            customIconReady = SetKoMarkerIconTexture(marker.beacon, customTexture->c_str());
-            if (customIconReady)
-            {
-                SetKoMarkerIconCoord(marker.beacon, ResolveCustomIconCoordFromImageSize(marker.beacon, customIconSize));
-                SetKoMarkerIconColour(marker.beacon, MyGUI::Colour(1.0f, 1.0f, 1.0f, kKoBeaconAlpha));
-            }
-            else
-            {
-                SetKoMarkerIconTexture(marker.beacon, ResolveMarkerIconTexture(markerState, markerRelation));
-                SetKoMarkerIconCoord(marker.beacon, ResolveMarkerIconCoord(markerState, markerRelation));
-                SetKoMarkerIconColour(marker.beacon, beaconColour);
-            }
-        }
-        else
-        {
-            SetKoMarkerIconTexture(marker.beacon, ResolveMarkerIconTexture(markerState, markerRelation));
-            SetKoMarkerIconCoord(marker.beacon, ResolveMarkerIconCoord(markerState, markerRelation));
-            SetKoMarkerIconColour(marker.beacon, beaconColour);
-        }
-    }
-
-    if (marker.icon)
+    if (marker.icon && !isBountyOnlyState)
     {
         if (g_config.showMarkerIcons)
         {
@@ -2084,10 +2218,33 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
 
     if (marker.fallbackText && g_config.showMarkerText)
     {
-        const int fontHeight = static_cast<int>(ResolveMarkerTextSizePx(markerState));
-        SetKoMarkerTextFontHeight(marker.fallbackText, fontHeight);
-        SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(markerState));
-        SetKoMarkerTextColour(marker.fallbackText, colour);
+        if (isBountyOnlyState)
+        {
+            SetKoMarkerCaption(marker.fallbackText, "");
+        }
+        else
+        {
+            const int fontHeight = static_cast<int>(ResolveMarkerTextSizePx(markerState));
+            SetKoMarkerTextFontHeight(marker.fallbackText, fontHeight);
+            SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(markerState));
+            SetKoMarkerTextColour(marker.fallbackText, colour);
+        }
+    }
+
+    if (marker.bountySymbol)
+    {
+        if (showBountySymbol)
+        {
+            const int symbolFontHeight = ResolveBountySymbolFontHeightPx(totalBounty);
+            const MyGUI::Colour bountyColour = ResolveBountyTierColour(totalBounty);
+            SetKoMarkerTextFontHeight(marker.bountySymbol, symbolFontHeight);
+            SetKoMarkerCaption(marker.bountySymbol, g_config.bountySymbolText.c_str());
+            SetKoMarkerTextColour(marker.bountySymbol, bountyColour);
+        }
+        else
+        {
+            SetKoMarkerCaption(marker.bountySymbol, "");
+        }
     }
 }
 
@@ -2095,7 +2252,7 @@ void HideAllKoMarkerWidgets()
 {
     for (size_t i = 0; i < g_koMarkerWidgets.size(); ++i)
     {
-        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false);
+        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false, false, false, false);
     }
 }
 
@@ -2112,13 +2269,6 @@ bool CreateKoMarkerWidgetAt(size_t index)
         std::stringstream name;
         name << "VS_KOMarker_" << index << "_" << g_koMarkerWidgetSerial++;
 
-        MyGUI::ImageBox* beacon = gui->createWidget<MyGUI::ImageBox>(
-            "ImageBox",
-            MyGUI::IntCoord(0, 0, kKoBeaconSizePx, kKoBeaconSizePx),
-            MyGUI::Align::Default,
-            "Top",
-            name.str() + "_beacon");
-
         MyGUI::ImageBox* bountyGlow = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2), kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2)),
@@ -2132,6 +2282,22 @@ bool CreateKoMarkerWidgetAt(size_t index)
             MyGUI::Align::Default,
             "Top",
             name.str() + "_icon");
+
+        MyGUI::TextBox* bountySymbol = gui->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
+            MyGUI::Align::Default,
+            "Top",
+            name.str() + "_bounty_symbol");
+        if (!bountySymbol)
+        {
+            bountySymbol = gui->createWidget<MyGUI::TextBox>(
+                "TextBox",
+                MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
+                MyGUI::Align::Default,
+                "Top",
+                name.str() + "_bounty_symbol_fallback");
+        }
 
         MyGUI::TextBox* fallbackText = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
@@ -2148,20 +2314,13 @@ bool CreateKoMarkerWidgetAt(size_t index)
                 "Top",
                 name.str() + "_fallback");
         }
-        if (!beacon && !bountyGlow && !icon && !fallbackText)
+        if (!bountyGlow && !icon && !bountySymbol && !fallbackText)
         {
             return false;
         }
         if (!icon && fallbackText)
         {
             LogWarn("ImageBox marker unavailable; using text fallback");
-        }
-
-        if (beacon)
-        {
-            beacon->setNeedMouseFocus(false);
-            beacon->setImageTexture("default_icon.png");
-            beacon->setVisible(false);
         }
 
         if (icon)
@@ -2178,6 +2337,16 @@ bool CreateKoMarkerWidgetAt(size_t index)
             bountyGlow->setVisible(false);
         }
 
+        if (bountySymbol)
+        {
+            bountySymbol->setNeedMouseFocus(false);
+            bountySymbol->setCaption(g_config.bountySymbolText.c_str());
+            bountySymbol->setTextAlign(MyGUI::Align::Center);
+            bountySymbol->setTextColour(g_config.bountyTierNotableColour);
+            bountySymbol->setTextShadow(true);
+            bountySymbol->setVisible(false);
+        }
+
         if (fallbackText)
         {
             fallbackText->setNeedMouseFocus(false);
@@ -2188,7 +2357,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
             fallbackText->setVisible(false);
         }
 
-        KoMarkerWidget marker = { beacon, bountyGlow, icon, fallbackText };
+        KoMarkerWidget marker = { bountyGlow, icon, bountySymbol, fallbackText };
 
         if (index >= g_koMarkerWidgets.size())
         {
@@ -2223,7 +2392,11 @@ bool EnsureKoMarkerPool(size_t requiredCount)
 
     for (size_t i = 0; i < requiredCount; ++i)
     {
-        if (!g_koMarkerWidgets[i].beacon && !g_koMarkerWidgets[i].bountyGlow && !g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
+        if (!g_koMarkerWidgets[i].bountyGlow &&
+            !g_koMarkerWidgets[i].icon &&
+            !g_koMarkerWidgets[i].bountySymbol &&
+            !g_koMarkerWidgets[i].fallbackText &&
+            !CreateKoMarkerWidgetAt(i))
         {
             return false;
         }
@@ -2407,7 +2580,7 @@ void TickKoMarkerRender()
         return;
     }
 
-    if (!g_config.showMarkerIcons && !g_config.showMarkerText)
+    if (!g_config.showMarkerIcons && !g_config.showMarkerText && !g_config.showBountySymbol)
     {
         HideAllKoMarkerWidgets();
         return;
@@ -2439,6 +2612,7 @@ void TickKoMarkerRender()
     for (size_t i = 0; i < renderableTargetCount; ++i)
     {
         const CachedKoTarget& cached = g_koTargetCache[i];
+        const bool isBountyOnlyState = IsBountyOnlyMarkerState(cached.markerState);
 
         Ogre::Vector3 characterWorldPos = cached.worldPos;
         Character* targetCharacter = cached.targetHandle.getCharacter();
@@ -2448,7 +2622,11 @@ void TickKoMarkerRender()
         }
 
         Ogre::Vector3 markerAnchor = characterWorldPos;
-        markerAnchor.y += kKoMarkerHeadAnchorYOffset;
+        const float liveAnchorYOffsetWorld = isBountyOnlyState
+            ? (static_cast<float>(g_config.bountySymbolLiveAnchorYOffsetCm) * kKoCentimetersToWorldUnits)
+            : 0.0f;
+        const float markerAnchorYOffsetWorld = kKoMarkerHeadAnchorYOffset + liveAnchorYOffsetWorld;
+        markerAnchor.y += markerAnchorYOffsetWorld;
 
         float screenX = 0.0f;
         float screenY = 0.0f;
@@ -2472,8 +2650,11 @@ void TickKoMarkerRender()
             break;
         }
 
+        const int markerYOffsetPx = kKoMarkerYOffsetPx;
         int markerLeft = static_cast<int>(pixelX) - (kKoMarkerWidthPx / 2);
-        int markerTop = static_cast<int>(pixelY) - kKoMarkerYOffsetPx;
+        int markerTop = static_cast<int>(pixelY) - markerYOffsetPx;
+        const int markerLeftPreClamp = markerLeft;
+        const int markerTopPreClamp = markerTop;
         if (hasViewSize)
         {
             const int maxLeft = (viewWidth > kKoMarkerWidthPx) ? (viewWidth - kKoMarkerWidthPx) : 0;
@@ -2485,23 +2666,27 @@ void TickKoMarkerRender()
         }
 
         KoMarkerWidget& marker = g_koMarkerWidgets[visibleMarkerCount];
+        const bool showStateIcon = g_config.showMarkerIcons && !isBountyOnlyState;
+        const bool showStateText = g_config.showMarkerText && !isBountyOnlyState;
+        const bool showBountySymbol = g_config.showBountySymbol && cached.totalBounty > 0;
         const bool showBountyGlow = g_config.showBountyGlow
             && cached.totalBounty > 0
+            && !isBountyOnlyState
             && cached.markerRelation != CachedKoTarget::RELATION_SQUAD;
-        ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation, showBountyGlow);
-        SetKoMarkerPosition(marker, markerLeft, markerTop);
-        SetKoMarkerVisible(marker, true, showBountyGlow);
+        ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation, cached.totalBounty, showBountyGlow, showBountySymbol);
+        SetKoMarkerPosition(marker, markerLeft, markerTop, cached.totalBounty, showStateIcon, showStateText, showBountySymbol, isBountyOnlyState);
+        SetKoMarkerVisible(marker, true, showBountyGlow, showStateIcon, showStateText, showBountySymbol);
 
         ++visibleMarkerCount;
     }
 
     for (size_t i = visibleMarkerCount; i < g_koMarkerWidgets.size(); ++i)
     {
-        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false);
+        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false, false, false, false);
     }
 }
 
-bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStateDebugInfo* debugInfoOut)
+bool TryResolveMarkerState(Character* candidate, int* markerStateOut)
 {
     if (!candidate || !markerStateOut)
     {
@@ -2513,55 +2698,17 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     bool isRecoveryComa = false;
     bool isDying = false;
     bool isPlayingDead = false;
-    bool isLiteral = false;
     bool isProbablyDying = false;
-    bool dyingByProbablyLiteral = false;
     bool dyingByProbablyLowBlood = false;
     bool dyingByProbablySub50Ko = false;
     bool dyingByActiveBleed = false;
     bool dyingByTrauma = false;
     bool dyingByBloodThreshold = false;
-    bool recoveryComaBySub50Ko = false;
     bool recoveryComaByCannotWake = false;
-    bool medicalUnconsciousFlag = false;
     bool medicalSub50KoFlag = false;
-    bool medicalBloodlossTraumaFlag = false;
     float currentBleedRate = 0.0f;
-    int proneState = -1;
-    bool hasSleepState = false;
-    int sleepState = -1;
-    bool hasSlaveState = false;
-    int slaveState = -1;
     float bloodLevel = 0.0f;
     float pointOfNoReturn = 0.0f;
-
-    if (debugInfoOut)
-    {
-        debugInfoOut->isUnconscious = false;
-        debugInfoOut->isRecoveryComa = false;
-        debugInfoOut->isPlayingDead = false;
-        debugInfoOut->isLiteral = false;
-        debugInfoOut->isProbablyDying = false;
-        debugInfoOut->dyingByProbablyLiteral = false;
-        debugInfoOut->dyingByProbablyLowBlood = false;
-        debugInfoOut->dyingByProbablySub50Ko = false;
-        debugInfoOut->dyingByActiveBleed = false;
-        debugInfoOut->dyingByTrauma = false;
-        debugInfoOut->dyingByBloodThreshold = false;
-        debugInfoOut->recoveryComaBySub50Ko = false;
-        debugInfoOut->recoveryComaByCannotWake = false;
-        debugInfoOut->medicalUnconsciousFlag = false;
-        debugInfoOut->medicalSub50KoFlag = false;
-        debugInfoOut->medicalBloodlossTraumaFlag = false;
-        debugInfoOut->currentBleedRate = 0.0f;
-        debugInfoOut->proneState = -1;
-        debugInfoOut->hasSleepState = false;
-        debugInfoOut->sleepState = -1;
-        debugInfoOut->hasSlaveState = false;
-        debugInfoOut->slaveState = -1;
-        debugInfoOut->bloodLevel = 0.0f;
-        debugInfoOut->pointOfNoReturn = 0.0f;
-    }
 
     __try
     {
@@ -2572,33 +2719,18 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
         isUnconscious = candidate->isUnconcious();
         if (isUnconscious)
         {
-            proneState = static_cast<int>(candidate->_currentProneState);
             isPlayingDead = (candidate->_currentProneState == PS_PLAYING_DEAD);
-            isLiteral = candidate->isLiterallyUnconciousNotPretending();
             isProbablyDying = candidate->medical.isProbablyDying();
             dyingByTrauma = candidate->medical.isInBloodlossTrauma();
-            medicalUnconsciousFlag = candidate->medical.unconcious;
             medicalSub50KoFlag = candidate->medical.sub50KO;
-            medicalBloodlossTraumaFlag = candidate->medical.bloodlossTrauma;
             currentBleedRate = candidate->medical.currentBleedRate;
             bloodLevel = candidate->medical.blood;
             pointOfNoReturn = candidate->medical.pointOfNoReturn();
             dyingByBloodThreshold = (bloodLevel <= pointOfNoReturn);
-            dyingByProbablyLiteral = (isProbablyDying && isLiteral);
             dyingByProbablyLowBlood = (isProbablyDying && bloodLevel <= kProbablyDyingBloodMax);
             dyingByProbablySub50Ko = medicalSub50KoFlag;
             dyingByActiveBleed = (isProbablyDying && (currentBleedRate > 0.0f || candidate->medical.extraBloodLossFromBodyparts > 0.0f));
-            recoveryComaBySub50Ko = medicalSub50KoFlag;
             recoveryComaByCannotWake = (!candidate->medical.canGetUpWakeUp() && medicalSub50KoFlag);
-
-            StateBroadcastData* stateBroadcast = candidate->getStateBroadcast();
-            if (stateBroadcast)
-            {
-                sleepState = stateBroadcast->sleepState;
-                hasSleepState = true;
-                slaveState = static_cast<int>(stateBroadcast->slaveState);
-                hasSlaveState = true;
-            }
 
             // Preserve prior stable DY behavior (sub50 KO + no-return blood), then carve out RC
             // only for stable, non-dying coma cases.
@@ -2626,68 +2758,6 @@ bool TryResolveMarkerState(Character* candidate, int* markerStateOut, MarkerStat
     {
         *markerStateOut = CachedKoTarget::STATE_DEAD;
         return IsMarkerStateEnabled(CachedKoTarget::STATE_DEAD);
-    }
-
-    if (debugInfoOut)
-    {
-        debugInfoOut->isUnconscious = isUnconscious;
-        debugInfoOut->isRecoveryComa = isRecoveryComa;
-        debugInfoOut->isPlayingDead = isPlayingDead;
-        debugInfoOut->isLiteral = isLiteral;
-        debugInfoOut->isProbablyDying = isProbablyDying;
-        debugInfoOut->dyingByProbablyLiteral = dyingByProbablyLiteral;
-        debugInfoOut->dyingByProbablyLowBlood = dyingByProbablyLowBlood;
-        debugInfoOut->dyingByProbablySub50Ko = dyingByProbablySub50Ko;
-        debugInfoOut->dyingByActiveBleed = dyingByActiveBleed;
-        debugInfoOut->dyingByTrauma = dyingByTrauma;
-        debugInfoOut->dyingByBloodThreshold = dyingByBloodThreshold;
-        debugInfoOut->recoveryComaBySub50Ko = recoveryComaBySub50Ko;
-        debugInfoOut->recoveryComaByCannotWake = recoveryComaByCannotWake;
-        debugInfoOut->medicalUnconsciousFlag = medicalUnconsciousFlag;
-        debugInfoOut->medicalSub50KoFlag = medicalSub50KoFlag;
-        debugInfoOut->medicalBloodlossTraumaFlag = medicalBloodlossTraumaFlag;
-        debugInfoOut->currentBleedRate = currentBleedRate;
-        debugInfoOut->proneState = proneState;
-        debugInfoOut->hasSleepState = hasSleepState;
-        debugInfoOut->sleepState = sleepState;
-        debugInfoOut->hasSlaveState = hasSlaveState;
-        debugInfoOut->slaveState = slaveState;
-        debugInfoOut->bloodLevel = bloodLevel;
-        debugInfoOut->pointOfNoReturn = pointOfNoReturn;
-    }
-
-    if (isUnconscious && isDying)
-    {
-        if (isProbablyDying && !g_loggedDyingByProbably)
-        {
-            LogDyingDetection("isProbablyDying", bloodLevel, pointOfNoReturn);
-            g_loggedDyingByProbably = true;
-        }
-        if (dyingByProbablyLiteral && !g_loggedDyingByProbablyLiteral)
-        {
-            LogDyingDetection("isProbablyDying+literal", bloodLevel, pointOfNoReturn);
-            g_loggedDyingByProbablyLiteral = true;
-        }
-        if (dyingByProbablyLowBlood && !g_loggedDyingByProbablyLowBlood)
-        {
-            LogDyingDetection("isProbablyDying+low_blood", bloodLevel, pointOfNoReturn);
-            g_loggedDyingByProbablyLowBlood = true;
-        }
-        if (dyingByProbablySub50Ko && !g_loggedDyingBySub50Ko)
-        {
-            LogDyingDetection("sub50KO", bloodLevel, pointOfNoReturn);
-            g_loggedDyingBySub50Ko = true;
-        }
-        if (dyingByTrauma && !g_loggedDyingByTrauma)
-        {
-            LogDyingDetection("bloodloss trauma", bloodLevel, pointOfNoReturn);
-            g_loggedDyingByTrauma = true;
-        }
-        if (dyingByBloodThreshold && !g_loggedDyingByBloodThreshold)
-        {
-            LogDyingDetection("blood threshold", bloodLevel, pointOfNoReturn);
-            g_loggedDyingByBloodThreshold = true;
-        }
     }
 
     if (isUnconscious)
@@ -2768,484 +2838,6 @@ bool IsPlayerSquadMember(Character* candidate)
     return false;
 }
 
-bool IsTargetSelected(const hand& targetHandle)
-{
-    if (targetHandle.isNull() || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    const hand selectedCharacter = ou->player->selectedCharacter;
-    if (HandsEqualExact(selectedCharacter, targetHandle))
-    {
-        return true;
-    }
-    if (!selectedCharacter.isNull() && selectedCharacter.toString() == targetHandle.toString())
-    {
-        return true;
-    }
-
-    const hand selectedObject = ou->player->selectedObject;
-    if (HandsEqualExact(selectedObject, targetHandle))
-    {
-        return true;
-    }
-    if (!selectedObject.isNull() && selectedObject.toString() == targetHandle.toString())
-    {
-        return true;
-    }
-
-    const ogre_unordered_set<hand>::type& selectedCharacters = ou->player->selectedCharacters;
-    const std::string targetText = targetHandle.toString();
-    for (ogre_unordered_set<hand>::type::const_iterator it = selectedCharacters.begin(); it != selectedCharacters.end(); ++it)
-    {
-        if (HandsEqualExact(*it, targetHandle))
-        {
-            return true;
-        }
-        if (!it->isNull() && it->toString() == targetText)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool HasAnySelection()
-{
-    if (!ou || !ou->player)
-    {
-        return false;
-    }
-
-    if (!ou->player->selectedCharacter.isNull())
-    {
-        return true;
-    }
-
-    if (!ou->player->selectedObject.isNull())
-    {
-        return true;
-    }
-
-    return !ou->player->selectedCharacters.empty();
-}
-
-void LogSelectionSnapshot(DWORD nowMs)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!ou || !ou->player)
-    {
-        return;
-    }
-
-    const hand selectedCharacter = ou->player->selectedCharacter;
-    const hand selectedObject = ou->player->selectedObject;
-    const ogre_unordered_set<hand>::type& selectedCharacters = ou->player->selectedCharacters;
-    const size_t selectedCount = selectedCharacters.size();
-
-    const bool selectionChanged = (selectedCharacter != g_lastSelectionSnapshotCharacter) ||
-        (selectedObject != g_lastSelectionSnapshotObject) ||
-        (selectedCount != g_lastSelectionSnapshotCount);
-    if (!selectionChanged && g_lastSelectionSnapshotTickMs != 0 && (nowMs - g_lastSelectionSnapshotTickMs) < 1500)
-    {
-        return;
-    }
-
-    g_lastSelectionSnapshotCharacter = selectedCharacter;
-    g_lastSelectionSnapshotObject = selectedObject;
-    g_lastSelectionSnapshotCount = selectedCount;
-    g_lastSelectionSnapshotTickMs = nowMs;
-
-    std::stringstream info;
-    info << "selection_snapshot selected_character="
-         << (selectedCharacter.isNull() ? "null" : selectedCharacter.toString())
-         << " selected_object="
-         << (selectedObject.isNull() ? "null" : selectedObject.toString())
-         << " selected_set_count=" << selectedCount;
-    if (selectedCount > 0)
-    {
-        info << " selected_set=";
-        size_t emitted = 0;
-        for (ogre_unordered_set<hand>::type::const_iterator it = selectedCharacters.begin(); it != selectedCharacters.end() && emitted < 4; ++it)
-        {
-            if (emitted > 0)
-            {
-                info << ",";
-            }
-            info << it->toString();
-            ++emitted;
-        }
-        if (selectedCount > 4)
-        {
-            info << ",...";
-        }
-    }
-    LogInfo(info.str());
-}
-
-void MaybeLogSelectionNoMatch(DWORD nowMs)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!HasAnySelection())
-    {
-        return;
-    }
-
-    if (g_lastSelectionNoMatchTickMs != 0 && (nowMs - g_lastSelectionNoMatchTickMs) < 1500)
-    {
-        return;
-    }
-    g_lastSelectionNoMatchTickMs = nowMs;
-    LogInfo("selection_probe no selected handles matched visible KO marker targets");
-}
-
-void LogSelectedDeepDebug(Character* candidate, const hand& targetHandle, int markerState, DWORD nowMs)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!candidate || !candidate->isValid())
-    {
-        return;
-    }
-
-    bool sameHandle = HandsEqualExact(g_lastSelectedDeepDumpHandle, targetHandle);
-    if (!sameHandle && !g_lastSelectedDeepDumpHandle.isNull())
-    {
-        sameHandle = (g_lastSelectedDeepDumpHandle.toString() == targetHandle.toString());
-    }
-    if (sameHandle && g_lastSelectedDeepDumpTickMs != 0 && (nowMs - g_lastSelectedDeepDumpTickMs) < 1200)
-    {
-        return;
-    }
-
-    g_lastSelectedDeepDumpHandle = targetHandle;
-    g_lastSelectedDeepDumpTickMs = nowMs;
-
-    bool charIsUnconscious = false;
-    bool charIsDead = false;
-    bool charLiteralKo = false;
-    int charProneState = -1;
-    bool charOnScreen = false;
-    bool charVisibleNear = false;
-    int charInSomething = -1;
-    std::string charInWhat = "null";
-    bool charBeingCarried = false;
-    std::string charCarryingObject = "null";
-
-    bool medMethodUnconscious = false;
-    bool medMethodDead = false;
-    bool medCanGetUp = false;
-    bool medHungerKo = false;
-    bool medProbablyDying = false;
-    bool medMethodTrauma = false;
-    bool medFlagUnconscious = false;
-    bool medFlagSub50Ko = false;
-    bool medFlagTrauma = false;
-    bool medFlagDead = false;
-    bool medFlagCrippled = false;
-    float medHunger = 0.0f;
-    float medFed = 0.0f;
-    float medBlood = 0.0f;
-    float medMaxBlood = 0.0f;
-    float medBleedRate = 0.0f;
-    float medExtraBloodLoss = 0.0f;
-    float medKnockoutTimer = 0.0f;
-    float medNextKoTime = 0.0f;
-    float medPointCollapse = 0.0f;
-    float medPointNoReturn = 0.0f;
-    float medRestedState = 0.0f;
-    float medWorstDamage = 0.0f;
-    float medDazedOrAlert = 0.0f;
-
-    bool sbPresent = false;
-    int sbSleepState = -1;
-    int sbSlaveState = -1;
-    bool sbUnavailable = false;
-    double sbSsct = 0.0;
-    float sbStrong = 0.0f;
-    float sbMoveSpeed = 0.0f;
-    int sbPersonality = -1;
-    int sbNpcClass = -1;
-    bool sbEscap = false;
-    bool sbKidn = false;
-    bool sbTn = false;
-    float sbSlaveness = 0.0f;
-    float sbDisguise = 0.0f;
-    float sbDisguiseBlown = 0.0f;
-    bool sbUnprovoked = false;
-
-    charIsUnconscious = candidate->isUnconcious();
-    charIsDead = candidate->isDead();
-    charLiteralKo = candidate->isLiterallyUnconciousNotPretending();
-    charProneState = static_cast<int>(candidate->_currentProneState);
-    charOnScreen = candidate->isOnScreen;
-    charVisibleNear = candidate->isVisibleAndNear;
-    charInSomething = static_cast<int>(candidate->inSomething);
-    if (!candidate->inWhat.isNull())
-    {
-        charInWhat = candidate->inWhat.toString();
-    }
-    charBeingCarried = candidate->isBeingCarried();
-    const hand carryingObject = candidate->getCarryingObject();
-    if (!carryingObject.isNull())
-    {
-        charCarryingObject = carryingObject.toString();
-    }
-
-    medMethodUnconscious = candidate->medical.isUnconcious();
-    medMethodDead = candidate->medical.isDead();
-    medCanGetUp = candidate->medical.canGetUpWakeUp();
-    medHungerKo = candidate->medical.isHungerKO();
-    medProbablyDying = candidate->medical.isProbablyDying();
-    medMethodTrauma = candidate->medical.isInBloodlossTrauma();
-    medFlagUnconscious = candidate->medical.unconcious;
-    medFlagSub50Ko = candidate->medical.sub50KO;
-    medFlagTrauma = candidate->medical.bloodlossTrauma;
-    medFlagDead = candidate->medical.dead;
-    medFlagCrippled = candidate->medical.crippled;
-    medHunger = candidate->medical.hunger;
-    medFed = candidate->medical.fed;
-    medBlood = candidate->medical.blood;
-    medMaxBlood = candidate->medical.getMaxBlood();
-    medBleedRate = candidate->medical.currentBleedRate;
-    medExtraBloodLoss = candidate->medical.extraBloodLossFromBodyparts;
-    medKnockoutTimer = candidate->medical.knockoutTimer;
-    medNextKoTime = candidate->medical.nextKOTime;
-    medPointCollapse = candidate->medical.pointOfCollapseBloodloss();
-    medPointNoReturn = candidate->medical.pointOfNoReturn();
-    medRestedState = candidate->medical.restedState;
-    medWorstDamage = candidate->medical.worstDamage;
-    medDazedOrAlert = candidate->medical.dazedOrAlert;
-
-    StateBroadcastData* stateBroadcast = candidate->getStateBroadcast();
-    if (stateBroadcast)
-    {
-        sbPresent = true;
-        sbSleepState = stateBroadcast->sleepState;
-        sbSlaveState = static_cast<int>(stateBroadcast->slaveState);
-        sbUnavailable = stateBroadcast->unavailble;
-        sbSsct = stateBroadcast->ssct;
-        sbStrong = stateBroadcast->strong;
-        sbMoveSpeed = stateBroadcast->moveSpeed;
-        sbPersonality = static_cast<int>(stateBroadcast->personality);
-        sbNpcClass = static_cast<int>(stateBroadcast->npcClass);
-        sbEscap = stateBroadcast->escap;
-        sbKidn = stateBroadcast->kidn;
-        sbTn = stateBroadcast->tn;
-        sbSlaveness = stateBroadcast->slaveness;
-        sbDisguise = stateBroadcast->disguise;
-        sbDisguiseBlown = stateBroadcast->disguiseblown;
-        sbUnprovoked = stateBroadcast->unprovoked;
-    }
-
-    std::stringstream info;
-    info << "selected_deep_dump handle=" << targetHandle.toString()
-         << " marker_state=" << MarkerStateName(markerState)
-         << " char_unconcious=" << (charIsUnconscious ? "true" : "false")
-         << " char_dead=" << (charIsDead ? "true" : "false")
-         << " char_literal_ko=" << (charLiteralKo ? "true" : "false")
-         << " char_prone_state=" << charProneState
-         << " char_on_screen=" << (charOnScreen ? "true" : "false")
-         << " char_visible_near=" << (charVisibleNear ? "true" : "false")
-         << " char_in_something=" << charInSomething
-         << " char_in_what=" << charInWhat
-         << " char_being_carried=" << (charBeingCarried ? "true" : "false")
-         << " char_carrying_object=" << charCarryingObject
-         << " med_unconcious_method=" << (medMethodUnconscious ? "true" : "false")
-         << " med_dead_method=" << (medMethodDead ? "true" : "false")
-         << " med_can_get_up=" << (medCanGetUp ? "true" : "false")
-         << " med_hunger_ko=" << (medHungerKo ? "true" : "false")
-         << " med_probably_dying=" << (medProbablyDying ? "true" : "false")
-         << " med_trauma_method=" << (medMethodTrauma ? "true" : "false")
-         << " med_unconcious_flag=" << (medFlagUnconscious ? "true" : "false")
-         << " med_sub50_ko_flag=" << (medFlagSub50Ko ? "true" : "false")
-         << " med_trauma_flag=" << (medFlagTrauma ? "true" : "false")
-         << " med_dead_flag=" << (medFlagDead ? "true" : "false")
-         << " med_crippled_flag=" << (medFlagCrippled ? "true" : "false")
-         << " med_hunger=" << medHunger
-         << " med_fed=" << medFed
-         << " med_blood=" << medBlood
-         << " med_max_blood=" << medMaxBlood
-         << " med_bleed_rate=" << medBleedRate
-         << " med_extra_blood_loss=" << medExtraBloodLoss
-         << " med_knockout_timer=" << medKnockoutTimer
-         << " med_next_ko_time=" << medNextKoTime
-         << " med_point_of_collapse=" << medPointCollapse
-         << " med_point_of_no_return=" << medPointNoReturn
-         << " med_rested_state=" << medRestedState
-         << " med_worst_damage=" << medWorstDamage
-         << " med_dazed_or_alert=" << medDazedOrAlert
-         << " sb_present=" << (sbPresent ? "true" : "false")
-         << " sb_sleep_state=" << sbSleepState
-         << " sb_slave_state=" << sbSlaveState
-         << " sb_unavailable=" << (sbUnavailable ? "true" : "false")
-         << " sb_ssct=" << sbSsct
-         << " sb_strong=" << sbStrong
-         << " sb_move_speed=" << sbMoveSpeed
-         << " sb_personality=" << sbPersonality
-         << " sb_npc_class=" << sbNpcClass
-         << " sb_escap=" << (sbEscap ? "true" : "false")
-         << " sb_kidn=" << (sbKidn ? "true" : "false")
-         << " sb_tn=" << (sbTn ? "true" : "false")
-         << " sb_slaveness=" << sbSlaveness
-         << " sb_disguise=" << sbDisguise
-         << " sb_disguise_blown=" << sbDisguiseBlown
-         << " sb_unprovoked=" << (sbUnprovoked ? "true" : "false");
-    LogInfo(info.str());
-}
-
-void MaybeLogSelectedPanelStatus(const hand& targetHandle, DWORD nowMs)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!kEnableUnsafePanelProbe)
-    {
-        return;
-    }
-
-    const hand primarySelection = GetPrimarySelectionHandle();
-    if (primarySelection.isNull() || !HandsEqualWithFallback(primarySelection, targetHandle))
-    {
-        return;
-    }
-
-    const bool sameHandle = HandsEqualWithFallback(g_lastSelectedPanelDumpHandle, targetHandle);
-    if (sameHandle && g_lastSelectedPanelDumpTickMs != 0 && (nowMs - g_lastSelectedPanelDumpTickMs) < 1200)
-    {
-        return;
-    }
-
-    g_lastSelectedPanelDumpHandle = targetHandle;
-    g_lastSelectedPanelDumpTickMs = nowMs;
-
-    ForgottenGUI* gui = ResolveKenshiGui();
-    if (!gui)
-    {
-        LogWarn("selected_panel_probe gui_unavailable=true");
-        return;
-    }
-
-    DatapanelGUI* panel = gui->_0x18;
-    if (!panel)
-    {
-        LogWarn("selected_panel_probe panel_unavailable=true");
-        return;
-    }
-
-    std::stringstream header;
-    header << "selected_panel_probe handle=" << targetHandle.toString()
-           << " gui_display_handle=" << (ou && !ou->guiDisplayObject.isNull() ? ou->guiDisplayObject.toString() : "null")
-           << " category_count=" << panel->_0x60.size()
-           << " flat_line_count=" << panel->_0x88.size();
-    LogInfo(header.str());
-
-    size_t statusLineCount = 0;
-    size_t previewCount = 0;
-    std::vector<std::string> previewLines;
-    previewLines.reserve(12);
-
-    for (Ogre::map<int, Ogre::map<std::string, DataPanelLine*>::type>::type::const_iterator catIt = panel->_0x60.begin(); catIt != panel->_0x60.end(); ++catIt)
-    {
-        const int categoryId = catIt->first;
-        const Ogre::map<std::string, DataPanelLine*>::type& lineMap = catIt->second;
-        for (Ogre::map<std::string, DataPanelLine*>::type::const_iterator lineIt = lineMap.begin(); lineIt != lineMap.end(); ++lineIt)
-        {
-            DataPanelLine* line = lineIt->second;
-            if (!line)
-            {
-                continue;
-            }
-
-            const std::string keyText = ClipForLog(lineIt->first, 48);
-            const std::string s1 = ClipForLog(line->_0x28, 64);
-            const std::string s2 = ClipForLog(line->_0x50, 64);
-            const std::string s3 = ClipForLog(line->_0x78, 64);
-            const std::string s4 = ClipForLog(line->_0xa8, 64);
-            const std::string s5 = ClipForLog(line->_0xd0, 64);
-
-            std::stringstream lineInfo;
-            lineInfo << "selected_panel_line cat=" << categoryId
-                     << " key=" << keyText
-                     << " id=" << line->id
-                     << " type=" << line->type
-                     << " s1=" << s1
-                     << " s2=" << s2
-                     << " s3=" << s3
-                     << " s4=" << s4
-                     << " s5=" << s5;
-
-            if (previewCount < 12)
-            {
-                previewLines.push_back(lineInfo.str());
-                ++previewCount;
-            }
-
-            const std::string joined = ToLowerAsciiCopy(keyText + " " + s1 + " " + s2 + " " + s3 + " " + s4 + " " + s5);
-            if (ContainsStatusToken(joined))
-            {
-                ++statusLineCount;
-                LogInfo(lineInfo.str());
-            }
-        }
-    }
-
-    if (statusLineCount == 0)
-    {
-        LogInfo("selected_panel_probe status_line_count=0 preview=true");
-        for (size_t i = 0; i < previewLines.size(); ++i)
-        {
-            LogInfo(previewLines[i]);
-        }
-    }
-}
-
-void MaybeLogSelectedMarkerState(Character* candidate, const hand& targetHandle, int markerState, int markerRelation, const MarkerStateDebugInfo& debugInfo, DWORD nowMs)
-{
-    if (!kEnableVerboseRuntimeLogs)
-    {
-        return;
-    }
-
-    if (!IsTargetSelected(targetHandle))
-    {
-        return;
-    }
-
-    bool sameHandle = HandsEqualExact(g_lastSelectedDebugHandle, targetHandle);
-    if (!sameHandle && !g_lastSelectedDebugHandle.isNull())
-    {
-        sameHandle = (g_lastSelectedDebugHandle.toString() == targetHandle.toString());
-    }
-    const bool sameState = (g_lastSelectedDebugState == markerState && g_lastSelectedDebugRelation == markerRelation);
-    if (sameHandle && sameState && g_lastSelectedDebugTickMs != 0 && (nowMs - g_lastSelectedDebugTickMs) < 1500)
-    {
-        return;
-    }
-
-    g_lastSelectedDebugHandle = targetHandle;
-    g_lastSelectedDebugState = markerState;
-    g_lastSelectedDebugRelation = markerRelation;
-    g_lastSelectedDebugTickMs = nowMs;
-    LogMarkerStateDecision("selected_probe", targetHandle, markerState, markerRelation, debugInfo, true);
-    LogSelectedDeepDebug(candidate, targetHandle, markerState, nowMs);
-}
-
 bool IsSameFactionAsPlayer(Character* candidate)
 {
     if (!candidate || !ou || !ou->player)
@@ -3304,6 +2896,10 @@ int ResolveTotalBounty(Character* candidate)
 
 bool IsMarkerStateEnabled(int markerState)
 {
+    if (markerState == CachedKoTarget::STATE_BOUNTY_ONLY)
+    {
+        return g_config.showBountySymbolOnAllCharacters;
+    }
     if (markerState == CachedKoTarget::STATE_DEAD)
     {
         return g_config.enableDeadState;
@@ -3339,7 +2935,7 @@ bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3&
 
 void TickKoProbe()
 {
-    const bool anyMarkerVisualEnabled = (g_config.showMarkerIcons || g_config.showMarkerText);
+    const bool anyMarkerVisualEnabled = (g_config.showMarkerIcons || g_config.showMarkerText || g_config.showBountySymbol);
     const bool canRun = g_config.enabled && anyMarkerVisualEnabled && IsHighlightGateOpen() && ou;
     if (!canRun)
     {
@@ -3354,7 +2950,6 @@ void TickKoProbe()
     g_highlightRuntimeActive = true;
 
     const DWORD nowMs = GetTickCount();
-    LogSelectionSnapshot(nowMs);
 
     if (g_lastProbeTickMs != 0 && (nowMs - g_lastProbeTickMs) < g_config.updateIntervalMs)
     {
@@ -3368,7 +2963,6 @@ void TickKoProbe()
     const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
     const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
     g_visibleKoHandlesScratch.clear();
-    bool anySelectedMarkerMatched = false;
 
     const auto processMarkerCandidate = [&](Character* candidate)
     {
@@ -3391,11 +2985,16 @@ void TickKoProbe()
             return;
         }
 
+        const int totalBounty = ResolveTotalBounty(candidate);
         int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
-        MarkerStateDebugInfo markerDebugInfo = {};
-        if (!TryResolveMarkerState(candidate, &markerState, &markerDebugInfo))
+        const bool isDownedState = TryResolveMarkerState(candidate, &markerState);
+        if (!isDownedState)
         {
-            return;
+            if (!g_config.showBountySymbol || !g_config.showBountySymbolOnAllCharacters || totalBounty <= 0)
+            {
+                return;
+            }
+            markerState = CachedKoTarget::STATE_BOUNTY_ONLY;
         }
 
         bool isOnScreen = false;
@@ -3425,7 +3024,7 @@ void TickKoProbe()
 
         if (isDeadState && !isOnScreen)
         {
-            if (!g_projectionUtility)
+            if (!EnsureProjectionUtility())
             {
                 return;
             }
@@ -3453,14 +3052,6 @@ void TickKoProbe()
         {
             markerRelation = CachedKoTarget::RELATION_ENEMY;
         }
-        const int totalBounty = ResolveTotalBounty(candidate);
-
-        const bool isSelected = IsTargetSelected(targetHandle);
-        if (isSelected)
-        {
-            anySelectedMarkerMatched = true;
-        }
-        MaybeLogSelectedMarkerState(candidate, targetHandle, markerState, markerRelation, markerDebugInfo, nowMs);
 
         if (!VisibleHandleListContains(targetHandle))
         {
@@ -3471,10 +3062,6 @@ void TickKoProbe()
         if (existingIndex >= 0)
         {
             CachedKoTarget& existing = g_koTargetCache[existingIndex];
-            if (existing.markerState != markerState || existing.markerRelation != markerRelation)
-            {
-                LogMarkerStateDecision("state_changed", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
-            }
             existing.worldPos = candidatePos;
             existing.lastSeenMs = nowMs;
             existing.markerState = markerState;
@@ -3492,10 +3079,6 @@ void TickKoProbe()
                 totalBounty
             };
             g_koTargetCache.push_back(created);
-            if (isSelected || markerState == CachedKoTarget::STATE_UNCONSCIOUS)
-            {
-                LogMarkerStateDecision("first_seen", targetHandle, markerState, markerRelation, markerDebugInfo, isSelected);
-            }
         }
     };
 
@@ -3520,11 +3103,6 @@ void TickKoProbe()
             deathParadeCandidate = 0;
         }
         processMarkerCandidate(deathParadeCandidate);
-    }
-
-    if (!anySelectedMarkerMatched)
-    {
-        MaybeLogSelectionNoMatch(nowMs);
     }
 
     for (int i = static_cast<int>(g_koTargetCache.size()) - 1; i >= 0; --i)
@@ -3572,6 +3150,12 @@ __declspec(dllexport) void startPlugin()
          << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
          << ", show_bounty_glow=" << (g_config.showBountyGlow ? "true" : "false")
+         << ", show_bounty_symbol=" << (g_config.showBountySymbol ? "true" : "false")
+         << ", show_bounty_symbol_on_all_characters=" << (g_config.showBountySymbolOnAllCharacters ? "true" : "false")
+         << ", bounty_symbol=" << g_config.bountySymbolText
+         << ", bounty_symbol_size_px=" << g_config.bountySymbolTextSizePx
+         << ", bounty_symbol_position=" << (g_config.placeBountySymbolBeforeStateIcon ? "before_state_icon" : "before_state_text")
+         << ", bounty_symbol_live_anchor_y_offset_cm=" << g_config.bountySymbolLiveAnchorYOffsetCm
          << ", unconscious_text=" << g_config.unconsciousText
          << ", recovery_coma_text=" << g_config.recoveryComaText
          << ", dying_text=" << g_config.dyingText
@@ -3585,6 +3169,19 @@ __declspec(dllexport) void startPlugin()
          << ", enemy_color_hex=" << ColourToHexRgb(g_config.enemyMarkerColour)
          << ", ally_color_hex=" << ColourToHexRgb(g_config.allyMarkerColour)
          << ", squad_color_hex=" << ColourToHexRgb(g_config.squadMarkerColour)
+         << ", bounty_tier_trivial_max=" << g_config.bountyTierTrivialMax
+         << ", bounty_tier_low_max=" << g_config.bountyTierLowMax
+         << ", bounty_tier_modest_max=" << g_config.bountyTierModestMax
+         << ", bounty_tier_notable_max=" << g_config.bountyTierNotableMax
+         << ", bounty_tier_high_value_max=" << g_config.bountyTierHighValueMax
+         << ", bounty_tier_elite_max=" << g_config.bountyTierEliteMax
+         << ", bounty_color_trivial_hex=" << ColourToHexRgb(g_config.bountyTierTrivialColour)
+         << ", bounty_color_low_hex=" << ColourToHexRgb(g_config.bountyTierLowColour)
+         << ", bounty_color_modest_hex=" << ColourToHexRgb(g_config.bountyTierModestColour)
+         << ", bounty_color_notable_hex=" << ColourToHexRgb(g_config.bountyTierNotableColour)
+         << ", bounty_color_high_value_hex=" << ColourToHexRgb(g_config.bountyTierHighValueColour)
+         << ", bounty_color_elite_hex=" << ColourToHexRgb(g_config.bountyTierEliteColour)
+         << ", bounty_color_legendary_hex=" << ColourToHexRgb(g_config.bountyTierLegendaryColour)
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
     LogInfo(info.str());
