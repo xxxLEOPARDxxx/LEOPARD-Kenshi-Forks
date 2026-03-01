@@ -9,6 +9,7 @@
   "enable_dead": true,
   "show_icons": true,
   "show_text": true,
+  "show_bounty_glow": true,
   "unconscious_text": "ZZ",
   "recovery_coma_text": "RC",
   "dying_text": "DY",

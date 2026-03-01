@@ -81,6 +81,7 @@ struct PluginConfig
     DWORD customDeadIconSizePx;
     bool showMarkerIcons;
     bool showMarkerText;
+    bool showBountyGlow;
 };
 
 PluginConfig g_config = {
@@ -117,6 +118,7 @@ PluginConfig g_config = {
     "",
     64,
     true,
+    true,
     true
 };
 std::string g_settingsPath;
@@ -146,6 +148,7 @@ struct CachedKoTarget
     DWORD lastSeenMs;
     int markerState;
     int markerRelation;
+    int totalBounty;
 };
 
 struct MarkerStateDebugInfo
@@ -181,6 +184,7 @@ std::vector<hand> g_visibleKoHandlesScratch;
 struct KoMarkerWidget
 {
     MyGUI::ImageBox* beacon;
+    MyGUI::ImageBox* bountyGlow;
     MyGUI::ImageBox* icon;
     MyGUI::TextBox* fallbackText;
 };
@@ -219,6 +223,13 @@ const int kKoMarkerYOffsetPx = 24;
 const float kKoMarkerHeadAnchorYOffset = 2.0f;
 const int kKoBeaconSizePx = 34;
 const float kKoBeaconAlpha = 0.80f;
+const int kKoBountyGlowPaddingPx = 3;
+const int kKoBountyGlowOffsetXPx = -kKoBountyGlowPaddingPx;
+const int kKoBountyGlowOffsetYPx = -kKoBountyGlowPaddingPx;
+const float kKoBountyGlowAlpha = 0.90f;
+const MyGUI::Colour kKoBountyGlowColour(1.0f, 0.93f, 0.28f, kKoBountyGlowAlpha);
+const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
+const int kKoBountyGlowTextureSizePx = 64;
 const float kProbablyDyingBloodMax = 50.0f;
 const DWORD kDefaultMarkerTextSizePx = 18;
 const bool kEnableUnsafePanelProbe = false;
@@ -865,6 +876,7 @@ bool LoadConfigState()
     g_config.customDeadIconSizePx = 64;
     g_config.showMarkerIcons = true;
     g_config.showMarkerText = true;
+    g_config.showBountyGlow = true;
 
     if (g_settingsPath.empty())
     {
@@ -942,6 +954,12 @@ bool LoadConfigState()
     if (ParseBoolFromJson(body, "show_text", &parsedShowText))
     {
         g_config.showMarkerText = parsedShowText;
+    }
+
+    bool parsedShowBountyGlow = true;
+    if (ParseBoolFromJson(body, "show_bounty_glow", &parsedShowBountyGlow))
+    {
+        g_config.showBountyGlow = parsedShowBountyGlow;
     }
 
     bool parsedEnableUnconsciousState = true;
@@ -1789,6 +1807,21 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
         }
     }
 
+    if (marker.bountyGlow)
+    {
+        try
+        {
+            marker.bountyGlow->setCoord(
+                left + kKoBountyGlowOffsetXPx,
+                top + kKoBountyGlowOffsetYPx,
+                kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2),
+                kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2));
+        }
+        catch (...)
+        {
+        }
+    }
+
     if (marker.fallbackText)
     {
         try
@@ -1808,9 +1841,10 @@ void SetKoMarkerPosition(KoMarkerWidget& marker, int left, int top)
     }
 }
 
-void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible)
+void SetKoMarkerVisible(KoMarkerWidget& marker, bool visible, bool showBountyGlow)
 {
     SetWidgetVisible(marker.beacon, visible && kEnableUiBeaconOverlay);
+    SetWidgetVisible(marker.bountyGlow, visible && g_config.showMarkerIcons && showBountyGlow);
     SetWidgetVisible(marker.icon, visible && g_config.showMarkerIcons);
     SetWidgetVisible(marker.fallbackText, visible && g_config.showMarkerText);
 }
@@ -1968,7 +2002,7 @@ bool HasCustomMarkerIcon(int markerState)
     return texture && !texture->empty();
 }
 
-void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation)
+void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int markerRelation, bool showBountyGlow)
 {
     const MyGUI::Colour colour = ResolveMarkerColour(markerState, markerRelation);
     const MyGUI::Colour beaconColour(colour.red, colour.green, colour.blue, kKoBeaconAlpha);
@@ -2032,6 +2066,22 @@ void ApplyKoMarkerVisualState(KoMarkerWidget& marker, int markerState, int marke
         }
     }
 
+    if (marker.bountyGlow && g_config.showMarkerIcons && showBountyGlow)
+    {
+        const bool glowTextureReady = SetKoMarkerIconTexture(marker.bountyGlow, kKoBountyGlowTexture);
+        if (glowTextureReady)
+        {
+            SetKoMarkerIconCoord(marker.bountyGlow, ResolveCustomIconCoordFromImageSize(marker.bountyGlow, kKoBountyGlowTextureSizePx));
+            SetKoMarkerIconColour(marker.bountyGlow, kKoBountyGlowColour);
+        }
+        else
+        {
+            // Never fallback to state icons for bounty glow; that can look like a red outline.
+            SetKoMarkerIconCoord(marker.bountyGlow, MyGUI::IntCoord(0, 0, 0, 0));
+            SetKoMarkerIconColour(marker.bountyGlow, MyGUI::Colour(1.0f, 1.0f, 1.0f, 0.0f));
+        }
+    }
+
     if (marker.fallbackText && g_config.showMarkerText)
     {
         const int fontHeight = static_cast<int>(ResolveMarkerTextSizePx(markerState));
@@ -2045,7 +2095,7 @@ void HideAllKoMarkerWidgets()
 {
     for (size_t i = 0; i < g_koMarkerWidgets.size(); ++i)
     {
-        SetKoMarkerVisible(g_koMarkerWidgets[i], false);
+        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false);
     }
 }
 
@@ -2069,6 +2119,13 @@ bool CreateKoMarkerWidgetAt(size_t index)
             "Top",
             name.str() + "_beacon");
 
+        MyGUI::ImageBox* bountyGlow = gui->createWidget<MyGUI::ImageBox>(
+            "ImageBox",
+            MyGUI::IntCoord(0, 0, kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2), kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2)),
+            MyGUI::Align::Default,
+            "Top",
+            name.str() + "_bounty_glow");
+
         MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx, kKoMarkerHeightPx),
@@ -2091,7 +2148,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
                 "Top",
                 name.str() + "_fallback");
         }
-        if (!beacon && !icon && !fallbackText)
+        if (!beacon && !bountyGlow && !icon && !fallbackText)
         {
             return false;
         }
@@ -2114,6 +2171,13 @@ bool CreateKoMarkerWidgetAt(size_t index)
             icon->setVisible(false);
         }
 
+        if (bountyGlow)
+        {
+            bountyGlow->setNeedMouseFocus(false);
+            bountyGlow->setImageTexture("default_icon.png");
+            bountyGlow->setVisible(false);
+        }
+
         if (fallbackText)
         {
             fallbackText->setNeedMouseFocus(false);
@@ -2124,7 +2188,7 @@ bool CreateKoMarkerWidgetAt(size_t index)
             fallbackText->setVisible(false);
         }
 
-        KoMarkerWidget marker = { beacon, icon, fallbackText };
+        KoMarkerWidget marker = { beacon, bountyGlow, icon, fallbackText };
 
         if (index >= g_koMarkerWidgets.size())
         {
@@ -2159,7 +2223,7 @@ bool EnsureKoMarkerPool(size_t requiredCount)
 
     for (size_t i = 0; i < requiredCount; ++i)
     {
-        if (!g_koMarkerWidgets[i].beacon && !g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
+        if (!g_koMarkerWidgets[i].beacon && !g_koMarkerWidgets[i].bountyGlow && !g_koMarkerWidgets[i].icon && !g_koMarkerWidgets[i].fallbackText && !CreateKoMarkerWidgetAt(i))
         {
             return false;
         }
@@ -2421,16 +2485,19 @@ void TickKoMarkerRender()
         }
 
         KoMarkerWidget& marker = g_koMarkerWidgets[visibleMarkerCount];
-        ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation);
+        const bool showBountyGlow = g_config.showBountyGlow
+            && cached.totalBounty > 0
+            && cached.markerRelation != CachedKoTarget::RELATION_SQUAD;
+        ApplyKoMarkerVisualState(marker, cached.markerState, cached.markerRelation, showBountyGlow);
         SetKoMarkerPosition(marker, markerLeft, markerTop);
-        SetKoMarkerVisible(marker, true);
+        SetKoMarkerVisible(marker, true, showBountyGlow);
 
         ++visibleMarkerCount;
     }
 
     for (size_t i = visibleMarkerCount; i < g_koMarkerWidgets.size(); ++i)
     {
-        SetKoMarkerVisible(g_koMarkerWidgets[i], false);
+        SetKoMarkerVisible(g_koMarkerWidgets[i], false, false);
     }
 }
 
@@ -3210,6 +3277,31 @@ int ResolveMarkerRelation(Character* candidate)
     return CachedKoTarget::RELATION_ENEMY;
 }
 
+int ResolveTotalBounty(Character* candidate)
+{
+    if (!candidate)
+    {
+        return 0;
+    }
+
+    int totalBounty = 0;
+    __try
+    {
+        totalBounty = candidate->crimes.getTotalBounty();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+
+    if (totalBounty < 0)
+    {
+        return 0;
+    }
+
+    return totalBounty;
+}
+
 bool IsMarkerStateEnabled(int markerState)
 {
     if (markerState == CachedKoTarget::STATE_DEAD)
@@ -3361,6 +3453,7 @@ void TickKoProbe()
         {
             markerRelation = CachedKoTarget::RELATION_ENEMY;
         }
+        const int totalBounty = ResolveTotalBounty(candidate);
 
         const bool isSelected = IsTargetSelected(targetHandle);
         if (isSelected)
@@ -3386,6 +3479,7 @@ void TickKoProbe()
             existing.lastSeenMs = nowMs;
             existing.markerState = markerState;
             existing.markerRelation = markerRelation;
+            existing.totalBounty = totalBounty;
         }
         else
         {
@@ -3394,7 +3488,8 @@ void TickKoProbe()
                 candidatePos,
                 nowMs,
                 markerState,
-                markerRelation
+                markerRelation,
+                totalBounty
             };
             g_koTargetCache.push_back(created);
             if (isSelected || markerState == CachedKoTarget::STATE_UNCONSCIOUS)
@@ -3476,6 +3571,7 @@ __declspec(dllexport) void startPlugin()
          << ", enable_dead=" << (g_config.enableDeadState ? "true" : "false")
          << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
+         << ", show_bounty_glow=" << (g_config.showBountyGlow ? "true" : "false")
          << ", unconscious_text=" << g_config.unconsciousText
          << ", recovery_coma_text=" << g_config.recoveryComaText
          << ", dying_text=" << g_config.dyingText
