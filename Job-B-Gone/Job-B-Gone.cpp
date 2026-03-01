@@ -50,8 +50,25 @@ static const char* kPluginTabName = "Job-B-Gone";
 static const char* kPluginPanelName = "job_b_gone_options";
 static const int kMaxVisibleJobRows = 8;
 static const std::string kToggleBarCommandName = "toggle_bar";
+static const char* kPanelVisibilityToggleHotkeyDefault = "CTRL+B";
+static const char* kPanelVisibilityToggleHotkeyDisabled = "NONE";
 
-static PluginConfig g_config = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0 };
+static PluginConfig g_config = {
+    true,
+    2000,
+    false,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    0,
+    0,
+    kPanelVisibilityToggleHotkeyDefault
+};
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -194,6 +211,14 @@ static int g_panelExpandedHeight = kPanelExpandedHeight;
 static int g_jobRowScrollOffset = 0;
 static MyGUI::Button* g_jobRowsScrollUpButton = 0;
 static MyGUI::Button* g_jobRowsScrollDownButton = 0;
+static bool g_panelVisibilityToggleEnabled = true;
+static bool g_panelVisibilityToggleRequireCtrl = true;
+static bool g_panelVisibilityToggleRequireAlt = false;
+static bool g_panelVisibilityToggleRequireShift = false;
+static int g_panelVisibilityToggleVirtualKey = 'B';
+static bool g_panelVisibilityTogglePrevDown = false;
+static bool g_panelHiddenByToggle = false;
+static bool g_lastLoggedPanelSuppressedByToggle = false;
 
 struct JobRowWidgets
 {
@@ -266,6 +291,17 @@ static int GetExpandedPanelHeight();
 static void OnJobRowsScrollUpButtonClicked(MyGUI::Widget*);
 static void OnJobRowsScrollDownButtonClicked(MyGUI::Widget*);
 static void OnJobBGonePanelMouseWheel(MyGUI::Widget*, int rel);
+static bool TryNormalizePanelVisibilityToggleHotkey(
+    const std::string& rawValue,
+    std::string* canonicalOut,
+    bool* enabledOut,
+    bool* requireCtrlOut,
+    bool* requireAltOut,
+    bool* requireShiftOut,
+    int* virtualKeyOut);
+static void RefreshPanelVisibilityToggleHotkeyBinding();
+static bool IsPanelVisibilityToggleHotkeyDown();
+static void TickPanelVisibilityToggleHotkey(bool allowToggle);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -303,6 +339,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->foundJobBGonePanelPosY = false;
     diagnostics->invalidJobBGonePanelPosY = false;
     diagnostics->clampedJobBGonePanelPosY = false;
+    diagnostics->foundPanelVisibilityToggleHotkey = false;
+    diagnostics->invalidPanelVisibilityToggleHotkey = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
 }
@@ -324,6 +362,411 @@ static std::string TrimAscii(const std::string& value)
     return value.substr(start, end - start);
 }
 
+static std::string ToUpperAscii(const std::string& value)
+{
+    std::string upper;
+    upper.reserve(value.size());
+    for (size_t i = 0; i < value.size(); ++i)
+    {
+        upper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(value[i]))));
+    }
+    return upper;
+}
+
+static bool TryParsePanelVisibilityTogglePrimaryKeyToken(
+    const std::string& tokenUpper,
+    int* virtualKeyOut,
+    std::string* canonicalTokenOut)
+{
+    if (!virtualKeyOut || !canonicalTokenOut)
+    {
+        return false;
+    }
+
+    if (tokenUpper.size() == 1)
+    {
+        const char ch = tokenUpper[0];
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9'))
+        {
+            *virtualKeyOut = static_cast<int>(ch);
+            canonicalTokenOut->assign(1, ch);
+            return true;
+        }
+    }
+
+    if (tokenUpper == "SPACE")
+    {
+        *virtualKeyOut = VK_SPACE;
+        *canonicalTokenOut = "SPACE";
+        return true;
+    }
+    if (tokenUpper == "TAB")
+    {
+        *virtualKeyOut = VK_TAB;
+        *canonicalTokenOut = "TAB";
+        return true;
+    }
+    if (tokenUpper == "ENTER" || tokenUpper == "RETURN")
+    {
+        *virtualKeyOut = VK_RETURN;
+        *canonicalTokenOut = "ENTER";
+        return true;
+    }
+    if (tokenUpper == "ESC" || tokenUpper == "ESCAPE")
+    {
+        *virtualKeyOut = VK_ESCAPE;
+        *canonicalTokenOut = "ESC";
+        return true;
+    }
+    if (tokenUpper == "BACKSPACE")
+    {
+        *virtualKeyOut = VK_BACK;
+        *canonicalTokenOut = "BACKSPACE";
+        return true;
+    }
+    if (tokenUpper == "INSERT")
+    {
+        *virtualKeyOut = VK_INSERT;
+        *canonicalTokenOut = "INSERT";
+        return true;
+    }
+    if (tokenUpper == "DELETE")
+    {
+        *virtualKeyOut = VK_DELETE;
+        *canonicalTokenOut = "DELETE";
+        return true;
+    }
+    if (tokenUpper == "HOME")
+    {
+        *virtualKeyOut = VK_HOME;
+        *canonicalTokenOut = "HOME";
+        return true;
+    }
+    if (tokenUpper == "END")
+    {
+        *virtualKeyOut = VK_END;
+        *canonicalTokenOut = "END";
+        return true;
+    }
+    if (tokenUpper == "PAGEUP" || tokenUpper == "PGUP")
+    {
+        *virtualKeyOut = VK_PRIOR;
+        *canonicalTokenOut = "PAGEUP";
+        return true;
+    }
+    if (tokenUpper == "PAGEDOWN" || tokenUpper == "PGDN")
+    {
+        *virtualKeyOut = VK_NEXT;
+        *canonicalTokenOut = "PAGEDOWN";
+        return true;
+    }
+    if (tokenUpper == "UP")
+    {
+        *virtualKeyOut = VK_UP;
+        *canonicalTokenOut = "UP";
+        return true;
+    }
+    if (tokenUpper == "DOWN")
+    {
+        *virtualKeyOut = VK_DOWN;
+        *canonicalTokenOut = "DOWN";
+        return true;
+    }
+    if (tokenUpper == "LEFT")
+    {
+        *virtualKeyOut = VK_LEFT;
+        *canonicalTokenOut = "LEFT";
+        return true;
+    }
+    if (tokenUpper == "RIGHT")
+    {
+        *virtualKeyOut = VK_RIGHT;
+        *canonicalTokenOut = "RIGHT";
+        return true;
+    }
+
+    if (tokenUpper.size() >= 2 && tokenUpper[0] == 'F')
+    {
+        int functionIndex = 0;
+        for (size_t i = 1; i < tokenUpper.size(); ++i)
+        {
+            const unsigned char ch = static_cast<unsigned char>(tokenUpper[i]);
+            if (std::isdigit(ch) == 0)
+            {
+                return false;
+            }
+            functionIndex = (functionIndex * 10) + (tokenUpper[i] - '0');
+        }
+
+        if (functionIndex >= 1 && functionIndex <= 24)
+        {
+            *virtualKeyOut = VK_F1 + (functionIndex - 1);
+            std::stringstream name;
+            name << "F" << functionIndex;
+            *canonicalTokenOut = name.str();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool TryNormalizePanelVisibilityToggleHotkey(
+    const std::string& rawValue,
+    std::string* canonicalOut,
+    bool* enabledOut,
+    bool* requireCtrlOut,
+    bool* requireAltOut,
+    bool* requireShiftOut,
+    int* virtualKeyOut)
+{
+    if (!canonicalOut)
+    {
+        return false;
+    }
+
+    const std::string trimmed = TrimAscii(rawValue);
+    if (trimmed.empty())
+    {
+        return false;
+    }
+
+    const std::string upper = ToUpperAscii(trimmed);
+    if (upper == kPanelVisibilityToggleHotkeyDisabled)
+    {
+        *canonicalOut = kPanelVisibilityToggleHotkeyDisabled;
+        if (enabledOut)
+        {
+            *enabledOut = false;
+        }
+        if (requireCtrlOut)
+        {
+            *requireCtrlOut = false;
+        }
+        if (requireAltOut)
+        {
+            *requireAltOut = false;
+        }
+        if (requireShiftOut)
+        {
+            *requireShiftOut = false;
+        }
+        if (virtualKeyOut)
+        {
+            *virtualKeyOut = 0;
+        }
+        return true;
+    }
+
+    bool requireCtrl = false;
+    bool requireAlt = false;
+    bool requireShift = false;
+    bool hasPrimaryKey = false;
+    int virtualKey = 0;
+    std::string primaryKeyName;
+
+    size_t tokenStart = 0;
+    while (tokenStart <= upper.size())
+    {
+        const size_t plusPos = upper.find('+', tokenStart);
+        const std::string tokenRaw = (plusPos == std::string::npos)
+            ? upper.substr(tokenStart)
+            : upper.substr(tokenStart, plusPos - tokenStart);
+        const std::string token = TrimAscii(tokenRaw);
+        if (token.empty())
+        {
+            return false;
+        }
+
+        if (token == "CTRL" || token == "CONTROL")
+        {
+            if (requireCtrl)
+            {
+                return false;
+            }
+            requireCtrl = true;
+        }
+        else if (token == "ALT")
+        {
+            if (requireAlt)
+            {
+                return false;
+            }
+            requireAlt = true;
+        }
+        else if (token == "SHIFT")
+        {
+            if (requireShift)
+            {
+                return false;
+            }
+            requireShift = true;
+        }
+        else
+        {
+            if (hasPrimaryKey)
+            {
+                return false;
+            }
+            if (!TryParsePanelVisibilityTogglePrimaryKeyToken(token, &virtualKey, &primaryKeyName))
+            {
+                return false;
+            }
+            hasPrimaryKey = true;
+        }
+
+        if (plusPos == std::string::npos)
+        {
+            break;
+        }
+        tokenStart = plusPos + 1;
+    }
+
+    if (!hasPrimaryKey)
+    {
+        return false;
+    }
+
+    std::stringstream canonical;
+    if (requireCtrl)
+    {
+        canonical << "CTRL+";
+    }
+    if (requireAlt)
+    {
+        canonical << "ALT+";
+    }
+    if (requireShift)
+    {
+        canonical << "SHIFT+";
+    }
+    canonical << primaryKeyName;
+
+    *canonicalOut = canonical.str();
+    if (enabledOut)
+    {
+        *enabledOut = true;
+    }
+    if (requireCtrlOut)
+    {
+        *requireCtrlOut = requireCtrl;
+    }
+    if (requireAltOut)
+    {
+        *requireAltOut = requireAlt;
+    }
+    if (requireShiftOut)
+    {
+        *requireShiftOut = requireShift;
+    }
+    if (virtualKeyOut)
+    {
+        *virtualKeyOut = virtualKey;
+    }
+    return true;
+}
+
+static bool IsAnyVirtualKeyDown(int primaryVk, int leftVk, int rightVk)
+{
+    return (GetAsyncKeyState(primaryVk) & 0x8000) != 0
+        || (GetAsyncKeyState(leftVk) & 0x8000) != 0
+        || (GetAsyncKeyState(rightVk) & 0x8000) != 0;
+}
+
+static void RefreshPanelVisibilityToggleHotkeyBinding()
+{
+    std::string canonical;
+    bool enabled = false;
+    bool requireCtrl = false;
+    bool requireAlt = false;
+    bool requireShift = false;
+    int virtualKey = 0;
+    if (!TryNormalizePanelVisibilityToggleHotkey(
+            g_config.panelVisibilityToggleHotkey,
+            &canonical,
+            &enabled,
+            &requireCtrl,
+            &requireAlt,
+            &requireShift,
+            &virtualKey))
+    {
+        canonical = kPanelVisibilityToggleHotkeyDefault;
+        if (!TryNormalizePanelVisibilityToggleHotkey(
+                canonical,
+                &canonical,
+                &enabled,
+                &requireCtrl,
+                &requireAlt,
+                &requireShift,
+                &virtualKey))
+        {
+            canonical = kPanelVisibilityToggleHotkeyDisabled;
+            enabled = false;
+            requireCtrl = false;
+            requireAlt = false;
+            requireShift = false;
+            virtualKey = 0;
+        }
+    }
+
+    g_config.panelVisibilityToggleHotkey = canonical;
+    g_panelVisibilityToggleEnabled = enabled;
+    g_panelVisibilityToggleRequireCtrl = requireCtrl;
+    g_panelVisibilityToggleRequireAlt = requireAlt;
+    g_panelVisibilityToggleRequireShift = requireShift;
+    g_panelVisibilityToggleVirtualKey = virtualKey;
+}
+
+static bool IsPanelVisibilityToggleHotkeyDown()
+{
+    if (!g_panelVisibilityToggleEnabled || g_panelVisibilityToggleVirtualKey == 0)
+    {
+        return false;
+    }
+
+    if (g_panelVisibilityToggleRequireCtrl && !IsAnyVirtualKeyDown(VK_CONTROL, VK_LCONTROL, VK_RCONTROL))
+    {
+        return false;
+    }
+    if (g_panelVisibilityToggleRequireAlt && !IsAnyVirtualKeyDown(VK_MENU, VK_LMENU, VK_RMENU))
+    {
+        return false;
+    }
+    if (g_panelVisibilityToggleRequireShift && !IsAnyVirtualKeyDown(VK_SHIFT, VK_LSHIFT, VK_RSHIFT))
+    {
+        return false;
+    }
+
+    return (GetAsyncKeyState(g_panelVisibilityToggleVirtualKey) & 0x8000) != 0;
+}
+
+static void TickPanelVisibilityToggleHotkey(bool allowToggle)
+{
+    const bool hotkeyDown = IsPanelVisibilityToggleHotkeyDown();
+    if (!allowToggle)
+    {
+        g_panelVisibilityTogglePrevDown = hotkeyDown;
+        return;
+    }
+
+    if (hotkeyDown && !g_panelVisibilityTogglePrevDown)
+    {
+        g_panelHiddenByToggle = !g_panelHiddenByToggle;
+        if (g_panelHiddenByToggle)
+        {
+            HideConfirmationOverlay();
+        }
+
+        std::stringstream info;
+        info << "Job-B-Gone INFO: panel_visibility_toggled hidden="
+             << (g_panelHiddenByToggle ? "true" : "false")
+             << " hotkey=" << g_config.panelVisibilityToggleHotkey;
+        DebugLog(info.str().c_str());
+    }
+
+    g_panelVisibilityTogglePrevDown = hotkeyDown;
+}
+
 #include "JobBGoneConfigParsing.inl"
 
 static void LoadConfigState()
@@ -342,12 +785,17 @@ static void LoadConfigState()
     g_config.jobBGonePanelHasCustomPosition = false;
     g_config.jobBGonePanelPosX = 0;
     g_config.jobBGonePanelPosY = 0;
+    g_config.panelVisibilityToggleHotkey = kPanelVisibilityToggleHotkeyDefault;
     g_runtimePanelHasCustomPosition = false;
     g_runtimePanelPosX = 0;
     g_runtimePanelPosY = 0;
+    g_panelHiddenByToggle = false;
+    g_panelVisibilityTogglePrevDown = false;
+    g_jobBGonePanelCollapsed = g_config.jobBGonePanelCollapsed;
 
     if (g_settingsPath.empty())
     {
+        RefreshPanelVisibilityToggleHotkeyBinding();
         return;
     }
 
@@ -365,6 +813,8 @@ static void LoadConfigState()
     {
         DebugLog("Job-B-Gone INFO: mod-config.json not found; using defaults");
     }
+
+    RefreshPanelVisibilityToggleHotkeyBinding();
 
     std::stringstream info;
     info << "Job-B-Gone INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
@@ -388,7 +838,8 @@ static void LoadConfigState()
          << " job_b_gone_panel_has_custom_position="
          << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
          << " job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
-         << " job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY;
+         << " job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY
+         << " panel_visibility_toggle_hotkey=\"" << g_config.panelVisibilityToggleHotkey << "\"";
     DebugLog(info.str().c_str());
 
     if (g_config.jobBGonePanelHasCustomPosition)

@@ -1955,6 +1955,22 @@ static std::string BuildPanelUiSuppressionReasonSummary(int reasonMask)
     return summary.str();
 }
 
+static std::string BuildPanelVisibilityReasonSummary(int reasonMask, bool hiddenByToggle)
+{
+    const std::string uiSummary = BuildPanelUiSuppressionReasonSummary(reasonMask);
+    if (!hiddenByToggle)
+    {
+        return uiSummary;
+    }
+
+    if (uiSummary == "none")
+    {
+        return "toggle_hidden";
+    }
+
+    return uiSummary + ",toggle_hidden";
+}
+
 static void BuildDisplayedJobRowsForSelection(
     Character* selectedMember,
     std::vector<JobRowModel>* rowsOut,
@@ -2472,6 +2488,7 @@ static void DestroySelectedMemberJobPanelButton()
     g_jobRowScrollOffset = 0;
     g_lastLoggedPanelSuppressedByUiState = false;
     g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
+    g_lastLoggedPanelSuppressedByToggle = false;
     g_hudHiddenByToggleEvent = false;
     g_hudHiddenByToggleEventKnown = false;
 }
@@ -2489,6 +2506,7 @@ static void OnSaveLoadTransitionStart(const char* source)
     g_lastLoggedButtonExists = false;
     g_lastLoggedPanelSuppressedByUiState = false;
     g_lastLoggedPanelSuppressionReasonMask = PanelUiSuppressionReason_None;
+    g_lastLoggedPanelSuppressedByToggle = false;
     g_hudHiddenByToggleEvent = false;
     g_hudHiddenByToggleEventKnown = false;
 
@@ -2966,26 +2984,31 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     const int panelUiSuppressionReasonMask = DetectPanelUiSuppressionReasonMask(selectedMember);
     const bool suppressPanelByUiState = (panelUiSuppressionReasonMask != PanelUiSuppressionReason_None);
-    if (suppressPanelByUiState)
+    TickPanelVisibilityToggleHotkey(!suppressPanelByUiState);
+    const bool suppressPanelByToggle = g_panelHiddenByToggle;
+    const bool suppressPanel = suppressPanelByUiState || suppressPanelByToggle;
+    if (suppressPanel)
     {
         HideConfirmationOverlay();
     }
 
-    g_jobBGonePanel->setVisible(!suppressPanelByUiState);
+    g_jobBGonePanel->setVisible(!suppressPanel);
 
     if (suppressPanelByUiState != g_lastLoggedPanelSuppressedByUiState
-        || panelUiSuppressionReasonMask != g_lastLoggedPanelSuppressionReasonMask)
+        || panelUiSuppressionReasonMask != g_lastLoggedPanelSuppressionReasonMask
+        || suppressPanelByToggle != g_lastLoggedPanelSuppressedByToggle)
     {
         std::stringstream logline;
         logline << "Job-B-Gone DEBUG: panel_visibility_gate"
-                << " suppressed=" << (suppressPanelByUiState ? "true" : "false")
-                << " reasons=" << BuildPanelUiSuppressionReasonSummary(panelUiSuppressionReasonMask);
+                << " suppressed=" << (suppressPanel ? "true" : "false")
+                << " reasons=" << BuildPanelVisibilityReasonSummary(panelUiSuppressionReasonMask, suppressPanelByToggle);
         DebugLog(logline.str().c_str());
         g_lastLoggedPanelSuppressedByUiState = suppressPanelByUiState;
         g_lastLoggedPanelSuppressionReasonMask = panelUiSuppressionReasonMask;
+        g_lastLoggedPanelSuppressedByToggle = suppressPanelByToggle;
     }
 
-    if (suppressPanelByUiState)
+    if (suppressPanel)
     {
         return;
     }

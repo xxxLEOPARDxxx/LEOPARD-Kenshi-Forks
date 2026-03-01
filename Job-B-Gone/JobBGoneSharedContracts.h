@@ -23,6 +23,7 @@ struct PluginConfig
     bool jobBGonePanelHasCustomPosition;
     int jobBGonePanelPosX;
     int jobBGonePanelPosY;
+    std::string panelVisibilityToggleHotkey;
 };
 
 struct RuntimeState
@@ -86,6 +87,8 @@ struct ConfigParseDiagnostics
     bool foundJobBGonePanelPosY;
     bool invalidJobBGonePanelPosY;
     bool clampedJobBGonePanelPosY;
+    bool foundPanelVisibilityToggleHotkey;
+    bool invalidPanelVisibilityToggleHotkey;
     bool syntaxError;
     size_t syntaxErrorOffset;
 };

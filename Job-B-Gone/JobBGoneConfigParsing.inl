@@ -740,6 +740,25 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "panel_visibility_toggle_hotkey")
+        {
+            std::string parsedString;
+            size_t valuePos = pos;
+            if (ParseJsonStringToken(body, &valuePos, &parsedString))
+            {
+                diagnostics->foundPanelVisibilityToggleHotkey = true;
+                configOut->panelVisibilityToggleHotkey = parsedString;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidPanelVisibilityToggleHotkey = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else
         {
             if (!SkipJsonValue(body, &pos))
@@ -782,7 +801,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0 };
+    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0, "CTRL+B" };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -797,7 +816,8 @@ static bool RunInternalSelfChecks()
             "\"job_b_gone_panel_collapsed\":true,"
             "\"job_b_gone_panel_has_custom_position\":true,"
             "\"job_b_gone_panel_pos_x\":321,"
-            "\"job_b_gone_panel_pos_y\":654}",
+            "\"job_b_gone_panel_pos_y\":654,"
+            "\"panel_visibility_toggle_hotkey\":\"ALT+F3\"}",
             &parsedConfig,
             &diagnostics))
     {
@@ -815,7 +835,8 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.jobBGonePanelCollapsed
         || !parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 321
-        || parsedConfig.jobBGonePanelPosY != 654)
+        || parsedConfig.jobBGonePanelPosY != 654
+        || parsedConfig.panelVisibilityToggleHotkey != "ALT+F3")
     {
         return false;
     }
@@ -831,7 +852,8 @@ static bool RunInternalSelfChecks()
           "\"job_b_gone_panel_collapsed\":false,"
           "\"job_b_gone_panel_has_custom_position\":false,"
           "\"job_b_gone_panel_pos_x\":11,"
-          "\"job_b_gone_panel_pos_y\":22}";
+          "\"job_b_gone_panel_pos_y\":22,"
+          "\"panel_visibility_toggle_hotkey\":\"CTRL+B\"}";
     parsedConfig.enabled = false;
     parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
@@ -845,6 +867,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.jobBGonePanelHasCustomPosition = true;
     parsedConfig.jobBGonePanelPosX = 0;
     parsedConfig.jobBGonePanelPosY = 0;
+    parsedConfig.panelVisibilityToggleHotkey = "NONE";
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
     {
@@ -862,7 +885,8 @@ static bool RunInternalSelfChecks()
         || parsedConfig.jobBGonePanelCollapsed
         || parsedConfig.jobBGonePanelHasCustomPosition
         || parsedConfig.jobBGonePanelPosX != 11
-        || parsedConfig.jobBGonePanelPosY != 22)
+        || parsedConfig.jobBGonePanelPosY != 22
+        || parsedConfig.panelVisibilityToggleHotkey != "CTRL+B")
     {
         return false;
     }
@@ -874,6 +898,42 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!diagnostics.invalidEnabled)
+    {
+        return false;
+    }
+
+    std::string canonicalHotkey;
+    bool hotkeyEnabled = false;
+    bool hotkeyCtrl = false;
+    bool hotkeyAlt = false;
+    bool hotkeyShift = false;
+    int hotkeyVirtualKey = 0;
+    if (!TryNormalizePanelVisibilityToggleHotkey(
+            " ctrl + b ",
+            &canonicalHotkey,
+            &hotkeyEnabled,
+            &hotkeyCtrl,
+            &hotkeyAlt,
+            &hotkeyShift,
+            &hotkeyVirtualKey))
+    {
+        return false;
+    }
+    if (canonicalHotkey != "CTRL+B" || !hotkeyEnabled || !hotkeyCtrl || hotkeyAlt || hotkeyShift || hotkeyVirtualKey != 'B')
+    {
+        return false;
+    }
+
+    if (!TryNormalizePanelVisibilityToggleHotkey("none", &canonicalHotkey, &hotkeyEnabled, 0, 0, 0, &hotkeyVirtualKey))
+    {
+        return false;
+    }
+    if (canonicalHotkey != "NONE" || hotkeyEnabled || hotkeyVirtualKey != 0)
+    {
+        return false;
+    }
+
+    if (TryNormalizePanelVisibilityToggleHotkey("CTRL", &canonicalHotkey, 0, 0, 0, 0, 0))
     {
         return false;
     }
@@ -1029,6 +1089,36 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: \"job_b_gone_panel_pos_y\" exceeded max; clamped");
     }
+    if (!diagnostics.foundPanelVisibilityToggleHotkey || diagnostics.invalidPanelVisibilityToggleHotkey)
+    {
+        needsWriteBack = true;
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"panel_visibility_toggle_hotkey\"; using default");
+    }
+    else
+    {
+        std::string canonical;
+        if (!TryNormalizePanelVisibilityToggleHotkey(
+                configOut->panelVisibilityToggleHotkey,
+                &canonical,
+                0,
+                0,
+                0,
+                0,
+                0))
+        {
+            needsWriteBack = true;
+            configOut->panelVisibilityToggleHotkey = kPanelVisibilityToggleHotkeyDefault;
+            ErrorLog("Job-B-Gone WARN: invalid key \"panel_visibility_toggle_hotkey\" value; using default");
+        }
+        else
+        {
+            if (configOut->panelVisibilityToggleHotkey != canonical)
+            {
+                needsWriteBack = true;
+            }
+            configOut->panelVisibilityToggleHotkey = canonical;
+        }
+    }
     if (needsWriteBackOut)
     {
         *needsWriteBackOut = needsWriteBack;
@@ -1065,7 +1155,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"job_b_gone_panel_has_custom_position\": "
         << (config.jobBGonePanelHasCustomPosition ? "true" : "false") << ",\n";
     out << "  \"job_b_gone_panel_pos_x\": " << config.jobBGonePanelPosX << ",\n";
-    out << "  \"job_b_gone_panel_pos_y\": " << config.jobBGonePanelPosY << "\n";
+    out << "  \"job_b_gone_panel_pos_y\": " << config.jobBGonePanelPosY << ",\n";
+    out << "  \"panel_visibility_toggle_hotkey\": \"" << config.panelVisibilityToggleHotkey << "\"\n";
     out << "}\n";
 
     return true;

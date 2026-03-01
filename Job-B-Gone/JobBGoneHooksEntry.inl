@@ -350,6 +350,7 @@ __declspec(dllexport) void startPlugin()
          << (g_config.jobBGonePanelHasCustomPosition ? "true" : "false")
          << ", job_b_gone_panel_pos_x=" << g_config.jobBGonePanelPosX
          << ", job_b_gone_panel_pos_y=" << g_config.jobBGonePanelPosY
+         << ", panel_visibility_toggle_hotkey=\"" << g_config.panelVisibilityToggleHotkey << "\""
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }

@@ -85,5 +85,6 @@ Supported keys:
 - `job_b_gone_panel_has_custom_position` (bool): true after panel position is customized.
 - `job_b_gone_panel_pos_x` (number): persisted panel X coordinate.
 - `job_b_gone_panel_pos_y` (number): persisted panel Y coordinate.
+- `panel_visibility_toggle_hotkey` (string): keyboard shortcut to toggle panel visibility. Default: `"CTRL+B"`. Set to `"NONE"` to disable.
 
 If config is missing or unreadable, defaults are used and written back.
