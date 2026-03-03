@@ -1,16 +1,8 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
-#include <kenshi/Character.h>
-#include <kenshi/GameWorld.h>
-#include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
-#include <mygui/MyGUI_Colour.h>
-#include <mygui/MyGUI_Gui.h>
-#include <mygui/MyGUI_ImageBox.h>
-#include <mygui/MyGUI_RenderManager.h>
-#include <mygui/MyGUI_TextBox.h>
 
 #include "src/vs_config.h"
 #include "src/vs_log.h"
@@ -32,106 +24,11 @@
 
 #include <sstream>
 #include <string>
-#include <vector>
-
-class UtilityT
-{
-public:
-    UtilityT();
-    bool worldToScreenPX(const Ogre::Vector3& pos, float& x, float& y);
-};
 
 namespace
 {
 const char* kPluginName = "Vital-Sense";
 const char* kConfigFileName = "mod-config.json";
-
-PluginConfig g_config = {
-    true,
-    150,
-    true,
-    3500,
-    true,
-    true,
-    true,
-    true,
-    true,
-    "ZZ",
-    "RC",
-    "DY",
-    "PD",
-    "DE",
-    18,
-    18,
-    18,
-    18,
-    18,
-    MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f),
-    MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f),
-    MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f),
-    "",
-    64,
-    "",
-    64,
-    "",
-    64,
-    "",
-    64,
-    "",
-    64,
-    true,
-    true,
-    true,
-    true,
-    "$",
-    18,
-    true,
-    true,
-    1999,
-    4999,
-    9999,
-    19999,
-    39999,
-    74999,
-    MyGUI::Colour(0.690196f, 0.690196f, 0.690196f, 0.784314f),
-    MyGUI::Colour(0.788235f, 0.647059f, 0.482353f, 0.831373f),
-    MyGUI::Colour(0.623529f, 0.741176f, 0.411765f, 0.878431f),
-    MyGUI::Colour(0.435294f, 0.650980f, 0.850980f, 0.925490f),
-    MyGUI::Colour(1.000000f, 0.760784f, 0.278431f, 0.960784f),
-    MyGUI::Colour(1.000000f, 0.541176f, 0.168627f, 0.980392f),
-    MyGUI::Colour(0.878431f, 0.192157f, 0.192157f, 1.000000f),
-    420
-};
-std::string g_settingsPath;
-DWORD g_lastProbeTickMs = 0;
-void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
-std::vector<CachedKoTarget> g_koTargetCache;
-std::vector<hand> g_visibleKoHandlesScratch;
-std::vector<KoMarkerWidget> g_koMarkerWidgets;
-std::vector<std::string> g_iconTextureOkLogs;
-std::vector<std::string> g_iconTextureWarnLogs;
-UtilityT* g_projectionUtility = 0;
-unsigned int g_koMarkerWidgetSerial = 0;
-bool g_highlightRuntimeActive = false;
-
-RuntimeStateView GetRuntimeStateView()
-{
-    RuntimeStateView state = CreateRuntimeStateView(
-        g_config,
-        g_settingsPath,
-        g_lastProbeTickMs,
-        PlayerInterface_updateUT_orig,
-        g_koTargetCache,
-        g_visibleKoHandlesScratch,
-        g_koMarkerWidgets,
-        g_iconTextureOkLogs,
-        g_iconTextureWarnLogs,
-        g_projectionUtility,
-        g_koMarkerWidgetSerial,
-        g_highlightRuntimeActive);
-
-    return state;
-}
 
 const size_t kMaxKoMarkerWidgets = 48;
 
@@ -146,12 +43,13 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 
 void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
-    if (PlayerInterface_updateUT_orig)
+    PlayerInterfaceUpdateUTFn* updateUTOrigSlot = vs_runtime_state::GetPlayerInterfaceUpdateUTOrigSlot();
+    if (updateUTOrigSlot && *updateUTOrigSlot)
     {
-        PlayerInterface_updateUT_orig(thisptr);
+        (*updateUTOrigSlot)(thisptr);
     }
 
-    RuntimeStateView state = GetRuntimeStateView();
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state);
     if (renderDirective == vs_probe::PROBE_RENDER_HIDE_ALL)
     {
@@ -175,65 +73,66 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    RuntimeStateView state = GetRuntimeStateView();
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     vs_config::LoadConfigState(state, kPluginName);
+    const PluginConfig& config = state.config;
 
     std::stringstream info;
-    info << "loaded (enabled=" << (g_config.enabled ? "true" : "false")
-         << ", update_interval_ms=" << g_config.updateIntervalMs
-         << ", only_when_alt_held=" << (g_config.onlyWhenAltHeld ? "true" : "false")
-         << ", enable_unconscious=" << (g_config.enableUnconsciousState ? "true" : "false")
-         << ", enable_recovery_coma=" << (g_config.enableRecoveryComaState ? "true" : "false")
-         << ", enable_dying=" << (g_config.enableDyingState ? "true" : "false")
-         << ", enable_playing_dead=" << (g_config.enablePlayingDeadState ? "true" : "false")
-         << ", enable_dead=" << (g_config.enableDeadState ? "true" : "false")
-         << ", show_icons=" << (g_config.showMarkerIcons ? "true" : "false")
-         << ", show_text=" << (g_config.showMarkerText ? "true" : "false")
-         << ", show_bounty_glow=" << (g_config.showBountyGlow ? "true" : "false")
-         << ", show_bounty_symbol=" << (g_config.showBountySymbol ? "true" : "false")
-         << ", show_bounty_symbol_on_all_characters=" << (g_config.showBountySymbolOnAllCharacters ? "true" : "false")
-         << ", bounty_symbol=" << g_config.bountySymbolText
-         << ", bounty_symbol_size_px=" << g_config.bountySymbolTextSizePx
-         << ", bounty_symbol_position=" << (g_config.placeBountySymbolBeforeStateIcon ? "before_state_icon" : "before_state_text")
-         << ", bounty_symbol_live_anchor_y_offset_cm=" << g_config.bountySymbolLiveAnchorYOffsetCm
-         << ", unconscious_text=" << g_config.unconsciousText
-         << ", recovery_coma_text=" << g_config.recoveryComaText
-         << ", dying_text=" << g_config.dyingText
-         << ", playing_dead_text=" << g_config.playingDeadText
-         << ", dead_text=" << g_config.deadText
-         << ", unconscious_text_size_px=" << g_config.unconsciousTextSizePx
-         << ", recovery_coma_text_size_px=" << g_config.recoveryComaTextSizePx
-         << ", dying_text_size_px=" << g_config.dyingTextSizePx
-         << ", playing_dead_text_size_px=" << g_config.playingDeadTextSizePx
-         << ", dead_text_size_px=" << g_config.deadTextSizePx
-         << ", enemy_color_hex=" << vs_parse::ColourToHexRgb(g_config.enemyMarkerColour)
-         << ", ally_color_hex=" << vs_parse::ColourToHexRgb(g_config.allyMarkerColour)
-         << ", squad_color_hex=" << vs_parse::ColourToHexRgb(g_config.squadMarkerColour)
-         << ", bounty_tier_trivial_max=" << g_config.bountyTierTrivialMax
-         << ", bounty_tier_low_max=" << g_config.bountyTierLowMax
-         << ", bounty_tier_modest_max=" << g_config.bountyTierModestMax
-         << ", bounty_tier_notable_max=" << g_config.bountyTierNotableMax
-         << ", bounty_tier_high_value_max=" << g_config.bountyTierHighValueMax
-         << ", bounty_tier_elite_max=" << g_config.bountyTierEliteMax
-         << ", bounty_color_trivial_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierTrivialColour)
-         << ", bounty_color_low_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierLowColour)
-         << ", bounty_color_modest_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierModestColour)
-         << ", bounty_color_notable_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierNotableColour)
-         << ", bounty_color_high_value_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierHighValueColour)
-         << ", bounty_color_elite_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierEliteColour)
-         << ", bounty_color_legendary_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierLegendaryColour)
-         << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
+    info << "loaded (enabled=" << (config.enabled ? "true" : "false")
+         << ", update_interval_ms=" << config.updateIntervalMs
+         << ", only_when_alt_held=" << (config.onlyWhenAltHeld ? "true" : "false")
+         << ", enable_unconscious=" << (config.enableUnconsciousState ? "true" : "false")
+         << ", enable_recovery_coma=" << (config.enableRecoveryComaState ? "true" : "false")
+         << ", enable_dying=" << (config.enableDyingState ? "true" : "false")
+         << ", enable_playing_dead=" << (config.enablePlayingDeadState ? "true" : "false")
+         << ", enable_dead=" << (config.enableDeadState ? "true" : "false")
+         << ", show_icons=" << (config.showMarkerIcons ? "true" : "false")
+         << ", show_text=" << (config.showMarkerText ? "true" : "false")
+         << ", show_bounty_glow=" << (config.showBountyGlow ? "true" : "false")
+         << ", show_bounty_symbol=" << (config.showBountySymbol ? "true" : "false")
+         << ", show_bounty_symbol_on_all_characters=" << (config.showBountySymbolOnAllCharacters ? "true" : "false")
+         << ", bounty_symbol=" << config.bountySymbolText
+         << ", bounty_symbol_size_px=" << config.bountySymbolTextSizePx
+         << ", bounty_symbol_position=" << (config.placeBountySymbolBeforeStateIcon ? "before_state_icon" : "before_state_text")
+         << ", bounty_symbol_live_anchor_y_offset_cm=" << config.bountySymbolLiveAnchorYOffsetCm
+         << ", unconscious_text=" << config.unconsciousText
+         << ", recovery_coma_text=" << config.recoveryComaText
+         << ", dying_text=" << config.dyingText
+         << ", playing_dead_text=" << config.playingDeadText
+         << ", dead_text=" << config.deadText
+         << ", unconscious_text_size_px=" << config.unconsciousTextSizePx
+         << ", recovery_coma_text_size_px=" << config.recoveryComaTextSizePx
+         << ", dying_text_size_px=" << config.dyingTextSizePx
+         << ", playing_dead_text_size_px=" << config.playingDeadTextSizePx
+         << ", dead_text_size_px=" << config.deadTextSizePx
+         << ", enemy_color_hex=" << vs_parse::ColourToHexRgb(config.enemyMarkerColour)
+         << ", ally_color_hex=" << vs_parse::ColourToHexRgb(config.allyMarkerColour)
+         << ", squad_color_hex=" << vs_parse::ColourToHexRgb(config.squadMarkerColour)
+         << ", bounty_tier_trivial_max=" << config.bountyTierTrivialMax
+         << ", bounty_tier_low_max=" << config.bountyTierLowMax
+         << ", bounty_tier_modest_max=" << config.bountyTierModestMax
+         << ", bounty_tier_notable_max=" << config.bountyTierNotableMax
+         << ", bounty_tier_high_value_max=" << config.bountyTierHighValueMax
+         << ", bounty_tier_elite_max=" << config.bountyTierEliteMax
+         << ", bounty_color_trivial_hex=" << vs_parse::ColourToHexRgb(config.bountyTierTrivialColour)
+         << ", bounty_color_low_hex=" << vs_parse::ColourToHexRgb(config.bountyTierLowColour)
+         << ", bounty_color_modest_hex=" << vs_parse::ColourToHexRgb(config.bountyTierModestColour)
+         << ", bounty_color_notable_hex=" << vs_parse::ColourToHexRgb(config.bountyTierNotableColour)
+         << ", bounty_color_high_value_hex=" << vs_parse::ColourToHexRgb(config.bountyTierHighValueColour)
+         << ", bounty_color_elite_hex=" << vs_parse::ColourToHexRgb(config.bountyTierEliteColour)
+         << ", bounty_color_legendary_hex=" << vs_parse::ColourToHexRgb(config.bountyTierLegendaryColour)
+         << ", max_highlight_distance_m=" << config.maxHighlightDistanceMeters
          << ")";
     vs_log::LogInfo(kPluginName, info.str());
 
-    g_koTargetCache.reserve(128);
-    g_visibleKoHandlesScratch.reserve(128);
-    g_koMarkerWidgets.reserve(kMaxKoMarkerWidgets);
+    state.koTargetCache.reserve(128);
+    state.visibleKoHandlesScratch.reserve(128);
+    state.koMarkerWidgets.reserve(kMaxKoMarkerWidgets);
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
         PlayerInterface_updateUT_hook,
-        &PlayerInterface_updateUT_orig))
+        vs_runtime_state::GetPlayerInterfaceUpdateUTOrigSlot()))
     {
         vs_log::LogError(kPluginName, "could not hook PlayerInterface::updateUT");
         return;
@@ -254,7 +153,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
             if (sep != std::string::npos)
             {
                 const std::string pluginDir = fullPath.substr(0, sep);
-                g_settingsPath = pluginDir + "\\" + kConfigFileName;
+                RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+                state.settingsPath = pluginDir + "\\" + kConfigFileName;
             }
         }
     }

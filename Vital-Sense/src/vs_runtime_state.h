@@ -7,13 +7,14 @@
 
 class UtilityT;
 class PlayerInterface;
+typedef void (*PlayerInterfaceUpdateUTFn)(PlayerInterface*);
 
 struct RuntimeStateView
 {
     PluginConfig& config;
     std::string& settingsPath;
     DWORD& lastProbeTickMs;
-    void (*&playerInterfaceUpdateUTOrig)(PlayerInterface*);
+    PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig;
     std::vector<CachedKoTarget>& koTargetCache;
     std::vector<hand>& visibleKoHandlesScratch;
     std::vector<KoMarkerWidget>& koMarkerWidgets;
@@ -24,11 +25,14 @@ struct RuntimeStateView
     bool& highlightRuntimeActive;
 };
 
+namespace vs_runtime_state
+{
+
 RuntimeStateView CreateRuntimeStateView(
     PluginConfig& config,
     std::string& settingsPath,
     DWORD& lastProbeTickMs,
-    void (*&playerInterfaceUpdateUTOrig)(PlayerInterface*),
+    PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig,
     std::vector<CachedKoTarget>& koTargetCache,
     std::vector<hand>& visibleKoHandlesScratch,
     std::vector<KoMarkerWidget>& koMarkerWidgets,
@@ -37,3 +41,8 @@ RuntimeStateView CreateRuntimeStateView(
     UtilityT*& projectionUtility,
     unsigned int& koMarkerWidgetSerial,
     bool& highlightRuntimeActive);
+
+RuntimeStateView GetRuntimeStateView();
+PlayerInterfaceUpdateUTFn* GetPlayerInterfaceUpdateUTOrigSlot();
+
+} // namespace vs_runtime_state
