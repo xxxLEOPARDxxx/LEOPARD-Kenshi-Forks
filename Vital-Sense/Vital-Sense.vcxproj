@@ -88,10 +88,24 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Vital-Sense.cpp" />
+    <ClCompile Include="src\vs_config.cpp" />
+    <ClCompile Include="src\vs_log.cpp" />
+    <ClCompile Include="src\vs_marker_render.cpp" />
+    <ClCompile Include="src\vs_parse.cpp" />
+    <ClCompile Include="src\vs_probe.cpp" />
+    <ClCompile Include="src\vs_runtime_state.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\vs_config.h" />
+    <ClInclude Include="src\vs_log.h" />
+    <ClInclude Include="src\vs_marker_render.h" />
+    <ClInclude Include="src\vs_parse.h" />
+    <ClInclude Include="src\vs_probe.h" />
+    <ClInclude Include="src\vs_runtime_state.h" />
+    <ClInclude Include="src\vs_types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-
 

@@ -12,6 +12,9 @@
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TextBox.h>
 
+#include "src/vs_runtime_state.h"
+#include "src/vs_types.h"
+
 #ifndef BOOST_ALL_NO_LIB
 #define BOOST_ALL_NO_LIB
 #endif
@@ -40,64 +43,6 @@ namespace
 {
 const char* kPluginName = "Vital-Sense";
 const char* kConfigFileName = "mod-config.json";
-
-struct PluginConfig
-{
-    bool enabled;
-    DWORD updateIntervalMs;
-    bool onlyWhenAltHeld;
-    DWORD maxHighlightDistanceMeters;
-    bool enableUnconsciousState;
-    bool enableRecoveryComaState;
-    bool enableDyingState;
-    bool enablePlayingDeadState;
-    bool enableDeadState;
-    std::string unconsciousText;
-    std::string recoveryComaText;
-    std::string dyingText;
-    std::string playingDeadText;
-    std::string deadText;
-    DWORD unconsciousTextSizePx;
-    DWORD recoveryComaTextSizePx;
-    DWORD dyingTextSizePx;
-    DWORD playingDeadTextSizePx;
-    DWORD deadTextSizePx;
-    MyGUI::Colour enemyMarkerColour;
-    MyGUI::Colour allyMarkerColour;
-    MyGUI::Colour squadMarkerColour;
-    std::string customUnconsciousIconTexture;
-    DWORD customUnconsciousIconSizePx;
-    std::string customRecoveryComaIconTexture;
-    DWORD customRecoveryComaIconSizePx;
-    std::string customDyingIconTexture;
-    DWORD customDyingIconSizePx;
-    std::string customPlayingDeadIconTexture;
-    DWORD customPlayingDeadIconSizePx;
-    std::string customDeadIconTexture;
-    DWORD customDeadIconSizePx;
-    bool showMarkerIcons;
-    bool showMarkerText;
-    bool showBountyGlow;
-    bool showBountySymbol;
-    std::string bountySymbolText;
-    DWORD bountySymbolTextSizePx;
-    bool showBountySymbolOnAllCharacters;
-    bool placeBountySymbolBeforeStateIcon;
-    DWORD bountyTierTrivialMax;
-    DWORD bountyTierLowMax;
-    DWORD bountyTierModestMax;
-    DWORD bountyTierNotableMax;
-    DWORD bountyTierHighValueMax;
-    DWORD bountyTierEliteMax;
-    MyGUI::Colour bountyTierTrivialColour;
-    MyGUI::Colour bountyTierLowColour;
-    MyGUI::Colour bountyTierModestColour;
-    MyGUI::Colour bountyTierNotableColour;
-    MyGUI::Colour bountyTierHighValueColour;
-    MyGUI::Colour bountyTierEliteColour;
-    MyGUI::Colour bountyTierLegendaryColour;
-    DWORD bountySymbolLiveAnchorYOffsetCm;
-};
 
 PluginConfig g_config = {
     true,
@@ -158,49 +103,33 @@ PluginConfig g_config = {
 std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
-
-struct CachedKoTarget
-{
-    enum MarkerState
-    {
-        STATE_UNCONSCIOUS = 0,
-        STATE_RECOVERY_COMA = 1,
-        STATE_DYING = 2,
-        STATE_PLAYING_DEAD = 3,
-        STATE_DEAD = 4,
-        STATE_BOUNTY_ONLY = 5
-    };
-
-    enum MarkerRelation
-    {
-        RELATION_SQUAD = 0,
-        RELATION_ALLY = 1,
-        RELATION_ENEMY = 2
-    };
-
-    hand targetHandle;
-    Ogre::Vector3 worldPos;
-    DWORD lastSeenMs;
-    int markerState;
-    int markerRelation;
-    int totalBounty;
-};
-
 std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<hand> g_visibleKoHandlesScratch;
-struct KoMarkerWidget
-{
-    MyGUI::ImageBox* bountyGlow;
-    MyGUI::ImageBox* icon;
-    MyGUI::TextBox* bountySymbol;
-    MyGUI::TextBox* fallbackText;
-};
 std::vector<KoMarkerWidget> g_koMarkerWidgets;
 std::vector<std::string> g_iconTextureOkLogs;
 std::vector<std::string> g_iconTextureWarnLogs;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
+
+RuntimeStateView GetRuntimeStateView()
+{
+    RuntimeStateView state = CreateRuntimeStateView(
+        g_config,
+        g_settingsPath,
+        g_lastProbeTickMs,
+        PlayerInterface_updateUT_orig,
+        g_koTargetCache,
+        g_visibleKoHandlesScratch,
+        g_koMarkerWidgets,
+        g_iconTextureOkLogs,
+        g_iconTextureWarnLogs,
+        g_projectionUtility,
+        g_koMarkerWidgetSerial,
+        g_highlightRuntimeActive);
+
+    return state;
+}
 
 const size_t kMaxKoMarkerWidgets = 48;
 const int kKoMarkerWidthPx = 64;
@@ -2933,6 +2862,167 @@ bool IsWithinHighlightRange(const Ogre::Vector3& sourcePos, const Ogre::Vector3&
     return (dx * dx + dz * dz) <= maxDistanceSq;
 }
 
+// REFACTOR_WRAPPER_PHASE6_REMOVE
+bool IsCharacterValidSafe(Character* candidate)
+{
+    bool candidateValid = false;
+    __try
+    {
+        candidateValid = candidate->isValid();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+    return candidateValid;
+}
+
+// REFACTOR_WRAPPER_PHASE6_REMOVE
+bool TryReadCharacterSnapshotSafe(Character* candidate, bool& isOnScreen, Ogre::Vector3& candidatePos, hand& targetHandle)
+{
+    __try
+    {
+        isOnScreen = candidate->isOnScreen;
+        candidatePos = candidate->getPosition();
+        targetHandle = candidate->getHandle();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+    return true;
+}
+
+// REFACTOR_WRAPPER_PHASE6_REMOVE
+int ResolveMarkerRelationSafe(Character* candidate)
+{
+    int markerRelation = CachedKoTarget::RELATION_ENEMY;
+    __try
+    {
+        markerRelation = ResolveMarkerRelation(candidate);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        markerRelation = CachedKoTarget::RELATION_ENEMY;
+    }
+    return markerRelation;
+}
+
+// REFACTOR_WRAPPER_PHASE6_REMOVE
+Character* ResolveDeathParadeCandidateSafe(hand targetHandle, Character* fallbackCandidate)
+{
+    Character* deathParadeCandidate = 0;
+    __try
+    {
+        deathParadeCandidate = ou->getFromDeathParade(targetHandle);
+        if (!deathParadeCandidate)
+        {
+            deathParadeCandidate = fallbackCandidate;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        deathParadeCandidate = 0;
+    }
+    return deathParadeCandidate;
+}
+
+// REFACTOR_WRAPPER_PHASE6_REMOVE
+void ProcessMarkerCandidate(Character* candidate, const Ogre::Vector3& cameraCenter, DWORD nowMs)
+{
+    if (!candidate)
+    {
+        return;
+    }
+
+    if (!IsCharacterValidSafe(candidate))
+    {
+        return;
+    }
+
+    const int totalBounty = ResolveTotalBounty(candidate);
+    int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
+    const bool isDownedState = TryResolveMarkerState(candidate, &markerState);
+    if (!isDownedState)
+    {
+        if (!g_config.showBountySymbol || !g_config.showBountySymbolOnAllCharacters || totalBounty <= 0)
+        {
+            return;
+        }
+        markerState = CachedKoTarget::STATE_BOUNTY_ONLY;
+    }
+
+    bool isOnScreen = false;
+    Ogre::Vector3 candidatePos;
+    hand targetHandle;
+    if (!TryReadCharacterSnapshotSafe(candidate, isOnScreen, candidatePos, targetHandle))
+    {
+        return;
+    }
+
+    const bool isDeadState = (markerState == CachedKoTarget::STATE_DEAD);
+    if (!isDeadState && !isOnScreen)
+    {
+        return;
+    }
+
+    if (!IsWithinHighlightRange(cameraCenter, candidatePos))
+    {
+        return;
+    }
+
+    if (isDeadState && !isOnScreen)
+    {
+        if (!EnsureProjectionUtility())
+        {
+            return;
+        }
+
+        float probeX = 0.0f;
+        float probeY = 0.0f;
+        const Ogre::Vector3 anchorPos = candidatePos + Ogre::Vector3(0, kKoMarkerHeadAnchorYOffset, 0);
+        if (!g_projectionUtility->worldToScreenPX(anchorPos, probeX, probeY))
+        {
+            return;
+        }
+    }
+
+    if (targetHandle.isNull())
+    {
+        return;
+    }
+
+    const int markerRelation = ResolveMarkerRelationSafe(candidate);
+
+    if (!VisibleHandleListContains(targetHandle))
+    {
+        g_visibleKoHandlesScratch.push_back(targetHandle);
+    }
+
+    const int existingIndex = FindCachedKoTargetIndex(targetHandle);
+    if (existingIndex >= 0)
+    {
+        CachedKoTarget& existing = g_koTargetCache[existingIndex];
+        existing.worldPos = candidatePos;
+        existing.lastSeenMs = nowMs;
+        existing.markerState = markerState;
+        existing.markerRelation = markerRelation;
+        existing.totalBounty = totalBounty;
+    }
+    else
+    {
+        CachedKoTarget created = {
+            targetHandle,
+            candidatePos,
+            nowMs,
+            markerState,
+            markerRelation,
+            totalBounty
+        };
+        g_koTargetCache.push_back(created);
+    }
+}
+
 void TickKoProbe()
 {
     const bool anyMarkerVisualEnabled = (g_config.showMarkerIcons || g_config.showMarkerText || g_config.showBountySymbol);
@@ -2964,145 +3054,15 @@ void TickKoProbe()
     const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
     g_visibleKoHandlesScratch.clear();
 
-    const auto processMarkerCandidate = [&](Character* candidate)
-    {
-        if (!candidate)
-        {
-            return;
-        }
-
-        bool candidateValid = false;
-        __try
-        {
-            candidateValid = candidate->isValid();
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            return;
-        }
-        if (!candidateValid)
-        {
-            return;
-        }
-
-        const int totalBounty = ResolveTotalBounty(candidate);
-        int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
-        const bool isDownedState = TryResolveMarkerState(candidate, &markerState);
-        if (!isDownedState)
-        {
-            if (!g_config.showBountySymbol || !g_config.showBountySymbolOnAllCharacters || totalBounty <= 0)
-            {
-                return;
-            }
-            markerState = CachedKoTarget::STATE_BOUNTY_ONLY;
-        }
-
-        bool isOnScreen = false;
-        Ogre::Vector3 candidatePos;
-        hand targetHandle;
-        __try
-        {
-            isOnScreen = candidate->isOnScreen;
-            candidatePos = candidate->getPosition();
-            targetHandle = candidate->getHandle();
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            return;
-        }
-
-        const bool isDeadState = (markerState == CachedKoTarget::STATE_DEAD);
-        if (!isDeadState && !isOnScreen)
-        {
-            return;
-        }
-
-        if (!IsWithinHighlightRange(cameraCenter, candidatePos))
-        {
-            return;
-        }
-
-        if (isDeadState && !isOnScreen)
-        {
-            if (!EnsureProjectionUtility())
-            {
-                return;
-            }
-
-            float probeX = 0.0f;
-            float probeY = 0.0f;
-            const Ogre::Vector3 anchorPos = candidatePos + Ogre::Vector3(0, kKoMarkerHeadAnchorYOffset, 0);
-            if (!g_projectionUtility->worldToScreenPX(anchorPos, probeX, probeY))
-            {
-                return;
-            }
-        }
-
-        if (targetHandle.isNull())
-        {
-            return;
-        }
-
-        int markerRelation = CachedKoTarget::RELATION_ENEMY;
-        __try
-        {
-            markerRelation = ResolveMarkerRelation(candidate);
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            markerRelation = CachedKoTarget::RELATION_ENEMY;
-        }
-
-        if (!VisibleHandleListContains(targetHandle))
-        {
-            g_visibleKoHandlesScratch.push_back(targetHandle);
-        }
-
-        const int existingIndex = FindCachedKoTargetIndex(targetHandle);
-        if (existingIndex >= 0)
-        {
-            CachedKoTarget& existing = g_koTargetCache[existingIndex];
-            existing.worldPos = candidatePos;
-            existing.lastSeenMs = nowMs;
-            existing.markerState = markerState;
-            existing.markerRelation = markerRelation;
-            existing.totalBounty = totalBounty;
-        }
-        else
-        {
-            CachedKoTarget created = {
-                targetHandle,
-                candidatePos,
-                nowMs,
-                markerState,
-                markerRelation,
-                totalBounty
-            };
-            g_koTargetCache.push_back(created);
-        }
-    };
-
     for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
     {
-        processMarkerCandidate(*iter);
+        ProcessMarkerCandidate(*iter, cameraCenter, nowMs);
     }
 
     for (auto iter = deathParadeCharacters.begin(); iter != deathParadeCharacters.end(); ++iter)
     {
-        Character* deathParadeCandidate = 0;
-        __try
-        {
-            deathParadeCandidate = ou->getFromDeathParade(iter->first);
-            if (!deathParadeCandidate)
-            {
-                deathParadeCandidate = iter->second;
-            }
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            deathParadeCandidate = 0;
-        }
-        processMarkerCandidate(deathParadeCandidate);
+        Character* deathParadeCandidate = ResolveDeathParadeCandidateSafe(iter->first, iter->second);
+        ProcessMarkerCandidate(deathParadeCandidate, cameraCenter, nowMs);
     }
 
     for (int i = static_cast<int>(g_koTargetCache.size()) - 1; i >= 0; --i)
