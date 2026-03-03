@@ -1,3 +1,10 @@
 #pragma once
 
-// Phase 1 scaffolding. Implementations move in later phases.
+#include "vs_runtime_state.h"
+
+namespace vs_config
+{
+
+bool LoadConfigState(RuntimeStateView& state, const char* pluginName);
+
+} // namespace vs_config
