@@ -65,6 +65,17 @@ static const char* kWallBGonePanelName = "wall_b_gone_options";
 static const int kWallBGonePanelLineId = 0x574247;
 static const std::string kHotkeyNativeLabel = "Hotkey";
 static std::string g_hotkeyNativeBinding = "X";
+static bool g_nativeHotkeyBindingActive = false;
+
+struct WallBGoneRuntimeStateV1
+{
+    int32_t enabled;
+    int32_t sleeping_bag_dismantle_enabled;
+    int32_t hotkey_keycode;
+    uint32_t hotkey_modifiers;
+};
+
+typedef int(__cdecl *FnEmcWallBGoneUseHubUi)();
 
 static bool SaveConfigState();
 static const char* KeyCodeToName(OIS::KeyCode keyCode);
@@ -138,6 +149,24 @@ static void OnResetHotkeyButtonClicked(MyGUI::Widget*)
     SyncNativeBindingFromHotkey();
     SaveConfigState();
     RefreshHotkeyUiWidgets();
+}
+
+static bool ShouldUseHubUiFromCore()
+{
+    HMODULE coreModule = GetModuleHandleA("Emkejs-Mod-Core.dll");
+    if (!coreModule)
+    {
+        return false;
+    }
+
+    FnEmcWallBGoneUseHubUi useHubUiFn =
+        reinterpret_cast<FnEmcWallBGoneUseHubUi>(GetProcAddress(coreModule, "EMC_WallBGone_UseHubUi"));
+    if (!useHubUiFn)
+    {
+        return false;
+    }
+
+    return useHubUiFn() != 0;
 }
 
 static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
@@ -813,6 +842,81 @@ static void EnsureRuntimeHotkeyValid()
     }
 }
 
+static void WriteRuntimeApiError(char* err_buf, uint32_t err_buf_size, const char* text)
+{
+    if (!err_buf || err_buf_size == 0u || !text)
+    {
+        return;
+    }
+
+    const size_t copyLen = static_cast<size_t>(err_buf_size - 1u);
+    std::strncpy(err_buf, text, copyLen);
+    err_buf[copyLen] = '\0';
+}
+
+extern "C" __declspec(dllexport) int __cdecl WallBGone_GetRuntimeStateV1(WallBGoneRuntimeStateV1* out_state)
+{
+    if (!out_state)
+    {
+        return 1;
+    }
+
+    EnsureRuntimeHotkeyValid();
+    out_state->enabled = g_modEnabled ? 1 : 0;
+    out_state->sleeping_bag_dismantle_enabled = g_sleepingBagDismantleEnabled ? 1 : 0;
+    out_state->hotkey_keycode = static_cast<int32_t>(g_hotkeyPrimary);
+    out_state->hotkey_modifiers = 0u;
+    return 0;
+}
+
+extern "C" __declspec(dllexport) int __cdecl WallBGone_SetRuntimeStateV1(
+    const WallBGoneRuntimeStateV1* state,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!state)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_state");
+        return 1;
+    }
+
+    if ((state->enabled != 0 && state->enabled != 1)
+        || (state->sleeping_bag_dismantle_enabled != 0 && state->sleeping_bag_dismantle_enabled != 1))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_bool");
+        return 1;
+    }
+
+    if (state->hotkey_modifiers != 0u)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "unsupported_modifiers");
+        return 1;
+    }
+
+    const OIS::KeyCode requestedHotkey = static_cast<OIS::KeyCode>(state->hotkey_keycode);
+    std::string validationReason;
+    if (ValidateHotkey(requestedHotkey, &validationReason) != HotkeyValidation_Ok)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_hotkey");
+        return 1;
+    }
+
+    g_modEnabled = state->enabled != 0;
+    g_sleepingBagDismantleEnabled = state->sleeping_bag_dismantle_enabled != 0;
+    g_hotkeyPrimary = requestedHotkey;
+    g_pendingHotkeyPrimary = requestedHotkey;
+    SyncNativeBindingFromHotkey();
+    RefreshHotkeyUiWidgets();
+
+    if (!SaveConfigState())
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return 2;
+    }
+
+    return 0;
+}
+
 static DataPanelLine* TryCreateNativeKeybindRow(
     DatapanelGUI* panel,
     int tabID,
@@ -872,6 +976,11 @@ static void OptionsWindowInitHook(OptionsWindow* self)
         return;
     }
 
+    if (ShouldUseHubUiFromCore())
+    {
+        return;
+    }
+
     if (self->optionsTab->findItemWith(kWallBGoneTabName))
     {
         return;
@@ -921,6 +1030,7 @@ static void OptionsWindowInitHook(OptionsWindow* self)
     g_hotkeyRebindButton = 0;
     g_hotkeyResetButton = 0;
     g_hotkeyLabelWidget = 0;
+    g_nativeHotkeyBindingActive = false;
 
     MyGUI::Widget* panelWidget = pluginOptionPanel->getWidget();
 
@@ -932,9 +1042,13 @@ static void OptionsWindowInitHook(OptionsWindow* self)
             tabID,
             &g_hotkeyNativeBinding);
 
-        if (keyLine && self->tooltip)
+        if (keyLine)
         {
-            keyLine->setTooltip("Click and press a key to bind Wall-B-Gone dismantle hotkey.", self->tooltip);
+            g_nativeHotkeyBindingActive = true;
+            if (self->tooltip)
+            {
+                keyLine->setTooltip("Click and press a key to bind Wall-B-Gone dismantle hotkey.", self->tooltip);
+            }
         }
         else if (!keyLine)
         {
@@ -958,25 +1072,34 @@ static void OptionsWindowSaveHook(OptionsWindow* self)
         g_fnOptionsSaveOrig(self);
     }
 
-    OIS::KeyCode parsedKey = OIS::KC_UNASSIGNED;
-    if (TryParseKeyCode(g_hotkeyNativeBinding, &parsedKey))
+    if (g_nativeHotkeyBindingActive)
     {
-        std::string reason;
-        if (ValidateHotkey(parsedKey, &reason) == HotkeyValidation_Ok)
+        OIS::KeyCode parsedKey = OIS::KC_UNASSIGNED;
+        if (TryParseKeyCode(g_hotkeyNativeBinding, &parsedKey))
         {
-            g_hotkeyPrimary = parsedKey;
-            g_pendingHotkeyPrimary = parsedKey;
-            SyncNativeBindingFromHotkey();
+            std::string reason;
+            if (ValidateHotkey(parsedKey, &reason) == HotkeyValidation_Ok)
+            {
+                g_hotkeyPrimary = parsedKey;
+                g_pendingHotkeyPrimary = parsedKey;
+                SyncNativeBindingFromHotkey();
+            }
+            else
+            {
+                ErrorLog("Wall-B-Gone: native keybind value rejected by validation; keeping previous key");
+                SyncNativeBindingFromHotkey();
+            }
         }
         else
         {
-            ErrorLog("Wall-B-Gone: native keybind value rejected by validation; keeping previous key");
+            ErrorLog("Wall-B-Gone: native keybind value parse failed; keeping previous key");
             SyncNativeBindingFromHotkey();
         }
     }
     else
     {
-        ErrorLog("Wall-B-Gone: native keybind value parse failed; keeping previous key");
+        // Fallback capture path updates g_hotkeyPrimary directly.
+        g_pendingHotkeyPrimary = g_hotkeyPrimary;
         SyncNativeBindingFromHotkey();
     }
 
