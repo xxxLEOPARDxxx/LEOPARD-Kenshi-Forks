@@ -1,10 +1,9 @@
 #include "vs_probe.h"
 
-#include "vs_marker_render.h"
-
 #include <core/Functions.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
+#include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
 
 #include <Windows.h>
@@ -23,6 +22,62 @@ namespace
 {
 const float kKoMarkerHeadAnchorYOffset = 2.0f;
 const float kProbablyDyingBloodMax = 50.0f;
+
+bool EnsureProjectionUtility(RuntimeStateView& state)
+{
+    if (state.projectionUtility)
+    {
+        return true;
+    }
+
+    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    const unsigned int platform = versionInfo.GetPlatform();
+    const std::string version = versionInfo.GetVersion();
+
+    uintptr_t utilityOffset = 0;
+    if (platform == KenshiLib::BinaryVersion::STEAM)
+    {
+        if (version == "1.0.65")
+        {
+            utilityOffset = 0x02134b10;
+        }
+        else if (version == "1.0.68")
+        {
+            utilityOffset = 0x02135b70;
+        }
+    }
+    else if (platform == KenshiLib::BinaryVersion::GOG)
+    {
+        if (version == "1.0.65")
+        {
+            utilityOffset = 0x02132a80;
+        }
+        else if (version == "1.0.68")
+        {
+            utilityOffset = 0x02134aa0;
+        }
+    }
+
+    if (utilityOffset == 0)
+    {
+        return false;
+    }
+
+    HMODULE exeHandle = GetModuleHandleA(0);
+    if (!exeHandle)
+    {
+        return false;
+    }
+
+    const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(exeHandle);
+    if (!baseAddress)
+    {
+        return false;
+    }
+
+    state.projectionUtility = reinterpret_cast<UtilityT*>(baseAddress + utilityOffset);
+    return state.projectionUtility != 0;
+}
 }
 
 namespace vs_probe
@@ -432,7 +487,7 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
 
     if (isDeadState && !isOnScreen)
     {
-        if (!vs_marker_render::EnsureProjectionUtility(state))
+        if (!EnsureProjectionUtility(state))
         {
             return;
         }
@@ -482,7 +537,7 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
     }
 }
 
-void TickKoProbe(RuntimeStateView& state, const char* pluginName)
+ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
 {
     const bool anyMarkerVisualEnabled = (state.config.showMarkerIcons || state.config.showMarkerText || state.config.showBountySymbol);
     const bool canRun = state.config.enabled && anyMarkerVisualEnabled && IsHighlightGateOpen(state) && ou;
@@ -491,10 +546,10 @@ void TickKoProbe(RuntimeStateView& state, const char* pluginName)
         if (state.highlightRuntimeActive)
         {
             state.koTargetCache.clear();
-            vs_marker_render::HideAllKoMarkerWidgets(state, pluginName);
             state.highlightRuntimeActive = false;
+            return PROBE_RENDER_HIDE_ALL;
         }
-        return;
+        return PROBE_RENDER_NONE;
     }
     state.highlightRuntimeActive = true;
 
@@ -502,8 +557,7 @@ void TickKoProbe(RuntimeStateView& state, const char* pluginName)
 
     if (state.lastProbeTickMs != 0 && (nowMs - state.lastProbeTickMs) < state.config.updateIntervalMs)
     {
-        vs_marker_render::TickKoMarkerRender(state, pluginName);
-        return;
+        return PROBE_RENDER_TICK;
     }
     state.lastProbeTickMs = nowMs;
 
@@ -531,7 +585,7 @@ void TickKoProbe(RuntimeStateView& state, const char* pluginName)
             state.koTargetCache.erase(state.koTargetCache.begin() + i);
         }
     }
-    vs_marker_render::TickKoMarkerRender(state, pluginName);
+    return PROBE_RENDER_TICK;
 }
 
 } // namespace vs_probe

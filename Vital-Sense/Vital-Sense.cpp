@@ -30,8 +30,6 @@
 
 #include <Windows.h>
 
-#include <cctype>
-#include <cstring>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -137,107 +135,6 @@ RuntimeStateView GetRuntimeStateView()
 
 const size_t kMaxKoMarkerWidgets = 48;
 
-void LogInfo(const std::string& message);
-void LogWarn(const std::string& message);
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void LogWithPrefix(void (*sink)(const char*), const char* level, const std::string& message)
-{
-    vs_log::LogWithPrefix(kPluginName, sink, level, message);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void LogInfo(const std::string& message)
-{
-    vs_log::LogInfo(kPluginName, message);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void LogWarn(const std::string& message)
-{
-    vs_log::LogWarn(kPluginName, message);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void LogError(const std::string& message)
-{
-    vs_log::LogError(kPluginName, message);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-std::string ToLowerAsciiCopy(const std::string& value)
-{
-    return vs_parse::ToLowerAsciiCopy(value);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-std::string TrimAscii(const std::string& value)
-{
-    return vs_parse::TrimAscii(value);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void SkipWhitespace(const std::string& body, size_t* pos)
-{
-    vs_parse::SkipWhitespace(body, pos);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool ParseBoolFromJson(const std::string& body, const char* keyName, bool* valueOut)
-{
-    return vs_parse::ParseBoolFromJson(body, keyName, valueOut);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool ParseUnsignedFromJson(const std::string& body, const char* keyName, DWORD* valueOut)
-{
-    try
-    {
-        return vs_parse::ParseUnsignedFromJson(body, keyName, valueOut);
-    }
-    catch (...)
-    {
-        return false;
-    }
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool ParseStringFromJson(const std::string& body, const char* keyName, std::string* valueOut)
-{
-    return vs_parse::ParseStringFromJson(body, keyName, valueOut);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool TryParseHexNibble(char value, unsigned int* nibbleOut)
-{
-    return vs_parse::TryParseHexNibble(value, nibbleOut);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool TryParseHexByte(const std::string& value, size_t pos, unsigned int* byteOut)
-{
-    return vs_parse::TryParseHexByte(value, pos, byteOut);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool TryParseColourHex(const std::string& rawValue, MyGUI::Colour* colourOut)
-{
-    return vs_parse::TryParseColourHex(rawValue, colourOut);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-std::string ColourToHexRgb(const MyGUI::Colour& colour)
-{
-    return vs_parse::ColourToHexRgb(colour);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool LoadConfigState()
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    return vs_config::LoadConfigState(state, kPluginName);
-}
-
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
     const unsigned int platform = versionInfo.GetPlatform();
@@ -247,82 +144,39 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
         && (version == "1.0.65" || version == "1.0.68");
 }
 
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool EnsureProjectionUtility()
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    return vs_marker_render::EnsureProjectionUtility(state);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void HideAllKoMarkerWidgets()
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    vs_marker_render::HideAllKoMarkerWidgets(state, kPluginName);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void TickKoMarkerRender()
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    vs_marker_render::TickKoMarkerRender(state, kPluginName);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool IsCharacterValidSafe(Character* candidate)
-{
-    return vs_probe::IsCharacterValidSafe(candidate);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-bool TryReadCharacterSnapshotSafe(Character* candidate, bool& isOnScreen, Ogre::Vector3& candidatePos, hand& targetHandle)
-{
-    return vs_probe::TryReadCharacterSnapshotSafe(candidate, isOnScreen, candidatePos, targetHandle);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-int ResolveMarkerRelationSafe(Character* candidate)
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    return vs_probe::ResolveMarkerRelationSafe(state, candidate);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-Character* ResolveDeathParadeCandidateSafe(hand targetHandle, Character* fallbackCandidate)
-{
-    return vs_probe::ResolveDeathParadeCandidateSafe(targetHandle, fallbackCandidate);
-}
-
-// REFACTOR_WRAPPER_PHASE6_REMOVE
-void ProcessMarkerCandidate(Character* candidate, const Ogre::Vector3& cameraCenter, DWORD nowMs)
-{
-    RuntimeStateView state = GetRuntimeStateView();
-    vs_probe::ProcessMarkerCandidate(state, candidate, cameraCenter, nowMs);
-}
-
 void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     if (PlayerInterface_updateUT_orig)
     {
         PlayerInterface_updateUT_orig(thisptr);
     }
+
     RuntimeStateView state = GetRuntimeStateView();
-    vs_probe::TickKoProbe(state, kPluginName);
+    const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state);
+    if (renderDirective == vs_probe::PROBE_RENDER_HIDE_ALL)
+    {
+        vs_marker_render::HideAllKoMarkerWidgets(state, kPluginName);
+    }
+    else if (renderDirective == vs_probe::PROBE_RENDER_TICK)
+    {
+        vs_marker_render::TickKoMarkerRender(state, kPluginName);
+    }
 }
 }
 
 __declspec(dllexport) void startPlugin()
 {
-    LogInfo("startPlugin()");
+    vs_log::LogInfo(kPluginName, "startPlugin()");
 
     const KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
     if (!IsSupportedVersion(versionInfo))
     {
-        LogError("unsupported Kenshi version/platform");
+        vs_log::LogError(kPluginName, "unsupported Kenshi version/platform");
         return;
     }
 
-    LoadConfigState();
+    RuntimeStateView state = GetRuntimeStateView();
+    vs_config::LoadConfigState(state, kPluginName);
 
     std::stringstream info;
     info << "loaded (enabled=" << (g_config.enabled ? "true" : "false")
@@ -352,25 +206,25 @@ __declspec(dllexport) void startPlugin()
          << ", dying_text_size_px=" << g_config.dyingTextSizePx
          << ", playing_dead_text_size_px=" << g_config.playingDeadTextSizePx
          << ", dead_text_size_px=" << g_config.deadTextSizePx
-         << ", enemy_color_hex=" << ColourToHexRgb(g_config.enemyMarkerColour)
-         << ", ally_color_hex=" << ColourToHexRgb(g_config.allyMarkerColour)
-         << ", squad_color_hex=" << ColourToHexRgb(g_config.squadMarkerColour)
+         << ", enemy_color_hex=" << vs_parse::ColourToHexRgb(g_config.enemyMarkerColour)
+         << ", ally_color_hex=" << vs_parse::ColourToHexRgb(g_config.allyMarkerColour)
+         << ", squad_color_hex=" << vs_parse::ColourToHexRgb(g_config.squadMarkerColour)
          << ", bounty_tier_trivial_max=" << g_config.bountyTierTrivialMax
          << ", bounty_tier_low_max=" << g_config.bountyTierLowMax
          << ", bounty_tier_modest_max=" << g_config.bountyTierModestMax
          << ", bounty_tier_notable_max=" << g_config.bountyTierNotableMax
          << ", bounty_tier_high_value_max=" << g_config.bountyTierHighValueMax
          << ", bounty_tier_elite_max=" << g_config.bountyTierEliteMax
-         << ", bounty_color_trivial_hex=" << ColourToHexRgb(g_config.bountyTierTrivialColour)
-         << ", bounty_color_low_hex=" << ColourToHexRgb(g_config.bountyTierLowColour)
-         << ", bounty_color_modest_hex=" << ColourToHexRgb(g_config.bountyTierModestColour)
-         << ", bounty_color_notable_hex=" << ColourToHexRgb(g_config.bountyTierNotableColour)
-         << ", bounty_color_high_value_hex=" << ColourToHexRgb(g_config.bountyTierHighValueColour)
-         << ", bounty_color_elite_hex=" << ColourToHexRgb(g_config.bountyTierEliteColour)
-         << ", bounty_color_legendary_hex=" << ColourToHexRgb(g_config.bountyTierLegendaryColour)
+         << ", bounty_color_trivial_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierTrivialColour)
+         << ", bounty_color_low_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierLowColour)
+         << ", bounty_color_modest_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierModestColour)
+         << ", bounty_color_notable_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierNotableColour)
+         << ", bounty_color_high_value_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierHighValueColour)
+         << ", bounty_color_elite_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierEliteColour)
+         << ", bounty_color_legendary_hex=" << vs_parse::ColourToHexRgb(g_config.bountyTierLegendaryColour)
          << ", max_highlight_distance_m=" << g_config.maxHighlightDistanceMeters
          << ")";
-    LogInfo(info.str());
+    vs_log::LogInfo(kPluginName, info.str());
 
     g_koTargetCache.reserve(128);
     g_visibleKoHandlesScratch.reserve(128);
@@ -381,11 +235,11 @@ __declspec(dllexport) void startPlugin()
         PlayerInterface_updateUT_hook,
         &PlayerInterface_updateUT_orig))
     {
-        LogError("could not hook PlayerInterface::updateUT");
+        vs_log::LogError(kPluginName, "could not hook PlayerInterface::updateUT");
         return;
     }
 
-    LogInfo("update hook installed");
+    vs_log::LogInfo(kPluginName, "update hook installed");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
@@ -395,7 +249,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
         char dllPath[_MAX_PATH] = { 0 };
         if (GetModuleFileNameA(hModule, dllPath, _MAX_PATH) > 0)
         {
-            const std::string fullPath = TrimAscii(std::string(dllPath));
+            const std::string fullPath = vs_parse::TrimAscii(std::string(dllPath));
             const size_t sep = fullPath.find_last_of("\\/");
             if (sep != std::string::npos)
             {
