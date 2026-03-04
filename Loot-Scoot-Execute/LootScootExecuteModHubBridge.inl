@@ -8,6 +8,11 @@ const char* kModHubModDisplayName = "Loot-Scoot-Execute";
 
 const char* kModHubSettingEnabledId = "enabled";
 const char* kModHubSettingExecuteKillSoundId = "enable_execute_kill_sound";
+const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
+const char* kModHubSettingExecuteButtonHeightId = "execute_button_height";
+const char* kModHubSettingExecuteButtonXId = "execute_button_x";
+const char* kModHubSettingExecuteButtonYId = "execute_button_y";
+const char* kModHubActionResetExecuteButtonDefaultsId = "reset_execute_button_defaults";
 
 const uintptr_t kExpectedRvaOptionsInitPlatform1_1_0_65 = 0x003F0120;
 const uintptr_t kExpectedRvaOptionsInitPlatform0_1_0_65 = 0x003EFD40;
@@ -51,6 +56,56 @@ static void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* 
 static bool IsHubStateValid(void* user_data)
 {
     return user_data == &g_modHubState && g_modHubState.config != 0;
+}
+
+static EMC_Result HubGetIntConfigValue(void* user_data, const int* source, int32_t* out_value)
+{
+    if (!IsHubStateValid(user_data) || source == 0 || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    *out_value = static_cast<int32_t>(*source);
+    return EMC_OK;
+}
+
+static EMC_Result HubSetIntConfigValue(
+    void* user_data,
+    int32_t value,
+    int min_value,
+    int max_value,
+    int* destination,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubStateValid(user_data) || destination == 0)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value < min_value || value > max_value)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "value_out_of_range");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const int next_value = static_cast<int>(value);
+    const int previous_value = *destination;
+    if (previous_value == next_value)
+    {
+        return EMC_OK;
+    }
+
+    *destination = next_value;
+    if (!SaveConfigState())
+    {
+        *destination = previous_value;
+        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
 }
 
 static EMC_Result __cdecl HubGetEnabled(void* user_data, int32_t* out_value)
@@ -137,6 +192,112 @@ static EMC_Result __cdecl HubSetExecuteKillSound(void* user_data, int32_t value,
     return EMC_OK;
 }
 
+static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonWidthPx, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteButtonWidth(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteButtonRuntimeWidthMin,
+        kExecuteButtonWidthMax,
+        &g_modHubState.config->executeButtonWidthPx,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetExecuteButtonHeight(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonHeightPx, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteButtonHeight(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteButtonRuntimeHeightMin,
+        kExecuteButtonHeightMax,
+        &g_modHubState.config->executeButtonHeightPx,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetExecuteButtonX(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonOffsetXPx, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteButtonX(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteButtonOffsetMin,
+        kExecuteButtonOffsetMax,
+        &g_modHubState.config->executeButtonOffsetXPx,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetExecuteButtonY(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonOffsetYPx, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteButtonY(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteButtonOffsetMin,
+        kExecuteButtonOffsetMax,
+        &g_modHubState.config->executeButtonOffsetYPx,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubResetExecuteButtonDefaults(void* user_data, char* err_buf, uint32_t err_buf_size)
+{
+    if (!IsHubStateValid(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const int previous_width = g_modHubState.config->executeButtonWidthPx;
+    const int previous_height = g_modHubState.config->executeButtonHeightPx;
+    const int previous_x = g_modHubState.config->executeButtonOffsetXPx;
+    const int previous_y = g_modHubState.config->executeButtonOffsetYPx;
+    if (previous_width == kExecuteButtonDefaultWidth
+        && previous_height == kExecuteButtonDefaultHeight
+        && previous_x == kExecuteButtonDefaultAbsoluteX
+        && previous_y == kExecuteButtonDefaultAbsoluteY)
+    {
+        return EMC_OK;
+    }
+
+    g_modHubState.config->executeButtonWidthPx = kExecuteButtonDefaultWidth;
+    g_modHubState.config->executeButtonHeightPx = kExecuteButtonDefaultHeight;
+    g_modHubState.config->executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
+    g_modHubState.config->executeButtonOffsetYPx = kExecuteButtonDefaultAbsoluteY;
+
+    if (!SaveConfigState())
+    {
+        g_modHubState.config->executeButtonWidthPx = previous_width;
+        g_modHubState.config->executeButtonHeightPx = previous_height;
+        g_modHubState.config->executeButtonOffsetXPx = previous_x;
+        g_modHubState.config->executeButtonOffsetYPx = previous_y;
+        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
 static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
 {
     static const EMC_ModDescriptorV1 kModDescriptor = {
@@ -162,9 +323,66 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetExecuteKillSound,
         &HubSetExecuteKillSound};
 
+    static const EMC_IntSettingDefV1 kExecuteButtonWidthSettingDef = {
+        kModHubSettingExecuteButtonWidthId,
+        "Execute button width",
+        "Execute button width in pixels (default 310)",
+        &g_modHubState,
+        kExecuteButtonRuntimeWidthMin,
+        kExecuteButtonWidthMax,
+        1,
+        &HubGetExecuteButtonWidth,
+        &HubSetExecuteButtonWidth};
+
+    static const EMC_IntSettingDefV1 kExecuteButtonHeightSettingDef = {
+        kModHubSettingExecuteButtonHeightId,
+        "Execute button height",
+        "Execute button height in pixels (default 56)",
+        &g_modHubState,
+        kExecuteButtonRuntimeHeightMin,
+        kExecuteButtonHeightMax,
+        1,
+        &HubGetExecuteButtonHeight,
+        &HubSetExecuteButtonHeight};
+
+    static const EMC_IntSettingDefV1 kExecuteButtonXSettingDef = {
+        kModHubSettingExecuteButtonXId,
+        "Execute button X",
+        "Horizontal offset in pixels from the default anchored position",
+        &g_modHubState,
+        kExecuteButtonOffsetMin,
+        kExecuteButtonOffsetMax,
+        1,
+        &HubGetExecuteButtonX,
+        &HubSetExecuteButtonX};
+
+    static const EMC_IntSettingDefV1 kExecuteButtonYSettingDef = {
+        kModHubSettingExecuteButtonYId,
+        "Execute button Y",
+        "Vertical offset in pixels from the default anchored position",
+        &g_modHubState,
+        kExecuteButtonOffsetMin,
+        kExecuteButtonOffsetMax,
+        1,
+        &HubGetExecuteButtonY,
+        &HubSetExecuteButtonY};
+
+    static const EMC_ActionRowDefV1 kResetExecuteButtonDefaultsActionDef = {
+        kModHubActionResetExecuteButtonDefaultsId,
+        "Reset Execute button defaults",
+        "Restore Execute button defaults to 310 width, 56 height, X 0, and Y 0",
+        &g_modHubState,
+        EMC_ACTION_FORCE_REFRESH,
+        &HubResetExecuteButtonDefaults};
+
     static const emc::ModHubClientSettingRowV1 kSettingRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonWidthSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonYSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetExecuteButtonDefaultsActionDef }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {

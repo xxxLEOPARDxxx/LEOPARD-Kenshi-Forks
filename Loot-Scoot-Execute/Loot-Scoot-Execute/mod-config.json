@@ -1,4 +1,8 @@
 {
   "enabled": true,
-  "enable_execute_kill_sound": true
+  "enable_execute_kill_sound": true,
+  "execute_button_width": 310,
+  "execute_button_height": 56,
+  "execute_button_x": 0,
+  "execute_button_y": 0
 }

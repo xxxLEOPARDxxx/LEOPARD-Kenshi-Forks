@@ -227,6 +227,75 @@ static bool ParseJsonUnsignedIntValue(
     return true;
 }
 
+static bool ParseJsonSignedIntValue(
+    const std::string& text,
+    size_t* pos,
+    int minValue,
+    int maxValue,
+    int* valueOut,
+    bool* clampedOut)
+{
+    if (!pos || !valueOut || minValue > maxValue)
+    {
+        return false;
+    }
+
+    SkipJsonWhitespace(text, pos);
+    size_t cursor = *pos;
+    if (cursor < text.size() && (text[cursor] == '-' || text[cursor] == '+'))
+    {
+        ++cursor;
+    }
+
+    bool sawDigit = false;
+    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
+    {
+        sawDigit = true;
+        ++cursor;
+    }
+
+    if (!sawDigit)
+    {
+        return false;
+    }
+
+    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
+    {
+        return false;
+    }
+
+    const std::string numberText = text.substr(*pos, cursor - *pos);
+    long parsed = 0;
+    try
+    {
+        parsed = std::stol(numberText);
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    bool clamped = false;
+    if (parsed < static_cast<long>(minValue))
+    {
+        parsed = static_cast<long>(minValue);
+        clamped = true;
+    }
+    else if (parsed > static_cast<long>(maxValue))
+    {
+        parsed = static_cast<long>(maxValue);
+        clamped = true;
+    }
+
+    *valueOut = static_cast<int>(parsed);
+    if (clampedOut)
+    {
+        *clampedOut = clamped;
+    }
+    *pos = cursor;
+    return true;
+}
+
 static bool SkipJsonValue(const std::string& text, size_t* pos);
 
 static bool SkipJsonObject(const std::string& text, size_t* pos)
@@ -525,6 +594,114 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "execute_button_width")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteButtonWidthMin,
+                    kExecuteButtonWidthMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteButtonWidthPx = true;
+                diagnostics->clampedExecuteButtonWidthPx = clamped;
+                configOut->executeButtonWidthPx = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteButtonWidthPx = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "execute_button_height")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteButtonHeightMin,
+                    kExecuteButtonHeightMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteButtonHeightPx = true;
+                diagnostics->clampedExecuteButtonHeightPx = clamped;
+                configOut->executeButtonHeightPx = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteButtonHeightPx = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "execute_button_x")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteButtonOffsetMin,
+                    kExecuteButtonOffsetMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteButtonOffsetXPx = true;
+                diagnostics->clampedExecuteButtonOffsetXPx = clamped;
+                configOut->executeButtonOffsetXPx = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteButtonOffsetXPx = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "execute_button_y")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteButtonOffsetMin,
+                    kExecuteButtonOffsetMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteButtonOffsetYPx = true;
+                diagnostics->clampedExecuteButtonOffsetYPx = clamped;
+                configOut->executeButtonOffsetYPx = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteButtonOffsetYPx = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else
         {
             if (!SkipJsonValue(body, &pos))
@@ -567,36 +744,56 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, false, false, false, true };
+    PluginConfig parsedConfig = { true, 2000, false, false, false, false, true, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
             "{\"enabled\":false,"
-            "\"enable_execute_kill_sound\":false}",
+            "\"enable_execute_kill_sound\":false,"
+            "\"execute_button_width\":320,"
+            "\"execute_button_height\":44,"
+            "\"execute_button_x\":15,"
+            "\"execute_button_y\":-6}",
             &parsedConfig,
             &diagnostics))
     {
         return false;
     }
     if (parsedConfig.enabled
-        || parsedConfig.enableExecuteKillSound)
+        || parsedConfig.enableExecuteKillSound
+        || parsedConfig.executeButtonWidthPx != 320
+        || parsedConfig.executeButtonHeightPx != 44
+        || parsedConfig.executeButtonOffsetXPx != 15
+        || parsedConfig.executeButtonOffsetYPx != -6)
     {
         return false;
     }
 
     const std::string bomJson = std::string("\xEF\xBB\xBF")
         + "{\"enabled\":true,"
-          "\"enable_execute_kill_sound\":true}";
+          "\"enable_execute_kill_sound\":true,"
+          "\"execute_button_width\":0,"
+          "\"execute_button_height\":0,"
+          "\"execute_button_x\":0,"
+          "\"execute_button_y\":0}";
     parsedConfig.enabled = false;
     parsedConfig.enableExecuteKillSound = false;
+    parsedConfig.executeButtonWidthPx = 1;
+    parsedConfig.executeButtonHeightPx = 1;
+    parsedConfig.executeButtonOffsetXPx = 1;
+    parsedConfig.executeButtonOffsetYPx = 1;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
     {
         return false;
     }
     if (!parsedConfig.enabled
-        || !parsedConfig.enableExecuteKillSound)
+        || !parsedConfig.enableExecuteKillSound
+        || parsedConfig.executeButtonWidthPx != 0
+        || parsedConfig.executeButtonHeightPx != 0
+        || parsedConfig.executeButtonOffsetXPx != 0
+        || parsedConfig.executeButtonOffsetYPx != 0)
     {
         return false;
     }
@@ -608,6 +805,17 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!diagnostics.invalidEnabled)
+    {
+        return false;
+    }
+
+    parsedConfig.executeButtonOffsetXPx = 0;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_button_x\":900000}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.clampedExecuteButtonOffsetXPx || parsedConfig.executeButtonOffsetXPx != kExecuteButtonOffsetMax)
     {
         return false;
     }
@@ -691,6 +899,26 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_kill_sound\"; using default");
     }
+    if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_width\"; using normalized value");
+    }
+    if (!diagnostics.foundExecuteButtonHeightPx || diagnostics.invalidExecuteButtonHeightPx || diagnostics.clampedExecuteButtonHeightPx)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_height\"; using normalized value");
+    }
+    if (!diagnostics.foundExecuteButtonOffsetXPx || diagnostics.invalidExecuteButtonOffsetXPx || diagnostics.clampedExecuteButtonOffsetXPx)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_x\"; using normalized value");
+    }
+    if (!diagnostics.foundExecuteButtonOffsetYPx || diagnostics.invalidExecuteButtonOffsetYPx || diagnostics.clampedExecuteButtonOffsetYPx)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_y\"; using normalized value");
+    }
     if (needsWriteBackOut)
     {
         *needsWriteBackOut = needsWriteBack;
@@ -708,7 +936,11 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
-    out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << "\n";
+    out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << ",\n";
+    out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
+    out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
+    out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";
+    out << "  \"execute_button_y\": " << config.executeButtonOffsetYPx << "\n";
     out << "}\n";
 
     return true;

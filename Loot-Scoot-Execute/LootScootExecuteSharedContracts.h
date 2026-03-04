@@ -15,6 +15,10 @@ struct PluginConfig
     bool debugContextMenu;
     bool enableDebugDirectDamageFallback;
     bool enableExecuteKillSound;
+    int executeButtonWidthPx;
+    int executeButtonHeightPx;
+    int executeButtonOffsetXPx;
+    int executeButtonOffsetYPx;
 };
 
 struct RuntimeState
@@ -45,6 +49,18 @@ struct ConfigParseDiagnostics
     bool invalidEnableDebugDirectDamageFallback;
     bool foundEnableExecuteKillSound;
     bool invalidEnableExecuteKillSound;
+    bool foundExecuteButtonWidthPx;
+    bool invalidExecuteButtonWidthPx;
+    bool clampedExecuteButtonWidthPx;
+    bool foundExecuteButtonHeightPx;
+    bool invalidExecuteButtonHeightPx;
+    bool clampedExecuteButtonHeightPx;
+    bool foundExecuteButtonOffsetXPx;
+    bool invalidExecuteButtonOffsetXPx;
+    bool clampedExecuteButtonOffsetXPx;
+    bool foundExecuteButtonOffsetYPx;
+    bool invalidExecuteButtonOffsetYPx;
+    bool clampedExecuteButtonOffsetYPx;
     bool syntaxError;
     size_t syntaxErrorOffset;
 };

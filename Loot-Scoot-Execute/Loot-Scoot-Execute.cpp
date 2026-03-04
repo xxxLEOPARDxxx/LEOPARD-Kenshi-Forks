@@ -95,6 +95,18 @@ static const int kCustomExecutePanelHorizontalOffset = 5;
 static const int kCustomExecutePanelBottomExtraYOffset = 6;
 static const int kCustomExecutePanelAdditionalYOffset = 5;
 static const int kCustomExecutePanelFallbackExtraYOffset = 6;
+static const int kExecuteButtonWidthMin = 0;
+static const int kExecuteButtonWidthMax = 4096;
+static const int kExecuteButtonHeightMin = 0;
+static const int kExecuteButtonHeightMax = 1024;
+static const int kExecuteButtonOffsetMin = -4096;
+static const int kExecuteButtonOffsetMax = 4096;
+static const int kExecuteButtonRuntimeWidthMin = 20;
+static const int kExecuteButtonRuntimeHeightMin = 12;
+static const int kExecuteButtonDefaultWidth = 310;
+static const int kExecuteButtonDefaultHeight = 56;
+static const int kExecuteButtonDefaultAbsoluteX = 0;
+static const int kExecuteButtonDefaultAbsoluteY = 0;
 static const std::string kContextMenuOptionsListWidgetName = "OptionsList";
 static const std::string kContextMenuNameTextWidgetName = "NameText";
 static const bool kEnableInternalDebugLogs = false;
@@ -124,7 +136,18 @@ static const uintptr_t kExpectedRvaContextMenuTaskProbabilityCallReturn_1_0_65 =
 static const uintptr_t kExpectedRvaContextMenuRowInsertCallReturn_1_0_65 = 0x007A7698;
 static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
-static PluginConfig g_config = { true, 2000, false, false, false, false, true };
+static PluginConfig g_config = {
+    true,
+    2000,
+    false,
+    false,
+    false,
+    false,
+    true,
+    kExecuteButtonDefaultWidth,
+    kExecuteButtonDefaultHeight,
+    kExecuteButtonDefaultAbsoluteX,
+    kExecuteButtonDefaultAbsoluteY };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -453,6 +476,18 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableDebugDirectDamageFallback = false;
     diagnostics->foundEnableExecuteKillSound = false;
     diagnostics->invalidEnableExecuteKillSound = false;
+    diagnostics->foundExecuteButtonWidthPx = false;
+    diagnostics->invalidExecuteButtonWidthPx = false;
+    diagnostics->clampedExecuteButtonWidthPx = false;
+    diagnostics->foundExecuteButtonHeightPx = false;
+    diagnostics->invalidExecuteButtonHeightPx = false;
+    diagnostics->clampedExecuteButtonHeightPx = false;
+    diagnostics->foundExecuteButtonOffsetXPx = false;
+    diagnostics->invalidExecuteButtonOffsetXPx = false;
+    diagnostics->clampedExecuteButtonOffsetXPx = false;
+    diagnostics->foundExecuteButtonOffsetYPx = false;
+    diagnostics->invalidExecuteButtonOffsetYPx = false;
+    diagnostics->clampedExecuteButtonOffsetYPx = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
 }
@@ -486,6 +521,10 @@ static void LoadConfigState()
     g_config.debugContextMenu = false;
     g_config.enableDebugDirectDamageFallback = false;
     g_config.enableExecuteKillSound = true;
+    g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
+    g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
+    g_config.executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
+    g_config.executeButtonOffsetYPx = kExecuteButtonDefaultAbsoluteY;
     g_effectiveEnableContextMenuProbe = false;
     g_effectiveEnableContextMenuInjection = false;
     g_effectiveEnableExecuteAction = false;
@@ -511,6 +550,28 @@ static void LoadConfigState()
     g_config.debugContextMenu = false;
     g_config.enableDebugDirectDamageFallback = false;
 
+    if (g_config.executeButtonWidthPx <= 0)
+    {
+        g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
+        needsWriteBack = true;
+    }
+    else if (g_config.executeButtonWidthPx < kExecuteButtonRuntimeWidthMin)
+    {
+        g_config.executeButtonWidthPx = kExecuteButtonRuntimeWidthMin;
+        needsWriteBack = true;
+    }
+
+    if (g_config.executeButtonHeightPx <= 0)
+    {
+        g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
+        needsWriteBack = true;
+    }
+    else if (g_config.executeButtonHeightPx < kExecuteButtonRuntimeHeightMin)
+    {
+        g_config.executeButtonHeightPx = kExecuteButtonRuntimeHeightMin;
+        needsWriteBack = true;
+    }
+
     g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
     if (!foundConfigFile)
     {
@@ -520,7 +581,11 @@ static void LoadConfigState()
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
-         << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false");
+         << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
+         << " execute_button_width=" << g_config.executeButtonWidthPx
+         << " execute_button_height=" << g_config.executeButtonHeightPx
+         << " execute_button_x=" << g_config.executeButtonOffsetXPx
+         << " execute_button_y=" << g_config.executeButtonOffsetYPx;
     PluginLog(info.str().c_str());
 }
 
@@ -2985,48 +3050,43 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
         ordersCount = 3;
     }
 
-    int rowHeight = kCustomExecutePanelMinRowHeight;
-    if (anchor.height > 0 && ordersCount > 0)
+    int rowHeight = g_config.executeButtonHeightPx;
+    if (rowHeight <= 0)
     {
-        const int candidateHeight = anchor.height / ordersCount;
-        if (candidateHeight > rowHeight)
-        {
-            rowHeight = candidateHeight;
-        }
+        rowHeight = kExecuteButtonDefaultHeight;
     }
-    if (rowHeight < 30)
+    else if (rowHeight < kExecuteButtonRuntimeHeightMin)
     {
-        rowHeight = 30;
-    }
-    if (rowHeight > 48)
-    {
-        rowHeight = 48;
-    }
-    rowHeight += kCustomExecutePanelExtraHeight;
-    if (rowHeight > 60)
-    {
-        rowHeight = 60;
+        rowHeight = kExecuteButtonRuntimeHeightMin;
     }
 
-    int width = anchor.width + kCustomExecutePanelExtraWidth;
-    if (width < kCustomExecutePanelMinWidth)
+    int width = g_config.executeButtonWidthPx;
+    if (width <= 0)
     {
-        width = kCustomExecutePanelMinWidth;
+        width = kExecuteButtonDefaultWidth;
+    }
+    else if (width < kExecuteButtonRuntimeWidthMin)
+    {
+        width = kExecuteButtonRuntimeWidthMin;
     }
 
-    int panelTop = anchor.top + anchor.height + rowHeight + kCustomExecutePanelVerticalGap;
+    int basePanelTop = anchor.top + anchor.height + rowHeight + kCustomExecutePanelVerticalGap;
     if (g_customExecutePanelAnchorSource == 3)
     {
-        panelTop += kCustomExecutePanelFallbackExtraYOffset;
+        basePanelTop += kCustomExecutePanelFallbackExtraYOffset;
     }
     else
     {
-        panelTop += kCustomExecutePanelBottomExtraYOffset;
+        basePanelTop += kCustomExecutePanelBottomExtraYOffset;
     }
-    panelTop += kCustomExecutePanelAdditionalYOffset;
+    basePanelTop += kCustomExecutePanelAdditionalYOffset;
+
+    const int basePanelLeft = anchor.left + kCustomExecutePanelHorizontalOffset;
+    const int panelTop = basePanelTop + g_config.executeButtonOffsetYPx;
+    const int panelLeft = basePanelLeft + g_config.executeButtonOffsetXPx;
 
     g_customExecutePanelRoot->setCoord(
-        anchor.left + kCustomExecutePanelHorizontalOffset,
+        panelLeft,
         panelTop,
         width,
         rowHeight);
@@ -3047,7 +3107,11 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
                 << " horizontal_offset=" << kCustomExecutePanelHorizontalOffset
                 << " bottom_extra_y=" << kCustomExecutePanelBottomExtraYOffset
                 << " additional_y=" << kCustomExecutePanelAdditionalYOffset
-                << " fallback_extra_y=" << kCustomExecutePanelFallbackExtraYOffset;
+                << " fallback_extra_y=" << kCustomExecutePanelFallbackExtraYOffset
+                << " cfg_width=" << g_config.executeButtonWidthPx
+                << " cfg_height=" << g_config.executeButtonHeightPx
+                << " cfg_x=" << g_config.executeButtonOffsetXPx
+                << " cfg_y=" << g_config.executeButtonOffsetYPx;
         PluginLog(logline.str().c_str());
     }
 
