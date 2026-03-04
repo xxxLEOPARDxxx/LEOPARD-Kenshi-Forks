@@ -751,6 +751,25 @@ bool IsSameFactionAsPlayer(Character* candidate)
     return candidate->owner == playerFaction;
 }
 
+bool IsAnimalCandidateSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    bool isAnimal = false;
+    __try
+    {
+        isAnimal = (candidate->isAnimal() != 0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        isAnimal = false;
+    }
+    return isAnimal;
+}
+
 int ResolveMarkerRelation(Character* candidate)
 {
     if (!candidate || !ou || !ou->player)
@@ -763,6 +782,7 @@ int ResolveMarkerRelation(Character* candidate)
         return CachedKoTarget::RELATION_SQUAD;
     }
 
+    const bool candidateIsAnimal = IsAnimalCandidateSafe(candidate);
     const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
     if (playerCharacters.valid())
     {
@@ -770,6 +790,15 @@ int ResolveMarkerRelation(Character* candidate)
         {
             return CachedKoTarget::RELATION_ENEMY;
         }
+
+        if (candidateIsAnimal)
+        {
+            // Keep non-squad fauna from being misclassified as ally; hostile animals must render as enemies.
+            return IsSameFactionAsPlayer(candidate)
+                ? CachedKoTarget::RELATION_ALLY
+                : CachedKoTarget::RELATION_ENEMY;
+        }
+
         if (IsAllyToAllPlayerCharacters(candidate, playerCharacters))
         {
             return CachedKoTarget::RELATION_ALLY;
