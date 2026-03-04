@@ -1,6 +1,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include "emc/mod_hub_client.h"
 
 #include <kenshi/Globals.h>
 #include <kenshi/GameWorld.h>
@@ -63,9 +64,18 @@ static std::string g_settingsPath;
 static const char* kWallBGoneTabName = "Wall-B-Gone";
 static const char* kWallBGonePanelName = "wall_b_gone_options";
 static const int kWallBGonePanelLineId = 0x574247;
+static const char* kHubNamespaceId = "emkej.qol";
+static const char* kHubNamespaceDisplayName = "Emkej QoL";
+static const char* kHubModId = "wall_b_gone";
+static const char* kHubModDisplayName = "Wall-B-Gone";
+static const char* kHubSettingEnabledId = "enabled";
+static const char* kHubSettingSleepingBagEnabledId = "sleeping_bag_dismantle_enabled";
+static const char* kHubSettingHotkeyId = "dismantle_hotkey";
+static const char* kHubActionResetHotkeyId = "reset_hotkey_default";
 static const std::string kHotkeyNativeLabel = "Hotkey";
 static std::string g_hotkeyNativeBinding = "X";
 static bool g_nativeHotkeyBindingActive = false;
+static emc::ModHubClient g_modHubClient;
 
 struct WallBGoneRuntimeStateV1
 {
@@ -74,8 +84,6 @@ struct WallBGoneRuntimeStateV1
     int32_t hotkey_keycode;
     uint32_t hotkey_modifiers;
 };
-
-typedef int(__cdecl *FnEmcWallBGoneUseHubUi)();
 
 static bool SaveConfigState();
 static const char* KeyCodeToName(OIS::KeyCode keyCode);
@@ -149,24 +157,6 @@ static void OnResetHotkeyButtonClicked(MyGUI::Widget*)
     SyncNativeBindingFromHotkey();
     SaveConfigState();
     RefreshHotkeyUiWidgets();
-}
-
-static bool ShouldUseHubUiFromCore()
-{
-    HMODULE coreModule = GetModuleHandleA("Emkejs-Mod-Core.dll");
-    if (!coreModule)
-    {
-        return false;
-    }
-
-    FnEmcWallBGoneUseHubUi useHubUiFn =
-        reinterpret_cast<FnEmcWallBGoneUseHubUi>(GetProcAddress(coreModule, "EMC_WallBGone_UseHubUi"));
-    if (!useHubUiFn)
-    {
-        return false;
-    }
-
-    return useHubUiFn() != 0;
 }
 
 static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
@@ -854,6 +844,249 @@ static void WriteRuntimeApiError(char* err_buf, uint32_t err_buf_size, const cha
     err_buf[copyLen] = '\0';
 }
 
+static bool IsHubUserDataValid(void* user_data)
+{
+    return user_data == &g_modHubClient;
+}
+
+static EMC_Result HubGetBoolSetting(void* user_data, bool value, int32_t* out_value)
+{
+    if (!IsHubUserDataValid(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    *out_value = value ? 1 : 0;
+    return EMC_OK;
+}
+
+static EMC_Result HubSetBoolSetting(void* user_data, int32_t value, bool* target, char* err_buf, uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data) || target == 0)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value != 0 && value != 1)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_bool");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const bool previous_value = *target;
+    *target = (value != 0);
+    if (!SaveConfigState())
+    {
+        *target = previous_value;
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
+static EMC_Result __cdecl HubGetEnabledSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_modEnabled, out_value);
+}
+
+static EMC_Result __cdecl HubSetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_modEnabled, err_buf, err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetSleepingBagEnabledSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_sleepingBagDismantleEnabled, out_value);
+}
+
+static EMC_Result __cdecl HubSetSleepingBagEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_sleepingBagDismantleEnabled, err_buf, err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetDismantleHotkeySetting(void* user_data, EMC_KeybindValueV1* out_value)
+{
+    if (!IsHubUserDataValid(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    EnsureRuntimeHotkeyValid();
+    out_value->keycode = static_cast<int32_t>(g_hotkeyPrimary);
+    out_value->modifiers = 0u;
+    return EMC_OK;
+}
+
+static EMC_Result __cdecl HubSetDismantleHotkeySetting(
+    void* user_data,
+    EMC_KeybindValueV1 value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value.modifiers != 0u)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "unsupported_modifiers");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const OIS::KeyCode requestedHotkey = static_cast<OIS::KeyCode>(value.keycode);
+    std::string validationReason;
+    if (ValidateHotkey(requestedHotkey, &validationReason) != HotkeyValidation_Ok)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_hotkey");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const OIS::KeyCode previous_hotkey = g_hotkeyPrimary;
+    g_hotkeyPrimary = requestedHotkey;
+    g_pendingHotkeyPrimary = requestedHotkey;
+    SyncNativeBindingFromHotkey();
+    RefreshHotkeyUiWidgets();
+
+    if (!SaveConfigState())
+    {
+        g_hotkeyPrimary = previous_hotkey;
+        g_pendingHotkeyPrimary = previous_hotkey;
+        SyncNativeBindingFromHotkey();
+        RefreshHotkeyUiWidgets();
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
+static EMC_Result __cdecl HubResetHotkeyDefaultAction(void* user_data, char* err_buf, uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const OIS::KeyCode previous_hotkey = g_hotkeyPrimary;
+    g_hotkeyPrimary = kDefaultHotkey;
+    g_pendingHotkeyPrimary = kDefaultHotkey;
+    SyncNativeBindingFromHotkey();
+    RefreshHotkeyUiWidgets();
+
+    if (!SaveConfigState())
+    {
+        g_hotkeyPrimary = previous_hotkey;
+        g_pendingHotkeyPrimary = previous_hotkey;
+        SyncNativeBindingFromHotkey();
+        RefreshHotkeyUiWidgets();
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
+static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
+{
+    static const EMC_ModDescriptorV1 kModDescriptor = {
+        kHubNamespaceId,
+        kHubNamespaceDisplayName,
+        kHubModId,
+        kHubModDisplayName,
+        &g_modHubClient };
+
+    static const EMC_BoolSettingDefV1 kEnabledSettingDef = {
+        kHubSettingEnabledId,
+        "Enabled",
+        "Enable Wall-B-Gone features",
+        &g_modHubClient,
+        &HubGetEnabledSetting,
+        &HubSetEnabledSetting };
+
+    static const EMC_BoolSettingDefV1 kSleepingBagEnabledSettingDef = {
+        kHubSettingSleepingBagEnabledId,
+        "Allow sleeping bag dismantle",
+        "Allow dismantle behavior for sleeping bags",
+        &g_modHubClient,
+        &HubGetSleepingBagEnabledSetting,
+        &HubSetSleepingBagEnabledSetting };
+
+    static const EMC_KeybindSettingDefV1 kHotkeySettingDef = {
+        kHubSettingHotkeyId,
+        "Dismantle hotkey",
+        "Hotkey used to dismantle the selected wall",
+        &g_modHubClient,
+        &HubGetDismantleHotkeySetting,
+        &HubSetDismantleHotkeySetting };
+
+    static const EMC_ActionRowDefV1 kResetHotkeyActionDef = {
+        kHubActionResetHotkeyId,
+        "Reset hotkey default",
+        "Reset dismantle hotkey to the default key",
+        &g_modHubClient,
+        EMC_ACTION_FORCE_REFRESH,
+        &HubResetHotkeyDefaultAction };
+
+    static const emc::ModHubClientSettingRowV1 kRows[] = {
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kSleepingBagEnabledSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, &kHotkeySettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetHotkeyActionDef }
+    };
+
+    static const emc::ModHubClientTableRegistrationV1 kRegistration = {
+        &kModDescriptor,
+        kRows,
+        static_cast<uint32_t>(sizeof(kRows) / sizeof(kRows[0])) };
+
+    return &kRegistration;
+}
+
+static void ConfigureModHubClient()
+{
+    emc::ModHubClient::Config config;
+    config.table_registration = GetModHubTableRegistration();
+    g_modHubClient.SetConfig(config);
+}
+
+static void StartModHubClient()
+{
+    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
+    if (result == emc::ModHubClient::ATTACH_SUCCESS)
+    {
+        DebugLog("Wall-B-Gone INFO: event=mod_hub_attached use_hub_ui=1");
+        return;
+    }
+
+    if (result == emc::ModHubClient::ATTACH_FAILED)
+    {
+        ErrorLog("Wall-B-Gone WARN: event=mod_hub_fallback reason=get_api_failed use_hub_ui=0");
+    }
+    else if (result == emc::ModHubClient::REGISTRATION_FAILED)
+    {
+        ErrorLog("Wall-B-Gone WARN: event=mod_hub_fallback reason=register_mod_or_setting_failed use_hub_ui=0");
+    }
+    else
+    {
+        ErrorLog("Wall-B-Gone WARN: event=mod_hub_fallback reason=invalid_client_configuration use_hub_ui=0");
+    }
+}
+
+static void OnOptionsWindowInitForModHub()
+{
+    g_modHubClient.OnOptionsWindowInit();
+}
+
+static bool ShouldUseHubUiFromModHub()
+{
+    return g_modHubClient.UseHubUi();
+}
+
 extern "C" __declspec(dllexport) int __cdecl WallBGone_GetRuntimeStateV1(WallBGoneRuntimeStateV1* out_state)
 {
     if (!out_state)
@@ -976,7 +1209,8 @@ static void OptionsWindowInitHook(OptionsWindow* self)
         return;
     }
 
-    if (ShouldUseHubUiFromCore())
+    OnOptionsWindowInitForModHub();
+    if (ShouldUseHubUiFromModHub())
     {
         return;
     }
@@ -1551,6 +1785,9 @@ __declspec(dllexport) void startPlugin()
 
     LoadConfigState();
     SaveConfigState();
+
+    ConfigureModHubClient();
+    StartModHubClient();
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(g_fnOptionsInit, OptionsWindowInitHook, &g_fnOptionsInitOrig))
     {
