@@ -1,10 +1,10 @@
 ## Loot-Scoot-Execute (RE_Kenshi plugin)
-Pauses Kenshi after a save load lifecycle is detected.
+Adds an Execute action for downed enemies in Kenshi's right-click context flow.
 
 Current status: implemented for Kenshi `1.0.65` using:
-- `SaveManager::load(...)` hooks to arm a one-shot pause.
-- `GameWorld::isLoadingFromASaveGame()` to detect load phase transitions.
-- `GameWorld::userPause(true)` to force paused state after load completes.
+- a custom Execute row aligned to the context menu flow,
+- queued execute dispatch with range and facing checks,
+- Mod Hub integration for settings and Execute button layout when `Emkejs-Mod-Core.dll` is installed.
 
 ## Setup
 Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
