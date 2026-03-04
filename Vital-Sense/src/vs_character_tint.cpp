@@ -66,6 +66,7 @@ bool gTintMaterialOverrideWarned = false;
 bool gTintPortraitSafeModeWarned = false;
 bool gTintAlternatePlayerEntityLogged = false;
 bool gTintAnimalOverrideModeLogged = false;
+bool gTintApplyExceptionWarned = false;
 unsigned int gTintMaterialCloneSerial = 0;
 
 struct ResolvedCharacter
@@ -1642,6 +1643,39 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     return false;
 }
 
+bool TryApplyTintToCharacterSeh(
+    Character* candidate,
+    const Ogre::ColourValue* colour,
+    bool depthOverride,
+    const char* pluginName,
+    bool* hadExceptionOut)
+{
+    if (hadExceptionOut)
+    {
+        *hadExceptionOut = false;
+    }
+    if (!colour)
+    {
+        return false;
+    }
+
+    bool tinted = false;
+    __try
+    {
+        tinted = ApplyTintToCharacter(candidate, *colour, depthOverride, pluginName);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        tinted = false;
+        if (hadExceptionOut)
+        {
+            *hadExceptionOut = true;
+        }
+    }
+
+    return tinted;
+}
+
 Ogre::ColourValue ResolveTintColour(RuntimeStateView& state, int markerRelation)
 {
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
@@ -1723,7 +1757,23 @@ bool SetTintForHandle(
     }
 
     ++gTintDiagApplyAttempts;
-    const bool tinted = ApplyTintToCharacter(candidate, colour, depthOverride, pluginName);
+
+    bool hadApplyException = false;
+    bool tinted = TryApplyTintToCharacterSeh(
+        candidate,
+        &colour,
+        depthOverride,
+        pluginName,
+        &hadApplyException);
+    if (hadApplyException)
+    {
+        if (!gTintApplyExceptionWarned)
+        {
+            vs_log::LogWarn(pluginName, "tint apply hit exception; suppressing this candidate for stability");
+            gTintApplyExceptionWarned = true;
+        }
+    }
+
     if (tinted)
     {
         ++gTintDiagApplied;
