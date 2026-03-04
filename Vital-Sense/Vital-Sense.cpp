@@ -57,7 +57,7 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
         state.config.showMarkerIcons
         || state.config.showMarkerText
         || state.config.showBountySymbol;
-    const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state);
+    const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state, kPluginName);
     if (renderDirective == vs_probe::PROBE_RENDER_HIDE_ALL)
     {
         if (anyMarkerOverlayVisualEnabled)

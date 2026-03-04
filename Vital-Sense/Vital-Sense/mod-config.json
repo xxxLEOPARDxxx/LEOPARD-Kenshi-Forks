@@ -43,7 +43,7 @@
   "playing_dead_text_size_px": 18,
   "dead_text_size_px": 18,
   "enemy_color_hex": "#FF3333",
-  "ally_color_hex": "9EE673",
+  "ally_color_hex": "#DEE85A",
   "squad_color_hex": "#40FF40",
   "unconscious_icon_texture": "",
   "unconscious_icon_size_px": 64,

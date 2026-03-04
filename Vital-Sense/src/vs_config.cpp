@@ -54,7 +54,7 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.playingDeadTextSizePx = kDefaultMarkerTextSizePx;
     config.deadTextSizePx = kDefaultMarkerTextSizePx;
     config.enemyMarkerColour = MyGUI::Colour(1.0f, 0.2f, 0.2f, 1.0f);
-    config.allyMarkerColour = MyGUI::Colour(0.62f, 0.9f, 0.45f, 1.0f);
+    config.allyMarkerColour = MyGUI::Colour(0.87f, 0.91f, 0.35f, 1.0f);
     config.squadMarkerColour = MyGUI::Colour(0.25f, 1.0f, 0.25f, 1.0f);
     config.customUnconsciousIconTexture.clear();
     config.customUnconsciousIconSizePx = 64;

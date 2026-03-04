@@ -38,7 +38,6 @@ const char* kColourOverrideParamCamel = "colourOverride";
 const char* kDepthOverrideParam = "overrideDepth";
 const char* kOverrideDepthLowerParam = "overridedepth";
 const Ogre::ColourValue kClearTintColour(1.0f, 1.0f, 1.0f, 0.0f);
-const Ogre::ColourValue kSquadTintColour(0.12f, 0.48f, 1.0f, 1.0f);
 const DWORD kTintDiagLogIntervalMs = 2000;
 const DWORD kTintNoShaderRetryIntervalMs = 2500;
 
@@ -66,6 +65,7 @@ bool gTintSkeletonFallbackWarned = false;
 bool gTintMaterialOverrideWarned = false;
 bool gTintPortraitSafeModeWarned = false;
 bool gTintAlternatePlayerEntityLogged = false;
+bool gTintAnimalOverrideModeLogged = false;
 unsigned int gTintMaterialCloneSerial = 0;
 
 struct ResolvedCharacter
@@ -1535,6 +1535,26 @@ bool IsPlayerCharacterSafe(Character* candidate)
     return isPlayerCharacter;
 }
 
+bool IsAnimalCharacterSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    bool isAnimalCharacter = false;
+    __try
+    {
+        isAnimalCharacter = (candidate->isAnimal() != 0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        isAnimalCharacter = false;
+    }
+
+    return isAnimalCharacter;
+}
+
 bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour, bool depthOverride, const char* pluginName)
 {
     if (!candidate)
@@ -1551,6 +1571,8 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
     const bool wantsBodyHighlight = colour.a > 0.0f;
     const bool isPlayerCharacter = IsPlayerCharacterSafe(candidate);
+    const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
+    const bool preferMaterialOverride = isAnimalCharacter;
     Ogre::Entity* materialOverrideEntity = ResolveMaterialOverrideEntityForCharacter(
         appearance,
         characterEntity,
@@ -1565,7 +1587,7 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
             || ApplyTintToEntity(characterEntity, colour, depthOverride);
     }
 
-    if (ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
+    if (!preferMaterialOverride && ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
     {
         RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
@@ -1573,7 +1595,7 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
         return true;
     }
 
-    if (ApplyTintToEntity(characterEntity, colour, depthOverride))
+    if (!preferMaterialOverride && ApplyTintToEntity(characterEntity, colour, depthOverride))
     {
         RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
@@ -1585,6 +1607,11 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     {
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedMaterialOverride;
+        if (preferMaterialOverride && !gTintAnimalOverrideModeLogged)
+        {
+            vs_log::LogInfo(pluginName, "animal highlight using body material override path");
+            gTintAnimalOverrideModeLogged = true;
+        }
         if (!gTintMaterialOverrideWarned)
         {
             vs_log::LogWarn(pluginName, "shader tint unavailable; using body material override fallback");
@@ -1619,7 +1646,11 @@ Ogre::ColourValue ResolveTintColour(RuntimeStateView& state, int markerRelation)
 {
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
-        return kSquadTintColour;
+        return Ogre::ColourValue(
+            state.config.squadMarkerColour.red,
+            state.config.squadMarkerColour.green,
+            state.config.squadMarkerColour.blue,
+            1.0f);
     }
 
     if (markerRelation == CachedKoTarget::RELATION_ALLY)

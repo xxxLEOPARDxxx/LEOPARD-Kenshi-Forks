@@ -12,6 +12,6 @@ enum ProbeRenderDirective
     PROBE_RENDER_TICK = 2
 };
 
-ProbeRenderDirective TickKoProbe(RuntimeStateView& state);
+ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName);
 
 } // namespace vs_probe

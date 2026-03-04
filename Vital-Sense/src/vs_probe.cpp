@@ -1,14 +1,21 @@
 #include "vs_probe.h"
 
+#include "vs_log.h"
+
 #include <core/Functions.h>
+#include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/RaceData.h>
 
 #include <Windows.h>
 
+#include <cctype>
+#include <cstring>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -23,6 +30,328 @@ namespace
 {
 const float kKoMarkerHeadAnchorYOffset = 2.0f;
 const float kProbablyDyingBloodMax = 50.0f;
+const DWORD kProbeDiagLogIntervalMs = 2000;
+const unsigned int kProbeAnimalSampleMaxPerWindow = 10;
+
+struct CandidateSpeciesInfo
+{
+    bool classified;
+    bool isAnimal;
+    bool isLikelySpider;
+    char raceId[64];
+};
+
+struct ProbeDiagCounters
+{
+    unsigned int ticks;
+    unsigned int candidatesSeen;
+    unsigned int animalsSeen;
+    unsigned int spidersSeen;
+    unsigned int downedAnimals;
+    unsigned int downedSpiders;
+    unsigned int accepted;
+    unsigned int acceptedAnimals;
+    unsigned int acceptedSpiders;
+    unsigned int rejectInvalid;
+    unsigned int rejectNotDowned;
+    unsigned int rejectNotDownedAnimals;
+    unsigned int rejectNotDownedSpiders;
+    unsigned int rejectSnapshot;
+    unsigned int rejectSnapshotAnimals;
+    unsigned int rejectOffscreen;
+    unsigned int rejectOffscreenAnimals;
+    unsigned int rejectRange;
+    unsigned int rejectRangeAnimals;
+    unsigned int rejectProjection;
+    unsigned int rejectProjectionAnimals;
+    unsigned int rejectNullHandle;
+    unsigned int rejectNullHandleAnimals;
+};
+
+DWORD gProbeDiagLastLogMs = 0;
+unsigned int gProbeAnimalSamplesLogged = 0;
+ProbeDiagCounters gProbeDiag;
+
+bool ContainsCaseInsensitiveToken(const char* haystack, const char* needle)
+{
+    if (!haystack || !needle || needle[0] == '\0')
+    {
+        return false;
+    }
+
+    const size_t needleLen = std::strlen(needle);
+    if (needleLen == 0)
+    {
+        return false;
+    }
+
+    for (const char* scan = haystack; *scan != '\0'; ++scan)
+    {
+        size_t matched = 0;
+        while (matched < needleLen && scan[matched] != '\0')
+        {
+            const unsigned char a = static_cast<unsigned char>(scan[matched]);
+            const unsigned char b = static_cast<unsigned char>(needle[matched]);
+            if (std::tolower(a) != std::tolower(b))
+            {
+                break;
+            }
+            ++matched;
+        }
+
+        if (matched == needleLen)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool TryReadAnimalRaceIdSafe(Character* candidate, char* raceIdOut, size_t raceIdOutLen)
+{
+    if (!candidate || !raceIdOut || raceIdOutLen == 0)
+    {
+        return false;
+    }
+
+    raceIdOut[0] = '\0';
+
+    __try
+    {
+        RaceData* race = candidate->getRace();
+        if (!race || !race->data)
+        {
+            return false;
+        }
+
+        const std::string* raceString = 0;
+        if (!race->data->stringID.empty())
+        {
+            raceString = &race->data->stringID;
+        }
+        else if (!race->data->name.empty())
+        {
+            raceString = &race->data->name;
+        }
+
+        if (!raceString)
+        {
+            return false;
+        }
+
+        const char* source = raceString->c_str();
+        const size_t sourceLen = raceString->size();
+        const size_t copyLen = (sourceLen < (raceIdOutLen - 1)) ? sourceLen : (raceIdOutLen - 1);
+        std::memcpy(raceIdOut, source, copyLen);
+        raceIdOut[copyLen] = '\0';
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        raceIdOut[0] = '\0';
+        return false;
+    }
+
+    return raceIdOut[0] != '\0';
+}
+
+bool TryClassifySpeciesSafe(Character* candidate, CandidateSpeciesInfo* speciesInfoOut)
+{
+    if (!candidate || !speciesInfoOut)
+    {
+        return false;
+    }
+
+    bool isAnimal = false;
+    char raceId[64];
+    raceId[0] = '\0';
+
+    __try
+    {
+        isAnimal = (candidate->isAnimal() != 0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    if (isAnimal)
+    {
+        TryReadAnimalRaceIdSafe(candidate, raceId, sizeof(raceId));
+    }
+
+    speciesInfoOut->classified = true;
+    speciesInfoOut->isAnimal = isAnimal;
+    speciesInfoOut->isLikelySpider = ContainsCaseInsensitiveToken(raceId, "spider");
+    std::memset(speciesInfoOut->raceId, 0, sizeof(speciesInfoOut->raceId));
+    if (raceId[0] != '\0')
+    {
+        const size_t copyLen = std::strlen(raceId);
+        std::memcpy(speciesInfoOut->raceId, raceId, copyLen);
+        speciesInfoOut->raceId[copyLen] = '\0';
+    }
+    return true;
+}
+
+struct AnimalStateSnapshotData
+{
+    bool isUnconscious;
+    bool isDeadByCharacter;
+    bool isDeadByMedical;
+    bool deadFlag;
+    bool sub50Ko;
+    bool probablyDying;
+    bool canWake;
+    ProneState proneState;
+    float knockoutTimer;
+    float blood;
+    float pointOfNoReturn;
+    float bleedRate;
+};
+
+bool TryReadAnimalStateSnapshotSafe(Character* candidate, AnimalStateSnapshotData* snapshotOut)
+{
+    if (!candidate || !snapshotOut)
+    {
+        return false;
+    }
+
+    AnimalStateSnapshotData snapshot;
+    std::memset(&snapshot, 0, sizeof(snapshot));
+
+    __try
+    {
+        snapshot.proneState = candidate->_currentProneState;
+        snapshot.isUnconscious = candidate->isUnconcious();
+        snapshot.isDeadByCharacter = candidate->isDead();
+        snapshot.isDeadByMedical = candidate->medical.isDead();
+        snapshot.deadFlag = candidate->medical.dead;
+        snapshot.sub50Ko = candidate->medical.sub50KO;
+        snapshot.probablyDying = candidate->medical.isProbablyDying();
+        snapshot.canWake = candidate->medical.canGetUpWakeUp();
+        snapshot.knockoutTimer = candidate->medical.knockoutTimer;
+        snapshot.blood = candidate->medical.blood;
+        snapshot.pointOfNoReturn = candidate->medical.pointOfNoReturn();
+        snapshot.bleedRate = candidate->medical.currentBleedRate;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    *snapshotOut = snapshot;
+    return true;
+}
+
+std::string BuildAnimalStateSnapshotSafe(Character* candidate)
+{
+    AnimalStateSnapshotData snapshot;
+    std::memset(&snapshot, 0, sizeof(snapshot));
+    if (!TryReadAnimalStateSnapshotSafe(candidate, &snapshot))
+    {
+        return "state=read_exception";
+    }
+
+    std::stringstream ss;
+    ss << "prone=" << static_cast<int>(snapshot.proneState)
+       << " is_unconscious=" << (snapshot.isUnconscious ? "true" : "false")
+       << " is_dead_char=" << (snapshot.isDeadByCharacter ? "true" : "false")
+       << " is_dead_med=" << (snapshot.isDeadByMedical ? "true" : "false")
+       << " dead_flag=" << (snapshot.deadFlag ? "true" : "false")
+       << " sub50ko=" << (snapshot.sub50Ko ? "true" : "false")
+       << " can_wake=" << (snapshot.canWake ? "true" : "false")
+       << " probably_dying=" << (snapshot.probablyDying ? "true" : "false")
+       << " ko_timer=" << snapshot.knockoutTimer
+       << " blood=" << snapshot.blood
+       << " ponr=" << snapshot.pointOfNoReturn
+       << " bleed_rate=" << snapshot.bleedRate;
+    return ss.str();
+}
+
+void MaybeLogAnimalProbeSample(
+    const char* pluginName,
+    const CandidateSpeciesInfo& speciesInfo,
+    const hand* handleOrNull,
+    const char* reason,
+    const std::string& details)
+{
+    if (!pluginName || !speciesInfo.isAnimal)
+    {
+        return;
+    }
+    if (gProbeAnimalSamplesLogged >= kProbeAnimalSampleMaxPerWindow)
+    {
+        return;
+    }
+    ++gProbeAnimalSamplesLogged;
+
+    std::stringstream ss;
+    ss << "probe animal sample reason=" << (reason ? reason : "unknown")
+       << " animal=true"
+       << " spider=" << (speciesInfo.isLikelySpider ? "true" : "false")
+       << " race_id=" << (speciesInfo.raceId[0] != '\0' ? speciesInfo.raceId : "unknown");
+    if (handleOrNull)
+    {
+        ss << " handle_type=" << handleOrNull->type
+           << " handle_index=" << handleOrNull->index
+           << " handle_serial=" << handleOrNull->serial;
+    }
+    if (!details.empty())
+    {
+        ss << " " << details;
+    }
+    vs_log::LogInfo(pluginName, ss.str());
+}
+
+void EmitProbeDiagLogIfDue(const char* pluginName)
+{
+    if (!pluginName)
+    {
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (gProbeDiagLastLogMs != 0 && (nowMs - gProbeDiagLastLogMs) < kProbeDiagLogIntervalMs)
+    {
+        return;
+    }
+    gProbeDiagLastLogMs = nowMs;
+
+    if (gProbeDiag.ticks == 0 && gProbeDiag.candidatesSeen == 0)
+    {
+        gProbeAnimalSamplesLogged = 0;
+        return;
+    }
+
+    std::stringstream ss;
+    ss << "probe diag ticks=" << gProbeDiag.ticks
+       << " candidates=" << gProbeDiag.candidatesSeen
+       << " animals=" << gProbeDiag.animalsSeen
+       << " spiders=" << gProbeDiag.spidersSeen
+       << " downed_animals=" << gProbeDiag.downedAnimals
+       << " downed_spiders=" << gProbeDiag.downedSpiders
+       << " accepted=" << gProbeDiag.accepted
+       << " accepted_animals=" << gProbeDiag.acceptedAnimals
+       << " accepted_spiders=" << gProbeDiag.acceptedSpiders
+       << " reject_invalid=" << gProbeDiag.rejectInvalid
+       << " reject_not_downed=" << gProbeDiag.rejectNotDowned
+       << " reject_not_downed_animals=" << gProbeDiag.rejectNotDownedAnimals
+       << " reject_not_downed_spiders=" << gProbeDiag.rejectNotDownedSpiders
+       << " reject_snapshot=" << gProbeDiag.rejectSnapshot
+       << " reject_snapshot_animals=" << gProbeDiag.rejectSnapshotAnimals
+       << " reject_offscreen=" << gProbeDiag.rejectOffscreen
+       << " reject_offscreen_animals=" << gProbeDiag.rejectOffscreenAnimals
+       << " reject_range=" << gProbeDiag.rejectRange
+       << " reject_range_animals=" << gProbeDiag.rejectRangeAnimals
+       << " reject_projection=" << gProbeDiag.rejectProjection
+       << " reject_projection_animals=" << gProbeDiag.rejectProjectionAnimals
+       << " reject_null_handle=" << gProbeDiag.rejectNullHandle
+       << " reject_null_handle_animals=" << gProbeDiag.rejectNullHandleAnimals;
+    vs_log::LogInfo(pluginName, ss.str());
+
+    std::memset(&gProbeDiag, 0, sizeof(gProbeDiag));
+    gProbeAnimalSamplesLogged = 0;
+}
 
 bool EnsureProjectionUtility(RuntimeStateView& state)
 {
@@ -180,6 +509,8 @@ bool TryResolveMarkerState(RuntimeStateView& state, Character* candidate, int* m
     bool dyingByBloodThreshold = false;
     bool recoveryComaByCannotWake = false;
     bool medicalSub50KoFlag = false;
+    ProneState proneState = PS_NORMAL;
+    bool isKoProne = false;
     float currentBleedRate = 0.0f;
     float bloodLevel = 0.0f;
     float pointOfNoReturn = 0.0f;
@@ -190,10 +521,12 @@ bool TryResolveMarkerState(RuntimeStateView& state, Character* candidate, int* m
         const bool isDeadByMedicalMethod = candidate->medical.isDead();
         const bool isDeadByMedicalFlag = candidate->medical.dead;
         isDead = (isDeadByCharacter || isDeadByMedicalMethod || isDeadByMedicalFlag);
-        isUnconscious = candidate->isUnconcious();
+        proneState = candidate->_currentProneState;
+        isKoProne = (proneState == PS_KO);
+        isUnconscious = candidate->isUnconcious() || isKoProne;
         if (isUnconscious)
         {
-            isPlayingDead = (candidate->_currentProneState == PS_PLAYING_DEAD);
+            isPlayingDead = (proneState == PS_PLAYING_DEAD);
             isProbablyDying = candidate->medical.isProbablyDying();
             dyingByTrauma = candidate->medical.isInBloodlossTrauma();
             medicalSub50KoFlag = candidate->medical.sub50KO;
@@ -553,8 +886,15 @@ Character* ResolveDeathParadeCandidateSafe(hand targetHandle, Character* fallbac
     return deathParadeCandidate;
 }
 
-void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const Ogre::Vector3& cameraCenter, DWORD nowMs)
+void ProcessMarkerCandidate(
+    RuntimeStateView& state,
+    Character* candidate,
+    const Ogre::Vector3& cameraCenter,
+    DWORD nowMs,
+    const char* pluginName)
 {
+    ++gProbeDiag.candidatesSeen;
+
     if (!candidate)
     {
         return;
@@ -562,16 +902,51 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
 
     if (!IsCharacterValidSafe(candidate))
     {
+        ++gProbeDiag.rejectInvalid;
         return;
+    }
+
+    CandidateSpeciesInfo speciesInfo;
+    speciesInfo.classified = false;
+    speciesInfo.isAnimal = false;
+    speciesInfo.isLikelySpider = false;
+    std::memset(speciesInfo.raceId, 0, sizeof(speciesInfo.raceId));
+    const bool speciesClassified = TryClassifySpeciesSafe(candidate, &speciesInfo);
+    if (speciesClassified && speciesInfo.isAnimal)
+    {
+        ++gProbeDiag.animalsSeen;
+        if (speciesInfo.isLikelySpider)
+        {
+            ++gProbeDiag.spidersSeen;
+        }
     }
 
     const int totalBounty = ResolveTotalBounty(candidate);
     int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
     const bool isDownedState = TryResolveMarkerState(state, candidate, &markerState);
+    if (isDownedState && speciesClassified && speciesInfo.isAnimal)
+    {
+        ++gProbeDiag.downedAnimals;
+        if (speciesInfo.isLikelySpider)
+        {
+            ++gProbeDiag.downedSpiders;
+        }
+    }
     if (!isDownedState)
     {
         if (!state.config.showBountySymbol || !state.config.showBountySymbolOnAllCharacters || totalBounty <= 0)
         {
+            ++gProbeDiag.rejectNotDowned;
+            if (speciesClassified && speciesInfo.isAnimal)
+            {
+                ++gProbeDiag.rejectNotDownedAnimals;
+                if (speciesInfo.isLikelySpider)
+                {
+                    ++gProbeDiag.rejectNotDownedSpiders;
+                }
+                const std::string animalState = BuildAnimalStateSnapshotSafe(candidate);
+                MaybeLogAnimalProbeSample(pluginName, speciesInfo, 0, "not_downed", animalState);
+            }
             return;
         }
         markerState = CachedKoTarget::STATE_BOUNTY_ONLY;
@@ -582,17 +957,35 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
     hand targetHandle;
     if (!TryReadCharacterSnapshotSafe(candidate, isOnScreen, candidatePos, targetHandle))
     {
+        ++gProbeDiag.rejectSnapshot;
+        if (speciesClassified && speciesInfo.isAnimal)
+        {
+            ++gProbeDiag.rejectSnapshotAnimals;
+            MaybeLogAnimalProbeSample(pluginName, speciesInfo, 0, "snapshot_failed", "");
+        }
         return;
     }
 
     const bool isDeadState = (markerState == CachedKoTarget::STATE_DEAD);
     if (!isDeadState && !isOnScreen)
     {
+        ++gProbeDiag.rejectOffscreen;
+        if (speciesClassified && speciesInfo.isAnimal)
+        {
+            ++gProbeDiag.rejectOffscreenAnimals;
+            MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "offscreen", "");
+        }
         return;
     }
 
     if (!IsWithinHighlightRange(state, cameraCenter, candidatePos))
     {
+        ++gProbeDiag.rejectRange;
+        if (speciesClassified && speciesInfo.isAnimal)
+        {
+            ++gProbeDiag.rejectRangeAnimals;
+            MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "out_of_range", "");
+        }
         return;
     }
 
@@ -600,6 +993,12 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
     {
         if (!EnsureProjectionUtility(state))
         {
+            ++gProbeDiag.rejectProjection;
+            if (speciesClassified && speciesInfo.isAnimal)
+            {
+                ++gProbeDiag.rejectProjectionAnimals;
+                MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "projection_utility_missing", "");
+            }
             return;
         }
 
@@ -608,12 +1007,24 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
         const Ogre::Vector3 anchorPos = candidatePos + Ogre::Vector3(0, kKoMarkerHeadAnchorYOffset, 0);
         if (!state.projectionUtility->worldToScreenPX(anchorPos, probeX, probeY))
         {
+            ++gProbeDiag.rejectProjection;
+            if (speciesClassified && speciesInfo.isAnimal)
+            {
+                ++gProbeDiag.rejectProjectionAnimals;
+                MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "projection_failed", "");
+            }
             return;
         }
     }
 
     if (targetHandle.isNull())
     {
+        ++gProbeDiag.rejectNullHandle;
+        if (speciesClassified && speciesInfo.isAnimal)
+        {
+            ++gProbeDiag.rejectNullHandleAnimals;
+            MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "null_handle", "");
+        }
         return;
     }
 
@@ -646,10 +1057,23 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
         };
         state.koTargetCache.push_back(created);
     }
+
+    ++gProbeDiag.accepted;
+    if (speciesClassified && speciesInfo.isAnimal)
+    {
+        ++gProbeDiag.acceptedAnimals;
+        if (speciesInfo.isLikelySpider)
+        {
+            ++gProbeDiag.acceptedSpiders;
+        }
+        MaybeLogAnimalProbeSample(pluginName, speciesInfo, &targetHandle, "accepted_animal", "");
+    }
 }
 
-ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
+ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName)
 {
+    EmitProbeDiagLogIfDue(pluginName);
+
     const bool anyHighlightVisualEnabled =
         state.config.showMarkerIcons
         || state.config.showMarkerText
@@ -667,6 +1091,7 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
         return PROBE_RENDER_NONE;
     }
     state.highlightRuntimeActive = true;
+    ++gProbeDiag.ticks;
 
     const DWORD nowMs = GetTickCount();
 
@@ -684,13 +1109,13 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
 
     for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
     {
-        ProcessMarkerCandidate(state, *iter, cameraCenter, nowMs);
+        ProcessMarkerCandidate(state, *iter, cameraCenter, nowMs, pluginName);
     }
 
     for (auto iter = deathParadeCharacters.begin(); iter != deathParadeCharacters.end(); ++iter)
     {
         Character* deathParadeCandidate = ResolveDeathParadeCandidateSafe(iter->first, iter->second);
-        ProcessMarkerCandidate(state, deathParadeCandidate, cameraCenter, nowMs);
+        ProcessMarkerCandidate(state, deathParadeCandidate, cameraCenter, nowMs, pluginName);
     }
 
     for (int i = static_cast<int>(state.koTargetCache.size()) - 1; i >= 0; --i)
@@ -700,6 +1125,8 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
             state.koTargetCache.erase(state.koTargetCache.begin() + i);
         }
     }
+
+    EmitProbeDiagLogIfDue(pluginName);
     return PROBE_RENDER_TICK;
 }
 
