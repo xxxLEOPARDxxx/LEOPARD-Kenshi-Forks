@@ -120,113 +120,6 @@ static bool ParseJsonBoolValue(const std::string& text, size_t* pos, bool* value
     return false;
 }
 
-static bool ParseJsonUnsignedValue(const std::string& text, size_t* pos, DWORD* valueOut, bool* clampedOut)
-{
-    if (!pos || !valueOut)
-    {
-        return false;
-    }
-
-    SkipJsonWhitespace(text, pos);
-    size_t cursor = *pos;
-    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-    {
-        ++cursor;
-    }
-
-    if (cursor == *pos)
-    {
-        return false;
-    }
-
-    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
-    {
-        return false;
-    }
-
-    const std::string numberText = text.substr(*pos, cursor - *pos);
-    unsigned long parsed = 0;
-    try
-    {
-        parsed = std::stoul(numberText);
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    bool clamped = false;
-    if (parsed > 600000UL)
-    {
-        parsed = 600000UL;
-        clamped = true;
-    }
-
-    *valueOut = static_cast<DWORD>(parsed);
-    if (clampedOut)
-    {
-        *clampedOut = clamped;
-    }
-    *pos = cursor;
-    return true;
-}
-
-static bool ParseJsonUnsignedIntValue(
-    const std::string& text,
-    size_t* pos,
-    int maxValue,
-    int* valueOut,
-    bool* clampedOut)
-{
-    if (!pos || !valueOut || maxValue < 0)
-    {
-        return false;
-    }
-
-    SkipJsonWhitespace(text, pos);
-    size_t cursor = *pos;
-    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-    {
-        ++cursor;
-    }
-
-    if (cursor == *pos)
-    {
-        return false;
-    }
-
-    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
-    {
-        return false;
-    }
-
-    const std::string numberText = text.substr(*pos, cursor - *pos);
-    unsigned long parsed = 0;
-    try
-    {
-        parsed = std::stoul(numberText);
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    bool clamped = false;
-    if (parsed > static_cast<unsigned long>(maxValue))
-    {
-        parsed = static_cast<unsigned long>(maxValue);
-        clamped = true;
-    }
-
-    *valueOut = static_cast<int>(parsed);
-    if (clampedOut)
-    {
-        *clampedOut = clamped;
-    }
-    *pos = cursor;
-    return true;
-}
-
 static bool ParseJsonSignedIntValue(
     const std::string& text,
     size_t* pos,
@@ -743,8 +636,8 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 
 static bool RunInternalSelfChecks()
 {
-    // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, false, false, false, true, 0, 0, 0, 0 };
+    // Keep this intentionally small: sanity-check parser helpers.
+    PluginConfig parsedConfig = { true, false, false, false, true, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -825,21 +718,7 @@ static bool RunInternalSelfChecks()
         return false;
     }
 
-    const RuntimeState savedState = g_state;
-    g_state.loadInProgress = true;
-    g_state.pauseArmed = true;
-    g_state.loadSignalSeenAfterArm = true;
-    g_state.armTimestampMs = 99;
-    g_state.loggedWorldUnavailable = true;
-    DisarmPauseAfterLoad();
-    const bool disarmedOk =
-        !g_state.loadInProgress
-        && !g_state.pauseArmed
-        && !g_state.loadSignalSeenAfterArm
-        && g_state.armTimestampMs == 0
-        && !g_state.loggedWorldUnavailable;
-    g_state = savedState;
-    return disarmedOk;
+    return true;
 }
 
 static bool ReadConfigFromFile(

@@ -5,6 +5,7 @@ Current status: implemented for Kenshi `1.0.65` using:
 - a custom Execute row aligned to the context menu flow,
 - queued execute dispatch with range and facing checks,
 - Mod Hub integration for settings and Execute button layout when `Emkejs-Mod-Core.dll` is installed.
+- no save-load pause behavior (that remains exclusive to Auto-Pause on Load).
 
 ## Setup
 Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.

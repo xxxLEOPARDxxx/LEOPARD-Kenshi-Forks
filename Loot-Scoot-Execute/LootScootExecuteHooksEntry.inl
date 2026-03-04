@@ -55,75 +55,6 @@ static void DisarmNativeMenuOrderRemapContext()
     ResetNativeMenuExecuteRowInsertState();
 }
 
-static void TickPauseOnLoad()
-{
-    if (!g_config.enabled)
-    {
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-
-    if (g_config.debugLogTransitions)
-    {
-        if (g_state.lastTickAliveLogMs == 0 || DebounceWindowElapsed(nowMs, g_state.lastTickAliveLogMs, kTickAliveIntervalMs))
-        {
-            PluginLog("Loot-Scoot-Execute DEBUG: tick alive");
-            g_state.lastTickAliveLogMs = nowMs;
-        }
-    }
-
-    if (!g_hasSaveLoadHook || !g_state.pauseArmed)
-    {
-        return;
-    }
-
-    if (g_state.armTimestampMs != 0 && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
-    {
-        ErrorLog("Loot-Scoot-Execute WARN: armed pause timed out before load completion");
-        DisarmPauseAfterLoad();
-        return;
-    }
-
-    bool isLoadingSave = false;
-    if (!QuerySaveLoadSignal(&isLoadingSave))
-    {
-        return;
-    }
-
-    if (isLoadingSave)
-    {
-        if (!g_state.loadInProgress && g_config.debugLogTransitions)
-        {
-            PluginLog("Loot-Scoot-Execute DEBUG: load started");
-        }
-        g_state.loadInProgress = true;
-        g_state.loadSignalSeenAfterArm = true;
-        return;
-    }
-
-    if (g_state.loadInProgress)
-    {
-        if (g_config.debugLogTransitions)
-        {
-            PluginLog("Loot-Scoot-Execute DEBUG: load finished");
-        }
-        TryPauseAndDisarm(nowMs, "load_transition");
-        return;
-    }
-
-    if (!g_state.loadSignalSeenAfterArm
-        && g_state.armTimestampMs != 0
-        && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kNoSignalDisarmMs))
-    {
-        if (g_config.debugLogTransitions)
-        {
-            PluginLog("Loot-Scoot-Execute DEBUG: no load signal observed; disarming");
-        }
-        DisarmPauseAfterLoad();
-    }
-}
-
 static bool TryReadSimpleContextMenuSnapshot(
     ContextMenu* menu,
     bool* visibleOut,
@@ -321,25 +252,6 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     PlayerInterface_updateUT_orig(thisptr);
     TickDebugExecuteHotkey(thisptr);
     TickQueuedExecuteAction(thisptr);
-    TickPauseOnLoad();
-}
-
-static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
-{
-    ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
-    if (SaveManager_loadByInfo_orig)
-    {
-        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
-    }
-}
-
-static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
-{
-    ArmPauseAfterLoad("SaveManager::load(name)");
-    if (SaveManager_loadByName_orig)
-    {
-        SaveManager_loadByName_orig(thisptr, saveName);
-    }
 }
 
 __declspec(dllexport) void startPlugin()
@@ -357,8 +269,6 @@ __declspec(dllexport) void startPlugin()
 
     g_runtimeGameVersion = version;
     g_runtimeLocaleTag = DetectRuntimeLocaleTag();
-    SeedContextMenuMappingTable();
-    ReevaluateContextMenuMappingConfidenceGate("startup", true);
 
     LoadConfigState();
     if (g_configNeedsWriteBack && !SaveConfigState())
@@ -366,8 +276,6 @@ __declspec(dllexport) void startPlugin()
         ErrorLog("Loot-Scoot-Execute WARN: failed to persist normalized mod-config.json");
     }
 
-    g_contextMenuCompatibilityGatePassed = true;
-    g_contextMenuGateFailureReason = "none";
     g_contextMenuHookInstallVerified = false;
     g_nativeExecuteSelectionHookInstallVerified = false;
     g_nativeExecuteProbabilityHookInstallVerified = false;
@@ -435,40 +343,6 @@ __declspec(dllexport) void startPlugin()
     g_contextMenuHookInstallVerified = contextMenuShowHookInstalled && contextMenuUpdateHookInstalled;
     RefreshEffectiveContextMenuFeatureFlags("post_context_menu_hooks");
 
-    g_hasSaveLoadHook = false;
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
-        SaveManager_loadByInfo_hook,
-        &SaveManager_loadByInfo_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Loot-Scoot-Execute: Could not hook SaveManager::load(SaveInfo,bool)");
-    }
-
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
-        SaveManager_loadByName_hook,
-        &SaveManager_loadByName_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Loot-Scoot-Execute: Could not hook SaveManager::load(std::string)");
-    }
-
-    if (!g_hasSaveLoadHook)
-    {
-        ErrorLog("Loot-Scoot-Execute: no SaveManager load hooks active; feature disabled");
-    }
-    else
-    {
-        PluginLog("Loot-Scoot-Execute INFO: SaveManager load hook verification passed");
-    }
-
     (void)InstallModHubOptionsWindowInitHook(platform, version);
     ModHub_OnPluginStart();
 
@@ -484,7 +358,6 @@ __declspec(dllexport) void startPlugin()
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
          << ", effective_execute_action=" << (g_effectiveEnableExecuteAction ? "true" : "false")
          << ", hook_verification=" << (g_contextMenuHookInstallVerified ? "passed" : "failed")
-         << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false")
          << ", mod_hub_use_ui=" << (ModHub_UseHubUi() ? "true" : "false")
          << ", mod_hub_retry_pending=" << (ModHub_IsAttachRetryPending() ? "true" : "false")
          << ", mod_hub_last_result=" << ModHub_LastAttachFailureResult()
