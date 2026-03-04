@@ -835,6 +835,190 @@ enum PanelUiSuppressionReason
 
 static bool g_hudHiddenByToggleEvent = false;
 static bool g_hudHiddenByToggleEventKnown = false;
+static std::string BuildPanelUiSuppressionReasonSummary(int reasonMask);
+
+struct MemberUiSuppressionProbeCacheEntry
+{
+    bool inUse;
+    uintptr_t memberPtr;
+    int reasonMask;
+    bool memberEngaged;
+    bool memberDialogueActive;
+    bool hasConversationTarget;
+    bool targetEngaged;
+    bool targetDialogueActive;
+    bool memberInventoryVisible;
+    bool targetInventoryVisible;
+    DWORD lastLoggedAtMs;
+};
+
+static MemberUiSuppressionProbeCacheEntry g_memberUiSuppressionProbeCache[8] = {};
+
+static MemberUiSuppressionProbeCacheEntry* AcquireMemberUiSuppressionProbeCacheEntry(uintptr_t memberPtr)
+{
+    MemberUiSuppressionProbeCacheEntry* firstFree = 0;
+    MemberUiSuppressionProbeCacheEntry* oldest = 0;
+    for (size_t i = 0; i < (sizeof(g_memberUiSuppressionProbeCache) / sizeof(g_memberUiSuppressionProbeCache[0])); ++i)
+    {
+        MemberUiSuppressionProbeCacheEntry* entry = &g_memberUiSuppressionProbeCache[i];
+        if (entry->inUse && entry->memberPtr == memberPtr)
+        {
+            return entry;
+        }
+        if (!entry->inUse && !firstFree)
+        {
+            firstFree = entry;
+        }
+        if (!oldest || entry->lastLoggedAtMs < oldest->lastLoggedAtMs)
+        {
+            oldest = entry;
+        }
+    }
+
+    if (firstFree)
+    {
+        return firstFree;
+    }
+    return oldest;
+}
+
+static void MaybeLogMemberUiSuppressionProbe(
+    Character* member,
+    int reasonMask,
+    bool memberEngaged,
+    bool memberDialogueActive,
+    bool hasConversationTarget,
+    bool targetEngaged,
+    bool targetDialogueActive,
+    bool memberInventoryVisible,
+    bool targetInventoryVisible)
+{
+    if (!member)
+    {
+        return;
+    }
+
+    MemberUiSuppressionProbeCacheEntry* entry = AcquireMemberUiSuppressionProbeCacheEntry(reinterpret_cast<uintptr_t>(member));
+    if (!entry)
+    {
+        return;
+    }
+
+    const bool sameMember = entry->inUse && entry->memberPtr == reinterpret_cast<uintptr_t>(member);
+    const bool changed =
+        (!sameMember)
+        || entry->reasonMask != reasonMask
+        || entry->memberEngaged != memberEngaged
+        || entry->memberDialogueActive != memberDialogueActive
+        || entry->hasConversationTarget != hasConversationTarget
+        || entry->targetEngaged != targetEngaged
+        || entry->targetDialogueActive != targetDialogueActive
+        || entry->memberInventoryVisible != memberInventoryVisible
+        || entry->targetInventoryVisible != targetInventoryVisible;
+
+    const DWORD nowMs = GetTickCount();
+    const bool changedWithActiveSuppression = changed && reasonMask != PanelUiSuppressionReason_None;
+    const bool heartbeat =
+        sameMember
+        && !changed
+        && reasonMask != PanelUiSuppressionReason_None
+        && entry->lastLoggedAtMs != 0
+        && DebounceWindowElapsed(nowMs, entry->lastLoggedAtMs, 5000);
+    const bool transitionedClear =
+        sameMember
+        && entry->reasonMask != PanelUiSuppressionReason_None
+        && reasonMask == PanelUiSuppressionReason_None;
+
+    if (changedWithActiveSuppression || heartbeat || transitionedClear)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: member_ui_suppression_probe"
+             << " member_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(member) << std::dec
+             << " reasons=" << BuildPanelUiSuppressionReasonSummary(reasonMask)
+             << " member_engaged=" << (memberEngaged ? "true" : "false")
+             << " member_dialogue_active=" << (memberDialogueActive ? "true" : "false")
+             << " has_conversation_target=" << (hasConversationTarget ? "true" : "false")
+             << " target_engaged=" << (targetEngaged ? "true" : "false")
+             << " target_dialogue_active=" << (targetDialogueActive ? "true" : "false")
+             << " member_inventory_visible=" << (memberInventoryVisible ? "true" : "false")
+             << " target_inventory_visible=" << (targetInventoryVisible ? "true" : "false");
+        DebugLog(info.str().c_str());
+        entry->lastLoggedAtMs = nowMs;
+    }
+
+    entry->inUse = true;
+    entry->memberPtr = reinterpret_cast<uintptr_t>(member);
+    entry->reasonMask = reasonMask;
+    entry->memberEngaged = memberEngaged;
+    entry->memberDialogueActive = memberDialogueActive;
+    entry->hasConversationTarget = hasConversationTarget;
+    entry->targetEngaged = targetEngaged;
+    entry->targetDialogueActive = targetDialogueActive;
+    entry->memberInventoryVisible = memberInventoryVisible;
+    entry->targetInventoryVisible = targetInventoryVisible;
+}
+
+static void LogPanelUiSuppressionSources(
+    bool dialogueWindowOpen,
+    bool menuOpen,
+    bool hudHidden,
+    bool characterCreationModeActive,
+    int selectedMemberCount,
+    int desiredSuppressionMask,
+    int reasonMask)
+{
+    static bool s_initialized = false;
+    static bool s_lastDialogueWindowOpen = false;
+    static bool s_lastMenuOpen = false;
+    static bool s_lastHudHidden = false;
+    static bool s_lastCharacterCreationModeActive = false;
+    static int s_lastSelectedMemberCount = -1;
+    static int s_lastDesiredSuppressionMask = PanelUiSuppressionReason_None;
+    static int s_lastReasonMask = PanelUiSuppressionReason_None;
+    static DWORD s_lastLoggedAtMs = 0;
+
+    const bool changed =
+        !s_initialized
+        || s_lastDialogueWindowOpen != dialogueWindowOpen
+        || s_lastMenuOpen != menuOpen
+        || s_lastHudHidden != hudHidden
+        || s_lastCharacterCreationModeActive != characterCreationModeActive
+        || s_lastSelectedMemberCount != selectedMemberCount
+        || s_lastDesiredSuppressionMask != desiredSuppressionMask
+        || s_lastReasonMask != reasonMask;
+    const DWORD nowMs = GetTickCount();
+    const bool heartbeat =
+        s_initialized
+        && !changed
+        && reasonMask != PanelUiSuppressionReason_None
+        && s_lastLoggedAtMs != 0
+        && DebounceWindowElapsed(nowMs, s_lastLoggedAtMs, 5000);
+    if (!(changed || heartbeat))
+    {
+        return;
+    }
+
+    std::stringstream info;
+    info << "Job-B-Gone DEBUG: panel_ui_suppression_sources"
+         << " dialogue_window_open=" << (dialogueWindowOpen ? "true" : "false")
+         << " menu_open=" << (menuOpen ? "true" : "false")
+         << " hud_hidden=" << (hudHidden ? "true" : "false")
+         << " character_creation_mode=" << (characterCreationModeActive ? "true" : "false")
+         << " selected_members=" << selectedMemberCount
+         << " desired_member_reasons=" << BuildPanelUiSuppressionReasonSummary(desiredSuppressionMask)
+         << " final_reasons=" << BuildPanelUiSuppressionReasonSummary(reasonMask);
+    DebugLog(info.str().c_str());
+
+    s_initialized = true;
+    s_lastDialogueWindowOpen = dialogueWindowOpen;
+    s_lastMenuOpen = menuOpen;
+    s_lastHudHidden = hudHidden;
+    s_lastCharacterCreationModeActive = characterCreationModeActive;
+    s_lastSelectedMemberCount = selectedMemberCount;
+    s_lastDesiredSuppressionMask = desiredSuppressionMask;
+    s_lastReasonMask = reasonMask;
+    s_lastLoggedAtMs = nowMs;
+}
 
 static bool TryGetCharacterCreationModeActive(bool* activeOut)
 {
@@ -1753,19 +1937,6 @@ static void CollectUiSuppressionCharacters(Character* selectedMember, std::vecto
     {
     }
 
-    __try
-    {
-        const lektor<Character*>& allPlayerCharacters = g_lastPlayerInterface->getAllPlayerCharacters();
-        const uint32_t count = allPlayerCharacters.size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            AddUniqueCharacterForSelection(membersOut, allPlayerCharacters[i]);
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-
     const size_t initialCount = membersOut->size();
     for (size_t i = 0; i < initialCount; ++i)
     {
@@ -1805,15 +1976,13 @@ static int DetectMemberUiSuppressionReasonMask(Character* member)
         }
 
         const bool memberEngaged = member->_isEngagedWithAPlayer;
+        const bool hasEngagedSignal = memberEngaged || targetEngaged;
+        const bool hasDialogueSignal = memberDialogueActive || targetDialogueActive;
         const bool dialogueOrInteractionActive =
-            memberEngaged
-            || targetEngaged
-            || hasConversationTarget
-            || memberDialogueActive
-            || targetDialogueActive;
+            hasDialogueSignal
+            || (hasConversationTarget && hasEngagedSignal);
         const bool tradeLikeInteractionActive =
-            hasConversationTarget
-            && (memberEngaged || targetEngaged)
+            hasEngagedSignal
             && (memberInventoryVisible || targetInventoryVisible);
 
         if (g_config.hidePanelDuringInventoryOpen && (memberInventoryVisible || targetInventoryVisible))
@@ -1824,6 +1993,17 @@ static int DetectMemberUiSuppressionReasonMask(Character* member)
         {
             reasonMask |= PanelUiSuppressionReason_CharacterInteraction;
         }
+
+        MaybeLogMemberUiSuppressionProbe(
+            member,
+            reasonMask,
+            memberEngaged,
+            memberDialogueActive,
+            hasConversationTarget,
+            targetEngaged,
+            targetDialogueActive,
+            memberInventoryVisible,
+            targetInventoryVisible);
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -1836,6 +2016,7 @@ static int DetectMemberUiSuppressionReasonMask(Character* member)
 static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
 {
     int reasonMask = PanelUiSuppressionReason_None;
+    int selectedMemberCount = 0;
 
     bool dialogueWindowOpen = false;
     if (g_config.hidePanelDuringCharacterInteraction
@@ -1867,8 +2048,17 @@ static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
 
     std::vector<Character*> selectedMembers;
     CollectUiSuppressionCharacters(selectedMember, &selectedMembers);
+    selectedMemberCount = static_cast<int>(selectedMembers.size());
     if (selectedMembers.empty())
     {
+        LogPanelUiSuppressionSources(
+            dialogueWindowOpen,
+            menuOpen,
+            hudHidden,
+            characterCreationModeActive,
+            selectedMemberCount,
+            PanelUiSuppressionReason_None,
+            reasonMask);
         return reasonMask;
     }
 
@@ -1899,6 +2089,14 @@ static int DetectPanelUiSuppressionReasonMask(Character* selectedMember)
         }
     }
 
+    LogPanelUiSuppressionSources(
+        dialogueWindowOpen,
+        menuOpen,
+        hudHidden,
+        characterCreationModeActive,
+        selectedMemberCount,
+        desiredSuppressionMask,
+        reasonMask);
     return reasonMask;
 }
 
@@ -2984,9 +3182,11 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     const int panelUiSuppressionReasonMask = DetectPanelUiSuppressionReasonMask(selectedMember);
     const bool suppressPanelByUiState = (panelUiSuppressionReasonMask != PanelUiSuppressionReason_None);
-    TickPanelVisibilityToggleHotkey(!suppressPanelByUiState);
+    const std::string panelUiSuppressionReasonSummary = BuildPanelUiSuppressionReasonSummary(panelUiSuppressionReasonMask);
+    TickPanelVisibilityToggleHotkey(!suppressPanelByUiState, panelUiSuppressionReasonSummary.c_str());
     const bool suppressPanelByToggle = g_panelHiddenByToggle;
     const bool suppressPanel = suppressPanelByUiState || suppressPanelByToggle;
+    const std::string panelVisibilityReasonSummary = BuildPanelVisibilityReasonSummary(panelUiSuppressionReasonMask, suppressPanelByToggle);
     if (suppressPanel)
     {
         HideConfirmationOverlay();
@@ -2994,18 +3194,45 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     g_jobBGonePanel->setVisible(!suppressPanel);
 
-    if (suppressPanelByUiState != g_lastLoggedPanelSuppressedByUiState
+    const bool panelVisibilityGateChanged =
+        suppressPanelByUiState != g_lastLoggedPanelSuppressedByUiState
         || panelUiSuppressionReasonMask != g_lastLoggedPanelSuppressionReasonMask
-        || suppressPanelByToggle != g_lastLoggedPanelSuppressedByToggle)
+        || suppressPanelByToggle != g_lastLoggedPanelSuppressedByToggle;
+    static DWORD s_lastPanelVisibilityGateChangeMs = 0;
+    static DWORD s_lastPanelVisibilityGateHeartbeatMs = 0;
+    const DWORD nowMs = GetTickCount();
+
+    if (panelVisibilityGateChanged)
     {
         std::stringstream logline;
         logline << "Job-B-Gone DEBUG: panel_visibility_gate"
                 << " suppressed=" << (suppressPanel ? "true" : "false")
-                << " reasons=" << BuildPanelVisibilityReasonSummary(panelUiSuppressionReasonMask, suppressPanelByToggle);
+                << " reasons=" << panelVisibilityReasonSummary;
         DebugLog(logline.str().c_str());
         g_lastLoggedPanelSuppressedByUiState = suppressPanelByUiState;
         g_lastLoggedPanelSuppressionReasonMask = panelUiSuppressionReasonMask;
         g_lastLoggedPanelSuppressedByToggle = suppressPanelByToggle;
+        s_lastPanelVisibilityGateChangeMs = nowMs;
+        s_lastPanelVisibilityGateHeartbeatMs = nowMs;
+    }
+    else if (suppressPanel)
+    {
+        if (s_lastPanelVisibilityGateChangeMs == 0)
+        {
+            s_lastPanelVisibilityGateChangeMs = nowMs;
+            s_lastPanelVisibilityGateHeartbeatMs = nowMs;
+        }
+        else if (DebounceWindowElapsed(nowMs, s_lastPanelVisibilityGateHeartbeatMs, 5000))
+        {
+            std::stringstream info;
+            info << "Job-B-Gone DEBUG: panel_visibility_gate_stuck"
+                 << " duration_ms=" << (nowMs - s_lastPanelVisibilityGateChangeMs)
+                 << " reasons=" << panelVisibilityReasonSummary
+                 << " suppress_ui=" << (suppressPanelByUiState ? "true" : "false")
+                 << " suppress_toggle=" << (suppressPanelByToggle ? "true" : "false");
+            DebugLog(info.str().c_str());
+            s_lastPanelVisibilityGateHeartbeatMs = nowMs;
+        }
     }
 
     if (suppressPanel)

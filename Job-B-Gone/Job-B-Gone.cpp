@@ -301,7 +301,7 @@ static bool TryNormalizePanelVisibilityToggleHotkey(
     int* virtualKeyOut);
 static void RefreshPanelVisibilityToggleHotkeyBinding();
 static bool IsPanelVisibilityToggleHotkeyDown();
-static void TickPanelVisibilityToggleHotkey(bool allowToggle);
+static void TickPanelVisibilityToggleHotkey(bool allowToggle, const char* blockedReasonSummary);
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -740,11 +740,21 @@ static bool IsPanelVisibilityToggleHotkeyDown()
     return (GetAsyncKeyState(g_panelVisibilityToggleVirtualKey) & 0x8000) != 0;
 }
 
-static void TickPanelVisibilityToggleHotkey(bool allowToggle)
+static void TickPanelVisibilityToggleHotkey(bool allowToggle, const char* blockedReasonSummary)
 {
     const bool hotkeyDown = IsPanelVisibilityToggleHotkeyDown();
     if (!allowToggle)
     {
+        if (hotkeyDown && !g_panelVisibilityTogglePrevDown)
+        {
+            std::stringstream info;
+            info << "Job-B-Gone DEBUG: panel_visibility_toggle_blocked"
+                 << " reason=" << ((blockedReasonSummary && blockedReasonSummary[0] != '\0')
+                        ? blockedReasonSummary
+                        : "ui_suppressed")
+                 << " hotkey=" << g_config.panelVisibilityToggleHotkey;
+            DebugLog(info.str().c_str());
+        }
         g_panelVisibilityTogglePrevDown = hotkeyDown;
         return;
     }
