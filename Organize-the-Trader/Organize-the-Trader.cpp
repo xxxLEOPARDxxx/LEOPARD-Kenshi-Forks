@@ -7,8 +7,11 @@
 #include <kenshi/PlayerInterface.h>
 
 #include <mygui/MyGUI_Button.h>
+#include <mygui/MyGUI_ComboBox.h>
+#include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
+#include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 #include <ois/OISKeyboard.h>
@@ -22,14 +25,19 @@
 namespace
 {
 const char* kPluginName = "Organize-the-Trader";
-const char* kSpikeWidgetName = "OTT_TraderWindowSpikeWidget";
-const char* kSpikeHotkeyHint = "Ctrl+Shift+F8";
+const char* kControlsContainerName = "OTT_TraderControlsContainer";
+const char* kSearchEditName = "OTT_SearchEdit";
+const char* kCategoryComboName = "OTT_CategoryCombo";
+const char* kSortComboName = "OTT_SortCombo";
+const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
 
 typedef void (*PlayerInterfaceUpdateUTFn)(PlayerInterface*);
 PlayerInterfaceUpdateUTFn g_updateUTOrig = 0;
 
-bool g_prevSpikeHotkeyDown = false;
-bool g_spikeWasInjected = false;
+bool g_prevToggleHotkeyDown = false;
+bool g_controlsWereInjected = false;
+std::size_t g_selectedCategoryIndex = 0;
+std::size_t g_selectedSortIndex = 0;
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -99,14 +107,19 @@ std::string BuildParentChainForLog(MyGUI::Widget* widget)
     return out.str();
 }
 
-MyGUI::Widget* FindSpikeWidget()
+MyGUI::Widget* FindWidgetByName(const char* widgetName)
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
     {
         return 0;
     }
-    return gui->findWidgetT(kSpikeWidgetName, false);
+    return gui->findWidgetT(widgetName, false);
+}
+
+MyGUI::Widget* FindControlsContainer()
+{
+    return FindWidgetByName(kControlsContainerName);
 }
 
 void DumpVisibleRootWidgetsForDiagnostics()
@@ -140,6 +153,72 @@ void DumpVisibleRootWidgetsForDiagnostics()
         LogInfoLine(line.str());
         ++index;
     }
+}
+
+bool IsDescendantOf(MyGUI::Widget* widget, MyGUI::Widget* ancestor)
+{
+    if (widget == 0 || ancestor == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* current = widget;
+    while (current != 0)
+    {
+        if (current == ancestor)
+        {
+            return true;
+        }
+        current = current->getParent();
+    }
+
+    return false;
+}
+
+MyGUI::Widget* FindWidgetInParentByName(MyGUI::Widget* parent, const char* widgetName)
+{
+    if (parent == 0 || widgetName == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* candidate = FindWidgetByName(widgetName);
+    if (candidate == 0)
+    {
+        return 0;
+    }
+
+    if (!IsDescendantOf(candidate, parent))
+    {
+        return 0;
+    }
+
+    return candidate;
+}
+
+bool IsLikelyTraderWindow(MyGUI::Widget* parent)
+{
+    if (parent == 0)
+    {
+        return false;
+    }
+
+    const char* traderMarkers[] =
+    {
+        "CharacterSelectionItemBox",
+        "ConfirmButton",
+        "CancelButton"
+    };
+
+    for (std::size_t index = 0; index < sizeof(traderMarkers) / sizeof(traderMarkers[0]); ++index)
+    {
+        if (FindWidgetInParentByName(parent, traderMarkers[index]) != 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget)
@@ -185,25 +264,25 @@ MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor)
     return anchor;
 }
 
-void DestroySpikeWidgetIfPresent()
+void DestroyControlsIfPresent()
 {
-    MyGUI::Widget* spikeWidget = FindSpikeWidget();
-    if (spikeWidget == 0)
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
     {
-        g_spikeWasInjected = false;
+        g_controlsWereInjected = false;
         return;
     }
 
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui != 0)
     {
-        gui->destroyWidget(spikeWidget);
-        LogInfoLine("spike widget destroyed");
+        gui->destroyWidget(controlsContainer);
+        LogInfoLine("controls container destroyed");
     }
-    g_spikeWasInjected = false;
+    g_controlsWereInjected = false;
 }
 
-void OnSpikeAnchorCoordChanged(MyGUI::Widget* sender)
+void OnControlsAnchorCoordChanged(MyGUI::Widget* sender)
 {
     if (sender == 0)
     {
@@ -217,7 +296,341 @@ void OnSpikeAnchorCoordChanged(MyGUI::Widget* sender)
     LogInfoLine(line.str());
 }
 
-bool TryInjectSpikeWidgetToHoveredWindow()
+int RelativeBottomInParent(MyGUI::Widget* parent, MyGUI::Widget* child)
+{
+    if (parent == 0 || child == 0)
+    {
+        return 0;
+    }
+
+    const MyGUI::IntCoord parentAbsolute = parent->getAbsoluteCoord();
+    const MyGUI::IntCoord childAbsolute = child->getAbsoluteCoord();
+    return (childAbsolute.top - parentAbsolute.top) + childAbsolute.height;
+}
+
+int ResolveControlsTop(MyGUI::Widget* parent)
+{
+    const int defaultTop = 16;
+    if (parent == 0)
+    {
+        return defaultTop;
+    }
+
+    const char* moneyWidgetPriority[] =
+    {
+        "MoneyAmountTextBox",
+        "MoneyAmountText",
+        "TotalMoneyBuyer",
+        "lbTotalMoney",
+        "MoneyLabelText",
+        "lbBuyersMoney"
+    };
+
+    for (std::size_t index = 0; index < sizeof(moneyWidgetPriority) / sizeof(moneyWidgetPriority[0]); ++index)
+    {
+        MyGUI::Widget* moneyWidget = FindWidgetInParentByName(parent, moneyWidgetPriority[index]);
+        if (moneyWidget == 0)
+        {
+            continue;
+        }
+
+        int top = RelativeBottomInParent(parent, moneyWidget) + 8;
+        if (top < defaultTop)
+        {
+            top = defaultTop;
+        }
+        return top;
+    }
+
+    return defaultTop;
+}
+
+void OnSearchTextChanged(MyGUI::EditBox*)
+{
+    LogInfoLine("search text changed (phase 2 scaffold)");
+}
+
+void OnCategoryChanged(MyGUI::ComboBox*, std::size_t index)
+{
+    g_selectedCategoryIndex = index;
+
+    std::stringstream line;
+    line << "category changed to index=" << index << " (phase 2 scaffold)";
+    LogInfoLine(line.str());
+}
+
+void OnSortChanged(MyGUI::ComboBox*, std::size_t index)
+{
+    g_selectedSortIndex = index;
+
+    std::stringstream line;
+    line << "sort changed to index=" << index << " (phase 2 scaffold)";
+    LogInfoLine(line.str());
+}
+
+void PopulateCategoryOptions(MyGUI::ComboBox* categoryCombo)
+{
+    if (categoryCombo == 0)
+    {
+        return;
+    }
+
+    const char* categoryOptions[] =
+    {
+        "All",
+        "Weapons",
+        "Armor",
+        "Clothing",
+        "Food",
+        "Materials",
+        "Robotics",
+        "Misc"
+    };
+
+    for (std::size_t index = 0; index < sizeof(categoryOptions) / sizeof(categoryOptions[0]); ++index)
+    {
+        categoryCombo->addItem(categoryOptions[index]);
+    }
+    categoryCombo->setIndexSelected(g_selectedCategoryIndex);
+}
+
+void PopulateSortOptions(MyGUI::ComboBox* sortCombo)
+{
+    if (sortCombo == 0)
+    {
+        return;
+    }
+
+    const char* sortOptions[] =
+    {
+        "Default",
+        "Price Ascending",
+        "Price Descending",
+        "Name A-Z",
+        "Name Z-A",
+        "Weight Ascending",
+        "Value/kg Descending",
+        "Value/kg Ascending"
+    };
+
+    for (std::size_t index = 0; index < sizeof(sortOptions) / sizeof(sortOptions[0]); ++index)
+    {
+        sortCombo->addItem(sortOptions[index]);
+    }
+    sortCombo->setIndexSelected(g_selectedSortIndex);
+}
+
+bool BuildControlsScaffold(MyGUI::Widget* parent)
+{
+    if (parent == 0)
+    {
+        return false;
+    }
+
+    int containerWidth = parent->getWidth() - 24;
+    if (containerWidth > 560)
+    {
+        containerWidth = 560;
+    }
+    if (containerWidth < 320)
+    {
+        containerWidth = parent->getWidth() - 8;
+    }
+    if (containerWidth < 240)
+    {
+        containerWidth = 240;
+    }
+
+    const bool compactLayout = containerWidth < 430;
+    const int containerHeight = compactLayout ? 126 : 92;
+
+    const int rightMargin = 16;
+    int left = parent->getWidth() - containerWidth - rightMargin;
+    if (left < 8)
+    {
+        left = 8;
+    }
+
+    int top = ResolveControlsTop(parent);
+    const int maxTop = parent->getHeight() - containerHeight - 8;
+    if (top > maxTop)
+    {
+        top = maxTop;
+    }
+    if (top < 8)
+    {
+        top = 8;
+    }
+
+    MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
+        "Kenshi_GenericTextBoxFlatSkin",
+        MyGUI::IntCoord(left, top, containerWidth, containerHeight),
+        MyGUI::Align::Right | MyGUI::Align::Top,
+        kControlsContainerName);
+    if (container == 0)
+    {
+        LogErrorLine("failed to create controls container");
+        return false;
+    }
+
+    const int outerPadding = 8;
+    const int rowHeight = 26;
+    const int rowGap = 8;
+    const int labelWidth = 58;
+    const int searchInputLeft = outerPadding + labelWidth + 6;
+    int searchInputWidth = containerWidth - searchInputLeft - outerPadding;
+    if (searchInputWidth < 120)
+    {
+        searchInputWidth = 120;
+    }
+
+    MyGUI::TextBox* searchLabel = container->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(outerPadding, outerPadding + 3, labelWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top);
+    if (searchLabel != 0)
+    {
+        searchLabel->setCaption("Search:");
+    }
+
+    MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
+        "Kenshi_EditBox",
+        MyGUI::IntCoord(searchInputLeft, outerPadding, searchInputWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSearchEditName);
+    if (searchEdit == 0)
+    {
+        LogErrorLine("failed to create search edit box");
+        DestroyControlsIfPresent();
+        return false;
+    }
+    searchEdit->setOnlyText("");
+    searchEdit->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
+
+    const int row2Y = outerPadding + rowHeight + rowGap;
+    const int row3Y = row2Y + rowHeight + rowGap;
+    const int comboLabelWidth = 68;
+
+    MyGUI::ComboBox* categoryCombo = 0;
+    MyGUI::ComboBox* sortCombo = 0;
+
+    if (!compactLayout)
+    {
+        const int sortLabelWidth = 40;
+        const int gap = 6;
+        int availableForCombos = containerWidth - (outerPadding * 2) - comboLabelWidth - sortLabelWidth - (gap * 3);
+        if (availableForCombos < 240)
+        {
+            availableForCombos = 240;
+        }
+        int categoryComboWidth = availableForCombos / 2;
+        int sortComboWidth = availableForCombos - categoryComboWidth;
+
+        if (categoryComboWidth < 120)
+        {
+            categoryComboWidth = 120;
+        }
+        if (sortComboWidth < 120)
+        {
+            sortComboWidth = 120;
+        }
+
+        const int categoryLabelX = outerPadding;
+        const int categoryComboX = categoryLabelX + comboLabelWidth + gap;
+        const int sortLabelX = categoryComboX + categoryComboWidth + gap;
+        const int sortComboX = sortLabelX + sortLabelWidth + gap;
+        int adjustedSortComboWidth = containerWidth - outerPadding - sortComboX;
+        if (adjustedSortComboWidth < 120)
+        {
+            adjustedSortComboWidth = 120;
+        }
+
+        MyGUI::TextBox* categoryLabel = container->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(categoryLabelX, row2Y + 3, comboLabelWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top);
+        if (categoryLabel != 0)
+        {
+            categoryLabel->setCaption("Category:");
+        }
+
+        categoryCombo = container->createWidget<MyGUI::ComboBox>(
+            "Kenshi_ComboBox",
+            MyGUI::IntCoord(categoryComboX, row2Y, categoryComboWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kCategoryComboName);
+
+        MyGUI::TextBox* sortLabel = container->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(sortLabelX, row2Y + 3, sortLabelWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top);
+        if (sortLabel != 0)
+        {
+            sortLabel->setCaption("Sort:");
+        }
+
+        sortCombo = container->createWidget<MyGUI::ComboBox>(
+            "Kenshi_ComboBox",
+            MyGUI::IntCoord(sortComboX, row2Y, adjustedSortComboWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kSortComboName);
+    }
+    else
+    {
+        MyGUI::TextBox* categoryLabel = container->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(outerPadding, row2Y + 3, comboLabelWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top);
+        if (categoryLabel != 0)
+        {
+            categoryLabel->setCaption("Category:");
+        }
+
+        int compactComboWidth = containerWidth - (outerPadding * 2) - comboLabelWidth - 6;
+        if (compactComboWidth < 120)
+        {
+            compactComboWidth = 120;
+        }
+
+        categoryCombo = container->createWidget<MyGUI::ComboBox>(
+            "Kenshi_ComboBox",
+            MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row2Y, compactComboWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kCategoryComboName);
+
+        MyGUI::TextBox* sortLabel = container->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(outerPadding, row3Y + 3, comboLabelWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top);
+        if (sortLabel != 0)
+        {
+            sortLabel->setCaption("Sort:");
+        }
+
+        sortCombo = container->createWidget<MyGUI::ComboBox>(
+            "Kenshi_ComboBox",
+            MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row3Y, compactComboWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kSortComboName);
+    }
+
+    if (categoryCombo == 0 || sortCombo == 0)
+    {
+        LogErrorLine("failed to create category/sort combo boxes");
+        DestroyControlsIfPresent();
+        return false;
+    }
+
+    PopulateCategoryOptions(categoryCombo);
+    PopulateSortOptions(sortCombo);
+
+    categoryCombo->eventComboChangePosition += MyGUI::newDelegate(&OnCategoryChanged);
+    sortCombo->eventComboChangePosition += MyGUI::newDelegate(&OnSortChanged);
+
+    return true;
+}
+
+bool TryInjectControlsToHoveredTraderWindow()
 {
     MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
     if (inputManager == 0)
@@ -242,51 +655,35 @@ bool TryInjectSpikeWidgetToHoveredWindow()
         return false;
     }
 
-    DestroySpikeWidgetIfPresent();
-
-    const int spikeWidth = 240;
-    const int spikeHeight = 34;
-    const int topMargin = 16;
-    const int rightMargin = 16;
-    int left = parent->getWidth() - spikeWidth - rightMargin;
-    if (left < 16)
+    if (!IsLikelyTraderWindow(parent))
     {
-        left = 16;
-    }
-
-    MyGUI::Button* spikeButton = parent->createWidget<MyGUI::Button>(
-        "Kenshi_Button1",
-        MyGUI::IntCoord(left, topMargin, spikeWidth, spikeHeight),
-        MyGUI::Align::Right | MyGUI::Align::Top,
-        kSpikeWidgetName);
-
-    if (spikeButton == 0)
-    {
-        LogErrorLine("failed to create spike widget");
+        LogWarnLine("hovered window does not look like trader UI; injection skipped");
         return false;
     }
 
-    spikeButton->setCaption("OTT Spike: Anchored");
-    spikeButton->setEnabled(false);
-    spikeButton->setNeedToolTip(true);
-    spikeButton->setUserString("ToolTip", "Feasibility spike widget. Should move with parent window.");
+    DestroyControlsIfPresent();
+    if (!BuildControlsScaffold(parent))
+    {
+        LogErrorLine("failed to build phase 2 controls scaffold");
+        return false;
+    }
 
-    anchor->eventChangeCoord += MyGUI::newDelegate(&OnSpikeAnchorCoordChanged);
-    g_spikeWasInjected = true;
+    anchor->eventChangeCoord += MyGUI::newDelegate(&OnControlsAnchorCoordChanged);
+    g_controlsWereInjected = true;
 
     std::stringstream line;
-    line << "spike injected. hovered_chain=" << BuildParentChainForLog(hovered)
+    line << "controls scaffold injected. hovered_chain=" << BuildParentChainForLog(hovered)
          << " anchor=" << SafeWidgetName(anchor)
          << " parent=" << SafeWidgetName(parent);
     LogInfoLine(line.str());
     return true;
 }
 
-bool IsSpikeHotkeyPressedEdge()
+bool IsToggleHotkeyPressedEdge()
 {
     if (key == 0 || key->keyboard == 0)
     {
-        g_prevSpikeHotkeyDown = false;
+        g_prevToggleHotkeyDown = false;
         return false;
     }
 
@@ -297,32 +694,32 @@ bool IsSpikeHotkeyPressedEdge()
     const bool f8Down = key->keyboard->isKeyDown(OIS::KC_F8);
 
     const bool chordDown = ctrlDown && shiftDown && f8Down;
-    const bool pressedEdge = chordDown && !g_prevSpikeHotkeyDown;
-    g_prevSpikeHotkeyDown = chordDown;
+    const bool pressedEdge = chordDown && !g_prevToggleHotkeyDown;
+    g_prevToggleHotkeyDown = chordDown;
     return pressedEdge;
 }
 
-void TickSpikeFeasibility()
+void TickPhase2ControlsScaffold()
 {
-    if (IsSpikeHotkeyPressedEdge())
+    if (IsToggleHotkeyPressedEdge())
     {
-        MyGUI::Widget* existing = FindSpikeWidget();
+        MyGUI::Widget* existing = FindControlsContainer();
         if (existing != 0)
         {
-            DestroySpikeWidgetIfPresent();
+            DestroyControlsIfPresent();
             return;
         }
 
-        if (!TryInjectSpikeWidgetToHoveredWindow())
+        if (!TryInjectControlsToHoveredTraderWindow())
         {
-            LogWarnLine("spike injection failed");
+            LogWarnLine("controls scaffold injection failed");
         }
     }
 
-    if (g_spikeWasInjected && FindSpikeWidget() == 0)
+    if (g_controlsWereInjected && FindControlsContainer() == 0)
     {
-        g_spikeWasInjected = false;
-        LogInfoLine("spike widget no longer present (window likely closed/destroyed)");
+        g_controlsWereInjected = false;
+        LogInfoLine("controls container no longer present (window likely closed/destroyed)");
     }
 }
 
@@ -333,7 +730,7 @@ void PlayerInterface_updateUT_hook(PlayerInterface* self)
         g_updateUTOrig(self);
     }
 
-    TickSpikeFeasibility();
+    TickPhase2ControlsScaffold();
 }
 }
 
@@ -358,8 +755,8 @@ __declspec(dllexport) void startPlugin()
     }
 
     std::stringstream info;
-    info << "feasibility spike active. Hover trader window and press " << kSpikeHotkeyHint
-         << " to toggle anchor test widget.";
+    info << "phase 2 controls scaffold active. Hover trader window and press " << kToggleHotkeyHint
+         << " to toggle search/filter/sort controls.";
     LogInfoLine(info.str());
 }
 
