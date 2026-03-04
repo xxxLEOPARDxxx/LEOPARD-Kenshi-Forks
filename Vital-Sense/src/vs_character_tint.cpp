@@ -14,6 +14,7 @@
 #include <kenshi/Character.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
+#include <kenshi/PlayerInterface.h>
 #include <Windows.h>
 #include <ogre/OgreColourValue.h>
 #include <ogre/OgreEntity.h>
@@ -67,6 +68,8 @@ bool gTintPortraitSafeModeWarned = false;
 bool gTintAlternatePlayerEntityLogged = false;
 bool gTintAnimalOverrideModeLogged = false;
 bool gTintApplyExceptionWarned = false;
+DWORD gTintAnimalSampleLogWindowStartMs = 0;
+unsigned int gTintAnimalSampleLogCount = 0;
 unsigned int gTintMaterialCloneSerial = 0;
 
 struct ResolvedCharacter
@@ -339,6 +342,50 @@ int FindMaterialOverrideEntryByHandle(const hand& targetHandle)
     return -1;
 }
 
+bool MaterialPtrsReferSameObject(const Ogre::MaterialPtr& a, const Ogre::MaterialPtr& b)
+{
+    if (a.isNull() || b.isNull())
+    {
+        return false;
+    }
+
+    bool sameObject = false;
+    __try
+    {
+        sameObject = (a.getPointer() == b.getPointer());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        sameObject = false;
+    }
+
+    return sameObject;
+}
+
+size_t PurgeMaterialOverrideEntriesNotResolved(const std::vector<ResolvedCharacter>& resolvedCharacters)
+{
+    if (gCharacterMaterialOverrideEntries.empty())
+    {
+        return 0;
+    }
+
+    size_t removedCount = 0;
+    for (int i = static_cast<int>(gCharacterMaterialOverrideEntries.size()) - 1; i >= 0; --i)
+    {
+        const hand& targetHandle = gCharacterMaterialOverrideEntries[static_cast<size_t>(i)].targetHandle;
+        if (ResolvedCharactersContainHandle(resolvedCharacters, targetHandle))
+        {
+            continue;
+        }
+
+        gCharacterMaterialOverrideEntries.erase(
+            gCharacterMaterialOverrideEntries.begin() + i);
+        ++removedCount;
+    }
+
+    return removedCount;
+}
+
 std::string BuildMaterialCloneName(const hand& targetHandle, size_t subEntityIndex)
 {
     std::stringstream ss;
@@ -361,19 +408,24 @@ void ConfigureHighlightMaterialClone(Ogre::MaterialPtr& materialClone, const Ogr
     try
     {
         materialClone->setAmbient(
-            colour.r * 0.35f + 0.10f,
-            colour.g * 0.35f + 0.10f,
-            colour.b * 0.35f + 0.10f);
+            colour.r * 0.30f + 0.05f,
+            colour.g * 0.30f + 0.05f,
+            colour.b * 0.30f + 0.05f);
         materialClone->setDiffuse(
             colour.r,
             colour.g,
             colour.b,
-            0.85f);
-        materialClone->setSelfIllumination(colour);
+            1.0f);
+        materialClone->setSelfIllumination(
+            colour.r * 0.70f,
+            colour.g * 0.70f,
+            colour.b * 0.70f);
+        // Use additive overlay so relation colour stays visible even on dark creature textures.
         materialClone->setSceneBlending(Ogre::SBT_ADD);
         materialClone->setDepthCheckEnabled(false);
         materialClone->setDepthWriteEnabled(false);
         materialClone->setCullingMode(Ogre::CULL_NONE);
+
         materialClone->compile();
         materialClone->load();
     }
@@ -836,12 +888,21 @@ bool ApplyMaterialOverrideToEntity(
             continue;
         }
 
+        Ogre::MaterialPtr& overrideMaterial = entry.overrideMaterials[i];
+        const bool currentIsOverride = (!overrideMaterial.isNull() && MaterialPtrsReferSameObject(currentMaterial, overrideMaterial));
+        if (!currentIsOverride)
+        {
+            // Re-baseline to the currently bound material unless this sub-entity is already using our override.
+            // This recovers safely from handle reuse across save/world transitions.
+            entry.originalMaterials[i] = currentMaterial;
+            overrideMaterial.setNull();
+        }
+
         if (entry.originalMaterials[i].isNull())
         {
             entry.originalMaterials[i] = currentMaterial;
         }
 
-        Ogre::MaterialPtr& overrideMaterial = entry.overrideMaterials[i];
         if (overrideMaterial.isNull())
         {
             try
@@ -858,7 +919,18 @@ bool ApplyMaterialOverrideToEntity(
             continue;
         }
 
-        ConfigureHighlightMaterialClone(overrideMaterial, colour);
+        try
+        {
+            ConfigureHighlightMaterialClone(overrideMaterial, colour);
+        }
+        catch (...)
+        {
+            overrideMaterial.setNull();
+        }
+        if (overrideMaterial.isNull())
+        {
+            continue;
+        }
 
         bool setOk = false;
         try
@@ -1556,6 +1628,98 @@ bool IsAnimalCharacterSafe(Character* candidate)
     return isAnimalCharacter;
 }
 
+bool IsCharacterInPlayerSquadSafe(Character* candidate)
+{
+    if (!candidate || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    bool inPlayerSquad = false;
+    __try
+    {
+        const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
+        if (playerCharacters.valid())
+        {
+            for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
+            {
+                if (*it == candidate)
+                {
+                    inPlayerSquad = true;
+                    break;
+                }
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        inPlayerSquad = false;
+    }
+
+    return inPlayerSquad;
+}
+
+bool IsEnemyToAnyPlayerCharacterSafe(Character* candidate)
+{
+    if (!candidate || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    bool isEnemy = false;
+    __try
+    {
+        const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
+        if (!playerCharacters.valid())
+        {
+            return false;
+        }
+
+        for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
+        {
+            Character* playerCharacter = *it;
+            if (!playerCharacter || playerCharacter == candidate)
+            {
+                continue;
+            }
+
+            bool hostileToPlayerCharacter = false;
+            __try
+            {
+                hostileToPlayerCharacter = candidate->isEnemy(playerCharacter, true);
+                if (!hostileToPlayerCharacter)
+                {
+                    hostileToPlayerCharacter = candidate->shouldIScrewThisGuyOver(playerCharacter);
+                }
+                if (!hostileToPlayerCharacter)
+                {
+                    hostileToPlayerCharacter = candidate->areYouGonnaGetMe(playerCharacter);
+                }
+                if (!hostileToPlayerCharacter)
+                {
+                    hostileToPlayerCharacter = playerCharacter->areYouGonnaGetMe(candidate);
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+                hostileToPlayerCharacter = false;
+            }
+
+            if (hostileToPlayerCharacter)
+            {
+                isEnemy = true;
+                break;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        isEnemy = false;
+    }
+
+    return isEnemy;
+}
+
 bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour, bool depthOverride, const char* pluginName)
 {
     if (!candidate)
@@ -1798,7 +1962,7 @@ bool SetTintForHandle(
 
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
-    if (state.characterTintEntries.empty())
+    if (state.characterTintEntries.empty() && gCharacterMaterialOverrideEntries.empty())
     {
         return;
     }
@@ -1819,6 +1983,15 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             ++gTintDiagCleared;
         }
     }
+
+    const size_t purgedEntries = PurgeMaterialOverrideEntriesNotResolved(resolvedCharacters);
+    if (purgedEntries > 0)
+    {
+        std::stringstream ss;
+        ss << "purged stale material overrides count=" << purgedEntries;
+        vs_log::LogInfo(pluginName, ss.str());
+    }
+
     state.characterTintEntries.clear();
     EmitTintDiagLogIfDue(pluginName);
 }
@@ -1837,9 +2010,18 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     BuildDesiredTintEntries(state, desiredEntries);
 
     std::vector<ResolvedCharacter> resolvedCharacters;
-    if (!desiredEntries.empty() || !state.characterTintEntries.empty())
+    if (!desiredEntries.empty()
+        || !state.characterTintEntries.empty()
+        || !gCharacterMaterialOverrideEntries.empty())
     {
         CollectResolvedCharacters(resolvedCharacters);
+        const size_t purgedEntries = PurgeMaterialOverrideEntriesNotResolved(resolvedCharacters);
+        if (purgedEntries > 0)
+        {
+            std::stringstream ss;
+            ss << "purged stale material overrides during sync count=" << purgedEntries;
+            vs_log::LogInfo(pluginName, ss.str());
+        }
     }
 
     std::vector<CharacterTintEntry> unchangedEntries;
@@ -1872,7 +2054,54 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             continue;
         }
 
-        const Ogre::ColourValue tintColour = ResolveTintColour(state, desired.markerRelation);
+        Ogre::ColourValue tintColour = ResolveTintColour(state, desired.markerRelation);
+        Character* desiredCandidate = FindResolvedCharacterByHandle(resolvedCharacters, desired.targetHandle);
+        const bool inPlayerSquad = desiredCandidate && IsCharacterInPlayerSquadSafe(desiredCandidate);
+        const bool animalNonSquadForcedEnemy =
+            desiredCandidate
+            && IsAnimalCharacterSafe(desiredCandidate)
+            && !inPlayerSquad;
+        const bool hostileNonSquadForcedEnemy =
+            desiredCandidate
+            && !inPlayerSquad
+            && IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
+        const bool forcedEnemyTint = animalNonSquadForcedEnemy || hostileNonSquadForcedEnemy;
+        if (forcedEnemyTint)
+        {
+            tintColour = Ogre::ColourValue(
+                state.config.enemyMarkerColour.red,
+                state.config.enemyMarkerColour.green,
+                state.config.enemyMarkerColour.blue,
+                1.0f);
+        }
+        if (desiredCandidate && IsAnimalCharacterSafe(desiredCandidate))
+        {
+            const DWORD nowMs = GetTickCount();
+            if (gTintAnimalSampleLogWindowStartMs == 0
+                || (nowMs - gTintAnimalSampleLogWindowStartMs) >= 2000)
+            {
+                gTintAnimalSampleLogWindowStartMs = nowMs;
+                gTintAnimalSampleLogCount = 0;
+            }
+            if (gTintAnimalSampleLogCount < 6)
+            {
+                std::stringstream ss;
+                ss << "animal tint sample relation=" << desired.markerRelation
+                   << " forced_enemy=" << (forcedEnemyTint ? "true" : "false")
+                   << " forced_enemy_animal=" << (animalNonSquadForcedEnemy ? "true" : "false")
+                   << " forced_enemy_hostile=" << (hostileNonSquadForcedEnemy ? "true" : "false")
+                   << " colour_rgba=("
+                   << tintColour.r << ","
+                   << tintColour.g << ","
+                   << tintColour.b << ","
+                   << tintColour.a << ")"
+                   << " handle_type=" << desired.targetHandle.type
+                   << " handle_index=" << desired.targetHandle.index
+                   << " handle_serial=" << desired.targetHandle.serial;
+                vs_log::LogInfo(pluginName, ss.str());
+                ++gTintAnimalSampleLogCount;
+            }
+        }
         if (SetTintForHandle(
                 desired.targetHandle,
                 resolvedCharacters,

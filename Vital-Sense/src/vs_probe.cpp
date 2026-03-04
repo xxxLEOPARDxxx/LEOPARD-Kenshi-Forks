@@ -175,14 +175,16 @@ bool TryClassifySpeciesSafe(Character* candidate, CandidateSpeciesInfo* speciesI
         return false;
     }
 
-    if (isAnimal)
-    {
-        TryReadAnimalRaceIdSafe(candidate, raceId, sizeof(raceId));
-    }
+    const bool hasRaceId = TryReadAnimalRaceIdSafe(candidate, raceId, sizeof(raceId));
+    const bool isLikelySpider =
+        hasRaceId
+        && (ContainsCaseInsensitiveToken(raceId, "spider")
+            || ContainsCaseInsensitiveToken(raceId, "bloodspider")
+            || ContainsCaseInsensitiveToken(raceId, "skinspider"));
 
     speciesInfoOut->classified = true;
-    speciesInfoOut->isAnimal = isAnimal;
-    speciesInfoOut->isLikelySpider = ContainsCaseInsensitiveToken(raceId, "spider");
+    speciesInfoOut->isAnimal = isAnimal || isLikelySpider;
+    speciesInfoOut->isLikelySpider = isLikelySpider;
     std::memset(speciesInfoOut->raceId, 0, sizeof(speciesInfoOut->raceId));
     if (raceId[0] != '\0')
     {
@@ -682,6 +684,14 @@ bool IsEnemyToAnyPlayerCharacter(Character* candidate, const lektor<Character*>&
             isEnemy = candidate->isEnemy(playerCharacter, true);
             if (!isEnemy)
             {
+                isEnemy = candidate->shouldIScrewThisGuyOver(playerCharacter);
+            }
+            if (!isEnemy)
+            {
+                isEnemy = candidate->areYouGonnaGetMe(playerCharacter);
+            }
+            if (!isEnemy)
+            {
                 isEnemy = playerCharacter->areYouGonnaGetMe(candidate);
             }
         }
@@ -1058,6 +1068,12 @@ void ProcessMarkerCandidate(
     }
 
     const int markerRelation = ResolveMarkerRelationSafe(state, candidate);
+    int resolvedRelation = markerRelation;
+    if (speciesClassified && speciesInfo.isLikelySpider && markerRelation != CachedKoTarget::RELATION_SQUAD)
+    {
+        // Spider relation APIs are inconsistent across races/mods; enforce enemy tint/marker unless in squad.
+        resolvedRelation = CachedKoTarget::RELATION_ENEMY;
+    }
 
     if (!VisibleHandleListContains(state, targetHandle))
     {
@@ -1071,7 +1087,7 @@ void ProcessMarkerCandidate(
         existing.worldPos = candidatePos;
         existing.lastSeenMs = nowMs;
         existing.markerState = markerState;
-        existing.markerRelation = markerRelation;
+        existing.markerRelation = resolvedRelation;
         existing.totalBounty = totalBounty;
     }
     else
@@ -1081,7 +1097,7 @@ void ProcessMarkerCandidate(
             candidatePos,
             nowMs,
             markerState,
-            markerRelation,
+            resolvedRelation,
             totalBounty
         };
         state.koTargetCache.push_back(created);
