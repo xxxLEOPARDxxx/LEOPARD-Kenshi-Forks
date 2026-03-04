@@ -18,6 +18,7 @@
 
 #include <Windows.h>
 
+#include <cctype>
 #include <cstddef>
 #include <sstream>
 #include <string>
@@ -36,8 +37,39 @@ PlayerInterfaceUpdateUTFn g_updateUTOrig = 0;
 
 bool g_prevToggleHotkeyDown = false;
 bool g_controlsWereInjected = false;
+bool g_controlsEnabled = true;
+bool g_loggedNoVisibleTraderTarget = false;
+bool g_loggedRejectedTraderCandidate = false;
 std::size_t g_selectedCategoryIndex = 0;
 std::size_t g_selectedSortIndex = 0;
+
+const char* kCategoryOptions[] =
+{
+    "All",
+    "Weapons",
+    "Armor",
+    "Clothing",
+    "Food",
+    "Materials",
+    "Robotics",
+    "Misc"
+};
+
+const char* kSortOptions[] =
+{
+    "Default",
+    "Price Ascending",
+    "Price Descending",
+    "Name A-Z",
+    "Name Z-A",
+    "Weight Ascending",
+    "Value/kg Descending",
+    "Value/kg Ascending"
+};
+
+MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);
+MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
+bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures);
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -107,6 +139,298 @@ std::string BuildParentChainForLog(MyGUI::Widget* widget)
     return out.str();
 }
 
+bool NameMatchesToken(const std::string& name, const char* token)
+{
+    if (token == 0 || *token == '\0' || name.empty())
+    {
+        return false;
+    }
+
+    const std::string tokenValue(token);
+    if (name == tokenValue)
+    {
+        return true;
+    }
+
+    if (name.size() <= tokenValue.size() + 1)
+    {
+        return false;
+    }
+
+    const std::size_t offset = name.size() - tokenValue.size();
+    if (name[offset - 1] != '_')
+    {
+        return false;
+    }
+
+    return name.compare(offset, tokenValue.size(), tokenValue) == 0;
+}
+
+std::string UpperAsciiCopy(const std::string& value)
+{
+    std::string upper = value;
+    for (std::size_t index = 0; index < upper.size(); ++index)
+    {
+        const unsigned char ch = static_cast<unsigned char>(upper[index]);
+        upper[index] = static_cast<char>(std::toupper(ch));
+    }
+    return upper;
+}
+
+bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
+{
+    if (needle == 0 || *needle == '\0')
+    {
+        return false;
+    }
+
+    const std::string haystackUpper = UpperAsciiCopy(haystack);
+    const std::string needleUpper = UpperAsciiCopy(std::string(needle));
+    return haystackUpper.find(needleUpper) != std::string::npos;
+}
+
+MyGUI::Widget* FindNamedDescendantByTokenRecursive(MyGUI::Widget* root, const char* token, bool requireVisible)
+{
+    if (root == 0 || token == 0)
+    {
+        return 0;
+    }
+
+    if ((!requireVisible || root->getInheritedVisible()) && NameMatchesToken(root->getName(), token))
+    {
+        return root;
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        MyGUI::Widget* child = root->getChildAt(childIndex);
+        MyGUI::Widget* found = FindNamedDescendantByTokenRecursive(child, token, requireVisible);
+        if (found != 0)
+        {
+            return found;
+        }
+    }
+
+    return 0;
+}
+
+std::string TruncateForLog(const std::string& value, std::size_t maxLength)
+{
+    if (value.size() <= maxLength)
+    {
+        return value;
+    }
+
+    return value.substr(0, maxLength) + "...";
+}
+
+std::string WidgetTypeForLog(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return "null";
+    }
+    if (widget->castType<MyGUI::Window>(false) != 0)
+    {
+        return "Window";
+    }
+    if (widget->castType<MyGUI::Button>(false) != 0)
+    {
+        return "Button";
+    }
+    if (widget->castType<MyGUI::EditBox>(false) != 0)
+    {
+        return "EditBox";
+    }
+    if (widget->castType<MyGUI::ComboBox>(false) != 0)
+    {
+        return "ComboBox";
+    }
+    if (widget->castType<MyGUI::TextBox>(false) != 0)
+    {
+        return "TextBox";
+    }
+
+    return "Widget";
+}
+
+std::string WidgetCaptionForLog(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return "";
+    }
+
+    MyGUI::Button* button = widget->castType<MyGUI::Button>(false);
+    if (button != 0)
+    {
+        return button->getCaption().asUTF8();
+    }
+
+    MyGUI::TextBox* textBox = widget->castType<MyGUI::TextBox>(false);
+    if (textBox != 0)
+    {
+        return textBox->getCaption().asUTF8();
+    }
+
+    return "";
+}
+
+void LogWidgetDiagnosticNode(const char* tag, MyGUI::Widget* widget, std::size_t depth)
+{
+    if (widget == 0)
+    {
+        std::stringstream line;
+        line << tag << " depth=" << depth << " widget=<null>";
+        LogInfoLine(line.str());
+        return;
+    }
+
+    const MyGUI::IntCoord coord = widget->getCoord();
+    std::stringstream line;
+    line << tag
+         << " depth=" << depth
+         << " type=" << WidgetTypeForLog(widget)
+         << " name=" << SafeWidgetName(widget)
+         << " visible=" << (widget->getInheritedVisible() ? "true" : "false")
+         << " children=" << widget->getChildCount()
+         << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+
+    const std::string caption = TruncateForLog(WidgetCaptionForLog(widget), 48);
+    if (!caption.empty())
+    {
+        line << " caption=\"" << caption << "\"";
+    }
+
+    LogInfoLine(line.str());
+}
+
+void DumpAncestorDiagnostics(const char* label, MyGUI::Widget* widget)
+{
+    std::stringstream header;
+    header << "diagnostic " << label << " ancestor-chain";
+    LogInfoLine(header.str());
+
+    std::size_t depth = 0;
+    while (widget != 0 && depth < 12)
+    {
+        LogWidgetDiagnosticNode(label, widget, depth);
+        widget = widget->getParent();
+        ++depth;
+    }
+
+    if (widget != 0)
+    {
+        std::stringstream line;
+        line << label << " depth=" << depth << " ...";
+        LogInfoLine(line.str());
+    }
+}
+
+void DumpNamedDescendantDiagnosticsRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::size_t* loggedCount,
+    std::size_t maxEntries)
+{
+    if (widget == 0 || loggedCount == 0 || *loggedCount >= maxEntries || depth > maxDepth)
+    {
+        return;
+    }
+
+    const bool shouldLog = !widget->getName().empty() || !WidgetCaptionForLog(widget).empty();
+    if (shouldLog)
+    {
+        LogWidgetDiagnosticNode("subtree", widget, depth);
+        ++(*loggedCount);
+        if (*loggedCount >= maxEntries)
+        {
+            return;
+        }
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        DumpNamedDescendantDiagnosticsRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth,
+            loggedCount,
+            maxEntries);
+        if (*loggedCount >= maxEntries)
+        {
+            return;
+        }
+    }
+}
+
+void DumpWidgetSubtreeDiagnostics(const char* label, MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return;
+    }
+
+    std::stringstream header;
+    header << "diagnostic " << label << " subtree-begin";
+    LogInfoLine(header.str());
+    LogWidgetDiagnosticNode(label, widget, 0);
+
+    std::size_t loggedCount = 0;
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        DumpNamedDescendantDiagnosticsRecursive(
+            widget->getChildAt(childIndex),
+            1,
+            3,
+            &loggedCount,
+            36);
+        if (loggedCount >= 36)
+        {
+            break;
+        }
+    }
+
+    if (loggedCount >= 36)
+    {
+        std::stringstream line;
+        line << "diagnostic " << label << " subtree-truncated=true";
+        LogInfoLine(line.str());
+    }
+
+    std::stringstream footer;
+    footer << "diagnostic " << label << " subtree-end";
+    LogInfoLine(footer.str());
+}
+
+void DumpHoveredAttachDiagnostics(MyGUI::Widget* hovered, MyGUI::Widget* anchor, MyGUI::Widget* parent)
+{
+    LogInfoLine("diagnostic hovered-attach begin");
+    DumpAncestorDiagnostics("hovered", hovered);
+
+    if (anchor != 0 && anchor != hovered)
+    {
+        DumpAncestorDiagnostics("anchor", anchor);
+    }
+
+    if (parent != 0 && parent != anchor)
+    {
+        DumpAncestorDiagnostics("parent", parent);
+    }
+
+    DumpWidgetSubtreeDiagnostics("anchor", anchor);
+    if (parent != 0 && parent != anchor)
+    {
+        DumpWidgetSubtreeDiagnostics("parent", parent);
+    }
+
+    LogInfoLine("diagnostic hovered-attach end");
+}
+
 MyGUI::Widget* FindWidgetByName(const char* widgetName)
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
@@ -120,6 +444,96 @@ MyGUI::Widget* FindWidgetByName(const char* widgetName)
 MyGUI::Widget* FindControlsContainer()
 {
     return FindWidgetByName(kControlsContainerName);
+}
+
+MyGUI::Widget* FindNamedDescendantRecursive(MyGUI::Widget* root, const char* widgetName, bool requireVisible)
+{
+    if (root == 0 || widgetName == 0)
+    {
+        return 0;
+    }
+
+    if ((!requireVisible || root->getInheritedVisible()) && root->getName() == widgetName)
+    {
+        return root;
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        MyGUI::Widget* child = root->getChildAt(childIndex);
+        MyGUI::Widget* found = FindNamedDescendantRecursive(child, widgetName, requireVisible);
+        if (found != 0)
+        {
+            return found;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindFirstVisibleWidgetByName(const char* widgetName)
+{
+    if (widgetName == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* found = FindNamedDescendantRecursive(root, widgetName, true);
+        if (found != 0)
+        {
+            return found;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindFirstVisibleWidgetByToken(const char* token)
+{
+    if (token == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* found = FindNamedDescendantByTokenRecursive(root, token, true);
+        if (found != 0)
+        {
+            return found;
+        }
+    }
+
+    return 0;
 }
 
 void DumpVisibleRootWidgetsForDiagnostics()
@@ -175,50 +589,313 @@ bool IsDescendantOf(MyGUI::Widget* widget, MyGUI::Widget* ancestor)
     return false;
 }
 
-MyGUI::Widget* FindWidgetInParentByName(MyGUI::Widget* parent, const char* widgetName)
+MyGUI::Widget* FindWidgetInParentByToken(MyGUI::Widget* parent, const char* token)
 {
-    if (parent == 0 || widgetName == 0)
+    if (parent == 0 || token == 0)
     {
         return 0;
     }
-
-    MyGUI::Widget* candidate = FindWidgetByName(widgetName);
-    if (candidate == 0)
-    {
-        return 0;
-    }
-
-    if (!IsDescendantOf(candidate, parent))
-    {
-        return 0;
-    }
-
-    return candidate;
+    return FindNamedDescendantByTokenRecursive(parent, token, false);
 }
 
-bool IsLikelyTraderWindow(MyGUI::Widget* parent)
+MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
+{
+    while (widget != 0)
+    {
+        MyGUI::Window* window = widget->castType<MyGUI::Window>(false);
+        if (window != 0)
+        {
+            return window;
+        }
+        widget = widget->getParent();
+    }
+
+    return 0;
+}
+
+bool HasTraderInventoryMarkers(MyGUI::Widget* parent)
 {
     if (parent == 0)
     {
         return false;
     }
 
-    const char* traderMarkers[] =
+    const bool hasArrangeButton = FindWidgetInParentByToken(parent, "ArrangeButton") != 0;
+    const bool hasScrollView = FindWidgetInParentByToken(parent, "scrollview_backpack_content") != 0;
+    const bool hasBackpack = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+
+    return hasArrangeButton && hasScrollView && hasBackpack;
+}
+
+bool IsLikelyTraderWindow(MyGUI::Widget* parent)
+{
+    if (!HasTraderInventoryMarkers(parent))
     {
+        return false;
+    }
+
+    MyGUI::Window* window = FindOwningWindow(parent);
+    if (window == 0)
+    {
+        return false;
+    }
+
+    return ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "TRADER");
+}
+
+bool HasTraderStructure(MyGUI::Widget* parent)
+{
+    return HasTraderInventoryMarkers(parent);
+}
+
+void DumpTraderTargetProbe()
+{
+    const char* probeTokens[] =
+    {
+        "scrollview_backpack_content",
+        "backpack_content",
+        "ArrangeButton",
+        "datapanel",
+        "TradePanel",
         "CharacterSelectionItemBox",
-        "ConfirmButton",
-        "CancelButton"
+        "MoneyAmountTextBox",
+        "TotalMoneyBuyer"
     };
 
-    for (std::size_t index = 0; index < sizeof(traderMarkers) / sizeof(traderMarkers[0]); ++index)
+    for (std::size_t index = 0; index < sizeof(probeTokens) / sizeof(probeTokens[0]); ++index)
     {
-        if (FindWidgetInParentByName(parent, traderMarkers[index]) != 0)
+        const char* token = probeTokens[index];
+        const bool exactAny = FindWidgetByName(token) != 0;
+        const bool exactVisible = FindFirstVisibleWidgetByName(token) != 0;
+        const bool tokenVisible = FindFirstVisibleWidgetByToken(token) != 0;
+
+        std::stringstream line;
+        line << "probe token=" << token
+             << " exact_any=" << (exactAny ? "true" : "false")
+             << " exact_visible=" << (exactVisible ? "true" : "false")
+             << " token_visible=" << (tokenVisible ? "true" : "false");
+        LogInfoLine(line.str());
+    }
+}
+
+void DumpVisibleWindowCandidateDiagnostics()
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        LogWarnLine("GUI singleton unavailable while dumping window candidates");
+        return;
+    }
+
+    std::size_t index = 0;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
         {
-            return true;
+            continue;
+        }
+
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
+        if (window == 0)
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        const bool hasMarkers = HasTraderStructure(parent);
+        const bool captionHasTrader = ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "TRADER");
+        if (!hasMarkers && !captionHasTrader)
+        {
+            continue;
+        }
+
+        const bool likelyTrader = IsLikelyTraderWindow(parent);
+        const MyGUI::IntCoord coord = root->getCoord();
+        std::stringstream line;
+        line << "window-candidate[" << index << "]"
+             << " name=" << SafeWidgetName(root)
+             << " caption=\"" << TruncateForLog(window->getCaption().asUTF8(), 60) << "\""
+             << " has_markers=" << (hasMarkers ? "true" : "false")
+             << " caption_has_trader=" << (captionHasTrader ? "true" : "false")
+             << " likely_trader=" << (likelyTrader ? "true" : "false")
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+        LogInfoLine(line.str());
+        ++index;
+    }
+
+    if (index == 0)
+    {
+        LogInfoLine("window-candidate scan found no likely trader windows");
+    }
+}
+
+bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent)
+{
+    if (outAnchor != 0)
+    {
+        *outAnchor = 0;
+    }
+    if (outParent != 0)
+    {
+        *outParent = 0;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* bestAnchor = 0;
+    MyGUI::Widget* bestParent = 0;
+    int bestArea = -1;
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
+        if (window == 0)
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        if (!IsLikelyTraderWindow(parent))
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord coord = root->getCoord();
+        const int area = coord.width * coord.height;
+        if (bestAnchor == 0 || area > bestArea)
+        {
+            bestAnchor = root;
+            bestParent = parent;
+            bestArea = area;
         }
     }
 
-    return false;
+    if (bestAnchor == 0 || bestParent == 0)
+    {
+        return false;
+    }
+
+    if (outAnchor != 0)
+    {
+        *outAnchor = bestAnchor;
+    }
+    if (outParent != 0)
+    {
+        *outParent = bestParent;
+    }
+
+    g_loggedRejectedTraderCandidate = false;
+    MyGUI::Window* window = bestAnchor->castType<MyGUI::Window>(false);
+    std::stringstream line;
+    line << "resolved trader target via window-scan"
+         << " anchor=" << SafeWidgetName(bestAnchor)
+         << " parent=" << SafeWidgetName(bestParent)
+         << " caption=\"" << (window == 0 ? "" : TruncateForLog(window->getCaption().asUTF8(), 60)) << "\"";
+    LogInfoLine(line.str());
+    return true;
+}
+
+bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures)
+{
+    if (outAnchor != 0)
+    {
+        *outAnchor = 0;
+    }
+    if (outParent != 0)
+    {
+        *outParent = 0;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        if (logFailures)
+        {
+            LogWarnLine("hover attach failed: MyGUI InputManager unavailable");
+        }
+        return false;
+    }
+
+    MyGUI::Widget* hovered = inputManager->getMouseFocusWidget();
+    if (hovered == 0)
+    {
+        if (logFailures)
+        {
+            LogWarnLine("hover attach failed: no mouse-focused widget");
+        }
+        return false;
+    }
+
+    MyGUI::Widget* anchor = FindBestWindowAnchor(hovered);
+    MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+    if (anchor == 0 || parent == 0)
+    {
+        if (logFailures)
+        {
+            std::stringstream line;
+            line << "hover attach failed: anchor/parent unresolved hovered_chain=" << BuildParentChainForLog(hovered);
+            LogWarnLine(line.str());
+        }
+        return false;
+    }
+
+    if (!IsLikelyTraderWindow(parent))
+    {
+        if (logFailures)
+        {
+            std::stringstream line;
+            line << "hover attach rejected"
+                 << " anchor=" << SafeWidgetName(anchor)
+                 << " parent=" << SafeWidgetName(parent)
+                 << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
+                 << parent->getCoord().width << "," << parent->getCoord().height << ")"
+                 << " hovered_chain=" << BuildParentChainForLog(hovered);
+            LogWarnLine(line.str());
+        }
+        return false;
+    }
+
+    if (outAnchor != 0)
+    {
+        *outAnchor = anchor;
+    }
+    if (outParent != 0)
+    {
+        *outParent = parent;
+    }
+
+    std::stringstream line;
+    line << "resolved trader target via hover attach"
+         << " anchor=" << SafeWidgetName(anchor)
+         << " parent=" << SafeWidgetName(parent)
+         << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
+         << parent->getCoord().width << "," << parent->getCoord().height << ")"
+         << " hovered_chain=" << BuildParentChainForLog(hovered);
+    LogInfoLine(line.str());
+    return true;
 }
 
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget)
@@ -323,12 +1000,13 @@ int ResolveControlsTop(MyGUI::Widget* parent)
         "TotalMoneyBuyer",
         "lbTotalMoney",
         "MoneyLabelText",
-        "lbBuyersMoney"
+        "lbBuyersMoney",
+        "datapanel"
     };
 
     for (std::size_t index = 0; index < sizeof(moneyWidgetPriority) / sizeof(moneyWidgetPriority[0]); ++index)
     {
-        MyGUI::Widget* moneyWidget = FindWidgetInParentByName(parent, moneyWidgetPriority[index]);
+        MyGUI::Widget* moneyWidget = FindWidgetInParentByToken(parent, moneyWidgetPriority[index]);
         if (moneyWidget == 0)
         {
             continue;
@@ -339,9 +1017,15 @@ int ResolveControlsTop(MyGUI::Widget* parent)
         {
             top = defaultTop;
         }
+
+        std::stringstream line;
+        line << "controls top resolved from widget=" << moneyWidgetPriority[index]
+             << " top=" << top;
+        LogInfoLine(line.str());
         return top;
     }
 
+    LogInfoLine("controls top fallback to default (no money widget found)");
     return defaultTop;
 }
 
@@ -350,74 +1034,85 @@ void OnSearchTextChanged(MyGUI::EditBox*)
     LogInfoLine("search text changed (phase 2 scaffold)");
 }
 
-void OnCategoryChanged(MyGUI::ComboBox*, std::size_t index)
+std::size_t NormalizeOptionIndex(std::size_t index, std::size_t optionCount)
 {
-    g_selectedCategoryIndex = index;
-
-    std::stringstream line;
-    line << "category changed to index=" << index << " (phase 2 scaffold)";
-    LogInfoLine(line.str());
+    if (optionCount == 0)
+    {
+        return 0;
+    }
+    return index % optionCount;
 }
 
-void OnSortChanged(MyGUI::ComboBox*, std::size_t index)
+const char* CategoryOptionAt(std::size_t index)
 {
-    g_selectedSortIndex = index;
-
-    std::stringstream line;
-    line << "sort changed to index=" << index << " (phase 2 scaffold)";
-    LogInfoLine(line.str());
+    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
+    return kCategoryOptions[NormalizeOptionIndex(index, count)];
 }
 
-void PopulateCategoryOptions(MyGUI::ComboBox* categoryCombo)
+const char* SortOptionAt(std::size_t index)
 {
-    if (categoryCombo == 0)
+    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
+    return kSortOptions[NormalizeOptionIndex(index, count)];
+}
+
+void ApplyCategoryButtonCaption(MyGUI::Button* button)
+{
+    if (button == 0)
     {
         return;
     }
 
-    const char* categoryOptions[] =
-    {
-        "All",
-        "Weapons",
-        "Armor",
-        "Clothing",
-        "Food",
-        "Materials",
-        "Robotics",
-        "Misc"
-    };
-
-    for (std::size_t index = 0; index < sizeof(categoryOptions) / sizeof(categoryOptions[0]); ++index)
-    {
-        categoryCombo->addItem(categoryOptions[index]);
-    }
-    categoryCombo->setIndexSelected(g_selectedCategoryIndex);
+    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
+    g_selectedCategoryIndex = NormalizeOptionIndex(g_selectedCategoryIndex, count);
+    button->setCaption(CategoryOptionAt(g_selectedCategoryIndex));
 }
 
-void PopulateSortOptions(MyGUI::ComboBox* sortCombo)
+void ApplySortButtonCaption(MyGUI::Button* button)
 {
-    if (sortCombo == 0)
+    if (button == 0)
     {
         return;
     }
 
-    const char* sortOptions[] =
-    {
-        "Default",
-        "Price Ascending",
-        "Price Descending",
-        "Name A-Z",
-        "Name Z-A",
-        "Weight Ascending",
-        "Value/kg Descending",
-        "Value/kg Ascending"
-    };
+    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
+    g_selectedSortIndex = NormalizeOptionIndex(g_selectedSortIndex, count);
+    button->setCaption(SortOptionAt(g_selectedSortIndex));
+}
 
-    for (std::size_t index = 0; index < sizeof(sortOptions) / sizeof(sortOptions[0]); ++index)
+void OnCategoryButtonClicked(MyGUI::Widget* sender)
+{
+    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
+    g_selectedCategoryIndex = NormalizeOptionIndex(g_selectedCategoryIndex + 1, count);
+
+    MyGUI::Button* button = sender == 0 ? 0 : sender->castType<MyGUI::Button>(false);
+    if (button != 0)
     {
-        sortCombo->addItem(sortOptions[index]);
+        ApplyCategoryButtonCaption(button);
     }
-    sortCombo->setIndexSelected(g_selectedSortIndex);
+
+    std::stringstream line;
+    line << "category changed to index=" << g_selectedCategoryIndex
+         << " value=" << CategoryOptionAt(g_selectedCategoryIndex)
+         << " (phase 2 scaffold)";
+    LogInfoLine(line.str());
+}
+
+void OnSortButtonClicked(MyGUI::Widget* sender)
+{
+    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
+    g_selectedSortIndex = NormalizeOptionIndex(g_selectedSortIndex + 1, count);
+
+    MyGUI::Button* button = sender == 0 ? 0 : sender->castType<MyGUI::Button>(false);
+    if (button != 0)
+    {
+        ApplySortButtonCaption(button);
+    }
+
+    std::stringstream line;
+    line << "sort changed to index=" << g_selectedSortIndex
+         << " value=" << SortOptionAt(g_selectedSortIndex)
+         << " (phase 2 scaffold)";
+    LogInfoLine(line.str());
 }
 
 bool BuildControlsScaffold(MyGUI::Widget* parent)
@@ -460,6 +1155,18 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     if (top < 8)
     {
         top = 8;
+    }
+
+    {
+        const MyGUI::IntCoord parentCoord = parent->getCoord();
+        std::stringstream line;
+        line << "building controls scaffold"
+             << " parent=" << SafeWidgetName(parent)
+             << " parent_coord=(" << parentCoord.left << "," << parentCoord.top << ","
+             << parentCoord.width << "," << parentCoord.height << ")"
+             << " container_coord=(" << left << "," << top << "," << containerWidth << "," << containerHeight << ")"
+             << " compact_layout=" << (compactLayout ? "true" : "false");
+        LogInfoLine(line.str());
     }
 
     MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
@@ -511,8 +1218,8 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     const int row3Y = row2Y + rowHeight + rowGap;
     const int comboLabelWidth = 68;
 
-    MyGUI::ComboBox* categoryCombo = 0;
-    MyGUI::ComboBox* sortCombo = 0;
+    MyGUI::Button* categoryButton = 0;
+    MyGUI::Button* sortButton = 0;
 
     if (!compactLayout)
     {
@@ -554,8 +1261,8 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             categoryLabel->setCaption("Category:");
         }
 
-        categoryCombo = container->createWidget<MyGUI::ComboBox>(
-            "Kenshi_ComboBox",
+        categoryButton = container->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
             MyGUI::IntCoord(categoryComboX, row2Y, categoryComboWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kCategoryComboName);
@@ -569,8 +1276,8 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             sortLabel->setCaption("Sort:");
         }
 
-        sortCombo = container->createWidget<MyGUI::ComboBox>(
-            "Kenshi_ComboBox",
+        sortButton = container->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
             MyGUI::IntCoord(sortComboX, row2Y, adjustedSortComboWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSortComboName);
@@ -592,8 +1299,8 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             compactComboWidth = 120;
         }
 
-        categoryCombo = container->createWidget<MyGUI::ComboBox>(
-            "Kenshi_ComboBox",
+        categoryButton = container->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
             MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row2Y, compactComboWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kCategoryComboName);
@@ -607,57 +1314,48 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             sortLabel->setCaption("Sort:");
         }
 
-        sortCombo = container->createWidget<MyGUI::ComboBox>(
-            "Kenshi_ComboBox",
+        sortButton = container->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
             MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row3Y, compactComboWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSortComboName);
     }
 
-    if (categoryCombo == 0 || sortCombo == 0)
+    if (categoryButton == 0 || sortButton == 0)
     {
-        LogErrorLine("failed to create category/sort combo boxes");
+        LogErrorLine("failed to create category/sort buttons");
         DestroyControlsIfPresent();
         return false;
     }
 
-    PopulateCategoryOptions(categoryCombo);
-    PopulateSortOptions(sortCombo);
-
-    categoryCombo->eventComboChangePosition += MyGUI::newDelegate(&OnCategoryChanged);
-    sortCombo->eventComboChangePosition += MyGUI::newDelegate(&OnSortChanged);
+    ApplyCategoryButtonCaption(categoryButton);
+    ApplySortButtonCaption(sortButton);
+    categoryButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCategoryButtonClicked);
+    sortButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortButtonClicked);
 
     return true;
 }
 
-bool TryInjectControlsToHoveredTraderWindow()
+bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, const char* sourceTag)
 {
-    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
-    if (inputManager == 0)
-    {
-        LogWarnLine("MyGUI InputManager unavailable");
-        return false;
-    }
-
-    MyGUI::Widget* hovered = inputManager->getMouseFocusWidget();
-    if (hovered == 0)
-    {
-        LogWarnLine("no mouse-focused widget; hover trader window and press hotkey again");
-        DumpVisibleRootWidgetsForDiagnostics();
-        return false;
-    }
-
-    MyGUI::Widget* anchor = FindBestWindowAnchor(hovered);
-    MyGUI::Widget* parent = ResolveInjectionParent(anchor);
     if (anchor == 0 || parent == 0)
     {
-        LogErrorLine("could not resolve anchor/parent widget for spike injection");
+        LogErrorLine("could not resolve anchor/parent widget for controls injection");
         return false;
     }
 
-    if (!IsLikelyTraderWindow(parent))
+    const bool acceptedTarget = (sourceTag != 0 && std::string(sourceTag) == "hover-direct")
+        || IsLikelyTraderWindow(parent);
+
+    if (!acceptedTarget)
     {
-        LogWarnLine("hovered window does not look like trader UI; injection skipped");
+        std::stringstream line;
+        line << "rejecting injection target reason=not_likely_trader_window"
+             << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
+             << " anchor=" << SafeWidgetName(anchor)
+             << " parent=" << SafeWidgetName(parent)
+             << " has_trader_structure=" << (HasTraderStructure(parent) ? "true" : "false");
+        LogWarnLine(line.str());
         return false;
     }
 
@@ -668,15 +1366,101 @@ bool TryInjectControlsToHoveredTraderWindow()
         return false;
     }
 
-    anchor->eventChangeCoord += MyGUI::newDelegate(&OnControlsAnchorCoordChanged);
     g_controlsWereInjected = true;
 
     std::stringstream line;
-    line << "controls scaffold injected. hovered_chain=" << BuildParentChainForLog(hovered)
+    line << "controls scaffold injected"
+         << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
          << " anchor=" << SafeWidgetName(anchor)
          << " parent=" << SafeWidgetName(parent);
     LogInfoLine(line.str());
     return true;
+}
+
+bool TryInjectControlsToHoveredWindowDirect()
+{
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        LogWarnLine("manual attach failed: MyGUI InputManager unavailable");
+        return false;
+    }
+
+    MyGUI::Widget* hovered = inputManager->getMouseFocusWidget();
+    if (hovered == 0)
+    {
+        LogWarnLine("manual attach failed: no mouse-focused widget; hover target window and press hotkey again");
+        return false;
+    }
+
+    MyGUI::Widget* anchor = FindBestWindowAnchor(hovered);
+    MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+    if (anchor == 0 || parent == 0)
+    {
+        std::stringstream line;
+        line << "manual attach failed: anchor/parent unresolved hovered_chain=" << BuildParentChainForLog(hovered);
+        LogWarnLine(line.str());
+        return false;
+    }
+
+    std::stringstream line;
+    line << "manual attach using hovered window"
+         << " anchor=" << SafeWidgetName(anchor)
+         << " parent=" << SafeWidgetName(parent)
+         << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
+         << parent->getCoord().width << "," << parent->getCoord().height << ")"
+         << " hovered_chain=" << BuildParentChainForLog(hovered);
+    LogInfoLine(line.str());
+
+    DumpHoveredAttachDiagnostics(hovered, anchor, parent);
+
+    return TryInjectControlsToTarget(anchor, parent, "hover-direct");
+}
+
+void EnsureControlsInjectedIfEnabled()
+{
+    if (!g_controlsEnabled)
+    {
+        return;
+    }
+
+    if (FindControlsContainer() != 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* anchor = 0;
+    MyGUI::Widget* parent = 0;
+    if (!TryResolveVisibleTraderTarget(&anchor, &parent))
+    {
+        if (TryResolveHoveredTarget(&anchor, &parent, false))
+        {
+            g_loggedNoVisibleTraderTarget = false;
+            g_loggedRejectedTraderCandidate = false;
+
+            if (!TryInjectControlsToTarget(anchor, parent, "hover-auto"))
+            {
+                LogWarnLine("hover auto controls scaffold injection failed");
+            }
+            return;
+        }
+
+        if (!g_loggedNoVisibleTraderTarget)
+        {
+            LogInfoLine("controls enabled but no visible trader target found yet");
+            DumpTraderTargetProbe();
+            DumpVisibleWindowCandidateDiagnostics();
+            g_loggedNoVisibleTraderTarget = true;
+        }
+        return;
+    }
+    g_loggedNoVisibleTraderTarget = false;
+    g_loggedRejectedTraderCandidate = false;
+
+    if (!TryInjectControlsToTarget(anchor, parent, "auto"))
+    {
+        LogWarnLine("auto controls scaffold injection failed");
+    }
 }
 
 bool IsToggleHotkeyPressedEdge()
@@ -703,23 +1487,43 @@ void TickPhase2ControlsScaffold()
 {
     if (IsToggleHotkeyPressedEdge())
     {
-        MyGUI::Widget* existing = FindControlsContainer();
-        if (existing != 0)
+        if (g_controlsEnabled)
         {
+            g_controlsEnabled = false;
             DestroyControlsIfPresent();
+            g_loggedNoVisibleTraderTarget = false;
+            g_loggedRejectedTraderCandidate = false;
+            LogInfoLine("controls toggled OFF");
             return;
         }
 
-        if (!TryInjectControlsToHoveredTraderWindow())
+        g_controlsEnabled = true;
+        LogInfoLine("controls toggled ON");
+
+        g_loggedNoVisibleTraderTarget = false;
+        g_loggedRejectedTraderCandidate = false;
+
+        EnsureControlsInjectedIfEnabled();
+        if (FindControlsContainer() == 0)
         {
-            LogWarnLine("controls scaffold injection failed");
+            if (!TryInjectControlsToHoveredWindowDirect())
+            {
+                LogWarnLine("manual attach did not inject controls");
+            }
         }
     }
+
+    if (!g_controlsEnabled)
+    {
+        return;
+    }
+
+    EnsureControlsInjectedIfEnabled();
 
     if (g_controlsWereInjected && FindControlsContainer() == 0)
     {
         g_controlsWereInjected = false;
-        LogInfoLine("controls container no longer present (window likely closed/destroyed)");
+        LogInfoLine("controls container no longer present (window likely closed/destroyed); hover target window and press Ctrl+Shift+F8 to attach again");
     }
 }
 
@@ -755,8 +1559,9 @@ __declspec(dllexport) void startPlugin()
     }
 
     std::stringstream info;
-    info << "phase 2 controls scaffold active. Hover trader window and press " << kToggleHotkeyHint
-         << " to toggle search/filter/sort controls.";
+    info << "phase 2 controls scaffold active."
+         << " Auto-attach is enabled for detected trader windows."
+         << " Press " << kToggleHotkeyHint << " to hide/show or manual-attach for diagnostics.";
     LogInfoLine(info.str());
 }
 
