@@ -51,5 +51,9 @@ If `Emkejs-Mod-Core.dll` is present, these same settings are also exposed in the
 Supported keys:
 - `enabled` (bool)
 - `enable_execute_kill_sound` (bool, default true; plays a short audio event when execute kill succeeds)
+- `execute_button_width` (int, default `310`; pixel width for the Execute button panel)
+- `execute_button_height` (int, default `56`; pixel height for the Execute button panel)
+- `execute_button_x` (int, default `0`; horizontal offset in pixels from the default anchored position)
+- `execute_button_y` (int, default `0`; vertical offset in pixels from the default anchored position)
 
 If config is missing or unreadable, defaults are used and written back.
