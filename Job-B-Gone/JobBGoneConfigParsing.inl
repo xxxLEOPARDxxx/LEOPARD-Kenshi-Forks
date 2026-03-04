@@ -120,57 +120,6 @@ static bool ParseJsonBoolValue(const std::string& text, size_t* pos, bool* value
     return false;
 }
 
-static bool ParseJsonUnsignedValue(const std::string& text, size_t* pos, DWORD* valueOut, bool* clampedOut)
-{
-    if (!pos || !valueOut)
-    {
-        return false;
-    }
-
-    SkipJsonWhitespace(text, pos);
-    size_t cursor = *pos;
-    while (cursor < text.size() && std::isdigit(static_cast<unsigned char>(text[cursor])) != 0)
-    {
-        ++cursor;
-    }
-
-    if (cursor == *pos)
-    {
-        return false;
-    }
-
-    if (cursor < text.size() && !IsJsonLiteralTerminator(text[cursor]))
-    {
-        return false;
-    }
-
-    const std::string numberText = text.substr(*pos, cursor - *pos);
-    unsigned long parsed = 0;
-    try
-    {
-        parsed = std::stoul(numberText);
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    bool clamped = false;
-    if (parsed > 600000UL)
-    {
-        parsed = 600000UL;
-        clamped = true;
-    }
-
-    *valueOut = static_cast<DWORD>(parsed);
-    if (clampedOut)
-    {
-        *clampedOut = clamped;
-    }
-    *pos = cursor;
-    return true;
-}
-
 static bool ParseJsonUnsignedIntValue(
     const std::string& text,
     size_t* pos,
@@ -506,27 +455,6 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "pause_debounce_ms")
-        {
-            DWORD parsedUnsigned = 0;
-            bool clamped = false;
-            size_t valuePos = pos;
-            if (ParseJsonUnsignedValue(body, &valuePos, &parsedUnsigned, &clamped))
-            {
-                diagnostics->foundPauseDebounceMs = true;
-                diagnostics->clampedPauseDebounceMs = diagnostics->clampedPauseDebounceMs || clamped;
-                configOut->pauseDebounceMs = parsedUnsigned;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidPauseDebounceMs = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
         else if (key == "debug_log_transitions")
         {
             bool parsedBool = false;
@@ -801,12 +729,12 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, true, false, true, true, true, true, false, false, 0, 0, "CTRL+B" };
+    PluginConfig parsedConfig = { true, false, true, false, true, true, true, true, false, false, 0, 0, "CTRL+B" };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
-            "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_log_transitions\":true,"
+            "{\"enabled\":false,\"debug_log_transitions\":true,"
             "\"enable_delete_all_jobs_selected_member_action\":false,"
             "\"enable_experimental_single_job_delete\":true,"
             "\"log_selected_member_job_snapshot\":false,"
@@ -824,7 +752,6 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (parsedConfig.enabled
-        || parsedConfig.pauseDebounceMs != 1234
         || !parsedConfig.debugLogTransitions
         || parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || !parsedConfig.enableExperimentalSingleJobDelete
@@ -842,7 +769,7 @@ static bool RunInternalSelfChecks()
     }
 
     const std::string bomJson = std::string("\xEF\xBB\xBF")
-        + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_log_transitions\":false,"
+        + "{\"enabled\":true,\"debug_log_transitions\":false,"
           "\"enable_delete_all_jobs_selected_member_action\":true,"
           "\"enable_experimental_single_job_delete\":false,"
           "\"log_selected_member_job_snapshot\":true,"
@@ -855,7 +782,6 @@ static bool RunInternalSelfChecks()
           "\"job_b_gone_panel_pos_y\":22,"
           "\"panel_visibility_toggle_hotkey\":\"CTRL+B\"}";
     parsedConfig.enabled = false;
-    parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
     parsedConfig.enableDeleteAllJobsSelectedMemberAction = false;
     parsedConfig.enableExperimentalSingleJobDelete = true;
@@ -874,7 +800,6 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!parsedConfig.enabled
-        || parsedConfig.pauseDebounceMs != 2000
         || parsedConfig.debugLogTransitions
         || !parsedConfig.enableDeleteAllJobsSelectedMemberAction
         || parsedConfig.enableExperimentalSingleJobDelete
@@ -943,21 +868,7 @@ static bool RunInternalSelfChecks()
         return false;
     }
 
-    const RuntimeState savedState = g_state;
-    g_state.loadInProgress = true;
-    g_state.pauseArmed = true;
-    g_state.loadSignalSeenAfterArm = true;
-    g_state.armTimestampMs = 99;
-    g_state.loggedWorldUnavailable = true;
-    DisarmPauseAfterLoad();
-    const bool disarmedOk =
-        !g_state.loadInProgress
-        && !g_state.pauseArmed
-        && !g_state.loadSignalSeenAfterArm
-        && g_state.armTimestampMs == 0
-        && !g_state.loggedWorldUnavailable;
-    g_state = savedState;
-    return disarmedOk;
+    return true;
 }
 
 static bool ReadConfigFromFile(
@@ -1011,16 +922,6 @@ static bool ReadConfigFromFile(
     {
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: invalid/missing key \"enabled\"; using default");
-    }
-    if (!diagnostics.foundPauseDebounceMs || diagnostics.invalidPauseDebounceMs)
-    {
-        needsWriteBack = true;
-        ErrorLog("Job-B-Gone WARN: invalid/missing key \"pause_debounce_ms\"; using default");
-    }
-    if (diagnostics.clampedPauseDebounceMs)
-    {
-        needsWriteBack = true;
-        ErrorLog("Job-B-Gone WARN: \"pause_debounce_ms\" exceeded max; clamped to 600000");
     }
     if (!diagnostics.foundDebugLogTransitions || diagnostics.invalidDebugLogTransitions)
     {
@@ -1136,7 +1037,6 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
-    out << "  \"pause_debounce_ms\": " << config.pauseDebounceMs << ",\n";
     out << "  \"debug_log_transitions\": " << (config.debugLogTransitions ? "true" : "false") << ",\n";
     out << "  \"enable_delete_all_jobs_selected_member_action\": "
         << (config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false") << ",\n";

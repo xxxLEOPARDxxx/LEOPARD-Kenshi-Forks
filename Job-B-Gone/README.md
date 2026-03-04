@@ -73,7 +73,6 @@ Runtime config path:
 
 Supported keys:
 - `enabled` (bool): master plugin toggle.
-- `pause_debounce_ms` (number, 0..600000): legacy load-pause debounce setting.
 - `debug_log_transitions` (bool): transition diagnostics.
 - `enable_delete_all_jobs_selected_member_action` (bool): top scoped delete-all toggle.
 - `enable_experimental_single_job_delete` (bool): reserved flag (single-row delete is implemented in current UI flow).

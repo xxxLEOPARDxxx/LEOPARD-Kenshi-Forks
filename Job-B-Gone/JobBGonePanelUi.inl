@@ -2708,9 +2708,12 @@ static void OnSaveLoadTransitionStart(const char* source)
     g_hudHiddenByToggleEvent = false;
     g_hudHiddenByToggleEventKnown = false;
 
-    std::stringstream info;
-    info << "Job-B-Gone DEBUG: save_load_ui_reset source=" << (source ? source : "unknown");
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: save_load_ui_reset source=" << (source ? source : "unknown");
+        DebugLog(info.str().c_str());
+    }
 }
 
 static void OnJobBGoneHeaderButtonClicked(MyGUI::Widget*)
@@ -3067,7 +3070,10 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             g_jobRowWidgets.push_back(rowWidgets);
         }
 
-        DebugLog("Job-B-Gone DEBUG: created Job-B-Gone collapsible panel");
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Job-B-Gone DEBUG: created Job-B-Gone collapsible panel");
+        }
         g_lastLoggedButtonExists = true;
     }
 

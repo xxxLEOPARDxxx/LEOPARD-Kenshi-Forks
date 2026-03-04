@@ -3,7 +3,6 @@
 #include <core/Functions.h>
 
 #include <kenshi/Character.h>
-#include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Inventory.h>
@@ -34,9 +33,6 @@
 
 static const char* kPluginName = "Job-B-Gone";
 static const char* kConfigFileName = "mod-config.json";
-static const DWORD kTickAliveIntervalMs = 5000;
-static const DWORD kNoSignalDisarmMs = 1500;
-static const DWORD kArmedTimeoutMs = 60000;
 static const DWORD kDangerScopeArmTimeoutMs = 3000;
 static const int kPanelWidth = 740;
 static const int kPanelExpandedMinHeight = 184;
@@ -55,7 +51,6 @@ static const char* kPanelVisibilityToggleHotkeyDisabled = "NONE";
 
 static PluginConfig g_config = {
     true,
-    2000,
     false,
     true,
     false,
@@ -69,7 +64,6 @@ static PluginConfig g_config = {
     0,
     kPanelVisibilityToggleHotkeyDefault
 };
-static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
 static bool g_hasSaveLoadHook = false;
@@ -233,7 +227,6 @@ static std::vector<JobRowWidgets> g_jobRowWidgets;
 static std::vector<JobRowModel> g_selectedMemberJobRows;
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
-static void DisarmPauseAfterLoad();
 static bool InitPluginMenuFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddr);
 static void OptionsWindowInitHook(OptionsWindow* self);
 static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr);
@@ -312,9 +305,6 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 
     diagnostics->foundEnabled = false;
     diagnostics->invalidEnabled = false;
-    diagnostics->foundPauseDebounceMs = false;
-    diagnostics->invalidPauseDebounceMs = false;
-    diagnostics->clampedPauseDebounceMs = false;
     diagnostics->foundDebugLogTransitions = false;
     diagnostics->invalidDebugLogTransitions = false;
     diagnostics->foundEnableDeleteAllJobsSelectedMemberAction = false;
@@ -783,7 +773,6 @@ static void LoadConfigState()
 {
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
-    g_config.pauseDebounceMs = 2000;
     g_config.debugLogTransitions = false;
     g_config.enableDeleteAllJobsSelectedMemberAction = true;
     g_config.enableExperimentalSingleJobDelete = false;
@@ -829,7 +818,6 @@ static void LoadConfigState()
     std::stringstream info;
     info << "Job-B-Gone INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
-         << " pause_debounce_ms=" << g_config.pauseDebounceMs
          << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
          << " enable_delete_all_jobs_selected_member_action="
          << (g_config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false")
@@ -889,110 +877,6 @@ static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs
 {
     const DWORD elapsed = nowMs - lastEventMs;
     return elapsed >= minGapMs;
-}
-
-static void DisarmPauseAfterLoad()
-{
-    g_state.pauseArmed = false;
-    g_state.loadInProgress = false;
-    g_state.loadSignalSeenAfterArm = false;
-    g_state.armTimestampMs = 0;
-    g_state.loggedWorldUnavailable = false;
-}
-
-static void ArmPauseAfterLoad(const char* source)
-{
-    g_state.pauseArmed = true;
-    g_state.loadInProgress = false;
-    g_state.loadSignalSeenAfterArm = false;
-    g_state.armTimestampMs = GetTickCount();
-    g_state.loggedWorldUnavailable = false;
-
-    if (g_config.debugLogTransitions)
-    {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: armed from " << source;
-        DebugLog(logline.str().c_str());
-    }
-}
-
-static bool QuerySaveLoadSignal(bool* isLoadingOut)
-{
-    if (!isLoadingOut)
-    {
-        return false;
-    }
-
-    *isLoadingOut = false;
-    if (!ou)
-    {
-        if (!g_state.loggedWorldUnavailable)
-        {
-            ErrorLog("Job-B-Gone WARN: game world unavailable while waiting for save-load completion");
-            g_state.loggedWorldUnavailable = true;
-        }
-        return false;
-    }
-
-    g_state.loggedWorldUnavailable = false;
-    __try
-    {
-        *isLoadingOut = ou->isLoadingFromASaveGame();
-        return true;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        ErrorLog("Job-B-Gone WARN: exception while querying save-load state");
-        return false;
-    }
-}
-
-static bool ForcePauseTrue()
-{
-    if (!ou)
-    {
-        if (!g_state.loggedWorldUnavailable)
-        {
-            ErrorLog("Job-B-Gone WARN: game world unavailable; cannot force pause");
-            g_state.loggedWorldUnavailable = true;
-        }
-        return false;
-    }
-
-    g_state.loggedWorldUnavailable = false;
-    __try
-    {
-        ou->userPause(true);
-        return true;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        ErrorLog("Job-B-Gone WARN: exception while forcing paused state");
-        return false;
-    }
-}
-
-static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
-{
-    if (!DebounceWindowElapsed(nowMs, g_state.lastPauseMs, g_config.pauseDebounceMs))
-    {
-        if (g_config.debugLogTransitions)
-        {
-            DebugLog("Job-B-Gone DEBUG: pause skipped (debounce)");
-        }
-        DisarmPauseAfterLoad();
-        return;
-    }
-
-    if (ForcePauseTrue())
-    {
-        g_state.lastPauseMs = nowMs;
-        std::stringstream info;
-        info << "Job-B-Gone INFO: paused_after_load=true source=" << reason;
-        DebugLog(info.str().c_str());
-    }
-
-    DisarmPauseAfterLoad();
 }
 
 #include "JobBGoneJobActions.inl"

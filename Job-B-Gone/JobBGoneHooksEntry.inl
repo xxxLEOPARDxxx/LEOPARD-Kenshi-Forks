@@ -1,74 +1,3 @@
-static void TickPauseOnLoad()
-{
-    if (!g_config.enabled)
-    {
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-
-    if (g_config.debugLogTransitions)
-    {
-        if (g_state.lastTickAliveLogMs == 0 || DebounceWindowElapsed(nowMs, g_state.lastTickAliveLogMs, kTickAliveIntervalMs))
-        {
-            DebugLog("Job-B-Gone DEBUG: tick alive");
-            g_state.lastTickAliveLogMs = nowMs;
-        }
-    }
-
-    if (!g_hasSaveLoadHook || !g_state.pauseArmed)
-    {
-        return;
-    }
-
-    if (g_state.armTimestampMs != 0 && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
-    {
-        ErrorLog("Job-B-Gone WARN: armed pause timed out before load completion");
-        DisarmPauseAfterLoad();
-        return;
-    }
-
-    bool isLoadingSave = false;
-    if (!QuerySaveLoadSignal(&isLoadingSave))
-    {
-        return;
-    }
-
-    if (isLoadingSave)
-    {
-        if (!g_state.loadInProgress && g_config.debugLogTransitions)
-        {
-            DebugLog("Job-B-Gone DEBUG: load started");
-        }
-        g_state.loadInProgress = true;
-        g_state.loadSignalSeenAfterArm = true;
-        return;
-    }
-
-    if (g_state.loadInProgress)
-    {
-        if (g_config.debugLogTransitions)
-        {
-            DebugLog("Job-B-Gone DEBUG: load finished");
-        }
-        TryPauseAndDisarm(nowMs, "load_transition");
-        return;
-    }
-
-    // Disarm if no load signal arrives shortly after arming. This avoids
-    // false-positive pauses when a load call fails or is cancelled early.
-    if (!g_state.loadSignalSeenAfterArm
-        && g_state.armTimestampMs != 0
-        && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kNoSignalDisarmMs))
-    {
-        if (g_config.debugLogTransitions)
-        {
-            DebugLog("Job-B-Gone DEBUG: no load signal observed; disarming");
-        }
-        DisarmPauseAfterLoad();
-    }
-}
-
 static bool RefreshSelectedMemberUi(const char* source)
 {
     if (!g_lastPlayerInterface)
@@ -122,10 +51,13 @@ static void ArmSelectedMemberUiRefresh(const char* source)
     g_lastSelectedMemberUiRefreshAttemptMs = 0;
     g_selectedMemberUiRefreshAttempts = 0;
 
-    std::stringstream info;
-    info << "Job-B-Gone DEBUG: armed_selected_member_ui_refresh source="
-         << (source ? source : "unknown");
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: armed_selected_member_ui_refresh source="
+             << (source ? source : "unknown");
+        DebugLog(info.str().c_str());
+    }
 }
 
 static void TickSelectedMemberUiRefresh()
@@ -140,7 +72,10 @@ static void TickSelectedMemberUiRefresh()
         && DebounceWindowElapsed(nowMs, g_pendingSelectedMemberUiRefreshStartMs, 1000))
     {
         g_pendingSelectedMemberUiRefresh = false;
-        DebugLog("Job-B-Gone DEBUG: selected_member_ui_refresh timeout");
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Job-B-Gone DEBUG: selected_member_ui_refresh timeout");
+        }
         return;
     }
 
@@ -161,7 +96,10 @@ static void TickSelectedMemberUiRefresh()
     if (g_selectedMemberUiRefreshAttempts >= 5)
     {
         g_pendingSelectedMemberUiRefresh = false;
-        DebugLog("Job-B-Gone DEBUG: selected_member_ui_refresh exhausted retries");
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Job-B-Gone DEBUG: selected_member_ui_refresh exhausted retries");
+        }
     }
 }
 
@@ -169,19 +107,13 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     CaptureHudToggleEventSignal();
     PlayerInterface_updateUT_orig(thisptr);
-    TickPauseOnLoad();
     TickSelectedMemberUiRefresh();
-    if (g_state.pauseArmed || g_state.loadInProgress)
-    {
-        return;
-    }
     EnsureSelectedMemberJobPanelButton(thisptr);
 }
 
 static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
 {
     OnSaveLoadTransitionStart("SaveManager::load(saveInfo,resetPos)");
-    ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
     if (SaveManager_loadByInfo_orig)
     {
         SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
@@ -191,7 +123,6 @@ static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& sa
 static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
 {
     OnSaveLoadTransitionStart("SaveManager::load(name)");
-    ArmPauseAfterLoad("SaveManager::load(name)");
     if (SaveManager_loadByName_orig)
     {
         SaveManager_loadByName_orig(thisptr, saveName);
@@ -332,12 +263,11 @@ __declspec(dllexport) void startPlugin()
 
     if (!g_hasSaveLoadHook)
     {
-        ErrorLog("Job-B-Gone: no SaveManager load hooks active; feature disabled");
+        ErrorLog("Job-B-Gone: no SaveManager load hooks active; save-load UI reset disabled");
     }
 
     std::stringstream info;
     info << "Job-B-Gone INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
-         << ", pause_debounce_ms=" << g_config.pauseDebounceMs
          << ", enable_delete_all_jobs_selected_member_action="
          << (g_config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false")
          << ", enable_experimental_single_job_delete="
