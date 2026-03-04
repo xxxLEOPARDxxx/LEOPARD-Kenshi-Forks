@@ -88,6 +88,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Vital-Sense.cpp" />
+    <ClCompile Include="src\vs_character_tint.cpp" />
     <ClCompile Include="src\vs_config.cpp" />
     <ClCompile Include="src\vs_log.cpp" />
     <ClCompile Include="src\vs_marker_render.cpp" />
@@ -97,10 +98,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\vs_config.h" />
+    <ClInclude Include="src\vs_character_tint.h" />
     <ClInclude Include="src\vs_log.h" />
     <ClInclude Include="src\vs_marker_render.h" />
     <ClInclude Include="src\vs_parse.h" />
     <ClInclude Include="src\vs_probe.h" />
+    <ClInclude Include="src\vs_appearance_extern.h" />
     <ClInclude Include="src\vs_runtime_state.h" />
     <ClInclude Include="src\vs_types.h" />
   </ItemGroup>
@@ -108,4 +111,3 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-

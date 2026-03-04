@@ -2,9 +2,11 @@
 
 #include <core/Functions.h>
 #include <kenshi/Kenshi.h>
+#include <kenshi/GameWorld.h>
 #include <kenshi/PlayerInterface.h>
 
 #include "src/vs_config.h"
+#include "src/vs_character_tint.h"
 #include "src/vs_log.h"
 #include "src/vs_marker_render.h"
 #include "src/vs_parse.h"
@@ -31,6 +33,7 @@ const char* kPluginName = "Vital-Sense";
 const char* kConfigFileName = "mod-config.json";
 
 const size_t kMaxKoMarkerWidgets = 48;
+void (*GameWorld_mainLoopGPUSensitiveStuffOrig)(GameWorld* thisptr, float time) = 0;
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -50,14 +53,43 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     }
 
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    const bool anyMarkerOverlayVisualEnabled =
+        state.config.showMarkerIcons
+        || state.config.showMarkerText
+        || state.config.showBountySymbol;
     const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state);
     if (renderDirective == vs_probe::PROBE_RENDER_HIDE_ALL)
     {
-        vs_marker_render::HideAllKoMarkerWidgets(state, kPluginName);
+        if (anyMarkerOverlayVisualEnabled)
+        {
+            vs_marker_render::HideAllKoMarkerWidgets(state, kPluginName);
+        }
     }
     else if (renderDirective == vs_probe::PROBE_RENDER_TICK)
     {
-        vs_marker_render::TickKoMarkerRender(state, kPluginName);
+        if (anyMarkerOverlayVisualEnabled)
+        {
+            vs_marker_render::TickKoMarkerRender(state, kPluginName);
+        }
+    }
+}
+
+void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
+{
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+
+    if (state.highlightRuntimeActive)
+    {
+        vs_character_tint::SyncKoCharacterTint(state, kPluginName);
+    }
+    else
+    {
+        vs_character_tint::ClearKoCharacterTint(state, kPluginName);
+    }
+
+    if (GameWorld_mainLoopGPUSensitiveStuffOrig)
+    {
+        GameWorld_mainLoopGPUSensitiveStuffOrig(thisptr, time);
     }
 }
 }
@@ -90,6 +122,9 @@ __declspec(dllexport) void startPlugin()
          << ", show_text=" << (config.showMarkerText ? "true" : "false")
          << ", show_bounty_glow=" << (config.showBountyGlow ? "true" : "false")
          << ", show_bounty_symbol=" << (config.showBountySymbol ? "true" : "false")
+         << ", enable_character_tint=" << (config.enableCharacterTint ? "true" : "false")
+         << ", character_tint_include_bounty_only=" << (config.characterTintIncludeBountyOnly ? "true" : "false")
+         << ", character_tint_force_depth_override=" << (config.characterTintForceDepthOverride ? "true" : "false")
          << ", show_bounty_symbol_on_all_characters=" << (config.showBountySymbolOnAllCharacters ? "true" : "false")
          << ", bounty_symbol=" << config.bountySymbolText
          << ", bounty_symbol_size_px=" << config.bountySymbolTextSizePx
@@ -138,7 +173,16 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    vs_log::LogInfo(kPluginName, "update hook installed");
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff),
+        GameWorld_mainLoopGPUSensitiveStuff_hook,
+        &GameWorld_mainLoopGPUSensitiveStuffOrig))
+    {
+        vs_log::LogError(kPluginName, "could not hook GameWorld::mainLoop_GPUSensitiveStuff");
+        return;
+    }
+
+    vs_log::LogInfo(kPluginName, "update and gpu hooks installed");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)

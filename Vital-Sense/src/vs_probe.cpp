@@ -3,6 +3,7 @@
 #include <core/Functions.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
+#include <kenshi/InputHandler.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
 
@@ -262,6 +263,24 @@ bool IsHighlightGateOpen(RuntimeStateView& state)
         return true;
     }
 
+    bool gameHighlightKeyHeld = false;
+    if (key)
+    {
+        __try
+        {
+            gameHighlightKeyHeld = key->highlight;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            gameHighlightKeyHeld = false;
+        }
+    }
+
+    if (gameHighlightKeyHeld)
+    {
+        return true;
+    }
+
     return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
 }
 
@@ -309,6 +328,80 @@ bool IsPlayerSquadMember(Character* candidate)
     return false;
 }
 
+bool IsEnemyToAnyPlayerCharacter(Character* candidate, const lektor<Character*>& playerCharacters)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
+    {
+        Character* playerCharacter = *it;
+        if (!playerCharacter || playerCharacter == candidate)
+        {
+            continue;
+        }
+
+        bool isEnemy = false;
+        __try
+        {
+            isEnemy = candidate->isEnemy(playerCharacter, true);
+            if (!isEnemy)
+            {
+                isEnemy = playerCharacter->areYouGonnaGetMe(candidate);
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            isEnemy = false;
+        }
+
+        if (isEnemy)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsAllyToAllPlayerCharacters(Character* candidate, const lektor<Character*>& playerCharacters)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    bool hasComparablePlayerCharacter = false;
+    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
+    {
+        Character* playerCharacter = *it;
+        if (!playerCharacter || playerCharacter == candidate)
+        {
+            continue;
+        }
+        hasComparablePlayerCharacter = true;
+
+        bool isAlly = false;
+        __try
+        {
+            isAlly = candidate->isAlly(playerCharacter, true);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+
+        if (!isAlly)
+        {
+            return false;
+        }
+    }
+
+    return hasComparablePlayerCharacter;
+}
+
 bool IsSameFactionAsPlayer(Character* candidate)
 {
     if (!candidate || !ou || !ou->player)
@@ -327,9 +420,27 @@ bool IsSameFactionAsPlayer(Character* candidate)
 
 int ResolveMarkerRelation(Character* candidate)
 {
+    if (!candidate || !ou || !ou->player)
+    {
+        return CachedKoTarget::RELATION_ENEMY;
+    }
+
     if (IsPlayerSquadMember(candidate))
     {
         return CachedKoTarget::RELATION_SQUAD;
+    }
+
+    const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
+    if (playerCharacters.valid())
+    {
+        if (IsEnemyToAnyPlayerCharacter(candidate, playerCharacters))
+        {
+            return CachedKoTarget::RELATION_ENEMY;
+        }
+        if (IsAllyToAllPlayerCharacters(candidate, playerCharacters))
+        {
+            return CachedKoTarget::RELATION_ALLY;
+        }
     }
 
     if (IsSameFactionAsPlayer(candidate))
@@ -539,8 +650,12 @@ void ProcessMarkerCandidate(RuntimeStateView& state, Character* candidate, const
 
 ProbeRenderDirective TickKoProbe(RuntimeStateView& state)
 {
-    const bool anyMarkerVisualEnabled = (state.config.showMarkerIcons || state.config.showMarkerText || state.config.showBountySymbol);
-    const bool canRun = state.config.enabled && anyMarkerVisualEnabled && IsHighlightGateOpen(state) && ou;
+    const bool anyHighlightVisualEnabled =
+        state.config.showMarkerIcons
+        || state.config.showMarkerText
+        || state.config.showBountySymbol
+        || state.config.enableCharacterTint;
+    const bool canRun = state.config.enabled && anyHighlightVisualEnabled && IsHighlightGateOpen(state) && ou;
     if (!canRun)
     {
         if (state.highlightRuntimeActive)

@@ -39,6 +39,9 @@ PluginConfig g_config = {
     true,
     true,
     true,
+    true,
+    false,
+    true,
     "$",
     18,
     true,
@@ -62,6 +65,7 @@ std::string g_settingsPath;
 DWORD g_lastProbeTickMs = 0;
 PlayerInterfaceUpdateUTFn g_playerInterfaceUpdateUTOrig = 0;
 std::vector<CachedKoTarget> g_koTargetCache;
+std::vector<CharacterTintEntry> g_characterTintEntries;
 std::vector<hand> g_visibleKoHandlesScratch;
 std::vector<KoMarkerWidget> g_koMarkerWidgets;
 std::vector<std::string> g_iconTextureOkLogs;
@@ -80,6 +84,7 @@ RuntimeStateView CreateRuntimeStateView(
     DWORD& lastProbeTickMs,
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig,
     std::vector<CachedKoTarget>& koTargetCache,
+    std::vector<CharacterTintEntry>& characterTintEntries,
     std::vector<hand>& visibleKoHandlesScratch,
     std::vector<KoMarkerWidget>& koMarkerWidgets,
     std::vector<std::string>& iconTextureOkLogs,
@@ -94,6 +99,7 @@ RuntimeStateView CreateRuntimeStateView(
         lastProbeTickMs,
         playerInterfaceUpdateUTOrig,
         koTargetCache,
+        characterTintEntries,
         visibleKoHandlesScratch,
         koMarkerWidgets,
         iconTextureOkLogs,
@@ -114,6 +120,7 @@ RuntimeStateView GetRuntimeStateView()
         g_lastProbeTickMs,
         g_playerInterfaceUpdateUTOrig,
         g_koTargetCache,
+        g_characterTintEntries,
         g_visibleKoHandlesScratch,
         g_koMarkerWidgets,
         g_iconTextureOkLogs,

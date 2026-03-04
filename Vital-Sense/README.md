@@ -42,12 +42,15 @@ After deploy, expected files:
 Current keys:
 - `enabled` (bool): master toggle.
 - `update_interval_ms` (number): KO target refresh interval.
-- `only_when_alt_held` (bool): when true, KO highlights are visible only while `ALT` is pressed.
+- `only_when_alt_held` (bool): when true, KO highlights are visible while Kenshi's `highlight` keybind is held (with `ALT` as fallback).
 - `max_highlight_distance_m` (number): max horizontal distance from camera center for KO highlights (default `3500`).
 - `show_icons` (bool): show state icons.
 - `show_text` (bool): show state text (`ZZ`, `RC`, `DY`, `PD`, `DE`).
 - `show_bounty_glow` (bool): show bounty glow.
 - `show_bounty_symbol` (bool): show bounty symbol text using tier colors.
+- `enable_character_tint` (bool): enable experimental per-character shader tint highlight (default `true`).
+- `character_tint_include_bounty_only` (bool): also tint non-downed bounty-only targets (default `false`).
+- `character_tint_force_depth_override` (bool): force tint to render through depth when supported by the shader (default `true`).
 - `show_bounty_symbol_on_all_characters` (bool): when true, bounty symbol is also shown for non-downed on-screen targets with bounty.
 - `bounty_symbol` (string): symbol text (for example `B` or `$`).
 - `bounty_symbol_size_px` (number): base bounty symbol font height (`$` gets a small automatic readability bump, and higher tiers scale up slightly).

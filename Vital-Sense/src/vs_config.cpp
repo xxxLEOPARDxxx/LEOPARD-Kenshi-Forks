@@ -70,6 +70,9 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.showMarkerText = true;
     config.showBountyGlow = true;
     config.showBountySymbol = true;
+    config.enableCharacterTint = true;
+    config.characterTintIncludeBountyOnly = false;
+    config.characterTintForceDepthOverride = true;
     config.bountySymbolText = "$";
     config.bountySymbolTextSizePx = kDefaultMarkerTextSizePx;
     config.showBountySymbolOnAllCharacters = true;
@@ -183,6 +186,24 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
     if (vs_parse::ParseBoolFromJson(body, "show_bounty_symbol", &parsedShowBountySymbol))
     {
         state.config.showBountySymbol = parsedShowBountySymbol;
+    }
+
+    bool parsedEnableCharacterTint = true;
+    if (vs_parse::ParseBoolFromJson(body, "enable_character_tint", &parsedEnableCharacterTint))
+    {
+        state.config.enableCharacterTint = parsedEnableCharacterTint;
+    }
+
+    bool parsedCharacterTintIncludeBountyOnly = false;
+    if (vs_parse::ParseBoolFromJson(body, "character_tint_include_bounty_only", &parsedCharacterTintIncludeBountyOnly))
+    {
+        state.config.characterTintIncludeBountyOnly = parsedCharacterTintIncludeBountyOnly;
+    }
+
+    bool parsedCharacterTintForceDepthOverride = true;
+    if (vs_parse::ParseBoolFromJson(body, "character_tint_force_depth_override", &parsedCharacterTintForceDepthOverride))
+    {
+        state.config.characterTintForceDepthOverride = parsedCharacterTintForceDepthOverride;
     }
 
     bool parsedShowBountySymbolOnAllCharacters = false;

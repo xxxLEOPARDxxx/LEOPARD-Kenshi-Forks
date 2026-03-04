@@ -55,6 +55,9 @@ struct PluginConfig
     bool showMarkerText;
     bool showBountyGlow;
     bool showBountySymbol;
+    bool enableCharacterTint;
+    bool characterTintIncludeBountyOnly;
+    bool characterTintForceDepthOverride;
     std::string bountySymbolText;
     DWORD bountySymbolTextSizePx;
     bool showBountySymbolOnAllCharacters;
@@ -100,6 +103,12 @@ struct CachedKoTarget
     int markerState;
     int markerRelation;
     int totalBounty;
+};
+
+struct CharacterTintEntry
+{
+    hand targetHandle;
+    int markerRelation;
 };
 
 struct KoMarkerWidget

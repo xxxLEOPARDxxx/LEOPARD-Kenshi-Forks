@@ -16,6 +16,7 @@ struct RuntimeStateView
     DWORD& lastProbeTickMs;
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig;
     std::vector<CachedKoTarget>& koTargetCache;
+    std::vector<CharacterTintEntry>& characterTintEntries;
     std::vector<hand>& visibleKoHandlesScratch;
     std::vector<KoMarkerWidget>& koMarkerWidgets;
     std::vector<std::string>& iconTextureOkLogs;
@@ -34,6 +35,7 @@ RuntimeStateView CreateRuntimeStateView(
     DWORD& lastProbeTickMs,
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig,
     std::vector<CachedKoTarget>& koTargetCache,
+    std::vector<CharacterTintEntry>& characterTintEntries,
     std::vector<hand>& visibleKoHandlesScratch,
     std::vector<KoMarkerWidget>& koMarkerWidgets,
     std::vector<std::string>& iconTextureOkLogs,
