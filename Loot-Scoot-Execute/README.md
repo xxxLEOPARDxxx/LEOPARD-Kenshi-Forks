@@ -44,10 +44,12 @@ After deploy, expected files:
 At runtime, the plugin reads:
 - `[Kenshi install dir]\mods\Loot-Scoot-Execute\mod-config.json`
 
+If `Emkejs-Mod-Core.dll` is present, these same settings are also exposed in the Mod Hub menu under:
+- Namespace: `Emkej QoL`
+- Mod: `Loot-Scoot-Execute`
+
 Supported keys:
 - `enabled` (bool)
-- `enable_context_menu_injection` (bool, default false; guarded native menu mutation switch)
-- `enable_execute_action` (bool, default false; guarded execute action switch)
 - `enable_execute_kill_sound` (bool, default true; plays a short audio event when execute kill succeeds)
 
 If config is missing or unreadable, defaults are used and written back.

@@ -3,9 +3,10 @@ static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
     (void)source;
 
     const bool hooksReady = g_contextMenuHookInstallVerified;
-    g_effectiveEnableContextMenuProbe = hooksReady && g_config.enableContextMenuProbe;
-    g_effectiveEnableContextMenuInjection = hooksReady && g_config.enableContextMenuInjection;
-    g_effectiveEnableExecuteAction = hooksReady && g_config.enableExecuteAction;
+    const bool pluginEnabled = g_config.enabled;
+    g_effectiveEnableContextMenuProbe = hooksReady && pluginEnabled && g_config.enableContextMenuProbe;
+    g_effectiveEnableContextMenuInjection = hooksReady && pluginEnabled;
+    g_effectiveEnableExecuteAction = hooksReady && pluginEnabled;
 
     if (g_config.debugContextMenu)
     {
@@ -13,9 +14,8 @@ static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
         detail << "Loot-Scoot-Execute DEBUG: context_menu_feature_flags source=" << (source ? source : "unknown")
                << " native_integration_enabled=false"
                << " hooks_verified=" << (g_contextMenuHookInstallVerified ? "true" : "false")
+               << " cfg_enabled=" << (g_config.enabled ? "true" : "false")
                << " cfg_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
-               << " cfg_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
-               << " cfg_execute=" << (g_config.enableExecuteAction ? "true" : "false")
                << " effective_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
                << " effective_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
                << " effective_execute=" << (g_effectiveEnableExecuteAction ? "true" : "false");
@@ -469,17 +469,22 @@ __declspec(dllexport) void startPlugin()
         PluginLog("Loot-Scoot-Execute INFO: SaveManager load hook verification passed");
     }
 
+    (void)InstallModHubOptionsWindowInitHook(platform, version);
+    ModHub_OnPluginStart();
+
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
          << ", runtime_mapping_key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy"
          << ", native_context_menu_integration=removed"
-         << ", enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
-         << ", enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
          << ", enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
          << ", effective_execute_action=" << (g_effectiveEnableExecuteAction ? "true" : "false")
          << ", hook_verification=" << (g_contextMenuHookInstallVerified ? "passed" : "failed")
-         << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
+         << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false")
+         << ", mod_hub_use_ui=" << (ModHub_UseHubUi() ? "true" : "false")
+         << ", mod_hub_retry_pending=" << (ModHub_IsAttachRetryPending() ? "true" : "false")
+         << ", mod_hub_last_result=" << ModHub_LastAttachFailureResult()
+         << ")";
     PluginLog(info.str().c_str());
 }
 

@@ -1,6 +1,4 @@
 {
   "enabled": true,
-  "enable_context_menu_injection": true,
-  "enable_execute_action": true,
   "enable_execute_kill_sound": true
 }

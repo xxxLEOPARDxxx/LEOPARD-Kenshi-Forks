@@ -12,8 +12,6 @@ struct PluginConfig
     DWORD pauseDebounceMs;
     bool debugLogTransitions;
     bool enableContextMenuProbe;
-    bool enableContextMenuInjection;
-    bool enableExecuteAction;
     bool debugContextMenu;
     bool enableDebugDirectDamageFallback;
     bool enableExecuteKillSound;
@@ -41,10 +39,6 @@ struct ConfigParseDiagnostics
     bool invalidDebugLogTransitions;
     bool foundEnableContextMenuProbe;
     bool invalidEnableContextMenuProbe;
-    bool foundEnableContextMenuInjection;
-    bool invalidEnableContextMenuInjection;
-    bool foundEnableExecuteAction;
-    bool invalidEnableExecuteAction;
     bool foundDebugContextMenu;
     bool invalidDebugContextMenu;
     bool foundEnableDebugDirectDamageFallback;

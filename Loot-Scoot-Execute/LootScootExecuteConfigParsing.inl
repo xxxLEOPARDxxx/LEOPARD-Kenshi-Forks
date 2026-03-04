@@ -506,44 +506,6 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "enable_context_menu_injection")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundEnableContextMenuInjection = true;
-                configOut->enableContextMenuInjection = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidEnableContextMenuInjection = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "enable_execute_action")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundEnableExecuteAction = true;
-                configOut->enableExecuteAction = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidEnableExecuteAction = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
         else if (key == "enable_execute_kill_sound")
         {
             bool parsedBool = false;
@@ -605,14 +567,12 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, 2000, false, false, false, false, false, false, true };
+    PluginConfig parsedConfig = { true, 2000, false, false, false, false, true };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
             "{\"enabled\":false,"
-            "\"enable_context_menu_injection\":true,"
-            "\"enable_execute_action\":true,"
             "\"enable_execute_kill_sound\":false}",
             &parsedConfig,
             &diagnostics))
@@ -620,8 +580,6 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (parsedConfig.enabled
-        || !parsedConfig.enableContextMenuInjection
-        || !parsedConfig.enableExecuteAction
         || parsedConfig.enableExecuteKillSound)
     {
         return false;
@@ -629,12 +587,8 @@ static bool RunInternalSelfChecks()
 
     const std::string bomJson = std::string("\xEF\xBB\xBF")
         + "{\"enabled\":true,"
-          "\"enable_context_menu_injection\":false,"
-          "\"enable_execute_action\":false,"
           "\"enable_execute_kill_sound\":true}";
     parsedConfig.enabled = false;
-    parsedConfig.enableContextMenuInjection = true;
-    parsedConfig.enableExecuteAction = true;
     parsedConfig.enableExecuteKillSound = false;
     ResetConfigParseDiagnostics(&diagnostics);
     if (!ParseConfigJson(bomJson, &parsedConfig, &diagnostics))
@@ -642,8 +596,6 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!parsedConfig.enabled
-        || parsedConfig.enableContextMenuInjection
-        || parsedConfig.enableExecuteAction
         || !parsedConfig.enableExecuteKillSound)
     {
         return false;
@@ -734,16 +686,6 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enabled\"; using default");
     }
-    if (!diagnostics.foundEnableContextMenuInjection || diagnostics.invalidEnableContextMenuInjection)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_context_menu_injection\"; using default");
-    }
-    if (!diagnostics.foundEnableExecuteAction || diagnostics.invalidEnableExecuteAction)
-    {
-        needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_action\"; using default");
-    }
     if (!diagnostics.foundEnableExecuteKillSound || diagnostics.invalidEnableExecuteKillSound)
     {
         needsWriteBack = true;
@@ -766,8 +708,6 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
-    out << "  \"enable_context_menu_injection\": " << (config.enableContextMenuInjection ? "true" : "false") << ",\n";
-    out << "  \"enable_execute_action\": " << (config.enableExecuteAction ? "true" : "false") << ",\n";
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << "\n";
     out << "}\n";
 

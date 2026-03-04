@@ -31,6 +31,8 @@
 #include <vector>
 
 #include "LootScootExecuteSharedContracts.h"
+#include "emc/mod_hub_api.h"
+#include "emc/mod_hub_client.h"
 
 static const char* kPluginName = "Loot-Scoot-Execute";
 static const char* kConfigFileName = "mod-config.json";
@@ -122,7 +124,7 @@ static const uintptr_t kExpectedRvaContextMenuTaskProbabilityCallReturn_1_0_65 =
 static const uintptr_t kExpectedRvaContextMenuRowInsertCallReturn_1_0_65 = 0x007A7698;
 static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
-static PluginConfig g_config = { true, 2000, false, false, false, false, false, false, true };
+static PluginConfig g_config = { true, 2000, false, false, false, false, true };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false };
 
 static std::string g_settingsPath;
@@ -409,6 +411,7 @@ static bool TryPlayExecuteKillSound(
     Character* targetCharacter,
     const char** playedEventOut,
     const char** playedEmitterOut);
+static void RefreshEffectiveContextMenuFeatureFlags(const char* source);
 static bool IsNativeExecuteMenuMutationEnabled();
 static bool IsCustomExecutePanelOverlayEnabled();
 static void DisarmNativeMenuExecuteDispatchContext();
@@ -422,6 +425,11 @@ static void ArmCustomExecutePanelOverlay(
     DWORD nowMs);
 static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs);
 static void TickDebugExecuteHotkey(PlayerInterface* thisptr);
+static bool InstallModHubOptionsWindowInitHook(unsigned int platform, const std::string& version);
+static void ModHub_OnPluginStart();
+static bool ModHub_UseHubUi();
+static bool ModHub_IsAttachRetryPending();
+static EMC_Result ModHub_LastAttachFailureResult();
 
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
@@ -439,10 +447,6 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidDebugLogTransitions = false;
     diagnostics->foundEnableContextMenuProbe = false;
     diagnostics->invalidEnableContextMenuProbe = false;
-    diagnostics->foundEnableContextMenuInjection = false;
-    diagnostics->invalidEnableContextMenuInjection = false;
-    diagnostics->foundEnableExecuteAction = false;
-    diagnostics->invalidEnableExecuteAction = false;
     diagnostics->foundDebugContextMenu = false;
     diagnostics->invalidDebugContextMenu = false;
     diagnostics->foundEnableDebugDirectDamageFallback = false;
@@ -479,8 +483,6 @@ static void LoadConfigState()
     g_config.pauseDebounceMs = 2000;
     g_config.debugLogTransitions = false;
     g_config.enableContextMenuProbe = false;
-    g_config.enableContextMenuInjection = false;
-    g_config.enableExecuteAction = false;
     g_config.debugContextMenu = false;
     g_config.enableDebugDirectDamageFallback = false;
     g_config.enableExecuteKillSound = true;
@@ -518,8 +520,6 @@ static void LoadConfigState()
     std::stringstream info;
     info << "Loot-Scoot-Execute INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
-         << " enable_context_menu_injection=" << (g_config.enableContextMenuInjection ? "true" : "false")
-         << " enable_execute_action=" << (g_config.enableExecuteAction ? "true" : "false")
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false");
     PluginLog(info.str().c_str());
 }
@@ -3225,4 +3225,6 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
     }
 }
 
+#include "LootScootExecuteModHubClient.inl"
+#include "LootScootExecuteModHubBridge.inl"
 #include "LootScootExecuteHooksEntry.inl"
