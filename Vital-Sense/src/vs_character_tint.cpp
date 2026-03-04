@@ -44,7 +44,6 @@ const DWORD kTintNoShaderRetryIntervalMs = 2500;
 
 int gAppearanceEntityOffsetBytes = -1;
 int gAppearanceBodyMaterialOffsetBytes = -1;
-std::vector<int> gAppearanceTintMaterialOffsets;
 bool gTintEntityOffsetLogged = false;
 bool gTintEntityOffsetFailureLogged = false;
 bool gTintBodyMaterialOffsetLogged = false;
@@ -65,6 +64,8 @@ unsigned int gTintDiagAppliedSkeletonFallback = 0;
 unsigned int gTintDiagAppliedMaterialOverride = 0;
 bool gTintSkeletonFallbackWarned = false;
 bool gTintMaterialOverrideWarned = false;
+bool gTintPortraitSafeModeWarned = false;
+bool gTintAlternatePlayerEntityLogged = false;
 unsigned int gTintMaterialCloneSerial = 0;
 
 struct ResolvedCharacter
@@ -80,7 +81,14 @@ struct CharacterMaterialOverrideEntry
     std::vector<Ogre::MaterialPtr> overrideMaterials;
 };
 
+struct AppearanceMaterialOffsetCacheEntry
+{
+    void* appearanceVtable;
+    std::vector<int> materialOffsets;
+};
+
 std::vector<CharacterMaterialOverrideEntry> gCharacterMaterialOverrideEntries;
+std::vector<AppearanceMaterialOffsetCacheEntry> gAppearanceMaterialOffsetCache;
 
 void EmitTintDiagLogIfDue(const char* pluginName)
 {
@@ -1023,6 +1031,29 @@ bool TryReadPointerValue(const void* address, void** valueOut)
     return true;
 }
 
+bool TryReadAppearanceVtable(AppearanceBase* appearance, void** vtableOut)
+{
+    return TryReadPointerValue(appearance, vtableOut);
+}
+
+int FindAppearanceMaterialOffsetCacheEntry(void* appearanceVtable)
+{
+    if (!appearanceVtable)
+    {
+        return -1;
+    }
+
+    for (size_t i = 0; i < gAppearanceMaterialOffsetCache.size(); ++i)
+    {
+        if (gAppearanceMaterialOffsetCache[i].appearanceVtable == appearanceVtable)
+        {
+            return static_cast<int>(i);
+        }
+    }
+
+    return -1;
+}
+
 bool TryReadAppearanceMaterialFieldSignature(
     AppearanceBase* appearance,
     int offsetBytes,
@@ -1150,8 +1181,11 @@ bool TryExtractReferenceMaterialSignatures(
 bool ResolveTintMaterialOffsetsFromAppearance(
     AppearanceBase* appearance,
     Ogre::Entity* characterEntity,
-    const char* pluginName)
+    const char* pluginName,
+    std::vector<int>& resolvedOffsetsOut)
 {
+    resolvedOffsetsOut.clear();
+
     if (!appearance || !characterEntity)
     {
         return false;
@@ -1224,12 +1258,12 @@ bool ResolveTintMaterialOffsetsFromAppearance(
 
     if (!resolvedOffsets.empty())
     {
-        gAppearanceTintMaterialOffsets.swap(resolvedOffsets);
-        gAppearanceBodyMaterialOffsetBytes = gAppearanceTintMaterialOffsets[0];
+        resolvedOffsetsOut.swap(resolvedOffsets);
+        gAppearanceBodyMaterialOffsetBytes = resolvedOffsetsOut[0];
         if (!gTintBodyMaterialOffsetLogged)
         {
             std::stringstream ss;
-            ss << "tint appearance material offsets resolved count=" << gAppearanceTintMaterialOffsets.size()
+            ss << "tint appearance material offsets resolved count=" << resolvedOffsetsOut.size()
                << " first=0x" << std::hex << gAppearanceBodyMaterialOffsetBytes << std::dec;
             vs_log::LogInfo(pluginName, ss.str());
             gTintBodyMaterialOffsetLogged = true;
@@ -1246,6 +1280,34 @@ bool ResolveTintMaterialOffsetsFromAppearance(
     return false;
 }
 
+bool ApplyTintToAppearanceMaterialOffsets(
+    AppearanceBase* appearance,
+    const std::vector<int>& materialOffsets,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!appearance || materialOffsets.empty())
+    {
+        return false;
+    }
+
+    bool applied = false;
+    for (size_t i = 0; i < materialOffsets.size(); ++i)
+    {
+        Ogre::MaterialPtr* materialField = 0;
+        if (!TryReadAppearanceMaterialField(appearance, materialOffsets[i], &materialField))
+        {
+            continue;
+        }
+        if (ApplyTintToMaterialField(materialField, colour, depthOverride))
+        {
+            applied = true;
+        }
+    }
+
+    return applied;
+}
+
 bool ApplyTintToAppearanceMaterials(
     AppearanceBase* appearance,
     Ogre::Entity* characterEntity,
@@ -1258,50 +1320,55 @@ bool ApplyTintToAppearanceMaterials(
         return false;
     }
 
-    bool applied = false;
-    if (!gAppearanceTintMaterialOffsets.empty())
+    void* appearanceVtable = 0;
+    const bool hasAppearanceVtable = TryReadAppearanceVtable(appearance, &appearanceVtable);
+    if (hasAppearanceVtable)
     {
-        for (size_t i = 0; i < gAppearanceTintMaterialOffsets.size(); ++i)
+        const int cacheIndex = FindAppearanceMaterialOffsetCacheEntry(appearanceVtable);
+        if (cacheIndex >= 0)
         {
-            Ogre::MaterialPtr* materialField = 0;
-            if (!TryReadAppearanceMaterialField(appearance, gAppearanceTintMaterialOffsets[i], &materialField))
+            const std::vector<int>& cachedOffsets =
+                gAppearanceMaterialOffsetCache[static_cast<size_t>(cacheIndex)].materialOffsets;
+            if (!cachedOffsets.empty())
             {
-                continue;
+                gAppearanceBodyMaterialOffsetBytes = cachedOffsets[0];
             }
-            if (ApplyTintToMaterialField(materialField, colour, depthOverride))
+            if (ApplyTintToAppearanceMaterialOffsets(appearance, cachedOffsets, colour, depthOverride))
             {
-                applied = true;
+                return true;
             }
-        }
-        if (applied)
-        {
-            return true;
-        }
 
-        gAppearanceTintMaterialOffsets.clear();
-        gAppearanceBodyMaterialOffsetBytes = -1;
-        gTintBodyMaterialOffsetLogged = false;
+            gAppearanceMaterialOffsetCache.erase(
+                gAppearanceMaterialOffsetCache.begin() + cacheIndex);
+            gAppearanceBodyMaterialOffsetBytes = -1;
+            gTintBodyMaterialOffsetLogged = false;
+        }
     }
 
-    if (!ResolveTintMaterialOffsetsFromAppearance(appearance, characterEntity, pluginName))
+    std::vector<int> resolvedOffsets;
+    if (!ResolveTintMaterialOffsetsFromAppearance(appearance, characterEntity, pluginName, resolvedOffsets))
     {
         return false;
     }
 
-    for (size_t i = 0; i < gAppearanceTintMaterialOffsets.size(); ++i)
+    if (hasAppearanceVtable)
     {
-        Ogre::MaterialPtr* materialField = 0;
-        if (!TryReadAppearanceMaterialField(appearance, gAppearanceTintMaterialOffsets[i], &materialField))
+        const int cacheIndex = FindAppearanceMaterialOffsetCacheEntry(appearanceVtable);
+        if (cacheIndex >= 0)
         {
-            continue;
+            gAppearanceMaterialOffsetCache[static_cast<size_t>(cacheIndex)].materialOffsets = resolvedOffsets;
         }
-        if (ApplyTintToMaterialField(materialField, colour, depthOverride))
+        else
         {
-            applied = true;
+            AppearanceMaterialOffsetCacheEntry cacheEntry = {
+                appearanceVtable,
+                resolvedOffsets
+            };
+            gAppearanceMaterialOffsetCache.push_back(cacheEntry);
         }
     }
 
-    return applied;
+    return ApplyTintToAppearanceMaterialOffsets(appearance, resolvedOffsets, colour, depthOverride);
 }
 
 Ogre::Entity* ResolveCharacterEntityFromAppearance(AppearanceBase* appearance, const char* pluginName)
@@ -1361,6 +1428,52 @@ Ogre::Entity* ResolveCharacterEntityFromAppearance(AppearanceBase* appearance, c
     return 0;
 }
 
+Ogre::Entity* ResolveCharacterModelEntityFromAppearance(AppearanceBase* appearance)
+{
+    if (!appearance)
+    {
+        return 0;
+    }
+
+    Ogre::Entity* characterModelEntity = 0;
+    if (!TryReadAppearancePointerField(appearance, 0xE0, &characterModelEntity))
+    {
+        return 0;
+    }
+
+    if (!IsLikelyCharacterEntity(characterModelEntity))
+    {
+        return 0;
+    }
+
+    return characterModelEntity;
+}
+
+Ogre::Entity* ResolveMaterialOverrideEntityForCharacter(
+    AppearanceBase* appearance,
+    Ogre::Entity* primaryEntity,
+    bool isPlayerCharacter,
+    const char* pluginName)
+{
+    if (!isPlayerCharacter)
+    {
+        return primaryEntity;
+    }
+
+    Ogre::Entity* alternateEntity = ResolveCharacterModelEntityFromAppearance(appearance);
+    if (alternateEntity && alternateEntity != primaryEntity)
+    {
+        if (!gTintAlternatePlayerEntityLogged)
+        {
+            vs_log::LogInfo(pluginName, "using characterModel entity for player body material override");
+            gTintAlternatePlayerEntityLogged = true;
+        }
+        return alternateEntity;
+    }
+
+    return primaryEntity;
+}
+
 bool SetEntitySkeletonVisible(Ogre::Entity* entity, bool visible)
 {
     if (!entity)
@@ -1402,6 +1515,26 @@ AppearanceBase* GetCharacterAppearanceSafe(Character* candidate)
     return appearance;
 }
 
+bool IsPlayerCharacterSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    bool isPlayerCharacter = false;
+    __try
+    {
+        isPlayerCharacter = candidate->isPlayerCharacter();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        isPlayerCharacter = false;
+    }
+
+    return isPlayerCharacter;
+}
+
 bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour, bool depthOverride, const char* pluginName)
 {
     if (!candidate)
@@ -1417,9 +1550,15 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
 
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
     const bool wantsBodyHighlight = colour.a > 0.0f;
+    const bool isPlayerCharacter = IsPlayerCharacterSafe(candidate);
+    Ogre::Entity* materialOverrideEntity = ResolveMaterialOverrideEntityForCharacter(
+        appearance,
+        characterEntity,
+        isPlayerCharacter,
+        pluginName);
     if (!wantsBodyHighlight)
     {
-        const bool restoredMaterial = RestoreMaterialOverrideForEntity(candidate->getHandle(), characterEntity);
+        const bool restoredMaterial = RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
         return restoredMaterial
             || ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
@@ -1428,7 +1567,7 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
 
     if (ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
     {
-        RestoreMaterialOverrideForEntity(candidate->getHandle(), characterEntity);
+        RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedBodyMaterial;
         return true;
@@ -1436,13 +1575,13 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
 
     if (ApplyTintToEntity(characterEntity, colour, depthOverride))
     {
-        RestoreMaterialOverrideForEntity(candidate->getHandle(), characterEntity);
+        RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedEntityMaterial;
         return true;
     }
 
-    if (ApplyMaterialOverrideToEntity(candidate->getHandle(), characterEntity, colour))
+    if (ApplyMaterialOverrideToEntity(candidate->getHandle(), materialOverrideEntity, colour))
     {
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedMaterialOverride;
@@ -1452,6 +1591,11 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
             gTintMaterialOverrideWarned = true;
         }
         return true;
+    }
+    if (isPlayerCharacter && materialOverrideEntity == characterEntity && !gTintPortraitSafeModeWarned)
+    {
+        vs_log::LogWarn(pluginName, "player body material override fell back to primary entity; squad portraits may still inherit tint");
+        gTintPortraitSafeModeWarned = true;
     }
 
     if (SetEntitySkeletonVisible(characterEntity, wantsBodyHighlight))
