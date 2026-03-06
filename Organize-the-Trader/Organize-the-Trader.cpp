@@ -60,8 +60,7 @@ namespace
 const char* kPluginName = "Organize-the-Trader";
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
-const char* kCategoryComboName = "OTT_CategoryCombo";
-const char* kSortComboName = "OTT_SortCombo";
+const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
 const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 
@@ -95,12 +94,16 @@ bool g_controlsWereInjected = false;
 bool g_controlsEnabled = true;
 bool g_loggedNoVisibleTraderTarget = false;
 bool g_loggedRejectedTraderCandidate = false;
-std::size_t g_selectedCategoryIndex = 0;
-std::size_t g_selectedSortIndex = 0;
 std::string g_searchQueryRaw;
 std::string g_searchQueryNormalized;
 std::string g_activeTraderTargetId;
 bool g_focusSearchEditOnNextInjection = false;
+bool g_searchContainerDragging = false;
+bool g_searchContainerPositionCustomized = false;
+int g_searchContainerDragLastMouseX = 0;
+int g_searchContainerDragLastMouseY = 0;
+int g_searchContainerStoredLeft = 0;
+int g_searchContainerStoredTop = 0;
 bool g_loggedMissingBackpackForSearch = false;
 bool g_loggedMissingSearchableItemText = false;
 std::string g_lastZeroMatchQueryLogged;
@@ -196,30 +199,6 @@ struct RefreshedInventoryLink
 
 std::vector<RefreshedInventoryLink> g_recentRefreshedInventories;
 std::string g_lastRefreshInventorySummarySignature;
-
-const char* kCategoryOptions[] =
-{
-    "All",
-    "Weapons",
-    "Armor",
-    "Clothing",
-    "Food",
-    "Materials",
-    "Robotics",
-    "Misc"
-};
-
-const char* kSortOptions[] =
-{
-    "Default",
-    "Price Ascending",
-    "Price Descending",
-    "Name A-Z",
-    "Name Z-A",
-    "Weight Ascending",
-    "Value/kg Descending",
-    "Value/kg Ascending"
-};
 
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);
 MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
@@ -9726,17 +9705,230 @@ void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
     LogInfoLine(line.str());
 }
 
+bool TryGetCurrentMousePosition(int* xOut, int* yOut)
+{
+    if (xOut == 0 || yOut == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        return false;
+    }
+
+    const MyGUI::IntPoint mouse = inputManager->getMousePosition();
+    *xOut = mouse.left;
+    *yOut = mouse.top;
+    return true;
+}
+
+MyGUI::IntCoord ClampSearchContainerCoord(MyGUI::Widget* parent, const MyGUI::IntCoord& inputCoord)
+{
+    if (parent == 0)
+    {
+        return inputCoord;
+    }
+
+    int left = inputCoord.left;
+    int top = inputCoord.top;
+    const int width = inputCoord.width;
+    const int height = inputCoord.height;
+
+    if (left < 8)
+    {
+        left = 8;
+    }
+    if (top < 8)
+    {
+        top = 8;
+    }
+
+    int maxLeft = parent->getWidth() - width - 8;
+    int maxTop = parent->getHeight() - height - 8;
+    if (maxLeft < 8)
+    {
+        maxLeft = 8;
+    }
+    if (maxTop < 8)
+    {
+        maxTop = 8;
+    }
+
+    if (left > maxLeft)
+    {
+        left = maxLeft;
+    }
+    if (top > maxTop)
+    {
+        top = maxTop;
+    }
+
+    return MyGUI::IntCoord(left, top, width, height);
+}
+
+void RememberSearchContainerPosition(MyGUI::Widget* container)
+{
+    if (container == 0)
+    {
+        return;
+    }
+
+    const MyGUI::IntCoord coord = container->getCoord();
+    g_searchContainerStoredLeft = coord.left;
+    g_searchContainerStoredTop = coord.top;
+    g_searchContainerPositionCustomized = true;
+}
+
+void MoveSearchContainerByDelta(int deltaX, int deltaY)
+{
+    if (deltaX == 0 && deltaY == 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* container = FindControlsContainer();
+    if (container == 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* parent = container->getParent();
+    const MyGUI::IntCoord current = container->getCoord();
+    const MyGUI::IntCoord moved = ClampSearchContainerCoord(
+        parent,
+        MyGUI::IntCoord(current.left + deltaX, current.top + deltaY, current.width, current.height));
+    if (moved.left == current.left && moved.top == current.top)
+    {
+        return;
+    }
+
+    container->setCoord(moved);
+    RememberSearchContainerPosition(container);
+}
+
+void FinalizeSearchContainerDrag(const char* source)
+{
+    if (!g_searchContainerDragging)
+    {
+        return;
+    }
+
+    g_searchContainerDragging = false;
+    MyGUI::Widget* container = FindControlsContainer();
+    if (container == 0)
+    {
+        return;
+    }
+
+    RememberSearchContainerPosition(container);
+
+    std::stringstream line;
+    const MyGUI::IntCoord coord = container->getCoord();
+    line << "search container drag finalized"
+         << " source=" << (source == 0 ? "<unknown>" : source)
+         << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+    LogInfoLine(line.str());
+}
+
+void OnSearchDragHandleMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    g_searchContainerDragging = true;
+    if (!TryGetCurrentMousePosition(&g_searchContainerDragLastMouseX, &g_searchContainerDragLastMouseY))
+    {
+        g_searchContainerDragLastMouseX = left;
+        g_searchContainerDragLastMouseY = top;
+    }
+}
+
+void OnSearchDragHandleMouseDrag(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left || !g_searchContainerDragging)
+    {
+        return;
+    }
+
+    int mouseX = left;
+    int mouseY = top;
+    TryGetCurrentMousePosition(&mouseX, &mouseY);
+
+    const int deltaX = mouseX - g_searchContainerDragLastMouseX;
+    const int deltaY = mouseY - g_searchContainerDragLastMouseY;
+    if (deltaX == 0 && deltaY == 0)
+    {
+        return;
+    }
+
+    MoveSearchContainerByDelta(deltaX, deltaY);
+    g_searchContainerDragLastMouseX = mouseX;
+    g_searchContainerDragLastMouseY = mouseY;
+}
+
+void OnSearchDragHandleMouseMove(MyGUI::Widget*, int left, int top)
+{
+    if (!g_searchContainerDragging)
+    {
+        return;
+    }
+
+    OnSearchDragHandleMouseDrag(0, left, top, MyGUI::MouseButton::Left);
+}
+
+void OnSearchDragHandleMouseReleased(MyGUI::Widget*, int, int, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    FinalizeSearchContainerDrag("drag_release");
+}
+
+void TickSearchContainerDrag()
+{
+    if (!g_searchContainerDragging)
+    {
+        return;
+    }
+
+    int mouseX = 0;
+    int mouseY = 0;
+    if (TryGetCurrentMousePosition(&mouseX, &mouseY))
+    {
+        const int deltaX = mouseX - g_searchContainerDragLastMouseX;
+        const int deltaY = mouseY - g_searchContainerDragLastMouseY;
+        MoveSearchContainerByDelta(deltaX, deltaY);
+        g_searchContainerDragLastMouseX = mouseX;
+        g_searchContainerDragLastMouseY = mouseY;
+    }
+
+    if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0)
+    {
+        FinalizeSearchContainerDrag("drag_release_poll");
+    }
+}
+
 void DestroyControlsIfPresent()
 {
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
+        g_searchContainerDragging = false;
         g_controlsWereInjected = false;
         g_cachedHoveredWidgetInventory = 0;
         g_cachedHoveredWidgetInventorySignature.clear();
         ClearLockedKeysetSource();
         return;
     }
+
+    RememberSearchContainerPosition(controlsContainer);
+    g_searchContainerDragging = false;
 
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui != 0)
@@ -9847,87 +10039,6 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
     ApplySearchFilterFromControls(false, true);
 }
 
-std::size_t NormalizeOptionIndex(std::size_t index, std::size_t optionCount)
-{
-    if (optionCount == 0)
-    {
-        return 0;
-    }
-    return index % optionCount;
-}
-
-const char* CategoryOptionAt(std::size_t index)
-{
-    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
-    return kCategoryOptions[NormalizeOptionIndex(index, count)];
-}
-
-const char* SortOptionAt(std::size_t index)
-{
-    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
-    return kSortOptions[NormalizeOptionIndex(index, count)];
-}
-
-void ApplyCategoryButtonCaption(MyGUI::Button* button)
-{
-    if (button == 0)
-    {
-        return;
-    }
-
-    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
-    g_selectedCategoryIndex = NormalizeOptionIndex(g_selectedCategoryIndex, count);
-    button->setCaption(CategoryOptionAt(g_selectedCategoryIndex));
-}
-
-void ApplySortButtonCaption(MyGUI::Button* button)
-{
-    if (button == 0)
-    {
-        return;
-    }
-
-    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
-    g_selectedSortIndex = NormalizeOptionIndex(g_selectedSortIndex, count);
-    button->setCaption(SortOptionAt(g_selectedSortIndex));
-}
-
-void OnCategoryButtonClicked(MyGUI::Widget* sender)
-{
-    const std::size_t count = sizeof(kCategoryOptions) / sizeof(kCategoryOptions[0]);
-    g_selectedCategoryIndex = NormalizeOptionIndex(g_selectedCategoryIndex + 1, count);
-
-    MyGUI::Button* button = sender == 0 ? 0 : sender->castType<MyGUI::Button>(false);
-    if (button != 0)
-    {
-        ApplyCategoryButtonCaption(button);
-    }
-
-    std::stringstream line;
-    line << "category changed to index=" << g_selectedCategoryIndex
-         << " value=" << CategoryOptionAt(g_selectedCategoryIndex)
-         << " (phase 2 scaffold)";
-    LogInfoLine(line.str());
-}
-
-void OnSortButtonClicked(MyGUI::Widget* sender)
-{
-    const std::size_t count = sizeof(kSortOptions) / sizeof(kSortOptions[0]);
-    g_selectedSortIndex = NormalizeOptionIndex(g_selectedSortIndex + 1, count);
-
-    MyGUI::Button* button = sender == 0 ? 0 : sender->castType<MyGUI::Button>(false);
-    if (button != 0)
-    {
-        ApplySortButtonCaption(button);
-    }
-
-    std::stringstream line;
-    line << "sort changed to index=" << g_selectedSortIndex
-         << " value=" << SortOptionAt(g_selectedSortIndex)
-         << " (phase 2 scaffold)";
-    LogInfoLine(line.str());
-}
-
 bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
 {
     if (parent == 0)
@@ -9949,8 +10060,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
         containerWidth = 240;
     }
 
-    const bool compactLayout = containerWidth < 430;
-    const int containerHeight = compactLayout ? 126 : 92;
+    const int containerHeight = 42;
 
     const int rightMargin = 16;
     int left = parent->getWidth() - containerWidth - rightMargin;
@@ -9970,6 +10080,14 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
         top = 8;
     }
 
+    MyGUI::IntCoord containerCoord(left, top, containerWidth, containerHeight);
+    if (g_searchContainerPositionCustomized)
+    {
+        containerCoord.left = g_searchContainerStoredLeft;
+        containerCoord.top = g_searchContainerStoredTop;
+    }
+    containerCoord = ClampSearchContainerCoord(parent, containerCoord);
+
     {
         const MyGUI::IntCoord parentCoord = parent->getCoord();
         std::stringstream line;
@@ -9977,14 +10095,16 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
              << " parent=" << SafeWidgetName(parent)
              << " parent_coord=(" << parentCoord.left << "," << parentCoord.top << ","
              << parentCoord.width << "," << parentCoord.height << ")"
-             << " container_coord=(" << left << "," << top << "," << containerWidth << "," << containerHeight << ")"
-             << " compact_layout=" << (compactLayout ? "true" : "false");
+             << " container_coord=(" << containerCoord.left << "," << containerCoord.top << ","
+             << containerCoord.width << "," << containerCoord.height << ")"
+             << " customized_position=" << (g_searchContainerPositionCustomized ? "true" : "false")
+             << " search_only=true";
         LogInfoLine(line.str());
     }
 
     MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
         "Kenshi_GenericTextBoxFlatSkin",
-        MyGUI::IntCoord(left, top, containerWidth, containerHeight),
+        containerCoord,
         MyGUI::Align::Right | MyGUI::Align::Top,
         kControlsContainerName);
     if (container == 0)
@@ -9995,23 +10115,32 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
 
     const int outerPadding = 8;
     const int rowHeight = 26;
-    const int rowGap = 8;
-    const int labelWidth = 58;
-    const int searchInputLeft = outerPadding + labelWidth + 6;
+    const int handleWidth = 28;
+    const int handleGap = 6;
+    const int searchInputLeft = outerPadding + handleWidth + handleGap;
     int searchInputWidth = containerWidth - searchInputLeft - outerPadding;
     if (searchInputWidth < 120)
     {
         searchInputWidth = 120;
     }
 
-    MyGUI::TextBox* searchLabel = container->createWidget<MyGUI::TextBox>(
-        "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(outerPadding, outerPadding + 3, labelWidth, rowHeight),
-        MyGUI::Align::Left | MyGUI::Align::Top);
-    if (searchLabel != 0)
+    MyGUI::Button* dragHandle = container->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(outerPadding, outerPadding, handleWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSearchDragHandleName);
+    if (dragHandle == 0)
     {
-        searchLabel->setCaption("Search:");
+        LogErrorLine("failed to create search drag handle");
+        DestroyControlsIfPresent();
+        return false;
     }
+    dragHandle->setCaption("::");
+    dragHandle->setNeedMouseFocus(true);
+    dragHandle->eventMouseButtonPressed += MyGUI::newDelegate(&OnSearchDragHandleMousePressed);
+    dragHandle->eventMouseMove += MyGUI::newDelegate(&OnSearchDragHandleMouseMove);
+    dragHandle->eventMouseDrag += MyGUI::newDelegate(&OnSearchDragHandleMouseDrag);
+    dragHandle->eventMouseButtonReleased += MyGUI::newDelegate(&OnSearchDragHandleMouseReleased);
 
     MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
@@ -10027,125 +10156,6 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     searchEdit->setOnlyText(g_searchQueryRaw);
     searchEdit->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
     FocusSearchEditIfRequested(searchEdit, "controls_built");
-
-    const int row2Y = outerPadding + rowHeight + rowGap;
-    const int row3Y = row2Y + rowHeight + rowGap;
-    const int comboLabelWidth = 68;
-
-    MyGUI::Button* categoryButton = 0;
-    MyGUI::Button* sortButton = 0;
-
-    if (!compactLayout)
-    {
-        const int sortLabelWidth = 40;
-        const int gap = 6;
-        int availableForCombos = containerWidth - (outerPadding * 2) - comboLabelWidth - sortLabelWidth - (gap * 3);
-        if (availableForCombos < 240)
-        {
-            availableForCombos = 240;
-        }
-        int categoryComboWidth = availableForCombos / 2;
-        int sortComboWidth = availableForCombos - categoryComboWidth;
-
-        if (categoryComboWidth < 120)
-        {
-            categoryComboWidth = 120;
-        }
-        if (sortComboWidth < 120)
-        {
-            sortComboWidth = 120;
-        }
-
-        const int categoryLabelX = outerPadding;
-        const int categoryComboX = categoryLabelX + comboLabelWidth + gap;
-        const int sortLabelX = categoryComboX + categoryComboWidth + gap;
-        const int sortComboX = sortLabelX + sortLabelWidth + gap;
-        int adjustedSortComboWidth = containerWidth - outerPadding - sortComboX;
-        if (adjustedSortComboWidth < 120)
-        {
-            adjustedSortComboWidth = 120;
-        }
-
-        MyGUI::TextBox* categoryLabel = container->createWidget<MyGUI::TextBox>(
-            "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(categoryLabelX, row2Y + 3, comboLabelWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top);
-        if (categoryLabel != 0)
-        {
-            categoryLabel->setCaption("Category:");
-        }
-
-        categoryButton = container->createWidget<MyGUI::Button>(
-            "Kenshi_Button1",
-            MyGUI::IntCoord(categoryComboX, row2Y, categoryComboWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top,
-            kCategoryComboName);
-
-        MyGUI::TextBox* sortLabel = container->createWidget<MyGUI::TextBox>(
-            "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(sortLabelX, row2Y + 3, sortLabelWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top);
-        if (sortLabel != 0)
-        {
-            sortLabel->setCaption("Sort:");
-        }
-
-        sortButton = container->createWidget<MyGUI::Button>(
-            "Kenshi_Button1",
-            MyGUI::IntCoord(sortComboX, row2Y, adjustedSortComboWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top,
-            kSortComboName);
-    }
-    else
-    {
-        MyGUI::TextBox* categoryLabel = container->createWidget<MyGUI::TextBox>(
-            "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(outerPadding, row2Y + 3, comboLabelWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top);
-        if (categoryLabel != 0)
-        {
-            categoryLabel->setCaption("Category:");
-        }
-
-        int compactComboWidth = containerWidth - (outerPadding * 2) - comboLabelWidth - 6;
-        if (compactComboWidth < 120)
-        {
-            compactComboWidth = 120;
-        }
-
-        categoryButton = container->createWidget<MyGUI::Button>(
-            "Kenshi_Button1",
-            MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row2Y, compactComboWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top,
-            kCategoryComboName);
-
-        MyGUI::TextBox* sortLabel = container->createWidget<MyGUI::TextBox>(
-            "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(outerPadding, row3Y + 3, comboLabelWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top);
-        if (sortLabel != 0)
-        {
-            sortLabel->setCaption("Sort:");
-        }
-
-        sortButton = container->createWidget<MyGUI::Button>(
-            "Kenshi_Button1",
-            MyGUI::IntCoord(outerPadding + comboLabelWidth + 6, row3Y, compactComboWidth, rowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top,
-            kSortComboName);
-    }
-
-    if (categoryButton == 0 || sortButton == 0)
-    {
-        LogErrorLine("failed to create category/sort buttons");
-        DestroyControlsIfPresent();
-        return false;
-    }
-
-    ApplyCategoryButtonCaption(categoryButton);
-    ApplySortButtonCaption(sortButton);
-    categoryButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCategoryButtonClicked);
-    sortButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortButtonClicked);
 
     return true;
 }
@@ -10564,6 +10574,8 @@ void DumpOnDemandTraderDiagnosticsSnapshot()
 
 void TickPhase2ControlsScaffold()
 {
+    TickSearchContainerDrag();
+
     if (IsDiagnosticsHotkeyPressedEdge())
     {
         DumpOnDemandTraderDiagnosticsSnapshot();
