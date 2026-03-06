@@ -1,0 +1,51 @@
+import * from "objects.program"
+import * from "skin.program"
+
+vertex_program Creature_VP hlsl : Skinned_VP_HLSL {
+	preprocessor_defines BLOOD
+	default_params {
+		param_named_auto worldMatrix3x4Array world_matrix_array_3x4
+		param_named_auto viewProjectionMatrix viewproj_matrix
+		param_named_auto worldMatrix world_matrix
+		param_named_auto waterLine custom 1
+		param_named_auto bloodAmount[0] custom 2	// Need to use custom params here as animals share materials
+		param_named_auto bloodAmount[1] custom 3
+	}
+}
+fragment_program Creature_FP hlsl : Skinned_FP_HLSL {
+	preprocessor_defines DXT5NORMAL,BLOOD,DX11
+	source creature.hlsl
+	default_params {
+		param_named glossMult float 1
+		param_named coloroverride float4 0.0 0.0 0.0 0.0
+		param_named_auto farClip far_clip_distance
+		param_named_auto cameraPos camera_position
+		shared_params_ref SharedWaterParams
+	}
+}
+
+material Creature {
+	technique {
+		shadow_caster_material SkinnedShadowCaster
+		pass main {
+			vertex_program_ref Creature_VP { }
+			fragment_program_ref Creature_FP { }
+			
+			texture_unit diffuseMap {
+				filtering trilinear
+				tex_address_mode wrap
+			}
+			texture_unit normalMap {
+				texture flat.dds
+				filtering trilinear
+				tex_address_mode wrap
+			}
+			texture_unit metalnessMap {
+				texture black.dds
+			}
+			texture_unit blood {
+				texture bloody.png
+			}
+		}
+	}
+}
