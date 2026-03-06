@@ -20,6 +20,19 @@ This sets:
 - `KENSHILIB_DIR`
 - `BOOST_INCLUDE_PATH`
 
+## Mod Hub SDK Sync (Pre-Publish)
+If `tools/mod-hub-sdk` is not published on GitHub yet, point the submodule to a local checkout of `Emkejs-Mod-Core`:
+
+```bash
+git config submodule.tools/mod-hub-sdk.url /mnt/i/Kenshi_modding/Emkejs-Mod-Core
+git -C tools/mod-hub-sdk remote set-url origin /mnt/i/Kenshi_modding/Emkejs-Mod-Core
+./scripts/sync-mod-hub-sdk.sh
+```
+
+Notes:
+- `scripts/sync-mod-hub-sdk.ps1` now allows local `file` transport during submodule update.
+- Running `git submodule sync -- tools/mod-hub-sdk` will restore URL from `.gitmodules` (currently GitHub), so reapply the local override after sync if needed.
+
 ## Build
 You can build in Visual Studio, or via the script below.
 
