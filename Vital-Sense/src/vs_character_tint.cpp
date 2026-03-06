@@ -1274,6 +1274,62 @@ bool ApplyTintToEntity(Ogre::Entity* characterEntity, const Ogre::ColourValue& c
     return appliedAnyConstant;
 }
 
+bool EntityHasAnyTintShaderConstants(Ogre::Entity* characterEntity)
+{
+    if (!characterEntity)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < subEntityCount; ++i)
+    {
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr material;
+        try
+        {
+            material = subEntity->getMaterial();
+        }
+        catch (...)
+        {
+            material.setNull();
+        }
+        if (material.isNull())
+        {
+            continue;
+        }
+
+        if (MaterialHasTintConstants(material.getPointer()))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool TryReadAppearancePointerField(AppearanceBase* appearance, int offsetBytes, Ogre::Entity** entityOut)
 {
     if (!appearance || !entityOut || offsetBytes < 0)
@@ -2194,11 +2250,15 @@ bool SetTintForHandle(
         &hadApplyException);
     if (hadApplyException)
     {
-        if (!gTintApplyExceptionWarned)
+        ++gTintDiagSuppressed;
+        if (gTintDiagnosticsEnabled && !gTintApplyExceptionWarned)
         {
             vs_log::LogWarn(pluginName, "tint apply hit exception; suppressing this candidate for stability");
             gTintApplyExceptionWarned = true;
         }
+
+        // Exception paths are transient by nature; avoid no-shader warning noise.
+        return false;
     }
 
     if (tinted)
@@ -2207,8 +2267,17 @@ bool SetTintForHandle(
     }
     else
     {
+        AppearanceBase* appearance = GetCharacterAppearanceSafe(candidate);
+        Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
+        const bool likelyTintCapable = EntityHasAnyTintShaderConstants(characterEntity);
+        if (!likelyTintCapable)
+        {
+            ++gTintDiagSuppressed;
+            return false;
+        }
+
         ++gTintDiagNoShader;
-        if (!gTintNoShaderParamWarned)
+        if (gTintDiagnosticsEnabled && !gTintNoShaderParamWarned)
         {
             vs_log::LogWarn(pluginName, "tint shader constants unavailable on resolved appearance/entity materials; no visual tint applied");
             gTintNoShaderParamWarned = true;
