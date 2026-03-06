@@ -233,6 +233,10 @@ bool TryResolveCaptionMatchedTraderCharacter(
     MyGUI::Widget* traderParent,
     Character** outCharacter,
     int* outCaptionScore);
+bool TryResolvePreferredDialogueTraderTarget(
+    Character** outTarget,
+    Character** outSpeaker,
+    std::string* outReason);
 std::string CharacterNameForLog(Character* character);
 std::size_t InventoryItemCountForLog(Inventory* inventory);
 
@@ -1227,25 +1231,129 @@ bool HasTraderInventoryMarkers(MyGUI::Widget* parent)
     return hasArrangeButton && hasScrollView && hasBackpack;
 }
 
-bool IsLikelyTraderWindow(MyGUI::Widget* parent)
+bool HasTraderMoneyMarkers(MyGUI::Widget* parent)
 {
-    if (!HasTraderInventoryMarkers(parent))
+    if (parent == 0)
     {
         return false;
+    }
+
+    const char* moneyTokens[] =
+    {
+        "MoneyAmountTextBox",
+        "MoneyAmountText",
+        "TotalMoneyBuyer",
+        "lbTotalMoney",
+        "MoneyLabelText",
+        "lbBuyersMoney"
+    };
+
+    for (std::size_t index = 0; index < sizeof(moneyTokens) / sizeof(moneyTokens[0]); ++index)
+    {
+        if (FindWidgetInParentByToken(parent, moneyTokens[index]) != 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int ComputeTraderWindowCandidateScore(MyGUI::Widget* parent, std::string* outReason)
+{
+    if (outReason != 0)
+    {
+        outReason->clear();
+    }
+
+    if (parent == 0 || !HasTraderInventoryMarkers(parent))
+    {
+        return 0;
     }
 
     MyGUI::Window* window = FindOwningWindow(parent);
-    if (window == 0)
+    const bool hasMoneyMarkers = HasTraderMoneyMarkers(parent);
+    const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+    const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
+    const std::string normalizedCaption = NormalizeSearchText(caption);
+
+    int score = 100;
+    bool hasTraderSignal = false;
+    std::stringstream reason;
+    reason << "inventory_markers";
+
+    if (hasMoneyMarkers)
     {
-        return false;
+        score += 1600;
+        hasTraderSignal = true;
+        reason << " money_markers";
     }
 
-    return ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "TRADER");
+    if (captionHasTrader)
+    {
+        score += 1400;
+        hasTraderSignal = true;
+        reason << " caption_token=trader";
+    }
+
+    Character* captionTrader = 0;
+    int captionScore = 0;
+    if (!normalizedCaption.empty()
+        && TryResolveCaptionMatchedTraderCharacter(parent, &captionTrader, &captionScore)
+        && captionTrader != 0
+        && captionScore > 0)
+    {
+        score += 900 + (captionScore > 2600 ? 2600 : captionScore);
+        hasTraderSignal = true;
+        reason << " caption_match=\"" << TruncateForLog(CharacterNameForLog(captionTrader), 40)
+               << "\"(" << captionScore << ")";
+    }
+
+    Character* dialogueTarget = 0;
+    Character* dialogueSpeaker = 0;
+    std::string dialogueReason;
+    if (!normalizedCaption.empty()
+        && TryResolvePreferredDialogueTraderTarget(&dialogueTarget, &dialogueSpeaker, &dialogueReason)
+        && dialogueTarget != 0)
+    {
+        const int dialogueCaptionScore = ComputeCaptionNameMatchBias(
+            normalizedCaption,
+            NormalizeSearchText(CharacterNameForLog(dialogueTarget)));
+        if (dialogueCaptionScore > 0)
+        {
+            score += 1800 + (dialogueCaptionScore > 2800 ? 2800 : dialogueCaptionScore);
+            hasTraderSignal = true;
+            reason << " dialogue_match=\"" << TruncateForLog(CharacterNameForLog(dialogueTarget), 40)
+                   << "\"(" << dialogueCaptionScore << ")";
+            if (captionTrader != 0 && captionTrader == dialogueTarget)
+            {
+                score += 700;
+                reason << " caption_dialogue_same=true";
+            }
+        }
+    }
+
+    if (!hasTraderSignal)
+    {
+        return 0;
+    }
+
+    if (outReason != 0)
+    {
+        *outReason = reason.str();
+    }
+
+    return score;
+}
+
+bool IsLikelyTraderWindow(MyGUI::Widget* parent)
+{
+    return ComputeTraderWindowCandidateScore(parent, 0) > 0;
 }
 
 bool HasTraderStructure(MyGUI::Widget* parent)
 {
-    return HasTraderInventoryMarkers(parent);
+    return HasTraderInventoryMarkers(parent) || HasTraderMoneyMarkers(parent);
 }
 
 void DumpTraderTargetProbe()
@@ -1310,21 +1418,27 @@ void DumpVisibleWindowCandidateDiagnostics()
         }
 
         const bool hasMarkers = HasTraderStructure(parent);
+        const bool hasMoneyMarkers = HasTraderMoneyMarkers(parent);
         const bool captionHasTrader = ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "TRADER");
         if (!hasMarkers && !captionHasTrader)
         {
             continue;
         }
 
-        const bool likelyTrader = IsLikelyTraderWindow(parent);
+        std::string candidateReason;
+        const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
+        const bool likelyTrader = candidateScore > 0;
         const MyGUI::IntCoord coord = root->getCoord();
         std::stringstream line;
         line << "window-candidate[" << index << "]"
              << " name=" << SafeWidgetName(root)
              << " caption=\"" << TruncateForLog(window->getCaption().asUTF8(), 60) << "\""
              << " has_markers=" << (hasMarkers ? "true" : "false")
+             << " has_money_markers=" << (hasMoneyMarkers ? "true" : "false")
              << " caption_has_trader=" << (captionHasTrader ? "true" : "false")
              << " likely_trader=" << (likelyTrader ? "true" : "false")
+             << " candidate_score=" << candidateScore
+             << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
              << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
         LogInfoLine(line.str());
         ++index;
@@ -1355,6 +1469,8 @@ bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** ou
 
     MyGUI::Widget* bestAnchor = 0;
     MyGUI::Widget* bestParent = 0;
+    std::string bestReason;
+    int bestScore = -1;
     int bestArea = -1;
 
     MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
@@ -1378,17 +1494,23 @@ bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** ou
             continue;
         }
 
-        if (!IsLikelyTraderWindow(parent))
+        std::string candidateReason;
+        const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
+        if (candidateScore <= 0)
         {
             continue;
         }
 
         const MyGUI::IntCoord coord = root->getCoord();
         const int area = coord.width * coord.height;
-        if (bestAnchor == 0 || area > bestArea)
+        if (bestAnchor == 0
+            || candidateScore > bestScore
+            || (candidateScore == bestScore && area > bestArea))
         {
             bestAnchor = root;
             bestParent = parent;
+            bestReason = candidateReason;
+            bestScore = candidateScore;
             bestArea = area;
         }
     }
@@ -1413,7 +1535,9 @@ bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** ou
     line << "resolved trader target via window-scan"
          << " anchor=" << SafeWidgetName(bestAnchor)
          << " parent=" << SafeWidgetName(bestParent)
-         << " caption=\"" << (window == 0 ? "" : TruncateForLog(window->getCaption().asUTF8(), 60)) << "\"";
+         << " caption=\"" << (window == 0 ? "" : TruncateForLog(window->getCaption().asUTF8(), 60)) << "\""
+         << " candidate_score=" << bestScore
+         << " candidate_reason=\"" << TruncateForLog(bestReason, 160) << "\"";
     LogInfoLine(line.str());
     return true;
 }
@@ -1462,7 +1586,9 @@ bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParen
         return false;
     }
 
-    if (!IsLikelyTraderWindow(parent))
+    std::string candidateReason;
+    const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
+    if (candidateScore <= 0)
     {
         if (logFailures)
         {
@@ -1470,6 +1596,8 @@ bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParen
             line << "hover attach rejected"
                  << " anchor=" << SafeWidgetName(anchor)
                  << " parent=" << SafeWidgetName(parent)
+                 << " candidate_score=" << candidateScore
+                 << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
                  << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
                  << parent->getCoord().width << "," << parent->getCoord().height << ")"
                  << " hovered_chain=" << BuildParentChainForLog(hovered);
@@ -1491,6 +1619,8 @@ bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParen
     line << "resolved trader target via hover attach"
          << " anchor=" << SafeWidgetName(anchor)
          << " parent=" << SafeWidgetName(parent)
+         << " candidate_score=" << candidateScore
+         << " candidate_reason=\"" << TruncateForLog(candidateReason, 160) << "\""
          << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
          << parent->getCoord().width << "," << parent->getCoord().height << ")"
          << " hovered_chain=" << BuildParentChainForLog(hovered);
@@ -9941,8 +10071,10 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
         return false;
     }
 
+    std::string candidateReason;
+    const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
     const bool acceptedTarget = (sourceTag != 0 && std::string(sourceTag) == "hover-direct")
-        || IsLikelyTraderWindow(parent);
+        || candidateScore > 0;
 
     if (!acceptedTarget)
     {
@@ -9951,6 +10083,8 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
              << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
              << " anchor=" << SafeWidgetName(anchor)
              << " parent=" << SafeWidgetName(parent)
+             << " candidate_score=" << candidateScore
+             << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
              << " has_trader_structure=" << (HasTraderStructure(parent) ? "true" : "false");
         LogWarnLine(line.str());
         return false;
