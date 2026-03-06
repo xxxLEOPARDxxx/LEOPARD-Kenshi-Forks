@@ -43,7 +43,6 @@ const float kKoBountyGlowAlpha = 0.90f;
 const MyGUI::Colour kKoBountyGlowColour(1.0f, 0.93f, 0.28f, kKoBountyGlowAlpha);
 const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
 const int kKoBountyGlowTextureSizePx = 64;
-const bool kEnableTextureInfoLogs = false;
 
 bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
@@ -65,9 +64,7 @@ void LogIconTextureOnce(
     const char* textureName,
     bool warn)
 {
-    (void)state;
-
-    if (!warn && !kEnableTextureInfoLogs)
+    if (!warn && !state.config.debugLogTextureInfo)
     {
         return;
     }

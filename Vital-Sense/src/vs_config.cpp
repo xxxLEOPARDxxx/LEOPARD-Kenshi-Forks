@@ -70,6 +70,8 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.showMarkerText = true;
     config.showBountyGlow = true;
     config.showBountySymbol = true;
+    config.debugLogDiagnostics = false;
+    config.debugLogTextureInfo = false;
     config.enableCharacterTint = true;
     config.characterTintIncludeBountyOnly = false;
     config.characterTintForceDepthOverride = true;
@@ -186,6 +188,18 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
     if (vs_parse::ParseBoolFromJson(body, "show_bounty_symbol", &parsedShowBountySymbol))
     {
         state.config.showBountySymbol = parsedShowBountySymbol;
+    }
+
+    bool parsedDebugLogDiagnostics = false;
+    if (vs_parse::ParseBoolFromJson(body, "debug_log_diagnostics", &parsedDebugLogDiagnostics))
+    {
+        state.config.debugLogDiagnostics = parsedDebugLogDiagnostics;
+    }
+
+    bool parsedDebugLogTextureInfo = false;
+    if (vs_parse::ParseBoolFromJson(body, "debug_log_texture_info", &parsedDebugLogTextureInfo))
+    {
+        state.config.debugLogTextureInfo = parsedDebugLogTextureInfo;
     }
 
     bool parsedEnableCharacterTint = true;
@@ -799,7 +813,7 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         }
     }
 
-    if (!state.config.customUnconsciousIconTexture.empty())
+    if (state.config.debugLogDiagnostics && !state.config.customUnconsciousIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom ZZ icon configured texture=" << state.config.customUnconsciousIconTexture
@@ -807,7 +821,7 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         vs_log::LogInfo(pluginName, iconInfo.str());
     }
 
-    if (!state.config.customDyingIconTexture.empty())
+    if (state.config.debugLogDiagnostics && !state.config.customDyingIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom DY icon configured texture=" << state.config.customDyingIconTexture
@@ -815,7 +829,7 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         vs_log::LogInfo(pluginName, iconInfo.str());
     }
 
-    if (!state.config.customRecoveryComaIconTexture.empty())
+    if (state.config.debugLogDiagnostics && !state.config.customRecoveryComaIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom RC icon configured texture=" << state.config.customRecoveryComaIconTexture
@@ -823,7 +837,7 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         vs_log::LogInfo(pluginName, iconInfo.str());
     }
 
-    if (!state.config.customPlayingDeadIconTexture.empty())
+    if (state.config.debugLogDiagnostics && !state.config.customPlayingDeadIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom PD icon configured texture=" << state.config.customPlayingDeadIconTexture
@@ -831,7 +845,7 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         vs_log::LogInfo(pluginName, iconInfo.str());
     }
 
-    if (!state.config.customDeadIconTexture.empty())
+    if (state.config.debugLogDiagnostics && !state.config.customDeadIconTexture.empty())
     {
         std::stringstream iconInfo;
         iconInfo << "custom DE icon configured texture=" << state.config.customDeadIconTexture

@@ -27,6 +27,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 namespace vs_character_tint
 {
@@ -40,7 +41,9 @@ const char* kDepthOverrideParam = "overrideDepth";
 const char* kOverrideDepthLowerParam = "overridedepth";
 const Ogre::ColourValue kClearTintColour(1.0f, 1.0f, 1.0f, 0.0f);
 const DWORD kTintDiagLogIntervalMs = 2000;
-const DWORD kTintNoShaderRetryIntervalMs = 2500;
+const bool kTintDebugEnemyOnlyMode = false;
+const bool kTintDebugSolidOverrideMode = false;
+bool gTintDiagnosticsEnabled = false;
 
 int gAppearanceEntityOffsetBytes = -1;
 int gAppearanceBodyMaterialOffsetBytes = -1;
@@ -49,7 +52,6 @@ bool gTintEntityOffsetFailureLogged = false;
 bool gTintBodyMaterialOffsetLogged = false;
 bool gTintBodyMaterialOffsetFailureLogged = false;
 bool gTintNoShaderParamWarned = false;
-DWORD gTintNoShaderRetryAfterMs = 0;
 DWORD gTintDiagLastLogMs = 0;
 unsigned int gTintDiagSyncCalls = 0;
 unsigned int gTintDiagApplyAttempts = 0;
@@ -61,28 +63,19 @@ unsigned int gTintDiagCleared = 0;
 unsigned int gTintDiagAppliedBodyMaterial = 0;
 unsigned int gTintDiagAppliedEntityMaterial = 0;
 unsigned int gTintDiagAppliedSkeletonFallback = 0;
-unsigned int gTintDiagAppliedMaterialOverride = 0;
 bool gTintSkeletonFallbackWarned = false;
-bool gTintMaterialOverrideWarned = false;
-bool gTintPortraitSafeModeWarned = false;
-bool gTintAlternatePlayerEntityLogged = false;
-bool gTintAnimalOverrideModeLogged = false;
 bool gTintApplyExceptionWarned = false;
+bool gTintEnemyOnlyModeLogged = false;
+bool gTintSolidOverrideModeLogged = false;
 DWORD gTintAnimalSampleLogWindowStartMs = 0;
 unsigned int gTintAnimalSampleLogCount = 0;
-unsigned int gTintMaterialCloneSerial = 0;
+DWORD gTintRelationSampleLogWindowStartMs = 0;
+unsigned int gTintRelationSampleLogCount = 0;
 
 struct ResolvedCharacter
 {
     hand targetHandle;
     Character* character;
-};
-
-struct CharacterMaterialOverrideEntry
-{
-    hand targetHandle;
-    std::vector<Ogre::MaterialPtr> originalMaterials;
-    std::vector<Ogre::MaterialPtr> overrideMaterials;
 };
 
 struct AppearanceMaterialOffsetCacheEntry
@@ -91,11 +84,25 @@ struct AppearanceMaterialOffsetCacheEntry
     std::vector<int> materialOffsets;
 };
 
-std::vector<CharacterMaterialOverrideEntry> gCharacterMaterialOverrideEntries;
 std::vector<AppearanceMaterialOffsetCacheEntry> gAppearanceMaterialOffsetCache;
 
 void EmitTintDiagLogIfDue(const char* pluginName)
 {
+    if (!gTintDiagnosticsEnabled)
+    {
+        gTintDiagSyncCalls = 0;
+        gTintDiagApplyAttempts = 0;
+        gTintDiagApplied = 0;
+        gTintDiagNoEntity = 0;
+        gTintDiagNoShader = 0;
+        gTintDiagSuppressed = 0;
+        gTintDiagCleared = 0;
+        gTintDiagAppliedBodyMaterial = 0;
+        gTintDiagAppliedEntityMaterial = 0;
+        gTintDiagAppliedSkeletonFallback = 0;
+        return;
+    }
+
     const DWORD nowMs = GetTickCount();
     if (gTintDiagLastLogMs != 0 && (nowMs - gTintDiagLastLogMs) < kTintDiagLogIntervalMs)
     {
@@ -114,7 +121,6 @@ void EmitTintDiagLogIfDue(const char* pluginName)
        << " applied=" << gTintDiagApplied
        << " applied_body_material=" << gTintDiagAppliedBodyMaterial
        << " applied_entity_material=" << gTintDiagAppliedEntityMaterial
-       << " applied_material_override=" << gTintDiagAppliedMaterialOverride
        << " applied_skeleton_fallback=" << gTintDiagAppliedSkeletonFallback
        << " no_entity=" << gTintDiagNoEntity
        << " no_shader_param=" << gTintDiagNoShader
@@ -152,24 +158,7 @@ void EmitTintDiagLogIfDue(const char* pluginName)
     gTintDiagCleared = 0;
     gTintDiagAppliedBodyMaterial = 0;
     gTintDiagAppliedEntityMaterial = 0;
-    gTintDiagAppliedMaterialOverride = 0;
     gTintDiagAppliedSkeletonFallback = 0;
-}
-
-bool HasReachedTick(DWORD nowTick, DWORD targetTick)
-{
-    return static_cast<LONG>(nowTick - targetTick) >= 0;
-}
-
-bool IsTintAttemptSuppressed()
-{
-    if (gTintNoShaderRetryAfterMs == 0)
-    {
-        return false;
-    }
-
-    const DWORD nowTick = GetTickCount();
-    return !HasReachedTick(nowTick, gTintNoShaderRetryAfterMs);
 }
 
 bool HandlesEqualByKey(const hand& a, const hand& b)
@@ -329,110 +318,6 @@ Character* FindResolvedCharacterByHandle(
     return 0;
 }
 
-int FindMaterialOverrideEntryByHandle(const hand& targetHandle)
-{
-    for (size_t i = 0; i < gCharacterMaterialOverrideEntries.size(); ++i)
-    {
-        if (HandlesEqualByKey(gCharacterMaterialOverrideEntries[i].targetHandle, targetHandle))
-        {
-            return static_cast<int>(i);
-        }
-    }
-
-    return -1;
-}
-
-bool MaterialPtrsReferSameObject(const Ogre::MaterialPtr& a, const Ogre::MaterialPtr& b)
-{
-    if (a.isNull() || b.isNull())
-    {
-        return false;
-    }
-
-    bool sameObject = false;
-    __try
-    {
-        sameObject = (a.getPointer() == b.getPointer());
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        sameObject = false;
-    }
-
-    return sameObject;
-}
-
-size_t PurgeMaterialOverrideEntriesNotResolved(const std::vector<ResolvedCharacter>& resolvedCharacters)
-{
-    if (gCharacterMaterialOverrideEntries.empty())
-    {
-        return 0;
-    }
-
-    size_t removedCount = 0;
-    for (int i = static_cast<int>(gCharacterMaterialOverrideEntries.size()) - 1; i >= 0; --i)
-    {
-        const hand& targetHandle = gCharacterMaterialOverrideEntries[static_cast<size_t>(i)].targetHandle;
-        if (ResolvedCharactersContainHandle(resolvedCharacters, targetHandle))
-        {
-            continue;
-        }
-
-        gCharacterMaterialOverrideEntries.erase(
-            gCharacterMaterialOverrideEntries.begin() + i);
-        ++removedCount;
-    }
-
-    return removedCount;
-}
-
-std::string BuildMaterialCloneName(const hand& targetHandle, size_t subEntityIndex)
-{
-    std::stringstream ss;
-    ss << "VitalSenseTint_"
-       << targetHandle.type << "_"
-       << targetHandle.index << "_"
-       << targetHandle.serial << "_"
-       << subEntityIndex << "_"
-       << gTintMaterialCloneSerial++;
-    return ss.str();
-}
-
-void ConfigureHighlightMaterialClone(Ogre::MaterialPtr& materialClone, const Ogre::ColourValue& colour)
-{
-    if (materialClone.isNull())
-    {
-        return;
-    }
-
-    try
-    {
-        materialClone->setAmbient(
-            colour.r * 0.30f + 0.05f,
-            colour.g * 0.30f + 0.05f,
-            colour.b * 0.30f + 0.05f);
-        materialClone->setDiffuse(
-            colour.r,
-            colour.g,
-            colour.b,
-            1.0f);
-        materialClone->setSelfIllumination(
-            colour.r * 0.70f,
-            colour.g * 0.70f,
-            colour.b * 0.70f);
-        // Use additive overlay so relation colour stays visible even on dark creature textures.
-        materialClone->setSceneBlending(Ogre::SBT_ADD);
-        materialClone->setDepthCheckEnabled(false);
-        materialClone->setDepthWriteEnabled(false);
-        materialClone->setCullingMode(Ogre::CULL_NONE);
-
-        materialClone->compile();
-        materialClone->load();
-    }
-    catch (...)
-    {
-    }
-}
 
 bool HasFragmentColourOverrideConstant(Ogre::Pass* pass)
 {
@@ -760,6 +645,135 @@ bool ApplyTintToMaterialField(
     return applied;
 }
 
+bool ApplyTintToMaterialPrimaryPassLikeExample(
+    const Ogre::MaterialPtr& material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (material.isNull())
+    {
+        return false;
+    }
+
+    bool applied = false;
+    try
+    {
+        Ogre::Technique* technique = material->getTechnique(0);
+        if (!technique)
+        {
+            return false;
+        }
+
+        Ogre::Pass* pass = technique->getPass(0);
+        if (!pass)
+        {
+            return false;
+        }
+
+        if (pass->hasFragmentProgram())
+        {
+            Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
+            if (!fragmentParams.isNull())
+            {
+                try
+                {
+                    fragmentParams->setNamedConstant(kColorOverrideParam, colour);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+                try
+                {
+                    fragmentParams->setNamedConstant(kColourOverrideParam, colour);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+                try
+                {
+                    fragmentParams->setNamedConstant(kColorOverrideParamCamel, colour);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+                try
+                {
+                    fragmentParams->setNamedConstant(kColourOverrideParamCamel, colour);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+
+        if (pass->hasVertexProgram())
+        {
+            Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
+            if (!vertexParams.isNull())
+            {
+                try
+                {
+                    vertexParams->setNamedConstant(kDepthOverrideParam, depthOverride ? 1 : 0);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+                try
+                {
+                    vertexParams->setNamedConstant(kOverrideDepthLowerParam, depthOverride ? 1 : 0);
+                    applied = true;
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    return applied;
+}
+
+bool ApplyTintToMaterialFieldLikeExample(
+    Ogre::MaterialPtr* materialField,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!materialField)
+    {
+        return false;
+    }
+
+    bool applied = false;
+    __try
+    {
+        if (!materialField->isNull())
+        {
+            // Match CharacterHighlight first: write pass(0) constants, then fall back to generic scan.
+            applied = ApplyTintToMaterialPrimaryPassLikeExample(*materialField, colour, depthOverride);
+            if (!applied)
+            {
+                applied = ApplyTintToMaterial(materialField->getPointer(), colour, depthOverride);
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        applied = false;
+    }
+
+    return applied;
+}
+
+
 bool ApplyTintToEntity(Ogre::Entity* characterEntity, const Ogre::ColourValue& colour, bool depthOverride)
 {
     if (!characterEntity)
@@ -815,210 +829,6 @@ bool ApplyTintToEntity(Ogre::Entity* characterEntity, const Ogre::ColourValue& c
     }
 
     return appliedAnyConstant;
-}
-
-bool ApplyMaterialOverrideToEntity(
-    const hand& targetHandle,
-    Ogre::Entity* characterEntity,
-    const Ogre::ColourValue& colour)
-{
-    if (!characterEntity)
-    {
-        return false;
-    }
-
-    size_t subEntityCount = 0;
-    try
-    {
-        subEntityCount = characterEntity->getNumSubEntities();
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    int entryIndex = FindMaterialOverrideEntryByHandle(targetHandle);
-    if (entryIndex < 0)
-    {
-        CharacterMaterialOverrideEntry created;
-        created.targetHandle = targetHandle;
-        created.originalMaterials.reserve(subEntityCount);
-        created.overrideMaterials.reserve(subEntityCount);
-        gCharacterMaterialOverrideEntries.push_back(created);
-        entryIndex = static_cast<int>(gCharacterMaterialOverrideEntries.size() - 1);
-    }
-
-    CharacterMaterialOverrideEntry& entry = gCharacterMaterialOverrideEntries[static_cast<size_t>(entryIndex)];
-    if (entry.originalMaterials.size() != subEntityCount || entry.overrideMaterials.size() != subEntityCount)
-    {
-        entry.originalMaterials.clear();
-        entry.overrideMaterials.clear();
-        entry.originalMaterials.resize(subEntityCount);
-        entry.overrideMaterials.resize(subEntityCount);
-    }
-
-    bool appliedAny = false;
-    for (size_t i = 0; i < subEntityCount; ++i)
-    {
-        Ogre::SubEntity* subEntity = 0;
-        try
-        {
-            subEntity = characterEntity->getSubEntity(i);
-        }
-        catch (...)
-        {
-            subEntity = 0;
-        }
-        if (!subEntity)
-        {
-            continue;
-        }
-
-        Ogre::MaterialPtr currentMaterial;
-        try
-        {
-            currentMaterial = subEntity->getMaterial();
-        }
-        catch (...)
-        {
-            continue;
-        }
-        if (currentMaterial.isNull())
-        {
-            continue;
-        }
-
-        Ogre::MaterialPtr& overrideMaterial = entry.overrideMaterials[i];
-        const bool currentIsOverride = (!overrideMaterial.isNull() && MaterialPtrsReferSameObject(currentMaterial, overrideMaterial));
-        if (!currentIsOverride)
-        {
-            // Re-baseline to the currently bound material unless this sub-entity is already using our override.
-            // This recovers safely from handle reuse across save/world transitions.
-            entry.originalMaterials[i] = currentMaterial;
-            overrideMaterial.setNull();
-        }
-
-        if (entry.originalMaterials[i].isNull())
-        {
-            entry.originalMaterials[i] = currentMaterial;
-        }
-
-        if (overrideMaterial.isNull())
-        {
-            try
-            {
-                overrideMaterial = entry.originalMaterials[i]->clone(BuildMaterialCloneName(targetHandle, i));
-            }
-            catch (...)
-            {
-                overrideMaterial.setNull();
-            }
-        }
-        if (overrideMaterial.isNull())
-        {
-            continue;
-        }
-
-        try
-        {
-            ConfigureHighlightMaterialClone(overrideMaterial, colour);
-        }
-        catch (...)
-        {
-            overrideMaterial.setNull();
-        }
-        if (overrideMaterial.isNull())
-        {
-            continue;
-        }
-
-        bool setOk = false;
-        try
-        {
-            subEntity->setMaterial(overrideMaterial);
-            setOk = true;
-        }
-        catch (...)
-        {
-            setOk = false;
-        }
-
-        if (setOk)
-        {
-            appliedAny = true;
-        }
-    }
-
-    return appliedAny;
-}
-
-bool RestoreMaterialOverrideForEntity(const hand& targetHandle, Ogre::Entity* characterEntity)
-{
-    const int entryIndex = FindMaterialOverrideEntryByHandle(targetHandle);
-    if (entryIndex < 0)
-    {
-        return false;
-    }
-
-    CharacterMaterialOverrideEntry entry = gCharacterMaterialOverrideEntries[static_cast<size_t>(entryIndex)];
-    gCharacterMaterialOverrideEntries.erase(gCharacterMaterialOverrideEntries.begin() + entryIndex);
-
-    if (!characterEntity)
-    {
-        return false;
-    }
-
-    bool restoredAny = false;
-    size_t subEntityCount = 0;
-    try
-    {
-        subEntityCount = characterEntity->getNumSubEntities();
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    const size_t restoreCount = (subEntityCount < entry.originalMaterials.size()) ? subEntityCount : entry.originalMaterials.size();
-    for (size_t i = 0; i < restoreCount; ++i)
-    {
-        if (entry.originalMaterials[i].isNull())
-        {
-            continue;
-        }
-
-        Ogre::SubEntity* subEntity = 0;
-        try
-        {
-            subEntity = characterEntity->getSubEntity(i);
-        }
-        catch (...)
-        {
-            subEntity = 0;
-        }
-        if (!subEntity)
-        {
-            continue;
-        }
-
-        bool setOk = false;
-        try
-        {
-            subEntity->setMaterial(entry.originalMaterials[i]);
-            setOk = true;
-        }
-        catch (...)
-        {
-            setOk = false;
-        }
-
-        if (setOk)
-        {
-            restoredAny = true;
-        }
-    }
-
-    return restoredAny;
 }
 
 bool TryReadAppearancePointerField(AppearanceBase* appearance, int offsetBytes, Ogre::Entity** entityOut)
@@ -1291,7 +1101,6 @@ bool ResolveTintMaterialOffsetsFromAppearance(
         {
             continue;
         }
-
         if (candidateMaterialVtable != referenceMaterialVtable
             || candidateInfoVtable != referenceInfoVtable)
         {
@@ -1303,7 +1112,7 @@ bool ResolveTintMaterialOffsetsFromAppearance(
         {
             continue;
         }
-        if (!ApplyTintToMaterialField(materialField, kClearTintColour, false))
+        if (!ApplyTintToMaterialFieldLikeExample(materialField, kClearTintColour, false))
         {
             continue;
         }
@@ -1333,7 +1142,7 @@ bool ResolveTintMaterialOffsetsFromAppearance(
     {
         resolvedOffsetsOut.swap(resolvedOffsets);
         gAppearanceBodyMaterialOffsetBytes = resolvedOffsetsOut[0];
-        if (!gTintBodyMaterialOffsetLogged)
+        if (gTintDiagnosticsEnabled && !gTintBodyMaterialOffsetLogged)
         {
             std::stringstream ss;
             ss << "tint appearance material offsets resolved count=" << resolvedOffsetsOut.size()
@@ -1372,7 +1181,7 @@ bool ApplyTintToAppearanceMaterialOffsets(
         {
             continue;
         }
-        if (ApplyTintToMaterialField(materialField, colour, depthOverride))
+        if (ApplyTintToMaterialFieldLikeExample(materialField, colour, depthOverride))
         {
             applied = true;
         }
@@ -1483,7 +1292,7 @@ Ogre::Entity* ResolveCharacterEntityFromAppearance(AppearanceBase* appearance, c
         }
 
         gAppearanceEntityOffsetBytes = candidateOffsets[i];
-        if (!gTintEntityOffsetLogged)
+        if (gTintDiagnosticsEnabled && !gTintEntityOffsetLogged)
         {
             std::stringstream ss;
             ss << "tint entity offset resolved offset=0x" << std::hex << candidateOffsets[i] << std::dec;
@@ -1499,52 +1308,6 @@ Ogre::Entity* ResolveCharacterEntityFromAppearance(AppearanceBase* appearance, c
         gTintEntityOffsetFailureLogged = true;
     }
     return 0;
-}
-
-Ogre::Entity* ResolveCharacterModelEntityFromAppearance(AppearanceBase* appearance)
-{
-    if (!appearance)
-    {
-        return 0;
-    }
-
-    Ogre::Entity* characterModelEntity = 0;
-    if (!TryReadAppearancePointerField(appearance, 0xE0, &characterModelEntity))
-    {
-        return 0;
-    }
-
-    if (!IsLikelyCharacterEntity(characterModelEntity))
-    {
-        return 0;
-    }
-
-    return characterModelEntity;
-}
-
-Ogre::Entity* ResolveMaterialOverrideEntityForCharacter(
-    AppearanceBase* appearance,
-    Ogre::Entity* primaryEntity,
-    bool isPlayerCharacter,
-    const char* pluginName)
-{
-    if (!isPlayerCharacter)
-    {
-        return primaryEntity;
-    }
-
-    Ogre::Entity* alternateEntity = ResolveCharacterModelEntityFromAppearance(appearance);
-    if (alternateEntity && alternateEntity != primaryEntity)
-    {
-        if (!gTintAlternatePlayerEntityLogged)
-        {
-            vs_log::LogInfo(pluginName, "using characterModel entity for player body material override");
-            gTintAlternatePlayerEntityLogged = true;
-        }
-        return alternateEntity;
-    }
-
-    return primaryEntity;
 }
 
 bool SetEntitySkeletonVisible(Ogre::Entity* entity, bool visible)
@@ -1586,26 +1349,6 @@ AppearanceBase* GetCharacterAppearanceSafe(Character* candidate)
     }
 
     return appearance;
-}
-
-bool IsPlayerCharacterSafe(Character* candidate)
-{
-    if (!candidate)
-    {
-        return false;
-    }
-
-    bool isPlayerCharacter = false;
-    __try
-    {
-        isPlayerCharacter = candidate->isPlayerCharacter();
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        isPlayerCharacter = false;
-    }
-
-    return isPlayerCharacter;
 }
 
 bool IsAnimalCharacterSafe(Character* candidate)
@@ -1720,6 +1463,79 @@ bool IsEnemyToAnyPlayerCharacterSafe(Character* candidate)
     return isEnemy;
 }
 
+bool IsSameFactionAsPlayerSafe(Character* candidate)
+{
+    if (!candidate || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    bool sameFaction = false;
+    __try
+    {
+        Faction* playerFaction = ou->player->participant;
+        sameFaction = (playerFaction && candidate->owner == playerFaction);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        sameFaction = false;
+    }
+
+    return sameFaction;
+}
+
+int ResolveEffectiveTintRelationSafe(Character* candidate, int cachedRelation)
+{
+    if (!candidate)
+    {
+        if (cachedRelation == CachedKoTarget::RELATION_SQUAD
+            || cachedRelation == CachedKoTarget::RELATION_ALLY
+            || cachedRelation == CachedKoTarget::RELATION_ENEMY)
+        {
+            return cachedRelation;
+        }
+        return CachedKoTarget::RELATION_ENEMY;
+    }
+
+    if (IsCharacterInPlayerSquadSafe(candidate))
+    {
+        return CachedKoTarget::RELATION_SQUAD;
+    }
+
+    // Keep tint relation aligned with probe/marker classification first.
+    if (cachedRelation == CachedKoTarget::RELATION_ENEMY
+        || cachedRelation == CachedKoTarget::RELATION_ALLY)
+    {
+        return cachedRelation;
+    }
+
+    if (IsEnemyToAnyPlayerCharacterSafe(candidate))
+    {
+        return CachedKoTarget::RELATION_ENEMY;
+    }
+
+    if (IsSameFactionAsPlayerSafe(candidate))
+    {
+        return CachedKoTarget::RELATION_ALLY;
+    }
+
+    // Default hostile unless we can prove squad/ally through direct runtime checks.
+    return CachedKoTarget::RELATION_ENEMY;
+}
+
+int ResolveTintApplyPriority(int markerRelation)
+{
+    if (markerRelation == CachedKoTarget::RELATION_SQUAD)
+    {
+        return 0;
+    }
+    if (markerRelation == CachedKoTarget::RELATION_ALLY)
+    {
+        return 1;
+    }
+    return 2;
+}
+
 bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour, bool depthOverride, const char* pluginName)
 {
     if (!candidate)
@@ -1735,59 +1551,25 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
 
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
     const bool wantsBodyHighlight = colour.a > 0.0f;
-    const bool isPlayerCharacter = IsPlayerCharacterSafe(candidate);
-    const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
-    const bool preferMaterialOverride = isAnimalCharacter;
-    Ogre::Entity* materialOverrideEntity = ResolveMaterialOverrideEntityForCharacter(
-        appearance,
-        characterEntity,
-        isPlayerCharacter,
-        pluginName);
     if (!wantsBodyHighlight)
     {
-        const bool restoredMaterial = RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
-        return restoredMaterial
-            || ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
+        return ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
             || ApplyTintToEntity(characterEntity, colour, depthOverride);
     }
 
-    if (!preferMaterialOverride && ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
+    if (ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
     {
-        RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedBodyMaterial;
         return true;
     }
 
-    if (!preferMaterialOverride && ApplyTintToEntity(characterEntity, colour, depthOverride))
+    if (ApplyTintToEntity(characterEntity, colour, depthOverride))
     {
-        RestoreMaterialOverrideForEntity(candidate->getHandle(), materialOverrideEntity);
         SetEntitySkeletonVisible(characterEntity, false);
         ++gTintDiagAppliedEntityMaterial;
         return true;
-    }
-
-    if (ApplyMaterialOverrideToEntity(candidate->getHandle(), materialOverrideEntity, colour))
-    {
-        SetEntitySkeletonVisible(characterEntity, false);
-        ++gTintDiagAppliedMaterialOverride;
-        if (preferMaterialOverride && !gTintAnimalOverrideModeLogged)
-        {
-            vs_log::LogInfo(pluginName, "animal highlight using body material override path");
-            gTintAnimalOverrideModeLogged = true;
-        }
-        if (!gTintMaterialOverrideWarned)
-        {
-            vs_log::LogWarn(pluginName, "shader tint unavailable; using body material override fallback");
-            gTintMaterialOverrideWarned = true;
-        }
-        return true;
-    }
-    if (isPlayerCharacter && materialOverrideEntity == characterEntity && !gTintPortraitSafeModeWarned)
-    {
-        vs_log::LogWarn(pluginName, "player body material override fell back to primary entity; squad portraits may still inherit tint");
-        gTintPortraitSafeModeWarned = true;
     }
 
     if (SetEntitySkeletonVisible(characterEntity, wantsBodyHighlight))
@@ -1842,6 +1624,11 @@ bool TryApplyTintToCharacterSeh(
 
 Ogre::ColourValue ResolveTintColour(RuntimeStateView& state, int markerRelation)
 {
+    if (kTintDebugEnemyOnlyMode && markerRelation != CachedKoTarget::RELATION_ENEMY)
+    {
+        return kClearTintColour;
+    }
+
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
         return Ogre::ColourValue(
@@ -1910,7 +1697,6 @@ bool SetTintForHandle(
     const std::vector<ResolvedCharacter>& resolvedCharacters,
     const Ogre::ColourValue& colour,
     bool depthOverride,
-    bool allowNoShaderSuppression,
     const char* pluginName)
 {
     Character* candidate = FindResolvedCharacterByHandle(resolvedCharacters, targetHandle);
@@ -1941,15 +1727,10 @@ bool SetTintForHandle(
     if (tinted)
     {
         ++gTintDiagApplied;
-        gTintNoShaderRetryAfterMs = 0;
     }
     else
     {
         ++gTintDiagNoShader;
-        if (allowNoShaderSuppression)
-        {
-            gTintNoShaderRetryAfterMs = GetTickCount() + kTintNoShaderRetryIntervalMs;
-        }
         if (!gTintNoShaderParamWarned)
         {
             vs_log::LogWarn(pluginName, "tint shader constants unavailable on resolved appearance/entity materials; no visual tint applied");
@@ -1962,7 +1743,9 @@ bool SetTintForHandle(
 
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
-    if (state.characterTintEntries.empty() && gCharacterMaterialOverrideEntries.empty())
+    gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
+
+    if (state.characterTintEntries.empty())
     {
         return;
     }
@@ -1977,19 +1760,10 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                 resolvedCharacters,
                 kClearTintColour,
                 false,
-                false,
                 pluginName))
         {
             ++gTintDiagCleared;
         }
-    }
-
-    const size_t purgedEntries = PurgeMaterialOverrideEntriesNotResolved(resolvedCharacters);
-    if (purgedEntries > 0)
-    {
-        std::stringstream ss;
-        ss << "purged stale material overrides count=" << purgedEntries;
-        vs_log::LogInfo(pluginName, ss.str());
     }
 
     state.characterTintEntries.clear();
@@ -1998,7 +1772,19 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 
 void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
+    gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
     ++gTintDiagSyncCalls;
+
+    if (kTintDebugEnemyOnlyMode && pluginName && !gTintEnemyOnlyModeLogged)
+    {
+        vs_log::LogWarn(pluginName, "enemy-only body tint debug mode active (squad/ally body tint disabled)");
+        gTintEnemyOnlyModeLogged = true;
+    }
+    if (kTintDebugSolidOverrideMode && pluginName && !gTintSolidOverrideModeLogged)
+    {
+        vs_log::LogWarn(pluginName, "solid override tint debug mode active (fragment shader/textures disabled on tint clone)");
+        gTintSolidOverrideModeLogged = true;
+    }
 
     if (!state.config.enableCharacterTint || !ou)
     {
@@ -2011,18 +1797,29 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 
     std::vector<ResolvedCharacter> resolvedCharacters;
     if (!desiredEntries.empty()
-        || !state.characterTintEntries.empty()
-        || !gCharacterMaterialOverrideEntries.empty())
+        || !state.characterTintEntries.empty())
     {
         CollectResolvedCharacters(resolvedCharacters);
-        const size_t purgedEntries = PurgeMaterialOverrideEntriesNotResolved(resolvedCharacters);
-        if (purgedEntries > 0)
-        {
-            std::stringstream ss;
-            ss << "purged stale material overrides during sync count=" << purgedEntries;
-            vs_log::LogInfo(pluginName, ss.str());
-        }
     }
+
+    for (size_t i = 0; i < desiredEntries.size(); ++i)
+    {
+        Character* desiredCandidate = FindResolvedCharacterByHandle(
+            resolvedCharacters,
+            desiredEntries[i].targetHandle);
+        desiredEntries[i].markerRelation = ResolveEffectiveTintRelationSafe(
+            desiredCandidate,
+            desiredEntries[i].markerRelation);
+    }
+
+    std::sort(
+        desiredEntries.begin(),
+        desiredEntries.end(),
+        [](const CharacterTintEntry& a, const CharacterTintEntry& b) -> bool
+        {
+            return ResolveTintApplyPriority(a.markerRelation)
+                < ResolveTintApplyPriority(b.markerRelation);
+        });
 
     std::vector<CharacterTintEntry> unchangedEntries;
     unchangedEntries.reserve(state.characterTintEntries.size());
@@ -2038,7 +1835,7 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             continue;
         }
 
-        if (SetTintForHandle(oldEntry.targetHandle, resolvedCharacters, kClearTintColour, false, false, pluginName))
+        if (SetTintForHandle(oldEntry.targetHandle, resolvedCharacters, kClearTintColour, false, pluginName))
         {
             ++gTintDiagCleared;
         }
@@ -2056,25 +1853,38 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 
         Ogre::ColourValue tintColour = ResolveTintColour(state, desired.markerRelation);
         Character* desiredCandidate = FindResolvedCharacterByHandle(resolvedCharacters, desired.targetHandle);
-        const bool inPlayerSquad = desiredCandidate && IsCharacterInPlayerSquadSafe(desiredCandidate);
-        const bool animalNonSquadForcedEnemy =
-            desiredCandidate
-            && IsAnimalCharacterSafe(desiredCandidate)
-            && !inPlayerSquad;
-        const bool hostileNonSquadForcedEnemy =
-            desiredCandidate
-            && !inPlayerSquad
-            && IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
-        const bool forcedEnemyTint = animalNonSquadForcedEnemy || hostileNonSquadForcedEnemy;
-        if (forcedEnemyTint)
+        if (gTintDiagnosticsEnabled && desiredCandidate)
         {
-            tintColour = Ogre::ColourValue(
-                state.config.enemyMarkerColour.red,
-                state.config.enemyMarkerColour.green,
-                state.config.enemyMarkerColour.blue,
-                1.0f);
+            const DWORD nowMs = GetTickCount();
+            if (gTintRelationSampleLogWindowStartMs == 0
+                || (nowMs - gTintRelationSampleLogWindowStartMs) >= 2000)
+            {
+                gTintRelationSampleLogWindowStartMs = nowMs;
+                gTintRelationSampleLogCount = 0;
+            }
+            if (gTintRelationSampleLogCount < 8)
+            {
+                const bool inPlayerSquad = IsCharacterInPlayerSquadSafe(desiredCandidate);
+                const bool enemyToPlayer = IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
+                const bool sameFaction = IsSameFactionAsPlayerSafe(desiredCandidate);
+                std::stringstream ss;
+                ss << "tint relation sample relation=" << desired.markerRelation
+                   << " in_squad=" << (inPlayerSquad ? "true" : "false")
+                   << " enemy=" << (enemyToPlayer ? "true" : "false")
+                   << " same_faction=" << (sameFaction ? "true" : "false")
+                   << " colour_rgba=("
+                   << tintColour.r << ","
+                   << tintColour.g << ","
+                   << tintColour.b << ","
+                   << tintColour.a << ")"
+                   << " handle_type=" << desired.targetHandle.type
+                   << " handle_index=" << desired.targetHandle.index
+                   << " handle_serial=" << desired.targetHandle.serial;
+                vs_log::LogInfo(pluginName, ss.str());
+                ++gTintRelationSampleLogCount;
+            }
         }
-        if (desiredCandidate && IsAnimalCharacterSafe(desiredCandidate))
+        if (gTintDiagnosticsEnabled && desiredCandidate && IsAnimalCharacterSafe(desiredCandidate))
         {
             const DWORD nowMs = GetTickCount();
             if (gTintAnimalSampleLogWindowStartMs == 0
@@ -2087,9 +1897,6 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             {
                 std::stringstream ss;
                 ss << "animal tint sample relation=" << desired.markerRelation
-                   << " forced_enemy=" << (forcedEnemyTint ? "true" : "false")
-                   << " forced_enemy_animal=" << (animalNonSquadForcedEnemy ? "true" : "false")
-                   << " forced_enemy_hostile=" << (hostileNonSquadForcedEnemy ? "true" : "false")
                    << " colour_rgba=("
                    << tintColour.r << ","
                    << tintColour.g << ","
@@ -2107,7 +1914,6 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                 resolvedCharacters,
                 tintColour,
                 state.config.characterTintForceDepthOverride,
-                true,
                 pluginName))
         {
             nextEntries.push_back(desired);

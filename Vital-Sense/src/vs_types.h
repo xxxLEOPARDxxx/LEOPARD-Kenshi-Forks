@@ -55,6 +55,8 @@ struct PluginConfig
     bool showMarkerText;
     bool showBountyGlow;
     bool showBountySymbol;
+    bool debugLogDiagnostics;
+    bool debugLogTextureInfo;
     bool enableCharacterTint;
     bool characterTintIncludeBountyOnly;
     bool characterTintForceDepthOverride;

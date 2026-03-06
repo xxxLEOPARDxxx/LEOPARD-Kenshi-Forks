@@ -71,6 +71,7 @@ struct ProbeDiagCounters
 DWORD gProbeDiagLastLogMs = 0;
 unsigned int gProbeAnimalSamplesLogged = 0;
 ProbeDiagCounters gProbeDiag;
+bool gProbeDiagnosticsEnabled = false;
 
 bool ContainsCaseInsensitiveToken(const char* haystack, const char* needle)
 {
@@ -277,7 +278,7 @@ void MaybeLogAnimalProbeSample(
     const char* reason,
     const std::string& details)
 {
-    if (!pluginName || !speciesInfo.isAnimal)
+    if (!pluginName || !speciesInfo.isAnimal || !gProbeDiagnosticsEnabled)
     {
         return;
     }
@@ -309,6 +310,12 @@ void EmitProbeDiagLogIfDue(const char* pluginName)
 {
     if (!pluginName)
     {
+        return;
+    }
+    if (!gProbeDiagnosticsEnabled)
+    {
+        std::memset(&gProbeDiag, 0, sizeof(gProbeDiag));
+        gProbeAnimalSamplesLogged = 0;
         return;
     }
 
@@ -1117,6 +1124,7 @@ void ProcessMarkerCandidate(
 
 ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName)
 {
+    gProbeDiagnosticsEnabled = state.config.debugLogDiagnostics;
     EmitProbeDiagLogIfDue(pluginName);
 
     const bool anyHighlightVisualEnabled =
