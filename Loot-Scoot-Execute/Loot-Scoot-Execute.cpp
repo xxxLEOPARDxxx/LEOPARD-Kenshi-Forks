@@ -2242,10 +2242,17 @@ static bool TryResolveAnchorFromContextMenuRootWidget(
         return false;
     }
 
-    const int left = rootRect.left;
+    // Anchor to the options list rect (not the root frame) to keep horizontal
+    // alignment stable when menu root sizing/placement varies between targets.
+    int left = optionsRect.left;
     const int top = optionsRect.top;
-    const int right = rootRect.left + rootRect.width;
+    int right = optionsRect.left + optionsRect.width;
     const int bottom = optionsRect.top + optionsRect.height;
+    if (right <= left)
+    {
+        left = rootRect.left;
+        right = rootRect.left + rootRect.width;
+    }
     const int width = right - left;
     const int height = bottom - top;
     if (width <= 0 || height <= 0)
@@ -2298,6 +2305,15 @@ static bool TryResolveAnchorFromContextMenuGuiObject(
             continue;
         }
 
+        MyGUI::IntCoord directRect;
+        if (TryResolveAnchorFromContextMenuRootWidget(
+                reinterpret_cast<MyGUI::Widget*>(guiPtr),
+                &directRect))
+        {
+            *anchorOut = directRect;
+            return true;
+        }
+
         for (size_t offset = 0; offset <= 0x180; offset += sizeof(uintptr_t))
         {
             uintptr_t candidatePtr = 0;
@@ -2307,12 +2323,16 @@ static bool TryResolveAnchorFromContextMenuGuiObject(
                 continue;
             }
 
-            if (TryResolveAnchorFromContextMenuRootWidget(
-                reinterpret_cast<MyGUI::Widget*>(candidatePtr),
-                anchorOut))
+            MyGUI::IntCoord candidateRect;
+            if (!TryResolveAnchorFromContextMenuRootWidget(
+                    reinterpret_cast<MyGUI::Widget*>(candidatePtr),
+                    &candidateRect))
             {
-                return true;
+                continue;
             }
+
+            *anchorOut = candidateRect;
+            return true;
         }
     }
 
