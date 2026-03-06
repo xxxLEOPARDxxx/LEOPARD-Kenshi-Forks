@@ -14,11 +14,6 @@ const char* kModHubSettingExecuteButtonXId = "execute_button_x";
 const char* kModHubSettingExecuteButtonYId = "execute_button_y";
 const char* kModHubActionResetExecuteButtonDefaultsId = "reset_execute_button_defaults";
 
-const uintptr_t kExpectedRvaOptionsInitPlatform1_1_0_65 = 0x003F0120;
-const uintptr_t kExpectedRvaOptionsInitPlatform0_1_0_65 = 0x003EFD40;
-
-typedef void (*FnOptionsWindowInit)(void* self);
-
 struct LootScootExecuteModHubState
 {
     PluginConfig* config;
@@ -28,8 +23,6 @@ LootScootExecuteModHubState g_modHubState = { &g_config };
 emc::ModHubClient g_modHubClient;
 bool g_modHubClientConfigured = false;
 bool g_modHubLoggedRegisterFallback = false;
-FnOptionsWindowInit g_optionsWindowInitOrig = 0;
-bool g_optionsWindowInitHookInstalled = false;
 
 static const char* SafeHubLogValue(const char* value)
 {
@@ -66,6 +59,48 @@ static EMC_Result HubGetIntConfigValue(void* user_data, const int* source, int32
     }
 
     *out_value = static_cast<int32_t>(*source);
+    return EMC_OK;
+}
+
+static EMC_Result HubGetBoolConfigValue(void* user_data, const bool* source, int32_t* out_value)
+{
+    if (!IsHubStateValid(user_data) || source == 0 || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    *out_value = (*source) ? 1 : 0;
+    return EMC_OK;
+}
+
+static EMC_Result HubSetBoolConfigValue(
+    void* user_data,
+    int32_t value,
+    bool* destination,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubStateValid(user_data) || destination == 0)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const bool next_value = value != 0;
+    const bool previous_value = *destination;
+    if (previous_value == next_value)
+    {
+        return EMC_OK;
+    }
+
+    *destination = next_value;
+    if (!SaveConfigState())
+    {
+        *destination = previous_value;
+        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
     return EMC_OK;
 }
 
@@ -110,13 +145,7 @@ static EMC_Result HubSetIntConfigValue(
 
 static EMC_Result __cdecl HubGetEnabled(void* user_data, int32_t* out_value)
 {
-    if (!IsHubStateValid(user_data) || out_value == 0)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    *out_value = g_modHubState.config->enabled ? 1 : 0;
-    return EMC_OK;
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->enabled, out_value);
 }
 
 static EMC_Result __cdecl HubSetEnabled(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
@@ -157,39 +186,17 @@ static EMC_Result __cdecl HubSetEnabled(void* user_data, int32_t value, char* er
 
 static EMC_Result __cdecl HubGetExecuteKillSound(void* user_data, int32_t* out_value)
 {
-    if (!IsHubStateValid(user_data) || out_value == 0)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    *out_value = g_modHubState.config->enableExecuteKillSound ? 1 : 0;
-    return EMC_OK;
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->enableExecuteKillSound, out_value);
 }
 
 static EMC_Result __cdecl HubSetExecuteKillSound(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
-    if (!IsHubStateValid(user_data))
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const bool next_value = value != 0;
-    const bool previous_value = g_modHubState.config->enableExecuteKillSound;
-    if (previous_value == next_value)
-    {
-        return EMC_OK;
-    }
-
-    g_modHubState.config->enableExecuteKillSound = next_value;
-    if (!SaveConfigState())
-    {
-        g_modHubState.config->enableExecuteKillSound = previous_value;
-        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
-        return EMC_ERR_INTERNAL;
-    }
-
-    return EMC_OK;
+    return HubSetBoolConfigValue(
+        user_data,
+        value,
+        &g_modHubState.config->enableExecuteKillSound,
+        err_buf,
+        err_buf_size);
 }
 
 static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out_value)
@@ -450,38 +457,6 @@ static void ModHub_OnPluginStart()
     }
 }
 
-static void ModHub_OnOptionsWindowInit()
-{
-    if (!g_modHubClientConfigured)
-    {
-        return;
-    }
-
-    if (!g_modHubClient.IsAttachRetryPending() || g_modHubClient.HasAttachRetryAttempted())
-    {
-        return;
-    }
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnOptionsWindowInit();
-    if (result == emc::ModHubClient::ATTACH_FAILED)
-    {
-        LogModHubAttachFailure("options_init_retry", g_modHubClient.LastAttemptFailureResult(), "get_api_failed");
-        LogModHubFallback("attach_retry_failed", g_modHubClient.LastAttemptFailureResult());
-    }
-    else if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        if (!g_modHubLoggedRegisterFallback)
-        {
-            g_modHubLoggedRegisterFallback = true;
-            LogModHubFallback("register_mod_or_setting_failed", g_modHubClient.LastAttemptFailureResult());
-        }
-    }
-    else if (result == emc::ModHubClient::INVALID_CONFIGURATION)
-    {
-        LogModHubFallback("invalid_client_configuration", g_modHubClient.LastAttemptFailureResult());
-    }
-}
-
 static bool ModHub_UseHubUi()
 {
     if (!g_modHubClientConfigured)
@@ -510,75 +485,4 @@ static EMC_Result ModHub_LastAttachFailureResult()
     }
 
     return g_modHubClient.LastAttemptFailureResult();
-}
-
-static void OptionsWindowInit_mod_hub_hook(void* self)
-{
-    if (g_optionsWindowInitOrig != 0)
-    {
-        g_optionsWindowInitOrig(self);
-    }
-
-    ModHub_OnOptionsWindowInit();
-}
-
-static bool TryResolveOptionsWindowInitAddress(unsigned int platform, const std::string& version, uintptr_t* out_address)
-{
-    if (out_address == 0)
-    {
-        return false;
-    }
-
-    *out_address = 0;
-
-    const uintptr_t base_addr = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));
-    if (base_addr == 0)
-    {
-        return false;
-    }
-
-    if (version == "1.0.65")
-    {
-        if (platform == 1u)
-        {
-            *out_address = base_addr + kExpectedRvaOptionsInitPlatform1_1_0_65;
-            return true;
-        }
-
-        if (platform == 0u)
-        {
-            *out_address = base_addr + kExpectedRvaOptionsInitPlatform0_1_0_65;
-            return true;
-        }
-    }
-
-    return false;
-}
-
-static bool InstallModHubOptionsWindowInitHook(unsigned int platform, const std::string& version)
-{
-    if (g_optionsWindowInitHookInstalled)
-    {
-        return true;
-    }
-
-    uintptr_t options_init_addr = 0;
-    if (!TryResolveOptionsWindowInitAddress(platform, version, &options_init_addr) || options_init_addr == 0)
-    {
-        ErrorLog("Loot-Scoot-Execute WARN: unsupported runtime for Mod Hub options-init retry hook; startup attach only");
-        return false;
-    }
-
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        reinterpret_cast<void*>(options_init_addr),
-        OptionsWindowInit_mod_hub_hook,
-        &g_optionsWindowInitOrig))
-    {
-        ErrorLog("Loot-Scoot-Execute WARN: could not hook options init; Mod Hub retry-on-options-init disabled");
-        return false;
-    }
-
-    g_optionsWindowInitHookInstalled = true;
-    PluginLog("Loot-Scoot-Execute INFO: Mod Hub options-init hook verification passed");
-    return true;
 }

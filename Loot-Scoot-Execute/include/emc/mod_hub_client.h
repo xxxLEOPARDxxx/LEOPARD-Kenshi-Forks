@@ -69,6 +69,7 @@ public:
 
     ModHubClient();
     explicit ModHubClient(const Config& config);
+    ~ModHubClient();
 
     void SetConfig(const Config& config);
     const Config& GetConfig() const;
@@ -83,6 +84,10 @@ public:
     EMC_Result LastAttemptFailureResult() const;
 
 private:
+    void RegisterOptionsWindowInitObserverIfAvailable(const EMC_HubApiV1* api, uint32_t api_size);
+    void UnregisterOptionsWindowInitObserverIfNeeded();
+    static void __cdecl OnOptionsWindowInitObserverThunk(void* user_data);
+
     AttemptResult AttemptAttachAndRegister(bool is_retry);
 
     Config config_;
@@ -90,6 +95,8 @@ private:
     bool attach_retry_pending_;
     bool attach_retry_attempted_;
     EMC_Result last_attempt_failure_result_;
+    const EMC_HubApiV1* observer_api_;
+    bool options_window_init_observer_registered_;
 };
 }
 

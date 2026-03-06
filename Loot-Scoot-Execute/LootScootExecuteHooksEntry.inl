@@ -343,7 +343,6 @@ __declspec(dllexport) void startPlugin()
     g_contextMenuHookInstallVerified = contextMenuShowHookInstalled && contextMenuUpdateHookInstalled;
     RefreshEffectiveContextMenuFeatureFlags("post_context_menu_hooks");
 
-    (void)InstallModHubOptionsWindowInitHook(platform, version);
     ModHub_OnPluginStart();
 
     std::stringstream info;

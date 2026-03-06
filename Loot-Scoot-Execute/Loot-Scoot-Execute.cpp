@@ -364,7 +364,6 @@ static void ArmCustomExecutePanelOverlay(
     DWORD nowMs);
 static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs);
 static void TickDebugExecuteHotkey(PlayerInterface* thisptr);
-static bool InstallModHubOptionsWindowInitHook(unsigned int platform, const std::string& version);
 static void ModHub_OnPluginStart();
 static bool ModHub_UseHubUi();
 static bool ModHub_IsAttachRetryPending();
