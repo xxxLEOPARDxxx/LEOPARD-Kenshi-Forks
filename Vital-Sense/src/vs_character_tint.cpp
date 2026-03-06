@@ -84,7 +84,17 @@ struct AppearanceMaterialOffsetCacheEntry
     std::vector<int> materialOffsets;
 };
 
+struct AnimalTintMaterialCloneEntry
+{
+    hand targetHandle;
+    std::vector<Ogre::MaterialPtr> originalMaterials;
+    std::vector<Ogre::MaterialPtr> cloneMaterials;
+};
+
 std::vector<AppearanceMaterialOffsetCacheEntry> gAppearanceMaterialOffsetCache;
+std::vector<AnimalTintMaterialCloneEntry> gAnimalTintMaterialCloneEntries;
+unsigned int gAnimalTintMaterialCloneSerial = 0;
+bool gAnimalTintCloneFallbackWarned = false;
 
 void EmitTintDiagLogIfDue(const char* pluginName)
 {
@@ -481,6 +491,88 @@ bool ApplyTintConstantsToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour,
     return appliedAnyConstant;
 }
 
+bool ApplyTintConstantsToPassColourRequired(
+    Ogre::Pass* pass,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!pass)
+    {
+        return false;
+    }
+
+    bool appliedColourConstant = false;
+    if (pass->hasFragmentProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
+            if (!fragmentParams.isNull())
+            {
+                const char* colourParamNames[] = {
+                    kColorOverrideParam,
+                    kColourOverrideParam,
+                    kColorOverrideParamCamel,
+                    kColourOverrideParamCamel
+                };
+
+                for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
+                {
+                    bool setOk = false;
+                    try
+                    {
+                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
+                        setOk = true;
+                    }
+                    catch (...)
+                    {
+                        setOk = false;
+                    }
+                    if (setOk)
+                    {
+                        appliedColourConstant = true;
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    // Depth override remains best-effort and does not define tint-apply success.
+    if (pass->hasVertexProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
+            if (!vertexParams.isNull())
+            {
+                const char* depthParamNames[] = {
+                    kDepthOverrideParam,
+                    kOverrideDepthLowerParam
+                };
+
+                for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
+                {
+                    try
+                    {
+                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    return appliedColourConstant;
+}
+
 bool MaterialHasTintConstants(Ogre::Material* material)
 {
     if (!material)
@@ -742,6 +834,111 @@ bool ApplyTintToMaterialPrimaryPassLikeExample(
     return applied;
 }
 
+bool ApplyTintToMaterialPrimaryPassLikeExampleColourRequired(
+    const Ogre::MaterialPtr& material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (material.isNull())
+    {
+        return false;
+    }
+
+    try
+    {
+        Ogre::Technique* technique = material->getTechnique(0);
+        if (!technique)
+        {
+            return false;
+        }
+
+        Ogre::Pass* pass = technique->getPass(0);
+        if (!pass)
+        {
+            return false;
+        }
+
+        return ApplyTintConstantsToPassColourRequired(pass, colour, depthOverride);
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool ApplyTintToMaterialColourRequired(
+    Ogre::Material* material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!material)
+    {
+        return false;
+    }
+
+    bool appliedAnyColourConstant = false;
+    unsigned short techniqueCount = 0;
+    try
+    {
+        techniqueCount = material->getNumTechniques();
+    }
+    catch (...)
+    {
+        return false;
+    }
+    if (techniqueCount == 0)
+    {
+        return false;
+    }
+
+    for (unsigned short techniqueIndex = 0; techniqueIndex < techniqueCount; ++techniqueIndex)
+    {
+        Ogre::Technique* technique = 0;
+        try
+        {
+            technique = material->getTechnique(techniqueIndex);
+        }
+        catch (...)
+        {
+            technique = 0;
+        }
+        if (!technique)
+        {
+            continue;
+        }
+
+        unsigned short passCount = 0;
+        try
+        {
+            passCount = technique->getNumPasses();
+        }
+        catch (...)
+        {
+            passCount = 0;
+        }
+
+        for (unsigned short passIndex = 0; passIndex < passCount; ++passIndex)
+        {
+            Ogre::Pass* pass = 0;
+            try
+            {
+                pass = technique->getPass(passIndex);
+            }
+            catch (...)
+            {
+                pass = 0;
+            }
+
+            if (ApplyTintConstantsToPassColourRequired(pass, colour, depthOverride))
+            {
+                appliedAnyColourConstant = true;
+            }
+        }
+    }
+
+    return appliedAnyColourConstant;
+}
+
 bool ApplyTintToMaterialFieldLikeExample(
     Ogre::MaterialPtr* materialField,
     const Ogre::ColourValue& colour,
@@ -771,6 +968,252 @@ bool ApplyTintToMaterialFieldLikeExample(
     }
 
     return applied;
+}
+
+bool MaterialPtrsReferSameObject(const Ogre::MaterialPtr& a, const Ogre::MaterialPtr& b)
+{
+    if (a.isNull() || b.isNull())
+    {
+        return false;
+    }
+
+    bool sameObject = false;
+    __try
+    {
+        sameObject = (a.getPointer() == b.getPointer());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        sameObject = false;
+    }
+    return sameObject;
+}
+
+int FindAnimalTintCloneEntryByHandle(const hand& targetHandle)
+{
+    for (size_t i = 0; i < gAnimalTintMaterialCloneEntries.size(); ++i)
+    {
+        if (HandlesEqualByKey(gAnimalTintMaterialCloneEntries[i].targetHandle, targetHandle))
+        {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+std::string BuildAnimalTintCloneName(const hand& targetHandle, size_t subEntityIndex)
+{
+    std::stringstream ss;
+    ss << "VitalSenseAnimalTint_"
+       << targetHandle.type << "_"
+       << targetHandle.index << "_"
+       << targetHandle.serial << "_"
+       << subEntityIndex << "_"
+       << gAnimalTintMaterialCloneSerial++;
+    return ss.str();
+}
+
+bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::Entity* characterEntity)
+{
+    const int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
+    if (entryIndex < 0)
+    {
+        return false;
+    }
+
+    AnimalTintMaterialCloneEntry entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
+    gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
+
+    if (!characterEntity)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    const size_t restoreCount =
+        (subEntityCount < entry.originalMaterials.size()) ? subEntityCount : entry.originalMaterials.size();
+    bool restoredAny = false;
+    for (size_t i = 0; i < restoreCount; ++i)
+    {
+        if (entry.originalMaterials[i].isNull())
+        {
+            continue;
+        }
+
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        bool setOk = false;
+        try
+        {
+            subEntity->setMaterial(entry.originalMaterials[i]);
+            setOk = true;
+        }
+        catch (...)
+        {
+            setOk = false;
+        }
+        if (setOk)
+        {
+            restoredAny = true;
+        }
+    }
+
+    return restoredAny;
+}
+
+bool ApplyTintToEntityUsingAnimalMaterialClones(
+    const hand& targetHandle,
+    Ogre::Entity* characterEntity,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!characterEntity)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
+    if (entryIndex < 0)
+    {
+        AnimalTintMaterialCloneEntry created;
+        created.targetHandle = targetHandle;
+        created.originalMaterials.reserve(subEntityCount);
+        created.cloneMaterials.reserve(subEntityCount);
+        gAnimalTintMaterialCloneEntries.push_back(created);
+        entryIndex = static_cast<int>(gAnimalTintMaterialCloneEntries.size() - 1);
+    }
+
+    AnimalTintMaterialCloneEntry& entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
+    if (entry.originalMaterials.size() != subEntityCount || entry.cloneMaterials.size() != subEntityCount)
+    {
+        entry.originalMaterials.clear();
+        entry.cloneMaterials.clear();
+        entry.originalMaterials.resize(subEntityCount);
+        entry.cloneMaterials.resize(subEntityCount);
+    }
+
+    bool appliedAny = false;
+    for (size_t i = 0; i < subEntityCount; ++i)
+    {
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr currentMaterial;
+        try
+        {
+            currentMaterial = subEntity->getMaterial();
+        }
+        catch (...)
+        {
+            continue;
+        }
+        if (currentMaterial.isNull())
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr& cloneMaterial = entry.cloneMaterials[i];
+        const bool currentIsClone =
+            (!cloneMaterial.isNull() && MaterialPtrsReferSameObject(currentMaterial, cloneMaterial));
+        if (!currentIsClone)
+        {
+            entry.originalMaterials[i] = currentMaterial;
+            cloneMaterial.setNull();
+        }
+        if (entry.originalMaterials[i].isNull())
+        {
+            entry.originalMaterials[i] = currentMaterial;
+        }
+
+        if (cloneMaterial.isNull())
+        {
+            try
+            {
+                cloneMaterial = entry.originalMaterials[i]->clone(
+                    BuildAnimalTintCloneName(targetHandle, i));
+            }
+            catch (...)
+            {
+                cloneMaterial.setNull();
+            }
+        }
+        if (cloneMaterial.isNull())
+        {
+            continue;
+        }
+
+        bool appliedTint = ApplyTintToMaterialPrimaryPassLikeExampleColourRequired(
+            cloneMaterial,
+            colour,
+            depthOverride);
+        if (!appliedTint)
+        {
+            appliedTint = ApplyTintToMaterialColourRequired(cloneMaterial.getPointer(), colour, depthOverride);
+        }
+        if (!appliedTint)
+        {
+            continue;
+        }
+
+        bool setOk = false;
+        try
+        {
+            subEntity->setMaterial(cloneMaterial);
+            setOk = true;
+        }
+        catch (...)
+        {
+            setOk = false;
+        }
+        if (setOk)
+        {
+            appliedAny = true;
+        }
+    }
+
+    return appliedAny;
 }
 
 
@@ -1550,12 +1993,46 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     }
 
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
+    const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
+    hand targetHandle;
+    const bool hasTargetHandle = TryReadCharacterHandleSafe(candidate, &targetHandle);
     const bool wantsBodyHighlight = colour.a > 0.0f;
     if (!wantsBodyHighlight)
     {
+        bool restoredAnimalClone = false;
+        if (isAnimalCharacter && hasTargetHandle)
+        {
+            restoredAnimalClone = RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
+        }
         SetEntitySkeletonVisible(characterEntity, false);
-        return ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
+        const bool clearedByConstants =
+            ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
             || ApplyTintToEntity(characterEntity, colour, depthOverride);
+        return restoredAnimalClone || clearedByConstants;
+    }
+
+    if (isAnimalCharacter && hasTargetHandle)
+    {
+        if (ApplyTintToEntityUsingAnimalMaterialClones(
+                targetHandle,
+                characterEntity,
+                colour,
+                depthOverride))
+        {
+            SetEntitySkeletonVisible(characterEntity, false);
+            ++gTintDiagAppliedEntityMaterial;
+            return true;
+        }
+
+        if (!gAnimalTintCloneFallbackWarned)
+        {
+            vs_log::LogWarn(
+                pluginName,
+                "animal tint clone path failed; skipping shared-material fallback to avoid cross-animal tint bleed");
+            gAnimalTintCloneFallbackWarned = true;
+        }
+
+        return false;
     }
 
     if (ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName))
@@ -1745,13 +2222,16 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
     gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
 
-    if (state.characterTintEntries.empty())
+    if (state.characterTintEntries.empty() && gAnimalTintMaterialCloneEntries.empty())
     {
         return;
     }
 
     std::vector<ResolvedCharacter> resolvedCharacters;
     CollectResolvedCharacters(resolvedCharacters);
+
+    std::vector<CharacterTintEntry> unclearedEntries;
+    unclearedEntries.reserve(state.characterTintEntries.size());
 
     for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
     {
@@ -1764,9 +2244,14 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         {
             ++gTintDiagCleared;
         }
+        else
+        {
+            // Keep unresolved entries so clear can be retried when the entity becomes resolvable.
+            unclearedEntries.push_back(state.characterTintEntries[i]);
+        }
     }
 
-    state.characterTintEntries.clear();
+    state.characterTintEntries.swap(unclearedEntries);
     EmitTintDiagLogIfDue(pluginName);
 }
 
@@ -1797,7 +2282,8 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 
     std::vector<ResolvedCharacter> resolvedCharacters;
     if (!desiredEntries.empty()
-        || !state.characterTintEntries.empty())
+        || !state.characterTintEntries.empty()
+        || !gAnimalTintMaterialCloneEntries.empty())
     {
         CollectResolvedCharacters(resolvedCharacters);
     }
@@ -1821,8 +2307,8 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                 < ResolveTintApplyPriority(b.markerRelation);
         });
 
-    std::vector<CharacterTintEntry> unchangedEntries;
-    unchangedEntries.reserve(state.characterTintEntries.size());
+    std::vector<CharacterTintEntry> retainedEntries;
+    retainedEntries.reserve(state.characterTintEntries.size());
     for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
     {
         const CharacterTintEntry& oldEntry = state.characterTintEntries[i];
@@ -1831,7 +2317,7 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             && (desiredEntries[static_cast<size_t>(desiredIndex)].markerRelation == oldEntry.markerRelation);
         if (keepCurrentTint)
         {
-            unchangedEntries.push_back(oldEntry);
+            retainedEntries.push_back(oldEntry);
             continue;
         }
 
@@ -1839,14 +2325,24 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         {
             ++gTintDiagCleared;
         }
+        else
+        {
+            // Keep unresolved handles to retry clear instead of dropping stale tint state.
+            CharacterTintEntry retained = oldEntry;
+            if (desiredIndex >= 0)
+            {
+                retained.markerRelation = desiredEntries[static_cast<size_t>(desiredIndex)].markerRelation;
+            }
+            retainedEntries.push_back(retained);
+        }
     }
 
-    std::vector<CharacterTintEntry> nextEntries = unchangedEntries;
+    std::vector<CharacterTintEntry> nextEntries = retainedEntries;
     nextEntries.reserve(desiredEntries.size());
     for (size_t i = 0; i < desiredEntries.size(); ++i)
     {
         const CharacterTintEntry& desired = desiredEntries[i];
-        if (TintEntriesContainExact(unchangedEntries, desired.targetHandle, desired.markerRelation))
+        if (FindTintEntryByHandle(retainedEntries, desired.targetHandle) >= 0)
         {
             continue;
         }
