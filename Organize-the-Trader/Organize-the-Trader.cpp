@@ -99,6 +99,8 @@ std::size_t g_selectedCategoryIndex = 0;
 std::size_t g_selectedSortIndex = 0;
 std::string g_searchQueryRaw;
 std::string g_searchQueryNormalized;
+std::string g_activeTraderTargetId;
+bool g_focusSearchEditOnNextInjection = false;
 bool g_loggedMissingBackpackForSearch = false;
 bool g_loggedMissingSearchableItemText = false;
 std::string g_lastZeroMatchQueryLogged;
@@ -9640,6 +9642,90 @@ void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary)
     ApplySearchFilterToTraderParent(traderParent, forceShowAll, logSummary);
 }
 
+std::string BuildTraderTargetIdentity(MyGUI::Widget* anchor, MyGUI::Widget* parent)
+{
+    MyGUI::Widget* identityWidget = parent != 0 ? parent : anchor;
+
+    Character* captionTrader = 0;
+    int captionScore = 0;
+    if (identityWidget != 0
+        && TryResolveCaptionMatchedTraderCharacter(identityWidget, &captionTrader, &captionScore)
+        && captionTrader != 0
+        && captionScore > 0)
+    {
+        return std::string("caption_trader:") + NormalizeSearchText(CharacterNameForLog(captionTrader));
+    }
+
+    MyGUI::Window* owningWindow = FindOwningWindow(identityWidget);
+    const std::string normalizedCaption =
+        owningWindow == 0 ? std::string() : NormalizeSearchText(owningWindow->getCaption().asUTF8());
+    if (!normalizedCaption.empty())
+    {
+        Character* dialogueTarget = 0;
+        Character* dialogueSpeaker = 0;
+        std::string dialogueReason;
+        if (TryResolvePreferredDialogueTraderTarget(&dialogueTarget, &dialogueSpeaker, &dialogueReason)
+            && dialogueTarget != 0)
+        {
+            const int dialogueCaptionScore = ComputeCaptionNameMatchBias(
+                normalizedCaption,
+                NormalizeSearchText(CharacterNameForLog(dialogueTarget)));
+            if (dialogueCaptionScore > 0)
+            {
+                return std::string("dialogue_trader:")
+                    + NormalizeSearchText(CharacterNameForLog(dialogueTarget));
+            }
+        }
+
+        return std::string("caption:") + normalizedCaption;
+    }
+
+    return std::string("widget:") + NormalizeSearchText(SafeWidgetName(identityWidget));
+}
+
+void ResetSearchQueryForTraderSwitch(const char* reason)
+{
+    const bool hadQuery = !g_searchQueryRaw.empty() || !g_searchQueryNormalized.empty();
+
+    g_searchQueryRaw.clear();
+    g_searchQueryNormalized.clear();
+    g_loggedNumericOnlyQueryIgnored = false;
+    g_lastSearchSampleQueryLogged.clear();
+    g_lastZeroMatchQueryLogged.clear();
+
+    if (hadQuery)
+    {
+        std::stringstream line;
+        line << "search query reset"
+             << " reason=" << (reason == 0 ? "<unknown>" : reason);
+        LogInfoLine(line.str());
+    }
+}
+
+void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
+{
+    if (!g_focusSearchEditOnNextInjection || searchEdit == 0)
+    {
+        return;
+    }
+
+    g_focusSearchEditOnNextInjection = false;
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input == 0)
+    {
+        LogWarnLine("search autofocus skipped: MyGUI InputManager unavailable");
+        return;
+    }
+
+    input->setKeyFocusWidget(searchEdit);
+
+    std::stringstream line;
+    line << "search edit focused"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason);
+    LogInfoLine(line.str());
+}
+
 void DestroyControlsIfPresent()
 {
     MyGUI::Widget* controlsContainer = FindControlsContainer();
@@ -9940,6 +10026,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     }
     searchEdit->setOnlyText(g_searchQueryRaw);
     searchEdit->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
+    FocusSearchEditIfRequested(searchEdit, "controls_built");
 
     const int row2Y = outerPadding + rowHeight + rowGap;
     const int row3Y = row2Y + rowHeight + rowGap;
@@ -10089,6 +10176,14 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
         LogWarnLine(line.str());
         return false;
     }
+
+    const std::string nextTraderTargetId = BuildTraderTargetIdentity(anchor, parent);
+    if (!nextTraderTargetId.empty() && !g_activeTraderTargetId.empty() && nextTraderTargetId != g_activeTraderTargetId)
+    {
+        ResetSearchQueryForTraderSwitch("target_changed");
+    }
+    g_activeTraderTargetId = nextTraderTargetId;
+    g_focusSearchEditOnNextInjection = true;
 
     MyGUI::Widget* controlsParent = parent;
     int topOverride = -1;
