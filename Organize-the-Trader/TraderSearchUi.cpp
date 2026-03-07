@@ -1,6 +1,9 @@
 #include "TraderSearchUi.h"
 
 #include "TraderCore.h"
+#include "TraderDiagnostics.h"
+#include "TraderInventoryBinding.h"
+#include "TraderSearchPipeline.h"
 #include "TraderSearchText.h"
 #include "TraderWindowDetection.h"
 
@@ -36,11 +39,27 @@ const char* kSearchCountTextName = "OTT_SearchCountText";
 
 #define g_searchQueryRaw (TraderState().search.g_searchQueryRaw)
 #define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
+#define g_loggedNumericOnlyQueryIgnored (TraderState().search.g_loggedNumericOnlyQueryIgnored)
+#define g_activeTraderTargetId (TraderState().search.g_activeTraderTargetId)
+#define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
+#define g_lastSearchSampleQueryLogged (TraderState().search.g_lastSearchSampleQueryLogged)
 #define g_lastSearchVisibleEntryCount (TraderState().search.g_lastSearchVisibleEntryCount)
 #define g_lastSearchTotalEntryCount (TraderState().search.g_lastSearchTotalEntryCount)
 
+#define g_controlsEnabled (TraderState().core.g_controlsEnabled)
+
+#define g_loggedNoVisibleTraderTarget (TraderState().windowDetection.g_loggedNoVisibleTraderTarget)
+
+#define g_searchFilterDirty (TraderState().search.g_searchFilterDirty)
+
 #define g_prevSearchSlashHotkeyDown (TraderState().searchUi.g_prevSearchSlashHotkeyDown)
+#define g_prevToggleHotkeyDown (TraderState().searchUi.g_prevToggleHotkeyDown)
+#define g_prevDiagnosticsHotkeyDown (TraderState().searchUi.g_prevDiagnosticsHotkeyDown)
 #define g_prevSearchCtrlFHotkeyDown (TraderState().searchUi.g_prevSearchCtrlFHotkeyDown)
+#define g_controlsWereInjected (TraderState().searchUi.g_controlsWereInjected)
+#define g_suppressNextSearchEditChangeEvent (TraderState().searchUi.g_suppressNextSearchEditChangeEvent)
+#define g_pendingSlashFocusBaseQuery (TraderState().search.g_pendingSlashFocusBaseQuery)
+#define g_pendingSlashFocusTextSuppression (TraderState().searchUi.g_pendingSlashFocusTextSuppression)
 #define g_focusSearchEditOnNextInjection (TraderState().searchUi.g_focusSearchEditOnNextInjection)
 #define g_searchContainerDragging (TraderState().searchUi.g_searchContainerDragging)
 #define g_searchContainerPositionCustomized (TraderState().searchUi.g_searchContainerPositionCustomized)
@@ -48,6 +67,9 @@ const char* kSearchCountTextName = "OTT_SearchCountText";
 #define g_searchContainerDragLastMouseY (TraderState().searchUi.g_searchContainerDragLastMouseY)
 #define g_searchContainerStoredLeft (TraderState().searchUi.g_searchContainerStoredLeft)
 #define g_searchContainerStoredTop (TraderState().searchUi.g_searchContainerStoredTop)
+
+#define g_cachedHoveredWidgetInventory (TraderState().binding.g_cachedHoveredWidgetInventory)
+#define g_cachedHoveredWidgetInventorySignature (TraderState().binding.g_cachedHoveredWidgetInventorySignature)
 
 bool ShouldShowAnySearchCountMetric()
 {
@@ -911,4 +933,518 @@ SearchFocusHotkeyKind DetectSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchE
     }
 
     return SearchFocusHotkeyKind_None;
+}
+
+void ResetSearchQueryForTraderSwitch(const char* reason)
+{
+    const bool hadQuery = !g_searchQueryRaw.empty() || !g_searchQueryNormalized.empty();
+
+    g_searchQueryRaw.clear();
+    g_searchQueryNormalized.clear();
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+    g_suppressNextSearchEditChangeEvent = false;
+    g_loggedNumericOnlyQueryIgnored = false;
+    g_lastSearchSampleQueryLogged.clear();
+    g_lastZeroMatchQueryLogged.clear();
+    ResetObservedTraderEntriesState();
+
+    if (hadQuery)
+    {
+        std::stringstream line;
+        line << "search query reset"
+             << " reason=" << (reason == 0 ? "<unknown>" : reason);
+        LogDebugLine(line.str());
+    }
+}
+
+bool TryStripSingleSlashShortcutInsertion(
+    const std::string& currentText,
+    const std::string& baseText,
+    std::string* outRestoredText)
+{
+    if (outRestoredText == 0 || currentText.size() != baseText.size() + 1)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < currentText.size(); ++index)
+    {
+        if (currentText[index] != '/')
+        {
+            continue;
+        }
+
+        const std::string restored =
+            currentText.substr(0, index) + currentText.substr(index + 1);
+        if (restored == baseText)
+        {
+            *outRestoredText = restored;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void SetSearchQueryAndRefresh(
+    MyGUI::EditBox* searchEdit,
+    const std::string& rawText,
+    const char* reason,
+    bool focusAfterSet)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    g_searchQueryRaw = rawText;
+    g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
+    g_loggedNumericOnlyQueryIgnored = false;
+    g_lastSearchSampleQueryLogged.clear();
+    g_lastZeroMatchQueryLogged.clear();
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+
+    const std::string currentOnlyText = searchEdit->getOnlyText().asUTF8();
+    if (currentOnlyText != rawText)
+    {
+        g_suppressNextSearchEditChangeEvent = true;
+        searchEdit->setOnlyText(rawText);
+    }
+
+    if (focusAfterSet)
+    {
+        FocusSearchEdit(searchEdit, reason);
+    }
+
+    std::stringstream line;
+    line << "search ui action"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
+         << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
+    LogSearchDebugLine(line.str());
+
+    MarkSearchFilterDirty(reason);
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    UpdateSearchUiState();
+}
+
+void OnSearchClearButtonClicked(MyGUI::Widget*)
+{
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    SetSearchQueryAndRefresh(searchEdit, "", "clear_button", true);
+}
+
+void OnSearchPlaceholderClicked(MyGUI::Widget*)
+{
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    FocusSearchEdit(searchEdit, "placeholder_click");
+}
+
+void OnSearchEditKeyFocusChanged(MyGUI::Widget*, MyGUI::Widget*)
+{
+    UpdateSearchUiState();
+}
+
+void OnSearchTextChanged(MyGUI::EditBox* sender)
+{
+    if (sender == 0)
+    {
+        return;
+    }
+
+    const std::string captionText = sender->getCaption().asUTF8();
+    const std::string onlyText = sender->getOnlyText().asUTF8();
+    if (g_suppressNextSearchEditChangeEvent && onlyText == g_searchQueryRaw)
+    {
+        g_suppressNextSearchEditChangeEvent = false;
+        return;
+    }
+    g_suppressNextSearchEditChangeEvent = false;
+
+    if (g_pendingSlashFocusTextSuppression)
+    {
+        std::string restoredText;
+        if (TryStripSingleSlashShortcutInsertion(
+                onlyText,
+                g_pendingSlashFocusBaseQuery,
+                &restoredText))
+        {
+            g_pendingSlashFocusTextSuppression = false;
+            g_suppressNextSearchEditChangeEvent = true;
+            sender->setOnlyText(restoredText);
+            return;
+        }
+
+        g_pendingSlashFocusTextSuppression = false;
+    }
+
+    g_searchQueryRaw = onlyText;
+    g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
+    g_loggedNumericOnlyQueryIgnored = false;
+
+    std::stringstream line;
+    line << "search input changed"
+         << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
+         << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\""
+         << " raw_len=" << g_searchQueryRaw.size()
+         << " caption_len=" << captionText.size()
+         << " only_len=" << onlyText.size();
+    LogSearchDebugLine(line.str());
+
+    MarkSearchFilterDirty("text_changed");
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    UpdateSearchUiState();
+}
+
+void DestroyControlsIfPresent()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        g_searchContainerDragging = false;
+        g_controlsWereInjected = false;
+        g_searchFilterDirty = false;
+        ResetObservedTraderEntriesState();
+        g_pendingSlashFocusBaseQuery.clear();
+        g_pendingSlashFocusTextSuppression = false;
+        g_suppressNextSearchEditChangeEvent = false;
+        g_cachedHoveredWidgetInventory = 0;
+        g_cachedHoveredWidgetInventorySignature.clear();
+        ClearLockedKeysetSource();
+        return;
+    }
+
+    const MyGUI::IntCoord coord = controlsContainer->getCoord();
+    g_searchContainerStoredLeft = coord.left;
+    g_searchContainerStoredTop = coord.top;
+    g_searchContainerPositionCustomized = true;
+    g_searchContainerDragging = false;
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui != 0)
+    {
+        gui->destroyWidget(controlsContainer);
+        LogDebugLine("controls container destroyed");
+    }
+
+    g_controlsWereInjected = false;
+    g_searchFilterDirty = false;
+    ResetObservedTraderEntriesState();
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+    g_suppressNextSearchEditChangeEvent = false;
+    g_cachedHoveredWidgetInventory = 0;
+    g_cachedHoveredWidgetInventorySignature.clear();
+    ClearLockedKeysetSource();
+    ClearInventoryGuiInventoryLinks();
+    ClearTraderPanelInventoryBindings();
+}
+
+bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, const char* sourceTag)
+{
+    if (anchor == 0 || parent == 0)
+    {
+        LogErrorLine("could not resolve anchor/parent widget for controls injection");
+        return false;
+    }
+
+    std::string candidateReason;
+    const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
+    const bool acceptedTarget = (sourceTag != 0 && std::string(sourceTag) == "hover-direct")
+        || candidateScore > 0;
+
+    if (!acceptedTarget)
+    {
+        std::stringstream line;
+        line << "rejecting injection target reason=not_likely_trader_window"
+             << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
+             << " anchor=" << SafeWidgetName(anchor)
+             << " parent=" << SafeWidgetName(parent)
+             << " candidate_score=" << candidateScore
+             << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
+             << " has_trader_structure=" << (HasTraderStructure(parent) ? "true" : "false");
+        if (ShouldLogDebug())
+        {
+            LogWarnLine(line.str());
+        }
+        return false;
+    }
+
+    const std::string nextTraderTargetId = BuildTraderTargetIdentity(anchor, parent);
+    if (!nextTraderTargetId.empty() && !g_activeTraderTargetId.empty() && nextTraderTargetId != g_activeTraderTargetId)
+    {
+        ResetSearchQueryForTraderSwitch("target_changed");
+    }
+    g_activeTraderTargetId = nextTraderTargetId;
+    g_focusSearchEditOnNextInjection = true;
+
+    MyGUI::Widget* controlsParent = parent;
+    int topOverride = -1;
+
+    MyGUI::Window* owningWindow = FindOwningWindow(parent);
+    if (owningWindow != 0 && parent != owningWindow)
+    {
+        controlsParent = owningWindow;
+        topOverride = 12;
+    }
+
+    DestroyControlsIfPresent();
+    SearchUiCallbacks callbacks;
+    callbacks.onSearchTextChanged = &OnSearchTextChanged;
+    callbacks.onSearchEditFocusChanged = &OnSearchEditKeyFocusChanged;
+    callbacks.onSearchPlaceholderClicked = &OnSearchPlaceholderClicked;
+    callbacks.onSearchClearButtonClicked = &OnSearchClearButtonClicked;
+    if (!BuildControlsScaffold(controlsParent, topOverride, callbacks))
+    {
+        LogErrorLine("failed to build phase 2 controls scaffold");
+        return false;
+    }
+
+    g_controlsWereInjected = true;
+    MarkSearchFilterDirty("controls_injected");
+    if (ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug()))
+    {
+        g_searchFilterDirty = false;
+    }
+
+    std::stringstream line;
+    line << "controls scaffold injected"
+         << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
+         << " anchor=" << SafeWidgetName(anchor)
+         << " parent=" << SafeWidgetName(parent);
+    LogDebugLine(line.str());
+    return true;
+}
+
+bool TryInjectControlsToHoveredWindowDirect()
+{
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        LogWarnLine("manual attach failed: MyGUI InputManager unavailable");
+        return false;
+    }
+
+    MyGUI::Widget* hovered = inputManager->getMouseFocusWidget();
+    if (hovered == 0)
+    {
+        LogWarnLine("manual attach failed: no mouse-focused widget; hover target window and press hotkey again");
+        return false;
+    }
+
+    MyGUI::Widget* anchor = FindBestWindowAnchor(hovered);
+    MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+    if (anchor == 0 || parent == 0)
+    {
+        std::stringstream line;
+        line << "manual attach failed: anchor/parent unresolved hovered_chain=" << BuildParentChainForLog(hovered);
+        LogWarnLine(line.str());
+        return false;
+    }
+
+    std::stringstream line;
+    line << "manual attach using hovered window"
+         << " anchor=" << SafeWidgetName(anchor)
+         << " parent=" << SafeWidgetName(parent)
+         << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
+         << parent->getCoord().width << "," << parent->getCoord().height << ")"
+         << " hovered_chain=" << BuildParentChainForLog(hovered);
+    LogDebugLine(line.str());
+
+    if (ShouldLogDebug())
+    {
+        DumpHoveredAttachDiagnostics(hovered, anchor, parent);
+    }
+
+    return TryInjectControlsToTarget(anchor, parent, "hover-direct");
+}
+
+void EnsureControlsInjectedIfEnabled()
+{
+    if (!g_controlsEnabled)
+    {
+        return;
+    }
+
+    if (FindControlsContainer() != 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* anchor = 0;
+    MyGUI::Widget* parent = 0;
+    if (!TryResolveVisibleTraderTarget(&anchor, &parent))
+    {
+        if (TryResolveHoveredTarget(&anchor, &parent, false))
+        {
+            g_loggedNoVisibleTraderTarget = false;
+            if (!TryInjectControlsToTarget(anchor, parent, "hover-auto"))
+            {
+                LogWarnLine("hover auto controls scaffold injection failed");
+            }
+            return;
+        }
+
+        if (!g_loggedNoVisibleTraderTarget)
+        {
+            if (ShouldLogDebug())
+            {
+                LogDebugLine("controls enabled but no visible trader target found yet");
+                DumpTraderTargetProbe();
+                DumpVisibleWindowCandidateDiagnostics();
+            }
+            g_loggedNoVisibleTraderTarget = true;
+        }
+        return;
+    }
+    g_loggedNoVisibleTraderTarget = false;
+    if (!TryInjectControlsToTarget(anchor, parent, "auto"))
+    {
+        LogWarnLine("auto controls scaffold injection failed");
+    }
+}
+
+bool IsToggleHotkeyPressedEdge()
+{
+    if (key == 0 || key->keyboard == 0)
+    {
+        g_prevToggleHotkeyDown = false;
+        return false;
+    }
+
+    const bool ctrlDown = key->keyboard->isKeyDown(OIS::KC_LCONTROL)
+        || key->keyboard->isKeyDown(OIS::KC_RCONTROL);
+    const bool shiftDown = key->keyboard->isKeyDown(OIS::KC_LSHIFT)
+        || key->keyboard->isKeyDown(OIS::KC_RSHIFT);
+    const bool f8Down = key->keyboard->isKeyDown(OIS::KC_F8);
+
+    const bool chordDown = ctrlDown && shiftDown && f8Down;
+    const bool pressedEdge = chordDown && !g_prevToggleHotkeyDown;
+    g_prevToggleHotkeyDown = chordDown;
+    return pressedEdge;
+}
+
+bool IsDiagnosticsHotkeyPressedEdge()
+{
+    if (key == 0 || key->keyboard == 0)
+    {
+        g_prevDiagnosticsHotkeyDown = false;
+        return false;
+    }
+
+    const bool ctrlDown = key->keyboard->isKeyDown(OIS::KC_LCONTROL)
+        || key->keyboard->isKeyDown(OIS::KC_RCONTROL);
+    const bool shiftDown = key->keyboard->isKeyDown(OIS::KC_LSHIFT)
+        || key->keyboard->isKeyDown(OIS::KC_RSHIFT);
+    const bool f9Down = key->keyboard->isKeyDown(OIS::KC_F9);
+
+    const bool chordDown = ctrlDown && shiftDown && f9Down;
+    const bool pressedEdge = chordDown && !g_prevDiagnosticsHotkeyDown;
+    g_prevDiagnosticsHotkeyDown = chordDown;
+    return pressedEdge;
+}
+
+void TickPhase2ControlsScaffold()
+{
+    TickSearchContainerDrag();
+
+    if (IsDiagnosticsHotkeyPressedEdge())
+    {
+        DumpOnDemandTraderDiagnosticsSnapshot();
+    }
+
+    if (IsToggleHotkeyPressedEdge())
+    {
+        if (g_controlsEnabled)
+        {
+            ApplySearchFilterFromControls(true, false);
+            g_controlsEnabled = false;
+            DestroyControlsIfPresent();
+            g_loggedNoVisibleTraderTarget = false;
+            LogDebugLine("controls toggled OFF");
+            return;
+        }
+
+        g_controlsEnabled = true;
+        LogDebugLine("controls toggled ON");
+
+        g_loggedNoVisibleTraderTarget = false;
+        EnsureControlsInjectedIfEnabled();
+        if (FindControlsContainer() == 0)
+        {
+            if (!TryInjectControlsToHoveredWindowDirect())
+            {
+                LogWarnLine("manual attach did not inject controls");
+            }
+        }
+    }
+
+    if (!g_controlsEnabled)
+    {
+        return;
+    }
+
+    EnsureControlsInjectedIfEnabled();
+    bool handledSearchShortcut = false;
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit != 0)
+    {
+        const SearchFocusHotkeyKind hotkeyKind =
+            DetectSearchFocusHotkeyPressedEdge(searchEdit);
+        if (hotkeyKind != SearchFocusHotkeyKind_None)
+        {
+            if (hotkeyKind == SearchFocusHotkeyKind_Slash)
+            {
+                g_pendingSlashFocusBaseQuery = g_searchQueryRaw;
+                g_pendingSlashFocusTextSuppression = true;
+            }
+            else
+            {
+                g_pendingSlashFocusBaseQuery.clear();
+                g_pendingSlashFocusTextSuppression = false;
+            }
+            FocusSearchEdit(searchEdit, "focus_hotkey");
+            handledSearchShortcut = true;
+        }
+    }
+    else
+    {
+        g_prevSearchSlashHotkeyDown = false;
+        g_prevSearchCtrlFHotkeyDown = false;
+        g_pendingSlashFocusBaseQuery.clear();
+        g_pendingSlashFocusTextSuppression = false;
+    }
+
+    if (FindControlsContainer() != 0)
+    {
+        ObserveTraderEntriesStateForRefresh();
+    }
+
+    if (FindControlsContainer() != 0 && !handledSearchShortcut && g_searchFilterDirty)
+    {
+        ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    }
+
+    if (g_controlsWereInjected && FindControlsContainer() == 0)
+    {
+        g_controlsWereInjected = false;
+        g_cachedHoveredWidgetInventory = 0;
+        g_cachedHoveredWidgetInventorySignature.clear();
+        ClearLockedKeysetSource();
+        ClearInventoryGuiInventoryLinks();
+        ClearTraderPanelInventoryBindings();
+        LogDebugLine("controls container no longer present (window likely closed/destroyed); hover target window and press Ctrl+Shift+F8 to attach again");
+    }
 }

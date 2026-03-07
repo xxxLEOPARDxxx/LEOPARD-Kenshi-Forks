@@ -21,6 +21,9 @@
     <ClCompile Include="TraderCore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderDiagnostics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TraderInventoryBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -48,6 +51,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TraderCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderDiagnostics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderInventoryBinding.h">

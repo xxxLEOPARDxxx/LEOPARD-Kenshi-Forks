@@ -54,3 +54,4 @@ bool BuildControlsScaffold(
     int topOverride,
     const SearchUiCallbacks& callbacks);
 SearchFocusHotkeyKind DetectSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit);
+void TickPhase2ControlsScaffold();

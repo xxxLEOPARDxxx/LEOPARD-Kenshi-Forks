@@ -89,6 +89,7 @@
   <ItemGroup>
     <ClCompile Include="Organize-the-Trader.cpp" />
     <ClCompile Include="TraderCore.cpp" />
+    <ClCompile Include="TraderDiagnostics.cpp" />
     <ClCompile Include="TraderInventoryBinding.cpp" />
     <ClCompile Include="TraderInventoryKeyset.cpp" />
     <ClCompile Include="TraderInventoryResolver.cpp" />
@@ -100,6 +101,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TraderCore.h" />
+    <ClInclude Include="TraderDiagnostics.h" />
     <ClInclude Include="TraderInventoryBinding.h" />
     <ClInclude Include="TraderSearchPipeline.h" />
     <ClInclude Include="TraderSearchUi.h" />
