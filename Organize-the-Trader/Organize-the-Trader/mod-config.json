@@ -2,6 +2,9 @@
   "enabled": true,
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
+  "debugLogging": false,
+  "debugSearchLogging": false,
+  "debugBindingLogging": false,
   "searchInputWidth": 372,
   "searchInputHeight": 26
 }

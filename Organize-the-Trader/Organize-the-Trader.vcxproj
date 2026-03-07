@@ -58,7 +58,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;OTT_ENABLE_VERBOSE_DIAGNOSTICS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ForcedIncludeFiles>$(KENSHILIB_DIR)\Include\kenshi\util\OgreUnordered.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
     </ClCompile>
@@ -93,5 +93,4 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-
 

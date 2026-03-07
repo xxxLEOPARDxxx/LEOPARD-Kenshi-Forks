@@ -42,6 +42,9 @@ After deploy, expected files:
 - `enabled` (bool): master plugin toggle.
 - `showSearchEntryCount` (bool): show visible/total item entries in the search bar.
 - `showSearchQuantityCount` (bool): show visible stack quantity in the search bar.
+- `debugLogging` (bool): master runtime debug switch for support diagnostics.
+- `debugSearchLogging` (bool): enables search-path diagnostics when `debugLogging` is enabled.
+- `debugBindingLogging` (bool): enables inventory-binding diagnostics when `debugLogging` is enabled.
 - `searchInputWidth` (int): desired search input width in pixels, clamped at runtime.
 - `searchInputHeight` (int): desired search input height in pixels, clamped at runtime.
 
@@ -52,6 +55,9 @@ Default:
   "enabled": true,
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
+  "debugLogging": false,
+  "debugSearchLogging": false,
+  "debugBindingLogging": false,
   "searchInputWidth": 372,
   "searchInputHeight": 26
 }

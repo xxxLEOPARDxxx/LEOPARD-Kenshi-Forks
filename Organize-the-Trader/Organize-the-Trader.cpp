@@ -107,6 +107,9 @@ bool g_controlsWereInjected = false;
 bool g_controlsEnabled = true;
 bool g_showSearchEntryCount = true;
 bool g_showSearchQuantityCount = true;
+bool g_debugLogging = false;
+bool g_debugSearchLogging = false;
+bool g_debugBindingLogging = false;
 int g_searchInputConfiguredWidth = 372;
 int g_searchInputConfiguredHeight = 26;
 bool g_suppressNextSearchEditChangeEvent = false;
@@ -285,6 +288,64 @@ void LogErrorLine(const std::string& message)
     ErrorLog(line.str().c_str());
 }
 
+bool ShouldCompileVerboseDiagnostics()
+{
+#if defined(OTT_ENABLE_VERBOSE_DIAGNOSTICS)
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool ShouldLogDebug()
+{
+    return g_debugLogging;
+}
+
+bool ShouldLogSearchDebug()
+{
+    return g_debugLogging && g_debugSearchLogging;
+}
+
+bool ShouldLogBindingDebug()
+{
+    return g_debugLogging && g_debugBindingLogging;
+}
+
+bool ShouldLogVerboseSearchDiagnostics()
+{
+    return ShouldCompileVerboseDiagnostics() && ShouldLogSearchDebug();
+}
+
+bool ShouldLogVerboseBindingDiagnostics()
+{
+    return ShouldCompileVerboseDiagnostics() && ShouldLogBindingDebug();
+}
+
+void LogDebugLine(const std::string& message)
+{
+    if (ShouldLogDebug())
+    {
+        LogInfoLine(message);
+    }
+}
+
+void LogSearchDebugLine(const std::string& message)
+{
+    if (ShouldLogSearchDebug())
+    {
+        LogInfoLine(message);
+    }
+}
+
+void LogBindingDebugLine(const std::string& message)
+{
+    if (ShouldLogBindingDebug())
+    {
+        LogInfoLine(message);
+    }
+}
+
 std::string GetCurrentPluginDirectoryPath()
 {
     HMODULE module = 0;
@@ -460,6 +521,9 @@ void LoadModConfig()
     g_controlsEnabled = true;
     g_showSearchEntryCount = true;
     g_showSearchQuantityCount = true;
+    g_debugLogging = false;
+    g_debugSearchLogging = false;
+    g_debugBindingLogging = false;
     g_searchInputConfiguredWidth = 372;
     g_searchInputConfiguredHeight = 26;
 
@@ -494,6 +558,18 @@ void LoadModConfig()
     {
         g_showSearchQuantityCount = parsedValue;
     }
+    if (TryParseJsonBoolByKey(configText, "debugLogging", &parsedValue))
+    {
+        g_debugLogging = parsedValue;
+    }
+    if (TryParseJsonBoolByKey(configText, "debugSearchLogging", &parsedValue))
+    {
+        g_debugSearchLogging = parsedValue;
+    }
+    if (TryParseJsonBoolByKey(configText, "debugBindingLogging", &parsedValue))
+    {
+        g_debugBindingLogging = parsedValue;
+    }
 
     int parsedIntValue = 0;
     if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
@@ -510,8 +586,12 @@ void LoadModConfig()
          << " enabled=" << (g_controlsEnabled ? "true" : "false")
          << " showSearchEntryCount=" << (g_showSearchEntryCount ? "true" : "false")
          << " showSearchQuantityCount=" << (g_showSearchQuantityCount ? "true" : "false")
+         << " debugLogging=" << (g_debugLogging ? "true" : "false")
+         << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
+         << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
          << " searchInputWidth=" << g_searchInputConfiguredWidth
-         << " searchInputHeight=" << g_searchInputConfiguredHeight;
+         << " searchInputHeight=" << g_searchInputConfiguredHeight
+         << " verboseDiagnosticsCompiled=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
     LogInfoLine(line.str());
 }
 
@@ -1833,7 +1913,7 @@ bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** ou
          << " caption=\"" << (window == 0 ? "" : TruncateForLog(window->getCaption().asUTF8(), 60)) << "\""
          << " candidate_score=" << bestScore
          << " candidate_reason=\"" << TruncateForLog(bestReason, 160) << "\"";
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
     return true;
 }
 
@@ -3153,6 +3233,11 @@ void LogPanelBindingProbeOnce(
     const std::string& status,
     const TraderPanelInventoryBinding* binding)
 {
+    if (!ShouldLogBindingDebug())
+    {
+        return;
+    }
+
     if (traderParent == 0 || entriesRoot == 0 || expectedEntryCount == 0)
     {
         return;
@@ -4860,7 +4945,7 @@ void RegisterInventoryGuiInventoryLink(InventoryGUI* inventoryGui, Inventory* in
                  << " inv_gui=" << inventoryGui
                  << " owner=" << ownerName
                  << " inv_items=" << itemCount;
-            LogInfoLine(line.str());
+            LogBindingDebugLine(line.str());
             g_lastInventoryGuiBindingSignature = signature.str();
         }
         return;
@@ -4884,7 +4969,7 @@ void RegisterInventoryGuiInventoryLink(InventoryGUI* inventoryGui, Inventory* in
              << " inv_gui=" << inventoryGui
              << " owner=" << ownerName
              << " inv_items=" << itemCount;
-        LogInfoLine(line.str());
+        LogBindingDebugLine(line.str());
         g_lastInventoryGuiBindingSignature = signature.str();
     }
 }
@@ -5092,7 +5177,10 @@ void LearnInventoryGuiBackPointerOffsets()
                  << " tracked_links=" << g_inventoryGuiInventoryLinks.size()
                  << " validated_links=" << validatedLinks
                  << " scan_limit=0x" << std::hex << std::uppercase << kMaxScanOffset << std::dec;
-            LogWarnLine(line.str());
+            if (ShouldLogBindingDebug())
+            {
+                LogWarnLine(line.str());
+            }
             g_lastInventoryGuiBackPointerLearningSignature = signature.str();
         }
         return;
@@ -5145,7 +5233,7 @@ void LearnInventoryGuiBackPointerOffsets()
         line << " tracked_links=" << g_inventoryGuiInventoryLinks.size()
              << " validated_links=" << validatedLinks
              << " scan_limit=0x" << std::hex << std::uppercase << kMaxScanOffset << std::dec;
-        LogInfoLine(line.str());
+        LogBindingDebugLine(line.str());
         g_lastInventoryGuiBackPointerLearningSignature = signature.str();
     }
 }
@@ -5253,7 +5341,10 @@ bool TryResolveInventoryFromInventoryGuiBackPointerOffsets(
         line << "inventory gui back-pointer unresolved"
              << " inv_gui=" << inventoryGui
              << " learned_offsets=" << g_inventoryGuiBackPointerOffsets.size();
-        LogWarnLine(line.str());
+        if (ShouldLogBindingDebug())
+        {
+            LogWarnLine(line.str());
+        }
         g_lastInventoryGuiBackPointerResolutionFailureSignature = signature.str();
     }
 
@@ -6330,7 +6421,7 @@ bool TryResolveTraderInventoryNameKeysFromInventoryGuiMap(
                  << " offset=0x" << std::hex << std::uppercase << resolvedOffset << std::dec
                  << " gui_exact=" << (guiExactMatch ? "true" : "false")
                  << " items=" << itemCount;
-            LogInfoLine(line.str());
+            LogBindingDebugLine(line.str());
             g_lastInventoryGuiBackPointerResolutionSignature = resolutionSignature.str();
         }
     }
@@ -7337,6 +7428,11 @@ bool TryResolveTraderQuantityNameKeysFromCaption(
 
 void LogInventoryBindingDiagnostics(std::size_t expectedEntryCount)
 {
+    if (!ShouldLogBindingDebug())
+    {
+        return;
+    }
+
     if (ou == 0 || ou->player == 0)
     {
         LogWarnLine("inventory binding diagnostics: GameWorld/player unavailable");
@@ -9115,6 +9211,17 @@ bool SearchTextMatchesQuery(const std::string& searchableTextNormalized, const s
 
 void LogSearchSampleForQuery(MyGUI::Widget* entriesRoot, const std::string& normalizedQuery, std::size_t maxItems)
 {
+#if !defined(OTT_ENABLE_VERBOSE_DIAGNOSTICS)
+    (void)entriesRoot;
+    (void)normalizedQuery;
+    (void)maxItems;
+    return;
+#else
+    if (!ShouldLogSearchDebug())
+    {
+        return;
+    }
+
     if (entriesRoot == 0 || maxItems == 0)
     {
         return;
@@ -9159,6 +9266,7 @@ void LogSearchSampleForQuery(MyGUI::Widget* entriesRoot, const std::string& norm
     }
 
     LogInfoLine("search debug sample end");
+#endif
 }
 
 MyGUI::Widget* ResolveTraderParentFromControlsContainer()
@@ -9322,7 +9430,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         &uiQuantities,
         &panelBinding,
         &panelBindingStatus);
-    if (expectedEntryCount > 0)
+    if (ShouldLogBindingDebug() && expectedEntryCount > 0)
     {
         LogPanelBindingProbeOnce(
             traderParent,
@@ -9358,11 +9466,14 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                  << " reason=" << panelBindingStatus
                  << " expected_entries=" << expectedEntryCount
                  << " parent=" << SafeWidgetName(traderParent);
-            LogWarnLine(line.str());
+            if (ShouldLogBindingDebug())
+            {
+                LogWarnLine(line.str());
+            }
             g_lastPanelBindingRefusedSignature = signature.str();
         }
 
-        if (!g_loggedInventoryBindingDiagnostics)
+        if (ShouldLogBindingDebug() && !g_loggedInventoryBindingDiagnostics)
         {
             LogInventoryBindingDiagnostics(expectedEntryCount);
             g_loggedInventoryBindingDiagnostics = true;
@@ -9374,7 +9485,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
         g_loggedInventoryBindingFailure = true;
 
-        if (logSummary)
+        if (logSummary && ShouldLogSearchDebug())
         {
             std::stringstream line;
             line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
@@ -9463,18 +9574,21 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                  << " non_empty_keys=" << panelBindingNonEmptyKeyCount
                  << " expected_entries=" << expectedEntryCount
                  << " source=\"" << TruncateForLog(inventorySource, 160) << "\"";
-            LogWarnLine(line.str());
+            if (ShouldLogBindingDebug())
+            {
+                LogWarnLine(line.str());
+            }
             g_lastPanelBindingRefusedSignature = signature.str();
         }
 
-        if (!g_loggedInventoryBindingDiagnostics)
+        if (ShouldLogBindingDebug() && !g_loggedInventoryBindingDiagnostics)
         {
             LogInventoryBindingDiagnostics(expectedEntryCount);
             g_loggedInventoryBindingDiagnostics = true;
         }
         g_loggedInventoryBindingFailure = true;
 
-        if (logSummary)
+        if (logSummary && ShouldLogSearchDebug())
         {
             std::stringstream line;
             line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
@@ -9503,7 +9617,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         g_loggedInventoryBindingFailure = false;
     }
-    if (!hasInventoryNameKeys && !query.empty() && !g_loggedInventoryBindingDiagnostics)
+    if (!hasInventoryNameKeys && !query.empty() && ShouldLogBindingDebug() && !g_loggedInventoryBindingDiagnostics)
     {
         LogInventoryBindingDiagnostics(expectedEntryCount);
         g_loggedInventoryBindingDiagnostics = true;
@@ -9876,7 +9990,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         g_lastPanelBindingRefusedSignature.clear();
     }
 
-    if (logSummary)
+    if (logSummary && ShouldLogSearchDebug())
     {
         std::stringstream line;
         line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
@@ -9920,7 +10034,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
 
     if (!query.empty() && !hasAnySearchableText && g_lastZeroMatchQueryLogged != query)
     {
-        if (hasInventoryNameKeys)
+        if (ShouldLogVerboseSearchDiagnostics() && hasInventoryNameKeys)
         {
             std::stringstream previewLine;
             previewLine << "search zero-match key preview query=\"" << query << "\" "
@@ -9932,7 +10046,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     }
     if (!query.empty() && visibleCount == 0 && g_lastZeroMatchQueryLogged != query)
     {
-        if (hasInventoryNameKeys)
+        if (ShouldLogVerboseSearchDiagnostics() && hasInventoryNameKeys)
         {
             std::stringstream previewLine;
             previewLine << "search zero-match key preview query=\"" << query << "\" "
@@ -10017,7 +10131,7 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
         std::stringstream line;
         line << "search query reset"
              << " reason=" << (reason == 0 ? "<unknown>" : reason);
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
     }
 }
 
@@ -10040,7 +10154,7 @@ void FocusSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
     std::stringstream line;
     line << "search edit focused"
          << " reason=" << (reason == 0 ? "<unknown>" : reason);
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 
 void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
@@ -10391,7 +10505,7 @@ void FinalizeSearchContainerDrag(const char* source)
     line << "search container drag finalized"
          << " source=" << (source == 0 ? "<unknown>" : source)
          << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 
 void OnSearchDragHandleMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
@@ -10499,7 +10613,7 @@ void DestroyControlsIfPresent()
     if (gui != 0)
     {
         gui->destroyWidget(controlsContainer);
-        LogInfoLine("controls container destroyed");
+        LogDebugLine("controls container destroyed");
     }
     g_controlsWereInjected = false;
     g_pendingSlashFocusBaseQuery.clear();
@@ -10523,7 +10637,7 @@ void OnControlsAnchorCoordChanged(MyGUI::Widget* sender)
     std::stringstream line;
     line << "anchor moved/resized name=" << SafeWidgetName(sender)
          << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 
 int RelativeBottomInParent(MyGUI::Widget* parent, MyGUI::Widget* child)
@@ -10574,11 +10688,11 @@ int ResolveControlsTop(MyGUI::Widget* parent)
         std::stringstream line;
         line << "controls top resolved from widget=" << moneyWidgetPriority[index]
              << " top=" << top;
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
         return top;
     }
 
-    LogInfoLine("controls top fallback to default (no money widget found)");
+    LogDebugLine("controls top fallback to default (no money widget found)");
     return defaultTop;
 }
 
@@ -10647,9 +10761,9 @@ void SetSearchQueryAndRefresh(
          << " reason=" << (reason == 0 ? "<unknown>" : reason)
          << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
          << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
-    LogInfoLine(line.str());
+    LogSearchDebugLine(line.str());
 
-    ApplySearchFilterFromControls(false, true);
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
 }
 
@@ -10724,9 +10838,9 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
          << " raw_len=" << g_searchQueryRaw.size()
          << " caption_len=" << captionText.size()
          << " only_len=" << onlyText.size();
-    LogInfoLine(line.str());
+    LogSearchDebugLine(line.str());
 
-    ApplySearchFilterFromControls(false, true);
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
 }
 
@@ -10794,6 +10908,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     }
     containerCoord = ClampSearchContainerCoord(parent, containerCoord);
 
+    if (ShouldLogDebug())
     {
         const MyGUI::IntCoord parentCoord = parent->getCoord();
         std::stringstream line;
@@ -10805,7 +10920,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
              << containerCoord.width << "," << containerCoord.height << ")"
              << " customized_position=" << (g_searchContainerPositionCustomized ? "true" : "false")
              << " search_only=true";
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
     }
 
     MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
@@ -10950,7 +11065,10 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
              << " candidate_score=" << candidateScore
              << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
              << " has_trader_structure=" << (HasTraderStructure(parent) ? "true" : "false");
-        LogWarnLine(line.str());
+        if (ShouldLogDebug())
+        {
+            LogWarnLine(line.str());
+        }
         return false;
     }
 
@@ -10980,14 +11098,14 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     }
 
     g_controlsWereInjected = true;
-    ApplySearchFilterToTraderParent(parent, false, true);
+    ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug());
 
     std::stringstream line;
     line << "controls scaffold injected"
          << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
          << " anchor=" << SafeWidgetName(anchor)
          << " parent=" << SafeWidgetName(parent);
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
     return true;
 }
 
@@ -11024,9 +11142,12 @@ bool TryInjectControlsToHoveredWindowDirect()
          << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
          << parent->getCoord().width << "," << parent->getCoord().height << ")"
          << " hovered_chain=" << BuildParentChainForLog(hovered);
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 
-    DumpHoveredAttachDiagnostics(hovered, anchor, parent);
+    if (ShouldLogDebug())
+    {
+        DumpHoveredAttachDiagnostics(hovered, anchor, parent);
+    }
 
     return TryInjectControlsToTarget(anchor, parent, "hover-direct");
 }
@@ -11061,9 +11182,12 @@ void EnsureControlsInjectedIfEnabled()
 
         if (!g_loggedNoVisibleTraderTarget)
         {
-            LogInfoLine("controls enabled but no visible trader target found yet");
-            DumpTraderTargetProbe();
-            DumpVisibleWindowCandidateDiagnostics();
+            if (ShouldLogDebug())
+            {
+                LogDebugLine("controls enabled but no visible trader target found yet");
+                DumpTraderTargetProbe();
+                DumpVisibleWindowCandidateDiagnostics();
+            }
             g_loggedNoVisibleTraderTarget = true;
         }
         return;
@@ -11255,6 +11379,12 @@ void LogRecentRefreshedInventorySummary(std::size_t expectedEntryCount)
 
 void DumpOnDemandTraderDiagnosticsSnapshot()
 {
+    if (!ShouldLogBindingDebug())
+    {
+        LogWarnLine("manual diagnostics snapshot skipped: debugBindingLogging=false");
+        return;
+    }
+
     MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
     if (traderParent == 0)
     {
@@ -11428,12 +11558,12 @@ void TickPhase2ControlsScaffold()
             DestroyControlsIfPresent();
             g_loggedNoVisibleTraderTarget = false;
             g_loggedRejectedTraderCandidate = false;
-            LogInfoLine("controls toggled OFF");
+            LogDebugLine("controls toggled OFF");
             return;
         }
 
         g_controlsEnabled = true;
-        LogInfoLine("controls toggled ON");
+        LogDebugLine("controls toggled ON");
 
         g_loggedNoVisibleTraderTarget = false;
         g_loggedRejectedTraderCandidate = false;
@@ -11497,7 +11627,7 @@ void TickPhase2ControlsScaffold()
         ClearLockedKeysetSource();
         ClearInventoryGuiInventoryLinks();
         ClearTraderPanelInventoryBindings();
-        LogInfoLine("controls container no longer present (window likely closed/destroyed); hover target window and press Ctrl+Shift+F8 to attach again");
+        LogDebugLine("controls container no longer present (window likely closed/destroyed); hover target window and press Ctrl+Shift+F8 to attach again");
     }
 }
 
@@ -11518,7 +11648,7 @@ void InventoryLayoutCreateGUI_hook(
     }
 
     ++g_inventoryLayoutCreateGUIHookCallCount;
-    if (g_inventoryLayoutCreateGUIHookCallCount <= 8)
+    if (ShouldLogBindingDebug() && g_inventoryLayoutCreateGUIHookCallCount <= 8)
     {
         RootObject* owner = inv->getOwner();
         if (owner == 0)
@@ -11618,7 +11748,7 @@ void InventoryLayoutCreateGUI_hook(
              << " inv_items=" << InventoryItemCountForLog(inv)
              << " sections=" << boundSections
              << " preview=\"" << TruncateForLog(sectionPreview.str(), 220) << "\"";
-        LogInfoLine(line.str());
+        LogBindingDebugLine(line.str());
         g_lastSectionWidgetBindingSignature = signature.str();
     }
 }
@@ -11821,6 +11951,11 @@ void LogInventoryLayoutReturnDiagnostics(
     RootObject* owner,
     InventoryLayout* layout)
 {
+    if (!ShouldLogVerboseBindingDiagnostics())
+    {
+        return;
+    }
+
     if (layout == 0 || sourceTag == 0)
     {
         return;
