@@ -56,6 +56,8 @@ public:
     Ogre::vector<InventoryIcon*>::type _icons;
 };
 
+#include "TraderCore.h"
+
 namespace
 {
 enum SearchFocusHotkeyKind
@@ -65,7 +67,6 @@ enum SearchFocusHotkeyKind
     SearchFocusHotkeyKind_CtrlF,
 };
 
-const char* kPluginName = "Organize-the-Trader";
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
 const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
@@ -75,158 +76,92 @@ const char* kSearchCountTextName = "OTT_SearchCountText";
 const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
 const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 
-typedef void (*PlayerInterfaceUpdateUTFn)(PlayerInterface*);
-PlayerInterfaceUpdateUTFn g_updateUTOrig = 0;
-typedef void (*InventoryRefreshGuiFn)(Inventory*);
-InventoryRefreshGuiFn g_inventoryRefreshGuiOrig = 0;
-typedef InventoryLayout* (*CharacterCreateInventoryLayoutFn)(Character*);
-CharacterCreateInventoryLayoutFn g_characterCreateInventoryLayoutOrig = 0;
-typedef InventoryLayout* (*RootObjectCreateInventoryLayoutFn)(RootObject*);
-RootObjectCreateInventoryLayoutFn g_rootObjectCreateInventoryLayoutOrig = 0;
-typedef void (*InventoryLayoutCreateGUIFn)(
-    void*,
-    InventoryGUI*,
-    Ogre::map<std::string, InventorySectionGUI*>::type&,
-    Inventory*);
-InventoryLayoutCreateGUIFn g_inventoryLayoutCreateGUIOrig = 0;
-bool g_inventoryLayoutCreateGUIHookInstalled = false;
-bool g_inventoryLayoutCreateGUIHookAttempted = false;
-std::uintptr_t g_expectedInventoryLayoutCreateGUIAddress = 0;
-bool g_inventoryLayoutCreateGUIEarlyAttempted = false;
-std::size_t g_inventoryLayoutCreateGUIHookCallCount = 0;
-std::size_t g_inventoryLayoutCreateInventoryLayoutLogCount = 0;
-std::string g_lastInventoryLayoutReturnSignature;
+#define g_updateUTOrig (TraderState().hook.g_updateUTOrig)
+#define g_inventoryRefreshGuiOrig (TraderState().hook.g_inventoryRefreshGuiOrig)
+#define g_characterCreateInventoryLayoutOrig (TraderState().hook.g_characterCreateInventoryLayoutOrig)
+#define g_rootObjectCreateInventoryLayoutOrig (TraderState().hook.g_rootObjectCreateInventoryLayoutOrig)
+#define g_inventoryLayoutCreateGUIOrig (TraderState().hook.g_inventoryLayoutCreateGUIOrig)
+#define g_inventoryLayoutCreateGUIHookInstalled (TraderState().hook.g_inventoryLayoutCreateGUIHookInstalled)
+#define g_inventoryLayoutCreateGUIHookAttempted (TraderState().hook.g_inventoryLayoutCreateGUIHookAttempted)
+#define g_expectedInventoryLayoutCreateGUIAddress (TraderState().hook.g_expectedInventoryLayoutCreateGUIAddress)
+#define g_inventoryLayoutCreateGUIEarlyAttempted (TraderState().hook.g_inventoryLayoutCreateGUIEarlyAttempted)
+#define g_inventoryLayoutCreateGUIHookCallCount (TraderState().hook.g_inventoryLayoutCreateGUIHookCallCount)
+#define g_inventoryLayoutCreateInventoryLayoutLogCount (TraderState().hook.g_inventoryLayoutCreateInventoryLayoutLogCount)
+#define g_lastInventoryLayoutReturnSignature (TraderState().hook.g_lastInventoryLayoutReturnSignature)
 
-unsigned long long g_updateTickCounter = 0;
+#define g_updateTickCounter (TraderState().core.g_updateTickCounter)
+#define g_controlsEnabled (TraderState().core.g_controlsEnabled)
+#define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
+#define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
+#define g_debugLogging (TraderState().core.g_debugLogging)
+#define g_debugSearchLogging (TraderState().core.g_debugSearchLogging)
+#define g_debugBindingLogging (TraderState().core.g_debugBindingLogging)
+#define g_searchInputConfiguredWidth (TraderState().core.g_searchInputConfiguredWidth)
+#define g_searchInputConfiguredHeight (TraderState().core.g_searchInputConfiguredHeight)
 
-bool g_prevToggleHotkeyDown = false;
-bool g_prevDiagnosticsHotkeyDown = false;
-bool g_prevSearchSlashHotkeyDown = false;
-bool g_prevSearchCtrlFHotkeyDown = false;
-bool g_controlsWereInjected = false;
-bool g_searchFilterDirty = false;
-bool g_controlsEnabled = true;
-bool g_showSearchEntryCount = true;
-bool g_showSearchQuantityCount = true;
-bool g_debugLogging = false;
-bool g_debugSearchLogging = false;
-bool g_debugBindingLogging = false;
-int g_searchInputConfiguredWidth = 372;
-int g_searchInputConfiguredHeight = 26;
-bool g_suppressNextSearchEditChangeEvent = false;
-bool g_pendingSlashFocusTextSuppression = false;
-bool g_loggedNoVisibleTraderTarget = false;
-bool g_loggedRejectedTraderCandidate = false;
-std::string g_searchQueryRaw;
-std::string g_searchQueryNormalized;
-std::string g_pendingSlashFocusBaseQuery;
-std::string g_activeTraderTargetId;
-bool g_focusSearchEditOnNextInjection = false;
-bool g_searchContainerDragging = false;
-bool g_searchContainerPositionCustomized = false;
-int g_searchContainerDragLastMouseX = 0;
-int g_searchContainerDragLastMouseY = 0;
-int g_searchContainerStoredLeft = 0;
-int g_searchContainerStoredTop = 0;
-bool g_loggedMissingBackpackForSearch = false;
-bool g_loggedMissingSearchableItemText = false;
-std::string g_lastZeroMatchQueryLogged;
-bool g_loggedNumericOnlyQueryIgnored = false;
-bool g_loggedInventoryBindingFailure = false;
-bool g_loggedInventoryBindingDiagnostics = false;
-bool g_loggedWidgetInventoryCandidatesMissing = false;
-std::string g_lastInventoryKeysetSelectionSignature;
-std::string g_lastInventoryKeysetLowCoverageSignature;
-std::string g_lastBackpackResolutionSignature;
-std::string g_lastObservedTraderEntriesStateSignature;
-std::string g_lastZeroMatchGuardSignature;
-std::string g_lastCoverageFallbackDecisionSignature;
-std::string g_lastSearchSampleQueryLogged;
-Inventory* g_cachedHoveredWidgetInventory = 0;
-std::string g_cachedHoveredWidgetInventorySignature;
-std::string g_lastSectionWidgetBindingSignature;
-MyGUI::Widget* g_lockedKeysetTraderParent = 0;
-std::string g_lockedKeysetStage;
-std::string g_lockedKeysetSourceId;
-std::string g_lockedKeysetSourcePreview;
-std::size_t g_lockedKeysetExpectedCount = 0;
-std::string g_lastKeysetLockSignature;
-std::size_t g_lastSearchVisibleEntryCount = 0;
-std::size_t g_lastSearchTotalEntryCount = 0;
-std::size_t g_lastSearchVisibleQuantity = 0;
+#define g_loggedNoVisibleTraderTarget (TraderState().windowDetection.g_loggedNoVisibleTraderTarget)
+#define g_loggedRejectedTraderCandidate (TraderState().windowDetection.g_loggedRejectedTraderCandidate)
 
-struct SectionWidgetInventoryLink
-{
-    MyGUI::Widget* sectionWidget;
-    Inventory* inventory;
-    std::string sectionName;
-    std::string widgetName;
-    std::size_t itemCount;
-    unsigned long long lastSeenTick;
-};
+#define g_searchFilterDirty (TraderState().search.g_searchFilterDirty)
+#define g_loggedMissingBackpackForSearch (TraderState().search.g_loggedMissingBackpackForSearch)
+#define g_loggedMissingSearchableItemText (TraderState().search.g_loggedMissingSearchableItemText)
+#define g_loggedNumericOnlyQueryIgnored (TraderState().search.g_loggedNumericOnlyQueryIgnored)
+#define g_searchQueryRaw (TraderState().search.g_searchQueryRaw)
+#define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
+#define g_pendingSlashFocusBaseQuery (TraderState().search.g_pendingSlashFocusBaseQuery)
+#define g_activeTraderTargetId (TraderState().search.g_activeTraderTargetId)
+#define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
+#define g_lastInventoryKeysetSelectionSignature (TraderState().search.g_lastInventoryKeysetSelectionSignature)
+#define g_lastInventoryKeysetLowCoverageSignature (TraderState().search.g_lastInventoryKeysetLowCoverageSignature)
+#define g_lastBackpackResolutionSignature (TraderState().search.g_lastBackpackResolutionSignature)
+#define g_lastObservedTraderEntriesStateSignature (TraderState().search.g_lastObservedTraderEntriesStateSignature)
+#define g_lastZeroMatchGuardSignature (TraderState().search.g_lastZeroMatchGuardSignature)
+#define g_lastCoverageFallbackDecisionSignature (TraderState().search.g_lastCoverageFallbackDecisionSignature)
+#define g_lastSearchSampleQueryLogged (TraderState().search.g_lastSearchSampleQueryLogged)
+#define g_lockedKeysetTraderParent (TraderState().search.g_lockedKeysetTraderParent)
+#define g_lockedKeysetStage (TraderState().search.g_lockedKeysetStage)
+#define g_lockedKeysetSourceId (TraderState().search.g_lockedKeysetSourceId)
+#define g_lockedKeysetSourcePreview (TraderState().search.g_lockedKeysetSourcePreview)
+#define g_lockedKeysetExpectedCount (TraderState().search.g_lockedKeysetExpectedCount)
+#define g_lastKeysetLockSignature (TraderState().search.g_lastKeysetLockSignature)
+#define g_lastSearchVisibleEntryCount (TraderState().search.g_lastSearchVisibleEntryCount)
+#define g_lastSearchTotalEntryCount (TraderState().search.g_lastSearchTotalEntryCount)
+#define g_lastSearchVisibleQuantity (TraderState().search.g_lastSearchVisibleQuantity)
 
-std::vector<SectionWidgetInventoryLink> g_sectionWidgetInventoryLinks;
-std::string g_lastInventoryGuiBindingSignature;
+#define g_prevToggleHotkeyDown (TraderState().searchUi.g_prevToggleHotkeyDown)
+#define g_prevDiagnosticsHotkeyDown (TraderState().searchUi.g_prevDiagnosticsHotkeyDown)
+#define g_prevSearchSlashHotkeyDown (TraderState().searchUi.g_prevSearchSlashHotkeyDown)
+#define g_prevSearchCtrlFHotkeyDown (TraderState().searchUi.g_prevSearchCtrlFHotkeyDown)
+#define g_controlsWereInjected (TraderState().searchUi.g_controlsWereInjected)
+#define g_suppressNextSearchEditChangeEvent (TraderState().searchUi.g_suppressNextSearchEditChangeEvent)
+#define g_pendingSlashFocusTextSuppression (TraderState().searchUi.g_pendingSlashFocusTextSuppression)
+#define g_focusSearchEditOnNextInjection (TraderState().searchUi.g_focusSearchEditOnNextInjection)
+#define g_searchContainerDragging (TraderState().searchUi.g_searchContainerDragging)
+#define g_searchContainerPositionCustomized (TraderState().searchUi.g_searchContainerPositionCustomized)
+#define g_searchContainerDragLastMouseX (TraderState().searchUi.g_searchContainerDragLastMouseX)
+#define g_searchContainerDragLastMouseY (TraderState().searchUi.g_searchContainerDragLastMouseY)
+#define g_searchContainerStoredLeft (TraderState().searchUi.g_searchContainerStoredLeft)
+#define g_searchContainerStoredTop (TraderState().searchUi.g_searchContainerStoredTop)
 
-struct InventoryGuiInventoryLink
-{
-    InventoryGUI* inventoryGui;
-    Inventory* inventory;
-    std::string ownerName;
-    std::size_t itemCount;
-    unsigned long long lastSeenTick;
-};
-
-std::vector<InventoryGuiInventoryLink> g_inventoryGuiInventoryLinks;
-enum InventoryGuiBackPointerKind
-{
-    InventoryGuiBackPointerKind_DirectInventory,
-    InventoryGuiBackPointerKind_OwnerObject,
-    InventoryGuiBackPointerKind_CallbackObject,
-};
-
-struct InventoryGuiBackPointerOffset
-{
-    std::size_t offset;
-    InventoryGuiBackPointerKind kind;
-    std::size_t hits;
-};
-
-std::vector<InventoryGuiBackPointerOffset> g_inventoryGuiBackPointerOffsets;
-std::string g_lastInventoryGuiBackPointerLearningSignature;
-std::string g_lastInventoryGuiBackPointerResolutionSignature;
-std::string g_lastInventoryGuiBackPointerResolutionFailureSignature;
-
-struct TraderPanelInventoryBinding
-{
-    MyGUI::Widget* traderParent;
-    MyGUI::Widget* entriesRoot;
-    Inventory* inventory;
-    std::string stage;
-    std::string source;
-    std::size_t expectedEntryCount;
-    std::size_t nonEmptyKeyCount;
-    unsigned long long lastSeenTick;
-};
-
-std::vector<TraderPanelInventoryBinding> g_traderPanelInventoryBindings;
-std::string g_lastPanelBindingSignature;
-std::string g_lastPanelBindingRefusedSignature;
-std::string g_lastPanelBindingProbeSignature;
-
-struct RefreshedInventoryLink
-{
-    Inventory* inventory;
-    std::size_t itemCount;
-    bool visible;
-    bool ownerTrader;
-    bool ownerSelected;
-    std::string ownerName;
-    unsigned long long lastSeenTick;
-};
-
-std::vector<RefreshedInventoryLink> g_recentRefreshedInventories;
-std::string g_lastRefreshInventorySummarySignature;
+#define g_loggedInventoryBindingFailure (TraderState().binding.g_loggedInventoryBindingFailure)
+#define g_loggedInventoryBindingDiagnostics (TraderState().binding.g_loggedInventoryBindingDiagnostics)
+#define g_loggedWidgetInventoryCandidatesMissing (TraderState().binding.g_loggedWidgetInventoryCandidatesMissing)
+#define g_cachedHoveredWidgetInventory (TraderState().binding.g_cachedHoveredWidgetInventory)
+#define g_cachedHoveredWidgetInventorySignature (TraderState().binding.g_cachedHoveredWidgetInventorySignature)
+#define g_lastSectionWidgetBindingSignature (TraderState().binding.g_lastSectionWidgetBindingSignature)
+#define g_sectionWidgetInventoryLinks (TraderState().binding.g_sectionWidgetInventoryLinks)
+#define g_lastInventoryGuiBindingSignature (TraderState().binding.g_lastInventoryGuiBindingSignature)
+#define g_inventoryGuiInventoryLinks (TraderState().binding.g_inventoryGuiInventoryLinks)
+#define g_inventoryGuiBackPointerOffsets (TraderState().binding.g_inventoryGuiBackPointerOffsets)
+#define g_lastInventoryGuiBackPointerLearningSignature (TraderState().binding.g_lastInventoryGuiBackPointerLearningSignature)
+#define g_lastInventoryGuiBackPointerResolutionSignature (TraderState().binding.g_lastInventoryGuiBackPointerResolutionSignature)
+#define g_lastInventoryGuiBackPointerResolutionFailureSignature (TraderState().binding.g_lastInventoryGuiBackPointerResolutionFailureSignature)
+#define g_traderPanelInventoryBindings (TraderState().binding.g_traderPanelInventoryBindings)
+#define g_lastPanelBindingSignature (TraderState().binding.g_lastPanelBindingSignature)
+#define g_lastPanelBindingRefusedSignature (TraderState().binding.g_lastPanelBindingRefusedSignature)
+#define g_lastPanelBindingProbeSignature (TraderState().binding.g_lastPanelBindingProbeSignature)
+#define g_recentRefreshedInventories (TraderState().binding.g_recentRefreshedInventories)
+#define g_lastRefreshInventorySummarySignature (TraderState().binding.g_lastRefreshInventorySummarySignature)
 
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);
 MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
@@ -273,85 +208,6 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
         && (version == "1.0.65" || version == "1.0.68");
 }
 
-void LogInfoLine(const std::string& message)
-{
-    std::stringstream line;
-    line << kPluginName << " INFO: " << message;
-    DebugLog(line.str().c_str());
-}
-
-void LogWarnLine(const std::string& message)
-{
-    std::stringstream line;
-    line << kPluginName << " WARN: " << message;
-    DebugLog(line.str().c_str());
-}
-
-void LogErrorLine(const std::string& message)
-{
-    std::stringstream line;
-    line << kPluginName << " ERROR: " << message;
-    ErrorLog(line.str().c_str());
-}
-
-bool ShouldCompileVerboseDiagnostics()
-{
-#if defined(OTT_ENABLE_VERBOSE_DIAGNOSTICS)
-    return true;
-#else
-    return false;
-#endif
-}
-
-bool ShouldLogDebug()
-{
-    return g_debugLogging;
-}
-
-bool ShouldLogSearchDebug()
-{
-    return g_debugLogging && g_debugSearchLogging;
-}
-
-bool ShouldLogBindingDebug()
-{
-    return g_debugLogging && g_debugBindingLogging;
-}
-
-bool ShouldLogVerboseSearchDiagnostics()
-{
-    return ShouldCompileVerboseDiagnostics() && ShouldLogSearchDebug();
-}
-
-bool ShouldLogVerboseBindingDiagnostics()
-{
-    return ShouldCompileVerboseDiagnostics() && ShouldLogBindingDebug();
-}
-
-void LogDebugLine(const std::string& message)
-{
-    if (ShouldLogDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogSearchDebugLine(const std::string& message)
-{
-    if (ShouldLogSearchDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogBindingDebugLine(const std::string& message)
-{
-    if (ShouldLogBindingDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
 void MarkSearchFilterDirty(const char* reason)
 {
     g_searchFilterDirty = true;
@@ -365,255 +221,6 @@ void MarkSearchFilterDirty(const char* reason)
     line << "search refresh requested"
          << " reason=" << (reason == 0 ? "<unknown>" : reason);
     LogSearchDebugLine(line.str());
-}
-
-std::string GetCurrentPluginDirectoryPath()
-{
-    HMODULE module = 0;
-    if (!GetModuleHandleExA(
-            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-            reinterpret_cast<LPCSTR>(&GetCurrentPluginDirectoryPath),
-            &module)
-        || module == 0)
-    {
-        return "";
-    }
-
-    char buffer[MAX_PATH];
-    const DWORD length = GetModuleFileNameA(module, buffer, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH)
-    {
-        return "";
-    }
-
-    std::string path(buffer, static_cast<std::size_t>(length));
-    const std::string::size_type slash = path.find_last_of("\\/");
-    if (slash == std::string::npos)
-    {
-        return "";
-    }
-
-    return path.substr(0, slash);
-}
-
-bool TryReadTextFile(const std::string& path, std::string* outContent)
-{
-    if (outContent == 0 || path.empty())
-    {
-        return false;
-    }
-
-    std::ifstream input(path.c_str(), std::ios::in | std::ios::binary);
-    if (!input.is_open())
-    {
-        return false;
-    }
-
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    *outContent = buffer.str();
-    return true;
-}
-
-bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* outValue)
-{
-    if (key == 0 || outValue == 0)
-    {
-        return false;
-    }
-
-    const std::string needle = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = content.find(needle);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
-    if (valuePos == std::string::npos)
-    {
-        return false;
-    }
-
-    ++valuePos;
-    while (valuePos < content.size()
-        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    if (content.compare(valuePos, 4, "true") == 0)
-    {
-        *outValue = true;
-        return true;
-    }
-
-    if (content.compare(valuePos, 5, "false") == 0)
-    {
-        *outValue = false;
-        return true;
-    }
-
-    return false;
-}
-
-bool TryParseJsonIntByKey(const std::string& content, const char* key, int* outValue)
-{
-    if (key == 0 || outValue == 0)
-    {
-        return false;
-    }
-
-    const std::string needle = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = content.find(needle);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
-    if (valuePos == std::string::npos)
-    {
-        return false;
-    }
-
-    ++valuePos;
-    while (valuePos < content.size()
-        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    const std::string::size_type numberStart = valuePos;
-    if (valuePos < content.size() && (content[valuePos] == '-' || content[valuePos] == '+'))
-    {
-        ++valuePos;
-    }
-
-    const std::string::size_type digitsStart = valuePos;
-    while (valuePos < content.size()
-        && std::isdigit(static_cast<unsigned char>(content[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    if (digitsStart == valuePos)
-    {
-        return false;
-    }
-
-    int parsedValue = 0;
-    std::stringstream parser(content.substr(numberStart, valuePos - numberStart));
-    parser >> parsedValue;
-    if (parser.fail())
-    {
-        return false;
-    }
-
-    *outValue = parsedValue;
-    return true;
-}
-
-int ClampIntValue(int value, int minValue, int maxValue)
-{
-    if (value < minValue)
-    {
-        return minValue;
-    }
-    if (value > maxValue)
-    {
-        return maxValue;
-    }
-    return value;
-}
-
-int ClampSearchInputConfiguredWidth(int value)
-{
-    return ClampIntValue(value, 120, 720);
-}
-
-int ClampSearchInputConfiguredHeight(int value)
-{
-    return ClampIntValue(value, 22, 48);
-}
-
-void LoadModConfig()
-{
-    g_controlsEnabled = true;
-    g_showSearchEntryCount = true;
-    g_showSearchQuantityCount = true;
-    g_debugLogging = false;
-    g_debugSearchLogging = false;
-    g_debugBindingLogging = false;
-    g_searchInputConfiguredWidth = 372;
-    g_searchInputConfiguredHeight = 26;
-
-    const std::string pluginDirectory = GetCurrentPluginDirectoryPath();
-    if (pluginDirectory.empty())
-    {
-        LogWarnLine("mod config load skipped: could not resolve plugin directory");
-        return;
-    }
-
-    const std::string configPath = pluginDirectory + "\\mod-config.json";
-    std::string configText;
-    if (!TryReadTextFile(configPath, &configText))
-    {
-        std::stringstream line;
-        line << "mod config load skipped: could not read " << configPath
-             << " (using defaults)";
-        LogWarnLine(line.str());
-        return;
-    }
-
-    bool parsedValue = false;
-    if (TryParseJsonBoolByKey(configText, "enabled", &parsedValue))
-    {
-        g_controlsEnabled = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "showSearchEntryCount", &parsedValue))
-    {
-        g_showSearchEntryCount = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "showSearchQuantityCount", &parsedValue))
-    {
-        g_showSearchQuantityCount = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugLogging", &parsedValue))
-    {
-        g_debugLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugSearchLogging", &parsedValue))
-    {
-        g_debugSearchLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugBindingLogging", &parsedValue))
-    {
-        g_debugBindingLogging = parsedValue;
-    }
-
-    int parsedIntValue = 0;
-    if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
-    {
-        g_searchInputConfiguredWidth = ClampSearchInputConfiguredWidth(parsedIntValue);
-    }
-    if (TryParseJsonIntByKey(configText, "searchInputHeight", &parsedIntValue))
-    {
-        g_searchInputConfiguredHeight = ClampSearchInputConfiguredHeight(parsedIntValue);
-    }
-
-    std::stringstream line;
-    line << "mod config loaded"
-         << " enabled=" << (g_controlsEnabled ? "true" : "false")
-         << " showSearchEntryCount=" << (g_showSearchEntryCount ? "true" : "false")
-         << " showSearchQuantityCount=" << (g_showSearchQuantityCount ? "true" : "false")
-         << " debugLogging=" << (g_debugLogging ? "true" : "false")
-         << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
-         << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
-         << " searchInputWidth=" << g_searchInputConfiguredWidth
-         << " searchInputHeight=" << g_searchInputConfiguredHeight
-         << " verboseDiagnosticsCompiled=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
-    LogInfoLine(line.str());
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)

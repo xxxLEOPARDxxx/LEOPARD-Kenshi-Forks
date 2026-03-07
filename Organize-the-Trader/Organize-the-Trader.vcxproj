@@ -88,9 +88,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Organize-the-Trader.cpp" />
+    <ClCompile Include="TraderCore.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="TraderCore.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-

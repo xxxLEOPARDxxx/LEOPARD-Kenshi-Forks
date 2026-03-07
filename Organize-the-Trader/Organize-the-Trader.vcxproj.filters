@@ -18,6 +18,13 @@
     <ClCompile Include="Organize-the-Trader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderCore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="TraderCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
-
