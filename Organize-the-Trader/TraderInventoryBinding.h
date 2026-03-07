@@ -155,6 +155,27 @@ bool TryResolveTraderInventoryNameKeysFromHoveredWidget(
     std::vector<std::string>* outKeys,
     std::string* outSource,
     std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderInventoryNameKeysFromTraderOwnership(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderInventoryNameKeysFromNearbyObjects(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderInventoryNameKeysFromNearbyShopCounters(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
 
 void ClearTraderPanelInventoryBindings();
 void PruneTraderPanelInventoryBindings();
