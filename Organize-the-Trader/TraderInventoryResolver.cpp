@@ -9,9 +9,11 @@
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/Inventory.h>
+#include <kenshi/Item.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
 
+#include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 
 #include <algorithm>
@@ -44,6 +46,217 @@ void AddBuildingInventoryCandidate(
     bool traderPreferred,
     int priorityBias,
     std::vector<InventoryCandidateInfo>* outCandidates);
+
+namespace
+{
+template <typename T>
+T* ReadWidgetUserDataPointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    T** typed = widget->getUserData<T*>(false);
+    if (typed == 0)
+    {
+        return 0;
+    }
+
+    return *typed;
+}
+
+template <typename T>
+T* ReadWidgetInternalDataPointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    T** typed = widget->_getInternalData<T*>(false);
+    if (typed == 0)
+    {
+        return 0;
+    }
+
+    return *typed;
+}
+
+template <typename T>
+T* ReadWidgetAnyDataPointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    T* pointerInternal = ReadWidgetInternalDataPointerLocal<T>(widget);
+    if (pointerInternal != 0)
+    {
+        return pointerInternal;
+    }
+
+    T* pointerUser = ReadWidgetUserDataPointerLocal<T>(widget);
+    if (pointerUser != 0)
+    {
+        return pointerUser;
+    }
+
+    return 0;
+}
+
+Item* ResolveWidgetItemPointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    Item* item = ReadWidgetAnyDataPointerLocal<Item>(widget);
+    if (item != 0)
+    {
+        return item;
+    }
+
+    InventoryItemBase* itemBase = ReadWidgetAnyDataPointerLocal<InventoryItemBase>(widget);
+    if (itemBase == 0)
+    {
+        return 0;
+    }
+
+    return dynamic_cast<Item*>(itemBase);
+}
+
+RootObjectBase* ResolveWidgetObjectBasePointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    RootObjectBase* objectBase = ReadWidgetAnyDataPointerLocal<RootObjectBase>(widget);
+    if (objectBase != 0)
+    {
+        return objectBase;
+    }
+
+    RootObject* object = ReadWidgetAnyDataPointerLocal<RootObject>(widget);
+    if (object != 0)
+    {
+        return object;
+    }
+
+    InventoryItemBase* itemBase = ReadWidgetAnyDataPointerLocal<InventoryItemBase>(widget);
+    if (itemBase != 0)
+    {
+        return itemBase;
+    }
+
+    return 0;
+}
+
+Inventory* ResolveWidgetInventoryPointerLocal(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    Inventory* inventory = ReadWidgetAnyDataPointerLocal<Inventory>(widget);
+    if (inventory != 0)
+    {
+        return inventory;
+    }
+
+    Item* item = ResolveWidgetItemPointerLocal(widget);
+    if (item != 0)
+    {
+        inventory = item->getInventory();
+        if (inventory != 0)
+        {
+            return inventory;
+        }
+    }
+
+    InventorySection* section = ReadWidgetAnyDataPointerLocal<InventorySection>(widget);
+    if (section != 0)
+    {
+        Inventory* sectionInventory = section->getInventory();
+        if (sectionInventory != 0)
+        {
+            return sectionInventory;
+        }
+    }
+
+    RootObjectBase* objectBase = ResolveWidgetObjectBasePointerLocal(widget);
+    RootObject* object = dynamic_cast<RootObject*>(objectBase);
+    if (object != 0)
+    {
+        return object->getInventory();
+    }
+
+    hand* handValue = widget->_getInternalData<hand>(false);
+    if (handValue == 0)
+    {
+        handValue = widget->getUserData<hand>(false);
+    }
+    if (handValue != 0 && handValue->isValid())
+    {
+        Item* handItem = handValue->getItem();
+        if (handItem != 0)
+        {
+            Inventory* handInventory = handItem->getInventory();
+            if (handInventory != 0)
+            {
+                return handInventory;
+            }
+        }
+
+        RootObjectBase* handObjectBase = handValue->getRootObjectBase();
+        RootObject* handObject = dynamic_cast<RootObject*>(handObjectBase);
+        if (handObject != 0)
+        {
+            Inventory* handInventory = handObject->getInventory();
+            if (handInventory != 0)
+            {
+                return handInventory;
+            }
+        }
+    }
+
+    hand** handPointer = widget->_getInternalData<hand*>(false);
+    if (handPointer == 0)
+    {
+        handPointer = widget->getUserData<hand*>(false);
+    }
+    if (handPointer != 0 && *handPointer != 0 && (*handPointer)->isValid())
+    {
+        Item* handItem = (*handPointer)->getItem();
+        if (handItem != 0)
+        {
+            Inventory* handInventory = handItem->getInventory();
+            if (handInventory != 0)
+            {
+                return handInventory;
+            }
+        }
+
+        RootObjectBase* handObjectBase = (*handPointer)->getRootObjectBase();
+        RootObject* handObject = dynamic_cast<RootObject*>(handObjectBase);
+        if (handObject != 0)
+        {
+            Inventory* handInventory = handObject->getInventory();
+            if (handInventory != 0)
+            {
+                return handInventory;
+            }
+        }
+    }
+
+    return 0;
+}
+}
 
 bool IsShopCounterCandidateSource(const std::string& sourceLower)
 {
@@ -621,6 +834,153 @@ bool TryResolveTraderInventoryNameKeysFromActiveCharacters(
         outKeys,
         outSource,
         outQuantityKeys);
+}
+
+void CollectWidgetChainInventoryCandidates(
+    MyGUI::Widget* rootWidget,
+    const char* sourcePrefix,
+    int basePriorityBias,
+    std::vector<InventoryCandidateInfo>* outCandidates)
+{
+    if (rootWidget == 0 || outCandidates == 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* current = rootWidget;
+    for (int depth = 0; current != 0 && depth < 12; ++depth)
+    {
+        Inventory* inventory = ResolveWidgetInventoryPointerLocal(current);
+        if (inventory != 0)
+        {
+            RootObject* owner = inventory->getOwner();
+            if (owner == 0)
+            {
+                owner = inventory->getCallbackObject();
+            }
+
+            std::stringstream source;
+            source << (sourcePrefix == 0 ? "widget_inventory" : sourcePrefix)
+                   << " root=" << SafeWidgetName(rootWidget)
+                   << " via=" << SafeWidgetName(current)
+                   << " depth=" << depth
+                   << " owner=" << RootObjectDisplayNameForLog(owner)
+                   << " visible=" << (inventory->isVisible() ? "true" : "false")
+                   << " items=" << InventoryItemCountForLog(inventory);
+            AddInventoryCandidateUnique(
+                outCandidates,
+                inventory,
+                source.str(),
+                true,
+                inventory->isVisible(),
+                basePriorityBias - depth * 90);
+        }
+
+        current = current->getParent();
+    }
+}
+
+namespace
+{
+void CollectWidgetTreeInventoryCandidatesRecursive(
+    MyGUI::Widget* widget,
+    MyGUI::Widget* rootWidget,
+    const char* sourcePrefix,
+    int basePriorityBias,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::size_t* nodesVisited,
+    std::vector<InventoryCandidateInfo>* outCandidates)
+{
+    if (widget == 0
+        || rootWidget == 0
+        || outCandidates == 0
+        || nodesVisited == 0
+        || *nodesVisited >= maxNodes)
+    {
+        return;
+    }
+
+    ++(*nodesVisited);
+
+    Inventory* inventory = ResolveWidgetInventoryPointerLocal(widget);
+    if (inventory != 0)
+    {
+        RootObject* owner = inventory->getOwner();
+        if (owner == 0)
+        {
+            owner = inventory->getCallbackObject();
+        }
+
+        std::stringstream source;
+        source << (sourcePrefix == 0 ? "widget_tree" : sourcePrefix)
+               << " root=" << SafeWidgetName(rootWidget)
+               << " via=" << SafeWidgetName(widget)
+               << " depth=" << depth
+               << " owner=" << RootObjectDisplayNameForLog(owner)
+               << " visible=" << (inventory->isVisible() ? "true" : "false")
+               << " items=" << InventoryItemCountForLog(inventory);
+        AddInventoryCandidateUnique(
+            outCandidates,
+            inventory,
+            source.str(),
+            true,
+            inventory->isVisible(),
+            basePriorityBias - static_cast<int>(depth) * 40);
+    }
+
+    if (depth >= maxDepth)
+    {
+        return;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        if (*nodesVisited >= maxNodes)
+        {
+            break;
+        }
+
+        CollectWidgetTreeInventoryCandidatesRecursive(
+            widget->getChildAt(childIndex),
+            rootWidget,
+            sourcePrefix,
+            basePriorityBias,
+            depth + 1,
+            maxDepth,
+            maxNodes,
+            nodesVisited,
+            outCandidates);
+    }
+}
+} // namespace
+
+void CollectWidgetTreeInventoryCandidates(
+    MyGUI::Widget* rootWidget,
+    const char* sourcePrefix,
+    int basePriorityBias,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::vector<InventoryCandidateInfo>* outCandidates)
+{
+    if (rootWidget == 0 || outCandidates == 0)
+    {
+        return;
+    }
+
+    std::size_t nodesVisited = 0;
+    CollectWidgetTreeInventoryCandidatesRecursive(
+        rootWidget,
+        rootWidget,
+        sourcePrefix,
+        basePriorityBias,
+        0,
+        maxDepth,
+        maxNodes,
+        &nodesVisited,
+        outCandidates);
 }
 
 const char* ItemTypeNameForLog(itemType type)

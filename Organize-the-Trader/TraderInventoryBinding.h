@@ -94,6 +94,23 @@ void CollectPointerAliasesFromRawPointer(const void* rawPointer, std::vector<std
 bool HasPointerAlias(
     const std::vector<std::uintptr_t>& aliases,
     const void* pointerValue);
+void CollectWidgetInventoryGuiPointers(
+    MyGUI::Widget* rootWidget,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::vector<InventoryGUI*>* outPointers);
+void CollectWidgetChainInventoryCandidates(
+    MyGUI::Widget* rootWidget,
+    const char* sourcePrefix,
+    int basePriorityBias,
+    std::vector<InventoryCandidateInfo>* outCandidates);
+void CollectWidgetTreeInventoryCandidates(
+    MyGUI::Widget* rootWidget,
+    const char* sourcePrefix,
+    int basePriorityBias,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::vector<InventoryCandidateInfo>* outCandidates);
 
 void ClearTraderPanelInventoryBindings();
 void PruneTraderPanelInventoryBindings();

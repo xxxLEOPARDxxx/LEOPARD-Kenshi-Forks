@@ -407,6 +407,101 @@ bool HasPointerAlias(
 
 namespace
 {
+InventoryGUI* ReadWidgetInventoryGuiPointer(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    InventoryGUI** typed = widget->_getInternalData<InventoryGUI*>(false);
+    if (typed != 0 && *typed != 0)
+    {
+        return *typed;
+    }
+
+    typed = widget->getUserData<InventoryGUI*>(false);
+    if (typed != 0 && *typed != 0)
+    {
+        return *typed;
+    }
+
+    return 0;
+}
+
+void CollectWidgetInventoryGuiPointersRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::size_t* nodesVisited,
+    std::vector<InventoryGUI*>* outPointers)
+{
+    if (widget == 0 || outPointers == 0 || nodesVisited == 0 || *nodesVisited >= maxNodes)
+    {
+        return;
+    }
+
+    ++(*nodesVisited);
+
+    InventoryGUI* inventoryGui = ReadWidgetInventoryGuiPointer(widget);
+    AddInventoryGuiPointerUnique(outPointers, inventoryGui);
+
+    if (depth >= maxDepth)
+    {
+        return;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        if (*nodesVisited >= maxNodes)
+        {
+            break;
+        }
+
+        CollectWidgetInventoryGuiPointersRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth,
+            maxNodes,
+            nodesVisited,
+            outPointers);
+    }
+}
+}
+
+void CollectWidgetInventoryGuiPointers(
+    MyGUI::Widget* rootWidget,
+    std::size_t maxDepth,
+    std::size_t maxNodes,
+    std::vector<InventoryGUI*>* outPointers)
+{
+    if (rootWidget == 0 || outPointers == 0)
+    {
+        return;
+    }
+
+    std::size_t nodesVisited = 0;
+    CollectWidgetInventoryGuiPointersRecursive(
+        rootWidget,
+        0,
+        maxDepth,
+        maxNodes,
+        &nodesVisited,
+        outPointers);
+
+    MyGUI::Widget* current = rootWidget->getParent();
+    for (std::size_t depth = 0; current != 0 && depth < 12; ++depth)
+    {
+        InventoryGUI* inventoryGui = ReadWidgetInventoryGuiPointer(current);
+        AddInventoryGuiPointerUnique(outPointers, inventoryGui);
+        current = current->getParent();
+    }
+}
+
+namespace
+{
 
 bool IsPanelBindingConfidentForExpected(
     const TraderPanelInventoryBinding& binding,
