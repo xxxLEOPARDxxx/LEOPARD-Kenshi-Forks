@@ -72,10 +72,17 @@ static const char* kHubSettingEnabledId = "enabled";
 static const char* kHubSettingSleepingBagEnabledId = "sleeping_bag_dismantle_enabled";
 static const char* kHubSettingHotkeyId = "dismantle_hotkey";
 static const char* kHubActionResetHotkeyId = "reset_hotkey_default";
+static const int32_t kHubAttachFailureModeNone = 0;
+static const int32_t kHubAttachFailureModeStartupOnly = 1;
+static const int32_t kHubAttachFailureModeAlways = 2;
+static const int32_t kHubRegisterModeNormal = 0;
+static const int32_t kHubRegisterModeFail = 1;
 static const std::string kHotkeyNativeLabel = "Hotkey";
 static std::string g_hotkeyNativeBinding = "X";
 static bool g_nativeHotkeyBindingActive = false;
 static emc::ModHubClient g_modHubClient;
+static int32_t g_modHubAttachFailureMode = kHubAttachFailureModeNone;
+static int32_t g_modHubRegisterMode = kHubRegisterModeNormal;
 
 struct WallBGoneRuntimeStateV1
 {
@@ -86,6 +93,7 @@ struct WallBGoneRuntimeStateV1
 };
 
 static bool SaveConfigState();
+static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration();
 static const char* KeyCodeToName(OIS::KeyCode keyCode);
 static void RefreshHotkeyUiWidgets();
 static void SyncNativeBindingFromHotkey();
@@ -1047,10 +1055,50 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     return &kRegistration;
 }
 
+static bool ShouldForceHubAttachFailure(bool is_retry)
+{
+    if (g_modHubAttachFailureMode == kHubAttachFailureModeAlways)
+    {
+        return true;
+    }
+
+    return g_modHubAttachFailureMode == kHubAttachFailureModeStartupOnly && !is_retry;
+}
+
+static bool __cdecl ShouldForceHubAttachFailureForClient(void* user_data, bool is_retry, EMC_Result* out_result)
+{
+    (void)user_data;
+    if (!ShouldForceHubAttachFailure(is_retry))
+    {
+        return false;
+    }
+
+    if (out_result != 0)
+    {
+        *out_result = EMC_ERR_INTERNAL;
+    }
+
+    return true;
+}
+
+static EMC_Result __cdecl RegisterHubSettingsForClient(const EMC_HubApiV1* api, void* user_data)
+{
+    (void)user_data;
+    if (g_modHubRegisterMode == kHubRegisterModeFail)
+    {
+        return EMC_ERR_INTERNAL;
+    }
+
+    return emc::RegisterSettingsTableV1(api, GetModHubTableRegistration());
+}
+
 static void ConfigureModHubClient()
 {
     emc::ModHubClient::Config config;
-    config.table_registration = GetModHubTableRegistration();
+    config.register_fn = &RegisterHubSettingsForClient;
+    config.register_user_data = 0;
+    config.should_force_attach_failure_fn = &ShouldForceHubAttachFailureForClient;
+    config.attach_failure_user_data = 0;
     g_modHubClient.SetConfig(config);
 }
 
@@ -1085,6 +1133,70 @@ static void OnOptionsWindowInitForModHub()
 static bool ShouldUseHubUiFromModHub()
 {
     return g_modHubClient.UseHubUi();
+}
+
+extern "C" __declspec(dllexport) void __cdecl WallBGone_Test_ModHub_SetAttachFailureMode(int32_t mode)
+{
+    if (mode < kHubAttachFailureModeNone || mode > kHubAttachFailureModeAlways)
+    {
+        mode = kHubAttachFailureModeNone;
+    }
+
+    g_modHubAttachFailureMode = mode;
+    ConfigureModHubClient();
+}
+
+extern "C" __declspec(dllexport) void __cdecl WallBGone_Test_ModHub_SetRegisterMode(int32_t mode)
+{
+    if (mode < kHubRegisterModeNormal || mode > kHubRegisterModeFail)
+    {
+        mode = kHubRegisterModeNormal;
+    }
+
+    g_modHubRegisterMode = mode;
+    ConfigureModHubClient();
+}
+
+extern "C" __declspec(dllexport) void __cdecl WallBGone_Test_ModHub_ResetClientState()
+{
+    g_modEnabled = true;
+    g_sleepingBagDismantleEnabled = true;
+    g_hotkeyPrimary = kDefaultHotkey;
+    g_pendingHotkeyPrimary = kDefaultHotkey;
+    SyncNativeBindingFromHotkey();
+    RefreshHotkeyUiWidgets();
+
+    g_modHubAttachFailureMode = kHubAttachFailureModeNone;
+    g_modHubRegisterMode = kHubRegisterModeNormal;
+    g_modHubClient.Reset();
+    ConfigureModHubClient();
+}
+
+extern "C" __declspec(dllexport) void __cdecl WallBGone_Test_ModHub_RunStartupAttach()
+{
+    g_modHubClient.Reset();
+    ConfigureModHubClient();
+    StartModHubClient();
+}
+
+extern "C" __declspec(dllexport) void __cdecl WallBGone_Test_ModHub_OnOptionsWindowInit()
+{
+    OnOptionsWindowInitForModHub();
+}
+
+extern "C" __declspec(dllexport) int32_t __cdecl WallBGone_Test_ModHub_UseHubUi()
+{
+    return g_modHubClient.UseHubUi() ? 1 : 0;
+}
+
+extern "C" __declspec(dllexport) int32_t __cdecl WallBGone_Test_ModHub_IsAttachRetryPending()
+{
+    return g_modHubClient.IsAttachRetryPending() ? 1 : 0;
+}
+
+extern "C" __declspec(dllexport) int32_t __cdecl WallBGone_Test_ModHub_HasAttachRetryAttempted()
+{
+    return g_modHubClient.HasAttachRetryAttempted() ? 1 : 0;
 }
 
 extern "C" __declspec(dllexport) int __cdecl WallBGone_GetRuntimeStateV1(WallBGoneRuntimeStateV1* out_state)
