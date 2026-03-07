@@ -11,7 +11,6 @@ struct PluginConfig
     bool enabled;
     bool enableContextMenuProbe;
     bool debugContextMenu;
-    bool enableDebugDirectDamageFallback;
     bool enableExecuteKillSound;
     int executeButtonWidthPx;
     int executeButtonHeightPx;

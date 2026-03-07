@@ -68,12 +68,7 @@ static const char* kExecuteKillSoundEventCandidates[] =
 static const size_t kExecuteKillSoundEventCandidateCount =
     sizeof(kExecuteKillSoundEventCandidates) / sizeof(kExecuteKillSoundEventCandidates[0]);
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
-static const bool kDebugForceAcceptCarryTaskForFilterSanity = false;
-static const bool kDebugEnableRowInsertSubstitute = false;
-static const bool kDebugEnableShowContextMenuOrderMutationFallback = false;
 static const bool kEnableNativeContextMenuIntegration = false;
-static const bool kEnableBuildRowsPreloopInjection = false;
-static const bool kEnableRowInsertLateInjection = false;
 static const bool kEnableCustomExecutePanelOverlay = true;
 static const int kCustomExecutePanelMinWidth = 280;
 static const int kCustomExecutePanelMinRowHeight = 24;
@@ -122,7 +117,6 @@ static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
 static PluginConfig g_config = {
     true,
-    false,
     false,
     false,
     true,
@@ -421,7 +415,6 @@ static void LoadConfigState()
     g_config.enabled = true;
     g_config.enableContextMenuProbe = false;
     g_config.debugContextMenu = false;
-    g_config.enableDebugDirectDamageFallback = false;
     g_config.enableExecuteKillSound = true;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
@@ -448,7 +441,6 @@ static void LoadConfigState()
     // Legacy/internal-only fields are not user-configurable.
     g_config.enableContextMenuProbe = false;
     g_config.debugContextMenu = false;
-    g_config.enableDebugDirectDamageFallback = false;
 
     if (g_config.executeButtonWidthPx <= 0)
     {
@@ -504,10 +496,6 @@ static bool SaveConfigState()
         ErrorLog(error.str().c_str());
         return false;
     }
-
-    std::stringstream info;
-    info << "Loot-Scoot-Execute INFO: saved mod-config.json path=\"" << g_settingsPath << "\"";
-    PluginLog(info.str().c_str());
 
     return true;
 }
