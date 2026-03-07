@@ -58,6 +58,7 @@ struct PluginConfig
     bool debugLogDiagnostics;
     bool debugLogTextureInfo;
     bool enableCharacterTint;
+    bool characterTintIncludeSquad;
     bool characterTintIncludeBountyOnly;
     bool characterTintForceDepthOverride;
     std::string bountySymbolText;

@@ -5,6 +5,7 @@
 namespace vs_character_tint
 {
 
+void TickKoCharacterTintRuntime(RuntimeStateView& state);
 void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName);
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName);
 

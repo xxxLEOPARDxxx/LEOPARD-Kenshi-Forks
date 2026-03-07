@@ -73,6 +73,7 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.debugLogDiagnostics = false;
     config.debugLogTextureInfo = false;
     config.enableCharacterTint = true;
+    config.characterTintIncludeSquad = true;
     config.characterTintIncludeBountyOnly = false;
     config.characterTintForceDepthOverride = true;
     config.bountySymbolText = "$";
@@ -206,6 +207,12 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
     if (vs_parse::ParseBoolFromJson(body, "enable_character_tint", &parsedEnableCharacterTint))
     {
         state.config.enableCharacterTint = parsedEnableCharacterTint;
+    }
+
+    bool parsedCharacterTintIncludeSquad = false;
+    if (vs_parse::ParseBoolFromJson(body, "character_tint_include_squad", &parsedCharacterTintIncludeSquad))
+    {
+        state.config.characterTintIncludeSquad = parsedCharacterTintIncludeSquad;
     }
 
     bool parsedCharacterTintIncludeBountyOnly = false;

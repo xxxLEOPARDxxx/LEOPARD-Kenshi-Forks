@@ -77,6 +77,7 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
 {
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    vs_character_tint::TickKoCharacterTintRuntime(state);
 
     if (state.highlightRuntimeActive)
     {
@@ -118,6 +119,7 @@ __declspec(dllexport) void startPlugin()
          << ", show_bounty_symbol=" << (config.showBountySymbol ? "true" : "false")
          << ", show_bounty_glow=" << (config.showBountyGlow ? "true" : "false")
          << ", enable_character_tint=" << (config.enableCharacterTint ? "true" : "false")
+         << ", character_tint_include_squad=" << (config.characterTintIncludeSquad ? "true" : "false")
          << ", character_tint_force_depth_override=" << (config.characterTintForceDepthOverride ? "true" : "false")
          << ", debug_log_diagnostics=" << (config.debugLogDiagnostics ? "true" : "false")
          << ", debug_log_texture_info=" << (config.debugLogTextureInfo ? "true" : "false")

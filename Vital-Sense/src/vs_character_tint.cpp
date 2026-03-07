@@ -43,6 +43,7 @@ const Ogre::ColourValue kClearTintColour(1.0f, 1.0f, 1.0f, 0.0f);
 const DWORD kTintDiagLogIntervalMs = 2000;
 const bool kTintDebugEnemyOnlyMode = false;
 const bool kTintDebugSolidOverrideMode = false;
+const DWORD kTintPostLoadWarmupMs = 1500;
 bool gTintDiagnosticsEnabled = false;
 
 int gAppearanceEntityOffsetBytes = -1;
@@ -71,6 +72,8 @@ DWORD gTintAnimalSampleLogWindowStartMs = 0;
 unsigned int gTintAnimalSampleLogCount = 0;
 DWORD gTintRelationSampleLogWindowStartMs = 0;
 unsigned int gTintRelationSampleLogCount = 0;
+DWORD gTintWarmupUntilMs = 0;
+size_t gTintLastObservedActiveCharacterCount = 0;
 
 struct ResolvedCharacter
 {
@@ -95,6 +98,37 @@ std::vector<AppearanceMaterialOffsetCacheEntry> gAppearanceMaterialOffsetCache;
 std::vector<AnimalTintMaterialCloneEntry> gAnimalTintMaterialCloneEntries;
 unsigned int gAnimalTintMaterialCloneSerial = 0;
 bool gAnimalTintCloneFallbackWarned = false;
+
+void ResetTintRuntimeTracking(RuntimeStateView& state)
+{
+    state.characterTintEntries.clear();
+    gAnimalTintMaterialCloneEntries.clear();
+}
+
+size_t GetActiveCharacterCountSafe()
+{
+    if (!ou)
+    {
+        return 0;
+    }
+
+    size_t activeCharacterCount = 0;
+    __try
+    {
+        activeCharacterCount = ou->getCharacterUpdateList().size();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        activeCharacterCount = 0;
+    }
+
+    return activeCharacterCount;
+}
+
+bool IsTintWarmupActive()
+{
+    return gTintWarmupUntilMs != 0 && GetTickCount() < gTintWarmupUntilMs;
+}
 
 void EmitTintDiagLogIfDue(const char* pluginName)
 {
@@ -2050,24 +2084,25 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
 
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
     const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
+    const bool isSquadCharacter = IsCharacterInPlayerSquadSafe(candidate);
     hand targetHandle;
     const bool hasTargetHandle = TryReadCharacterHandleSafe(candidate, &targetHandle);
     const bool wantsBodyHighlight = colour.a > 0.0f;
     if (!wantsBodyHighlight)
     {
-        bool restoredAnimalClone = false;
-        if (isAnimalCharacter && hasTargetHandle)
+        bool restoredClone = false;
+        if (hasTargetHandle)
         {
-            restoredAnimalClone = RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
+            restoredClone = RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
         }
         SetEntitySkeletonVisible(characterEntity, false);
         const bool clearedByConstants =
             ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
             || ApplyTintToEntity(characterEntity, colour, depthOverride);
-        return restoredAnimalClone || clearedByConstants;
+        return restoredClone || clearedByConstants;
     }
 
-    if (isAnimalCharacter && hasTargetHandle)
+    if (hasTargetHandle)
     {
         if (ApplyTintToEntityUsingAnimalMaterialClones(
                 targetHandle,
@@ -2080,14 +2115,23 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
             return true;
         }
 
-        if (!gAnimalTintCloneFallbackWarned)
+        if (isAnimalCharacter || isSquadCharacter)
         {
-            vs_log::LogWarn(
-                pluginName,
-                "animal tint clone path failed; skipping shared-material fallback to avoid cross-animal tint bleed");
-            gAnimalTintCloneFallbackWarned = true;
-        }
+            if (isAnimalCharacter && !gAnimalTintCloneFallbackWarned)
+            {
+                vs_log::LogWarn(
+                    pluginName,
+                    "animal tint clone path failed; skipping shared-material fallback to avoid cross-animal tint bleed");
+                gAnimalTintCloneFallbackWarned = true;
+            }
 
+            return false;
+        }
+    }
+    else if (isAnimalCharacter || isSquadCharacter)
+    {
+        // Never apply shared-material fallback to animals or squad members; it can bleed tint into unrelated
+        // world creatures or shared UI portrait materials.
         return false;
     }
 
@@ -2209,6 +2253,11 @@ void BuildDesiredTintEntries(RuntimeStateView& state, std::vector<CharacterTintE
         {
             continue;
         }
+        if (target.markerRelation == CachedKoTarget::RELATION_SQUAD
+            && !state.config.characterTintIncludeSquad)
+        {
+            continue;
+        }
 
         const int existingIndex = FindTintEntryByHandle(desiredEntries, target.targetHandle);
         if (existingIndex >= 0)
@@ -2287,6 +2336,30 @@ bool SetTintForHandle(
 }
 } // namespace
 
+void TickKoCharacterTintRuntime(RuntimeStateView& state)
+{
+    const size_t activeCharacterCount = GetActiveCharacterCountSafe();
+    const DWORD nowMs = GetTickCount();
+
+    if (activeCharacterCount == 0)
+    {
+        if (gTintLastObservedActiveCharacterCount != 0)
+        {
+            ResetTintRuntimeTracking(state);
+            gTintWarmupUntilMs = nowMs + kTintPostLoadWarmupMs;
+        }
+        gTintLastObservedActiveCharacterCount = 0;
+        return;
+    }
+
+    if (gTintLastObservedActiveCharacterCount == 0)
+    {
+        gTintWarmupUntilMs = nowMs + kTintPostLoadWarmupMs;
+    }
+
+    gTintLastObservedActiveCharacterCount = activeCharacterCount;
+}
+
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
     gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
@@ -2341,6 +2414,12 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     }
 
     if (!state.config.enableCharacterTint || !ou)
+    {
+        ClearKoCharacterTint(state, pluginName);
+        return;
+    }
+
+    if (IsTintWarmupActive())
     {
         ClearKoCharacterTint(state, pluginName);
         return;

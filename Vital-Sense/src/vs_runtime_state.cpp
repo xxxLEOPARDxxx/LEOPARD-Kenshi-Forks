@@ -42,6 +42,7 @@ PluginConfig g_config = {
     false,
     false,
     true,
+    true,
     false,
     true,
     "$",
