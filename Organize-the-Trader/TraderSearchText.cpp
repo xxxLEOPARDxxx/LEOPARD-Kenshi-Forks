@@ -436,6 +436,60 @@ std::string NormalizeSearchText(const std::string& text)
     return normalized;
 }
 
+std::string ResolveCanonicalItemName(Item* item)
+{
+    if (item == 0)
+    {
+        return "";
+    }
+
+    if (!item->displayName.empty())
+    {
+        return item->displayName;
+    }
+
+    const std::string objectName = item->getName();
+    if (!objectName.empty())
+    {
+        return objectName;
+    }
+
+    if (item->data != 0)
+    {
+        if (!item->data->name.empty())
+        {
+            return item->data->name;
+        }
+        if (!item->data->stringID.empty())
+        {
+            return item->data->stringID;
+        }
+    }
+
+    Ogre::vector<StringPair>::type tooltipLines;
+    item->getTooltipData1(tooltipLines);
+
+    if (tooltipLines.empty())
+    {
+        item->getTooltipData2(tooltipLines);
+    }
+
+    for (std::size_t index = 0; index < tooltipLines.size(); ++index)
+    {
+        const StringPair& line = tooltipLines[index];
+        if (!line.s1.empty() && ContainsAsciiLetter(line.s1))
+        {
+            return line.s1;
+        }
+        if (!line.s2.empty() && ContainsAsciiLetter(line.s2))
+        {
+            return line.s2;
+        }
+    }
+
+    return "";
+}
+
 std::string CanonicalizeSearchToken(const std::string& token)
 {
     if (token.empty())

@@ -11,6 +11,7 @@ class Widget;
 
 class Character;
 class Inventory;
+class Item;
 
 std::string SafeWidgetName(MyGUI::Widget* widget);
 std::string BuildParentChainForLog(MyGUI::Widget* widget);
@@ -24,6 +25,7 @@ bool TryExtractTaggedFraction(
     int* outNumerator,
     int* outDenominator);
 std::string NormalizeSearchText(const std::string& text);
+std::string ResolveCanonicalItemName(Item* item);
 bool IsLikelyRuntimeWidgetToken(const std::string& token);
 std::string CanonicalizeSearchToken(const std::string& token);
 bool ContainsAsciiLetter(const std::string& value);
