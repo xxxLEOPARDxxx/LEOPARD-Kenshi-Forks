@@ -41,8 +41,6 @@ const char* kDepthOverrideParam = "overrideDepth";
 const char* kOverrideDepthLowerParam = "overridedepth";
 const Ogre::ColourValue kClearTintColour(1.0f, 1.0f, 1.0f, 0.0f);
 const DWORD kTintDiagLogIntervalMs = 2000;
-const bool kTintDebugEnemyOnlyMode = false;
-const bool kTintDebugSolidOverrideMode = false;
 const DWORD kTintPostLoadWarmupMs = 1500;
 bool gTintDiagnosticsEnabled = false;
 
@@ -66,8 +64,6 @@ unsigned int gTintDiagAppliedEntityMaterial = 0;
 unsigned int gTintDiagAppliedSkeletonFallback = 0;
 bool gTintSkeletonFallbackWarned = false;
 bool gTintApplyExceptionWarned = false;
-bool gTintEnemyOnlyModeLogged = false;
-bool gTintSolidOverrideModeLogged = false;
 DWORD gTintAnimalSampleLogWindowStartMs = 0;
 unsigned int gTintAnimalSampleLogCount = 0;
 DWORD gTintRelationSampleLogWindowStartMs = 0;
@@ -743,32 +739,6 @@ bool ApplyTintToMaterial(Ogre::Material* material, const Ogre::ColourValue& colo
     }
 
     return appliedAnyConstant;
-}
-
-bool ApplyTintToMaterialField(
-    Ogre::MaterialPtr* materialField,
-    const Ogre::ColourValue& colour,
-    bool depthOverride)
-{
-    if (!materialField)
-    {
-        return false;
-    }
-
-    bool applied = false;
-    __try
-    {
-        if (!materialField->isNull())
-        {
-            applied = ApplyTintToMaterial(materialField->getPointer(), colour, depthOverride);
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        applied = false;
-    }
-
-    return applied;
 }
 
 bool ApplyTintToMaterialPrimaryPassLikeExample(
@@ -2201,11 +2171,6 @@ bool TryApplyTintToCharacterSeh(
 
 Ogre::ColourValue ResolveTintColour(RuntimeStateView& state, int markerRelation)
 {
-    if (kTintDebugEnemyOnlyMode && markerRelation != CachedKoTarget::RELATION_ENEMY)
-    {
-        return kClearTintColour;
-    }
-
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
     {
         return Ogre::ColourValue(
@@ -2401,17 +2366,6 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
     gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
     ++gTintDiagSyncCalls;
-
-    if (kTintDebugEnemyOnlyMode && pluginName && !gTintEnemyOnlyModeLogged)
-    {
-        vs_log::LogWarn(pluginName, "enemy-only body tint debug mode active (squad/ally body tint disabled)");
-        gTintEnemyOnlyModeLogged = true;
-    }
-    if (kTintDebugSolidOverrideMode && pluginName && !gTintSolidOverrideModeLogged)
-    {
-        vs_log::LogWarn(pluginName, "solid override tint debug mode active (fragment shader/textures disabled on tint clone)");
-        gTintSolidOverrideModeLogged = true;
-    }
 
     if (!state.config.enableCharacterTint || !ou)
     {

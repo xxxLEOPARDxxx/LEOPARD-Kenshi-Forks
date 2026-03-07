@@ -43,6 +43,7 @@ const float kKoBountyGlowAlpha = 0.90f;
 const MyGUI::Colour kKoBountyGlowColour(1.0f, 0.93f, 0.28f, kKoBountyGlowAlpha);
 const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
 const int kKoBountyGlowTextureSizePx = 64;
+bool gMarkerImageFallbackWarned = false;
 
 bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
@@ -943,7 +944,11 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
         }
         if (!icon && fallbackText)
         {
-            vs_log::LogWarn(pluginName, "ImageBox marker unavailable; using text fallback");
+            if (!gMarkerImageFallbackWarned)
+            {
+                vs_log::LogWarn(pluginName, "ImageBox marker unavailable; using text fallback");
+                gMarkerImageFallbackWarned = true;
+            }
         }
 
         if (icon)
