@@ -2,7 +2,7 @@
 Safely dismantles selected walls and sleeping bags (only when not occupied) with Hotkey X and returns materials.
 
 ## Setup
-Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
 
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
