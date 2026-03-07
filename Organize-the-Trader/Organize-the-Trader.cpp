@@ -104,6 +104,7 @@ bool g_prevDiagnosticsHotkeyDown = false;
 bool g_prevSearchSlashHotkeyDown = false;
 bool g_prevSearchCtrlFHotkeyDown = false;
 bool g_controlsWereInjected = false;
+bool g_searchFilterDirty = false;
 bool g_controlsEnabled = true;
 bool g_showSearchEntryCount = true;
 bool g_showSearchQuantityCount = true;
@@ -137,6 +138,7 @@ bool g_loggedWidgetInventoryCandidatesMissing = false;
 std::string g_lastInventoryKeysetSelectionSignature;
 std::string g_lastInventoryKeysetLowCoverageSignature;
 std::string g_lastBackpackResolutionSignature;
+std::string g_lastObservedTraderEntriesStateSignature;
 std::string g_lastZeroMatchGuardSignature;
 std::string g_lastCoverageFallbackDecisionSignature;
 std::string g_lastSearchSampleQueryLogged;
@@ -228,8 +230,12 @@ std::string g_lastRefreshInventorySummarySignature;
 
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);
 MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
+MyGUI::Widget* ResolveTraderParentFromControlsContainer();
 MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* backpackContent);
-MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, bool logDiagnostics);
+MyGUI::Widget* ResolveBestBackpackContentWidget(
+    MyGUI::Widget* traderParent,
+    bool logDiagnostics,
+    bool allowSelectionLogging = true);
 MyGUI::Widget* FindNamedDescendantRecursive(MyGUI::Widget* root, const char* widgetName, bool requireVisible);
 MyGUI::EditBox* FindSearchEditBox();
 MyGUI::TextBox* FindSearchPlaceholderTextBox();
@@ -344,6 +350,21 @@ void LogBindingDebugLine(const std::string& message)
     {
         LogInfoLine(message);
     }
+}
+
+void MarkSearchFilterDirty(const char* reason)
+{
+    g_searchFilterDirty = true;
+
+    if (!ShouldLogSearchDebug())
+    {
+        return;
+    }
+
+    std::stringstream line;
+    line << "search refresh requested"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason);
+    LogSearchDebugLine(line.str());
 }
 
 std::string GetCurrentPluginDirectoryPath()
@@ -9053,7 +9074,10 @@ std::size_t CountOccupiedEntriesInEntriesRoot(MyGUI::Widget* entriesRoot)
     return occupiedCount;
 }
 
-MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, bool logDiagnostics)
+MyGUI::Widget* ResolveBestBackpackContentWidget(
+    MyGUI::Widget* traderParent,
+    bool logDiagnostics,
+    bool allowSelectionLogging)
 {
     if (traderParent == 0)
     {
@@ -9157,7 +9181,9 @@ MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, boo
               << "|children=" << selectedChildCount
               << "|x=" << selectedCoord.left;
     const bool shouldLog =
-        (logDiagnostics || scoredCandidates.size() > 1)
+        allowSelectionLogging
+        &&
+        (logDiagnostics || (ShouldLogBindingDebug() && scoredCandidates.size() > 1))
         && signature.str() != g_lastBackpackResolutionSignature;
     if (shouldLog)
     {
@@ -9193,6 +9219,84 @@ MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, boo
     }
 
     return bestBackpack;
+}
+
+std::string BuildObservedTraderEntriesStateSignature()
+{
+    MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
+    if (traderParent == 0)
+    {
+        return "";
+    }
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false, false);
+    if (backpackContent == 0)
+    {
+        backpackContent = FindWidgetInParentByToken(traderParent, "backpack_content");
+    }
+    if (backpackContent == 0)
+    {
+        return "";
+    }
+
+    MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(backpackContent);
+    if (entriesRoot == 0)
+    {
+        return "";
+    }
+
+    const std::size_t childCount = entriesRoot->getChildCount();
+    std::size_t occupiedCount = 0;
+    std::size_t totalQuantity = 0;
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        int quantity = 0;
+        if (TryResolveItemQuantityFromWidget(entriesRoot->getChildAt(childIndex), &quantity)
+            && quantity > 0)
+        {
+            ++occupiedCount;
+            totalQuantity += static_cast<std::size_t>(quantity);
+        }
+    }
+
+    std::stringstream signature;
+    signature << traderParent
+              << "|" << backpackContent
+              << "|" << entriesRoot
+              << "|" << childCount
+              << "|" << occupiedCount
+              << "|" << totalQuantity;
+    return signature.str();
+}
+
+void ResetObservedTraderEntriesState()
+{
+    g_lastObservedTraderEntriesStateSignature.clear();
+}
+
+void ObserveTraderEntriesStateForRefresh()
+{
+    const std::string currentSignature = BuildObservedTraderEntriesStateSignature();
+    if (currentSignature.empty())
+    {
+        ResetObservedTraderEntriesState();
+        return;
+    }
+
+    if (g_lastObservedTraderEntriesStateSignature.empty())
+    {
+        g_lastObservedTraderEntriesStateSignature = currentSignature;
+        return;
+    }
+
+    if (currentSignature != g_lastObservedTraderEntriesStateSignature)
+    {
+        g_lastObservedTraderEntriesStateSignature = currentSignature;
+        MarkSearchFilterDirty("entries_root_state_changed");
+        return;
+    }
+
+    g_lastObservedTraderEntriesStateSignature = currentSignature;
 }
 
 bool SearchTextMatchesQuery(const std::string& searchableTextNormalized, const std::string& normalizedQuery)
@@ -10069,7 +10173,10 @@ void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary)
         return;
     }
 
-    ApplySearchFilterToTraderParent(traderParent, forceShowAll, logSummary);
+    if (ApplySearchFilterToTraderParent(traderParent, forceShowAll, logSummary))
+    {
+        g_searchFilterDirty = false;
+    }
 }
 
 std::string BuildTraderTargetIdentity(MyGUI::Widget* anchor, MyGUI::Widget* parent)
@@ -10125,6 +10232,7 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
     g_loggedNumericOnlyQueryIgnored = false;
     g_lastSearchSampleQueryLogged.clear();
     g_lastZeroMatchQueryLogged.clear();
+    ResetObservedTraderEntriesState();
 
     if (hadQuery)
     {
@@ -10597,6 +10705,8 @@ void DestroyControlsIfPresent()
     {
         g_searchContainerDragging = false;
         g_controlsWereInjected = false;
+        g_searchFilterDirty = false;
+        ResetObservedTraderEntriesState();
         g_pendingSlashFocusBaseQuery.clear();
         g_pendingSlashFocusTextSuppression = false;
         g_suppressNextSearchEditChangeEvent = false;
@@ -10616,6 +10726,8 @@ void DestroyControlsIfPresent()
         LogDebugLine("controls container destroyed");
     }
     g_controlsWereInjected = false;
+    g_searchFilterDirty = false;
+    ResetObservedTraderEntriesState();
     g_pendingSlashFocusBaseQuery.clear();
     g_pendingSlashFocusTextSuppression = false;
     g_suppressNextSearchEditChangeEvent = false;
@@ -10763,6 +10875,7 @@ void SetSearchQueryAndRefresh(
          << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
     LogSearchDebugLine(line.str());
 
+    MarkSearchFilterDirty(reason);
     ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
 }
@@ -10840,6 +10953,7 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
          << " only_len=" << onlyText.size();
     LogSearchDebugLine(line.str());
 
+    MarkSearchFilterDirty("text_changed");
     ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
 }
@@ -11098,7 +11212,11 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     }
 
     g_controlsWereInjected = true;
-    ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug());
+    MarkSearchFilterDirty("controls_injected");
+    if (ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug()))
+    {
+        g_searchFilterDirty = false;
+    }
 
     std::stringstream line;
     line << "controls scaffold injected"
@@ -11614,9 +11732,14 @@ void TickPhase2ControlsScaffold()
         g_pendingSlashFocusTextSuppression = false;
     }
 
-    if (FindControlsContainer() != 0 && !handledSearchShortcut)
+    if (FindControlsContainer() != 0)
     {
-        ApplySearchFilterFromControls(false, false);
+        ObserveTraderEntriesStateForRefresh();
+    }
+
+    if (FindControlsContainer() != 0 && !handledSearchShortcut && g_searchFilterDirty)
+    {
+        ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     }
 
     if (g_controlsWereInjected && FindControlsContainer() == 0)
@@ -11645,6 +11768,11 @@ void InventoryLayoutCreateGUI_hook(
     if (inv == 0)
     {
         return;
+    }
+
+    if (FindControlsContainer() != 0)
+    {
+        MarkSearchFilterDirty("inventory_layout_create_gui");
     }
 
     ++g_inventoryLayoutCreateGUIHookCallCount;
