@@ -58,6 +58,13 @@ public:
 
 namespace
 {
+enum SearchFocusHotkeyKind
+{
+    SearchFocusHotkeyKind_None = 0,
+    SearchFocusHotkeyKind_Slash,
+    SearchFocusHotkeyKind_CtrlF,
+};
+
 const char* kPluginName = "Organize-the-Trader";
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
@@ -94,18 +101,19 @@ bool g_prevToggleHotkeyDown = false;
 bool g_prevDiagnosticsHotkeyDown = false;
 bool g_prevSearchSlashHotkeyDown = false;
 bool g_prevSearchCtrlFHotkeyDown = false;
-bool g_prevSearchEscapeHotkeyDown = false;
 bool g_controlsWereInjected = false;
 bool g_controlsEnabled = true;
 bool g_showSearchEntryCount = true;
 bool g_showSearchQuantityCount = true;
+bool g_suppressNextSearchEditChangeEvent = false;
+bool g_pendingSlashFocusTextSuppression = false;
 bool g_loggedNoVisibleTraderTarget = false;
 bool g_loggedRejectedTraderCandidate = false;
 std::string g_searchQueryRaw;
 std::string g_searchQueryNormalized;
+std::string g_pendingSlashFocusBaseQuery;
 std::string g_activeTraderTargetId;
 bool g_focusSearchEditOnNextInjection = false;
-bool g_suppressNextSearchEditChangeEvent = false;
 bool g_searchContainerDragging = false;
 bool g_searchContainerPositionCustomized = false;
 int g_searchContainerDragLastMouseX = 0;
@@ -9867,6 +9875,9 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
 
     g_searchQueryRaw.clear();
     g_searchQueryNormalized.clear();
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+    g_suppressNextSearchEditChangeEvent = false;
     g_loggedNumericOnlyQueryIgnored = false;
     g_lastSearchSampleQueryLogged.clear();
     g_lastZeroMatchQueryLogged.clear();
@@ -10009,36 +10020,6 @@ void UpdateSearchCountText(
 
     countText->setVisible(ShouldShowAnySearchCountMetric());
     countText->setCaption(BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity));
-}
-
-void SetSearchQueryFromShortcut(MyGUI::EditBox* searchEdit, const std::string& rawText, const char* reason)
-{
-    if (searchEdit == 0)
-    {
-        return;
-    }
-
-    g_searchQueryRaw = rawText;
-    g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
-    g_loggedNumericOnlyQueryIgnored = false;
-    g_lastSearchSampleQueryLogged.clear();
-    g_lastZeroMatchQueryLogged.clear();
-
-    const std::string currentOnlyText = searchEdit->getOnlyText().asUTF8();
-    if (currentOnlyText != rawText)
-    {
-        g_suppressNextSearchEditChangeEvent = true;
-        searchEdit->setOnlyText(rawText);
-    }
-
-    std::stringstream line;
-    line << "search shortcut action"
-         << " reason=" << (reason == 0 ? "<unknown>" : reason)
-         << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
-         << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
-    LogInfoLine(line.str());
-
-    ApplySearchFilterFromControls(false, true);
 }
 
 bool TryGetCurrentMousePosition(int* xOut, int* yOut)
@@ -10257,6 +10238,9 @@ void DestroyControlsIfPresent()
     {
         g_searchContainerDragging = false;
         g_controlsWereInjected = false;
+        g_pendingSlashFocusBaseQuery.clear();
+        g_pendingSlashFocusTextSuppression = false;
+        g_suppressNextSearchEditChangeEvent = false;
         g_cachedHoveredWidgetInventory = 0;
         g_cachedHoveredWidgetInventorySignature.clear();
         ClearLockedKeysetSource();
@@ -10273,6 +10257,9 @@ void DestroyControlsIfPresent()
         LogInfoLine("controls container destroyed");
     }
     g_controlsWereInjected = false;
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+    g_suppressNextSearchEditChangeEvent = false;
     g_cachedHoveredWidgetInventory = 0;
     g_cachedHoveredWidgetInventorySignature.clear();
     ClearLockedKeysetSource();
@@ -10350,6 +10337,35 @@ int ResolveControlsTop(MyGUI::Widget* parent)
     return defaultTop;
 }
 
+bool TryStripSingleSlashShortcutInsertion(
+    const std::string& currentText,
+    const std::string& baseText,
+    std::string* outRestoredText)
+{
+    if (outRestoredText == 0 || currentText.size() != baseText.size() + 1)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < currentText.size(); ++index)
+    {
+        if (currentText[index] != '/')
+        {
+            continue;
+        }
+
+        const std::string restored =
+            currentText.substr(0, index) + currentText.substr(index + 1);
+        if (restored == baseText)
+        {
+            *outRestoredText = restored;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void OnSearchTextChanged(MyGUI::EditBox* sender)
 {
     if (sender == 0)
@@ -10365,6 +10381,23 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
         return;
     }
     g_suppressNextSearchEditChangeEvent = false;
+
+    if (g_pendingSlashFocusTextSuppression)
+    {
+        std::string restoredText;
+        if (TryStripSingleSlashShortcutInsertion(
+                onlyText,
+                g_pendingSlashFocusBaseQuery,
+                &restoredText))
+        {
+            g_pendingSlashFocusTextSuppression = false;
+            g_suppressNextSearchEditChangeEvent = true;
+            sender->setOnlyText(restoredText);
+            return;
+        }
+
+        g_pendingSlashFocusTextSuppression = false;
+    }
 
     g_searchQueryRaw = onlyText;
     g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
@@ -10713,13 +10746,44 @@ bool IsDiagnosticsHotkeyPressedEdge()
     return pressedEdge;
 }
 
-bool IsSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
+bool IsVirtualKeyDown(int virtualKey)
+{
+    return virtualKey > 0 && (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+}
+
+bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
+{
+    const HKL keyboardLayout = GetKeyboardLayout(0);
+    const SHORT slashMapping = VkKeyScanExA('/', keyboardLayout);
+    if (slashMapping != -1)
+    {
+        const int virtualKey = LOBYTE(static_cast<WORD>(slashMapping));
+        const BYTE modifierMask = HIBYTE(static_cast<WORD>(slashMapping));
+        const bool shiftRequired = (modifierMask & 1U) != 0;
+        const bool ctrlRequired = (modifierMask & 2U) != 0;
+        const bool altRequired = (modifierMask & 4U) != 0;
+
+        if (shiftDown == shiftRequired
+            && ctrlDown == ctrlRequired
+            && altDown == altRequired
+            && IsVirtualKeyDown(virtualKey))
+        {
+            return true;
+        }
+    }
+
+    const bool oemSlashDown = IsVirtualKeyDown(VK_OEM_2);
+    const bool numpadSlashDown = IsVirtualKeyDown(VK_DIVIDE);
+    return !ctrlDown && !altDown && ((!shiftDown && oemSlashDown) || numpadSlashDown);
+}
+
+SearchFocusHotkeyKind DetectSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
 {
     if (searchEdit == 0 || key == 0 || key->keyboard == 0)
     {
         g_prevSearchSlashHotkeyDown = false;
         g_prevSearchCtrlFHotkeyDown = false;
-        return false;
+        return SearchFocusHotkeyKind_None;
     }
 
     const bool searchFocused = IsSearchEditFocused(searchEdit);
@@ -10727,10 +10791,12 @@ bool IsSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
         || key->keyboard->isKeyDown(OIS::KC_RCONTROL);
     const bool altDown = key->keyboard->isKeyDown(OIS::KC_LMENU)
         || key->keyboard->isKeyDown(OIS::KC_RMENU);
-    const bool slashDown = key->keyboard->isKeyDown(OIS::KC_SLASH);
+    const bool shiftDown = key->keyboard->isKeyDown(OIS::KC_LSHIFT)
+        || key->keyboard->isKeyDown(OIS::KC_RSHIFT);
     const bool fDown = key->keyboard->isKeyDown(OIS::KC_F);
 
-    const bool slashChordDown = !searchFocused && !ctrlDown && !altDown && slashDown;
+    const bool slashChordDown =
+        !searchFocused && IsSlashCharacterChordDown(shiftDown, ctrlDown, altDown);
     const bool ctrlFChordDown = !searchFocused && ctrlDown && fDown;
 
     const bool slashPressedEdge = slashChordDown && !g_prevSearchSlashHotkeyDown;
@@ -10739,24 +10805,16 @@ bool IsSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
     g_prevSearchSlashHotkeyDown = slashChordDown;
     g_prevSearchCtrlFHotkeyDown = ctrlFChordDown;
 
-    return slashPressedEdge || ctrlFPressedEdge;
-}
-
-bool IsSearchEscapeHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
-{
-    if (searchEdit == 0 || key == 0 || key->keyboard == 0)
+    if (slashPressedEdge)
     {
-        g_prevSearchEscapeHotkeyDown = false;
-        return false;
+        return SearchFocusHotkeyKind_Slash;
+    }
+    if (ctrlFPressedEdge)
+    {
+        return SearchFocusHotkeyKind_CtrlF;
     }
 
-    const bool escapeDown = key->keyboard->isKeyDown(OIS::KC_ESCAPE);
-    const bool clearEligible = IsSearchEditFocused(searchEdit) || !g_searchQueryRaw.empty();
-    const bool chordDown = clearEligible && escapeDown;
-    const bool pressedEdge = chordDown && !g_prevSearchEscapeHotkeyDown;
-
-    g_prevSearchEscapeHotkeyDown = chordDown;
-    return pressedEdge;
+    return SearchFocusHotkeyKind_None;
 }
 
 void LogRecentRefreshedInventorySummary(std::size_t expectedEntryCount)
@@ -11029,15 +11087,21 @@ void TickPhase2ControlsScaffold()
     MyGUI::EditBox* searchEdit = FindSearchEditBox();
     if (searchEdit != 0)
     {
-        if (IsSearchFocusHotkeyPressedEdge(searchEdit))
+        const SearchFocusHotkeyKind hotkeyKind =
+            DetectSearchFocusHotkeyPressedEdge(searchEdit);
+        if (hotkeyKind != SearchFocusHotkeyKind_None)
         {
+            if (hotkeyKind == SearchFocusHotkeyKind_Slash)
+            {
+                g_pendingSlashFocusBaseQuery = g_searchQueryRaw;
+                g_pendingSlashFocusTextSuppression = true;
+            }
+            else
+            {
+                g_pendingSlashFocusBaseQuery.clear();
+                g_pendingSlashFocusTextSuppression = false;
+            }
             FocusSearchEdit(searchEdit, "focus_hotkey");
-            handledSearchShortcut = true;
-        }
-
-        if (IsSearchEscapeHotkeyPressedEdge(searchEdit))
-        {
-            SetSearchQueryFromShortcut(searchEdit, "", "escape_clear");
             handledSearchShortcut = true;
         }
     }
@@ -11045,7 +11109,8 @@ void TickPhase2ControlsScaffold()
     {
         g_prevSearchSlashHotkeyDown = false;
         g_prevSearchCtrlFHotkeyDown = false;
-        g_prevSearchEscapeHotkeyDown = false;
+        g_pendingSlashFocusBaseQuery.clear();
+        g_pendingSlashFocusTextSuppression = false;
     }
 
     if (FindControlsContainer() != 0 && !handledSearchShortcut)
