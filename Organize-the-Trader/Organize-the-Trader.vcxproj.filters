@@ -24,6 +24,9 @@
     <ClCompile Include="TraderInventoryBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderInventoryKeyset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TraderInventoryResolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

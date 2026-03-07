@@ -1140,3 +1140,89 @@ bool TryResolveTraderInventoryNameKeysFromHoveredWidget(
 
     return true;
 }
+
+bool TryResolveTraderQuantityNameKeysFromCaption(
+    MyGUI::Widget* traderParent,
+    std::vector<QuantityNameKey>* outKeys,
+    std::string* outSource)
+{
+    if (traderParent == 0 || outKeys == 0 || ou == 0 || ou->player == 0)
+    {
+        return false;
+    }
+
+    outKeys->clear();
+    if (outSource != 0)
+    {
+        outSource->clear();
+    }
+
+    MyGUI::Window* owningWindow = FindOwningWindow(traderParent);
+    const std::string windowCaption = owningWindow == 0 ? "" : owningWindow->getCaption().asUTF8();
+
+    const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
+    Character* bestCharacter = 0;
+    bool bestVisible = false;
+    int bestScore = -1000000;
+
+    for (ogre_unordered_set<Character*>::type::const_iterator it = activeCharacters.begin();
+         it != activeCharacters.end();
+         ++it)
+    {
+        Character* candidate = *it;
+        if (candidate == 0 || candidate->inventory == 0 || !candidate->isATrader())
+        {
+            continue;
+        }
+
+        bool inventoryVisible = false;
+        TryResolveCharacterInventoryVisible(candidate, &inventoryVisible);
+
+        const std::string characterName = CharacterNameForLog(candidate);
+        const bool captionMatchesCharacter =
+            !windowCaption.empty()
+            && !characterName.empty()
+            && ContainsAsciiCaseInsensitive(windowCaption, characterName.c_str());
+
+        const int itemCount = static_cast<int>(InventoryItemCountForLog(candidate->inventory));
+        int score = 0;
+        score += 300;
+        if (inventoryVisible)
+        {
+            score += 120;
+        }
+        if (captionMatchesCharacter)
+        {
+            score += 500;
+        }
+        score += itemCount;
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestCharacter = candidate;
+            bestVisible = inventoryVisible;
+        }
+    }
+
+    if (bestCharacter == 0 || bestCharacter->inventory == 0)
+    {
+        return false;
+    }
+
+    if (!TryExtractQuantityNameKeysFromInventory(bestCharacter->inventory, outKeys))
+    {
+        return false;
+    }
+
+    if (outSource != 0)
+    {
+        std::stringstream source;
+        source << "caption_trader:" << CharacterNameForLog(bestCharacter)
+               << " visible=" << (bestVisible ? "true" : "false")
+               << " item_count=" << InventoryItemCountForLog(bestCharacter->inventory);
+        *outSource = source.str();
+    }
+
+    return true;
+}

@@ -176,6 +176,19 @@ bool TryResolveTraderInventoryNameKeysFromNearbyShopCounters(
     std::vector<std::string>* outKeys,
     std::string* outSource,
     std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderQuantityNameKeysFromCaption(
+    MyGUI::Widget* traderParent,
+    std::vector<QuantityNameKey>* outKeys,
+    std::string* outSource);
+void ClearLockedKeysetSource();
+bool TryResolveTraderInventoryNameKeys(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    bool preferCoverageFallbackWhenWidgetOpaque);
 
 void ClearTraderPanelInventoryBindings();
 void PruneTraderPanelInventoryBindings();
@@ -211,6 +224,14 @@ void RegisterTraderPanelInventoryBinding(
     const std::string& source,
     std::size_t expectedEntryCount,
     std::size_t nonEmptyKeyCount);
+void LogInventoryBindingDiagnostics(std::size_t expectedEntryCount);
+bool TryResolveAndCacheTraderPanelInventoryBinding(
+    MyGUI::Widget* traderParent,
+    MyGUI::Widget* entriesRoot,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    TraderPanelInventoryBinding* outBinding,
+    std::string* outStatus);
 void RegisterSectionWidgetInventoryLink(
     MyGUI::Widget* sectionWidget,
     Inventory* inventory,

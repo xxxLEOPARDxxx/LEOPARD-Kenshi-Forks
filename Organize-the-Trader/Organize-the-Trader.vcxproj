@@ -90,6 +90,7 @@
     <ClCompile Include="Organize-the-Trader.cpp" />
     <ClCompile Include="TraderCore.cpp" />
     <ClCompile Include="TraderInventoryBinding.cpp" />
+    <ClCompile Include="TraderInventoryKeyset.cpp" />
     <ClCompile Include="TraderInventoryResolver.cpp" />
     <ClCompile Include="TraderInventorySources.cpp" />
     <ClCompile Include="TraderSearchText.cpp" />

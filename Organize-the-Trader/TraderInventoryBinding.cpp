@@ -50,6 +50,22 @@ void AddBuildingInventoryCandidate(
     int priorityBias,
     std::vector<InventoryCandidateInfo>* outCandidates);
 
+namespace
+{
+std::size_t CountNonEmptyKeys(const std::vector<std::string>& keys)
+{
+    std::size_t count = 0;
+    for (std::size_t index = 0; index < keys.size(); ++index)
+    {
+        if (!keys[index].empty())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+}
+
 bool IsDescendantOf(MyGUI::Widget* widget, MyGUI::Widget* ancestor)
 {
     if (widget == 0 || ancestor == 0)
@@ -1811,5 +1827,371 @@ bool TryResolveInventoryFromInventoryGuiBackPointerOffsets(
         TraderState().binding.g_lastInventoryGuiBackPointerResolutionFailureSignature = signature.str();
     }
 
+    return false;
+}
+
+void LogInventoryBindingDiagnostics(std::size_t expectedEntryCount)
+{
+    if (!ShouldLogBindingDebug())
+    {
+        return;
+    }
+
+    if (ou == 0 || ou->player == 0)
+    {
+        LogWarnLine("inventory binding diagnostics: GameWorld/player unavailable");
+        return;
+    }
+
+    std::stringstream header;
+    header << "inventory binding diagnostics begin expected_entries=" << expectedEntryCount
+           << " gui_display_object=" << RootObjectDisplayNameForLog(ou->guiDisplayObject.getRootObject());
+    LogWarnLine(header.str());
+
+    Character* selectedCharacter = ou->player->selectedCharacter.getCharacter();
+    RootObject* mouseTargetRoot = ou->player->mouseRightTarget;
+    Character* mouseTargetCharacter = mouseTargetRoot == 0 ? 0 : mouseTargetRoot->getHandle().getCharacter();
+
+    std::stringstream selectedLine;
+    selectedLine << "binding selected_character=" << CharacterNameForLog(selectedCharacter)
+                 << " selected_inventory_items=" << InventoryItemCountForLog(
+                        selectedCharacter == 0 ? 0 : selectedCharacter->inventory)
+                 << " mouse_target_root=" << RootObjectDisplayNameForLog(mouseTargetRoot)
+                 << " mouse_target_character=" << CharacterNameForLog(mouseTargetCharacter)
+                 << " mouse_target_inventory_items=" << InventoryItemCountForLog(
+                        mouseTargetCharacter == 0 ? 0 : mouseTargetCharacter->inventory);
+    LogWarnLine(selectedLine.str());
+
+    const lektor<Character*>& allPlayerCharacters = ou->player->getAllPlayerCharacters();
+    std::size_t index = 0;
+    for (lektor<Character*>::const_iterator iter = allPlayerCharacters.begin(); iter != allPlayerCharacters.end(); ++iter)
+    {
+        Character* playerChar = *iter;
+        if (playerChar == 0)
+        {
+            continue;
+        }
+
+        Dialogue* dialogue = playerChar->dialogue;
+        Character* target = dialogue == 0 ? 0 : dialogue->getConversationTarget().getCharacter();
+
+        bool playerInventoryVisible = false;
+        bool targetInventoryVisible = false;
+        TryResolveCharacterInventoryVisible(playerChar, &playerInventoryVisible);
+        TryResolveCharacterInventoryVisible(target, &targetInventoryVisible);
+
+        const bool dialogActive = dialogue != 0 && !dialogue->conversationHasEndedPrettyMuch();
+        const bool engaged = (target != 0) && (playerChar->_isEngagedWithAPlayer || target->_isEngagedWithAPlayer);
+
+        std::stringstream line;
+        line << "binding player_char[" << index << "]=" << CharacterNameForLog(playerChar)
+             << " inv_visible=" << (playerInventoryVisible ? "true" : "false")
+             << " inv_items=" << InventoryItemCountForLog(playerChar->inventory)
+             << " has_dialogue=" << (dialogue != 0 ? "true" : "false")
+             << " dialog_active=" << (dialogActive ? "true" : "false")
+             << " engaged=" << (engaged ? "true" : "false")
+             << " target=" << CharacterNameForLog(target)
+             << " target_trader=" << (target != 0 && target->isATrader() ? "true" : "false")
+             << " target_inv_visible=" << (targetInventoryVisible ? "true" : "false")
+             << " target_inv_items=" << InventoryItemCountForLog(target == 0 ? 0 : target->inventory);
+        LogWarnLine(line.str());
+
+        ++index;
+        if (index >= 12)
+        {
+            break;
+        }
+    }
+
+    const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
+    std::size_t activeCount = 0;
+    std::size_t activeTraders = 0;
+    std::size_t activeVisibleInventories = 0;
+    std::size_t activeExactCountInventories = 0;
+    std::size_t loggedCandidates = 0;
+
+    for (ogre_unordered_set<Character*>::type::const_iterator it = activeCharacters.begin();
+         it != activeCharacters.end();
+         ++it)
+    {
+        Character* candidate = *it;
+        if (candidate == 0)
+        {
+            continue;
+        }
+
+        ++activeCount;
+
+        bool inventoryVisible = false;
+        TryResolveCharacterInventoryVisible(candidate, &inventoryVisible);
+        const bool isTrader = candidate->isATrader();
+        const std::size_t inventoryItemCount = InventoryItemCountForLog(candidate->inventory);
+        const bool exactCountMatch = inventoryItemCount == expectedEntryCount && inventoryItemCount > 0;
+
+        if (isTrader)
+        {
+            ++activeTraders;
+        }
+        if (inventoryVisible)
+        {
+            ++activeVisibleInventories;
+        }
+        if (exactCountMatch)
+        {
+            ++activeExactCountInventories;
+        }
+
+        if (loggedCandidates < 12 && (isTrader || inventoryVisible || exactCountMatch))
+        {
+            std::stringstream line;
+            line << "binding active_char[" << loggedCandidates << "]=" << CharacterNameForLog(candidate)
+                 << " trader=" << (isTrader ? "true" : "false")
+                 << " inv_visible=" << (inventoryVisible ? "true" : "false")
+                 << " inv_items=" << inventoryItemCount
+                 << " exact_items_match=" << (exactCountMatch ? "true" : "false");
+            LogWarnLine(line.str());
+            ++loggedCandidates;
+        }
+    }
+
+    std::stringstream summary;
+    summary << "binding active_chars_summary total=" << activeCount
+            << " traders=" << activeTraders
+            << " inv_visible=" << activeVisibleInventories
+            << " inv_items_match_expected=" << activeExactCountInventories;
+    LogWarnLine(summary.str());
+
+    Character* selectedForCenter = ou->player->selectedCharacter.getCharacter();
+    Ogre::Vector3 nearbyCenter = selectedForCenter != 0 ? selectedForCenter->getPosition() : ou->getCameraCenter();
+    std::vector<InventoryCandidateInfo> nearbyCandidates;
+    std::size_t nearbyScannedObjects = 0;
+    std::size_t nearbyInventoryObjects = 0;
+    CollectNearbyInventoryCandidates(
+        nearbyCenter,
+        &nearbyCandidates,
+        &nearbyScannedObjects,
+        &nearbyInventoryObjects);
+
+    std::stringstream nearbySummary;
+    nearbySummary << "binding nearby_inventory_summary scanned_objects=" << nearbyScannedObjects
+                  << " with_inventory=" << nearbyInventoryObjects
+                  << " candidates=" << nearbyCandidates.size();
+    LogWarnLine(nearbySummary.str());
+
+    std::size_t nearbyLogged = 0;
+    for (std::size_t nearbyIndex = 0;
+         nearbyIndex < nearbyCandidates.size() && nearbyLogged < 12;
+         ++nearbyIndex)
+    {
+        const InventoryCandidateInfo& candidate = nearbyCandidates[nearbyIndex];
+        std::vector<std::string> keys;
+        const bool hasKeys = TryExtractSearchKeysFromInventory(candidate.inventory, &keys);
+
+        std::stringstream line;
+        line << "binding nearby_candidate[" << nearbyLogged << "]"
+             << " key_count=" << (hasKeys ? keys.size() : 0)
+             << " visible=" << (candidate.visible ? "true" : "false")
+             << " trader_preferred=" << (candidate.traderPreferred ? "true" : "false")
+             << " source=\"" << TruncateForLog(candidate.source, 220) << "\"";
+        if (hasKeys && !keys.empty())
+        {
+            line << " key0=\"" << TruncateForLog(keys[0], 48) << "\"";
+        }
+        LogWarnLine(line.str());
+        ++nearbyLogged;
+    }
+
+    LogWarnLine("inventory binding diagnostics end");
+}
+
+bool TryResolveAndCacheTraderPanelInventoryBinding(
+    MyGUI::Widget* traderParent,
+    MyGUI::Widget* entriesRoot,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    TraderPanelInventoryBinding* outBinding,
+    std::string* outStatus)
+{
+    if (outBinding != 0)
+    {
+        outBinding->traderParent = 0;
+        outBinding->entriesRoot = 0;
+        outBinding->inventory = 0;
+        outBinding->stage.clear();
+        outBinding->source.clear();
+        outBinding->expectedEntryCount = 0;
+        outBinding->nonEmptyKeyCount = 0;
+        outBinding->lastSeenTick = 0;
+    }
+    if (outStatus != 0)
+    {
+        outStatus->clear();
+    }
+
+    if (traderParent == 0 || entriesRoot == 0 || expectedEntryCount == 0)
+    {
+        if (outStatus != 0)
+        {
+            *outStatus = "panel_or_entries_missing";
+        }
+        return false;
+    }
+
+    TraderPanelInventoryBinding cached;
+    if (TryGetTraderPanelInventoryBinding(traderParent, entriesRoot, expectedEntryCount, &cached))
+    {
+        if (outBinding != 0)
+        {
+            *outBinding = cached;
+        }
+        if (outStatus != 0)
+        {
+            *outStatus = "cached";
+        }
+        return true;
+    }
+
+    std::vector<std::string> keys;
+    std::vector<QuantityNameKey> quantityKeys;
+    std::string source;
+    Inventory* selectedInventory = 0;
+
+    if (TryResolveTraderInventoryNameKeysFromInventoryGuiMap(
+            traderParent,
+            expectedEntryCount,
+            uiQuantities,
+            &keys,
+            &source,
+            &quantityKeys,
+            &selectedInventory))
+    {
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const bool coverageStrong =
+            expectedEntryCount < 8 || nonEmptyKeyCount * 2 >= expectedEntryCount;
+        if (selectedInventory != 0 && coverageStrong)
+        {
+            RegisterTraderPanelInventoryBinding(
+                traderParent,
+                entriesRoot,
+                selectedInventory,
+                "inventory_gui_map",
+                source,
+                expectedEntryCount,
+                nonEmptyKeyCount);
+
+            if (TryGetTraderPanelInventoryBinding(
+                    traderParent,
+                    entriesRoot,
+                    expectedEntryCount,
+                    outBinding))
+            {
+                if (outStatus != 0)
+                {
+                    *outStatus = "resolved_inventory_gui_map";
+                }
+                return true;
+            }
+        }
+    }
+
+    keys.clear();
+    quantityKeys.clear();
+    source.clear();
+    selectedInventory = 0;
+    if (TryResolveTraderInventoryNameKeysFromSectionWidgetMap(
+            traderParent,
+            expectedEntryCount,
+            uiQuantities,
+            &keys,
+            &source,
+            &quantityKeys,
+            &selectedInventory))
+    {
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const int directEntriesMatches =
+            ExtractTaggedIntValue(source, "direct_entries_matches=");
+        const int directBackpackMatches =
+            ExtractTaggedIntValue(source, "direct_backpack_matches=");
+        const bool directSectionMatch =
+            directEntriesMatches > 0 || directBackpackMatches > 0;
+        const bool coverageStrong =
+            expectedEntryCount < 8 || nonEmptyKeyCount * 2 >= expectedEntryCount;
+
+        if (selectedInventory != 0 && directSectionMatch && coverageStrong)
+        {
+            RegisterTraderPanelInventoryBinding(
+                traderParent,
+                entriesRoot,
+                selectedInventory,
+                "section_widget",
+                source,
+                expectedEntryCount,
+                nonEmptyKeyCount);
+
+            if (TryGetTraderPanelInventoryBinding(
+                    traderParent,
+                    entriesRoot,
+                    expectedEntryCount,
+                    outBinding))
+            {
+                if (outStatus != 0)
+                {
+                    *outStatus = "resolved_section_widget";
+                }
+                return true;
+            }
+        }
+    }
+
+    keys.clear();
+    quantityKeys.clear();
+    source.clear();
+    selectedInventory = 0;
+    if (TryResolveTraderInventoryNameKeysFromWidgetBindings(
+            traderParent,
+            expectedEntryCount,
+            uiQuantities,
+            &keys,
+            &source,
+            &quantityKeys,
+            &selectedInventory))
+    {
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const bool coverageStrong =
+            expectedEntryCount < 8 || nonEmptyKeyCount * 2 >= expectedEntryCount;
+        const std::string sourceLower = NormalizeSearchText(source);
+        const bool hasGuiMatchTag =
+            sourceLower.find("widget gui match") != std::string::npos;
+
+        if (selectedInventory != 0 && hasGuiMatchTag && coverageStrong)
+        {
+            RegisterTraderPanelInventoryBinding(
+                traderParent,
+                entriesRoot,
+                selectedInventory,
+                "widget",
+                source,
+                expectedEntryCount,
+                nonEmptyKeyCount);
+
+            if (TryGetTraderPanelInventoryBinding(
+                    traderParent,
+                    entriesRoot,
+                    expectedEntryCount,
+                    outBinding))
+            {
+                if (outStatus != 0)
+                {
+                    *outStatus = "resolved_widget";
+                }
+                return true;
+            }
+        }
+    }
+
+    if (outStatus != 0)
+    {
+        *outStatus = "high_confidence_binding_not_found";
+    }
     return false;
 }
