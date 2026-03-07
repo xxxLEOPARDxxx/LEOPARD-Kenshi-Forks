@@ -68,6 +68,8 @@ enum SearchFocusHotkeyKind
 const char* kPluginName = "Organize-the-Trader";
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
+const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
+const char* kSearchClearButtonName = "OTT_SearchClearButton";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kSearchCountTextName = "OTT_SearchCountText";
 const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
@@ -144,6 +146,9 @@ std::string g_lockedKeysetSourceId;
 std::string g_lockedKeysetSourcePreview;
 std::size_t g_lockedKeysetExpectedCount = 0;
 std::string g_lastKeysetLockSignature;
+std::size_t g_lastSearchVisibleEntryCount = 0;
+std::size_t g_lastSearchTotalEntryCount = 0;
+std::size_t g_lastSearchVisibleQuantity = 0;
 
 struct SectionWidgetInventoryLink
 {
@@ -224,6 +229,8 @@ MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* backpackContent);
 MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, bool logDiagnostics);
 MyGUI::Widget* FindNamedDescendantRecursive(MyGUI::Widget* root, const char* widgetName, bool requireVisible);
 MyGUI::EditBox* FindSearchEditBox();
+MyGUI::TextBox* FindSearchPlaceholderTextBox();
+MyGUI::Button* FindSearchClearButton();
 MyGUI::TextBox* FindSearchCountTextBox();
 bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures);
 bool IsInventoryPointerValidSafe(Inventory* inventory);
@@ -236,6 +243,7 @@ void UpdateSearchCountText(
     std::size_t visibleEntryCount,
     std::size_t totalEntryCount,
     std::size_t visibleQuantity);
+void UpdateSearchUiState();
 bool TryResolveCaptionMatchedTraderCharacter(
     MyGUI::Widget* traderParent,
     Character** outCharacter,
@@ -1297,6 +1305,32 @@ MyGUI::EditBox* FindSearchEditBox()
 
     MyGUI::Widget* found = FindNamedDescendantRecursive(controlsContainer, kSearchEditName, false);
     return found == 0 ? 0 : found->castType<MyGUI::EditBox>(false);
+}
+
+MyGUI::TextBox* FindSearchPlaceholderTextBox()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found =
+        FindNamedDescendantRecursive(controlsContainer, kSearchPlaceholderName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::TextBox>(false);
+}
+
+MyGUI::Button* FindSearchClearButton()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found =
+        FindNamedDescendantRecursive(controlsContainer, kSearchClearButtonName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::Button>(false);
 }
 
 MyGUI::TextBox* FindSearchCountTextBox()
@@ -10041,6 +10075,13 @@ bool ShouldShowAnySearchCountMetric()
     return g_showSearchEntryCount || g_showSearchQuantityCount;
 }
 
+bool SearchHasNoVisibleResults()
+{
+    return !g_searchQueryNormalized.empty()
+        && g_lastSearchTotalEntryCount > 0
+        && g_lastSearchVisibleEntryCount == 0;
+}
+
 int ResolvePreferredSearchCountTextWidth()
 {
     if (!ShouldShowAnySearchCountMetric())
@@ -10106,19 +10147,124 @@ std::string BuildSearchCountCaption(
     return line.str();
 }
 
+void UpdateSearchUiState()
+{
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    MyGUI::Button* clearButton = FindSearchClearButton();
+    MyGUI::TextBox* placeholder = FindSearchPlaceholderTextBox();
+    MyGUI::TextBox* countText = FindSearchCountTextBox();
+
+    const bool hasQuery = !g_searchQueryRaw.empty();
+    const bool focused = IsSearchEditFocused(searchEdit);
+    const bool noVisibleResults = SearchHasNoVisibleResults();
+
+    if (clearButton != 0)
+    {
+        const MyGUI::IntCoord clearCoord = clearButton->getCoord();
+        const int clearButtonWidth = clearCoord.width;
+        const int clearGap = 4;
+        const int fullRight = clearCoord.left + clearCoord.width;
+        const int maxEditWidth = fullRight - searchEdit->getLeft();
+        int desiredEditWidth = maxEditWidth;
+        if (hasQuery)
+        {
+            desiredEditWidth -= clearButtonWidth + clearGap;
+        }
+        if (desiredEditWidth < 80)
+        {
+            desiredEditWidth = 80;
+        }
+
+        const MyGUI::IntCoord editCoord = searchEdit->getCoord();
+        if (editCoord.width != desiredEditWidth)
+        {
+            searchEdit->setCoord(editCoord.left, editCoord.top, desiredEditWidth, editCoord.height);
+        }
+
+        clearButton->setVisible(hasQuery);
+        clearButton->setEnabled(hasQuery);
+        clearButton->setAlpha(focused ? 1.0f : 0.86f);
+        clearButton->setColour(noVisibleResults
+            ? MyGUI::Colour(1.0f, 0.78f, 0.78f, 1.0f)
+            : MyGUI::Colour::White);
+    }
+
+    if (placeholder != 0)
+    {
+        const bool showPlaceholder = !hasQuery && !focused;
+        if (clearButton != 0)
+        {
+            const MyGUI::IntCoord editCoord = searchEdit->getCoord();
+            const int placeholderLeft = editCoord.left + 10;
+            const int placeholderTop = editCoord.top + 1;
+            int placeholderWidth = editCoord.width - 16;
+            if (placeholderWidth < 40)
+            {
+                placeholderWidth = 40;
+            }
+
+            const MyGUI::IntCoord placeholderCoord = placeholder->getCoord();
+            if (placeholderCoord.left != placeholderLeft
+                || placeholderCoord.top != placeholderTop
+                || placeholderCoord.width != placeholderWidth
+                || placeholderCoord.height != editCoord.height)
+            {
+                placeholder->setCoord(
+                    placeholderLeft,
+                    placeholderTop,
+                    placeholderWidth,
+                    editCoord.height);
+            }
+        }
+        placeholder->setVisible(showPlaceholder);
+        placeholder->setTextColour(
+            focused
+                ? MyGUI::Colour(0.82f, 0.82f, 0.82f, 1.0f)
+                : MyGUI::Colour(0.63f, 0.63f, 0.63f, 1.0f));
+    }
+
+    searchEdit->setAlpha(focused ? 1.0f : 0.92f);
+    searchEdit->setColour(
+        noVisibleResults
+            ? MyGUI::Colour(1.0f, 0.9f, 0.9f, 1.0f)
+            : (focused
+                ? MyGUI::Colour::White
+                : MyGUI::Colour(0.93f, 0.93f, 0.93f, 1.0f)));
+
+    if (countText != 0)
+    {
+        countText->setTextColour(
+            noVisibleResults
+                ? MyGUI::Colour(1.0f, 0.42f, 0.42f, 1.0f)
+                : MyGUI::Colour(0.83f, 0.83f, 0.83f, 1.0f));
+        countText->setAlpha(focused ? 1.0f : 0.92f);
+    }
+}
+
 void UpdateSearchCountText(
     std::size_t visibleEntryCount,
     std::size_t totalEntryCount,
     std::size_t visibleQuantity)
 {
+    g_lastSearchVisibleEntryCount = visibleEntryCount;
+    g_lastSearchTotalEntryCount = totalEntryCount;
+    g_lastSearchVisibleQuantity = visibleQuantity;
+
     MyGUI::TextBox* countText = FindSearchCountTextBox();
     if (countText == 0)
     {
+        UpdateSearchUiState();
         return;
     }
 
     countText->setVisible(ShouldShowAnySearchCountMetric());
     countText->setCaption(BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity));
+    UpdateSearchUiState();
 }
 
 bool TryGetCurrentMousePosition(int* xOut, int* yOut)
@@ -10465,6 +10611,75 @@ bool TryStripSingleSlashShortcutInsertion(
     return false;
 }
 
+void SetSearchQueryAndRefresh(
+    MyGUI::EditBox* searchEdit,
+    const std::string& rawText,
+    const char* reason,
+    bool focusAfterSet)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    g_searchQueryRaw = rawText;
+    g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
+    g_loggedNumericOnlyQueryIgnored = false;
+    g_lastSearchSampleQueryLogged.clear();
+    g_lastZeroMatchQueryLogged.clear();
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+
+    const std::string currentOnlyText = searchEdit->getOnlyText().asUTF8();
+    if (currentOnlyText != rawText)
+    {
+        g_suppressNextSearchEditChangeEvent = true;
+        searchEdit->setOnlyText(rawText);
+    }
+
+    if (focusAfterSet)
+    {
+        FocusSearchEdit(searchEdit, reason);
+    }
+
+    std::stringstream line;
+    line << "search ui action"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
+         << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
+    LogInfoLine(line.str());
+
+    ApplySearchFilterFromControls(false, true);
+    UpdateSearchUiState();
+}
+
+void OnSearchClearButtonClicked(MyGUI::Widget*)
+{
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    SetSearchQueryAndRefresh(searchEdit, "", "clear_button", true);
+}
+
+void OnSearchPlaceholderClicked(MyGUI::Widget*)
+{
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    FocusSearchEdit(searchEdit, "placeholder_click");
+}
+
+void OnSearchEditKeyFocusChanged(MyGUI::Widget*, MyGUI::Widget*)
+{
+    UpdateSearchUiState();
+}
+
 void OnSearchTextChanged(MyGUI::EditBox* sender)
 {
     if (sender == 0)
@@ -10512,6 +10727,7 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
     LogInfoLine(line.str());
 
     ApplySearchFilterFromControls(false, true);
+    UpdateSearchUiState();
 }
 
 bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
@@ -10605,10 +10821,19 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
     int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
     int countGap = countWidth > 0 ? 6 : 0;
-    int searchInputWidth = searchInputAvailableWidth - countWidth - countGap;
-    if (searchInputWidth < 120)
+    int searchAreaWidth = searchInputAvailableWidth - countWidth - countGap;
+    if (searchAreaWidth < 120)
     {
-        searchInputWidth = 120;
+        searchAreaWidth = 120;
+    }
+    int clearButtonWidth = rowHeight;
+    if (clearButtonWidth > 26)
+    {
+        clearButtonWidth = 26;
+    }
+    if (clearButtonWidth < 18)
+    {
+        clearButtonWidth = 18;
     }
 
     MyGUI::Button* dragHandle = container->createWidget<MyGUI::Button>(
@@ -10648,7 +10873,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
 
     MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
-        MyGUI::IntCoord(searchInputLeft, outerPadding, searchInputWidth, rowHeight),
+        MyGUI::IntCoord(searchInputLeft, outerPadding, searchAreaWidth, rowHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchEditName);
     if (searchEdit == 0)
@@ -10659,7 +10884,45 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     }
     searchEdit->setOnlyText(g_searchQueryRaw);
     searchEdit->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
+    searchEdit->eventKeySetFocus += MyGUI::newDelegate(&OnSearchEditKeyFocusChanged);
+    searchEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnSearchEditKeyFocusChanged);
+
+    MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(searchInputLeft + 10, outerPadding + 1, searchAreaWidth - 16, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSearchPlaceholderName);
+    if (placeholder == 0)
+    {
+        LogErrorLine("failed to create search placeholder");
+        DestroyControlsIfPresent();
+        return false;
+    }
+    placeholder->setCaption("Search items...");
+    placeholder->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+    placeholder->setNeedMouseFocus(true);
+    placeholder->eventMouseButtonClick += MyGUI::newDelegate(&OnSearchPlaceholderClicked);
+
+    MyGUI::Button* clearButton = container->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(
+            searchInputLeft + searchAreaWidth - clearButtonWidth,
+            outerPadding,
+            clearButtonWidth,
+            rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSearchClearButtonName);
+    if (clearButton == 0)
+    {
+        LogErrorLine("failed to create search clear button");
+        DestroyControlsIfPresent();
+        return false;
+    }
+    clearButton->setCaption("X");
+    clearButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSearchClearButtonClicked);
+
     FocusSearchEditIfRequested(searchEdit, "controls_built");
+    UpdateSearchUiState();
 
     return true;
 }
