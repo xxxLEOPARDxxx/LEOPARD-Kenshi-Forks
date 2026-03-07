@@ -33,9 +33,14 @@ bool ContainsAsciiDigit(const std::string& value);
 int ComputeCaptionNameMatchBias(
     const std::string& captionNormalized,
     const std::string& nameNormalized);
+std::size_t CountNonEmptyKeys(const std::vector<std::string>& keys);
+void AppendNormalizedSearchChunk(const std::string& normalizedChunk, std::string* out);
 bool ShouldIndexSearchToken(const std::string& token);
 bool IsNumericOnlyQuery(const std::string& normalizedQuery);
 void AppendSearchToken(std::string* text, const std::string& token);
+std::string ResolveItemNameHintRecursive(MyGUI::Widget* widget, std::size_t depth, std::size_t maxDepth);
+std::string BuildItemSearchText(MyGUI::Widget* itemWidget);
+std::string BuildItemRawProbe(MyGUI::Widget* itemWidget);
 bool TryResolveItemQuantityFromWidget(MyGUI::Widget* itemWidget, int* outQuantity);
 MyGUI::Widget* FindNamedDescendantByTokenRecursive(
     MyGUI::Widget* root,

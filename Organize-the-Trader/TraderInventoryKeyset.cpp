@@ -61,7 +61,7 @@ void AddBuildingInventoryCandidate(
 
 namespace
 {
-std::size_t CountNonEmptyKeys(const std::vector<std::string>& keys)
+std::size_t CountNonEmptyKeysLocal(const std::vector<std::string>& keys)
 {
     std::size_t count = 0;
     for (std::size_t index = 0; index < keys.size(); ++index)
@@ -1000,7 +1000,7 @@ bool TryResolveTraderInventoryNameKeys(
         outQuantityKeys->swap(bestQuantityKeys);
     }
 
-    const std::size_t selectedNonEmptyKeyCount = CountNonEmptyKeys(*outKeys);
+    const std::size_t selectedNonEmptyKeyCount = CountNonEmptyKeysLocal(*outKeys);
     const bool selectedLowCoverage =
         expectedEntryCount >= 8 && selectedNonEmptyKeyCount * 2 < expectedEntryCount;
     const std::string selectedSourceId = BuildKeysetSourceId(bestSource);

@@ -52,7 +52,7 @@ void AddBuildingInventoryCandidate(
 
 namespace
 {
-std::size_t CountNonEmptyKeys(const std::vector<std::string>& keys)
+std::size_t CountNonEmptyKeysLocal(const std::vector<std::string>& keys)
 {
     std::size_t count = 0;
     for (std::size_t index = 0; index < keys.size(); ++index)
@@ -2065,7 +2065,7 @@ bool TryResolveAndCacheTraderPanelInventoryBinding(
             &quantityKeys,
             &selectedInventory))
     {
-        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeysLocal(keys);
         const bool coverageStrong =
             expectedEntryCount < 8 || nonEmptyKeyCount * 2 >= expectedEntryCount;
         if (selectedInventory != 0 && coverageStrong)
@@ -2107,7 +2107,7 @@ bool TryResolveAndCacheTraderPanelInventoryBinding(
             &quantityKeys,
             &selectedInventory))
     {
-        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeysLocal(keys);
         const int directEntriesMatches =
             ExtractTaggedIntValue(source, "direct_entries_matches=");
         const int directBackpackMatches =
@@ -2156,7 +2156,7 @@ bool TryResolveAndCacheTraderPanelInventoryBinding(
             &quantityKeys,
             &selectedInventory))
     {
-        const std::size_t nonEmptyKeyCount = CountNonEmptyKeys(keys);
+        const std::size_t nonEmptyKeyCount = CountNonEmptyKeysLocal(keys);
         const bool coverageStrong =
             expectedEntryCount < 8 || nonEmptyKeyCount * 2 >= expectedEntryCount;
         const std::string sourceLower = NormalizeSearchText(source);

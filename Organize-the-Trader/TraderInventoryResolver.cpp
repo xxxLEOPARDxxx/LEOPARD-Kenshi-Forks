@@ -334,7 +334,7 @@ void AddBuildingInventoryCandidate(
 
 namespace
 {
-std::size_t CountNonEmptyKeys(const std::vector<std::string>& keys)
+std::size_t CountNonEmptyKeysLocal(const std::vector<std::string>& keys)
 {
     std::size_t count = 0;
     for (std::size_t index = 0; index < keys.size(); ++index)
@@ -581,7 +581,7 @@ bool TryResolveTraderInventoryNameKeysFromTraderOwnership(
             }
 
             aggregateFallbackKeys = aggregateAlignedNames;
-            aggregateNonEmptyCount = CountNonEmptyKeys(aggregateFallbackKeys);
+            aggregateNonEmptyCount = CountNonEmptyKeysLocal(aggregateFallbackKeys);
 
             const bool strongAggregateAlignment =
                 uiQuantities->size() > 0
@@ -648,7 +648,7 @@ bool TryResolveTraderInventoryNameKeysFromTraderOwnership(
         return false;
     }
 
-    const std::size_t resolvedNonEmptyCount = CountNonEmptyKeys(*outKeys);
+    const std::size_t resolvedNonEmptyCount = CountNonEmptyKeysLocal(*outKeys);
     if (!aggregateFallbackKeys.empty() && aggregateAlignmentComputed)
     {
         if (resolvedNonEmptyCount == 0 && aggregateNonEmptyCount > 0)
@@ -1364,7 +1364,7 @@ bool TryResolveInventoryNameKeysFromCandidates(
         int candidateQueryMatches = 0;
 
         const int keyCount = static_cast<int>(keys.size());
-        const int nonEmptyKeyCount = static_cast<int>(CountNonEmptyKeys(keys));
+        const int nonEmptyKeyCount = static_cast<int>(CountNonEmptyKeysLocal(keys));
         const int emptyKeyCount = keyCount - nonEmptyKeyCount;
         const int expected = static_cast<int>(expectedEntryCount);
         const int diff =
