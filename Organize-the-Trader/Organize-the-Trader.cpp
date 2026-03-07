@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <cstring>
 #include <algorithm>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -61,6 +62,7 @@ const char* kPluginName = "Organize-the-Trader";
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
+const char* kSearchCountTextName = "OTT_SearchCountText";
 const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
 const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 
@@ -90,14 +92,20 @@ unsigned long long g_updateTickCounter = 0;
 
 bool g_prevToggleHotkeyDown = false;
 bool g_prevDiagnosticsHotkeyDown = false;
+bool g_prevSearchSlashHotkeyDown = false;
+bool g_prevSearchCtrlFHotkeyDown = false;
+bool g_prevSearchEscapeHotkeyDown = false;
 bool g_controlsWereInjected = false;
 bool g_controlsEnabled = true;
+bool g_showSearchEntryCount = true;
+bool g_showSearchQuantityCount = true;
 bool g_loggedNoVisibleTraderTarget = false;
 bool g_loggedRejectedTraderCandidate = false;
 std::string g_searchQueryRaw;
 std::string g_searchQueryNormalized;
 std::string g_activeTraderTargetId;
 bool g_focusSearchEditOnNextInjection = false;
+bool g_suppressNextSearchEditChangeEvent = false;
 bool g_searchContainerDragging = false;
 bool g_searchContainerPositionCustomized = false;
 int g_searchContainerDragLastMouseX = 0;
@@ -204,12 +212,20 @@ MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);
 MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
 MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* backpackContent);
 MyGUI::Widget* ResolveBestBackpackContentWidget(MyGUI::Widget* traderParent, bool logDiagnostics);
+MyGUI::Widget* FindNamedDescendantRecursive(MyGUI::Widget* root, const char* widgetName, bool requireVisible);
+MyGUI::EditBox* FindSearchEditBox();
+MyGUI::TextBox* FindSearchCountTextBox();
 bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures);
 bool IsInventoryPointerValidSafe(Inventory* inventory);
 void PruneSectionWidgetInventoryLinks();
 void PruneInventoryGuiInventoryLinks();
 bool TryExtractSearchKeysFromInventory(Inventory* inventory, std::vector<std::string>* outKeys);
 std::string BuildKeyPreviewForLog(const std::vector<std::string>& keys, std::size_t maxKeys);
+void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary);
+void UpdateSearchCountText(
+    std::size_t visibleEntryCount,
+    std::size_t totalEntryCount,
+    std::size_t visibleQuantity);
 bool TryResolveCaptionMatchedTraderCharacter(
     MyGUI::Widget* traderParent,
     Character** outCharacter,
@@ -249,6 +265,142 @@ void LogErrorLine(const std::string& message)
     std::stringstream line;
     line << kPluginName << " ERROR: " << message;
     ErrorLog(line.str().c_str());
+}
+
+std::string GetCurrentPluginDirectoryPath()
+{
+    HMODULE module = 0;
+    if (!GetModuleHandleExA(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCSTR>(&GetCurrentPluginDirectoryPath),
+            &module)
+        || module == 0)
+    {
+        return "";
+    }
+
+    char buffer[MAX_PATH];
+    const DWORD length = GetModuleFileNameA(module, buffer, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+    {
+        return "";
+    }
+
+    std::string path(buffer, static_cast<std::size_t>(length));
+    const std::string::size_type slash = path.find_last_of("\\/");
+    if (slash == std::string::npos)
+    {
+        return "";
+    }
+
+    return path.substr(0, slash);
+}
+
+bool TryReadTextFile(const std::string& path, std::string* outContent)
+{
+    if (outContent == 0 || path.empty())
+    {
+        return false;
+    }
+
+    std::ifstream input(path.c_str(), std::ios::in | std::ios::binary);
+    if (!input.is_open())
+    {
+        return false;
+    }
+
+    std::stringstream buffer;
+    buffer << input.rdbuf();
+    *outContent = buffer.str();
+    return true;
+}
+
+bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* outValue)
+{
+    if (key == 0 || outValue == 0)
+    {
+        return false;
+    }
+
+    const std::string needle = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = content.find(needle);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
+    if (valuePos == std::string::npos)
+    {
+        return false;
+    }
+
+    ++valuePos;
+    while (valuePos < content.size()
+        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
+    {
+        ++valuePos;
+    }
+
+    if (content.compare(valuePos, 4, "true") == 0)
+    {
+        *outValue = true;
+        return true;
+    }
+
+    if (content.compare(valuePos, 5, "false") == 0)
+    {
+        *outValue = false;
+        return true;
+    }
+
+    return false;
+}
+
+void LoadModConfig()
+{
+    g_controlsEnabled = true;
+    g_showSearchEntryCount = true;
+    g_showSearchQuantityCount = true;
+
+    const std::string pluginDirectory = GetCurrentPluginDirectoryPath();
+    if (pluginDirectory.empty())
+    {
+        LogWarnLine("mod config load skipped: could not resolve plugin directory");
+        return;
+    }
+
+    const std::string configPath = pluginDirectory + "\\mod-config.json";
+    std::string configText;
+    if (!TryReadTextFile(configPath, &configText))
+    {
+        std::stringstream line;
+        line << "mod config load skipped: could not read " << configPath
+             << " (using defaults)";
+        LogWarnLine(line.str());
+        return;
+    }
+
+    bool parsedValue = false;
+    if (TryParseJsonBoolByKey(configText, "enabled", &parsedValue))
+    {
+        g_controlsEnabled = parsedValue;
+    }
+    if (TryParseJsonBoolByKey(configText, "showSearchEntryCount", &parsedValue))
+    {
+        g_showSearchEntryCount = parsedValue;
+    }
+    if (TryParseJsonBoolByKey(configText, "showSearchQuantityCount", &parsedValue))
+    {
+        g_showSearchQuantityCount = parsedValue;
+    }
+
+    std::stringstream line;
+    line << "mod config loaded"
+         << " enabled=" << (g_controlsEnabled ? "true" : "false")
+         << " showSearchEntryCount=" << (g_showSearchEntryCount ? "true" : "false")
+         << " showSearchQuantityCount=" << (g_showSearchQuantityCount ? "true" : "false");
+    LogInfoLine(line.str());
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)
@@ -1029,6 +1181,30 @@ MyGUI::Widget* FindWidgetByName(const char* widgetName)
 MyGUI::Widget* FindControlsContainer()
 {
     return FindWidgetByName(kControlsContainerName);
+}
+
+MyGUI::EditBox* FindSearchEditBox()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found = FindNamedDescendantRecursive(controlsContainer, kSearchEditName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::EditBox>(false);
+}
+
+MyGUI::TextBox* FindSearchCountTextBox()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found = FindNamedDescendantRecursive(controlsContainer, kSearchCountTextName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::TextBox>(false);
 }
 
 MyGUI::Widget* FindNamedDescendantRecursive(MyGUI::Widget* root, const char* widgetName, bool requireVisible)
@@ -8897,6 +9073,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             LogWarnLine(line.str());
             g_loggedMissingBackpackForSearch = true;
         }
+        UpdateSearchCountText(0, 0, 0);
         return false;
     }
     g_loggedMissingBackpackForSearch = false;
@@ -8904,6 +9081,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(backpackContent);
     if (entriesRoot == 0)
     {
+        UpdateSearchCountText(0, 0, 0);
         return false;
     }
 
@@ -8973,6 +9151,14 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         uiQuantities.push_back(orderedEntries[index].quantity);
     }
     const std::size_t expectedEntryCount = occupiedEntryIndices.size();
+    std::size_t totalOccupiedQuantity = 0;
+    for (std::size_t quantityIndex = 0; quantityIndex < uiQuantities.size(); ++quantityIndex)
+    {
+        if (uiQuantities[quantityIndex] > 0)
+        {
+            totalOccupiedQuantity += static_cast<std::size_t>(uiQuantities[quantityIndex]);
+        }
+    }
     std::size_t widgetSearchableEntryCount = 0;
     if (!query.empty())
     {
@@ -9066,6 +9252,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                  << " filtering_refused=true";
             LogInfoLine(line.str());
         }
+        UpdateSearchCountText(expectedEntryCount, expectedEntryCount, totalOccupiedQuantity);
         return true;
     }
 
@@ -9165,6 +9352,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                  << " filtering_refused=true";
             LogInfoLine(line.str());
         }
+        UpdateSearchCountText(expectedEntryCount, expectedEntryCount, totalOccupiedQuantity);
         return true;
     }
 
@@ -9201,6 +9389,8 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     };
     std::vector<EntryFilterState> entries;
     entries.reserve(orderedEntryCount);
+    std::size_t visibleOccupiedCount = 0;
+    std::size_t visibleQuantity = 0;
     std::size_t searchableEntryCount = 0;
     std::size_t sequenceAlignedNameHintCount = 0;
     std::size_t quantityAlignedNameHintCount = 0;
@@ -9468,6 +9658,14 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         if (shouldBeVisible)
         {
             ++visibleCount;
+            if (entry.occupied)
+            {
+                ++visibleOccupiedCount;
+                if (entry.quantity > 0)
+                {
+                    visibleQuantity += static_cast<std::size_t>(entry.quantity);
+                }
+            }
         }
     }
 
@@ -9607,6 +9805,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         g_lastZeroMatchQueryLogged = query;
     }
 
+    UpdateSearchCountText(visibleOccupiedCount, expectedEntryCount, visibleQuantity);
     return true;
 }
 
@@ -9681,19 +9880,17 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
     }
 }
 
-void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
+void FocusSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
 {
-    if (!g_focusSearchEditOnNextInjection || searchEdit == 0)
+    if (searchEdit == 0)
     {
         return;
     }
 
-    g_focusSearchEditOnNextInjection = false;
-
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
     if (input == 0)
     {
-        LogWarnLine("search autofocus skipped: MyGUI InputManager unavailable");
+        LogWarnLine("search focus skipped: MyGUI InputManager unavailable");
         return;
     }
 
@@ -9703,6 +9900,145 @@ void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
     line << "search edit focused"
          << " reason=" << (reason == 0 ? "<unknown>" : reason);
     LogInfoLine(line.str());
+}
+
+void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
+{
+    if (!g_focusSearchEditOnNextInjection || searchEdit == 0)
+    {
+        return;
+    }
+
+    g_focusSearchEditOnNextInjection = false;
+    FocusSearchEdit(searchEdit, reason);
+}
+
+bool IsSearchEditFocused(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input == 0)
+    {
+        return false;
+    }
+
+    return input->getKeyFocusWidget() == searchEdit;
+}
+
+bool ShouldShowAnySearchCountMetric()
+{
+    return g_showSearchEntryCount || g_showSearchQuantityCount;
+}
+
+int ResolveSearchCountTextWidth(int availableWidth)
+{
+    if (!ShouldShowAnySearchCountMetric())
+    {
+        return 0;
+    }
+
+    int desiredWidth = 0;
+    if (g_showSearchEntryCount && g_showSearchQuantityCount)
+    {
+        desiredWidth = 132;
+    }
+    else if (g_showSearchEntryCount)
+    {
+        desiredWidth = 72;
+    }
+    else
+    {
+        desiredWidth = 72;
+    }
+
+    const int minSearchInputWidth = 120;
+    const int minCountWidth = 44;
+    const int maxAllowedWidth = availableWidth - minSearchInputWidth;
+    if (maxAllowedWidth < minCountWidth)
+    {
+        return 0;
+    }
+    if (desiredWidth > maxAllowedWidth)
+    {
+        desiredWidth = maxAllowedWidth;
+    }
+
+    return desiredWidth;
+}
+
+std::string BuildSearchCountCaption(
+    std::size_t visibleEntryCount,
+    std::size_t totalEntryCount,
+    std::size_t visibleQuantity)
+{
+    std::stringstream line;
+    bool wroteMetric = false;
+
+    if (g_showSearchEntryCount)
+    {
+        line << visibleEntryCount << " / " << totalEntryCount;
+        wroteMetric = true;
+    }
+
+    if (g_showSearchQuantityCount)
+    {
+        if (wroteMetric)
+        {
+            line << " | ";
+        }
+        line << "qty " << visibleQuantity;
+    }
+
+    return line.str();
+}
+
+void UpdateSearchCountText(
+    std::size_t visibleEntryCount,
+    std::size_t totalEntryCount,
+    std::size_t visibleQuantity)
+{
+    MyGUI::TextBox* countText = FindSearchCountTextBox();
+    if (countText == 0)
+    {
+        return;
+    }
+
+    countText->setVisible(ShouldShowAnySearchCountMetric());
+    countText->setCaption(BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity));
+}
+
+void SetSearchQueryFromShortcut(MyGUI::EditBox* searchEdit, const std::string& rawText, const char* reason)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    g_searchQueryRaw = rawText;
+    g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
+    g_loggedNumericOnlyQueryIgnored = false;
+    g_lastSearchSampleQueryLogged.clear();
+    g_lastZeroMatchQueryLogged.clear();
+
+    const std::string currentOnlyText = searchEdit->getOnlyText().asUTF8();
+    if (currentOnlyText != rawText)
+    {
+        g_suppressNextSearchEditChangeEvent = true;
+        searchEdit->setOnlyText(rawText);
+    }
+
+    std::stringstream line;
+    line << "search shortcut action"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " raw=\"" << TruncateForLog(g_searchQueryRaw, 64) << "\""
+         << " normalized=\"" << TruncateForLog(g_searchQueryNormalized, 64) << "\"";
+    LogInfoLine(line.str());
+
+    ApplySearchFilterFromControls(false, true);
 }
 
 bool TryGetCurrentMousePosition(int* xOut, int* yOut)
@@ -10023,6 +10359,13 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
 
     const std::string captionText = sender->getCaption().asUTF8();
     const std::string onlyText = sender->getOnlyText().asUTF8();
+    if (g_suppressNextSearchEditChangeEvent && onlyText == g_searchQueryRaw)
+    {
+        g_suppressNextSearchEditChangeEvent = false;
+        return;
+    }
+    g_suppressNextSearchEditChangeEvent = false;
+
     g_searchQueryRaw = onlyText;
     g_searchQueryNormalized = NormalizeSearchText(g_searchQueryRaw);
     g_loggedNumericOnlyQueryIgnored = false;
@@ -10118,7 +10461,10 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     const int handleWidth = 28;
     const int handleGap = 6;
     const int searchInputLeft = outerPadding + handleWidth + handleGap;
-    int searchInputWidth = containerWidth - searchInputLeft - outerPadding;
+    const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
+    int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
+    int countGap = countWidth > 0 ? 6 : 0;
+    int searchInputWidth = searchInputAvailableWidth - countWidth - countGap;
     if (searchInputWidth < 120)
     {
         searchInputWidth = 120;
@@ -10141,6 +10487,23 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     dragHandle->eventMouseMove += MyGUI::newDelegate(&OnSearchDragHandleMouseMove);
     dragHandle->eventMouseDrag += MyGUI::newDelegate(&OnSearchDragHandleMouseDrag);
     dragHandle->eventMouseButtonReleased += MyGUI::newDelegate(&OnSearchDragHandleMouseReleased);
+
+    if (countWidth > 0)
+    {
+        MyGUI::TextBox* countText = container->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, outerPadding + 3, countWidth, rowHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kSearchCountTextName);
+        if (countText == 0)
+        {
+            LogErrorLine("failed to create search count text");
+            DestroyControlsIfPresent();
+            return false;
+        }
+        countText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
+        UpdateSearchCountText(0, 0, 0);
+    }
 
     MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
@@ -10347,6 +10710,52 @@ bool IsDiagnosticsHotkeyPressedEdge()
     const bool chordDown = ctrlDown && shiftDown && f9Down;
     const bool pressedEdge = chordDown && !g_prevDiagnosticsHotkeyDown;
     g_prevDiagnosticsHotkeyDown = chordDown;
+    return pressedEdge;
+}
+
+bool IsSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0 || key == 0 || key->keyboard == 0)
+    {
+        g_prevSearchSlashHotkeyDown = false;
+        g_prevSearchCtrlFHotkeyDown = false;
+        return false;
+    }
+
+    const bool searchFocused = IsSearchEditFocused(searchEdit);
+    const bool ctrlDown = key->keyboard->isKeyDown(OIS::KC_LCONTROL)
+        || key->keyboard->isKeyDown(OIS::KC_RCONTROL);
+    const bool altDown = key->keyboard->isKeyDown(OIS::KC_LMENU)
+        || key->keyboard->isKeyDown(OIS::KC_RMENU);
+    const bool slashDown = key->keyboard->isKeyDown(OIS::KC_SLASH);
+    const bool fDown = key->keyboard->isKeyDown(OIS::KC_F);
+
+    const bool slashChordDown = !searchFocused && !ctrlDown && !altDown && slashDown;
+    const bool ctrlFChordDown = !searchFocused && ctrlDown && fDown;
+
+    const bool slashPressedEdge = slashChordDown && !g_prevSearchSlashHotkeyDown;
+    const bool ctrlFPressedEdge = ctrlFChordDown && !g_prevSearchCtrlFHotkeyDown;
+
+    g_prevSearchSlashHotkeyDown = slashChordDown;
+    g_prevSearchCtrlFHotkeyDown = ctrlFChordDown;
+
+    return slashPressedEdge || ctrlFPressedEdge;
+}
+
+bool IsSearchEscapeHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0 || key == 0 || key->keyboard == 0)
+    {
+        g_prevSearchEscapeHotkeyDown = false;
+        return false;
+    }
+
+    const bool escapeDown = key->keyboard->isKeyDown(OIS::KC_ESCAPE);
+    const bool clearEligible = IsSearchEditFocused(searchEdit) || !g_searchQueryRaw.empty();
+    const bool chordDown = clearEligible && escapeDown;
+    const bool pressedEdge = chordDown && !g_prevSearchEscapeHotkeyDown;
+
+    g_prevSearchEscapeHotkeyDown = chordDown;
     return pressedEdge;
 }
 
@@ -10616,7 +11025,30 @@ void TickPhase2ControlsScaffold()
     }
 
     EnsureControlsInjectedIfEnabled();
-    if (FindControlsContainer() != 0)
+    bool handledSearchShortcut = false;
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit != 0)
+    {
+        if (IsSearchFocusHotkeyPressedEdge(searchEdit))
+        {
+            FocusSearchEdit(searchEdit, "focus_hotkey");
+            handledSearchShortcut = true;
+        }
+
+        if (IsSearchEscapeHotkeyPressedEdge(searchEdit))
+        {
+            SetSearchQueryFromShortcut(searchEdit, "", "escape_clear");
+            handledSearchShortcut = true;
+        }
+    }
+    else
+    {
+        g_prevSearchSlashHotkeyDown = false;
+        g_prevSearchCtrlFHotkeyDown = false;
+        g_prevSearchEscapeHotkeyDown = false;
+    }
+
+    if (FindControlsContainer() != 0 && !handledSearchShortcut)
     {
         ApplySearchFilterFromControls(false, false);
     }
@@ -11320,6 +11752,8 @@ __declspec(dllexport) void startPlugin()
              << " version=" << versionInfo.GetVersion();
         LogInfoLine(line.str());
     }
+
+    LoadModConfig();
 
     g_expectedInventoryLayoutCreateGUIAddress =
         ResolveInventoryLayoutCreateGUIHookAddress(versionInfo);

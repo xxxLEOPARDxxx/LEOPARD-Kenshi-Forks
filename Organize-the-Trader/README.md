@@ -37,4 +37,18 @@ After deploy, expected files:
 - `[Kenshi install dir]\mods\Organize-the-Trader\mod-config.json`
 
 ## Config
-`mod-config.json` is currently a minimal placeholder for future plugin settings.
+`mod-config.json` supports:
+
+- `enabled` (bool): master plugin toggle.
+- `showSearchEntryCount` (bool): show visible/total item entries in the search bar.
+- `showSearchQuantityCount` (bool): show visible stack quantity in the search bar.
+
+Default:
+
+```json
+{
+  "enabled": true,
+  "showSearchEntryCount": true,
+  "showSearchQuantityCount": true
+}
+```
