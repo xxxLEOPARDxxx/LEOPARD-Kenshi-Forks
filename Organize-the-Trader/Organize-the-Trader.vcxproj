@@ -89,9 +89,13 @@
   <ItemGroup>
     <ClCompile Include="Organize-the-Trader.cpp" />
     <ClCompile Include="TraderCore.cpp" />
+    <ClCompile Include="TraderSearchText.cpp" />
+    <ClCompile Include="TraderWindowDetection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TraderCore.h" />
+    <ClInclude Include="TraderSearchText.h" />
+    <ClInclude Include="TraderWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

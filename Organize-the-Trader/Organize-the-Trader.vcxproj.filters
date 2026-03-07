@@ -21,9 +21,21 @@
     <ClCompile Include="TraderCore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderSearchText.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TraderWindowDetection.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TraderCore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderSearchText.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderWindowDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

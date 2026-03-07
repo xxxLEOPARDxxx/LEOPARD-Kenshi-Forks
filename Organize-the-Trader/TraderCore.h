@@ -118,6 +118,7 @@ struct WindowDetectionState
     }
 
     bool g_loggedNoVisibleTraderTarget;
+    std::string g_lastBackpackResolutionSignature;
 };
 
 struct SearchState
@@ -145,7 +146,6 @@ struct SearchState
     std::string g_lastZeroMatchQueryLogged;
     std::string g_lastInventoryKeysetSelectionSignature;
     std::string g_lastInventoryKeysetLowCoverageSignature;
-    std::string g_lastBackpackResolutionSignature;
     std::string g_lastObservedTraderEntriesStateSignature;
     std::string g_lastZeroMatchGuardSignature;
     std::string g_lastCoverageFallbackDecisionSignature;
