@@ -5,6 +5,8 @@
 #include <TlHelp32.h>
 #endif
 
+#include <cstdio>
+
 namespace
 {
 #if defined(EMC_ENABLE_TEST_EXPORTS)
@@ -170,6 +172,81 @@ bool HasOptionsWindowInitObserverSupport(const EMC_HubApiV1* api, uint32_t api_s
         && api->unregister_options_window_init_observer != 0;
 }
 
+uint32_t ResolveExpectedSdkApiVersion(const emc::ModHubClient::Config& config)
+{
+    return config.expected_sdk_api_version != 0u
+        ? config.expected_sdk_api_version
+        : EMC_HUB_API_VERSION_1;
+}
+
+uint32_t ResolveExpectedSdkMinApiSize(const emc::ModHubClient::Config& config)
+{
+    return config.expected_sdk_min_api_size != 0u
+        ? config.expected_sdk_min_api_size
+        : EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
+}
+
+bool IsSdkStampDriftDetected(
+    uint32_t expected_api_version,
+    uint32_t expected_min_api_size,
+    const EMC_HubApiV1* api,
+    uint32_t api_size)
+{
+    if (api == 0)
+    {
+        return false;
+    }
+
+    return api->api_version != expected_api_version
+        || api_size < expected_min_api_size
+        || api->api_size < expected_min_api_size
+        || api->api_size != api_size;
+}
+
+void EmitSdkStampWarning(
+    uint32_t expected_api_version,
+    uint32_t expected_min_api_size,
+    uint32_t runtime_api_version,
+    uint32_t runtime_api_size,
+    uint32_t runtime_struct_api_size)
+{
+    char message[320];
+    int written = -1;
+#if defined(_MSC_VER) && _MSC_VER < 1900
+    written = _snprintf(
+        message,
+        sizeof(message),
+        "Emkejs-Mod-Core: Mod Hub SDK stamp drift detected (expected version=%u min_api_size=%u, runtime version=%u out_api_size=%u api_struct_size=%u).",
+        (unsigned int)expected_api_version,
+        (unsigned int)expected_min_api_size,
+        (unsigned int)runtime_api_version,
+        (unsigned int)runtime_api_size,
+        (unsigned int)runtime_struct_api_size);
+#else
+    written = std::snprintf(
+        message,
+        sizeof(message),
+        "Emkejs-Mod-Core: Mod Hub SDK stamp drift detected (expected version=%u min_api_size=%u, runtime version=%u out_api_size=%u api_struct_size=%u).",
+        (unsigned int)expected_api_version,
+        (unsigned int)expected_min_api_size,
+        (unsigned int)runtime_api_version,
+        (unsigned int)runtime_api_size,
+        (unsigned int)runtime_struct_api_size);
+#endif
+
+    if (written <= 0)
+    {
+        return;
+    }
+
+#if defined(_WIN32)
+    OutputDebugStringA(message);
+    OutputDebugStringA("\n");
+#else
+    std::fprintf(stderr, "%s\n", message);
+#endif
+}
+
 EMC_Result DefaultGetApi(
     uint32_t requested_version,
     uint32_t caller_api_size,
@@ -303,12 +380,15 @@ ModHubClient::Config::Config()
     , table_registration(0)
     , should_force_attach_failure_fn(0)
     , attach_failure_user_data(0)
+    , expected_sdk_api_version(EMC_HUB_API_VERSION_1)
+    , expected_sdk_min_api_size(EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE)
 {
 }
 
 ModHubClient::ModHubClient()
     : observer_api_(0)
     , options_window_init_observer_registered_(false)
+    , sdk_stamp_warning_emitted_(false)
 {
     Reset();
 }
@@ -317,6 +397,7 @@ ModHubClient::ModHubClient(const Config& config)
     : config_(config)
     , observer_api_(0)
     , options_window_init_observer_registered_(false)
+    , sdk_stamp_warning_emitted_(false)
 {
     Reset();
 }
@@ -346,6 +427,7 @@ void ModHubClient::Reset()
     last_attempt_failure_result_ = EMC_OK;
     observer_api_ = 0;
     options_window_init_observer_registered_ = false;
+    sdk_stamp_warning_emitted_ = false;
 }
 
 ModHubClient::AttemptResult ModHubClient::OnStartup()
@@ -467,6 +549,22 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
         use_hub_ui_ = false;
         last_attempt_failure_result_ = EMC_ERR_INTERNAL;
         return ATTACH_FAILED;
+    }
+
+    if (!sdk_stamp_warning_emitted_)
+    {
+        const uint32_t expected_api_version = ResolveExpectedSdkApiVersion(config_);
+        const uint32_t expected_min_api_size = ResolveExpectedSdkMinApiSize(config_);
+        if (IsSdkStampDriftDetected(expected_api_version, expected_min_api_size, api, api_size))
+        {
+            EmitSdkStampWarning(
+                expected_api_version,
+                expected_min_api_size,
+                api->api_version,
+                api_size,
+                api->api_size);
+            sdk_stamp_warning_emitted_ = true;
+        }
     }
 
     if (!is_retry)
