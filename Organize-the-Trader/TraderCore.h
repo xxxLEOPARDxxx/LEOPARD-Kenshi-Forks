@@ -114,12 +114,10 @@ struct WindowDetectionState
 {
     WindowDetectionState()
         : g_loggedNoVisibleTraderTarget(false)
-        , g_loggedRejectedTraderCandidate(false)
     {
     }
 
     bool g_loggedNoVisibleTraderTarget;
-    bool g_loggedRejectedTraderCandidate;
 };
 
 struct SearchState
@@ -133,7 +131,6 @@ struct SearchState
         , g_lockedKeysetExpectedCount(0)
         , g_lastSearchVisibleEntryCount(0)
         , g_lastSearchTotalEntryCount(0)
-        , g_lastSearchVisibleQuantity(0)
     {
     }
 
@@ -161,7 +158,6 @@ struct SearchState
     std::string g_lastKeysetLockSignature;
     std::size_t g_lastSearchVisibleEntryCount;
     std::size_t g_lastSearchTotalEntryCount;
-    std::size_t g_lastSearchVisibleQuantity;
 };
 
 struct SearchUiState

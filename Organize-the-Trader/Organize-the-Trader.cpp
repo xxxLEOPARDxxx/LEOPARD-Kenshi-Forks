@@ -100,7 +100,6 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_searchInputConfiguredHeight (TraderState().core.g_searchInputConfiguredHeight)
 
 #define g_loggedNoVisibleTraderTarget (TraderState().windowDetection.g_loggedNoVisibleTraderTarget)
-#define g_loggedRejectedTraderCandidate (TraderState().windowDetection.g_loggedRejectedTraderCandidate)
 
 #define g_searchFilterDirty (TraderState().search.g_searchFilterDirty)
 #define g_loggedMissingBackpackForSearch (TraderState().search.g_loggedMissingBackpackForSearch)
@@ -126,7 +125,6 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_lastKeysetLockSignature (TraderState().search.g_lastKeysetLockSignature)
 #define g_lastSearchVisibleEntryCount (TraderState().search.g_lastSearchVisibleEntryCount)
 #define g_lastSearchTotalEntryCount (TraderState().search.g_lastSearchTotalEntryCount)
-#define g_lastSearchVisibleQuantity (TraderState().search.g_lastSearchVisibleQuantity)
 
 #define g_prevToggleHotkeyDown (TraderState().searchUi.g_prevToggleHotkeyDown)
 #define g_prevDiagnosticsHotkeyDown (TraderState().searchUi.g_prevDiagnosticsHotkeyDown)
@@ -1532,7 +1530,6 @@ bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** ou
         *outParent = bestParent;
     }
 
-    g_loggedRejectedTraderCandidate = false;
     MyGUI::Window* window = bestAnchor->castType<MyGUI::Window>(false);
     std::stringstream line;
     line << "resolved trader target via window-scan"
@@ -10082,8 +10079,6 @@ void UpdateSearchCountText(
 {
     g_lastSearchVisibleEntryCount = visibleEntryCount;
     g_lastSearchTotalEntryCount = totalEntryCount;
-    g_lastSearchVisibleQuantity = visibleQuantity;
-
     MyGUI::TextBox* countText = FindSearchCountTextBox();
     if (countText == 0)
     {
@@ -10896,8 +10891,6 @@ void EnsureControlsInjectedIfEnabled()
         if (TryResolveHoveredTarget(&anchor, &parent, false))
         {
             g_loggedNoVisibleTraderTarget = false;
-            g_loggedRejectedTraderCandidate = false;
-
             if (!TryInjectControlsToTarget(anchor, parent, "hover-auto"))
             {
                 LogWarnLine("hover auto controls scaffold injection failed");
@@ -10918,8 +10911,6 @@ void EnsureControlsInjectedIfEnabled()
         return;
     }
     g_loggedNoVisibleTraderTarget = false;
-    g_loggedRejectedTraderCandidate = false;
-
     if (!TryInjectControlsToTarget(anchor, parent, "auto"))
     {
         LogWarnLine("auto controls scaffold injection failed");
@@ -11282,7 +11273,6 @@ void TickPhase2ControlsScaffold()
             g_controlsEnabled = false;
             DestroyControlsIfPresent();
             g_loggedNoVisibleTraderTarget = false;
-            g_loggedRejectedTraderCandidate = false;
             LogDebugLine("controls toggled OFF");
             return;
         }
@@ -11291,8 +11281,6 @@ void TickPhase2ControlsScaffold()
         LogDebugLine("controls toggled ON");
 
         g_loggedNoVisibleTraderTarget = false;
-        g_loggedRejectedTraderCandidate = false;
-
         EnsureControlsInjectedIfEnabled();
         if (FindControlsContainer() == 0)
         {
