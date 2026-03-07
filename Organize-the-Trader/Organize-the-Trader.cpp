@@ -105,6 +105,8 @@ bool g_controlsWereInjected = false;
 bool g_controlsEnabled = true;
 bool g_showSearchEntryCount = true;
 bool g_showSearchQuantityCount = true;
+int g_searchInputConfiguredWidth = 372;
+int g_searchInputConfiguredHeight = 26;
 bool g_suppressNextSearchEditChangeEvent = false;
 bool g_pendingSlashFocusTextSuppression = false;
 bool g_loggedNoVisibleTraderTarget = false;
@@ -365,11 +367,93 @@ bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* ou
     return false;
 }
 
+bool TryParseJsonIntByKey(const std::string& content, const char* key, int* outValue)
+{
+    if (key == 0 || outValue == 0)
+    {
+        return false;
+    }
+
+    const std::string needle = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = content.find(needle);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
+    if (valuePos == std::string::npos)
+    {
+        return false;
+    }
+
+    ++valuePos;
+    while (valuePos < content.size()
+        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
+    {
+        ++valuePos;
+    }
+
+    const std::string::size_type numberStart = valuePos;
+    if (valuePos < content.size() && (content[valuePos] == '-' || content[valuePos] == '+'))
+    {
+        ++valuePos;
+    }
+
+    const std::string::size_type digitsStart = valuePos;
+    while (valuePos < content.size()
+        && std::isdigit(static_cast<unsigned char>(content[valuePos])) != 0)
+    {
+        ++valuePos;
+    }
+
+    if (digitsStart == valuePos)
+    {
+        return false;
+    }
+
+    int parsedValue = 0;
+    std::stringstream parser(content.substr(numberStart, valuePos - numberStart));
+    parser >> parsedValue;
+    if (parser.fail())
+    {
+        return false;
+    }
+
+    *outValue = parsedValue;
+    return true;
+}
+
+int ClampIntValue(int value, int minValue, int maxValue)
+{
+    if (value < minValue)
+    {
+        return minValue;
+    }
+    if (value > maxValue)
+    {
+        return maxValue;
+    }
+    return value;
+}
+
+int ClampSearchInputConfiguredWidth(int value)
+{
+    return ClampIntValue(value, 120, 720);
+}
+
+int ClampSearchInputConfiguredHeight(int value)
+{
+    return ClampIntValue(value, 22, 48);
+}
+
 void LoadModConfig()
 {
     g_controlsEnabled = true;
     g_showSearchEntryCount = true;
     g_showSearchQuantityCount = true;
+    g_searchInputConfiguredWidth = 372;
+    g_searchInputConfiguredHeight = 26;
 
     const std::string pluginDirectory = GetCurrentPluginDirectoryPath();
     if (pluginDirectory.empty())
@@ -403,11 +487,23 @@ void LoadModConfig()
         g_showSearchQuantityCount = parsedValue;
     }
 
+    int parsedIntValue = 0;
+    if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
+    {
+        g_searchInputConfiguredWidth = ClampSearchInputConfiguredWidth(parsedIntValue);
+    }
+    if (TryParseJsonIntByKey(configText, "searchInputHeight", &parsedIntValue))
+    {
+        g_searchInputConfiguredHeight = ClampSearchInputConfiguredHeight(parsedIntValue);
+    }
+
     std::stringstream line;
     line << "mod config loaded"
          << " enabled=" << (g_controlsEnabled ? "true" : "false")
          << " showSearchEntryCount=" << (g_showSearchEntryCount ? "true" : "false")
-         << " showSearchQuantityCount=" << (g_showSearchQuantityCount ? "true" : "false");
+         << " showSearchQuantityCount=" << (g_showSearchQuantityCount ? "true" : "false")
+         << " searchInputWidth=" << g_searchInputConfiguredWidth
+         << " searchInputHeight=" << g_searchInputConfiguredHeight;
     LogInfoLine(line.str());
 }
 
@@ -9945,6 +10041,21 @@ bool ShouldShowAnySearchCountMetric()
     return g_showSearchEntryCount || g_showSearchQuantityCount;
 }
 
+int ResolvePreferredSearchCountTextWidth()
+{
+    if (!ShouldShowAnySearchCountMetric())
+    {
+        return 0;
+    }
+
+    if (g_showSearchEntryCount && g_showSearchQuantityCount)
+    {
+        return 132;
+    }
+
+    return 72;
+}
+
 int ResolveSearchCountTextWidth(int availableWidth)
 {
     if (!ShouldShowAnySearchCountMetric())
@@ -9952,19 +10063,7 @@ int ResolveSearchCountTextWidth(int availableWidth)
         return 0;
     }
 
-    int desiredWidth = 0;
-    if (g_showSearchEntryCount && g_showSearchQuantityCount)
-    {
-        desiredWidth = 132;
-    }
-    else if (g_showSearchEntryCount)
-    {
-        desiredWidth = 72;
-    }
-    else
-    {
-        desiredWidth = 72;
-    }
+    int desiredWidth = ResolvePreferredSearchCountTextWidth();
 
     const int minSearchInputWidth = 120;
     const int minCountWidth = 44;
@@ -10422,21 +10521,36 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
         return false;
     }
 
-    int containerWidth = parent->getWidth() - 24;
-    if (containerWidth > 560)
+    const int outerPadding = 8;
+    const int rowHeight = g_searchInputConfiguredHeight;
+    const int handleWidth = 28;
+    const int handleGap = 6;
+    const int preferredCountWidth = ResolvePreferredSearchCountTextWidth();
+    const int preferredCountGap = preferredCountWidth > 0 ? 6 : 0;
+    const int searchInputLeft = outerPadding + handleWidth + handleGap;
+    const int desiredContainerWidth =
+        searchInputLeft
+        + g_searchInputConfiguredWidth
+        + outerPadding
+        + preferredCountWidth
+        + preferredCountGap;
+    const int maxContainerWidth =
+        parent->getWidth() > 8 ? parent->getWidth() - 8 : parent->getWidth();
+    int containerWidth = desiredContainerWidth;
+    if (maxContainerWidth > 0 && containerWidth > maxContainerWidth)
     {
-        containerWidth = 560;
-    }
-    if (containerWidth < 320)
-    {
-        containerWidth = parent->getWidth() - 8;
+        containerWidth = maxContainerWidth;
     }
     if (containerWidth < 240)
     {
         containerWidth = 240;
     }
+    if (maxContainerWidth > 0 && containerWidth > maxContainerWidth)
+    {
+        containerWidth = maxContainerWidth;
+    }
 
-    const int containerHeight = 42;
+    const int containerHeight = rowHeight + (outerPadding * 2);
 
     const int rightMargin = 16;
     int left = parent->getWidth() - containerWidth - rightMargin;
@@ -10488,12 +10602,6 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
         LogErrorLine("failed to create controls container");
         return false;
     }
-
-    const int outerPadding = 8;
-    const int rowHeight = 26;
-    const int handleWidth = 28;
-    const int handleGap = 6;
-    const int searchInputLeft = outerPadding + handleWidth + handleGap;
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
     int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
     int countGap = countWidth > 0 ? 6 : 0;
@@ -10525,7 +10633,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent, int topOverride)
     {
         MyGUI::TextBox* countText = container->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, outerPadding + 3, countWidth, rowHeight),
+            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, outerPadding, countWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSearchCountTextName);
         if (countText == 0)

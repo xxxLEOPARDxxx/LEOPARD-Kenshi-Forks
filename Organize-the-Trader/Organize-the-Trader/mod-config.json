@@ -1,5 +1,7 @@
 {
   "enabled": true,
   "showSearchEntryCount": true,
-  "showSearchQuantityCount": true
+  "showSearchQuantityCount": true,
+  "searchInputWidth": 372,
+  "searchInputHeight": 26
 }

@@ -42,6 +42,8 @@ After deploy, expected files:
 - `enabled` (bool): master plugin toggle.
 - `showSearchEntryCount` (bool): show visible/total item entries in the search bar.
 - `showSearchQuantityCount` (bool): show visible stack quantity in the search bar.
+- `searchInputWidth` (int): desired search input width in pixels, clamped at runtime.
+- `searchInputHeight` (int): desired search input height in pixels, clamped at runtime.
 
 Default:
 
@@ -49,6 +51,8 @@ Default:
 {
   "enabled": true,
   "showSearchEntryCount": true,
-  "showSearchQuantityCount": true
+  "showSearchQuantityCount": true,
+  "searchInputWidth": 372,
+  "searchInputHeight": 26
 }
 ```
