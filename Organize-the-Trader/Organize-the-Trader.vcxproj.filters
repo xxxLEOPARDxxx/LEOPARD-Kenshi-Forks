@@ -33,6 +33,11 @@
     <ClCompile Include="TraderInventorySources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TraderSearchUi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TraderSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,6 +50,11 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderInventoryBinding.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderSearchUi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderSearchText.h">
