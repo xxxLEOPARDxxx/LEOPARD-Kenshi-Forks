@@ -111,6 +111,50 @@ void CollectWidgetTreeInventoryCandidates(
     std::size_t maxDepth,
     std::size_t maxNodes,
     std::vector<InventoryCandidateInfo>* outCandidates);
+bool TryResolveTraderInventoryNameKeysFromWidgetBindings(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory = 0);
+bool TryResolveTraderInventoryNameKeysFromSectionWidgetMap(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory = 0);
+bool TryResolveTraderInventoryNameKeysFromInventoryGuiMap(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory = 0);
+bool TryResolveTraderInventoryNameKeysFromRecentRefreshedInventories(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderInventoryNameKeysFromSelectedItemHandles(
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
+bool TryResolveTraderInventoryNameKeysFromHoveredWidget(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys);
 
 void ClearTraderPanelInventoryBindings();
 void PruneTraderPanelInventoryBindings();

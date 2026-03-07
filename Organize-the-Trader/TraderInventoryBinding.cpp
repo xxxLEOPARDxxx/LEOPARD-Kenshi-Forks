@@ -1204,6 +1204,492 @@ void ClearInventoryGuiInventoryLinks()
     TraderState().binding.g_lastInventoryGuiBindingSignature.clear();
 }
 
+bool TryResolveTraderInventoryNameKeysFromSectionWidgetMap(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory)
+{
+    if (traderParent == 0 || outKeys == 0)
+    {
+        return false;
+    }
+
+    PruneSectionWidgetInventoryLinks();
+    if (TraderState().binding.g_sectionWidgetInventoryLinks.empty())
+    {
+        return false;
+    }
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false);
+    if (backpackContent == 0)
+    {
+        backpackContent = FindWidgetInParentByToken(traderParent, "backpack_content");
+    }
+
+    MyGUI::Widget* entriesRoot =
+        backpackContent == 0 ? 0 : ResolveInventoryEntriesRoot(backpackContent);
+    if (entriesRoot == 0)
+    {
+        return false;
+    }
+
+    std::vector<MyGUI::Widget*> ancestry;
+    ancestry.reserve(24);
+    for (MyGUI::Widget* current = entriesRoot; current != 0; current = current->getParent())
+    {
+        bool duplicate = false;
+        for (std::size_t index = 0; index < ancestry.size(); ++index)
+        {
+            if (ancestry[index] == current)
+            {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate)
+        {
+            ancestry.push_back(current);
+        }
+    }
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+    std::size_t matchedLinks = 0;
+    std::size_t directEntriesMatches = 0;
+    std::size_t directBackpackMatches = 0;
+
+    for (std::size_t linkIndex = 0;
+         linkIndex < TraderState().binding.g_sectionWidgetInventoryLinks.size();
+         ++linkIndex)
+    {
+        const SectionWidgetInventoryLink& link =
+            TraderState().binding.g_sectionWidgetInventoryLinks[linkIndex];
+        if (link.sectionWidget == 0
+            || link.inventory == 0
+            || !IsInventoryPointerValidSafe(link.inventory))
+        {
+            continue;
+        }
+
+        int matchedDepth = -1;
+        for (std::size_t depth = 0; depth < ancestry.size(); ++depth)
+        {
+            if (ancestry[depth] == link.sectionWidget)
+            {
+                matchedDepth = static_cast<int>(depth);
+                break;
+            }
+        }
+
+        if (matchedDepth < 0)
+        {
+            continue;
+        }
+
+        ++matchedLinks;
+        if (link.sectionWidget == entriesRoot)
+        {
+            ++directEntriesMatches;
+        }
+        if (link.sectionWidget == backpackContent)
+        {
+            ++directBackpackMatches;
+        }
+
+        int depthBonus = 1600 - matchedDepth * 90;
+        if (depthBonus < 240)
+        {
+            depthBonus = 240;
+        }
+
+        const unsigned long long ageTicks =
+            TraderState().core.g_updateTickCounter >= link.lastSeenTick
+                ? TraderState().core.g_updateTickCounter - link.lastSeenTick
+                : 0ULL;
+
+        std::stringstream source;
+        source << "section_widget_map"
+               << " section=" << link.sectionName
+               << " widget=" << link.widgetName
+               << " depth=" << matchedDepth
+               << " age_ticks=" << ageTicks
+               << " items=" << link.itemCount;
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            link.inventory,
+            source.str(),
+            true,
+            link.inventory->isVisible(),
+            10800 + depthBonus);
+    }
+
+    if (inventoryCandidates.empty())
+    {
+        return false;
+    }
+
+    const bool resolved = TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys,
+        outSelectedInventory);
+    if (!resolved)
+    {
+        return false;
+    }
+
+    if (outSource != 0)
+    {
+        std::stringstream source;
+        source << *outSource
+               << " section_widget_matches=" << matchedLinks
+               << " direct_entries_matches=" << directEntriesMatches
+               << " direct_backpack_matches=" << directBackpackMatches
+               << " tracked_links=" << TraderState().binding.g_sectionWidgetInventoryLinks.size();
+        *outSource = source.str();
+    }
+
+    return true;
+}
+
+bool TryResolveTraderInventoryNameKeysFromInventoryGuiMap(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory)
+{
+    if (traderParent == 0 || outKeys == 0)
+    {
+        return false;
+    }
+
+    PruneInventoryGuiInventoryLinks();
+    if (TraderState().binding.g_inventoryGuiInventoryLinks.empty())
+    {
+        return false;
+    }
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false);
+    if (backpackContent == 0)
+    {
+        backpackContent = FindWidgetInParentByToken(traderParent, "backpack_content");
+    }
+
+    MyGUI::Widget* scrollBackpackContent = FindAncestorByToken(backpackContent, "scrollview_backpack_content");
+    if (scrollBackpackContent == 0)
+    {
+        scrollBackpackContent = FindWidgetInParentByToken(traderParent, "scrollview_backpack_content");
+    }
+
+    MyGUI::Widget* entriesRoot =
+        backpackContent == 0 ? 0 : ResolveInventoryEntriesRoot(backpackContent);
+    MyGUI::Window* owningWindow = FindOwningWindow(traderParent);
+
+    std::vector<InventoryGUI*> widgetInventoryGuis;
+    CollectWidgetInventoryGuiPointers(backpackContent, 4, 320, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(scrollBackpackContent, 4, 320, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(entriesRoot, 3, 256, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(traderParent, 2, 192, &widgetInventoryGuis);
+    if (owningWindow != 0)
+    {
+        CollectWidgetInventoryGuiPointers(owningWindow, 6, 2400, &widgetInventoryGuis);
+    }
+    if (widgetInventoryGuis.empty())
+    {
+        return false;
+    }
+
+    std::vector<std::uintptr_t> widgetPointerAliases;
+    for (std::size_t pointerIndex = 0; pointerIndex < widgetInventoryGuis.size(); ++pointerIndex)
+    {
+        CollectPointerAliasesFromRawPointer(widgetInventoryGuis[pointerIndex], &widgetPointerAliases);
+    }
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+    std::size_t matchedLinks = 0;
+    std::size_t inferredMatches = 0;
+    for (std::size_t linkIndex = 0;
+         linkIndex < TraderState().binding.g_inventoryGuiInventoryLinks.size();
+         ++linkIndex)
+    {
+        const InventoryGuiInventoryLink& link =
+            TraderState().binding.g_inventoryGuiInventoryLinks[linkIndex];
+        if (link.inventoryGui == 0
+            || link.inventory == 0
+            || !IsInventoryPointerValidSafe(link.inventory))
+        {
+            continue;
+        }
+
+        const bool guiMatch =
+            HasInventoryGuiPointer(widgetInventoryGuis, link.inventoryGui)
+            || HasPointerAlias(widgetPointerAliases, link.inventoryGui);
+        if (!guiMatch)
+        {
+            continue;
+        }
+
+        ++matchedLinks;
+        const unsigned long long ageTicks =
+            TraderState().core.g_updateTickCounter >= link.lastSeenTick
+                ? TraderState().core.g_updateTickCounter - link.lastSeenTick
+                : 0ULL;
+        std::stringstream source;
+        source << "inventory_gui_map"
+               << " owner=" << link.ownerName
+               << " age_ticks=" << ageTicks
+               << " items=" << link.itemCount
+               << " visible=" << (link.inventory->isVisible() ? "true" : "false");
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            link.inventory,
+            source.str(),
+            true,
+            link.inventory->isVisible(),
+            12600);
+    }
+
+    for (std::size_t guiIndex = 0; guiIndex < widgetInventoryGuis.size(); ++guiIndex)
+    {
+        InventoryGUI* widgetGui = widgetInventoryGuis[guiIndex];
+        Inventory* inferredInventory = 0;
+        std::size_t resolvedOffset = 0;
+        InventoryGuiBackPointerKind resolvedKind = InventoryGuiBackPointerKind_DirectInventory;
+        RootObject* resolvedOwner = 0;
+        if (!TryResolveInventoryFromInventoryGuiBackPointerOffsets(
+                widgetGui,
+                &inferredInventory,
+                &resolvedOffset,
+                &resolvedKind,
+                &resolvedOwner))
+        {
+            continue;
+        }
+
+        ++inferredMatches;
+        RootObject* owner = resolvedOwner;
+        if (owner == 0)
+        {
+            owner = inferredInventory->getOwner();
+            if (owner == 0)
+            {
+                owner = inferredInventory->getCallbackObject();
+            }
+        }
+
+        Character* ownerCharacter = dynamic_cast<Character*>(owner);
+        const bool ownerTrader = ownerCharacter != 0 && ownerCharacter->isATrader();
+        const std::size_t itemCount = InventoryItemCountForLog(inferredInventory);
+        InventoryGUI* directResolvedGui = TryGetInventoryGuiSafe(inferredInventory);
+        const bool guiExactMatch = directResolvedGui != 0 && directResolvedGui == widgetGui;
+        std::stringstream source;
+        source << "inventory_gui_offset"
+               << " kind=" << InventoryGuiBackPointerKindLabel(resolvedKind)
+               << " owner=" << RootObjectDisplayNameForLog(owner)
+               << " offset=0x" << std::hex << std::uppercase << resolvedOffset << std::dec
+               << " items=" << itemCount
+               << " gui_exact=" << (guiExactMatch ? "true" : "false")
+               << " visible=" << (inferredInventory->isVisible() ? "true" : "false");
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            inferredInventory,
+            source.str(),
+            ownerTrader,
+            inferredInventory->isVisible(),
+            12350);
+
+        std::stringstream resolutionSignature;
+        resolutionSignature << widgetGui
+                            << "|" << inferredInventory
+                            << "|" << static_cast<int>(resolvedKind)
+                            << "|" << resolvedOffset
+                            << "|" << itemCount;
+        if (resolutionSignature.str() != TraderState().binding.g_lastInventoryGuiBackPointerResolutionSignature)
+        {
+            std::stringstream line;
+            line << "inventory gui back-pointer resolved"
+                 << " inv_gui=" << widgetGui
+                 << " inventory=" << inferredInventory
+                 << " kind=" << InventoryGuiBackPointerKindLabel(resolvedKind)
+                 << " owner=" << RootObjectDisplayNameForLog(owner)
+                 << " offset=0x" << std::hex << std::uppercase << resolvedOffset << std::dec
+                 << " gui_exact=" << (guiExactMatch ? "true" : "false")
+                 << " items=" << itemCount;
+            LogBindingDebugLine(line.str());
+            TraderState().binding.g_lastInventoryGuiBackPointerResolutionSignature = resolutionSignature.str();
+        }
+    }
+
+    if (inventoryCandidates.empty())
+    {
+        return false;
+    }
+
+    const bool resolved = TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys,
+        outSelectedInventory);
+    if (!resolved)
+    {
+        return false;
+    }
+
+    if (outSource != 0)
+    {
+        std::stringstream source;
+        source << *outSource
+               << " gui_map_matches=" << matchedLinks
+               << " gui_offset_matches=" << inferredMatches
+               << " tracked_gui_links=" << TraderState().binding.g_inventoryGuiInventoryLinks.size()
+               << " learned_gui_offsets=" << TraderState().binding.g_inventoryGuiBackPointerOffsets.size()
+               << " widget_gui_ptrs=" << widgetInventoryGuis.size()
+               << " widget_aliases=" << widgetPointerAliases.size();
+        *outSource = source.str();
+    }
+
+    return true;
+}
+
+bool TryResolveTraderInventoryNameKeysFromRecentRefreshedInventories(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys)
+{
+    if (traderParent == 0 || outKeys == 0)
+    {
+        return false;
+    }
+
+    PruneRecentlyRefreshedInventories();
+    if (TraderState().binding.g_recentRefreshedInventories.empty())
+    {
+        return false;
+    }
+
+    Character* captionTrader = 0;
+    int captionScore = 0;
+    TryResolveCaptionMatchedTraderCharacter(traderParent, &captionTrader, &captionScore);
+    Inventory* captionTraderInventory = captionTrader == 0 ? 0 : captionTrader->inventory;
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+    for (std::size_t index = 0;
+         index < TraderState().binding.g_recentRefreshedInventories.size();
+         ++index)
+    {
+        const RefreshedInventoryLink& link =
+            TraderState().binding.g_recentRefreshedInventories[index];
+        if (link.inventory == 0)
+        {
+            continue;
+        }
+
+        int priorityBias = 9800;
+        if (link.ownerTrader)
+        {
+            priorityBias += 1200;
+        }
+        if (link.ownerSelected)
+        {
+            priorityBias -= 1800;
+        }
+        if (link.visible)
+        {
+            priorityBias += 180;
+        }
+
+        if (expectedEntryCount > 0)
+        {
+            const int expected = static_cast<int>(expectedEntryCount);
+            const int count = static_cast<int>(link.itemCount);
+            const int diff = count > expected ? count - expected : expected - count;
+            priorityBias += 1200 - diff * 120;
+            if (diff <= 1)
+            {
+                priorityBias += 400;
+            }
+            else if (diff <= 3)
+            {
+                priorityBias += 180;
+            }
+        }
+
+        if (captionTraderInventory != 0 && link.inventory == captionTraderInventory)
+        {
+            priorityBias += 2600 + (captionScore / 2);
+        }
+
+        const unsigned long long ageTicks =
+            TraderState().core.g_updateTickCounter >= link.lastSeenTick
+                ? TraderState().core.g_updateTickCounter - link.lastSeenTick
+                : 0ULL;
+        if (ageTicks > 0)
+        {
+            const int agePenalty = static_cast<int>(ageTicks > 1200ULL ? 1200ULL : ageTicks);
+            priorityBias -= agePenalty;
+        }
+
+        std::stringstream source;
+        source << "recent_refresh"
+               << " owner=" << link.ownerName
+               << " owner_trader=" << (link.ownerTrader ? "true" : "false")
+               << " owner_selected=" << (link.ownerSelected ? "true" : "false")
+               << " visible=" << (link.visible ? "true" : "false")
+               << " items=" << link.itemCount
+               << " age_ticks=" << ageTicks;
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            link.inventory,
+            source.str(),
+            link.ownerTrader,
+            link.visible,
+            priorityBias);
+    }
+
+    if (inventoryCandidates.empty())
+    {
+        return false;
+    }
+
+    const bool resolved = TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys);
+    if (!resolved)
+    {
+        return false;
+    }
+
+    if (outSource != 0)
+    {
+        std::stringstream source;
+        source << *outSource
+               << " refresh_candidates=" << inventoryCandidates.size()
+               << " tracked_recent=" << TraderState().binding.g_recentRefreshedInventories.size();
+        *outSource = source.str();
+    }
+
+    return true;
+}
+
 bool TryResolveInventoryFromInventoryGuiBackPointerOffsets(
     InventoryGUI* inventoryGui,
     Inventory** outInventory,

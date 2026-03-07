@@ -15,6 +15,7 @@
 
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
+#include <mygui/MyGUI_InputManager.h>
 
 #include <algorithm>
 #include <sstream>
@@ -255,6 +256,138 @@ Inventory* ResolveWidgetInventoryPointerLocal(MyGUI::Widget* widget)
     }
 
     return 0;
+}
+
+Inventory* TryGetInventoryFromItemSafeLocal(Item* item)
+{
+    if (item == 0)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return item->getInventory();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+Item* TryGetSelectedObjectItemSafeLocal(PlayerInterface* player)
+{
+    if (player == 0)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        if (player->selectedObject.isValid())
+        {
+            return player->selectedObject.getItem();
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+
+    return 0;
+}
+
+Item* TryGetMouseTargetItemSafeLocal(PlayerInterface* player)
+{
+    if (player == 0 || player->mouseRightTarget == 0)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return player->mouseRightTarget->getHandle().getItem();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+void AddSelectedItemInventoryCandidateLocal(
+    Item* item,
+    const char* origin,
+    std::vector<InventoryCandidateInfo>* inventoryCandidates)
+{
+    if (item == 0 || inventoryCandidates == 0)
+    {
+        return;
+    }
+
+    Inventory* inventory = TryGetInventoryFromItemSafeLocal(item);
+    if (inventory == 0)
+    {
+        return;
+    }
+
+    RootObject* owner = inventory->getOwner();
+    if (owner == 0)
+    {
+        owner = inventory->getCallbackObject();
+    }
+
+    std::stringstream source;
+    source << "selected_item:" << (origin == 0 ? "unknown" : origin)
+           << ":" << TruncateForLog(ResolveCanonicalItemName(item), 48)
+           << " owner=" << RootObjectDisplayNameForLog(owner)
+           << " visible=" << (inventory->isVisible() ? "true" : "false")
+           << " owner_items=" << InventoryItemCountForLog(owner == 0 ? 0 : owner->getInventory());
+    AddInventoryCandidateUnique(
+        inventoryCandidates,
+        inventory,
+        source.str(),
+        true,
+        inventory->isVisible(),
+        5200);
+}
+
+void UpdateHoveredInventoryCacheLocal(
+    Inventory* inventory,
+    MyGUI::Widget* hoveredWidget,
+    const char* sourceTag)
+{
+    if (inventory == 0)
+    {
+        return;
+    }
+
+    RootObject* owner = inventory->getOwner();
+    if (owner == 0)
+    {
+        owner = inventory->getCallbackObject();
+    }
+
+    std::stringstream signature;
+    signature << inventory
+              << "|owner=" << RootObjectDisplayNameForLog(owner)
+              << "|items=" << InventoryItemCountForLog(inventory);
+    if (sourceTag != 0)
+    {
+        signature << "|source=" << sourceTag;
+    }
+
+    TraderState().binding.g_cachedHoveredWidgetInventory = inventory;
+    if (signature.str() != TraderState().binding.g_cachedHoveredWidgetInventorySignature)
+    {
+        std::stringstream line;
+        line << "hovered inventory cached"
+             << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
+             << " inventory_items=" << InventoryItemCountForLog(inventory)
+             << " owner=" << RootObjectDisplayNameForLog(owner)
+             << " hovered_widget=" << SafeWidgetName(hoveredWidget);
+        LogInfoLine(line.str());
+        TraderState().binding.g_cachedHoveredWidgetInventorySignature = signature.str();
+    }
 }
 }
 
@@ -983,6 +1116,218 @@ void CollectWidgetTreeInventoryCandidates(
         outCandidates);
 }
 
+bool TryResolveTraderInventoryNameKeysFromWidgetBindings(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys,
+    Inventory** outSelectedInventory)
+{
+    if (traderParent == 0 || outKeys == 0 || ou == 0 || ou->player == 0)
+    {
+        return false;
+    }
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false);
+    if (backpackContent == 0)
+    {
+        backpackContent = FindWidgetInParentByToken(traderParent, "backpack_content");
+    }
+    if (backpackContent != 0)
+    {
+        CollectWidgetChainInventoryCandidates(
+            backpackContent,
+            "widget_backpack",
+            7600,
+            &inventoryCandidates);
+    }
+
+    MyGUI::Widget* scrollBackpackContent = FindAncestorByToken(backpackContent, "scrollview_backpack_content");
+    if (scrollBackpackContent == 0)
+    {
+        scrollBackpackContent = FindWidgetInParentByToken(traderParent, "scrollview_backpack_content");
+    }
+    if (scrollBackpackContent != 0)
+    {
+        CollectWidgetChainInventoryCandidates(
+            scrollBackpackContent,
+            "widget_scroll",
+            7400,
+            &inventoryCandidates);
+    }
+
+    MyGUI::Widget* entriesRoot =
+        backpackContent == 0 ? 0 : ResolveInventoryEntriesRoot(backpackContent);
+    if (entriesRoot != 0)
+    {
+        CollectWidgetChainInventoryCandidates(
+            entriesRoot,
+            "widget_entries",
+            7800,
+            &inventoryCandidates);
+
+        CollectWidgetTreeInventoryCandidates(
+            entriesRoot,
+            "widget_tree_entries",
+            8600,
+            7,
+            1200,
+            &inventoryCandidates);
+    }
+
+    CollectWidgetChainInventoryCandidates(
+        traderParent,
+        "widget_parent",
+        7000,
+        &inventoryCandidates);
+    CollectWidgetTreeInventoryCandidates(
+        traderParent,
+        "widget_tree_parent",
+        8200,
+        6,
+        1200,
+        &inventoryCandidates);
+
+    MyGUI::Window* owningWindow = FindOwningWindow(traderParent);
+
+    std::vector<InventoryGUI*> widgetInventoryGuis;
+    CollectWidgetInventoryGuiPointers(backpackContent, 4, 320, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(scrollBackpackContent, 4, 320, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(entriesRoot, 3, 256, &widgetInventoryGuis);
+    CollectWidgetInventoryGuiPointers(traderParent, 2, 192, &widgetInventoryGuis);
+    if (owningWindow != 0)
+    {
+        CollectWidgetInventoryGuiPointers(owningWindow, 6, 2400, &widgetInventoryGuis);
+        CollectWidgetTreeInventoryCandidates(
+            owningWindow,
+            "widget_tree_window",
+            8000,
+            6,
+            1600,
+            &inventoryCandidates);
+    }
+
+    std::vector<std::uintptr_t> widgetPointerAliases;
+    for (std::size_t pointerIndex = 0; pointerIndex < widgetInventoryGuis.size(); ++pointerIndex)
+    {
+        CollectPointerAliasesFromRawPointer(widgetInventoryGuis[pointerIndex], &widgetPointerAliases);
+    }
+
+    std::vector<InventoryCandidateInfo> ownershipCandidates;
+
+    const std::string normalizedCaption =
+        owningWindow == 0 ? "" : NormalizeSearchText(owningWindow->getCaption().asUTF8());
+
+    const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
+    for (ogre_unordered_set<Character*>::type::const_iterator it = activeCharacters.begin();
+         it != activeCharacters.end();
+         ++it)
+    {
+        Character* character = *it;
+        if (character == 0 || !character->isATrader() || character->inventory == 0)
+        {
+            continue;
+        }
+
+        int captionBias = 0;
+        if (!normalizedCaption.empty())
+        {
+            captionBias = ComputeCaptionNameMatchBias(
+                normalizedCaption,
+                NormalizeSearchText(CharacterNameForLog(character)));
+            if (captionBias <= 0)
+            {
+                continue;
+            }
+        }
+
+        CollectTraderOwnershipInventoryCandidates(
+            character,
+            captionBias,
+            "widget_trader",
+            &ownershipCandidates);
+    }
+
+    std::size_t guiMatchedCandidateCount = 0;
+    for (std::size_t candidateIndex = 0; candidateIndex < ownershipCandidates.size(); ++candidateIndex)
+    {
+        const InventoryCandidateInfo& ownershipCandidate = ownershipCandidates[candidateIndex];
+        InventoryGUI* candidateGui = TryGetInventoryGuiSafe(ownershipCandidate.inventory);
+        const bool guiMatch =
+            HasInventoryGuiPointer(widgetInventoryGuis, candidateGui)
+            || HasPointerAlias(widgetPointerAliases, candidateGui)
+            || HasPointerAlias(widgetPointerAliases, ownershipCandidate.inventory);
+        if (!guiMatch)
+        {
+            continue;
+        }
+
+        ++guiMatchedCandidateCount;
+
+        std::stringstream source;
+        source << "widget_gui_match:" << ownershipCandidate.source
+               << " gui_matched=true";
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            ownershipCandidate.inventory,
+            source.str(),
+            true,
+            ownershipCandidate.visible,
+            ownershipCandidate.priorityBias + 6800);
+    }
+
+    if (inventoryCandidates.empty())
+    {
+        if (!TraderState().binding.g_loggedWidgetInventoryCandidatesMissing)
+        {
+            std::stringstream line;
+            line << "widget inventory candidate scan found none"
+                 << " parent=" << SafeWidgetName(traderParent)
+                 << " has_backpack="
+                 << (backpackContent == 0 ? "false" : "true")
+                 << " has_scroll="
+                 << (scrollBackpackContent == 0 ? "false" : "true")
+                 << " has_entries="
+                 << (entriesRoot == 0 ? "false" : "true")
+                 << " widget_gui_ptrs=" << widgetInventoryGuis.size()
+                 << " widget_aliases=" << widgetPointerAliases.size()
+                 << " ownership_candidates=" << ownershipCandidates.size()
+                 << " gui_matches=" << guiMatchedCandidateCount;
+            LogInfoLine(line.str());
+            TraderState().binding.g_loggedWidgetInventoryCandidatesMissing = true;
+        }
+        return false;
+    }
+    TraderState().binding.g_loggedWidgetInventoryCandidatesMissing = false;
+
+    const bool resolved = TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys,
+        outSelectedInventory);
+    if (!resolved || outSource == 0)
+    {
+        return resolved;
+    }
+
+    std::stringstream line;
+    line << *outSource
+         << " widget_candidates=" << inventoryCandidates.size()
+         << " widget_gui_ptrs=" << widgetInventoryGuis.size()
+         << " widget_aliases=" << widgetPointerAliases.size()
+         << " ownership_candidates=" << ownershipCandidates.size()
+         << " gui_matches=" << guiMatchedCandidateCount;
+    *outSource = line.str();
+    return true;
+}
+
 const char* ItemTypeNameForLog(itemType type)
 {
     switch (type)
@@ -1032,6 +1377,168 @@ void AddBuildingInventoryCandidate(
         traderPreferred,
         inventory->isVisible(),
         priorityBias);
+}
+
+bool TryResolveTraderInventoryNameKeysFromSelectedItemHandles(
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys)
+{
+    if (outKeys == 0 || ou == 0 || ou->player == 0)
+    {
+        return false;
+    }
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+
+    Item* selectedItem = TryGetSelectedObjectItemSafeLocal(ou->player);
+    AddSelectedItemInventoryCandidateLocal(selectedItem, "selected_object", &inventoryCandidates);
+
+    Item* mouseTargetItem = TryGetMouseTargetItemSafeLocal(ou->player);
+    AddSelectedItemInventoryCandidateLocal(mouseTargetItem, "mouse_target", &inventoryCandidates);
+
+    if (inventoryCandidates.empty())
+    {
+        return false;
+    }
+
+    return TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys);
+}
+
+bool TryResolveTraderInventoryNameKeysFromHoveredWidget(
+    MyGUI::Widget* traderParent,
+    std::size_t expectedEntryCount,
+    const std::vector<int>* uiQuantities,
+    std::vector<std::string>* outKeys,
+    std::string* outSource,
+    std::vector<QuantityNameKey>* outQuantityKeys)
+{
+    if (traderParent == 0 || outKeys == 0)
+    {
+        return false;
+    }
+
+    std::vector<InventoryCandidateInfo> inventoryCandidates;
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false);
+    if (backpackContent == 0)
+    {
+        backpackContent = FindWidgetInParentByToken(traderParent, "backpack_content");
+    }
+    MyGUI::Widget* entriesRoot =
+        backpackContent == 0 ? 0 : ResolveInventoryEntriesRoot(backpackContent);
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    MyGUI::Widget* hovered = inputManager == 0 ? 0 : inputManager->getMouseFocusWidget();
+    const bool hoveredInsideEntries =
+        hovered != 0 && entriesRoot != 0 && IsDescendantOf(hovered, entriesRoot);
+    if (hoveredInsideEntries)
+    {
+        CollectWidgetChainInventoryCandidates(
+            hovered,
+            "hovered_entry_chain",
+            9800,
+            &inventoryCandidates);
+        CollectWidgetTreeInventoryCandidates(
+            hovered,
+            "hovered_entry_tree",
+            10200,
+            4,
+            240,
+            &inventoryCandidates);
+
+        Inventory* bestHoveredInventory = 0;
+        std::size_t bestHoveredInventoryItems = 0;
+        for (std::size_t index = 0; index < inventoryCandidates.size(); ++index)
+        {
+            Inventory* inventory = inventoryCandidates[index].inventory;
+            if (inventory == 0)
+            {
+                continue;
+            }
+
+            const std::size_t itemCount = InventoryItemCountForLog(inventory);
+            if (bestHoveredInventory == 0
+                || itemCount > bestHoveredInventoryItems
+                || (itemCount == bestHoveredInventoryItems
+                    && inventoryCandidates[index].priorityBias > 0))
+            {
+                bestHoveredInventory = inventory;
+                bestHoveredInventoryItems = itemCount;
+            }
+        }
+
+        if (bestHoveredInventory != 0)
+        {
+            UpdateHoveredInventoryCacheLocal(bestHoveredInventory, hovered, "hovered_entry");
+        }
+    }
+
+    if (TraderState().binding.g_cachedHoveredWidgetInventory != 0
+        && !IsInventoryPointerValidSafe(TraderState().binding.g_cachedHoveredWidgetInventory))
+    {
+        TraderState().binding.g_cachedHoveredWidgetInventory = 0;
+        TraderState().binding.g_cachedHoveredWidgetInventorySignature.clear();
+    }
+
+    if (TraderState().binding.g_cachedHoveredWidgetInventory != 0)
+    {
+        RootObject* owner = TraderState().binding.g_cachedHoveredWidgetInventory->getOwner();
+        if (owner == 0)
+        {
+            owner = TraderState().binding.g_cachedHoveredWidgetInventory->getCallbackObject();
+        }
+
+        std::stringstream source;
+        source << "hovered_cached"
+               << " owner=" << RootObjectDisplayNameForLog(owner)
+               << " visible=" << (TraderState().binding.g_cachedHoveredWidgetInventory->isVisible() ? "true" : "false")
+               << " items=" << InventoryItemCountForLog(TraderState().binding.g_cachedHoveredWidgetInventory)
+               << " hovered_inside_entries=" << (hoveredInsideEntries ? "true" : "false");
+        AddInventoryCandidateUnique(
+            &inventoryCandidates,
+            TraderState().binding.g_cachedHoveredWidgetInventory,
+            source.str(),
+            true,
+            TraderState().binding.g_cachedHoveredWidgetInventory->isVisible(),
+            9400);
+    }
+
+    if (inventoryCandidates.empty())
+    {
+        return false;
+    }
+
+    const bool resolved = TryResolveInventoryNameKeysFromCandidates(
+        inventoryCandidates,
+        expectedEntryCount,
+        uiQuantities,
+        outKeys,
+        outSource,
+        outQuantityKeys);
+    if (!resolved)
+    {
+        return false;
+    }
+
+    if (outSource != 0)
+    {
+        std::stringstream source;
+        source << *outSource
+               << " hovered_candidates=" << inventoryCandidates.size()
+               << " hovered_inside_entries=" << (hoveredInsideEntries ? "true" : "false");
+        *outSource = source.str();
+    }
+
+    return true;
 }
 
 namespace
