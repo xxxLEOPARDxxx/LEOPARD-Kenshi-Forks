@@ -8,7 +8,7 @@ Current status: implemented for Kenshi `1.0.65` using:
 - no save-load pause behavior (that remains exclusive to Auto-Pause on Load).
 
 ## Setup
-Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, while the Mod Hub SDK still uses the `tools/mod-hub-sdk` submodule.
 
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
