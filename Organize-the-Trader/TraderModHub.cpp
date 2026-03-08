@@ -197,6 +197,25 @@ EMC_Result __cdecl SetShowSearchQuantityCountSetting(
         &TraderConfigSnapshot::showSearchQuantityCount);
 }
 
+EMC_Result __cdecl GetShowSearchClearButtonSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchClearButton);
+}
+
+EMC_Result __cdecl SetShowSearchClearButtonSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::showSearchClearButton);
+}
+
 EMC_Result __cdecl GetSearchInputWidthSetting(void* user_data, int32_t* out_value)
 {
     return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputWidth);
@@ -295,6 +314,14 @@ void EnsureModHubClientConfigured()
         &GetShowSearchQuantityCountSetting,
         &SetShowSearchQuantityCountSetting };
 
+    static const EMC_BoolSettingDefV1 kShowSearchClearButtonSetting = {
+        "show_search_clear_button",
+        "Show clear button",
+        "Show the clear button inside the search bar",
+        &g_modHubClient,
+        &GetShowSearchClearButtonSetting,
+        &SetShowSearchClearButtonSetting };
+
     static const EMC_IntSettingDefV1 kSearchInputWidthSetting = {
         "search_input_width",
         "Search input width",
@@ -321,6 +348,7 @@ void EnsureModHubClientConfigured()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
     };

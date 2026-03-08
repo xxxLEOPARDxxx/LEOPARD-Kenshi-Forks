@@ -32,6 +32,7 @@ const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
 const char* kSearchClearButtonName = "OTT_SearchClearButton";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kSearchCountTextName = "OTT_SearchCountText";
+const int kSearchCountGap = 2;
 
 struct PendingSearchEditShortcut
 {
@@ -57,6 +58,7 @@ std::size_t g_searchEditSnapshotCursorPosition = 0u;
 
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
 #define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
+#define g_showSearchClearButton (TraderState().core.g_showSearchClearButton)
 #define g_searchInputConfiguredWidth (TraderState().core.g_searchInputConfiguredWidth)
 #define g_searchInputConfiguredHeight (TraderState().core.g_searchInputConfiguredHeight)
 
@@ -725,15 +727,36 @@ void UpdateSearchUiState()
 
     if (clearButton != 0)
     {
+        MyGUI::Widget* container = searchEdit->getParent();
         const MyGUI::IntCoord clearCoord = clearButton->getCoord();
         const int clearButtonWidth = clearCoord.width;
         const int clearGap = 4;
-        const int fullRight = clearCoord.left + clearCoord.width;
-        const int maxEditWidth = fullRight - searchEdit->getLeft();
-        int desiredEditWidth = maxEditWidth;
-        if (hasQuery)
+        const bool showClearButton = g_showSearchClearButton;
+        const bool clearButtonHasAction = hasQuery;
+        int availableRight = 0;
+        if (countText != 0 && ShouldShowAnySearchCountMetric())
         {
-            desiredEditWidth -= clearButtonWidth + clearGap;
+            availableRight = countText->getLeft() - kSearchCountGap;
+        }
+        else if (container != 0)
+        {
+            availableRight = container->getWidth() - 8;
+        }
+        else
+        {
+            availableRight = clearCoord.left + clearCoord.width;
+        }
+
+        int clearLeft = availableRight - clearButtonWidth;
+        if (clearLeft < searchEdit->getLeft())
+        {
+            clearLeft = searchEdit->getLeft();
+        }
+
+        int desiredEditWidth = availableRight - searchEdit->getLeft();
+        if (showClearButton)
+        {
+            desiredEditWidth = clearLeft - clearGap - searchEdit->getLeft();
         }
         if (desiredEditWidth < 80)
         {
@@ -746,12 +769,22 @@ void UpdateSearchUiState()
             searchEdit->setCoord(editCoord.left, editCoord.top, desiredEditWidth, editCoord.height);
         }
 
-        clearButton->setVisible(hasQuery);
-        clearButton->setEnabled(hasQuery);
-        clearButton->setAlpha(focused ? 1.0f : 0.86f);
-        clearButton->setColour(noVisibleResults
-            ? MyGUI::Colour(1.0f, 0.78f, 0.78f, 1.0f)
-            : MyGUI::Colour::White);
+        if (clearCoord.left != clearLeft)
+        {
+            clearButton->setCoord(clearLeft, clearCoord.top, clearCoord.width, clearCoord.height);
+        }
+
+        clearButton->setVisible(showClearButton);
+        clearButton->setAlpha(
+            clearButtonHasAction
+                ? (focused ? 1.0f : 0.86f)
+                : (focused ? 0.72f : 0.6f));
+        clearButton->setColour(
+            clearButtonHasAction
+                ? (noVisibleResults
+                    ? MyGUI::Colour(1.0f, 0.78f, 0.78f, 1.0f)
+                    : MyGUI::Colour::White)
+                : MyGUI::Colour(0.7f, 0.7f, 0.7f, 1.0f));
     }
 
     if (placeholder != 0)
@@ -872,7 +905,7 @@ bool BuildControlsScaffold(
     const int handleWidth = 28;
     const int handleGap = 6;
     const int preferredCountWidth = ResolvePreferredSearchCountTextWidth();
-    const int preferredCountGap = preferredCountWidth > 0 ? 6 : 0;
+    const int preferredCountGap = preferredCountWidth > 0 ? kSearchCountGap : 0;
     const int searchInputLeft = outerPadding + handleWidth + handleGap;
     const int desiredContainerWidth =
         searchInputLeft
@@ -951,21 +984,22 @@ bool BuildControlsScaffold(
     }
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
     int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
-    int countGap = countWidth > 0 ? 6 : 0;
+    int countGap = countWidth > 0 ? kSearchCountGap : 0;
     int searchAreaWidth = searchInputAvailableWidth - countWidth - countGap;
     if (searchAreaWidth < 120)
     {
         searchAreaWidth = 120;
     }
     int clearButtonWidth = rowHeight;
-    if (clearButtonWidth > 26)
+    if (clearButtonWidth > 32)
     {
-        clearButtonWidth = 26;
+        clearButtonWidth = 32;
     }
     if (clearButtonWidth < 18)
     {
         clearButtonWidth = 18;
     }
+    const int clearButtonTop = outerPadding + ((rowHeight - clearButtonWidth) / 2);
 
     MyGUI::Button* dragHandle = container->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
@@ -1040,9 +1074,9 @@ bool BuildControlsScaffold(
         "Kenshi_Button1",
         MyGUI::IntCoord(
             searchInputLeft + searchAreaWidth - clearButtonWidth,
-            outerPadding,
+            clearButtonTop,
             clearButtonWidth,
-            rowHeight),
+            clearButtonWidth),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchClearButtonName);
     if (clearButton == 0)
@@ -1051,7 +1085,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
-    clearButton->setCaption("X");
+    clearButton->setCaption("x");
     clearButton->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchClearButtonClicked);
 
     FocusSearchEditIfRequested(searchEdit, "controls_built");
@@ -1364,6 +1398,12 @@ void OnSearchClearButtonClicked(MyGUI::Widget*)
     MyGUI::EditBox* searchEdit = FindSearchEditBox();
     if (searchEdit == 0)
     {
+        return;
+    }
+
+    if (g_searchQueryRaw.empty())
+    {
+        FocusSearchEdit(searchEdit, "clear_button_empty");
         return;
     }
 

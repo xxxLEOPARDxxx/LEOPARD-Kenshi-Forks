@@ -2,6 +2,7 @@
   "enabled": true,
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
+  "showSearchClearButton": true,
   "debugLogging": false,
   "debugSearchLogging": false,
   "debugBindingLogging": false,
