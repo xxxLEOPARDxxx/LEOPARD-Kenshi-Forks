@@ -62,6 +62,60 @@ bool TryReadTextFile(const std::string& path, std::string* outContent)
     return true;
 }
 
+bool TryWriteTextFileAtomically(const std::string& path, const std::string& content)
+{
+    if (path.empty())
+    {
+        return false;
+    }
+
+    const std::string tempPath = path + ".tmp";
+    {
+        std::ofstream output(tempPath.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
+        if (!output.is_open())
+        {
+            return false;
+        }
+
+        output.write(content.c_str(), static_cast<std::streamsize>(content.size()));
+        output.flush();
+        if (!output.good())
+        {
+            output.close();
+            DeleteFileA(tempPath.c_str());
+            return false;
+        }
+    }
+
+    if (MoveFileExA(
+            tempPath.c_str(),
+            path.c_str(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH) == 0)
+    {
+        DeleteFileA(tempPath.c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool TryResolveModConfigPath(std::string* outPath)
+{
+    if (outPath == 0)
+    {
+        return false;
+    }
+
+    const std::string pluginDirectory = GetCurrentPluginDirectoryPath();
+    if (pluginDirectory.empty())
+    {
+        return false;
+    }
+
+    *outPath = pluginDirectory + "\\mod-config.json";
+    return true;
+}
+
 bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* outValue)
 {
     if (key == 0 || outValue == 0)
@@ -173,6 +227,52 @@ int ClampIntValue(int value, int minValue, int maxValue)
     }
     return value;
 }
+
+std::string BuildTraderConfigText(const TraderConfigSnapshot& config)
+{
+    std::stringstream content;
+    content << "{\n"
+            << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n"
+            << "  \"showSearchEntryCount\": "
+            << (config.showSearchEntryCount ? "true" : "false") << ",\n"
+            << "  \"showSearchQuantityCount\": "
+            << (config.showSearchQuantityCount ? "true" : "false") << ",\n"
+            << "  \"debugLogging\": " << (config.debugLogging ? "true" : "false") << ",\n"
+            << "  \"debugSearchLogging\": "
+            << (config.debugSearchLogging ? "true" : "false") << ",\n"
+            << "  \"debugBindingLogging\": "
+            << (config.debugBindingLogging ? "true" : "false") << ",\n"
+            << "  \"searchInputWidth\": " << config.searchInputWidth << ",\n"
+            << "  \"searchInputHeight\": " << config.searchInputHeight << ",\n"
+            << "  \"searchInputPositionCustomized\": "
+            << (config.searchInputPositionCustomized ? "true" : "false") << ",\n"
+            << "  \"searchInputLeft\": " << config.searchInputLeft << ",\n"
+            << "  \"searchInputTop\": " << config.searchInputTop << "\n"
+            << "}\n";
+    return content.str();
+}
+
+void LogTraderConfigSnapshot(const char* prefix, const TraderConfigSnapshot& config)
+{
+    std::stringstream line;
+    line << prefix
+         << " enabled=" << (config.enabled ? "true" : "false")
+         << " showSearchEntryCount=" << (config.showSearchEntryCount ? "true" : "false")
+         << " showSearchQuantityCount="
+         << (config.showSearchQuantityCount ? "true" : "false")
+         << " debugLogging=" << (config.debugLogging ? "true" : "false")
+         << " debugSearchLogging=" << (config.debugSearchLogging ? "true" : "false")
+         << " debugBindingLogging=" << (config.debugBindingLogging ? "true" : "false")
+         << " searchInputWidth=" << config.searchInputWidth
+         << " searchInputHeight=" << config.searchInputHeight
+         << " searchInputPositionCustomized="
+         << (config.searchInputPositionCustomized ? "true" : "false")
+         << " searchInputLeft=" << config.searchInputLeft
+         << " searchInputTop=" << config.searchInputTop
+         << " verboseDiagnosticsCompiled="
+         << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
+    LogInfoLine(line.str());
+}
 }
 
 TraderRuntimeState& TraderState()
@@ -261,33 +361,106 @@ void LogBindingDebugLine(const std::string& message)
 
 int ClampSearchInputConfiguredWidth(int value)
 {
-    return ClampIntValue(value, 120, 720);
+    return ClampIntValue(value, kSearchInputConfiguredWidthMin, kSearchInputConfiguredWidthMax);
 }
 
 int ClampSearchInputConfiguredHeight(int value)
 {
-    return ClampIntValue(value, 22, 48);
+    return ClampIntValue(value, kSearchInputConfiguredHeightMin, kSearchInputConfiguredHeightMax);
+}
+
+void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config)
+{
+    if (config == 0)
+    {
+        return;
+    }
+
+    config->searchInputWidth = ClampSearchInputConfiguredWidth(config->searchInputWidth);
+    config->searchInputHeight = ClampSearchInputConfiguredHeight(config->searchInputHeight);
+    if (!config->searchInputPositionCustomized)
+    {
+        config->searchInputLeft = 0;
+        config->searchInputTop = 0;
+    }
+}
+
+TraderConfigSnapshot CaptureTraderConfigSnapshot()
+{
+    TraderConfigSnapshot config;
+    config.enabled = TraderState().core.g_controlsEnabled;
+    config.showSearchEntryCount = TraderState().core.g_showSearchEntryCount;
+    config.showSearchQuantityCount = TraderState().core.g_showSearchQuantityCount;
+    config.debugLogging = TraderState().core.g_debugLogging;
+    config.debugSearchLogging = TraderState().core.g_debugSearchLogging;
+    config.debugBindingLogging = TraderState().core.g_debugBindingLogging;
+    config.searchInputWidth = TraderState().core.g_searchInputConfiguredWidth;
+    config.searchInputHeight = TraderState().core.g_searchInputConfiguredHeight;
+    config.searchInputPositionCustomized = TraderState().searchUi.g_searchContainerPositionCustomized;
+    config.searchInputLeft = TraderState().searchUi.g_searchContainerStoredLeft;
+    config.searchInputTop = TraderState().searchUi.g_searchContainerStoredTop;
+    NormalizeTraderConfigSnapshot(&config);
+    return config;
+}
+
+void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config)
+{
+    TraderConfigSnapshot normalized = config;
+    NormalizeTraderConfigSnapshot(&normalized);
+
+    TraderState().core.g_controlsEnabled = normalized.enabled;
+    TraderState().core.g_showSearchEntryCount = normalized.showSearchEntryCount;
+    TraderState().core.g_showSearchQuantityCount = normalized.showSearchQuantityCount;
+    TraderState().core.g_debugLogging = normalized.debugLogging;
+    TraderState().core.g_debugSearchLogging = normalized.debugSearchLogging;
+    TraderState().core.g_debugBindingLogging = normalized.debugBindingLogging;
+    TraderState().core.g_searchInputConfiguredWidth = normalized.searchInputWidth;
+    TraderState().core.g_searchInputConfiguredHeight = normalized.searchInputHeight;
+    TraderState().searchUi.g_searchContainerPositionCustomized =
+        normalized.searchInputPositionCustomized;
+    TraderState().searchUi.g_searchContainerStoredLeft = normalized.searchInputLeft;
+    TraderState().searchUi.g_searchContainerStoredTop = normalized.searchInputTop;
+}
+
+bool SaveTraderConfigSnapshot(const TraderConfigSnapshot& config)
+{
+    TraderConfigSnapshot normalized = config;
+    NormalizeTraderConfigSnapshot(&normalized);
+
+    std::string configPath;
+    if (!TryResolveModConfigPath(&configPath))
+    {
+        LogErrorLine("mod config save failed: could not resolve plugin directory");
+        return false;
+    }
+
+    if (!TryWriteTextFileAtomically(configPath, BuildTraderConfigText(normalized)))
+    {
+        std::stringstream line;
+        line << "mod config save failed: could not write " << configPath;
+        LogErrorLine(line.str());
+        return false;
+    }
+
+    if (ShouldLogDebug())
+    {
+        LogTraderConfigSnapshot("mod config saved", normalized);
+    }
+
+    return true;
 }
 
 void LoadModConfig()
 {
-    TraderState().core.g_controlsEnabled = true;
-    TraderState().core.g_showSearchEntryCount = true;
-    TraderState().core.g_showSearchQuantityCount = true;
-    TraderState().core.g_debugLogging = false;
-    TraderState().core.g_debugSearchLogging = false;
-    TraderState().core.g_debugBindingLogging = false;
-    TraderState().core.g_searchInputConfiguredWidth = 372;
-    TraderState().core.g_searchInputConfiguredHeight = 26;
+    ApplyTraderConfigSnapshot(TraderConfigSnapshot());
 
-    const std::string pluginDirectory = GetCurrentPluginDirectoryPath();
-    if (pluginDirectory.empty())
+    std::string configPath;
+    if (!TryResolveModConfigPath(&configPath))
     {
         LogWarnLine("mod config load skipped: could not resolve plugin directory");
         return;
     }
 
-    const std::string configPath = pluginDirectory + "\\mod-config.json";
     std::string configText;
     if (!TryReadTextFile(configPath, &configText))
     {
@@ -298,59 +471,56 @@ void LoadModConfig()
         return;
     }
 
+    TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+
     bool parsedValue = false;
     if (TryParseJsonBoolByKey(configText, "enabled", &parsedValue))
     {
-        TraderState().core.g_controlsEnabled = parsedValue;
+        config.enabled = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "showSearchEntryCount", &parsedValue))
     {
-        TraderState().core.g_showSearchEntryCount = parsedValue;
+        config.showSearchEntryCount = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "showSearchQuantityCount", &parsedValue))
     {
-        TraderState().core.g_showSearchQuantityCount = parsedValue;
+        config.showSearchQuantityCount = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "debugLogging", &parsedValue))
     {
-        TraderState().core.g_debugLogging = parsedValue;
+        config.debugLogging = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "debugSearchLogging", &parsedValue))
     {
-        TraderState().core.g_debugSearchLogging = parsedValue;
+        config.debugSearchLogging = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "debugBindingLogging", &parsedValue))
     {
-        TraderState().core.g_debugBindingLogging = parsedValue;
+        config.debugBindingLogging = parsedValue;
     }
 
     int parsedIntValue = 0;
     if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
     {
-        TraderState().core.g_searchInputConfiguredWidth =
-            ClampSearchInputConfiguredWidth(parsedIntValue);
+        config.searchInputWidth = parsedIntValue;
     }
     if (TryParseJsonIntByKey(configText, "searchInputHeight", &parsedIntValue))
     {
-        TraderState().core.g_searchInputConfiguredHeight =
-            ClampSearchInputConfiguredHeight(parsedIntValue);
+        config.searchInputHeight = parsedIntValue;
+    }
+    if (TryParseJsonBoolByKey(configText, "searchInputPositionCustomized", &parsedValue))
+    {
+        config.searchInputPositionCustomized = parsedValue;
+    }
+    if (TryParseJsonIntByKey(configText, "searchInputLeft", &parsedIntValue))
+    {
+        config.searchInputLeft = parsedIntValue;
+    }
+    if (TryParseJsonIntByKey(configText, "searchInputTop", &parsedIntValue))
+    {
+        config.searchInputTop = parsedIntValue;
     }
 
-    std::stringstream line;
-    line << "mod config loaded"
-         << " enabled=" << (TraderState().core.g_controlsEnabled ? "true" : "false")
-         << " showSearchEntryCount="
-         << (TraderState().core.g_showSearchEntryCount ? "true" : "false")
-         << " showSearchQuantityCount="
-         << (TraderState().core.g_showSearchQuantityCount ? "true" : "false")
-         << " debugLogging=" << (TraderState().core.g_debugLogging ? "true" : "false")
-         << " debugSearchLogging="
-         << (TraderState().core.g_debugSearchLogging ? "true" : "false")
-         << " debugBindingLogging="
-         << (TraderState().core.g_debugBindingLogging ? "true" : "false")
-         << " searchInputWidth=" << TraderState().core.g_searchInputConfiguredWidth
-         << " searchInputHeight=" << TraderState().core.g_searchInputConfiguredHeight
-         << " verboseDiagnosticsCompiled="
-         << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
-    LogInfoLine(line.str());
+    ApplyTraderConfigSnapshot(config);
+    LogTraderConfigSnapshot("mod config loaded", CaptureTraderConfigSnapshot());
 }

@@ -1,0 +1,417 @@
+#include "TraderModHub.h"
+
+#include "TraderCore.h"
+#include "emc/mod_hub_client.h"
+
+#include <Windows.h>
+
+#include <sstream>
+
+namespace
+{
+const char* kHubNamespaceId = "emkej.qol";
+const char* kHubNamespaceDisplayName = "Emkej QoL";
+const char* kHubModId = "organize_the_trader";
+const char* kHubModDisplayName = "Organize the Trader";
+
+const DWORD kModHubAttachRetryIntervalMs = 5000u;
+const unsigned int kModHubAttachRetryMaxAttempts = 3u;
+
+typedef bool TraderConfigSnapshot::*TraderConfigBoolField;
+typedef int TraderConfigSnapshot::*TraderConfigIntField;
+
+emc::ModHubClient g_modHubClient;
+bool g_modHubClientConfigured = false;
+bool g_modHubAttachRetryActive = false;
+unsigned int g_modHubAttachRetryAttempts = 0u;
+DWORD g_modHubAttachRetryLastAttemptMs = 0u;
+
+void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
+{
+    if (err_buf == 0 || err_buf_size == 0u)
+    {
+        return;
+    }
+
+    if (text == 0)
+    {
+        err_buf[0] = '\0';
+        return;
+    }
+
+    uint32_t index = 0u;
+    while (index + 1u < err_buf_size && text[index] != '\0')
+    {
+        err_buf[index] = text[index];
+        ++index;
+    }
+
+    err_buf[index] = '\0';
+}
+
+bool IsValidHubUserData(void* user_data)
+{
+    return user_data == &g_modHubClient;
+}
+
+EMC_Result GetHubBoolSetting(void* user_data, int32_t* out_value, TraderConfigBoolField field)
+{
+    if (!IsValidHubUserData(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+    *out_value = (config.*field) ? 1 : 0;
+    return EMC_OK;
+}
+
+EMC_Result SetHubBoolSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    TraderConfigBoolField field)
+{
+    if (!IsValidHubUserData(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value != 0 && value != 1)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot previous = CaptureTraderConfigSnapshot();
+    TraderConfigSnapshot updated = previous;
+    updated.*field = value != 0;
+    NormalizeTraderConfigSnapshot(&updated);
+    ApplyTraderConfigSnapshot(updated);
+
+    if (!SaveTraderConfigSnapshot(updated))
+    {
+        ApplyTraderConfigSnapshot(previous);
+        WriteHubErrorText(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    WriteHubErrorText(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
+EMC_Result GetHubIntSetting(void* user_data, int32_t* out_value, TraderConfigIntField field)
+{
+    if (!IsValidHubUserData(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+    *out_value = static_cast<int32_t>(config.*field);
+    return EMC_OK;
+}
+
+EMC_Result SetHubIntSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    TraderConfigIntField field)
+{
+    if (!IsValidHubUserData(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot previous = CaptureTraderConfigSnapshot();
+    TraderConfigSnapshot updated = previous;
+    updated.*field = static_cast<int>(value);
+    NormalizeTraderConfigSnapshot(&updated);
+    ApplyTraderConfigSnapshot(updated);
+
+    if (!SaveTraderConfigSnapshot(updated))
+    {
+        ApplyTraderConfigSnapshot(previous);
+        WriteHubErrorText(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    WriteHubErrorText(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
+EMC_Result __cdecl GetEnabledSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::enabled);
+}
+
+EMC_Result __cdecl SetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::enabled);
+}
+
+EMC_Result __cdecl GetShowSearchEntryCountSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchEntryCount);
+}
+
+EMC_Result __cdecl SetShowSearchEntryCountSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::showSearchEntryCount);
+}
+
+EMC_Result __cdecl GetShowSearchQuantityCountSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchQuantityCount);
+}
+
+EMC_Result __cdecl SetShowSearchQuantityCountSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::showSearchQuantityCount);
+}
+
+EMC_Result __cdecl GetSearchInputWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputWidth);
+}
+
+EMC_Result __cdecl SetSearchInputWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::searchInputWidth);
+}
+
+EMC_Result __cdecl GetSearchInputHeightSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputHeight);
+}
+
+EMC_Result __cdecl SetSearchInputHeightSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::searchInputHeight);
+}
+
+void LogModHubFallback(const char* reason)
+{
+    std::stringstream line;
+    line << "event=mod_hub_fallback"
+         << " reason=" << (reason != 0 ? reason : "unknown")
+         << " result=" << g_modHubClient.LastAttemptFailureResult()
+         << " use_hub_ui=0";
+
+    if (g_modHubClient.LastAttemptFailureResult() == EMC_ERR_NOT_FOUND)
+    {
+        LogDebugLine(line.str());
+        return;
+    }
+
+    LogWarnLine(line.str());
+}
+
+bool RetryWindowElapsed(DWORD nowMs, DWORD lastAttemptMs, DWORD minGapMs)
+{
+    return (nowMs - lastAttemptMs) >= minGapMs;
+}
+
+void EnsureModHubClientConfigured()
+{
+    if (g_modHubClientConfigured)
+    {
+        return;
+    }
+
+    static const EMC_ModDescriptorV1 kModHubDescriptor = {
+        kHubNamespaceId,
+        kHubNamespaceDisplayName,
+        kHubModId,
+        kHubModDisplayName,
+        &g_modHubClient };
+
+    static const EMC_BoolSettingDefV1 kEnabledSetting = {
+        "enabled",
+        "Enabled",
+        "Enable Organize the Trader search controls",
+        &g_modHubClient,
+        &GetEnabledSetting,
+        &SetEnabledSetting };
+
+    static const EMC_BoolSettingDefV1 kShowSearchEntryCountSetting = {
+        "show_search_entry_count",
+        "Show entry count",
+        "Show visible and total entry counts in the search bar",
+        &g_modHubClient,
+        &GetShowSearchEntryCountSetting,
+        &SetShowSearchEntryCountSetting };
+
+    static const EMC_BoolSettingDefV1 kShowSearchQuantityCountSetting = {
+        "show_search_quantity_count",
+        "Show quantity count",
+        "Show visible stack quantity in the search bar",
+        &g_modHubClient,
+        &GetShowSearchQuantityCountSetting,
+        &SetShowSearchQuantityCountSetting };
+
+    static const EMC_IntSettingDefV1 kSearchInputWidthSetting = {
+        "search_input_width",
+        "Search input width",
+        "Desired search input width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredWidthMin),
+        static_cast<int32_t>(kSearchInputConfiguredWidthMax),
+        1,
+        &GetSearchInputWidthSetting,
+        &SetSearchInputWidthSetting };
+
+    static const EMC_IntSettingDefV1 kSearchInputHeightSetting = {
+        "search_input_height",
+        "Search input height",
+        "Desired search input height in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredHeightMin),
+        static_cast<int32_t>(kSearchInputConfiguredHeightMax),
+        1,
+        &GetSearchInputHeightSetting,
+        &SetSearchInputHeightSetting };
+
+    static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
+    };
+
+    static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {
+        &kModHubDescriptor,
+        kModHubRows,
+        static_cast<uint32_t>(sizeof(kModHubRows) / sizeof(kModHubRows[0])) };
+
+    emc::ModHubClient::Config config;
+    config.table_registration = &kModHubRegistration;
+    g_modHubClient.SetConfig(config);
+    g_modHubClientConfigured = true;
+}
+}
+
+void TraderModHub_OnStartup()
+{
+    EnsureModHubClientConfigured();
+
+    g_modHubAttachRetryActive = false;
+    g_modHubAttachRetryAttempts = 0u;
+    g_modHubAttachRetryLastAttemptMs = GetTickCount();
+
+    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
+    if (result == emc::ModHubClient::ATTACH_SUCCESS)
+    {
+        LogInfoLine("event=mod_hub_attached use_hub_ui=1");
+        return;
+    }
+
+    if (result == emc::ModHubClient::ATTACH_FAILED)
+    {
+        LogModHubFallback("get_api_failed");
+        g_modHubAttachRetryActive = true;
+        return;
+    }
+
+    if (result == emc::ModHubClient::REGISTRATION_FAILED)
+    {
+        LogModHubFallback("register_mod_or_setting_failed");
+        return;
+    }
+
+    LogModHubFallback("invalid_client_configuration");
+}
+
+void TraderModHub_TickAttachRetry()
+{
+    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
+    {
+        return;
+    }
+
+    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
+    {
+        g_modHubAttachRetryActive = false;
+        if (g_modHubClient.LastAttemptFailureResult() != EMC_ERR_NOT_FOUND)
+        {
+            LogWarnLine("event=mod_hub_retry_stopped reason=max_attempts_reached");
+        }
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (!RetryWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
+    {
+        return;
+    }
+
+    ++g_modHubAttachRetryAttempts;
+    g_modHubAttachRetryLastAttemptMs = nowMs;
+
+    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
+    if (result == emc::ModHubClient::ATTACH_SUCCESS)
+    {
+        g_modHubAttachRetryActive = false;
+        LogInfoLine("event=mod_hub_retry_success use_hub_ui=1");
+        return;
+    }
+
+    if (result == emc::ModHubClient::REGISTRATION_FAILED)
+    {
+        g_modHubAttachRetryActive = false;
+        LogModHubFallback("register_mod_or_setting_failed");
+        return;
+    }
+
+    if (result == emc::ModHubClient::INVALID_CONFIGURATION)
+    {
+        g_modHubAttachRetryActive = false;
+        LogModHubFallback("invalid_client_configuration");
+    }
+}

@@ -36,6 +36,9 @@
     <ClCompile Include="TraderInventorySources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderModHub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TraderSearchPipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -48,8 +51,20 @@
     <ClCompile Include="TraderWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\mod_hub_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\emc\mod_hub_api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\emc\mod_hub_client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\emc\mod_hub_consumer_helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="TraderCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -57,6 +72,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderInventoryBinding.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderSearchPipeline.h">

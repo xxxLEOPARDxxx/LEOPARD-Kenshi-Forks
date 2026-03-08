@@ -47,6 +47,9 @@ After deploy, expected files:
 - `debugBindingLogging` (bool): enables inventory-binding diagnostics when `debugLogging` is enabled.
 - `searchInputWidth` (int): desired search input width in pixels, clamped at runtime.
 - `searchInputHeight` (int): desired search input height in pixels, clamped at runtime.
+- `searchInputPositionCustomized` (bool): when `true`, reuses the saved drag position instead of the default placement.
+- `searchInputLeft` (int): saved left coordinate for the search bar inside the trader window.
+- `searchInputTop` (int): saved top coordinate for the search bar inside the trader window.
 
 Default:
 
@@ -59,6 +62,18 @@ Default:
   "debugSearchLogging": false,
   "debugBindingLogging": false,
   "searchInputWidth": 372,
-  "searchInputHeight": 26
+  "searchInputHeight": 26,
+  "searchInputPositionCustomized": false,
+  "searchInputLeft": 0,
+  "searchInputTop": 0
 }
 ```
+
+## Mod Hub (Optional)
+If `Emkejs-Mod-Core` is loaded, Organize-the-Trader registers its user-facing settings in Mod Hub (`enabled`, search counts, search width, search height) and writes committed changes back to `mod-config.json`.
+
+Recommended load order:
+- `Emkejs-Mod-Core`
+- `Organize-the-Trader`
+
+If Mod Core is absent or attach fails, this mod keeps using `mod-config.json` only.

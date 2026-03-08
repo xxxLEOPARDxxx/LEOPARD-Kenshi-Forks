@@ -21,6 +21,7 @@
 
 #include <Windows.h>
 
+#include <cctype>
 #include <sstream>
 
 namespace
@@ -31,6 +32,28 @@ const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
 const char* kSearchClearButtonName = "OTT_SearchClearButton";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kSearchCountTextName = "OTT_SearchCountText";
+
+struct PendingSearchEditShortcut
+{
+    PendingSearchEditShortcut()
+        : active(false)
+        , rewriteText(false)
+        , keyValue(0)
+        , cursorPosition(0u)
+    {
+    }
+
+    bool active;
+    bool rewriteText;
+    int keyValue;
+    std::string query;
+    std::size_t cursorPosition;
+};
+
+PendingSearchEditShortcut g_pendingSearchEditShortcut;
+bool g_haveSearchEditSnapshot = false;
+std::string g_searchEditSnapshotQuery;
+std::size_t g_searchEditSnapshotCursorPosition = 0u;
 
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
 #define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
@@ -65,11 +88,90 @@ const char* kSearchCountTextName = "OTT_SearchCountText";
 #define g_searchContainerPositionCustomized (TraderState().searchUi.g_searchContainerPositionCustomized)
 #define g_searchContainerDragLastMouseX (TraderState().searchUi.g_searchContainerDragLastMouseX)
 #define g_searchContainerDragLastMouseY (TraderState().searchUi.g_searchContainerDragLastMouseY)
+#define g_searchContainerDragStartLeft (TraderState().searchUi.g_searchContainerDragStartLeft)
+#define g_searchContainerDragStartTop (TraderState().searchUi.g_searchContainerDragStartTop)
 #define g_searchContainerStoredLeft (TraderState().searchUi.g_searchContainerStoredLeft)
 #define g_searchContainerStoredTop (TraderState().searchUi.g_searchContainerStoredTop)
 
 #define g_cachedHoveredWidgetInventory (TraderState().binding.g_cachedHoveredWidgetInventory)
 #define g_cachedHoveredWidgetInventorySignature (TraderState().binding.g_cachedHoveredWidgetInventorySignature)
+
+bool IsInterestingSearchEditMyGuiKey(MyGUI::KeyCode keyCode)
+{
+    const int value = keyCode.getValue();
+    return value == MyGUI::KeyCode::LeftControl
+        || value == MyGUI::KeyCode::RightControl
+        || value == MyGUI::KeyCode::ArrowLeft
+        || value == MyGUI::KeyCode::ArrowRight
+        || value == MyGUI::KeyCode::Backspace;
+}
+
+void ResetPendingSearchEditShortcut()
+{
+    g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+}
+
+void ResetSearchEditSnapshot()
+{
+    g_haveSearchEditSnapshot = false;
+    g_searchEditSnapshotQuery.clear();
+    g_searchEditSnapshotCursorPosition = 0u;
+}
+
+bool IsSearchTokenSeparator(MyGUI::UString::unicode_char value)
+{
+    if (value < 0x80u)
+    {
+        const unsigned char byte = static_cast<unsigned char>(value);
+        return byte == ':' || std::isspace(byte) != 0 || std::isalnum(byte) == 0;
+    }
+
+    return false;
+}
+
+std::size_t FindPreviousSearchTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
+{
+    const std::size_t length = text.size();
+    if (cursor > length)
+    {
+        cursor = length;
+    }
+
+    std::size_t position = cursor;
+    while (position > 0u && IsSearchTokenSeparator(text[position - 1u]))
+    {
+        --position;
+    }
+
+    while (position > 0u && !IsSearchTokenSeparator(text[position - 1u]))
+    {
+        --position;
+    }
+
+    return position;
+}
+
+std::size_t FindNextSearchTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
+{
+    const std::size_t length = text.size();
+    if (cursor > length)
+    {
+        cursor = length;
+    }
+
+    std::size_t position = cursor;
+    while (position < length && !IsSearchTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    while (position < length && IsSearchTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    return position;
+}
 
 bool ShouldShowAnySearchCountMetric()
 {
@@ -224,6 +326,43 @@ void RememberSearchContainerPosition(MyGUI::Widget* container)
     g_searchContainerPositionCustomized = true;
 }
 
+void RememberSearchEditSnapshotValue(const std::string& query, std::size_t cursorPosition)
+{
+    const std::size_t textLength = MyGUI::UString(query).size();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    g_haveSearchEditSnapshot = true;
+    g_searchEditSnapshotQuery = query;
+    g_searchEditSnapshotCursorPosition = cursorPosition;
+}
+
+void RememberSearchEditSnapshot(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0)
+    {
+        ResetSearchEditSnapshot();
+        return;
+    }
+
+    std::size_t cursorPosition = searchEdit->getTextCursor();
+    const std::size_t textLength = searchEdit->getTextLength();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    RememberSearchEditSnapshotValue(searchEdit->getOnlyText().asUTF8(), cursorPosition);
+}
+
+void PersistSearchContainerPosition()
+{
+    const TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+    SaveTraderConfigSnapshot(config);
+}
+
 void MoveSearchContainerByDelta(int deltaX, int deltaY)
 {
     if (deltaX == 0 && deltaY == 0)
@@ -269,8 +408,16 @@ void FinalizeSearchContainerDrag(const char* source)
 
     std::stringstream line;
     const MyGUI::IntCoord coord = container->getCoord();
+    const bool positionChanged =
+        coord.left != g_searchContainerDragStartLeft || coord.top != g_searchContainerDragStartTop;
+    if (positionChanged)
+    {
+        PersistSearchContainerPosition();
+    }
+
     line << "search container drag finalized"
          << " source=" << (source == 0 ? "<unknown>" : source)
+         << " moved=" << (positionChanged ? "true" : "false")
          << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
     LogDebugLine(line.str());
 }
@@ -280,6 +427,19 @@ void OnSearchDragHandleMousePressed(MyGUI::Widget*, int left, int top, MyGUI::Mo
     if (id != MyGUI::MouseButton::Left)
     {
         return;
+    }
+
+    MyGUI::Widget* container = FindControlsContainer();
+    if (container != 0)
+    {
+        const MyGUI::IntCoord coord = container->getCoord();
+        g_searchContainerDragStartLeft = coord.left;
+        g_searchContainerDragStartTop = coord.top;
+    }
+    else
+    {
+        g_searchContainerDragStartLeft = 0;
+        g_searchContainerDragStartTop = 0;
     }
 
     g_searchContainerDragging = true;
@@ -434,6 +594,9 @@ bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
     return !ctrlDown && !altDown && ((!shiftDown && oemSlashDown) || numpadSlashDown);
 }
 }
+
+void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character);
+void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode);
 
 MyGUI::Widget* FindControlsContainer()
 {
@@ -854,6 +1017,8 @@ bool BuildControlsScaffold(
     searchEdit->eventEditTextChange += MyGUI::newDelegate(callbacks.onSearchTextChanged);
     searchEdit->eventKeySetFocus += MyGUI::newDelegate(callbacks.onSearchEditFocusChanged);
     searchEdit->eventKeyLostFocus += MyGUI::newDelegate(callbacks.onSearchEditFocusChanged);
+    searchEdit->eventKeyButtonPressed += MyGUI::newDelegate(&OnSearchEditKeyPressed);
+    searchEdit->eventKeyButtonReleased += MyGUI::newDelegate(&OnSearchEditKeyReleased);
 
     MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -891,6 +1056,7 @@ bool BuildControlsScaffold(
 
     FocusSearchEditIfRequested(searchEdit, "controls_built");
     UpdateSearchUiState();
+    RememberSearchEditSnapshot(searchEdit);
 
     return true;
 }
@@ -1028,6 +1194,169 @@ void SetSearchQueryAndRefresh(
     MarkSearchFilterDirty(reason);
     ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
+    RememberSearchEditSnapshot(searchEdit);
+}
+
+void ApplySearchShortcutQueryAndCursor(
+    MyGUI::EditBox* searchEdit,
+    const std::string& rawText,
+    std::size_t cursorPosition,
+    const char* reason)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    SetSearchQueryAndRefresh(searchEdit, rawText, reason, false);
+
+    const std::size_t textLength = searchEdit->getTextLength();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    searchEdit->setTextCursor(cursorPosition);
+    searchEdit->setTextSelection(cursorPosition, cursorPosition);
+    RememberSearchEditSnapshotValue(rawText, cursorPosition);
+}
+
+bool ScheduleSearchEditMyGuiShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (searchEdit == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0 || !inputManager->isControlPressed())
+    {
+        return false;
+    }
+
+    MyGUI::UString text = searchEdit->getOnlyText();
+    std::size_t textLength = text.size();
+    std::size_t cursorPosition = searchEdit->getTextCursor();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    ResetPendingSearchEditShortcut();
+    g_pendingSearchEditShortcut.active = true;
+    g_pendingSearchEditShortcut.keyValue = keyCode.getValue();
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowLeft)
+    {
+        g_pendingSearchEditShortcut.rewriteText = false;
+        g_pendingSearchEditShortcut.cursorPosition =
+            FindPreviousSearchTokenBoundary(text, cursorPosition);
+        return true;
+    }
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowRight)
+    {
+        g_pendingSearchEditShortcut.rewriteText = false;
+        g_pendingSearchEditShortcut.cursorPosition =
+            FindNextSearchTokenBoundary(text, cursorPosition);
+        return true;
+    }
+
+    if (keyCode.getValue() != MyGUI::KeyCode::Backspace)
+    {
+        ResetPendingSearchEditShortcut();
+        return false;
+    }
+
+    if (g_haveSearchEditSnapshot)
+    {
+        text = MyGUI::UString(g_searchEditSnapshotQuery);
+        textLength = text.size();
+        cursorPosition = g_searchEditSnapshotCursorPosition;
+        if (cursorPosition > textLength)
+        {
+            cursorPosition = textLength;
+        }
+    }
+
+    g_pendingSearchEditShortcut.rewriteText = true;
+    MyGUI::UString updated = text;
+
+    if (searchEdit->isTextSelection())
+    {
+        std::size_t selectionStart = searchEdit->getTextSelectionStart();
+        std::size_t selectionLength = searchEdit->getTextSelectionLength();
+        if (selectionStart != MyGUI::ITEM_NONE)
+        {
+            if (selectionStart > textLength)
+            {
+                selectionStart = textLength;
+            }
+            if (selectionStart + selectionLength > textLength)
+            {
+                selectionLength = textLength - selectionStart;
+            }
+        }
+
+        if (selectionStart != MyGUI::ITEM_NONE && selectionLength != 0u)
+        {
+            updated.erase(selectionStart, selectionLength);
+            g_pendingSearchEditShortcut.cursorPosition = selectionStart;
+        }
+        else
+        {
+            g_pendingSearchEditShortcut.cursorPosition = cursorPosition;
+        }
+    }
+    else
+    {
+        const std::size_t deleteStart = FindPreviousSearchTokenBoundary(text, cursorPosition);
+        if (deleteStart != cursorPosition)
+        {
+            updated.erase(deleteStart, cursorPosition - deleteStart);
+        }
+        g_pendingSearchEditShortcut.cursorPosition = deleteStart;
+    }
+
+    g_pendingSearchEditShortcut.query = updated.asUTF8();
+    return true;
+}
+
+void ApplyPendingSearchEditShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (!g_pendingSearchEditShortcut.active || g_pendingSearchEditShortcut.keyValue != keyCode.getValue())
+    {
+        return;
+    }
+
+    const PendingSearchEditShortcut pending = g_pendingSearchEditShortcut;
+    ResetPendingSearchEditShortcut();
+
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    if (pending.rewriteText)
+    {
+        ApplySearchShortcutQueryAndCursor(
+            searchEdit,
+            pending.query,
+            pending.cursorPosition,
+            "ctrl_shortcut");
+        return;
+    }
+
+    std::size_t cursorPosition = pending.cursorPosition;
+    const std::size_t textLength = searchEdit->getTextLength();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    searchEdit->setTextCursor(cursorPosition);
+    searchEdit->setTextSelection(cursorPosition, cursorPosition);
+    RememberSearchEditSnapshot(searchEdit);
 }
 
 void OnSearchClearButtonClicked(MyGUI::Widget*)
@@ -1054,7 +1383,44 @@ void OnSearchPlaceholderClicked(MyGUI::Widget*)
 
 void OnSearchEditKeyFocusChanged(MyGUI::Widget*, MyGUI::Widget*)
 {
+    ResetPendingSearchEditShortcut();
     UpdateSearchUiState();
+}
+
+void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character)
+{
+    (void)character;
+
+    if (sender == 0 || !IsInterestingSearchEditMyGuiKey(keyCode))
+    {
+        return;
+    }
+
+    ScheduleSearchEditMyGuiShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+}
+
+void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
+{
+    if (sender == 0)
+    {
+        ResetPendingSearchEditShortcut();
+        ResetSearchEditSnapshot();
+        return;
+    }
+
+    MyGUI::EditBox* searchEdit = sender->castType<MyGUI::EditBox>(false);
+    if (searchEdit == 0)
+    {
+        ResetPendingSearchEditShortcut();
+        return;
+    }
+
+    if (IsInterestingSearchEditMyGuiKey(keyCode))
+    {
+        ApplyPendingSearchEditShortcut(searchEdit, keyCode);
+    }
+
+    RememberSearchEditSnapshot(searchEdit);
 }
 
 void OnSearchTextChanged(MyGUI::EditBox* sender)
@@ -1106,6 +1472,7 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
     MarkSearchFilterDirty("text_changed");
     ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
     UpdateSearchUiState();
+    RememberSearchEditSnapshot(sender);
 }
 
 void DestroyControlsIfPresent()
@@ -1113,7 +1480,11 @@ void DestroyControlsIfPresent()
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
+        ResetPendingSearchEditShortcut();
+        ResetSearchEditSnapshot();
         g_searchContainerDragging = false;
+        g_searchContainerDragStartLeft = 0;
+        g_searchContainerDragStartTop = 0;
         g_controlsWereInjected = false;
         g_searchFilterDirty = false;
         ResetObservedTraderEntriesState();
@@ -1131,6 +1502,8 @@ void DestroyControlsIfPresent()
     g_searchContainerStoredTop = coord.top;
     g_searchContainerPositionCustomized = true;
     g_searchContainerDragging = false;
+    g_searchContainerDragStartLeft = 0;
+    g_searchContainerDragStartTop = 0;
 
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui != 0)
@@ -1140,6 +1513,8 @@ void DestroyControlsIfPresent()
     }
 
     g_controlsWereInjected = false;
+    ResetPendingSearchEditShortcut();
+    ResetSearchEditSnapshot();
     g_searchFilterDirty = false;
     ResetObservedTraderEntriesState();
     g_pendingSlashFocusBaseQuery.clear();

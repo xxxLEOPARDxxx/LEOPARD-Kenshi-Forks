@@ -6,5 +6,8 @@
   "debugSearchLogging": false,
   "debugBindingLogging": false,
   "searchInputWidth": 372,
-  "searchInputHeight": 26
+  "searchInputHeight": 26,
+  "searchInputPositionCustomized": false,
+  "searchInputLeft": 0,
+  "searchInputTop": 0
 }

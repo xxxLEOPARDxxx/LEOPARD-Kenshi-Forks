@@ -27,6 +27,43 @@ typedef void (*InventoryLayoutCreateGUIFn)(
     Ogre::map<std::string, InventorySectionGUI*>::type&,
     Inventory*);
 
+static const int kSearchInputConfiguredWidthMin = 120;
+static const int kSearchInputConfiguredWidthMax = 720;
+static const int kSearchInputConfiguredHeightMin = 22;
+static const int kSearchInputConfiguredHeightMax = 48;
+static const int kDefaultSearchInputConfiguredWidth = 372;
+static const int kDefaultSearchInputConfiguredHeight = 26;
+
+struct TraderConfigSnapshot
+{
+    TraderConfigSnapshot()
+        : enabled(true)
+        , showSearchEntryCount(true)
+        , showSearchQuantityCount(true)
+        , debugLogging(false)
+        , debugSearchLogging(false)
+        , debugBindingLogging(false)
+        , searchInputWidth(kDefaultSearchInputConfiguredWidth)
+        , searchInputHeight(kDefaultSearchInputConfiguredHeight)
+        , searchInputPositionCustomized(false)
+        , searchInputLeft(0)
+        , searchInputTop(0)
+    {
+    }
+
+    bool enabled;
+    bool showSearchEntryCount;
+    bool showSearchQuantityCount;
+    bool debugLogging;
+    bool debugSearchLogging;
+    bool debugBindingLogging;
+    int searchInputWidth;
+    int searchInputHeight;
+    bool searchInputPositionCustomized;
+    int searchInputLeft;
+    int searchInputTop;
+};
+
 struct SectionWidgetInventoryLink
 {
     MyGUI::Widget* sectionWidget;
@@ -174,6 +211,8 @@ struct SearchUiState
         , g_searchContainerPositionCustomized(false)
         , g_searchContainerDragLastMouseX(0)
         , g_searchContainerDragLastMouseY(0)
+        , g_searchContainerDragStartLeft(0)
+        , g_searchContainerDragStartTop(0)
         , g_searchContainerStoredLeft(0)
         , g_searchContainerStoredTop(0)
     {
@@ -191,6 +230,8 @@ struct SearchUiState
     bool g_searchContainerPositionCustomized;
     int g_searchContainerDragLastMouseX;
     int g_searchContainerDragLastMouseY;
+    int g_searchContainerDragStartLeft;
+    int g_searchContainerDragStartTop;
     int g_searchContainerStoredLeft;
     int g_searchContainerStoredTop;
 };
@@ -280,4 +321,8 @@ void LogSearchDebugLine(const std::string& message);
 void LogBindingDebugLine(const std::string& message);
 int ClampSearchInputConfiguredWidth(int value);
 int ClampSearchInputConfiguredHeight(int value);
+void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config);
+TraderConfigSnapshot CaptureTraderConfigSnapshot();
+void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config);
+bool SaveTraderConfigSnapshot(const TraderConfigSnapshot& config);
 void LoadModConfig();

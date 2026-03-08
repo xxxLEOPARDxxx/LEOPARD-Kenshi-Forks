@@ -62,6 +62,7 @@ public:
 #include "TraderSearchPipeline.h"
 #include "TraderSearchUi.h"
 #include "TraderSearchText.h"
+#include "TraderModHub.h"
 #include "TraderWindowDetection.h"
 
 namespace
@@ -823,6 +824,7 @@ void PlayerInterface_updateUT_hook(PlayerInterface* self)
         g_updateUTOrig(self);
     }
 
+    TraderModHub_TickAttachRetry();
     TickPhase2ControlsScaffold();
 }
 }
@@ -910,6 +912,8 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook PlayerInterface::updateUT");
         return;
     }
+
+    TraderModHub_OnStartup();
 
     std::stringstream info;
     info << "phase 2 controls scaffold active."
