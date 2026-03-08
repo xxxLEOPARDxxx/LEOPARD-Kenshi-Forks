@@ -19,7 +19,6 @@ class InventoryGUI;
 class InventorySectionGUI;
 
 typedef void (*PlayerInterfaceUpdateUTFn)(PlayerInterface*);
-typedef void (*InventoryRefreshGuiFn)(Inventory*);
 typedef InventoryLayout* (*CharacterCreateInventoryLayoutFn)(Character*);
 typedef InventoryLayout* (*RootObjectCreateInventoryLayoutFn)(RootObject*);
 typedef void (*InventoryLayoutCreateGUIFn)(
@@ -224,14 +223,12 @@ struct BindingState
     std::string g_lastPanelBindingRefusedSignature;
     std::string g_lastPanelBindingProbeSignature;
     std::vector<RefreshedInventoryLink> g_recentRefreshedInventories;
-    std::string g_lastRefreshInventorySummarySignature;
 };
 
 struct HookState
 {
     HookState()
         : g_updateUTOrig(0)
-        , g_inventoryRefreshGuiOrig(0)
         , g_characterCreateInventoryLayoutOrig(0)
         , g_rootObjectCreateInventoryLayoutOrig(0)
         , g_inventoryLayoutCreateGUIOrig(0)
@@ -245,7 +242,6 @@ struct HookState
     }
 
     PlayerInterfaceUpdateUTFn g_updateUTOrig;
-    InventoryRefreshGuiFn g_inventoryRefreshGuiOrig;
     CharacterCreateInventoryLayoutFn g_characterCreateInventoryLayoutOrig;
     RootObjectCreateInventoryLayoutFn g_rootObjectCreateInventoryLayoutOrig;
     InventoryLayoutCreateGUIFn g_inventoryLayoutCreateGUIOrig;

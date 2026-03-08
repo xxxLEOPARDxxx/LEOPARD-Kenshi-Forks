@@ -16,34 +16,6 @@
 
 namespace
 {
-void DumpVisibleRootWidgetsForDiagnostics()
-{
-    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui == 0)
-    {
-        LogWarnLine("GUI singleton unavailable while dumping root widgets");
-        return;
-    }
-
-    std::size_t index = 0;
-    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
-    while (roots.next())
-    {
-        MyGUI::Widget* root = roots.current();
-        if (root == 0 || !root->getInheritedVisible())
-        {
-            continue;
-        }
-
-        const MyGUI::IntCoord coord = root->getCoord();
-        std::stringstream line;
-        line << "root[" << index << "] name=" << SafeWidgetName(root)
-             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
-        LogInfoLine(line.str());
-        ++index;
-    }
-}
-
 void LogRecentRefreshedInventorySummary(std::size_t expectedEntryCount)
 {
     TraderRuntimeState& state = TraderState();

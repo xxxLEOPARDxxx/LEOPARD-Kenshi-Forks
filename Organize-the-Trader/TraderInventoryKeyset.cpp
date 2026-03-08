@@ -937,7 +937,7 @@ bool TryResolveTraderInventoryNameKeys(
                      << " opaque_prefer_mode=" << (preferCoverageFallbackWhenWidgetOpaque ? "true" : "false")
                      << " replacing_source=\"" << TruncateForLog(bestSource, 220) << "\""
                      << " with_source=\"" << TruncateForLog(bestCoverageSource, 220) << "\"";
-                LogWarnLine(line.str());
+                LogBindingDebugLine(line.str());
             }
 
             bestKeys.swap(bestCoverageKeys);
@@ -960,7 +960,7 @@ bool TryResolveTraderInventoryNameKeys(
                      << " opaque_prefer_mode=" << (preferCoverageFallbackWhenWidgetOpaque ? "true" : "false")
                      << " current_source=\"" << TruncateForLog(bestSource, 160) << "\""
                      << " coverage_source=\"" << TruncateForLog(bestCoverageSource, 160) << "\"";
-                LogWarnLine(line.str());
+                LogBindingDebugLine(line.str());
             }
         }
     }
@@ -981,7 +981,7 @@ bool TryResolveTraderInventoryNameKeys(
                  << " expected=" << expectedEntryCount
                  << " source=\"" << TruncateForLog(bestSource, 220) << "\""
                  << " continuing_with_partial_keys=true";
-            LogWarnLine(line.str());
+            LogBindingDebugLine(line.str());
             g_lastInventoryKeysetLowCoverageSignature = signature.str();
         }
     }
@@ -1028,7 +1028,7 @@ bool TryResolveTraderInventoryNameKeys(
                      << " stage=" << (bestStage.empty() ? "<unknown>" : bestStage)
                      << " expected=" << expectedEntryCount
                      << " source=\"" << TruncateForLog(g_lockedKeysetSourcePreview, 220) << "\"";
-                LogInfoLine(line.str());
+                LogBindingDebugLine(line.str());
             }
         }
     }
@@ -1050,7 +1050,7 @@ bool TryResolveTraderInventoryNameKeys(
                  << " selected_stage=" << (bestStage.empty() ? "<unknown>" : bestStage)
                  << " selected_source=\"" << TruncateForLog(StripInventorySourceDiagnostics(bestSource), 200) << "\""
                  << " locked_source=\"" << TruncateForLog(g_lockedKeysetSourcePreview, 200) << "\"";
-            LogWarnLine(line.str());
+            LogBindingDebugLine(line.str());
             g_lastKeysetLockSignature = lockSignature.str();
         }
     }
@@ -1063,7 +1063,7 @@ bool TryResolveTraderInventoryNameKeys(
     {
         for (std::size_t index = 0; index < candidateDiagnostics.size(); ++index)
         {
-            LogInfoLine(candidateDiagnostics[index]);
+            LogBindingDebugLine(candidateDiagnostics[index]);
         }
 
         std::stringstream line;
@@ -1071,11 +1071,11 @@ bool TryResolveTraderInventoryNameKeys(
              << " expected=" << expectedEntryCount
              << " best_score=" << bestScore
              << " source=\"" << TruncateForLog(bestSource, 220) << "\"";
-        LogInfoLine(line.str());
+        LogBindingDebugLine(line.str());
 
         std::stringstream previewLine;
         previewLine << "inventory keyset preview " << BuildKeyPreviewForLog(*outKeys, 14);
-        LogInfoLine(previewLine.str());
+        LogBindingDebugLine(previewLine.str());
         g_lastInventoryKeysetSelectionSignature = signature.str();
     }
     return true;

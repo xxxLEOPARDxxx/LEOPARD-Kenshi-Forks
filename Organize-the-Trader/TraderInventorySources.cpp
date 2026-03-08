@@ -358,7 +358,7 @@ void UpdateHoveredInventoryCacheLocal(
              << " inventory_items=" << InventoryItemCountForLog(inventory)
              << " owner=" << RootObjectDisplayNameForLog(owner)
              << " hovered_widget=" << SafeWidgetName(hoveredWidget);
-        LogInfoLine(line.str());
+        LogBindingDebugLine(line.str());
         TraderState().binding.g_cachedHoveredWidgetInventorySignature = signature.str();
     }
 }
@@ -948,7 +948,7 @@ bool TryResolveTraderInventoryNameKeysFromWidgetBindings(
                  << " widget_aliases=" << widgetPointerAliases.size()
                  << " ownership_candidates=" << ownershipCandidates.size()
                  << " gui_matches=" << guiMatchedCandidateCount;
-            LogInfoLine(line.str());
+            LogBindingDebugLine(line.str());
             TraderState().binding.g_loggedWidgetInventoryCandidatesMissing = true;
         }
         return false;

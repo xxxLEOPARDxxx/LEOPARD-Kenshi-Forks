@@ -70,7 +70,6 @@ const char* kToggleHotkeyHint = "Ctrl+Shift+F8";
 const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 
 #define g_updateUTOrig (TraderState().hook.g_updateUTOrig)
-#define g_inventoryRefreshGuiOrig (TraderState().hook.g_inventoryRefreshGuiOrig)
 #define g_characterCreateInventoryLayoutOrig (TraderState().hook.g_characterCreateInventoryLayoutOrig)
 #define g_rootObjectCreateInventoryLayoutOrig (TraderState().hook.g_rootObjectCreateInventoryLayoutOrig)
 #define g_inventoryLayoutCreateGUIOrig (TraderState().hook.g_inventoryLayoutCreateGUIOrig)
@@ -150,8 +149,6 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_lastPanelBindingRefusedSignature (TraderState().binding.g_lastPanelBindingRefusedSignature)
 #define g_lastPanelBindingProbeSignature (TraderState().binding.g_lastPanelBindingProbeSignature)
 #define g_recentRefreshedInventories (TraderState().binding.g_recentRefreshedInventories)
-#define g_lastRefreshInventorySummarySignature (TraderState().binding.g_lastRefreshInventorySummarySignature)
-
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
     const unsigned int platform = versionInfo.GetPlatform();
@@ -286,16 +283,6 @@ void InventoryLayoutCreateGUI_hook(
         LogBindingDebugLine(line.str());
         g_lastSectionWidgetBindingSignature = signature.str();
     }
-}
-
-void Inventory_refreshGui_hook(Inventory* self)
-{
-    if (g_inventoryRefreshGuiOrig != 0)
-    {
-        g_inventoryRefreshGuiOrig(self);
-    }
-
-    RegisterRecentlyRefreshedInventory(self);
 }
 
 std::uintptr_t ResolveInventoryLayoutCreateGUIHookAddress(KenshiLib::BinaryVersion versionInfo)
@@ -876,7 +863,7 @@ __declspec(dllexport) void startPlugin()
         LogWarnLine("inventory layout createGUI expected target unresolved; deferred hook disabled");
     }
 
-    LogWarnLine("Inventory::refreshGui hook disabled (unsafe in current runtime)");
+    LogInfoLine("Inventory::refreshGui hook disabled (unsafe in current runtime)");
 
     const std::uintptr_t characterCreateLayoutAddress =
         KenshiLib::GetRealAddress(&Character::_NV_createInventoryLayout);
