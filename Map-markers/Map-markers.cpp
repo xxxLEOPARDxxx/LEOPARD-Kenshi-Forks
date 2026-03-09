@@ -15,9 +15,12 @@
 #include <kenshi/SaveFileSystem.h>
 #include <kenshi/SaveManager.h>
 
+#include <mygui/MyGUI_Button.h>
+#include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_ImageBox.h>
 #include <mygui/MyGUI_InputManager.h>
+#include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 
@@ -40,17 +43,35 @@ const OIS::KeyCode kProbeLiveHotkey = OIS::KC_F8;
 const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
+const int kMarkerEditorPanelWidth = 256;
+const int kMarkerEditorPanelHeight = 106;
+const int kMarkerLabelMaxLength = 48;
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
+const char* kMarkerEditorPanelName = "MapMarkers_EditorPanel";
+const char* kMarkerEditorHeaderName = "MapMarkers_EditorHeader";
+const char* kMarkerEditorTypeButtonName = "MapMarkers_EditorTypeButton";
+const char* kMarkerEditorLabelTitleName = "MapMarkers_EditorLabelTitle";
+const char* kMarkerEditorLabelEditName = "MapMarkers_EditorLabelEdit";
+const char* kMarkerEditorHintName = "MapMarkers_EditorHint";
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
+
+enum MarkerType
+{
+    MarkerType_Note = 0,
+    MarkerType_Stash = 1,
+    MarkerType_Danger = 2
+};
 
 struct MarkerState
 {
     int id;
     float normalizedX;
     float normalizedY;
+    MarkerType type;
+    std::string label;
 };
 
 bool g_probeLive = false;
@@ -65,6 +86,8 @@ int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
 bool g_lastLeftMouseDownObserved = false;
 bool g_lastMiddleMouseDownObserved = false;
+bool g_lastRightMouseDownObserved = false;
+bool g_suppressNextMarkerLabelChangeEvent = false;
 
 void LogProbeLine(const std::string& message);
 
@@ -126,6 +149,197 @@ float ClampFloat(float value, float minimum, float maximum)
     }
 
     return value;
+}
+
+std::string SanitizeMarkerLabel(const std::string& value)
+{
+    std::string sanitized;
+    sanitized.reserve(value.size());
+
+    bool previousWasSpace = false;
+    for (std::string::size_type index = 0; index < value.size(); ++index)
+    {
+        unsigned char ch = static_cast<unsigned char>(value[index]);
+        char out = static_cast<char>(ch);
+
+        if (ch == '\r' || ch == '\n' || ch == '\t')
+        {
+            out = ' ';
+        }
+        else if (out == '[' || out == '{')
+        {
+            out = '(';
+        }
+        else if (out == ']' || out == '}')
+        {
+            out = ')';
+        }
+        else if (ch < 32)
+        {
+            continue;
+        }
+
+        if (out == ' ')
+        {
+            if (sanitized.empty() || previousWasSpace)
+            {
+                continue;
+            }
+            previousWasSpace = true;
+        }
+        else
+        {
+            previousWasSpace = false;
+        }
+
+        sanitized.push_back(out);
+        if (static_cast<int>(sanitized.size()) >= kMarkerLabelMaxLength)
+        {
+            break;
+        }
+    }
+
+    while (!sanitized.empty() && sanitized[sanitized.size() - 1] == ' ')
+    {
+        sanitized.erase(sanitized.size() - 1);
+    }
+
+    return sanitized;
+}
+
+const char* MarkerTypeToJsonValue(MarkerType type)
+{
+    switch (type)
+    {
+    case MarkerType_Stash:
+        return "stash";
+    case MarkerType_Danger:
+        return "danger";
+    case MarkerType_Note:
+    default:
+        return "note";
+    }
+}
+
+const char* MarkerTypeToDisplayName(MarkerType type)
+{
+    switch (type)
+    {
+    case MarkerType_Stash:
+        return "Stash";
+    case MarkerType_Danger:
+        return "Danger";
+    case MarkerType_Note:
+    default:
+        return "Note";
+    }
+}
+
+const char* MarkerTypeToGlyph(MarkerType type)
+{
+    switch (type)
+    {
+    case MarkerType_Stash:
+        return "S";
+    case MarkerType_Danger:
+        return "!";
+    case MarkerType_Note:
+    default:
+        return "N";
+    }
+}
+
+MarkerType MarkerTypeFromString(const std::string& value)
+{
+    const std::string lowered = ToLowerAscii(value);
+    if (lowered == "stash")
+    {
+        return MarkerType_Stash;
+    }
+    if (lowered == "danger")
+    {
+        return MarkerType_Danger;
+    }
+    return MarkerType_Note;
+}
+
+MarkerType GetNextMarkerType(MarkerType type)
+{
+    switch (type)
+    {
+    case MarkerType_Note:
+        return MarkerType_Stash;
+    case MarkerType_Stash:
+        return MarkerType_Danger;
+    case MarkerType_Danger:
+    default:
+        return MarkerType_Note;
+    }
+}
+
+MyGUI::Colour BuildMarkerColour(MarkerType type, bool selected)
+{
+    switch (type)
+    {
+    case MarkerType_Stash:
+        return selected
+            ? MyGUI::Colour(0.45f, 0.98f, 1.0f, 1.0f)
+            : MyGUI::Colour(0.18f, 0.78f, 0.92f, 1.0f);
+    case MarkerType_Danger:
+        return selected
+            ? MyGUI::Colour(1.0f, 0.45f, 0.40f, 1.0f)
+            : MyGUI::Colour(0.88f, 0.18f, 0.18f, 1.0f);
+    case MarkerType_Note:
+    default:
+        return selected
+            ? MyGUI::Colour(1.0f, 0.92f, 0.30f, 1.0f)
+            : MyGUI::Colour(1.0f, 0.55f, 0.24f, 1.0f);
+    }
+}
+
+std::string BuildMarkerEditorHeader(const MarkerState& marker)
+{
+    std::stringstream caption;
+    caption << "Marker " << marker.id;
+    if (!marker.label.empty())
+    {
+        caption << ": " << marker.label;
+    }
+    return caption.str();
+}
+
+std::string JsonEscapeString(const std::string& value)
+{
+    std::string escaped;
+    escaped.reserve(value.size() + 8);
+
+    for (std::string::size_type index = 0; index < value.size(); ++index)
+    {
+        const char ch = value[index];
+        switch (ch)
+        {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped.push_back(ch);
+            break;
+        }
+    }
+
+    return escaped;
 }
 
 std::string JoinWindowsPath(const std::string& directory, const char* fileName)
@@ -228,6 +442,85 @@ bool ExtractJsonIntField(const std::string& contents, const char* key, int& valu
     return true;
 }
 
+bool ExtractJsonStringField(const std::string& contents, const char* key, std::string& valueOut)
+{
+    if (key == 0 || *key == '\0')
+    {
+        return false;
+    }
+
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = contents.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
+    if (colonPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = colonPos + 1;
+    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
+    {
+        ++valuePos;
+    }
+
+    if (valuePos >= contents.size() || contents[valuePos] != '"')
+    {
+        return false;
+    }
+
+    std::string parsed;
+    bool escaping = false;
+    for (std::string::size_type index = valuePos + 1; index < contents.size(); ++index)
+    {
+        const char ch = contents[index];
+        if (escaping)
+        {
+            switch (ch)
+            {
+            case 'n':
+                parsed.push_back('\n');
+                break;
+            case 'r':
+                parsed.push_back('\r');
+                break;
+            case 't':
+                parsed.push_back('\t');
+                break;
+            case '\\':
+            case '"':
+                parsed.push_back(ch);
+                break;
+            default:
+                parsed.push_back(ch);
+                break;
+            }
+            escaping = false;
+            continue;
+        }
+
+        if (ch == '\\')
+        {
+            escaping = true;
+            continue;
+        }
+
+        if (ch == '"')
+        {
+            valueOut = parsed;
+            return true;
+        }
+
+        parsed.push_back(ch);
+    }
+
+    return false;
+}
+
 bool TryExtractJsonArrayContents(const std::string& contents, const char* key, std::string& arrayContentsOut)
 {
     if (key == 0 || *key == '\0')
@@ -327,11 +620,25 @@ bool TryParseMarkersArray(const std::string& contents, std::vector<MarkerState>&
         marker.id = 0;
         marker.normalizedX = 0.0f;
         marker.normalizedY = 0.0f;
+        marker.type = MarkerType_Note;
+        marker.label.clear();
         if (!ExtractJsonIntField(objectText, "id", marker.id)
             || !ExtractJsonFloatField(objectText, "x", marker.normalizedX)
             || !ExtractJsonFloatField(objectText, "y", marker.normalizedY))
         {
             return false;
+        }
+
+        std::string typeValue;
+        if (ExtractJsonStringField(objectText, "type", typeValue))
+        {
+            marker.type = MarkerTypeFromString(typeValue);
+        }
+
+        std::string labelValue;
+        if (ExtractJsonStringField(objectText, "label", labelValue))
+        {
+            marker.label = SanitizeMarkerLabel(labelValue);
         }
 
         markersOut.push_back(marker);
@@ -385,7 +692,7 @@ void RefreshNextMarkerId()
     g_nextMarkerId = nextMarkerId;
 }
 
-void SaveMarkersForActiveSave()
+void SaveMarkersForActiveSave(bool logSuccess = true)
 {
     const std::string persistencePath = GetMarkerPersistencePath();
     if (persistencePath.empty())
@@ -404,7 +711,7 @@ void SaveMarkersForActiveSave()
     }
 
     output << "{\n"
-           << "  \"version\": 2,\n"
+           << "  \"version\": 3,\n"
            << "  \"markers\": [\n";
     for (std::size_t index = 0; index < g_markers.size(); ++index)
     {
@@ -412,7 +719,9 @@ void SaveMarkersForActiveSave()
         output << "    {\n"
                << "      \"id\": " << marker.id << ",\n"
                << "      \"x\": " << marker.normalizedX << ",\n"
-               << "      \"y\": " << marker.normalizedY << "\n"
+               << "      \"y\": " << marker.normalizedY << ",\n"
+               << "      \"type\": \"" << MarkerTypeToJsonValue(marker.type) << "\",\n"
+               << "      \"label\": \"" << JsonEscapeString(marker.label) << "\"\n"
                << "    }";
         if (index + 1 != g_markers.size())
         {
@@ -431,10 +740,13 @@ void SaveMarkersForActiveSave()
         return;
     }
 
-    std::stringstream line;
-    line << "markers persisted path=\"" << persistencePath
-         << "\" count=" << g_markers.size();
-    LogProbeLine(line.str());
+    if (logSuccess)
+    {
+        std::stringstream line;
+        line << "markers persisted path=\"" << persistencePath
+             << "\" count=" << g_markers.size();
+        LogProbeLine(line.str());
+    }
 }
 
 void LoadMarkersForActiveSave()
@@ -495,6 +807,8 @@ void LoadMarkersForActiveSave()
         marker.id = 1;
         marker.normalizedX = loadedX;
         marker.normalizedY = loadedY;
+        marker.type = MarkerType_Note;
+        marker.label.clear();
         g_markers.push_back(marker);
         RefreshNextMarkerId();
         g_lastMarkerRenderSignature.clear();
@@ -776,6 +1090,298 @@ MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const std::string& n
     return 0;
 }
 
+MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
+{
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        MyGUI::Window* window = current->castType<MyGUI::Window>(false);
+        if (window != 0)
+        {
+            return window;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage)
+{
+    if (mapImage == 0)
+    {
+        return 0;
+    }
+
+    if (MyGUI::Window* window = FindOwningWindow(mapImage))
+    {
+        return window;
+    }
+
+    return mapImage->getParent() == 0 ? mapImage : mapImage->getParent();
+}
+
+bool IsWidgetKeyFocused(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    return input != 0 && input->getKeyFocusWidget() == widget;
+}
+
+void OnMarkerTypeButtonClicked(MyGUI::Widget*)
+{
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        return;
+    }
+
+    selectedMarker->type = GetNextMarkerType(selectedMarker->type);
+    g_lastMarkerRenderSignature.clear();
+    SaveMarkersForActiveSave();
+
+    std::stringstream line;
+    line << "marker type_changed marker_id=" << selectedMarker->id
+         << " type=\"" << MarkerTypeToJsonValue(selectedMarker->type) << "\"";
+    LogProbeLine(line.str());
+}
+
+void OnMarkerLabelFocusChanged(MyGUI::Widget* sender, MyGUI::Widget*)
+{
+    MyGUI::EditBox* labelEdit = sender == 0 ? 0 : sender->castType<MyGUI::EditBox>(false);
+    if (labelEdit == 0 || IsWidgetKeyFocused(labelEdit))
+    {
+        return;
+    }
+
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        return;
+    }
+
+    std::stringstream line;
+    line << "marker label_committed marker_id=" << selectedMarker->id
+         << " length=" << selectedMarker->label.size();
+    LogProbeLine(line.str());
+}
+
+void OnMarkerLabelChanged(MyGUI::EditBox* sender)
+{
+    if (sender == 0)
+    {
+        return;
+    }
+
+    if (g_suppressNextMarkerLabelChangeEvent)
+    {
+        g_suppressNextMarkerLabelChangeEvent = false;
+        return;
+    }
+
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        return;
+    }
+
+    const std::string currentText = sender->getOnlyText().asUTF8();
+    const std::string sanitized = SanitizeMarkerLabel(currentText);
+    if (sanitized != currentText)
+    {
+        g_suppressNextMarkerLabelChangeEvent = true;
+        sender->setOnlyText(sanitized);
+    }
+
+    if (selectedMarker->label == sanitized)
+    {
+        return;
+    }
+
+    selectedMarker->label = sanitized;
+    SaveMarkersForActiveSave(false);
+}
+
+bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
+{
+    if (panelParent == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* panel = panelParent->createWidget<MyGUI::Widget>(
+        "Kenshi_GenericTextBoxFlatSkin",
+        MyGUI::IntCoord(0, 0, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorPanelName);
+    if (panel == 0)
+    {
+        return false;
+    }
+
+    panel->setAlpha(0.98f);
+
+    MyGUI::TextBox* header = panel->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(8, 6, kMarkerEditorPanelWidth - 16, 20),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorHeaderName);
+    if (header == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    header->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+
+    MyGUI::Button* typeButton = panel->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(8, 30, 112, 24),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorTypeButtonName);
+    if (typeButton == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    typeButton->setNeedMouseFocus(true);
+    typeButton->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerTypeButtonClicked);
+
+    MyGUI::TextBox* labelTitle = panel->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(8, 62, 44, 20),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorLabelTitleName);
+    if (labelTitle == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    labelTitle->setCaption("Label");
+    labelTitle->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+
+    MyGUI::EditBox* labelEdit = panel->createWidget<MyGUI::EditBox>(
+        "Kenshi_EditBox",
+        MyGUI::IntCoord(56, 60, kMarkerEditorPanelWidth - 64, 24),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorLabelEditName);
+    if (labelEdit == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    labelEdit->eventEditTextChange += MyGUI::newDelegate(&OnMarkerLabelChanged);
+    labelEdit->eventKeySetFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
+    labelEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
+
+    MyGUI::TextBox* hint = panel->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(8, 86, kMarkerEditorPanelWidth - 16, 16),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorHintName);
+    if (hint == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    hint->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+
+    return true;
+}
+
+void EnsureMarkerEditorUi()
+{
+    MyGUI::ImageBox* mapImage = FindActiveMapImage();
+    if (mapImage == 0 || !mapImage->getInheritedVisible())
+    {
+        return;
+    }
+
+    MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
+    if (panelParent == 0 || !panelParent->getInheritedVisible())
+    {
+        return;
+    }
+
+    MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        if (panel != 0)
+        {
+            panel->setVisible(false);
+        }
+        return;
+    }
+
+    if (panel == 0)
+    {
+        if (!BuildMarkerEditorUi(panelParent))
+        {
+            return;
+        }
+        panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
+        if (panel == 0)
+        {
+            return;
+        }
+    }
+
+    const MyGUI::IntCoord parentCoord = panelParent->getCoord();
+    const int maxLeft = parentCoord.width > kMarkerEditorPanelWidth ? parentCoord.width - kMarkerEditorPanelWidth : 0;
+    const int maxTop = parentCoord.height > kMarkerEditorPanelHeight ? parentCoord.height - kMarkerEditorPanelHeight : 0;
+    const int panelLeft = ClampInt(parentCoord.width - kMarkerEditorPanelWidth - 18, 0, maxLeft);
+    const int panelTop = ClampInt(48, 0, maxTop);
+
+    panel->setVisible(true);
+    panel->setCoord(panelLeft, panelTop, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight);
+
+    MyGUI::Widget* headerWidget = FindDirectChildByName(panel, kMarkerEditorHeaderName);
+    MyGUI::Widget* typeButtonWidget = FindDirectChildByName(panel, kMarkerEditorTypeButtonName);
+    MyGUI::Widget* labelEditWidget = FindDirectChildByName(panel, kMarkerEditorLabelEditName);
+    MyGUI::Widget* hintWidget = FindDirectChildByName(panel, kMarkerEditorHintName);
+
+    MyGUI::TextBox* header = headerWidget == 0 ? 0 : headerWidget->castType<MyGUI::TextBox>(false);
+    MyGUI::Button* typeButton = typeButtonWidget == 0 ? 0 : typeButtonWidget->castType<MyGUI::Button>(false);
+    MyGUI::EditBox* labelEdit = labelEditWidget == 0 ? 0 : labelEditWidget->castType<MyGUI::EditBox>(false);
+    MyGUI::TextBox* hint = hintWidget == 0 ? 0 : hintWidget->castType<MyGUI::TextBox>(false);
+
+    if (header != 0)
+    {
+        header->setCaption(BuildMarkerEditorHeader(*selectedMarker));
+    }
+
+    if (typeButton != 0)
+    {
+        std::stringstream caption;
+        caption << "Type: " << MarkerTypeToDisplayName(selectedMarker->type);
+        typeButton->setCaption(caption.str());
+        typeButton->setColour(BuildMarkerColour(selectedMarker->type, true));
+    }
+
+    if (labelEdit != 0 && !IsWidgetKeyFocused(labelEdit))
+    {
+        const std::string onlyText = labelEdit->getOnlyText().asUTF8();
+        if (onlyText != selectedMarker->label)
+        {
+            g_suppressNextMarkerLabelChangeEvent = true;
+            labelEdit->setOnlyText(selectedMarker->label);
+        }
+    }
+
+    if (hint != 0)
+    {
+        hint->setCaption("Middle click add | Left click move | Right click deselect");
+    }
+}
+
 void DestroyStaleMarkerWidgets(MyGUI::ImageBox* mapImage)
 {
     if (mapImage == 0)
@@ -856,11 +1462,11 @@ void EnsureMarkerWidgetsAttached()
             maxTop);
 
         const std::string widgetName = BuildMarkerWidgetName(marker.id);
-        MyGUI::Widget* widget = FindDirectChildByName(mapImage, widgetName);
+        MyGUI::Widget* widgetBase = FindDirectChildByName(mapImage, widgetName);
+        MyGUI::Button* widget = widgetBase == 0 ? 0 : widgetBase->castType<MyGUI::Button>(false);
         if (widget == 0)
         {
-            widget = mapImage->createWidgetT(
-                "Button",
+            widget = mapImage->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
                 MyGUI::IntCoord(0, 0, markerSize, markerSize),
                 MyGUI::Align::Default,
@@ -869,14 +1475,14 @@ void EnsureMarkerWidgetsAttached()
 
         widget->setNeedMouseFocus(true);
         widget->setAlpha(isSelected ? 1.0f : 0.92f);
-        widget->setColour(
-            isSelected
-                ? MyGUI::Colour(1.0f, 0.94f, 0.25f, 1.0f)
-                : MyGUI::Colour(1.0f, 0.35f, 0.25f, 1.0f));
+        widget->setColour(BuildMarkerColour(marker.type, isSelected));
+        widget->setCaption(MarkerTypeToGlyph(marker.type));
         widget->setCoord(markerLeft, markerTop, markerSize, markerSize);
 
-        signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize;
-        line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")";
+        signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize
+                  << ":" << MarkerTypeToJsonValue(marker.type);
+        line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")"
+             << ":" << MarkerTypeToJsonValue(marker.type);
     }
 
     const std::string signatureString = signature.str();
@@ -1151,6 +1757,8 @@ void TryAddMarkerFromMiddleClick()
     marker.id = g_nextMarkerId++;
     marker.normalizedX = BuildNormalizedMapCoordinate(context.localLeft, context.absoluteCoord.width);
     marker.normalizedY = BuildNormalizedMapCoordinate(context.localTop, context.absoluteCoord.height);
+    marker.type = MarkerType_Note;
+    marker.label.clear();
     g_markers.push_back(marker);
     g_selectedMarkerId = marker.id;
     g_lastMarkerRenderSignature.clear();
@@ -1206,6 +1814,47 @@ void TryHandleLeftClickSelectionOrMove()
     LogProbeLine(line.str());
 }
 
+void TryDeselectMarkerFromRightClick()
+{
+    if (g_selectedMarkerId == 0
+        || !DidMouseButtonJustGoDown(VK_RBUTTON, g_lastRightMouseDownObserved))
+    {
+        return;
+    }
+
+    MapPointerContext context;
+    if (!TryBuildMapPointerContext(context))
+    {
+        return;
+    }
+
+    ClearSelectedMarker("right_click_map");
+}
+
+MyGUI::EditBox* FindActiveMarkerLabelEdit()
+{
+    MyGUI::ImageBox* mapImage = FindActiveMapImage();
+    if (mapImage == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
+    if (panelParent == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
+    if (panel == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* labelEditWidget = FindDirectChildByName(panel, kMarkerEditorLabelEditName);
+    return labelEditWidget == 0 ? 0 : labelEditWidget->castType<MyGUI::EditBox>(false);
+}
+
 bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
 {
     if (FindActiveMapImage() == 0 || g_selectedMarkerId == 0)
@@ -1213,10 +1862,9 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
         return false;
     }
 
-    if (keyCode == OIS::KC_ESCAPE)
+    if (IsWidgetKeyFocused(FindActiveMarkerLabelEdit()))
     {
-        ClearSelectedMarker("escape");
-        return true;
+        return false;
     }
 
     if (keyCode != OIS::KC_DELETE)
@@ -1251,7 +1899,9 @@ void TickUiDiagnostics()
     LogSaveIdentityIfChanged(false);
     TryAddMarkerFromMiddleClick();
     TryHandleLeftClickSelectionOrMove();
+    TryDeselectMarkerFromRightClick();
     EnsureMarkerWidgetsAttached();
+    EnsureMarkerEditorUi();
 
     const DWORD now = GetTickCount();
     if (now - g_lastVisibleRootsScanTick >= 500)
@@ -1355,9 +2005,10 @@ __declspec(dllexport) void startPlugin()
          << " add_action=MIDDLE_CLICK"
          << " select_move_action=LEFT_CLICK"
          << " delete_action=DELETE"
-         << " deselect_action=ESC"
+         << " deselect_action=RIGHT_CLICK"
+         << " marker_data=type_label"
          << " persistence=active_save_json"
-         << " markers=managed_widgets";
+         << " markers=managed_widgets_with_editor";
     DebugLog(info.str().c_str());
 }
 
