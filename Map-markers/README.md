@@ -37,4 +37,4 @@ After deploy, expected files:
 - `[Kenshi install dir]\mods\Map-markers\mod-config.json`
 
 ## Config
-`mod-config.json` is currently a minimal placeholder for future plugin settings.
+`mod-config.json` stores global plugin UI settings such as marker visibility, editor-close behavior, and remembered editor position.

@@ -43,9 +43,29 @@ const OIS::KeyCode kProbeLiveHotkey = OIS::KC_F8;
 const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
-const int kMarkerEditorPanelWidth = 256;
-const int kMarkerEditorPanelHeight = 106;
+const int kMarkerEditorPanelWidth = 344;
+const int kMarkerEditorPanelHeight = 144;
+const int kMarkerEditorOuterPadding = 16;
+const int kMarkerEditorHeaderHeight = 18;
+const int kMarkerEditorControlHeight = 24;
+const int kMarkerEditorLabelTitleWidth = 42;
+const int kMarkerEditorLabelGap = 12;
+const int kMarkerEditorRowGap = 8;
+const int kMarkerEditorHintHeight = 20;
+const int kMarkerEditorDefaultTop = 48;
+const int kMarkerEditorRightMargin = 18;
+const int kMarkerToggleButtonWidth = 108;
+const int kMarkerToggleButtonHeight = 24;
+const int kMarkerToggleButtonMargin = 12;
+const int kMarkerToggleButtonBottomMargin = 18;
+const int kMarkerHoverLabelHeight = 30;
+const int kMarkerHoverLabelHorizontalPadding = 8;
+const int kMarkerHoverLabelVerticalOffset = 1;
+const int kMarkerHoverLabelMinimumWidth = 40;
+const int kMarkerHoverLabelMaximumWidth = 320;
 const int kMarkerLabelMaxLength = 48;
+const char* kMarkerEditorHintCaption = "Middle add | Left move | Del remove | Right deselect";
+const char* kModConfigFileName = "mod-config.json";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
 const char* kMarkerEditorPanelName = "MapMarkers_EditorPanel";
@@ -54,6 +74,9 @@ const char* kMarkerEditorTypeButtonName = "MapMarkers_EditorTypeButton";
 const char* kMarkerEditorLabelTitleName = "MapMarkers_EditorLabelTitle";
 const char* kMarkerEditorLabelEditName = "MapMarkers_EditorLabelEdit";
 const char* kMarkerEditorHintName = "MapMarkers_EditorHint";
+const char* kMarkerToggleButtonName = "MapMarkers_ToggleButton";
+const char* kMarkerHoverLabelName = "MapMarkers_HoverLabel";
+const char* kMarkerHoverLabelTextName = "MapMarkers_HoverLabelText";
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
@@ -61,8 +84,15 @@ void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
 enum MarkerType
 {
     MarkerType_Note = 0,
-    MarkerType_Stash = 1,
-    MarkerType_Danger = 2
+    MarkerType_Danger = 1,
+    MarkerType_Stash = 2,
+    MarkerType_Ruin = 3,
+    MarkerType_Mine = 4,
+    MarkerType_Base = 5,
+    MarkerType_Trader = 6,
+    MarkerType_SafeSpot = 7,
+    MarkerType_Quest = 8,
+    MarkerType_Todo = 9
 };
 
 struct MarkerState
@@ -74,6 +104,15 @@ struct MarkerState
     std::string label;
 };
 
+struct PendingMarkerLabelShortcut
+{
+    bool active;
+    bool rewriteText;
+    int keyValue;
+    std::size_t cursorPosition;
+    std::string label;
+};
+
 bool g_probeLive = false;
 DWORD g_lastVisibleRootsScanTick = 0;
 DWORD g_lastHoverLogTick = 0;
@@ -81,6 +120,9 @@ std::string g_lastVisibleRootsSignature;
 std::string g_lastHoveredSignature;
 std::string g_lastSaveIdentity;
 std::string g_lastMarkerRenderSignature;
+std::string g_lastMarkerEditorSignature;
+std::string g_lastToggleButtonSignature;
+std::string g_lastHoverLabelSignature;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -88,6 +130,22 @@ bool g_lastLeftMouseDownObserved = false;
 bool g_lastMiddleMouseDownObserved = false;
 bool g_lastRightMouseDownObserved = false;
 bool g_suppressNextMarkerLabelChangeEvent = false;
+bool g_haveMarkerLabelSnapshot = false;
+bool g_markerEditorDragging = false;
+bool g_markerEditorPositionDirty = false;
+bool g_markerEditorPositionCustomized = false;
+bool g_markersVisible = true;
+bool g_closeEditorOnMapClose = true;
+bool g_modEnabled = true;
+bool g_mapWasVisible = false;
+int g_markerEditorDragLastMouseX = 0;
+int g_markerEditorDragLastMouseY = 0;
+int g_markerEditorCustomLeft = 0;
+int g_markerEditorCustomTop = 0;
+std::size_t g_markerLabelSnapshotCursorPosition = 0u;
+std::string g_markerLabelSnapshotText;
+PendingMarkerLabelShortcut g_pendingMarkerLabelShortcut = { false, false, 0, 0u, "" };
+HMODULE g_moduleHandle = 0;
 
 void LogProbeLine(const std::string& message);
 
@@ -151,7 +209,7 @@ float ClampFloat(float value, float minimum, float maximum)
     return value;
 }
 
-std::string SanitizeMarkerLabel(const std::string& value)
+std::string SanitizeMarkerLabel(const std::string& value, bool trimTrailingSpaces = true)
 {
     std::string sanitized;
     sanitized.reserve(value.size());
@@ -199,7 +257,7 @@ std::string SanitizeMarkerLabel(const std::string& value)
         }
     }
 
-    while (!sanitized.empty() && sanitized[sanitized.size() - 1] == ' ')
+    while (trimTrailingSpaces && !sanitized.empty() && sanitized[sanitized.size() - 1] == ' ')
     {
         sanitized.erase(sanitized.size() - 1);
     }
@@ -207,14 +265,137 @@ std::string SanitizeMarkerLabel(const std::string& value)
     return sanitized;
 }
 
+bool IsMarkerLabelTokenSeparator(MyGUI::UString::unicode_char value)
+{
+    if (value < 0x80u)
+    {
+        const unsigned char byte = static_cast<unsigned char>(value);
+        return byte == ':' || std::isspace(byte) != 0 || std::isalnum(byte) == 0;
+    }
+
+    return false;
+}
+
+std::size_t FindPreviousMarkerLabelTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
+{
+    const std::size_t length = text.size();
+    if (cursor > length)
+    {
+        cursor = length;
+    }
+
+    std::size_t position = cursor;
+    while (position > 0u && IsMarkerLabelTokenSeparator(text[position - 1u]))
+    {
+        --position;
+    }
+
+    while (position > 0u && !IsMarkerLabelTokenSeparator(text[position - 1u]))
+    {
+        --position;
+    }
+
+    return position;
+}
+
+std::size_t FindNextMarkerLabelTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
+{
+    const std::size_t length = text.size();
+    if (cursor > length)
+    {
+        cursor = length;
+    }
+
+    std::size_t position = cursor;
+    while (position < length && !IsMarkerLabelTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    while (position < length && IsMarkerLabelTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    return position;
+}
+
+bool IsInterestingMarkerLabelShortcutKey(MyGUI::KeyCode keyCode)
+{
+    return keyCode.getValue() == MyGUI::KeyCode::ArrowLeft
+        || keyCode.getValue() == MyGUI::KeyCode::ArrowRight
+        || keyCode.getValue() == MyGUI::KeyCode::Backspace;
+}
+
+void ResetMarkerLabelSnapshot()
+{
+    g_haveMarkerLabelSnapshot = false;
+    g_markerLabelSnapshotCursorPosition = 0u;
+    g_markerLabelSnapshotText.clear();
+}
+
+void RememberMarkerLabelSnapshotValue(const std::string& text, std::size_t cursorPosition)
+{
+    const std::size_t textLength = MyGUI::UString(text).size();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    g_haveMarkerLabelSnapshot = true;
+    g_markerLabelSnapshotText = text;
+    g_markerLabelSnapshotCursorPosition = cursorPosition;
+}
+
+void RememberMarkerLabelSnapshot(MyGUI::EditBox* labelEdit)
+{
+    if (labelEdit == 0)
+    {
+        ResetMarkerLabelSnapshot();
+        return;
+    }
+
+    std::size_t cursorPosition = labelEdit->getTextCursor();
+    const std::size_t textLength = labelEdit->getTextLength();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    RememberMarkerLabelSnapshotValue(labelEdit->getOnlyText().asUTF8(), cursorPosition);
+}
+
+void ResetPendingMarkerLabelShortcut()
+{
+    g_pendingMarkerLabelShortcut.active = false;
+    g_pendingMarkerLabelShortcut.rewriteText = false;
+    g_pendingMarkerLabelShortcut.keyValue = 0;
+    g_pendingMarkerLabelShortcut.cursorPosition = 0u;
+    g_pendingMarkerLabelShortcut.label.clear();
+}
+
 const char* MarkerTypeToJsonValue(MarkerType type)
 {
     switch (type)
     {
-    case MarkerType_Stash:
-        return "stash";
     case MarkerType_Danger:
         return "danger";
+    case MarkerType_Stash:
+        return "stash";
+    case MarkerType_Ruin:
+        return "ruin";
+    case MarkerType_Mine:
+        return "mine";
+    case MarkerType_Base:
+        return "base";
+    case MarkerType_Trader:
+        return "trader";
+    case MarkerType_SafeSpot:
+        return "safe_spot";
+    case MarkerType_Quest:
+        return "quest";
+    case MarkerType_Todo:
+        return "todo";
     case MarkerType_Note:
     default:
         return "note";
@@ -225,10 +406,24 @@ const char* MarkerTypeToDisplayName(MarkerType type)
 {
     switch (type)
     {
-    case MarkerType_Stash:
-        return "Stash";
     case MarkerType_Danger:
         return "Danger";
+    case MarkerType_Stash:
+        return "Stash";
+    case MarkerType_Ruin:
+        return "Ruin";
+    case MarkerType_Mine:
+        return "Mine / Resource";
+    case MarkerType_Base:
+        return "Base / Outpost";
+    case MarkerType_Trader:
+        return "Trader / Shop";
+    case MarkerType_SafeSpot:
+        return "Safe Spot / Bed / Recovery";
+    case MarkerType_Quest:
+        return "Quest";
+    case MarkerType_Todo:
+        return "Todo";
     case MarkerType_Note:
     default:
         return "Note";
@@ -239,26 +434,68 @@ const char* MarkerTypeToGlyph(MarkerType type)
 {
     switch (type)
     {
-    case MarkerType_Stash:
-        return "S";
     case MarkerType_Danger:
         return "!";
+    case MarkerType_Stash:
+        return "s";
+    case MarkerType_Ruin:
+        return "r";
+    case MarkerType_Mine:
+        return "m";
+    case MarkerType_Base:
+        return "b";
+    case MarkerType_Trader:
+        return "$";
+    case MarkerType_SafeSpot:
+        return "+";
+    case MarkerType_Quest:
+        return "q";
+    case MarkerType_Todo:
+        return "t";
     case MarkerType_Note:
     default:
-        return "N";
+        return "n";
     }
 }
 
 MarkerType MarkerTypeFromString(const std::string& value)
 {
     const std::string lowered = ToLowerAscii(value);
+    if (lowered == "danger")
+    {
+        return MarkerType_Danger;
+    }
     if (lowered == "stash")
     {
         return MarkerType_Stash;
     }
-    if (lowered == "danger")
+    if (lowered == "ruin")
     {
-        return MarkerType_Danger;
+        return MarkerType_Ruin;
+    }
+    if (lowered == "mine" || lowered == "resource" || lowered == "mine_resource")
+    {
+        return MarkerType_Mine;
+    }
+    if (lowered == "base" || lowered == "outpost" || lowered == "base_outpost")
+    {
+        return MarkerType_Base;
+    }
+    if (lowered == "trader" || lowered == "shop" || lowered == "trader_shop")
+    {
+        return MarkerType_Trader;
+    }
+    if (lowered == "safe_spot" || lowered == "safe" || lowered == "recovery")
+    {
+        return MarkerType_SafeSpot;
+    }
+    if (lowered == "quest")
+    {
+        return MarkerType_Quest;
+    }
+    if (lowered == "todo")
+    {
+        return MarkerType_Todo;
     }
     return MarkerType_Note;
 }
@@ -268,10 +505,24 @@ MarkerType GetNextMarkerType(MarkerType type)
     switch (type)
     {
     case MarkerType_Note:
-        return MarkerType_Stash;
-    case MarkerType_Stash:
         return MarkerType_Danger;
     case MarkerType_Danger:
+        return MarkerType_Stash;
+    case MarkerType_Stash:
+        return MarkerType_Ruin;
+    case MarkerType_Ruin:
+        return MarkerType_Mine;
+    case MarkerType_Mine:
+        return MarkerType_Base;
+    case MarkerType_Base:
+        return MarkerType_Trader;
+    case MarkerType_Trader:
+        return MarkerType_SafeSpot;
+    case MarkerType_SafeSpot:
+        return MarkerType_Quest;
+    case MarkerType_Quest:
+        return MarkerType_Todo;
+    case MarkerType_Todo:
     default:
         return MarkerType_Note;
     }
@@ -281,19 +532,47 @@ MyGUI::Colour BuildMarkerColour(MarkerType type, bool selected)
 {
     switch (type)
     {
-    case MarkerType_Stash:
-        return selected
-            ? MyGUI::Colour(0.45f, 0.98f, 1.0f, 1.0f)
-            : MyGUI::Colour(0.18f, 0.78f, 0.92f, 1.0f);
     case MarkerType_Danger:
         return selected
             ? MyGUI::Colour(1.0f, 0.45f, 0.40f, 1.0f)
             : MyGUI::Colour(0.88f, 0.18f, 0.18f, 1.0f);
+    case MarkerType_Stash:
+        return selected
+            ? MyGUI::Colour(0.44f, 0.70f, 1.0f, 1.0f)
+            : MyGUI::Colour(0.18f, 0.42f, 0.95f, 1.0f);
+    case MarkerType_Ruin:
+        return selected
+            ? MyGUI::Colour(1.0f, 0.96f, 0.38f, 1.0f)
+            : MyGUI::Colour(0.92f, 0.82f, 0.18f, 1.0f);
+    case MarkerType_Mine:
+        return selected
+            ? MyGUI::Colour(1.0f, 0.72f, 0.30f, 1.0f)
+            : MyGUI::Colour(0.95f, 0.54f, 0.16f, 1.0f);
+    case MarkerType_Base:
+        return selected
+            ? MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f)
+            : MyGUI::Colour(0.84f, 0.84f, 0.84f, 1.0f);
+    case MarkerType_Trader:
+        return selected
+            ? MyGUI::Colour(0.48f, 1.0f, 1.0f, 1.0f)
+            : MyGUI::Colour(0.18f, 0.84f, 0.84f, 1.0f);
+    case MarkerType_SafeSpot:
+        return selected
+            ? MyGUI::Colour(0.78f, 1.0f, 0.68f, 1.0f)
+            : MyGUI::Colour(0.52f, 0.90f, 0.40f, 1.0f);
+    case MarkerType_Quest:
+        return selected
+            ? MyGUI::Colour(0.82f, 0.52f, 1.0f, 1.0f)
+            : MyGUI::Colour(0.60f, 0.30f, 0.88f, 1.0f);
+    case MarkerType_Todo:
+        return selected
+            ? MyGUI::Colour(0.78f, 0.78f, 0.78f, 1.0f)
+            : MyGUI::Colour(0.54f, 0.54f, 0.54f, 1.0f);
     case MarkerType_Note:
     default:
         return selected
-            ? MyGUI::Colour(1.0f, 0.92f, 0.30f, 1.0f)
-            : MyGUI::Colour(1.0f, 0.55f, 0.24f, 1.0f);
+            ? MyGUI::Colour(0.58f, 1.0f, 0.58f, 1.0f)
+            : MyGUI::Colour(0.18f, 0.78f, 0.20f, 1.0f);
     }
 }
 
@@ -306,6 +585,60 @@ std::string BuildMarkerEditorHeader(const MarkerState& marker)
         caption << ": " << marker.label;
     }
     return caption.str();
+}
+
+int BuildMarkerLabelDisplayWidth(const std::string& label)
+{
+    int width = kMarkerHoverLabelMinimumWidth;
+    if (!label.empty())
+    {
+        int textWidth = 0;
+        for (std::string::size_type index = 0; index < label.size(); ++index)
+        {
+            const unsigned char ch = static_cast<unsigned char>(label[index]);
+            if (ch == ' ')
+            {
+                textWidth += 4;
+            }
+            else if (std::islower(ch))
+            {
+                textWidth += 6;
+            }
+            else if (std::isupper(ch) || std::isdigit(ch) || ch == '!' || ch == '+' || ch == '$')
+            {
+                textWidth += 7;
+            }
+            else
+            {
+                textWidth += 5;
+            }
+        }
+
+        width = textWidth + (kMarkerHoverLabelHorizontalPadding * 2) + 4;
+    }
+
+    return ClampInt(width, kMarkerHoverLabelMinimumWidth, kMarkerHoverLabelMaximumWidth);
+}
+
+std::string BuildMarkerHoverDisplayText(const std::string& caption)
+{
+    return caption;
+}
+
+std::string BuildMarkerHoverCaption(const MarkerState& marker)
+{
+    std::stringstream caption;
+    caption << MarkerTypeToDisplayName(marker.type);
+    if (!marker.label.empty())
+    {
+        caption << ": " << marker.label;
+    }
+    return caption.str();
+}
+
+const char* BuildMarkerToggleButtonCaption()
+{
+    return g_markersVisible ? "Markers: On" : "Markers: Off";
 }
 
 std::string JsonEscapeString(const std::string& value)
@@ -366,6 +699,35 @@ std::string GetActiveSaveDirectory()
 std::string GetMarkerPersistencePath()
 {
     return JoinWindowsPath(GetActiveSaveDirectory(), kMarkerPersistenceFileName);
+}
+
+std::string GetPluginDirectory()
+{
+    if (g_moduleHandle == 0)
+    {
+        return "";
+    }
+
+    char modulePath[MAX_PATH] = {0};
+    const DWORD length = GetModuleFileNameA(g_moduleHandle, modulePath, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH)
+    {
+        return "";
+    }
+
+    const std::string fullPath(modulePath, static_cast<std::size_t>(length));
+    const std::string::size_type separator = fullPath.find_last_of("\\/");
+    if (separator == std::string::npos)
+    {
+        return "";
+    }
+
+    return fullPath.substr(0, separator);
+}
+
+std::string GetModConfigPath()
+{
+    return JoinWindowsPath(GetPluginDirectory(), kModConfigFileName);
 }
 
 bool ExtractJsonFloatField(const std::string& contents, const char* key, float& valueOut)
@@ -440,6 +802,47 @@ bool ExtractJsonIntField(const std::string& contents, const char* key, int& valu
 
     valueOut = static_cast<int>(parsedValue);
     return true;
+}
+
+bool ExtractJsonBoolField(const std::string& contents, const char* key, bool& valueOut)
+{
+    if (key == 0 || *key == '\0')
+    {
+        return false;
+    }
+
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = contents.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
+    if (colonPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = colonPos + 1;
+    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
+    {
+        ++valuePos;
+    }
+
+    if (contents.compare(valuePos, 4, "true") == 0)
+    {
+        valueOut = true;
+        return true;
+    }
+
+    if (contents.compare(valuePos, 5, "false") == 0)
+    {
+        valueOut = false;
+        return true;
+    }
+
+    return false;
 }
 
 bool ExtractJsonStringField(const std::string& contents, const char* key, std::string& valueOut)
@@ -653,6 +1056,123 @@ void ResetMarkersForActiveSave()
     g_markers.clear();
     g_selectedMarkerId = 0;
     g_nextMarkerId = 1;
+}
+
+void SaveModConfig(bool logSuccess = true)
+{
+    const std::string configPath = GetModConfigPath();
+    if (configPath.empty())
+    {
+        LogProbeLine("config persist skipped: mod-config path unavailable");
+        return;
+    }
+
+    std::ofstream output(configPath.c_str(), std::ios::out | std::ios::trunc);
+    if (!output)
+    {
+        std::stringstream line;
+        line << "config persist failed path=\"" << configPath << "\"";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    output << "{\n"
+           << "  \"enabled\": " << (g_modEnabled ? "true" : "false") << ",\n"
+           << "  \"markers_visible\": " << (g_markersVisible ? "true" : "false") << ",\n"
+           << "  \"close_editor_on_map_close\": " << (g_closeEditorOnMapClose ? "true" : "false") << ",\n"
+           << "  \"editor_position_customized\": " << (g_markerEditorPositionCustomized ? "true" : "false") << ",\n"
+           << "  \"editor_left\": " << g_markerEditorCustomLeft << ",\n"
+           << "  \"editor_top\": " << g_markerEditorCustomTop << "\n"
+           << "}\n";
+
+    if (!output.good())
+    {
+        std::stringstream line;
+        line << "config persist failed_write path=\"" << configPath << "\"";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    g_markerEditorPositionDirty = false;
+
+    if (logSuccess)
+    {
+        std::stringstream line;
+        line << "config persisted path=\"" << configPath
+             << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
+             << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
+             << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
+             << " editor_left=" << g_markerEditorCustomLeft
+             << " editor_top=" << g_markerEditorCustomTop;
+        LogProbeLine(line.str());
+    }
+}
+
+void LoadModConfig()
+{
+    g_modEnabled = true;
+    g_markersVisible = true;
+    g_closeEditorOnMapClose = true;
+    g_markerEditorPositionCustomized = false;
+    g_markerEditorPositionDirty = false;
+    g_markerEditorCustomLeft = 0;
+    g_markerEditorCustomTop = 0;
+
+    const std::string configPath = GetModConfigPath();
+    if (configPath.empty())
+    {
+        return;
+    }
+
+    std::ifstream input(configPath.c_str(), std::ios::in);
+    if (!input)
+    {
+        std::stringstream line;
+        line << "config missing path=\"" << configPath << "\" using_defaults=true";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    std::stringstream buffer;
+    buffer << input.rdbuf();
+    const std::string contents = buffer.str();
+
+    bool boolValue = false;
+    if (ExtractJsonBoolField(contents, "enabled", boolValue))
+    {
+        g_modEnabled = boolValue;
+    }
+    if (ExtractJsonBoolField(contents, "markers_visible", boolValue))
+    {
+        g_markersVisible = boolValue;
+    }
+    if (ExtractJsonBoolField(contents, "close_editor_on_map_close", boolValue))
+    {
+        g_closeEditorOnMapClose = boolValue;
+    }
+    if (ExtractJsonBoolField(contents, "editor_position_customized", boolValue))
+    {
+        g_markerEditorPositionCustomized = boolValue;
+    }
+
+    int intValue = 0;
+    if (ExtractJsonIntField(contents, "editor_left", intValue))
+    {
+        g_markerEditorCustomLeft = intValue;
+    }
+    if (ExtractJsonIntField(contents, "editor_top", intValue))
+    {
+        g_markerEditorCustomTop = intValue;
+    }
+
+    std::stringstream line;
+    line << "config loaded path=\"" << configPath
+         << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
+         << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
+         << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
+         << " editor_left=" << g_markerEditorCustomLeft
+         << " editor_top=" << g_markerEditorCustomTop;
+    LogProbeLine(line.str());
 }
 
 int FindMarkerIndexById(int markerId)
@@ -1070,6 +1590,17 @@ int FindMarkerWidgetIdInChain(MyGUI::Widget* widget)
     return 0;
 }
 
+int FindHoveredMarkerId()
+{
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        return 0;
+    }
+
+    return FindMarkerWidgetIdInChain(inputManager->getMouseFocusWidget());
+}
+
 MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const std::string& name)
 {
     if (parent == 0 || name.empty())
@@ -1090,6 +1621,55 @@ MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const std::string& n
     return 0;
 }
 
+MyGUI::Widget* FindWidgetByNameRecursive(MyGUI::Widget* parent, const std::string& name)
+{
+    if (parent == 0 || name.empty())
+    {
+        return 0;
+    }
+
+    if (SafeWidgetName(parent) == name)
+    {
+        return parent;
+    }
+
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        if (MyGUI::Widget* found = FindWidgetByNameRecursive(parent->getChildAt(index), name))
+        {
+            return found;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindAnyWidgetByName(const std::string& name)
+{
+    if (name.empty())
+    {
+        return 0;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        if (MyGUI::Widget* found = FindWidgetByNameRecursive(roots.current(), name))
+        {
+            return found;
+        }
+    }
+
+    return 0;
+}
+
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
 {
     for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
@@ -1104,6 +1684,22 @@ MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
     return 0;
 }
 
+MyGUI::Widget* FindTopLevelParent(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* topLevel = widget;
+    while (topLevel->getParent() != 0)
+    {
+        topLevel = topLevel->getParent();
+    }
+
+    return topLevel;
+}
+
 MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage)
 {
     if (mapImage == 0)
@@ -1116,7 +1712,50 @@ MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage)
         return window;
     }
 
+    if (MyGUI::Widget* root = FindTopLevelParent(mapImage))
+    {
+        return root;
+    }
+
     return mapImage->getParent() == 0 ? mapImage : mapImage->getParent();
+}
+
+MyGUI::Widget* FindMarkerToggleParent(MyGUI::ImageBox* mapImage)
+{
+    if (mapImage == 0)
+    {
+        return 0;
+    }
+
+    if (MyGUI::Window* window = FindOwningWindow(mapImage))
+    {
+        if (MyGUI::Widget* root = FindTopLevelParent(window))
+        {
+            return root;
+        }
+        return window;
+    }
+
+    if (MyGUI::Widget* root = FindTopLevelParent(mapImage))
+    {
+        return root;
+    }
+
+    return mapImage->getParent() == 0 ? mapImage : mapImage->getParent();
+}
+
+bool TryGetCurrentMousePosition(int& mouseXOut, int& mouseYOut)
+{
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input == 0)
+    {
+        return false;
+    }
+
+    const MyGUI::IntPoint mouse = input->getMousePosition();
+    mouseXOut = mouse.left;
+    mouseYOut = mouse.top;
+    return true;
 }
 
 bool IsWidgetKeyFocused(MyGUI::Widget* widget)
@@ -1128,6 +1767,175 @@ bool IsWidgetKeyFocused(MyGUI::Widget* widget)
 
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
     return input != 0 && input->getKeyFocusWidget() == widget;
+}
+
+MyGUI::Widget* FindMarkerEditorPanel()
+{
+    MyGUI::ImageBox* mapImage = FindActiveMapImage();
+    if (mapImage == 0)
+    {
+        return FindAnyWidgetByName(kMarkerEditorPanelName);
+    }
+
+    MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
+    if (panelParent != 0)
+    {
+        if (MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName))
+        {
+            return panel;
+        }
+    }
+
+    return FindAnyWidgetByName(kMarkerEditorPanelName);
+}
+
+void StopMarkerEditorDrag()
+{
+    if (g_markerEditorDragging && g_markerEditorPositionDirty)
+    {
+        SaveModConfig(false);
+    }
+
+    g_markerEditorDragging = false;
+}
+
+void MoveMarkerEditorByDelta(int deltaX, int deltaY)
+{
+    MyGUI::Widget* panel = FindMarkerEditorPanel();
+    if (panel == 0 || panel->getParent() == 0)
+    {
+        return;
+    }
+
+    const MyGUI::IntCoord panelCoord = panel->getCoord();
+    const MyGUI::IntCoord parentCoord = panel->getParent()->getCoord();
+    const int maxLeft = parentCoord.width > panelCoord.width ? parentCoord.width - panelCoord.width : 0;
+    const int maxTop = parentCoord.height > panelCoord.height ? parentCoord.height - panelCoord.height : 0;
+    const int nextLeft = ClampInt(panelCoord.left + deltaX, 0, maxLeft);
+    const int nextTop = ClampInt(panelCoord.top + deltaY, 0, maxTop);
+
+    panel->setCoord(nextLeft, nextTop, panelCoord.width, panelCoord.height);
+    g_markerEditorPositionCustomized = true;
+    g_markerEditorPositionDirty = true;
+    g_markerEditorCustomLeft = nextLeft;
+    g_markerEditorCustomTop = nextTop;
+}
+
+int BuildDefaultEditorLeft(MyGUI::Widget* panelParent, MyGUI::ImageBox* mapImage)
+{
+    if (panelParent == 0 || mapImage == 0)
+    {
+        return 0;
+    }
+
+    const MyGUI::IntCoord parentCoord = panelParent->getCoord();
+    const int maxLeft = parentCoord.width > kMarkerEditorPanelWidth ? parentCoord.width - kMarkerEditorPanelWidth : 0;
+
+    MyGUI::Widget* anchorWidget = FindOwningWindow(mapImage);
+    if (anchorWidget == 0)
+    {
+        anchorWidget = mapImage;
+    }
+
+    const MyGUI::IntCoord parentAbsolute = panelParent->getAbsoluteCoord();
+    const MyGUI::IntCoord anchorAbsolute = anchorWidget->getAbsoluteCoord();
+    const int preferredRight =
+        anchorAbsolute.left - parentAbsolute.left + anchorAbsolute.width + kMarkerEditorRightMargin;
+    if (preferredRight + kMarkerEditorPanelWidth <= parentCoord.width)
+    {
+        return ClampInt(preferredRight, 0, maxLeft);
+    }
+
+    const int preferredLeft =
+        anchorAbsolute.left - parentAbsolute.left - kMarkerEditorPanelWidth - kMarkerEditorRightMargin;
+    if (preferredLeft >= 0)
+    {
+        return ClampInt(preferredLeft, 0, maxLeft);
+    }
+
+    const int fallbackInside =
+        anchorAbsolute.left - parentAbsolute.left + anchorAbsolute.width - kMarkerEditorPanelWidth - kMarkerEditorRightMargin;
+    return ClampInt(fallbackInside, 0, maxLeft);
+}
+
+int BuildDefaultEditorTop(MyGUI::Widget* panelParent, MyGUI::ImageBox* mapImage)
+{
+    if (panelParent == 0 || mapImage == 0)
+    {
+        return 0;
+    }
+
+    const MyGUI::IntCoord parentCoord = panelParent->getCoord();
+    const int maxTop = parentCoord.height > kMarkerEditorPanelHeight ? parentCoord.height - kMarkerEditorPanelHeight : 0;
+
+    MyGUI::Widget* anchorWidget = FindOwningWindow(mapImage);
+    if (anchorWidget == 0)
+    {
+        anchorWidget = mapImage;
+    }
+
+    const MyGUI::IntCoord parentAbsolute = panelParent->getAbsoluteCoord();
+    const MyGUI::IntCoord anchorAbsolute = anchorWidget->getAbsoluteCoord();
+    const int preferredTop = anchorAbsolute.top - parentAbsolute.top + kMarkerEditorDefaultTop;
+    return ClampInt(preferredTop, 0, maxTop);
+}
+
+void OnMarkerEditorHeaderMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    g_markerEditorDragging = true;
+    if (!TryGetCurrentMousePosition(g_markerEditorDragLastMouseX, g_markerEditorDragLastMouseY))
+    {
+        g_markerEditorDragLastMouseX = left;
+        g_markerEditorDragLastMouseY = top;
+    }
+}
+
+void OnMarkerEditorHeaderMouseDrag(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left || !g_markerEditorDragging)
+    {
+        return;
+    }
+
+    int mouseX = left;
+    int mouseY = top;
+    TryGetCurrentMousePosition(mouseX, mouseY);
+
+    const int deltaX = mouseX - g_markerEditorDragLastMouseX;
+    const int deltaY = mouseY - g_markerEditorDragLastMouseY;
+    if (deltaX == 0 && deltaY == 0)
+    {
+        return;
+    }
+
+    MoveMarkerEditorByDelta(deltaX, deltaY);
+    g_markerEditorDragLastMouseX = mouseX;
+    g_markerEditorDragLastMouseY = mouseY;
+}
+
+void OnMarkerEditorHeaderMouseMove(MyGUI::Widget*, int left, int top)
+{
+    if (!g_markerEditorDragging)
+    {
+        return;
+    }
+
+    OnMarkerEditorHeaderMouseDrag(0, left, top, MyGUI::MouseButton::Left);
+}
+
+void OnMarkerEditorHeaderMouseReleased(MyGUI::Widget*, int, int, MyGUI::MouseButton id)
+{
+    if (id != MyGUI::MouseButton::Left)
+    {
+        return;
+    }
+
+    StopMarkerEditorDrag();
 }
 
 void OnMarkerTypeButtonClicked(MyGUI::Widget*)
@@ -1148,6 +1956,217 @@ void OnMarkerTypeButtonClicked(MyGUI::Widget*)
     LogProbeLine(line.str());
 }
 
+void ApplyMarkerLabelTextAndCursor(
+    MyGUI::EditBox* labelEdit,
+    const std::string& text,
+    std::size_t cursorPosition,
+    const char* reason)
+{
+    if (labelEdit == 0)
+    {
+        return;
+    }
+
+    const std::string sanitized = SanitizeMarkerLabel(text, false);
+    const std::size_t textLength = MyGUI::UString(sanitized).size();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    const std::string currentText = labelEdit->getOnlyText().asUTF8();
+    if (currentText != sanitized)
+    {
+        g_suppressNextMarkerLabelChangeEvent = true;
+        labelEdit->setOnlyText(sanitized);
+    }
+    labelEdit->setTextCursor(cursorPosition);
+    labelEdit->setTextSelection(cursorPosition, cursorPosition);
+
+    if (MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId))
+    {
+        if (selectedMarker->label != sanitized)
+        {
+            selectedMarker->label = sanitized;
+            SaveMarkersForActiveSave(false);
+        }
+    }
+
+    RememberMarkerLabelSnapshotValue(sanitized, cursorPosition);
+
+    std::stringstream line;
+    line << "marker label_shortcut_applied"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " cursor=" << cursorPosition
+         << " length=" << sanitized.size();
+    LogProbeLine(line.str());
+}
+
+bool ScheduleMarkerLabelShortcut(MyGUI::EditBox* labelEdit, MyGUI::KeyCode keyCode)
+{
+    if (labelEdit == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0 || !inputManager->isControlPressed())
+    {
+        return false;
+    }
+
+    MyGUI::UString text = labelEdit->getOnlyText();
+    std::size_t textLength = text.size();
+    std::size_t cursorPosition = labelEdit->getTextCursor();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    ResetPendingMarkerLabelShortcut();
+    g_pendingMarkerLabelShortcut.active = true;
+    g_pendingMarkerLabelShortcut.keyValue = keyCode.getValue();
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowLeft)
+    {
+        g_pendingMarkerLabelShortcut.rewriteText = false;
+        g_pendingMarkerLabelShortcut.cursorPosition =
+            FindPreviousMarkerLabelTokenBoundary(text, cursorPosition);
+        return true;
+    }
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowRight)
+    {
+        g_pendingMarkerLabelShortcut.rewriteText = false;
+        g_pendingMarkerLabelShortcut.cursorPosition =
+            FindNextMarkerLabelTokenBoundary(text, cursorPosition);
+        return true;
+    }
+
+    if (keyCode.getValue() != MyGUI::KeyCode::Backspace)
+    {
+        ResetPendingMarkerLabelShortcut();
+        return false;
+    }
+
+    if (g_haveMarkerLabelSnapshot)
+    {
+        text = MyGUI::UString(g_markerLabelSnapshotText);
+        textLength = text.size();
+        cursorPosition = g_markerLabelSnapshotCursorPosition;
+        if (cursorPosition > textLength)
+        {
+            cursorPosition = textLength;
+        }
+    }
+
+    g_pendingMarkerLabelShortcut.rewriteText = true;
+    MyGUI::UString updated = text;
+
+    if (labelEdit->isTextSelection())
+    {
+        std::size_t selectionStart = labelEdit->getTextSelectionStart();
+        std::size_t selectionLength = labelEdit->getTextSelectionLength();
+        if (selectionStart != MyGUI::ITEM_NONE)
+        {
+            if (selectionStart > textLength)
+            {
+                selectionStart = textLength;
+            }
+            if (selectionStart + selectionLength > textLength)
+            {
+                selectionLength = textLength - selectionStart;
+            }
+        }
+
+        if (selectionStart != MyGUI::ITEM_NONE && selectionLength != 0u)
+        {
+            updated.erase(selectionStart, selectionLength);
+            g_pendingMarkerLabelShortcut.cursorPosition = selectionStart;
+        }
+        else
+        {
+            g_pendingMarkerLabelShortcut.cursorPosition = cursorPosition;
+        }
+    }
+    else
+    {
+        const std::size_t deleteStart = FindPreviousMarkerLabelTokenBoundary(text, cursorPosition);
+        if (deleteStart != cursorPosition)
+        {
+            updated.erase(deleteStart, cursorPosition - deleteStart);
+        }
+        g_pendingMarkerLabelShortcut.cursorPosition = deleteStart;
+    }
+
+    g_pendingMarkerLabelShortcut.label = updated.asUTF8();
+    return true;
+}
+
+void ApplyPendingMarkerLabelShortcut(MyGUI::EditBox* labelEdit, MyGUI::KeyCode keyCode)
+{
+    if (!g_pendingMarkerLabelShortcut.active || g_pendingMarkerLabelShortcut.keyValue != keyCode.getValue())
+    {
+        return;
+    }
+
+    const PendingMarkerLabelShortcut pending = g_pendingMarkerLabelShortcut;
+    ResetPendingMarkerLabelShortcut();
+
+    if (labelEdit == 0)
+    {
+        return;
+    }
+
+    if (pending.rewriteText)
+    {
+        ApplyMarkerLabelTextAndCursor(
+            labelEdit,
+            pending.label,
+            pending.cursorPosition,
+            "ctrl_backspace");
+        return;
+    }
+
+    std::size_t cursorPosition = pending.cursorPosition;
+    const std::size_t textLength = labelEdit->getTextLength();
+    if (cursorPosition > textLength)
+    {
+        cursorPosition = textLength;
+    }
+
+    labelEdit->setTextCursor(cursorPosition);
+    labelEdit->setTextSelection(cursorPosition, cursorPosition);
+    RememberMarkerLabelSnapshot(labelEdit);
+
+    std::stringstream line;
+    line << "marker label_shortcut_applied"
+         << " reason=" << (keyCode.getValue() == MyGUI::KeyCode::ArrowLeft ? "ctrl_left" : "ctrl_right")
+         << " cursor=" << cursorPosition
+         << " length=" << labelEdit->getOnlyText().asUTF8().size();
+    LogProbeLine(line.str());
+}
+
+void OnMarkerLabelKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char)
+{
+    if (sender == 0 || !IsInterestingMarkerLabelShortcutKey(keyCode))
+    {
+        return;
+    }
+
+    ScheduleMarkerLabelShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+}
+
+void OnMarkerLabelKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
+{
+    if (sender == 0 || !IsInterestingMarkerLabelShortcutKey(keyCode))
+    {
+        return;
+    }
+
+    ApplyPendingMarkerLabelShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+}
+
 void OnMarkerLabelFocusChanged(MyGUI::Widget* sender, MyGUI::Widget*)
 {
     MyGUI::EditBox* labelEdit = sender == 0 ? 0 : sender->castType<MyGUI::EditBox>(false);
@@ -1161,6 +2180,22 @@ void OnMarkerLabelFocusChanged(MyGUI::Widget* sender, MyGUI::Widget*)
     {
         return;
     }
+
+    const std::string currentText = labelEdit->getOnlyText().asUTF8();
+    const std::string committedText = SanitizeMarkerLabel(currentText, true);
+    if (committedText != currentText)
+    {
+        g_suppressNextMarkerLabelChangeEvent = true;
+        labelEdit->setOnlyText(committedText);
+    }
+
+    if (selectedMarker->label != committedText)
+    {
+        selectedMarker->label = committedText;
+        SaveMarkersForActiveSave(false);
+    }
+
+    RememberMarkerLabelSnapshotValue(committedText, labelEdit->getTextCursor());
 
     std::stringstream line;
     line << "marker label_committed marker_id=" << selectedMarker->id
@@ -1188,7 +2223,7 @@ void OnMarkerLabelChanged(MyGUI::EditBox* sender)
     }
 
     const std::string currentText = sender->getOnlyText().asUTF8();
-    const std::string sanitized = SanitizeMarkerLabel(currentText);
+    const std::string sanitized = SanitizeMarkerLabel(currentText, false);
     if (sanitized != currentText)
     {
         g_suppressNextMarkerLabelChangeEvent = true;
@@ -1197,11 +2232,162 @@ void OnMarkerLabelChanged(MyGUI::EditBox* sender)
 
     if (selectedMarker->label == sanitized)
     {
+        RememberMarkerLabelSnapshot(sender);
         return;
     }
 
     selectedMarker->label = sanitized;
     SaveMarkersForActiveSave(false);
+    RememberMarkerLabelSnapshot(sender);
+}
+
+void OnMarkerToggleButtonClicked(MyGUI::Widget*)
+{
+    g_markersVisible = !g_markersVisible;
+    g_lastMarkerRenderSignature.clear();
+    StopMarkerEditorDrag();
+    SaveModConfig();
+
+    std::stringstream line;
+    line << "markers visibility_changed visible=" << (g_markersVisible ? "true" : "false");
+    LogProbeLine(line.str());
+}
+
+bool BuildMarkerToggleButtonUi(MyGUI::Widget* buttonParent)
+{
+    if (buttonParent == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Button* button = buttonParent->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(0, 0, kMarkerToggleButtonWidth, kMarkerToggleButtonHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerToggleButtonName);
+    if (button == 0)
+    {
+        return false;
+    }
+
+    button->setNeedMouseFocus(true);
+    button->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerToggleButtonClicked);
+    button->setCaption(BuildMarkerToggleButtonCaption());
+    return true;
+}
+
+void EnsureMarkerToggleButtonUi()
+{
+    MyGUI::ImageBox* mapImage = FindActiveMapImage();
+    if (mapImage == 0 || !mapImage->getInheritedVisible())
+    {
+        if (MyGUI::Widget* button = FindAnyWidgetByName(kMarkerToggleButtonName))
+        {
+            button->setVisible(false);
+        }
+        if (!g_lastToggleButtonSignature.empty())
+        {
+            g_lastToggleButtonSignature.clear();
+            LogProbeLine("toggle_button hidden reason=map_not_visible");
+        }
+        return;
+    }
+
+    MyGUI::Widget* buttonParent = FindMarkerToggleParent(mapImage);
+    if (buttonParent == 0 || !buttonParent->getInheritedVisible())
+    {
+        if (MyGUI::Widget* button = FindAnyWidgetByName(kMarkerToggleButtonName))
+        {
+            button->setVisible(false);
+        }
+        if (!g_lastToggleButtonSignature.empty())
+        {
+            g_lastToggleButtonSignature.clear();
+            LogProbeLine("toggle_button hidden reason=parent_not_visible");
+        }
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    if (MyGUI::Widget* staleButton = FindAnyWidgetByName(kMarkerToggleButtonName))
+    {
+        if (staleButton->getParent() != buttonParent)
+        {
+            gui->destroyWidget(staleButton);
+            LogProbeLine("toggle_button stale_instance_removed");
+        }
+    }
+
+    MyGUI::Widget* buttonWidget = FindDirectChildByName(buttonParent, kMarkerToggleButtonName);
+    MyGUI::Button* button = buttonWidget == 0 ? 0 : buttonWidget->castType<MyGUI::Button>(false);
+    if (button == 0)
+    {
+        if (!BuildMarkerToggleButtonUi(buttonParent))
+        {
+            return;
+        }
+        buttonWidget = FindDirectChildByName(buttonParent, kMarkerToggleButtonName);
+        button = buttonWidget == 0 ? 0 : buttonWidget->castType<MyGUI::Button>(false);
+        if (button == 0)
+        {
+            return;
+        }
+    }
+
+    MyGUI::Widget* anchorWidget = FindOwningWindow(mapImage);
+    if (anchorWidget == 0)
+    {
+        anchorWidget = mapImage;
+    }
+
+    const MyGUI::IntCoord parentCoord = buttonParent->getCoord();
+    const MyGUI::IntCoord parentAbsolute = buttonParent->getAbsoluteCoord();
+    const MyGUI::IntCoord anchorAbsolute = anchorWidget->getAbsoluteCoord();
+    const int maxLeft = parentCoord.width > kMarkerToggleButtonWidth ? parentCoord.width - kMarkerToggleButtonWidth : 0;
+    const int maxTop = parentCoord.height > kMarkerToggleButtonHeight ? parentCoord.height - kMarkerToggleButtonHeight : 0;
+    const int buttonLeft = ClampInt(
+        anchorAbsolute.left - parentAbsolute.left + kMarkerToggleButtonMargin,
+        0,
+        maxLeft);
+    const int buttonTop = ClampInt(
+        anchorAbsolute.top - parentAbsolute.top + anchorAbsolute.height - kMarkerToggleButtonHeight - kMarkerToggleButtonBottomMargin,
+        0,
+        maxTop);
+
+    button->setVisible(true);
+    button->setCaption(BuildMarkerToggleButtonCaption());
+    button->setCoord(buttonLeft, buttonTop, kMarkerToggleButtonWidth, kMarkerToggleButtonHeight);
+
+    std::stringstream signature;
+    signature << SafeWidgetName(buttonParent)
+              << "|" << buttonLeft << "," << buttonTop
+              << "|" << parentCoord.width << "x" << parentCoord.height
+              << "|" << BuildMarkerToggleButtonCaption();
+    if (signature.str() != g_lastToggleButtonSignature)
+    {
+        g_lastToggleButtonSignature = signature.str();
+
+        std::stringstream line;
+        line << "toggle_button placed"
+             << " parent=" << BuildWidgetDescriptor(buttonParent)
+             << " parent_abs=(" << parentAbsolute.left << "," << parentAbsolute.top << "," << parentAbsolute.width << "," << parentAbsolute.height << ")"
+             << " anchor=" << BuildWidgetDescriptor(anchorWidget)
+             << " anchor_abs=(" << anchorAbsolute.left << "," << anchorAbsolute.top << "," << anchorAbsolute.width << "," << anchorAbsolute.height << ")"
+             << " coord=(" << buttonLeft << "," << buttonTop << "," << kMarkerToggleButtonWidth << "," << kMarkerToggleButtonHeight << ")"
+             << " caption=\"" << BuildMarkerToggleButtonCaption() << "\"";
+        LogProbeLine(line.str());
+    }
 }
 
 bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
@@ -1229,9 +2415,19 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
 
     panel->setAlpha(0.98f);
 
+    const int headerTop = kMarkerEditorOuterPadding;
+    const int headerLeft = kMarkerEditorOuterPadding;
+    const int contentWidth = kMarkerEditorPanelWidth - (kMarkerEditorOuterPadding * 2);
+    const int typeTop = headerTop + kMarkerEditorHeaderHeight + kMarkerEditorRowGap;
+    const int labelTop = typeTop + kMarkerEditorControlHeight + kMarkerEditorRowGap;
+    const int hintTop = kMarkerEditorPanelHeight - kMarkerEditorOuterPadding - kMarkerEditorHintHeight;
+    const int labelEditLeft = kMarkerEditorOuterPadding + kMarkerEditorLabelTitleWidth + kMarkerEditorLabelGap;
+    const int labelEditWidth =
+        kMarkerEditorPanelWidth - labelEditLeft - kMarkerEditorOuterPadding;
+
     MyGUI::TextBox* header = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(8, 6, kMarkerEditorPanelWidth - 16, 20),
+        MyGUI::IntCoord(headerLeft, headerTop, contentWidth, kMarkerEditorHeaderHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorHeaderName);
     if (header == 0)
@@ -1240,10 +2436,15 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         return false;
     }
     header->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+    header->setNeedMouseFocus(true);
+    header->eventMouseButtonPressed += MyGUI::newDelegate(&OnMarkerEditorHeaderMousePressed);
+    header->eventMouseMove += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseMove);
+    header->eventMouseDrag += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseDrag);
+    header->eventMouseButtonReleased += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseReleased);
 
     MyGUI::Button* typeButton = panel->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
-        MyGUI::IntCoord(8, 30, 112, 24),
+        MyGUI::IntCoord(kMarkerEditorOuterPadding, typeTop, contentWidth, kMarkerEditorControlHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorTypeButtonName);
     if (typeButton == 0)
@@ -1256,7 +2457,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
 
     MyGUI::TextBox* labelTitle = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(8, 62, 44, 20),
+        MyGUI::IntCoord(kMarkerEditorOuterPadding, labelTop, kMarkerEditorLabelTitleWidth, kMarkerEditorControlHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorLabelTitleName);
     if (labelTitle == 0)
@@ -1269,7 +2470,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
 
     MyGUI::EditBox* labelEdit = panel->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
-        MyGUI::IntCoord(56, 60, kMarkerEditorPanelWidth - 64, 24),
+        MyGUI::IntCoord(labelEditLeft, labelTop, labelEditWidth, kMarkerEditorControlHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorLabelEditName);
     if (labelEdit == 0)
@@ -1280,10 +2481,12 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
     labelEdit->eventEditTextChange += MyGUI::newDelegate(&OnMarkerLabelChanged);
     labelEdit->eventKeySetFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
     labelEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
+    labelEdit->eventKeyButtonPressed += MyGUI::newDelegate(&OnMarkerLabelKeyPressed);
+    labelEdit->eventKeyButtonReleased += MyGUI::newDelegate(&OnMarkerLabelKeyReleased);
 
     MyGUI::TextBox* hint = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(8, 86, kMarkerEditorPanelWidth - 16, 16),
+        MyGUI::IntCoord(kMarkerEditorOuterPadding, hintTop, contentWidth, kMarkerEditorHintHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorHintName);
     if (hint == 0)
@@ -1292,6 +2495,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         return false;
     }
     hint->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+    hint->setCaption(kMarkerEditorHintCaption);
 
     return true;
 }
@@ -1301,22 +2505,48 @@ void EnsureMarkerEditorUi()
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
+        StopMarkerEditorDrag();
+        if (MyGUI::Widget* panel = FindMarkerEditorPanel())
+        {
+            panel->setVisible(false);
+        }
+        if (!g_lastMarkerEditorSignature.empty())
+        {
+            g_lastMarkerEditorSignature.clear();
+            LogProbeLine("marker_editor hidden reason=map_not_visible");
+        }
         return;
     }
 
     MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
     if (panelParent == 0 || !panelParent->getInheritedVisible())
     {
+        StopMarkerEditorDrag();
+        if (MyGUI::Widget* panel = FindMarkerEditorPanel())
+        {
+            panel->setVisible(false);
+        }
+        if (!g_lastMarkerEditorSignature.empty())
+        {
+            g_lastMarkerEditorSignature.clear();
+            LogProbeLine("marker_editor hidden reason=parent_not_visible");
+        }
         return;
     }
 
     MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
     MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
-    if (selectedMarker == 0)
+    if (!g_markersVisible || selectedMarker == 0)
     {
+        StopMarkerEditorDrag();
         if (panel != 0)
         {
             panel->setVisible(false);
+        }
+        if (!g_lastMarkerEditorSignature.empty())
+        {
+            g_lastMarkerEditorSignature.clear();
+            LogProbeLine("marker_editor hidden reason=no_selected_marker_or_markers_hidden");
         }
         return;
     }
@@ -1337,11 +2567,40 @@ void EnsureMarkerEditorUi()
     const MyGUI::IntCoord parentCoord = panelParent->getCoord();
     const int maxLeft = parentCoord.width > kMarkerEditorPanelWidth ? parentCoord.width - kMarkerEditorPanelWidth : 0;
     const int maxTop = parentCoord.height > kMarkerEditorPanelHeight ? parentCoord.height - kMarkerEditorPanelHeight : 0;
-    const int panelLeft = ClampInt(parentCoord.width - kMarkerEditorPanelWidth - 18, 0, maxLeft);
-    const int panelTop = ClampInt(48, 0, maxTop);
+    const int defaultLeft = BuildDefaultEditorLeft(panelParent, mapImage);
+    const int defaultTop = BuildDefaultEditorTop(panelParent, mapImage);
+    const int panelLeft = g_markerEditorPositionCustomized
+        ? ClampInt(g_markerEditorCustomLeft, 0, maxLeft)
+        : defaultLeft;
+    const int panelTop = g_markerEditorPositionCustomized
+        ? ClampInt(g_markerEditorCustomTop, 0, maxTop)
+        : defaultTop;
+
+    g_markerEditorCustomLeft = panelLeft;
+    g_markerEditorCustomTop = panelTop;
 
     panel->setVisible(true);
     panel->setCoord(panelLeft, panelTop, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight);
+
+    std::stringstream panelSignature;
+    panelSignature << SafeWidgetName(panelParent)
+                   << "|" << selectedMarker->id
+                   << "|" << panelLeft << "," << panelTop
+                   << "|" << defaultLeft << "," << defaultTop
+                   << "|" << (g_markerEditorPositionCustomized ? "custom" : "default");
+    if (panelSignature.str() != g_lastMarkerEditorSignature)
+    {
+        g_lastMarkerEditorSignature = panelSignature.str();
+
+        std::stringstream line;
+        line << "marker_editor placed"
+             << " parent=" << BuildWidgetDescriptor(panelParent)
+             << " marker_id=" << selectedMarker->id
+             << " coord=(" << panelLeft << "," << panelTop << "," << kMarkerEditorPanelWidth << "," << kMarkerEditorPanelHeight << ")"
+             << " default=(" << defaultLeft << "," << defaultTop << ")"
+             << " mode=" << (g_markerEditorPositionCustomized ? "custom" : "default");
+        LogProbeLine(line.str());
+    }
 
     MyGUI::Widget* headerWidget = FindDirectChildByName(panel, kMarkerEditorHeaderName);
     MyGUI::Widget* typeButtonWidget = FindDirectChildByName(panel, kMarkerEditorTypeButtonName);
@@ -1374,11 +2633,12 @@ void EnsureMarkerEditorUi()
             g_suppressNextMarkerLabelChangeEvent = true;
             labelEdit->setOnlyText(selectedMarker->label);
         }
+        RememberMarkerLabelSnapshot(labelEdit);
     }
 
     if (hint != 0)
     {
-        hint->setCaption("Middle click add | Left click move | Right click deselect");
+        hint->setCaption(kMarkerEditorHintCaption);
     }
 }
 
@@ -1416,6 +2676,185 @@ void DestroyStaleMarkerWidgets(MyGUI::ImageBox* mapImage)
     }
 }
 
+void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible)
+{
+    if (mapImage == 0)
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < mapImage->getChildCount(); ++index)
+    {
+        MyGUI::Widget* child = mapImage->getChildAt(index);
+        if (child == 0)
+        {
+            continue;
+        }
+
+        int markerId = 0;
+        if (TryParseMarkerWidgetId(SafeWidgetName(child), markerId)
+            || SafeWidgetName(child) == kMarkerHoverLabelName)
+        {
+            child->setVisible(visible);
+        }
+    }
+}
+
+void ComputeMarkerLocalCoord(
+    const MyGUI::IntCoord& imageCoord,
+    const MarkerState& marker,
+    bool isSelected,
+    int& markerLeftOut,
+    int& markerTopOut,
+    int& markerSizeOut)
+{
+    markerSizeOut = isSelected ? kSelectedMarkerSize : kMarkerSize;
+    const int maxLeft = imageCoord.width > markerSizeOut ? imageCoord.width - markerSizeOut : 0;
+    const int maxTop = imageCoord.height > markerSizeOut ? imageCoord.height - markerSizeOut : 0;
+    markerLeftOut = ClampInt(
+        static_cast<int>(imageCoord.width * marker.normalizedX + 0.5f) - (markerSizeOut / 2),
+        0,
+        maxLeft);
+    markerTopOut = ClampInt(
+        static_cast<int>(imageCoord.height * marker.normalizedY + 0.5f) - (markerSizeOut / 2),
+        0,
+        maxTop);
+}
+
+void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntCoord& imageCoord)
+{
+    if (mapImage == 0)
+    {
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* hoverLabel = FindDirectChildByName(mapImage, kMarkerHoverLabelName);
+    const int hoveredMarkerId = FindHoveredMarkerId();
+    MarkerState* hoveredMarker = FindMarkerById(hoveredMarkerId);
+    if (!g_markersVisible || hoveredMarker == 0)
+    {
+        if (hoverLabel != 0)
+        {
+            hoverLabel->setVisible(false);
+        }
+        if (!g_lastHoverLabelSignature.empty())
+        {
+            g_lastHoverLabelSignature.clear();
+            LogProbeLine("hover_label hidden reason=no_hovered_marker_or_markers_hidden");
+        }
+        return;
+    }
+
+    if (hoverLabel == 0)
+    {
+        hoverLabel = mapImage->createWidget<MyGUI::Widget>(
+            "Kenshi_GenericTextBoxFlatSkin",
+            MyGUI::IntCoord(0, 0, kMarkerHoverLabelMinimumWidth, kMarkerHoverLabelHeight),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kMarkerHoverLabelName);
+        if (hoverLabel == 0)
+        {
+            return;
+        }
+
+        hoverLabel->setAlpha(0.88f);
+        hoverLabel->setNeedMouseFocus(false);
+        hoverLabel->setColour(MyGUI::Colour(0.10f, 0.10f, 0.10f, 0.95f));
+
+        MyGUI::TextBox* text = hoverLabel->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            MyGUI::IntCoord(
+                kMarkerHoverLabelHorizontalPadding,
+                3,
+                kMarkerHoverLabelMinimumWidth - (kMarkerHoverLabelHorizontalPadding * 2),
+                kMarkerHoverLabelHeight - 6),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            kMarkerHoverLabelTextName);
+        if (text == 0)
+        {
+            gui->destroyWidget(hoverLabel);
+            return;
+        }
+
+        text->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        text->setNeedMouseFocus(false);
+        text->setColour(MyGUI::Colour(0.96f, 0.96f, 0.96f, 1.0f));
+    }
+
+    MyGUI::Widget* hoverLabelTextWidget = FindDirectChildByName(hoverLabel, kMarkerHoverLabelTextName);
+    MyGUI::TextBox* hoverLabelText =
+        hoverLabelTextWidget == 0 ? 0 : hoverLabelTextWidget->castType<MyGUI::TextBox>(false);
+    if (hoverLabelText == 0)
+    {
+        hoverLabel->setVisible(false);
+        return;
+    }
+
+    const std::string hoverCaption = BuildMarkerHoverCaption(*hoveredMarker);
+    const std::string hoverDisplayText = BuildMarkerHoverDisplayText(hoverCaption);
+    if (hoverDisplayText.empty())
+    {
+        hoverLabel->setVisible(false);
+        return;
+    }
+
+    int markerLeft = 0;
+    int markerTop = 0;
+    int markerSize = 0;
+    ComputeMarkerLocalCoord(
+        imageCoord,
+        *hoveredMarker,
+        hoveredMarker->id == g_selectedMarkerId,
+        markerLeft,
+        markerTop,
+        markerSize);
+
+    const int labelWidth = BuildMarkerLabelDisplayWidth(hoverDisplayText);
+    const int maxLeft = imageCoord.width > labelWidth ? imageCoord.width - labelWidth : 0;
+    const int maxTop = imageCoord.height > kMarkerHoverLabelHeight ? imageCoord.height - kMarkerHoverLabelHeight : 0;
+    const int labelLeft = ClampInt(
+        markerLeft + (markerSize / 2) - (labelWidth / 2),
+        0,
+        maxLeft);
+    const int labelTop = ClampInt(
+        markerTop - kMarkerHoverLabelHeight - kMarkerHoverLabelVerticalOffset,
+        0,
+        maxTop);
+
+    hoverLabel->setVisible(true);
+    hoverLabel->setCoord(labelLeft, labelTop, labelWidth, kMarkerHoverLabelHeight);
+    hoverLabelText->setCoord(
+        kMarkerHoverLabelHorizontalPadding,
+        3,
+        labelWidth - (kMarkerHoverLabelHorizontalPadding * 2),
+        kMarkerHoverLabelHeight - 6);
+    hoverLabelText->setCaption(hoverDisplayText);
+
+    std::stringstream hoverSignature;
+    hoverSignature << hoveredMarker->id
+                   << "|" << labelLeft << "," << labelTop
+                   << "|" << labelWidth << "x" << kMarkerHoverLabelHeight
+                   << "|" << hoverDisplayText;
+    if (hoverSignature.str() != g_lastHoverLabelSignature)
+    {
+        g_lastHoverLabelSignature = hoverSignature.str();
+
+        std::stringstream line;
+        line << "hover_label placed"
+             << " marker_id=" << hoveredMarker->id
+             << " marker_coord=(" << markerLeft << "," << markerTop << "," << markerSize << ")"
+             << " label_coord=(" << labelLeft << "," << labelTop << "," << labelWidth << "," << kMarkerHoverLabelHeight << ")"
+             << " caption=\"" << hoverDisplayText << "\"";
+        LogProbeLine(line.str());
+    }
+}
+
 void EnsureMarkerWidgetsAttached()
 {
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
@@ -1432,6 +2871,12 @@ void EnsureMarkerWidgetsAttached()
     }
 
     DestroyStaleMarkerWidgets(mapImage);
+    if (!g_markersVisible)
+    {
+        SetMarkerWidgetsVisible(mapImage, false);
+        g_lastMarkerRenderSignature.clear();
+        return;
+    }
 
     std::stringstream signature;
     signature << SafeWidgetName(mapImage)
@@ -1449,17 +2894,10 @@ void EnsureMarkerWidgetsAttached()
     {
         const MarkerState& marker = g_markers[index];
         const bool isSelected = marker.id == g_selectedMarkerId;
-        const int markerSize = isSelected ? kSelectedMarkerSize : kMarkerSize;
-        const int maxLeft = imageCoord.width > markerSize ? imageCoord.width - markerSize : 0;
-        const int maxTop = imageCoord.height > markerSize ? imageCoord.height - markerSize : 0;
-        const int markerLeft = ClampInt(
-            static_cast<int>(imageCoord.width * marker.normalizedX + 0.5f) - (markerSize / 2),
-            0,
-            maxLeft);
-        const int markerTop = ClampInt(
-            static_cast<int>(imageCoord.height * marker.normalizedY + 0.5f) - (markerSize / 2),
-            0,
-            maxTop);
+        int markerLeft = 0;
+        int markerTop = 0;
+        int markerSize = 0;
+        ComputeMarkerLocalCoord(imageCoord, marker, isSelected, markerLeft, markerTop, markerSize);
 
         const std::string widgetName = BuildMarkerWidgetName(marker.id);
         MyGUI::Widget* widgetBase = FindDirectChildByName(mapImage, widgetName);
@@ -1474,6 +2912,7 @@ void EnsureMarkerWidgetsAttached()
         }
 
         widget->setNeedMouseFocus(true);
+        widget->setVisible(true);
         widget->setAlpha(isSelected ? 1.0f : 0.92f);
         widget->setColour(BuildMarkerColour(marker.type, isSelected));
         widget->setCaption(MarkerTypeToGlyph(marker.type));
@@ -1484,6 +2923,8 @@ void EnsureMarkerWidgetsAttached()
         line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")"
              << ":" << MarkerTypeToJsonValue(marker.type);
     }
+
+    EnsureMarkerHoverLabelAttached(mapImage, imageCoord);
 
     const std::string signatureString = signature.str();
     if (signatureString != g_lastMarkerRenderSignature)
@@ -1742,6 +3183,11 @@ void SelectMarker(int markerId, const char* reason)
 
 void TryAddMarkerFromMiddleClick()
 {
+    if (!g_markersVisible)
+    {
+        return;
+    }
+
     if (!DidMouseButtonJustGoDown(VK_MBUTTON, g_lastMiddleMouseDownObserved))
     {
         return;
@@ -1776,6 +3222,11 @@ void TryAddMarkerFromMiddleClick()
 
 void TryHandleLeftClickSelectionOrMove()
 {
+    if (!g_markersVisible)
+    {
+        return;
+    }
+
     if (!DidMouseButtonJustGoDown(VK_LBUTTON, g_lastLeftMouseDownObserved))
     {
         return;
@@ -1816,7 +3267,8 @@ void TryHandleLeftClickSelectionOrMove()
 
 void TryDeselectMarkerFromRightClick()
 {
-    if (g_selectedMarkerId == 0
+    if (!g_markersVisible
+        || g_selectedMarkerId == 0
         || !DidMouseButtonJustGoDown(VK_RBUTTON, g_lastRightMouseDownObserved))
     {
         return;
@@ -1857,7 +3309,7 @@ MyGUI::EditBox* FindActiveMarkerLabelEdit()
 
 bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
 {
-    if (FindActiveMapImage() == 0 || g_selectedMarkerId == 0)
+    if (!g_markersVisible || FindActiveMapImage() == 0 || g_selectedMarkerId == 0)
     {
         return false;
     }
@@ -1896,10 +3348,24 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
 
 void TickUiDiagnostics()
 {
+    if (g_markerEditorDragging && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0)
+    {
+        StopMarkerEditorDrag();
+    }
+
     LogSaveIdentityIfChanged(false);
+    const MyGUI::ImageBox* activeMapImage = FindActiveMapImage();
+    const bool mapVisibleNow = activeMapImage != 0 && activeMapImage->getInheritedVisible();
+    if (!mapVisibleNow && g_mapWasVisible && g_closeEditorOnMapClose)
+    {
+        ClearSelectedMarker("map_closed");
+    }
+    g_mapWasVisible = mapVisibleNow;
+
     TryAddMarkerFromMiddleClick();
     TryHandleLeftClickSelectionOrMove();
     TryDeselectMarkerFromRightClick();
+    EnsureMarkerToggleButtonUi();
     EnsureMarkerWidgetsAttached();
     EnsureMarkerEditorUi();
 
@@ -1979,6 +3445,8 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
+    LoadModConfig();
+
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
         PlayerInterface_updateUT_hook,
@@ -2006,13 +3474,20 @@ __declspec(dllexport) void startPlugin()
          << " select_move_action=LEFT_CLICK"
          << " delete_action=DELETE"
          << " deselect_action=RIGHT_CLICK"
+         << " toggle_action=MAP_BUTTON"
          << " marker_data=type_label"
          << " persistence=active_save_json"
+         << " ui_persistence=mod_config_json"
          << " markers=managed_widgets_with_editor";
     DebugLog(info.str().c_str());
 }
 
-BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)
+BOOL APIENTRY DllMain(HMODULE moduleHandle, DWORD reason, LPVOID)
 {
+    if (reason == DLL_PROCESS_ATTACH)
+    {
+        g_moduleHandle = moduleHandle;
+    }
+
     return TRUE;
 }
