@@ -1,5 +1,7 @@
 #include <Debug.h>
 
+#include "MapMarkersModHub.h"
+
 #ifndef BOOST_ALL_NO_LIB
 #define BOOST_ALL_NO_LIB
 #endif
@@ -149,7 +151,10 @@ bool g_markerEditorPositionCustomized = false;
 bool g_markersVisible = true;
 bool g_closeEditorOnMapClose = true;
 bool g_modEnabled = true;
+bool g_showHoverLabels = true;
+bool g_disabledUiStateApplied = false;
 bool g_mapWasVisible = false;
+MarkerType g_defaultMarkerType = MarkerType_Note;
 int g_markerEditorDragLastMouseX = 0;
 int g_markerEditorDragLastMouseY = 0;
 int g_markerEditorCustomLeft = 0;
@@ -162,10 +167,16 @@ HMODULE g_moduleHandle = 0;
 void LogProbeLine(const std::string& message);
 MyGUI::Widget* FindMapTabInParentChain(MyGUI::Widget* widget);
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget);
+MyGUI::ImageBox* FindActiveMapImage();
 MyGUI::Widget* FindMarkerEditorPanel();
 MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage);
 MyGUI::Widget* FindAnyWidgetByName(const std::string& name);
 bool TryParseMarkerWidgetId(const std::string& widgetName, int& markerIdOut);
+void StopMarkerEditorDrag();
+void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible);
+void ResetMapMarkersUiSignatures();
+void HideMapMarkersUi();
+void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -516,6 +527,22 @@ MarkerType MarkerTypeFromString(const std::string& value)
         return MarkerType_Todo;
     }
     return MarkerType_Note;
+}
+
+int MarkerTypeToIndex(MarkerType type)
+{
+    return static_cast<int>(type);
+}
+
+MarkerType MarkerTypeFromIndex(int value)
+{
+    if (value < static_cast<int>(MarkerType_Note)
+        || value > static_cast<int>(MarkerType_Todo))
+    {
+        return MarkerType_Note;
+    }
+
+    return static_cast<MarkerType>(value);
 }
 
 MarkerType GetNextMarkerType(MarkerType type)
@@ -1076,13 +1103,70 @@ void ResetMarkersForActiveSave()
     g_nextMarkerId = 1;
 }
 
-void SaveModConfig(bool logSuccess = true)
+void ResetMapMarkersUiSignatures()
+{
+    g_lastMarkerRenderSignature.clear();
+    g_lastMarkerEditorSignature.clear();
+    g_lastToggleButtonSignature.clear();
+    g_lastHoverLabelSignature.clear();
+    g_lastToggleDiagnosticsSignature.clear();
+    g_lastOverlayDiagnosticsSignature.clear();
+    g_lastMarkerOcclusionSignature.clear();
+}
+
+void HideMapMarkersUi()
+{
+    StopMarkerEditorDrag();
+    g_selectedMarkerId = 0;
+    g_mapWasVisible = false;
+
+    if (MyGUI::ImageBox* mapImage = FindActiveMapImage())
+    {
+        SetMarkerWidgetsVisible(mapImage, false);
+    }
+
+    if (MyGUI::Widget* panel = FindMarkerEditorPanel())
+    {
+        panel->setVisible(false);
+    }
+
+    if (MyGUI::Widget* toggleButton = FindAnyWidgetByName(kMarkerToggleButtonName))
+    {
+        toggleButton->setVisible(false);
+    }
+
+    ResetMapMarkersUiSignatures();
+}
+
+void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot)
+{
+    g_modEnabled = snapshot.enabled;
+    g_markersVisible = snapshot.markersVisible;
+    g_closeEditorOnMapClose = snapshot.closeEditorOnMapClose;
+    g_showHoverLabels = snapshot.showHoverLabels;
+    g_markerEditorPositionCustomized = snapshot.editorPositionCustomized;
+    g_markerEditorCustomLeft = snapshot.editorLeft;
+    g_markerEditorCustomTop = snapshot.editorTop;
+    g_defaultMarkerType = MarkerTypeFromIndex(snapshot.defaultMarkerType);
+
+    if (!g_modEnabled)
+    {
+        HideMapMarkersUi();
+        g_disabledUiStateApplied = true;
+        return;
+    }
+
+    g_disabledUiStateApplied = false;
+    ResetMapMarkersUiSignatures();
+}
+
+bool SaveModConfig(bool logSuccess = true)
 {
     const std::string configPath = GetModConfigPath();
     if (configPath.empty())
     {
         LogProbeLine("config persist skipped: mod-config path unavailable");
-        return;
+        return false;
     }
 
     std::ofstream output(configPath.c_str(), std::ios::out | std::ios::trunc);
@@ -1091,13 +1175,15 @@ void SaveModConfig(bool logSuccess = true)
         std::stringstream line;
         line << "config persist failed path=\"" << configPath << "\"";
         LogProbeLine(line.str());
-        return;
+        return false;
     }
 
     output << "{\n"
            << "  \"enabled\": " << (g_modEnabled ? "true" : "false") << ",\n"
            << "  \"markers_visible\": " << (g_markersVisible ? "true" : "false") << ",\n"
            << "  \"close_editor_on_map_close\": " << (g_closeEditorOnMapClose ? "true" : "false") << ",\n"
+           << "  \"show_hover_labels\": " << (g_showHoverLabels ? "true" : "false") << ",\n"
+           << "  \"default_marker_type\": \"" << MarkerTypeToJsonValue(g_defaultMarkerType) << "\",\n"
            << "  \"editor_position_customized\": " << (g_markerEditorPositionCustomized ? "true" : "false") << ",\n"
            << "  \"editor_left\": " << g_markerEditorCustomLeft << ",\n"
            << "  \"editor_top\": " << g_markerEditorCustomTop << "\n"
@@ -1108,7 +1194,7 @@ void SaveModConfig(bool logSuccess = true)
         std::stringstream line;
         line << "config persist failed_write path=\"" << configPath << "\"";
         LogProbeLine(line.str());
-        return;
+        return false;
     }
 
     g_markerEditorPositionDirty = false;
@@ -1119,22 +1205,31 @@ void SaveModConfig(bool logSuccess = true)
         line << "config persisted path=\"" << configPath
              << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
              << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
+             << " show_hover_labels=" << (g_showHoverLabels ? "true" : "false")
+             << " default_marker_type=" << MarkerTypeToJsonValue(g_defaultMarkerType)
              << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
              << " editor_left=" << g_markerEditorCustomLeft
              << " editor_top=" << g_markerEditorCustomTop;
         LogProbeLine(line.str());
     }
+
+    return true;
 }
 
 void LoadModConfig()
 {
-    g_modEnabled = true;
-    g_markersVisible = true;
-    g_closeEditorOnMapClose = true;
-    g_markerEditorPositionCustomized = false;
+    MapMarkersModConfigSnapshot defaults;
+    defaults.enabled = true;
+    defaults.markersVisible = true;
+    defaults.closeEditorOnMapClose = true;
+    defaults.showHoverLabels = true;
+    defaults.editorPositionCustomized = false;
+    defaults.editorLeft = 0;
+    defaults.editorTop = 0;
+    defaults.defaultMarkerType = MarkerTypeToIndex(MarkerType_Note);
+
     g_markerEditorPositionDirty = false;
-    g_markerEditorCustomLeft = 0;
-    g_markerEditorCustomTop = 0;
+    ApplyModConfigSnapshotInternal(defaults);
 
     const std::string configPath = GetModConfigPath();
     if (configPath.empty())
@@ -1158,35 +1253,53 @@ void LoadModConfig()
     bool boolValue = false;
     if (ExtractJsonBoolField(contents, "enabled", boolValue))
     {
-        g_modEnabled = boolValue;
+        defaults.enabled = boolValue;
     }
     if (ExtractJsonBoolField(contents, "markers_visible", boolValue))
     {
-        g_markersVisible = boolValue;
+        defaults.markersVisible = boolValue;
     }
     if (ExtractJsonBoolField(contents, "close_editor_on_map_close", boolValue))
     {
-        g_closeEditorOnMapClose = boolValue;
+        defaults.closeEditorOnMapClose = boolValue;
+    }
+    if (ExtractJsonBoolField(contents, "show_hover_labels", boolValue))
+    {
+        defaults.showHoverLabels = boolValue;
     }
     if (ExtractJsonBoolField(contents, "editor_position_customized", boolValue))
     {
-        g_markerEditorPositionCustomized = boolValue;
+        defaults.editorPositionCustomized = boolValue;
+    }
+
+    std::string stringValue;
+    if (ExtractJsonStringField(contents, "default_marker_type", stringValue))
+    {
+        defaults.defaultMarkerType = MarkerTypeToIndex(MarkerTypeFromString(stringValue));
     }
 
     int intValue = 0;
     if (ExtractJsonIntField(contents, "editor_left", intValue))
     {
-        g_markerEditorCustomLeft = intValue;
+        defaults.editorLeft = intValue;
     }
     if (ExtractJsonIntField(contents, "editor_top", intValue))
     {
-        g_markerEditorCustomTop = intValue;
+        defaults.editorTop = intValue;
     }
+    if (ExtractJsonIntField(contents, "default_marker_type", intValue))
+    {
+        defaults.defaultMarkerType = intValue;
+    }
+
+    ApplyModConfigSnapshotInternal(defaults);
 
     std::stringstream line;
     line << "config loaded path=\"" << configPath
          << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
          << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
+         << " show_hover_labels=" << (g_showHoverLabels ? "true" : "false")
+         << " default_marker_type=" << MarkerTypeToJsonValue(g_defaultMarkerType)
          << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
          << " editor_left=" << g_markerEditorCustomLeft
          << " editor_top=" << g_markerEditorCustomTop;
@@ -3515,7 +3628,7 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
     MyGUI::Widget* hoverLabel = FindDirectChildByName(mapImage, kMarkerHoverLabelName);
     const int hoveredMarkerId = FindHoveredMarkerId();
     MarkerState* hoveredMarker = FindMarkerById(hoveredMarkerId);
-    if (!g_markersVisible || hoveredMarker == 0)
+    if (!g_markersVisible || !g_showHoverLabels || hoveredMarker == 0)
     {
         if (hoverLabel != 0)
         {
@@ -4043,7 +4156,7 @@ void TryAddMarkerFromMiddleClick()
     marker.id = g_nextMarkerId++;
     marker.normalizedX = BuildNormalizedMapCoordinate(context.localLeft, context.absoluteCoord.width);
     marker.normalizedY = BuildNormalizedMapCoordinate(context.localTop, context.absoluteCoord.height);
-    marker.type = MarkerType_Note;
+        marker.type = g_defaultMarkerType;
     marker.label.clear();
     g_markers.push_back(marker);
     g_selectedMarkerId = marker.id;
@@ -4235,6 +4348,19 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
         PlayerInterface_updateUT_orig(thisptr);
     }
 
+    MapMarkersModHub_TickAttachRetry();
+
+    if (!g_modEnabled)
+    {
+        if (!g_disabledUiStateApplied)
+        {
+            HideMapMarkersUi();
+            g_disabledUiStateApplied = true;
+        }
+        return;
+    }
+
+    g_disabledUiStateApplied = false;
     TickUiDiagnostics();
 }
 
@@ -4274,6 +4400,38 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 }
 }
 
+MapMarkersModConfigSnapshot MapMarkers_CaptureModConfigSnapshot()
+{
+    MapMarkersModConfigSnapshot snapshot;
+    snapshot.enabled = g_modEnabled;
+    snapshot.markersVisible = g_markersVisible;
+    snapshot.closeEditorOnMapClose = g_closeEditorOnMapClose;
+    snapshot.showHoverLabels = g_showHoverLabels;
+    snapshot.editorPositionCustomized = g_markerEditorPositionCustomized;
+    snapshot.editorLeft = g_markerEditorCustomLeft;
+    snapshot.editorTop = g_markerEditorCustomTop;
+    snapshot.defaultMarkerType = MarkerTypeToIndex(g_defaultMarkerType);
+    return snapshot;
+}
+
+void MapMarkers_ApplyModConfigSnapshot(const MapMarkersModConfigSnapshot& snapshot)
+{
+    ApplyModConfigSnapshotInternal(snapshot);
+}
+
+bool MapMarkers_PersistCurrentModConfig(bool logSuccess)
+{
+    return SaveModConfig(logSuccess);
+}
+
+void MapMarkers_LogProbeMessage(const char* message)
+{
+    if (message != 0)
+    {
+        LogProbeLine(message);
+    }
+}
+
 __declspec(dllexport) void startPlugin()
 {
     DebugLog("Map-markers: startPlugin()");
@@ -4304,6 +4462,8 @@ __declspec(dllexport) void startPlugin()
         ErrorLog("Map-markers: could not hook InputHandler::keyDownEvent");
         return;
     }
+
+    MapMarkersModHub_OnStartup();
 
     std::stringstream info;
     info << kPluginName
