@@ -45,6 +45,8 @@ const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
 const int kMarkerEditorPanelWidth = 344;
 const int kMarkerEditorPanelHeight = 144;
+const int kMarkerEditorPanelDepth = -1000;
+const int kMarkerEditorBackgroundInset = 0;
 const int kMarkerEditorOuterPadding = 16;
 const int kMarkerEditorHeaderHeight = 18;
 const int kMarkerEditorControlHeight = 24;
@@ -69,6 +71,7 @@ const char* kModConfigFileName = "mod-config.json";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
 const char* kMarkerEditorPanelName = "MapMarkers_EditorPanel";
+const char* kMarkerEditorBackgroundName = "MapMarkers_EditorBackground";
 const char* kMarkerEditorHeaderName = "MapMarkers_EditorHeader";
 const char* kMarkerEditorTypeButtonName = "MapMarkers_EditorTypeButton";
 const char* kMarkerEditorLabelTitleName = "MapMarkers_EditorLabelTitle";
@@ -130,6 +133,8 @@ std::string g_lastMarkerEditorSignature;
 std::string g_lastToggleButtonSignature;
 std::string g_lastHoverLabelSignature;
 std::string g_lastToggleDiagnosticsSignature;
+std::string g_lastOverlayDiagnosticsSignature;
+std::string g_lastMarkerOcclusionSignature;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -155,6 +160,12 @@ PendingMarkerLabelShortcut g_pendingMarkerLabelShortcut = { false, false, 0, 0u,
 HMODULE g_moduleHandle = 0;
 
 void LogProbeLine(const std::string& message);
+MyGUI::Widget* FindMapTabInParentChain(MyGUI::Widget* widget);
+MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget);
+MyGUI::Widget* FindMarkerEditorPanel();
+MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage);
+MyGUI::Widget* FindAnyWidgetByName(const std::string& name);
+bool TryParseMarkerWidgetId(const std::string& widgetName, int& markerIdOut);
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -1449,13 +1460,31 @@ std::string BuildDetailedWidgetStateForLog(MyGUI::Widget* widget)
 
     const MyGUI::IntCoord localCoord = widget->getCoord();
     const MyGUI::IntCoord absoluteCoord = widget->getAbsoluteCoord();
+    int childIndex = -1;
+    if (MyGUI::Widget* parent = widget->getParent())
+    {
+        const std::size_t siblingCount = parent->getChildCount();
+        for (std::size_t index = 0; index < siblingCount; ++index)
+        {
+            if (parent->getChildAt(index) == widget)
+            {
+                childIndex = static_cast<int>(index);
+                break;
+            }
+        }
+    }
+
     std::stringstream line;
     line << "type=" << SafeWidgetType(widget)
          << " name=\"" << SafeWidgetName(widget) << "\""
          << " local=(" << localCoord.left << "," << localCoord.top << "," << localCoord.width << "," << localCoord.height << ")"
          << " abs=(" << absoluteCoord.left << "," << absoluteCoord.top << "," << absoluteCoord.width << "," << absoluteCoord.height << ")"
+         << " depth=" << widget->getDepth()
+         << " alpha=" << widget->getAlpha()
+         << " inherits_alpha=" << (widget->getInheritsAlpha() ? "true" : "false")
          << " visible=" << (widget->getVisible() ? "true" : "false")
          << " inherited_visible=" << (widget->getInheritedVisible() ? "true" : "false")
+         << " child_index=" << childIndex
          << " child_count=" << widget->getChildCount();
 
     const std::string caption = SafeWindowCaption(widget);
@@ -1465,6 +1494,171 @@ std::string BuildDetailedWidgetStateForLog(MyGUI::Widget* widget)
     }
 
     return line.str();
+}
+
+bool RectanglesIntersect(const MyGUI::IntCoord& a, const MyGUI::IntCoord& b)
+{
+    return a.left < b.left + b.width
+        && b.left < a.left + a.width
+        && a.top < b.top + b.height
+        && b.top < a.top + a.height;
+}
+
+void LogWidgetChildrenForDiagnostics(const char* prefix, MyGUI::Widget* parent)
+{
+    if (parent == 0)
+    {
+        return;
+    }
+
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        MyGUI::Widget* child = parent->getChildAt(index);
+        std::stringstream line;
+        line << prefix << "[" << index << "] "
+             << BuildDetailedWidgetStateForLog(child)
+             << " chain=" << BuildWidgetChainForLog(child);
+        LogProbeLine(line.str());
+    }
+}
+
+void LogMapOverlayDiagnostics(MyGUI::ImageBox* mapImage, const char* reason, bool force)
+{
+    if (mapImage == 0)
+    {
+        return;
+    }
+
+    MyGUI::Widget* mapTab = FindMapTabInParentChain(mapImage);
+    MyGUI::Window* mapWindow = FindOwningWindow(mapImage);
+    MyGUI::Widget* panel = FindMarkerEditorPanel();
+    MyGUI::Widget* panelParent = panel == 0 ? FindMarkerEditorParent(mapImage) : panel->getParent();
+    MyGUI::Widget* toggleButton = FindAnyWidgetByName(kMarkerToggleButtonName);
+
+    std::stringstream signature;
+    signature << BuildWidgetDescriptor(mapWindow)
+              << "|" << BuildWidgetDescriptor(mapTab)
+              << "|" << BuildWidgetDescriptor(mapImage)
+              << "|" << BuildWidgetDescriptor(panelParent)
+              << "|" << BuildWidgetDescriptor(panel)
+              << "|" << BuildWidgetDescriptor(toggleButton)
+              << "|" << g_markers.size()
+              << "|" << g_selectedMarkerId
+              << "|" << (g_markersVisible ? "visible" : "hidden");
+    if (!force && signature.str() == g_lastOverlayDiagnosticsSignature)
+    {
+        return;
+    }
+
+    g_lastOverlayDiagnosticsSignature = signature.str();
+
+    std::stringstream header;
+    header << "overlay_diagnostics reason=" << (reason == 0 ? "<unknown>" : reason)
+           << " selected=" << g_selectedMarkerId
+           << " markers_visible=" << (g_markersVisible ? "true" : "false")
+           << " marker_count=" << g_markers.size();
+    LogProbeLine(header.str());
+
+    if (mapWindow != 0)
+    {
+        std::stringstream line;
+        line << "overlay_map_window " << BuildDetailedWidgetStateForLog(mapWindow)
+             << " chain=" << BuildWidgetChainForLog(mapWindow);
+        LogProbeLine(line.str());
+    }
+
+    if (mapTab != 0)
+    {
+        std::stringstream line;
+        line << "overlay_map_tab " << BuildDetailedWidgetStateForLog(mapTab)
+             << " chain=" << BuildWidgetChainForLog(mapTab);
+        LogProbeLine(line.str());
+        LogWidgetChildrenForDiagnostics("overlay_map_tab_child", mapTab);
+    }
+
+    {
+        std::stringstream line;
+        line << "overlay_map_image " << BuildDetailedWidgetStateForLog(mapImage)
+             << " chain=" << BuildWidgetChainForLog(mapImage);
+        LogProbeLine(line.str());
+    }
+
+    if (panelParent != 0)
+    {
+        std::stringstream line;
+        line << "overlay_editor_parent " << BuildDetailedWidgetStateForLog(panelParent)
+             << " chain=" << BuildWidgetChainForLog(panelParent);
+        LogProbeLine(line.str());
+    }
+
+    if (panel != 0)
+    {
+        std::stringstream line;
+        line << "overlay_editor_panel " << BuildDetailedWidgetStateForLog(panel)
+             << " chain=" << BuildWidgetChainForLog(panel)
+             << " configured_skin=\"Kenshi_GenericTextBoxFlatSkin\""
+             << " customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
+             << " custom_left=" << g_markerEditorCustomLeft
+             << " custom_top=" << g_markerEditorCustomTop;
+        LogProbeLine(line.str());
+        LogWidgetChildrenForDiagnostics("overlay_editor_child", panel);
+    }
+
+    if (toggleButton != 0)
+    {
+        std::stringstream line;
+        line << "overlay_toggle_button " << BuildDetailedWidgetStateForLog(toggleButton)
+             << " chain=" << BuildWidgetChainForLog(toggleButton)
+             << " configured_skin=\"Kenshi_Button1\"";
+        LogProbeLine(line.str());
+    }
+
+    const MyGUI::IntCoord panelAbsolute = panel == 0 ? MyGUI::IntCoord() : panel->getAbsoluteCoord();
+    int overlappingMapChildren = 0;
+    int overlappingMarkers = 0;
+    const std::size_t childCount = mapImage->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        MyGUI::Widget* child = mapImage->getChildAt(index);
+        const bool overlapsEditor = panel != 0 && RectanglesIntersect(child->getAbsoluteCoord(), panelAbsolute);
+        int markerId = 0;
+        const bool isMarkerWidget = TryParseMarkerWidgetId(SafeWidgetName(child), markerId);
+        if (overlapsEditor)
+        {
+            ++overlappingMapChildren;
+            if (isMarkerWidget)
+            {
+                ++overlappingMarkers;
+            }
+        }
+
+        std::stringstream line;
+        line << "overlay_map_image_child[" << index << "] "
+             << BuildDetailedWidgetStateForLog(child)
+             << " chain=" << BuildWidgetChainForLog(child)
+             << " configured_skin=\"" << (isMarkerWidget ? "Kenshi_Button1" : "<unknown>") << "\""
+             << " overlaps_editor=" << (overlapsEditor ? "true" : "false");
+        if (isMarkerWidget)
+        {
+            line << " marker_id=" << markerId;
+        }
+        LogProbeLine(line.str());
+    }
+
+    if (panel != 0)
+    {
+        std::stringstream summary;
+        summary << "overlay_overlap_summary"
+                << " panel_parent_is_map_tab=" << ((panelParent != 0 && panelParent == mapTab) ? "true" : "false")
+                << " overlapping_map_image_children=" << overlappingMapChildren
+                << " overlapping_marker_widgets=" << overlappingMarkers
+                << " likely_cause="
+                << ((panelParent != 0 && panelParent == mapTab && overlappingMarkers > 0)
+                        ? "panel_skin_transparency_or_child_background_transparency"
+                        : "layering_or_parent_mismatch");
+        LogProbeLine(summary.str());
+    }
 }
 
 bool WidgetNameContains(MyGUI::Widget* widget, const char* token)
@@ -1549,6 +1743,19 @@ MyGUI::ImageBox* FindMapImageInParentChain(MyGUI::Widget* widget)
             && WidgetChainHasMapIdentity(imageBox))
         {
             return imageBox;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindMapTabInParentChain(MyGUI::Widget* widget)
+{
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        if (WidgetNameContains(current, "maptab"))
+        {
+            return current;
         }
     }
 
@@ -1833,6 +2040,11 @@ MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage)
     if (mapImage == 0)
     {
         return 0;
+    }
+
+    if (MyGUI::Widget* mapTab = FindMapTabInParentChain(mapImage))
+    {
+        return mapTab;
     }
 
     if (MyGUI::Window* window = FindOwningWindow(mapImage))
@@ -2383,16 +2595,7 @@ int BuildDefaultEditorTop(MyGUI::Widget* panelParent, MyGUI::ImageBox* mapImage)
     const MyGUI::IntCoord parentCoord = panelParent->getCoord();
     const int maxTop = parentCoord.height > kMarkerEditorPanelHeight ? parentCoord.height - kMarkerEditorPanelHeight : 0;
 
-    MyGUI::Widget* anchorWidget = FindOwningWindow(mapImage);
-    if (anchorWidget == 0)
-    {
-        anchorWidget = mapImage;
-    }
-
-    const MyGUI::IntCoord parentAbsolute = panelParent->getAbsoluteCoord();
-    const MyGUI::IntCoord anchorAbsolute = anchorWidget->getAbsoluteCoord();
-    const int preferredTop = anchorAbsolute.top - parentAbsolute.top + kMarkerEditorDefaultTop;
-    return ClampInt(preferredTop, 0, maxTop);
+    return ClampInt(kMarkerEditorDefaultTop, 0, maxTop);
 }
 
 void OnMarkerEditorHeaderMousePressed(MyGUI::Widget*, int left, int top, MyGUI::MouseButton id)
@@ -2960,7 +3163,26 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         return false;
     }
 
-    panel->setAlpha(0.98f);
+    panel->setAlpha(1.0f);
+    panel->setDepth(kMarkerEditorPanelDepth);
+
+    MyGUI::Widget* background = panel->createWidget<MyGUI::Widget>(
+        "Kenshi_GenericTextBoxFlatSkin",
+        MyGUI::IntCoord(
+            kMarkerEditorBackgroundInset,
+            kMarkerEditorBackgroundInset,
+            kMarkerEditorPanelWidth - (kMarkerEditorBackgroundInset * 2),
+            kMarkerEditorPanelHeight - (kMarkerEditorBackgroundInset * 2)),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorBackgroundName);
+    if (background == 0)
+    {
+        gui->destroyWidget(panel);
+        return false;
+    }
+    background->setNeedMouseFocus(false);
+    background->setAlpha(1.0f);
+    background->setColour(MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f));
 
     const int headerTop = kMarkerEditorOuterPadding;
     const int headerLeft = kMarkerEditorOuterPadding;
@@ -3062,6 +3284,7 @@ void EnsureMarkerEditorUi()
             g_lastMarkerEditorSignature.clear();
             LogProbeLine("marker_editor hidden reason=map_not_visible");
         }
+        g_lastOverlayDiagnosticsSignature.clear();
         return;
     }
 
@@ -3078,6 +3301,7 @@ void EnsureMarkerEditorUi()
             g_lastMarkerEditorSignature.clear();
             LogProbeLine("marker_editor hidden reason=parent_not_visible");
         }
+        g_lastOverlayDiagnosticsSignature.clear();
         return;
     }
 
@@ -3095,6 +3319,7 @@ void EnsureMarkerEditorUi()
             g_lastMarkerEditorSignature.clear();
             LogProbeLine("marker_editor hidden reason=no_selected_marker_or_markers_hidden");
         }
+        g_lastOverlayDiagnosticsSignature.clear();
         return;
     }
 
@@ -3127,6 +3352,7 @@ void EnsureMarkerEditorUi()
     g_markerEditorCustomTop = panelTop;
 
     panel->setVisible(true);
+    panel->setDepth(kMarkerEditorPanelDepth);
     panel->setCoord(panelLeft, panelTop, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight);
 
     std::stringstream panelSignature;
@@ -3147,6 +3373,11 @@ void EnsureMarkerEditorUi()
              << " default=(" << defaultLeft << "," << defaultTop << ")"
              << " mode=" << (g_markerEditorPositionCustomized ? "custom" : "default");
         LogProbeLine(line.str());
+
+        if (!g_markerEditorDragging)
+        {
+            LogMapOverlayDiagnostics(mapImage, "editor_placed", false);
+        }
     }
 
     MyGUI::Widget* headerWidget = FindDirectChildByName(panel, kMarkerEditorHeaderName);
@@ -3408,6 +3639,8 @@ void EnsureMarkerWidgetsAttached()
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
         g_lastMarkerRenderSignature.clear();
+        g_lastMarkerOcclusionSignature.clear();
+        g_lastOverlayDiagnosticsSignature.clear();
         return;
     }
 
@@ -3422,6 +3655,8 @@ void EnsureMarkerWidgetsAttached()
     {
         SetMarkerWidgetsVisible(mapImage, false);
         g_lastMarkerRenderSignature.clear();
+        g_lastMarkerOcclusionSignature.clear();
+        g_lastOverlayDiagnosticsSignature.clear();
         return;
     }
 
@@ -3430,6 +3665,14 @@ void EnsureMarkerWidgetsAttached()
               << "|" << imageCoord.width << "x" << imageCoord.height
               << "|selected=" << g_selectedMarkerId
               << "|count=" << g_markers.size();
+
+    MyGUI::Widget* editorPanel = FindMarkerEditorPanel();
+    const bool editorPanelVisible =
+        editorPanel != 0 && editorPanel->getVisible() && editorPanel->getInheritedVisible();
+    const MyGUI::IntCoord editorPanelAbsolute =
+        editorPanelVisible ? editorPanel->getAbsoluteCoord() : MyGUI::IntCoord();
+    std::stringstream occlusionSignature;
+    occlusionSignature << "editor_visible=" << (editorPanelVisible ? "true" : "false");
 
     std::stringstream line;
     line << "markers rendered"
@@ -3459,11 +3702,19 @@ void EnsureMarkerWidgetsAttached()
         }
 
         widget->setNeedMouseFocus(true);
-        widget->setVisible(true);
         widget->setAlpha(isSelected ? 1.0f : 0.92f);
         widget->setColour(BuildMarkerColour(marker.type, isSelected));
         widget->setCaption(MarkerTypeToGlyph(marker.type));
         widget->setCoord(markerLeft, markerTop, markerSize, markerSize);
+
+        bool occludedByEditor = false;
+        if (editorPanelVisible)
+        {
+            occludedByEditor = RectanglesIntersect(widget->getAbsoluteCoord(), editorPanelAbsolute);
+        }
+
+        widget->setVisible(!occludedByEditor);
+        occlusionSignature << "|" << marker.id << ":" << (occludedByEditor ? "hidden" : "shown");
 
         signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize
                   << ":" << MarkerTypeToJsonValue(marker.type);
@@ -3473,11 +3724,44 @@ void EnsureMarkerWidgetsAttached()
 
     EnsureMarkerHoverLabelAttached(mapImage, imageCoord);
 
+    const std::string occlusionSignatureString = occlusionSignature.str();
+    if (occlusionSignatureString != g_lastMarkerOcclusionSignature)
+    {
+        g_lastMarkerOcclusionSignature = occlusionSignatureString;
+
+        std::stringstream occlusionLine;
+        occlusionLine << "marker_editor_occlusion"
+                      << " editor_visible=" << (editorPanelVisible ? "true" : "false");
+        if (editorPanelVisible)
+        {
+            occlusionLine << " editor_abs=("
+                          << editorPanelAbsolute.left << ","
+                          << editorPanelAbsolute.top << ","
+                          << editorPanelAbsolute.width << ","
+                          << editorPanelAbsolute.height << ")";
+        }
+
+        for (std::size_t index = 0; index < g_markers.size(); ++index)
+        {
+            const MarkerState& marker = g_markers[index];
+            const std::string widgetName = BuildMarkerWidgetName(marker.id);
+            MyGUI::Widget* widget = FindDirectChildByName(mapImage, widgetName);
+            occlusionLine << " marker[" << marker.id << "]="
+                          << ((widget != 0 && widget->getVisible()) ? "shown" : "hidden");
+        }
+        LogProbeLine(occlusionLine.str());
+    }
+
     const std::string signatureString = signature.str();
     if (signatureString != g_lastMarkerRenderSignature)
     {
         g_lastMarkerRenderSignature = signatureString;
         LogProbeLine(line.str());
+
+        if (!g_markerEditorDragging && FindMarkerEditorPanel() != 0)
+        {
+            LogMapOverlayDiagnostics(mapImage, "markers_rendered", false);
+        }
     }
 }
 
@@ -3624,6 +3908,7 @@ void TriggerManualSnapshot(const char* reason)
         {
             LogMapFooterDiagnostics(mapWindow, reason);
         }
+        LogMapOverlayDiagnostics(mapImage, reason, true);
     }
 }
 
