@@ -26,20 +26,32 @@
 #include <Windows.h>
 
 #include <cctype>
+#include <cstdlib>
+#include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace
 {
 const char* kPluginName = "Map-markers";
 const OIS::KeyCode kProbeSnapshotHotkey = OIS::KC_F7;
 const OIS::KeyCode kProbeLiveHotkey = OIS::KC_F8;
-const char* kTestMarkerWidgetName = "MapMarkers_TestMarker";
-const int kTestMarkerSize = 18;
+const int kMarkerSize = 18;
+const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
+const char* kMarkerPersistenceFileName = "Map-markers.json";
+const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
+
+struct MarkerState
+{
+    int id;
+    float normalizedX;
+    float normalizedY;
+};
 
 bool g_probeLive = false;
 DWORD g_lastVisibleRootsScanTick = 0;
@@ -47,7 +59,14 @@ DWORD g_lastHoverLogTick = 0;
 std::string g_lastVisibleRootsSignature;
 std::string g_lastHoveredSignature;
 std::string g_lastSaveIdentity;
-std::string g_lastTestMarkerSignature;
+std::string g_lastMarkerRenderSignature;
+std::vector<MarkerState> g_markers;
+int g_selectedMarkerId = 0;
+int g_nextMarkerId = 1;
+bool g_lastLeftMouseDownObserved = false;
+bool g_lastMiddleMouseDownObserved = false;
+
+void LogProbeLine(const std::string& message);
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -92,6 +111,404 @@ int ClampInt(int value, int minimum, int maximum)
     }
 
     return value;
+}
+
+float ClampFloat(float value, float minimum, float maximum)
+{
+    if (value < minimum)
+    {
+        return minimum;
+    }
+
+    if (value > maximum)
+    {
+        return maximum;
+    }
+
+    return value;
+}
+
+std::string JoinWindowsPath(const std::string& directory, const char* fileName)
+{
+    if (directory.empty() || fileName == 0 || *fileName == '\0')
+    {
+        return "";
+    }
+
+    if (directory[directory.size() - 1] == '\\' || directory[directory.size() - 1] == '/')
+    {
+        return directory + fileName;
+    }
+
+    return directory + "\\" + fileName;
+}
+
+std::string GetActiveSaveDirectory()
+{
+    SaveFileSystem* saveFileSystem = SaveFileSystem::getSingleton();
+    return saveFileSystem == 0 ? "" : saveFileSystem->getActiveSave();
+}
+
+std::string GetMarkerPersistencePath()
+{
+    return JoinWindowsPath(GetActiveSaveDirectory(), kMarkerPersistenceFileName);
+}
+
+bool ExtractJsonFloatField(const std::string& contents, const char* key, float& valueOut)
+{
+    if (key == 0 || *key == '\0')
+    {
+        return false;
+    }
+
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = contents.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
+    if (colonPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = colonPos + 1;
+    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
+    {
+        ++valuePos;
+    }
+
+    char* parseEnd = 0;
+    const double parsedValue = std::strtod(contents.c_str() + valuePos, &parseEnd);
+    if (parseEnd == contents.c_str() + valuePos)
+    {
+        return false;
+    }
+
+    valueOut = ClampFloat(static_cast<float>(parsedValue), 0.0f, 1.0f);
+    return true;
+}
+
+bool ExtractJsonIntField(const std::string& contents, const char* key, int& valueOut)
+{
+    if (key == 0 || *key == '\0')
+    {
+        return false;
+    }
+
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = contents.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
+    if (colonPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = colonPos + 1;
+    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
+    {
+        ++valuePos;
+    }
+
+    char* parseEnd = 0;
+    const long parsedValue = std::strtol(contents.c_str() + valuePos, &parseEnd, 10);
+    if (parseEnd == contents.c_str() + valuePos)
+    {
+        return false;
+    }
+
+    valueOut = static_cast<int>(parsedValue);
+    return true;
+}
+
+bool TryExtractJsonArrayContents(const std::string& contents, const char* key, std::string& arrayContentsOut)
+{
+    if (key == 0 || *key == '\0')
+    {
+        return false;
+    }
+
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = contents.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
+    if (colonPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type arrayStart = colonPos + 1;
+    while (arrayStart < contents.size() && std::isspace(static_cast<unsigned char>(contents[arrayStart])))
+    {
+        ++arrayStart;
+    }
+
+    if (arrayStart >= contents.size() || contents[arrayStart] != '[')
+    {
+        return false;
+    }
+
+    int depth = 0;
+    for (std::string::size_type index = arrayStart; index < contents.size(); ++index)
+    {
+        if (contents[index] == '[')
+        {
+            ++depth;
+        }
+        else if (contents[index] == ']')
+        {
+            --depth;
+            if (depth == 0)
+            {
+                arrayContentsOut = contents.substr(arrayStart + 1, index - arrayStart - 1);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool TryParseMarkersArray(const std::string& contents, std::vector<MarkerState>& markersOut)
+{
+    std::string arrayContents;
+    if (!TryExtractJsonArrayContents(contents, "markers", arrayContents))
+    {
+        return false;
+    }
+
+    markersOut.clear();
+    std::string::size_type searchPos = 0;
+    while (true)
+    {
+        const std::string::size_type objectStart = arrayContents.find('{', searchPos);
+        if (objectStart == std::string::npos)
+        {
+            break;
+        }
+
+        int depth = 0;
+        std::string::size_type objectEnd = std::string::npos;
+        for (std::string::size_type index = objectStart; index < arrayContents.size(); ++index)
+        {
+            if (arrayContents[index] == '{')
+            {
+                ++depth;
+            }
+            else if (arrayContents[index] == '}')
+            {
+                --depth;
+                if (depth == 0)
+                {
+                    objectEnd = index;
+                    break;
+                }
+            }
+        }
+
+        if (objectEnd == std::string::npos)
+        {
+            return false;
+        }
+
+        const std::string objectText = arrayContents.substr(objectStart, objectEnd - objectStart + 1);
+        MarkerState marker;
+        marker.id = 0;
+        marker.normalizedX = 0.0f;
+        marker.normalizedY = 0.0f;
+        if (!ExtractJsonIntField(objectText, "id", marker.id)
+            || !ExtractJsonFloatField(objectText, "x", marker.normalizedX)
+            || !ExtractJsonFloatField(objectText, "y", marker.normalizedY))
+        {
+            return false;
+        }
+
+        markersOut.push_back(marker);
+        searchPos = objectEnd + 1;
+    }
+
+    return true;
+}
+
+void ResetMarkersForActiveSave()
+{
+    g_markers.clear();
+    g_selectedMarkerId = 0;
+    g_nextMarkerId = 1;
+}
+
+int FindMarkerIndexById(int markerId)
+{
+    if (markerId <= 0)
+    {
+        return -1;
+    }
+
+    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    {
+        if (g_markers[index].id == markerId)
+        {
+            return static_cast<int>(index);
+        }
+    }
+
+    return -1;
+}
+
+MarkerState* FindMarkerById(int markerId)
+{
+    const int index = FindMarkerIndexById(markerId);
+    return index < 0 ? 0 : &g_markers[static_cast<std::size_t>(index)];
+}
+
+void RefreshNextMarkerId()
+{
+    int nextMarkerId = 1;
+    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    {
+        if (g_markers[index].id >= nextMarkerId)
+        {
+            nextMarkerId = g_markers[index].id + 1;
+        }
+    }
+    g_nextMarkerId = nextMarkerId;
+}
+
+void SaveMarkersForActiveSave()
+{
+    const std::string persistencePath = GetMarkerPersistencePath();
+    if (persistencePath.empty())
+    {
+        LogProbeLine("markers persist skipped: active save path unavailable");
+        return;
+    }
+
+    std::ofstream output(persistencePath.c_str(), std::ios::out | std::ios::trunc);
+    if (!output)
+    {
+        std::stringstream line;
+        line << "markers persist failed path=\"" << persistencePath << "\"";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    output << "{\n"
+           << "  \"version\": 2,\n"
+           << "  \"markers\": [\n";
+    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    {
+        const MarkerState& marker = g_markers[index];
+        output << "    {\n"
+               << "      \"id\": " << marker.id << ",\n"
+               << "      \"x\": " << marker.normalizedX << ",\n"
+               << "      \"y\": " << marker.normalizedY << "\n"
+               << "    }";
+        if (index + 1 != g_markers.size())
+        {
+            output << ",";
+        }
+        output << "\n";
+    }
+    output << "  ]\n"
+           << "}\n";
+
+    if (!output.good())
+    {
+        std::stringstream line;
+        line << "markers persist failed_write path=\"" << persistencePath << "\"";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    std::stringstream line;
+    line << "markers persisted path=\"" << persistencePath
+         << "\" count=" << g_markers.size();
+    LogProbeLine(line.str());
+}
+
+void LoadMarkersForActiveSave()
+{
+    ResetMarkersForActiveSave();
+
+    const std::string persistencePath = GetMarkerPersistencePath();
+    if (persistencePath.empty())
+    {
+        return;
+    }
+
+    std::ifstream input(persistencePath.c_str(), std::ios::in);
+    if (!input)
+    {
+        std::stringstream line;
+        line << "markers persistence missing path=\"" << persistencePath << "\" count=0";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    std::stringstream buffer;
+    buffer << input.rdbuf();
+    const std::string contents = buffer.str();
+
+    std::vector<MarkerState> loadedMarkers;
+    if (TryParseMarkersArray(contents, loadedMarkers))
+    {
+        for (std::size_t index = 0; index < loadedMarkers.size(); ++index)
+        {
+            if (loadedMarkers[index].id <= 0)
+            {
+                loadedMarkers[index].id = static_cast<int>(index) + 1;
+            }
+
+            loadedMarkers[index].normalizedX = ClampFloat(loadedMarkers[index].normalizedX, 0.0f, 1.0f);
+            loadedMarkers[index].normalizedY = ClampFloat(loadedMarkers[index].normalizedY, 0.0f, 1.0f);
+        }
+
+        g_markers = loadedMarkers;
+        RefreshNextMarkerId();
+        g_lastMarkerRenderSignature.clear();
+
+        std::stringstream line;
+        line << "markers loaded path=\"" << persistencePath
+             << "\" count=" << g_markers.size()
+             << " format=array";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    float loadedX = 0.0f;
+    float loadedY = 0.0f;
+    if (ExtractJsonFloatField(contents, "x", loadedX)
+        && ExtractJsonFloatField(contents, "y", loadedY))
+    {
+        MarkerState marker;
+        marker.id = 1;
+        marker.normalizedX = loadedX;
+        marker.normalizedY = loadedY;
+        g_markers.push_back(marker);
+        RefreshNextMarkerId();
+        g_lastMarkerRenderSignature.clear();
+
+        std::stringstream line;
+        line << "markers loaded path=\"" << persistencePath
+             << "\" count=1 format=legacy_single";
+        LogProbeLine(line.str());
+        return;
+    }
+
+    std::stringstream line;
+    line << "markers persistence invalid path=\"" << persistencePath << "\" count=0";
+    LogProbeLine(line.str());
 }
 
 void LogProbeLine(const std::string& message)
@@ -254,6 +671,22 @@ MyGUI::ImageBox* FindMapImageRecursive(MyGUI::Widget* root)
     return 0;
 }
 
+MyGUI::ImageBox* FindMapImageInParentChain(MyGUI::Widget* widget)
+{
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        MyGUI::ImageBox* imageBox = current->castType<MyGUI::ImageBox>(false);
+        if (imageBox != 0
+            && WidgetNameContains(imageBox, "mapimage")
+            && WidgetChainHasMapIdentity(imageBox))
+        {
+            return imageBox;
+        }
+    }
+
+    return 0;
+}
+
 MyGUI::ImageBox* FindActiveMapImage()
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
@@ -280,12 +713,109 @@ MyGUI::ImageBox* FindActiveMapImage()
     return 0;
 }
 
-void EnsureTestMarkerAttached()
+std::string BuildMarkerWidgetName(int markerId)
+{
+    std::stringstream name;
+    name << kMarkerWidgetNamePrefix << markerId;
+    return name.str();
+}
+
+bool TryParseMarkerWidgetId(const std::string& widgetName, int& markerIdOut)
+{
+    const std::string prefix = kMarkerWidgetNamePrefix;
+    if (widgetName.size() <= prefix.size()
+        || widgetName.compare(0, prefix.size(), prefix) != 0)
+    {
+        return false;
+    }
+
+    char* parseEnd = 0;
+    const long parsedId = std::strtol(widgetName.c_str() + prefix.size(), &parseEnd, 10);
+    if (parseEnd == widgetName.c_str() + prefix.size()
+        || *parseEnd != '\0'
+        || parsedId <= 0)
+    {
+        return false;
+    }
+
+    markerIdOut = static_cast<int>(parsedId);
+    return true;
+}
+
+int FindMarkerWidgetIdInChain(MyGUI::Widget* widget)
+{
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        int markerId = 0;
+        if (TryParseMarkerWidgetId(SafeWidgetName(current), markerId))
+        {
+            return markerId;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const std::string& name)
+{
+    if (parent == 0 || name.empty())
+    {
+        return 0;
+    }
+
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        MyGUI::Widget* child = parent->getChildAt(index);
+        if (child != 0 && SafeWidgetName(child) == name)
+        {
+            return child;
+        }
+    }
+
+    return 0;
+}
+
+void DestroyStaleMarkerWidgets(MyGUI::ImageBox* mapImage)
+{
+    if (mapImage == 0)
+    {
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    for (std::size_t index = mapImage->getChildCount(); index > 0; --index)
+    {
+        MyGUI::Widget* child = mapImage->getChildAt(index - 1);
+        if (child == 0)
+        {
+            continue;
+        }
+
+        int markerId = 0;
+        if (!TryParseMarkerWidgetId(SafeWidgetName(child), markerId))
+        {
+            continue;
+        }
+
+        if (FindMarkerById(markerId) == 0)
+        {
+            gui->destroyWidget(child);
+        }
+    }
+}
+
+void EnsureMarkerWidgetsAttached()
 {
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
-        g_lastTestMarkerSignature.clear();
+        g_lastMarkerRenderSignature.clear();
         return;
     }
 
@@ -295,42 +825,64 @@ void EnsureTestMarkerAttached()
         return;
     }
 
-    MyGUI::Widget* marker = FindDescendantByName(mapImage, kTestMarkerWidgetName);
-    const bool createdMarker = marker == 0;
-    if (createdMarker)
-    {
-        marker = mapImage->createWidgetT(
-            "Button",
-            "Kenshi_Button1",
-            MyGUI::IntCoord(0, 0, kTestMarkerSize, kTestMarkerSize),
-            MyGUI::Align::Default,
-            kTestMarkerWidgetName);
-
-        marker->setNeedMouseFocus(false);
-        marker->setAlpha(0.95f);
-        marker->setColour(MyGUI::Colour(1.0f, 0.35f, 0.25f, 1.0f));
-    }
-
-    const int maxLeft = imageCoord.width > kTestMarkerSize ? imageCoord.width - kTestMarkerSize : 0;
-    const int maxTop = imageCoord.height > kTestMarkerSize ? imageCoord.height - kTestMarkerSize : 0;
-    const int markerLeft = ClampInt((imageCoord.width * 37) / 100 - (kTestMarkerSize / 2), 0, maxLeft);
-    const int markerTop = ClampInt((imageCoord.height * 41) / 100 - (kTestMarkerSize / 2), 0, maxTop);
-    marker->setCoord(markerLeft, markerTop, kTestMarkerSize, kTestMarkerSize);
+    DestroyStaleMarkerWidgets(mapImage);
 
     std::stringstream signature;
     signature << SafeWidgetName(mapImage)
               << "|" << imageCoord.width << "x" << imageCoord.height
-              << "|" << markerLeft << "," << markerTop;
-    const std::string signatureString = signature.str();
-    if (signatureString != g_lastTestMarkerSignature)
-    {
-        g_lastTestMarkerSignature = signatureString;
+              << "|selected=" << g_selectedMarkerId
+              << "|count=" << g_markers.size();
 
-        std::stringstream line;
-        line << "test_marker "
-             << (createdMarker ? "attached" : "updated")
-             << " parent=" << BuildWidgetDescriptor(mapImage)
-             << " local_coord=(" << markerLeft << "," << markerTop << "," << kTestMarkerSize << "," << kTestMarkerSize << ")";
+    std::stringstream line;
+    line << "markers rendered"
+         << " parent=" << BuildWidgetDescriptor(mapImage)
+         << " count=" << g_markers.size()
+         << " selected=" << g_selectedMarkerId;
+
+    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    {
+        const MarkerState& marker = g_markers[index];
+        const bool isSelected = marker.id == g_selectedMarkerId;
+        const int markerSize = isSelected ? kSelectedMarkerSize : kMarkerSize;
+        const int maxLeft = imageCoord.width > markerSize ? imageCoord.width - markerSize : 0;
+        const int maxTop = imageCoord.height > markerSize ? imageCoord.height - markerSize : 0;
+        const int markerLeft = ClampInt(
+            static_cast<int>(imageCoord.width * marker.normalizedX + 0.5f) - (markerSize / 2),
+            0,
+            maxLeft);
+        const int markerTop = ClampInt(
+            static_cast<int>(imageCoord.height * marker.normalizedY + 0.5f) - (markerSize / 2),
+            0,
+            maxTop);
+
+        const std::string widgetName = BuildMarkerWidgetName(marker.id);
+        MyGUI::Widget* widget = FindDirectChildByName(mapImage, widgetName);
+        if (widget == 0)
+        {
+            widget = mapImage->createWidgetT(
+                "Button",
+                "Kenshi_Button1",
+                MyGUI::IntCoord(0, 0, markerSize, markerSize),
+                MyGUI::Align::Default,
+                widgetName);
+        }
+
+        widget->setNeedMouseFocus(true);
+        widget->setAlpha(isSelected ? 1.0f : 0.92f);
+        widget->setColour(
+            isSelected
+                ? MyGUI::Colour(1.0f, 0.94f, 0.25f, 1.0f)
+                : MyGUI::Colour(1.0f, 0.35f, 0.25f, 1.0f));
+        widget->setCoord(markerLeft, markerTop, markerSize, markerSize);
+
+        signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize;
+        line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")";
+    }
+
+    const std::string signatureString = signature.str();
+    if (signatureString != g_lastMarkerRenderSignature)
+    {
+        g_lastMarkerRenderSignature = signatureString;
         LogProbeLine(line.str());
     }
 }
@@ -409,12 +961,18 @@ void LogSaveIdentityIfChanged(bool force)
     std::stringstream identity;
     identity << currentGame << "\n" << activeSave;
     const std::string identityString = identity.str();
-    if (!force && identityString == g_lastSaveIdentity)
+    const bool identityChanged = identityString != g_lastSaveIdentity;
+    if (!force && !identityChanged)
     {
         return;
     }
 
-    g_lastSaveIdentity = identityString;
+    if (identityChanged)
+    {
+        g_lastSaveIdentity = identityString;
+        LoadMarkersForActiveSave();
+    }
+
     if (!force && currentGame.empty() && activeSave.empty())
     {
         return;
@@ -475,10 +1033,225 @@ bool AreProbeModifiersPressed(const InputHandler* inputHandler)
         && !inputHandler->shift;
 }
 
+struct MapPointerContext
+{
+    MyGUI::Widget* hoveredWidget;
+    MyGUI::ImageBox* mapImage;
+    MyGUI::IntCoord absoluteCoord;
+    MyGUI::IntPoint mouse;
+    int localLeft;
+    int localTop;
+    int hoveredMarkerId;
+};
+
+bool DidMouseButtonJustGoDown(int virtualKeyCode, bool& lastObserved)
+{
+    const bool mouseDown = (GetAsyncKeyState(virtualKeyCode) & 0x8000) != 0;
+    const bool justWentDown = mouseDown && !lastObserved;
+    lastObserved = mouseDown;
+    return justWentDown;
+}
+
+bool TryBuildMapPointerContext(MapPointerContext& contextOut)
+{
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* hoveredWidget = inputManager->getMouseFocusWidget();
+    MyGUI::ImageBox* mapImage = FindMapImageInParentChain(hoveredWidget);
+    if (mapImage == 0 || !mapImage->getInheritedVisible())
+    {
+        return false;
+    }
+
+    const MyGUI::IntCoord absoluteCoord = mapImage->getAbsoluteCoord();
+    if (absoluteCoord.width <= 0 || absoluteCoord.height <= 0)
+    {
+        return false;
+    }
+
+    const MyGUI::IntPoint mouse = inputManager->getMousePosition();
+    if (mouse.left < absoluteCoord.left
+        || mouse.top < absoluteCoord.top
+        || mouse.left >= absoluteCoord.left + absoluteCoord.width
+        || mouse.top >= absoluteCoord.top + absoluteCoord.height)
+    {
+        return false;
+    }
+
+    contextOut.hoveredWidget = hoveredWidget;
+    contextOut.mapImage = mapImage;
+    contextOut.absoluteCoord = absoluteCoord;
+    contextOut.mouse = mouse;
+    contextOut.localLeft = mouse.left - absoluteCoord.left;
+    contextOut.localTop = mouse.top - absoluteCoord.top;
+    contextOut.hoveredMarkerId = FindMarkerWidgetIdInChain(hoveredWidget);
+    return true;
+}
+
+float BuildNormalizedMapCoordinate(int localCoordinate, int extent)
+{
+    if (extent <= 0)
+    {
+        return 0.0f;
+    }
+
+    return ClampFloat(static_cast<float>(localCoordinate) / static_cast<float>(extent), 0.0f, 1.0f);
+}
+
+void ClearSelectedMarker(const char* reason)
+{
+    if (g_selectedMarkerId == 0)
+    {
+        return;
+    }
+
+    std::stringstream line;
+    line << "marker deselected reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " marker_id=" << g_selectedMarkerId;
+
+    g_selectedMarkerId = 0;
+    g_lastMarkerRenderSignature.clear();
+    LogProbeLine(line.str());
+}
+
+void SelectMarker(int markerId, const char* reason)
+{
+    if (markerId <= 0 || FindMarkerById(markerId) == 0 || g_selectedMarkerId == markerId)
+    {
+        return;
+    }
+
+    g_selectedMarkerId = markerId;
+    g_lastMarkerRenderSignature.clear();
+
+    std::stringstream line;
+    line << "marker selected reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " marker_id=" << markerId;
+    LogProbeLine(line.str());
+}
+
+void TryAddMarkerFromMiddleClick()
+{
+    if (!DidMouseButtonJustGoDown(VK_MBUTTON, g_lastMiddleMouseDownObserved))
+    {
+        return;
+    }
+
+    MapPointerContext context;
+    if (!TryBuildMapPointerContext(context) || context.hoveredMarkerId != 0)
+    {
+        return;
+    }
+
+    MarkerState marker;
+    marker.id = g_nextMarkerId++;
+    marker.normalizedX = BuildNormalizedMapCoordinate(context.localLeft, context.absoluteCoord.width);
+    marker.normalizedY = BuildNormalizedMapCoordinate(context.localTop, context.absoluteCoord.height);
+    g_markers.push_back(marker);
+    g_selectedMarkerId = marker.id;
+    g_lastMarkerRenderSignature.clear();
+    SaveMarkersForActiveSave();
+
+    std::stringstream line;
+    line << "marker added trigger=MIDDLE_CLICK"
+         << " marker_id=" << marker.id
+         << " mouse=(" << context.mouse.left << "," << context.mouse.top << ")"
+         << " local=(" << context.localLeft << "," << context.localTop << ")"
+         << " normalized=(" << marker.normalizedX << "," << marker.normalizedY << ")"
+         << " parent=" << BuildWidgetDescriptor(context.mapImage);
+    LogProbeLine(line.str());
+}
+
+void TryHandleLeftClickSelectionOrMove()
+{
+    if (!DidMouseButtonJustGoDown(VK_LBUTTON, g_lastLeftMouseDownObserved))
+    {
+        return;
+    }
+
+    MapPointerContext context;
+    if (!TryBuildMapPointerContext(context))
+    {
+        return;
+    }
+
+    if (context.hoveredMarkerId != 0)
+    {
+        SelectMarker(context.hoveredMarkerId, "left_click_marker");
+        return;
+    }
+
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        return;
+    }
+
+    selectedMarker->normalizedX = BuildNormalizedMapCoordinate(context.localLeft, context.absoluteCoord.width);
+    selectedMarker->normalizedY = BuildNormalizedMapCoordinate(context.localTop, context.absoluteCoord.height);
+    g_lastMarkerRenderSignature.clear();
+    SaveMarkersForActiveSave();
+
+    std::stringstream line;
+    line << "marker moved trigger=LEFT_CLICK"
+         << " marker_id=" << selectedMarker->id
+         << " mouse=(" << context.mouse.left << "," << context.mouse.top << ")"
+         << " local=(" << context.localLeft << "," << context.localTop << ")"
+         << " normalized=(" << selectedMarker->normalizedX << "," << selectedMarker->normalizedY << ")"
+         << " parent=" << BuildWidgetDescriptor(context.mapImage);
+    LogProbeLine(line.str());
+}
+
+bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
+{
+    if (FindActiveMapImage() == 0 || g_selectedMarkerId == 0)
+    {
+        return false;
+    }
+
+    if (keyCode == OIS::KC_ESCAPE)
+    {
+        ClearSelectedMarker("escape");
+        return true;
+    }
+
+    if (keyCode != OIS::KC_DELETE)
+    {
+        return false;
+    }
+
+    const int markerIndex = FindMarkerIndexById(g_selectedMarkerId);
+    if (markerIndex < 0)
+    {
+        ClearSelectedMarker("delete_missing_selection");
+        return true;
+    }
+
+    const int deletedMarkerId = g_selectedMarkerId;
+    g_markers.erase(g_markers.begin() + markerIndex);
+    g_selectedMarkerId = 0;
+    RefreshNextMarkerId();
+    g_lastMarkerRenderSignature.clear();
+    SaveMarkersForActiveSave();
+
+    std::stringstream line;
+    line << "marker deleted trigger=DELETE"
+         << " marker_id=" << deletedMarkerId
+         << " remaining=" << g_markers.size();
+    LogProbeLine(line.str());
+    return true;
+}
+
 void TickUiDiagnostics()
 {
-    EnsureTestMarkerAttached();
     LogSaveIdentityIfChanged(false);
+    TryAddMarkerFromMiddleClick();
+    TryHandleLeftClickSelectionOrMove();
+    EnsureMarkerWidgetsAttached();
 
     const DWORD now = GetTickCount();
     if (now - g_lastVisibleRootsScanTick >= 500)
@@ -533,6 +1306,11 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
         return;
     }
 
+    if (TryHandleMarkerKeyDown(keyCode))
+    {
+        return;
+    }
+
     if (InputHandler_keyDownEvent_orig)
     {
         InputHandler_keyDownEvent_orig(thisptr, keyCode);
@@ -574,7 +1352,12 @@ __declspec(dllexport) void startPlugin()
          << " INFO: diagnostics hooks installed"
          << " snapshot_hotkey=CTRL+ALT+F7"
          << " live_hover_hotkey=CTRL+ALT+F8"
-         << " test_marker=auto_attach";
+         << " add_action=MIDDLE_CLICK"
+         << " select_move_action=LEFT_CLICK"
+         << " delete_action=DELETE"
+         << " deselect_action=ESC"
+         << " persistence=active_save_json"
+         << " markers=managed_widgets";
     DebugLog(info.str().c_str());
 }
 
