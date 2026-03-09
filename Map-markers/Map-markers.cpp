@@ -113,6 +113,12 @@ struct PendingMarkerLabelShortcut
     std::string label;
 };
 
+struct FooterControlCandidate
+{
+    MyGUI::Widget* widget;
+    MyGUI::IntCoord absoluteCoord;
+};
+
 bool g_probeLive = false;
 DWORD g_lastVisibleRootsScanTick = 0;
 DWORD g_lastHoverLogTick = 0;
@@ -123,6 +129,7 @@ std::string g_lastMarkerRenderSignature;
 std::string g_lastMarkerEditorSignature;
 std::string g_lastToggleButtonSignature;
 std::string g_lastHoverLabelSignature;
+std::string g_lastToggleDiagnosticsSignature;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -1433,6 +1440,33 @@ std::string BuildWidgetChainForLog(MyGUI::Widget* widget)
     return line.str();
 }
 
+std::string BuildDetailedWidgetStateForLog(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return "<null>";
+    }
+
+    const MyGUI::IntCoord localCoord = widget->getCoord();
+    const MyGUI::IntCoord absoluteCoord = widget->getAbsoluteCoord();
+    std::stringstream line;
+    line << "type=" << SafeWidgetType(widget)
+         << " name=\"" << SafeWidgetName(widget) << "\""
+         << " local=(" << localCoord.left << "," << localCoord.top << "," << localCoord.width << "," << localCoord.height << ")"
+         << " abs=(" << absoluteCoord.left << "," << absoluteCoord.top << "," << absoluteCoord.width << "," << absoluteCoord.height << ")"
+         << " visible=" << (widget->getVisible() ? "true" : "false")
+         << " inherited_visible=" << (widget->getInheritedVisible() ? "true" : "false")
+         << " child_count=" << widget->getChildCount();
+
+    const std::string caption = SafeWindowCaption(widget);
+    if (!caption.empty())
+    {
+        line << " caption=\"" << caption << "\"";
+    }
+
+    return line.str();
+}
+
 bool WidgetNameContains(MyGUI::Widget* widget, const char* token)
 {
     return widget != 0 && ContainsAsciiCaseInsensitive(SafeWidgetName(widget), token);
@@ -1670,6 +1704,100 @@ MyGUI::Widget* FindAnyWidgetByName(const std::string& name)
     return 0;
 }
 
+void CollectWidgetsByNameRecursive(MyGUI::Widget* parent, const std::string& name, std::vector<MyGUI::Widget*>& out)
+{
+    if (parent == 0 || name.empty())
+    {
+        return;
+    }
+
+    if (SafeWidgetName(parent) == name)
+    {
+        out.push_back(parent);
+    }
+
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        CollectWidgetsByNameRecursive(parent->getChildAt(index), name, out);
+    }
+}
+
+void CollectWidgetsByNameTokenRecursive(MyGUI::Widget* parent, const char* token, std::vector<MyGUI::Widget*>& out)
+{
+    if (parent == 0 || token == 0 || *token == '\0')
+    {
+        return;
+    }
+
+    if (WidgetNameContains(parent, token))
+    {
+        out.push_back(parent);
+    }
+
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        CollectWidgetsByNameTokenRecursive(parent->getChildAt(index), token, out);
+    }
+}
+
+void SetAllWidgetsVisibleByName(const std::string& name, bool visible)
+{
+    if (name.empty())
+    {
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        std::vector<MyGUI::Widget*> matches;
+        CollectWidgetsByNameRecursive(roots.current(), name, matches);
+        for (std::size_t index = 0; index < matches.size(); ++index)
+        {
+            if (matches[index] != 0)
+            {
+                matches[index]->setVisible(visible);
+            }
+        }
+    }
+}
+
+void SetAllWidgetsVisibleByNameExcept(const std::string& name, bool visible, MyGUI::Widget* keepWidget)
+{
+    if (name.empty())
+    {
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        std::vector<MyGUI::Widget*> matches;
+        CollectWidgetsByNameRecursive(roots.current(), name, matches);
+        for (std::size_t index = 0; index < matches.size(); ++index)
+        {
+            if (matches[index] != 0 && matches[index] != keepWidget)
+            {
+                matches[index]->setVisible(visible);
+            }
+        }
+    }
+}
+
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
 {
     for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
@@ -1742,6 +1870,393 @@ MyGUI::Widget* FindMarkerToggleParent(MyGUI::ImageBox* mapImage)
     }
 
     return mapImage->getParent() == 0 ? mapImage : mapImage->getParent();
+}
+
+bool IsMapMarkersOwnedWidget(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    const std::string name = SafeWidgetName(widget);
+    return name.size() >= 11 && name.compare(0, 11, "MapMarkers_") == 0;
+}
+
+bool IsWidgetInMapFooterRegion(MyGUI::Widget* widget, const MyGUI::IntCoord& windowAbsolute)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    const MyGUI::IntCoord absolute = widget->getAbsoluteCoord();
+    const int windowRight = windowAbsolute.left + windowAbsolute.width;
+    const int windowBottom = windowAbsolute.top + windowAbsolute.height;
+
+    return absolute.left + absolute.width >= windowRight - 260
+        && absolute.left <= windowRight
+        && absolute.top + absolute.height >= windowBottom - 140
+        && absolute.top <= windowBottom;
+}
+
+bool TryBuildMapFooterControlCandidate(
+    MyGUI::Widget* widget,
+    const MyGUI::IntCoord& windowAbsolute,
+    FooterControlCandidate& candidateOut,
+    std::string* reasonOut)
+{
+    if (widget == 0)
+    {
+        if (reasonOut != 0)
+        {
+            *reasonOut = "widget_null";
+        }
+        return false;
+    }
+
+    if (IsMapMarkersOwnedWidget(widget))
+    {
+        if (reasonOut != 0)
+        {
+            *reasonOut = "map_markers_owned";
+        }
+        return false;
+    }
+
+    if (!widget->getVisible())
+    {
+        if (reasonOut != 0)
+        {
+            *reasonOut = "visible_false";
+        }
+        return false;
+    }
+
+    if (!widget->getInheritedVisible())
+    {
+        if (reasonOut != 0)
+        {
+            *reasonOut = "inherited_visible_false";
+        }
+        return false;
+    }
+
+    MyGUI::Button* button = widget->castType<MyGUI::Button>(false);
+    if (button == 0)
+    {
+        if (reasonOut != 0)
+        {
+            *reasonOut = "not_button";
+        }
+        return false;
+    }
+
+    const MyGUI::IntCoord absolute = widget->getAbsoluteCoord();
+    const int windowRight = windowAbsolute.left + windowAbsolute.width;
+    const int windowBottom = windowAbsolute.top + windowAbsolute.height;
+    const int distanceFromRight = windowRight - (absolute.left + absolute.width);
+    const int distanceFromBottom = windowBottom - (absolute.top + absolute.height);
+
+    if (absolute.width < 12 || absolute.width > 40)
+    {
+        if (reasonOut != 0)
+        {
+            std::stringstream line;
+            line << "width_out_of_range(" << absolute.width << ")";
+            *reasonOut = line.str();
+        }
+        return false;
+    }
+
+    if (absolute.height < 18 || absolute.height > 40)
+    {
+        if (reasonOut != 0)
+        {
+            std::stringstream line;
+            line << "height_out_of_range(" << absolute.height << ")";
+            *reasonOut = line.str();
+        }
+        return false;
+    }
+
+    if (distanceFromRight < 0 || distanceFromRight > 80)
+    {
+        if (reasonOut != 0)
+        {
+            std::stringstream line;
+            line << "right_distance_out_of_range(" << distanceFromRight << ")";
+            *reasonOut = line.str();
+        }
+        return false;
+    }
+
+    if (distanceFromBottom < 0 || distanceFromBottom > 48)
+    {
+        if (reasonOut != 0)
+        {
+            std::stringstream line;
+            line << "bottom_distance_out_of_range(" << distanceFromBottom << ")";
+            *reasonOut = line.str();
+        }
+        return false;
+    }
+
+    candidateOut.widget = widget;
+    candidateOut.absoluteCoord = absolute;
+    if (reasonOut != 0)
+    {
+        *reasonOut = "accepted";
+    }
+    return true;
+}
+
+void CollectFooterRegionWidgets(
+    MyGUI::Widget* root,
+    const MyGUI::IntCoord& windowAbsolute,
+    std::vector<MyGUI::Widget*>& out)
+{
+    if (root == 0)
+    {
+        return;
+    }
+
+    if (IsWidgetInMapFooterRegion(root, windowAbsolute))
+    {
+        out.push_back(root);
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        CollectFooterRegionWidgets(root->getChildAt(index), windowAbsolute, out);
+    }
+}
+
+void CollectLikelyMapFooterControlCandidates(
+    MyGUI::Widget* root,
+    const MyGUI::IntCoord& windowAbsolute,
+    std::vector<FooterControlCandidate>& out)
+{
+    if (root == 0)
+    {
+        return;
+    }
+
+    FooterControlCandidate candidate;
+    if (TryBuildMapFooterControlCandidate(root, windowAbsolute, candidate, 0))
+    {
+        out.push_back(candidate);
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t index = 0; index < childCount; ++index)
+    {
+        CollectLikelyMapFooterControlCandidates(root->getChildAt(index), windowAbsolute, out);
+    }
+}
+
+void LogMapFooterDiagnostics(MyGUI::Window* mapWindow, const char* reason)
+{
+    if (mapWindow == 0)
+    {
+        return;
+    }
+
+    const MyGUI::IntCoord windowAbsolute = mapWindow->getAbsoluteCoord();
+
+    std::stringstream header;
+    header << "toggle_footer_diagnostics reason=" << (reason == 0 ? "<unknown>" : reason)
+           << " map_window=" << BuildWidgetDescriptor(mapWindow)
+           << " state={" << BuildDetailedWidgetStateForLog(mapWindow) << "}";
+    LogProbeLine(header.str());
+
+    for (std::size_t index = 0; index < mapWindow->getChildCount(); ++index)
+    {
+        MyGUI::Widget* child = mapWindow->getChildAt(index);
+        std::stringstream line;
+        line << "toggle_footer_direct_child[" << index << "] "
+             << BuildDetailedWidgetStateForLog(child)
+             << " chain=" << BuildWidgetChainForLog(child);
+        LogProbeLine(line.str());
+    }
+
+    std::vector<MyGUI::Widget*> footerRegionWidgets;
+    CollectFooterRegionWidgets(mapWindow, windowAbsolute, footerRegionWidgets);
+    for (std::size_t index = 0; index < footerRegionWidgets.size(); ++index)
+    {
+        FooterControlCandidate candidate;
+        std::string candidateReason;
+        const bool accepted =
+            TryBuildMapFooterControlCandidate(footerRegionWidgets[index], windowAbsolute, candidate, &candidateReason);
+
+        std::stringstream line;
+        line << "toggle_footer_region[" << index << "] "
+             << BuildDetailedWidgetStateForLog(footerRegionWidgets[index])
+             << " candidate=" << (accepted ? "true" : "false")
+             << " reason=" << candidateReason
+             << " chain=" << BuildWidgetChainForLog(footerRegionWidgets[index]);
+        LogProbeLine(line.str());
+    }
+}
+
+bool TryResolveMarkerToggleFooterPlacement(
+    MyGUI::ImageBox* mapImage,
+    MyGUI::Widget*& parentOut,
+    int& buttonLeftOut,
+    int& buttonTopOut,
+    std::string& modeOut,
+    int& candidateCountOut)
+{
+    parentOut = 0;
+    buttonLeftOut = 0;
+    buttonTopOut = 0;
+    candidateCountOut = 0;
+    modeOut.clear();
+
+    MyGUI::Window* window = FindOwningWindow(mapImage);
+    if (window == 0)
+    {
+        return false;
+    }
+
+    std::vector<MyGUI::Widget*> namedControls;
+    CollectWidgetsByNameTokenRecursive(window, "mapzoominbutton", namedControls);
+    CollectWidgetsByNameTokenRecursive(window, "mapzoomoutbutton", namedControls);
+    CollectWidgetsByNameTokenRecursive(window, "mapcenterbutton", namedControls);
+
+    MyGUI::Widget* namedParent = 0;
+    int namedCount = 0;
+    int namedTopTotal = 0;
+    int namedHeightTotal = 0;
+    for (std::size_t index = 0; index < namedControls.size(); ++index)
+    {
+        MyGUI::Widget* control = namedControls[index];
+        if (control == 0 || !control->getVisible() || !control->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = control->getParent();
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        if (namedParent == 0)
+        {
+            namedParent = parent;
+        }
+
+        if (parent != namedParent)
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord controlCoord = control->getCoord();
+        namedTopTotal += controlCoord.top;
+        namedHeightTotal += controlCoord.height;
+        ++namedCount;
+    }
+
+    if (namedParent != 0 && namedCount >= 2)
+    {
+        const MyGUI::IntCoord parentCoord = namedParent->getCoord();
+        if (parentCoord.width >= kMarkerToggleButtonWidth + (kMarkerToggleButtonMargin * 2))
+        {
+            const int averageTop = namedTopTotal / namedCount;
+            const int averageHeight = namedHeightTotal / namedCount;
+            const int verticalOffset = averageHeight > kMarkerToggleButtonHeight
+                ? (averageHeight - kMarkerToggleButtonHeight) / 2
+                : 0;
+            const int alignedTop = averageTop + verticalOffset;
+            const int maxLeft = parentCoord.width > kMarkerToggleButtonWidth ? parentCoord.width - kMarkerToggleButtonWidth : 0;
+            const int maxTop = parentCoord.height > kMarkerToggleButtonHeight ? parentCoord.height - kMarkerToggleButtonHeight : 0;
+
+            parentOut = namedParent;
+            buttonLeftOut = ClampInt(kMarkerToggleButtonMargin, 0, maxLeft);
+            buttonTopOut = ClampInt(alignedTop, 0, maxTop);
+            candidateCountOut = namedCount;
+            modeOut = "named_zoom_controls";
+            return true;
+        }
+    }
+
+    std::vector<FooterControlCandidate> candidates;
+    CollectLikelyMapFooterControlCandidates(window, window->getAbsoluteCoord(), candidates);
+    candidateCountOut = static_cast<int>(candidates.size());
+    if (candidates.size() < 3u)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* bestParent = 0;
+    int bestCount = 0;
+    int bestWidth = 0;
+    int bestTop = 0;
+
+    for (std::size_t index = 0; index < candidates.size(); ++index)
+    {
+        MyGUI::Widget* parent = candidates[index].widget == 0 ? 0 : candidates[index].widget->getParent();
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord parentCoord = parent->getCoord();
+        const MyGUI::IntCoord parentAbsolute = parent->getAbsoluteCoord();
+        if (parentCoord.width < kMarkerToggleButtonWidth + (kMarkerToggleButtonMargin * 2))
+        {
+            continue;
+        }
+
+        int count = 0;
+        int topTotal = 0;
+        for (std::size_t otherIndex = 0; otherIndex < candidates.size(); ++otherIndex)
+        {
+            if (candidates[otherIndex].widget == 0 || candidates[otherIndex].widget->getParent() != parent)
+            {
+                continue;
+            }
+
+            const int relativeTop = candidates[otherIndex].absoluteCoord.top - parentAbsolute.top;
+            if (std::abs(relativeTop - (candidates[index].absoluteCoord.top - parentAbsolute.top)) > 8)
+            {
+                continue;
+            }
+
+            ++count;
+            topTotal += relativeTop;
+        }
+
+        if (count < 3)
+        {
+            continue;
+        }
+
+        if (count > bestCount || (count == bestCount && parentCoord.width > bestWidth))
+        {
+            bestParent = parent;
+            bestCount = count;
+            bestWidth = parentCoord.width;
+            bestTop = topTotal / count;
+        }
+    }
+
+    if (bestParent == 0)
+    {
+        return false;
+    }
+
+    const MyGUI::IntCoord parentCoord = bestParent->getCoord();
+    const int maxLeft = parentCoord.width > kMarkerToggleButtonWidth ? parentCoord.width - kMarkerToggleButtonWidth : 0;
+    const int maxTop = parentCoord.height > kMarkerToggleButtonHeight ? parentCoord.height - kMarkerToggleButtonHeight : 0;
+
+    parentOut = bestParent;
+    buttonLeftOut = ClampInt(kMarkerToggleButtonMargin, 0, maxLeft);
+    buttonTopOut = ClampInt(bestTop, 0, maxTop);
+    modeOut = "footer_controls";
+    return true;
 }
 
 bool TryGetCurrentMousePosition(int& mouseXOut, int& mouseYOut)
@@ -2287,30 +2802,26 @@ void EnsureMarkerToggleButtonUi()
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
-        if (MyGUI::Widget* button = FindAnyWidgetByName(kMarkerToggleButtonName))
-        {
-            button->setVisible(false);
-        }
+        SetAllWidgetsVisibleByName(kMarkerToggleButtonName, false);
         if (!g_lastToggleButtonSignature.empty())
         {
             g_lastToggleButtonSignature.clear();
             LogProbeLine("toggle_button hidden reason=map_not_visible");
         }
+        g_lastToggleDiagnosticsSignature.clear();
         return;
     }
 
     MyGUI::Widget* buttonParent = FindMarkerToggleParent(mapImage);
     if (buttonParent == 0 || !buttonParent->getInheritedVisible())
     {
-        if (MyGUI::Widget* button = FindAnyWidgetByName(kMarkerToggleButtonName))
-        {
-            button->setVisible(false);
-        }
+        SetAllWidgetsVisibleByName(kMarkerToggleButtonName, false);
         if (!g_lastToggleButtonSignature.empty())
         {
             g_lastToggleButtonSignature.clear();
             LogProbeLine("toggle_button hidden reason=parent_not_visible");
         }
+        g_lastToggleDiagnosticsSignature.clear();
         return;
     }
 
@@ -2320,13 +2831,21 @@ void EnsureMarkerToggleButtonUi()
         return;
     }
 
-    if (MyGUI::Widget* staleButton = FindAnyWidgetByName(kMarkerToggleButtonName))
+    MyGUI::Window* mapWindow = FindOwningWindow(mapImage);
+    int buttonLeft = 0;
+    int buttonTop = 0;
+    int candidateCount = 0;
+    std::string anchorMode;
+    MyGUI::Widget* footerParent = 0;
+    if (TryResolveMarkerToggleFooterPlacement(
+            mapImage,
+            footerParent,
+            buttonLeft,
+            buttonTop,
+            anchorMode,
+            candidateCount))
     {
-        if (staleButton->getParent() != buttonParent)
-        {
-            gui->destroyWidget(staleButton);
-            LogProbeLine("toggle_button stale_instance_removed");
-        }
+        buttonParent = footerParent;
     }
 
     MyGUI::Widget* buttonWidget = FindDirectChildByName(buttonParent, kMarkerToggleButtonName);
@@ -2354,17 +2873,22 @@ void EnsureMarkerToggleButtonUi()
     const MyGUI::IntCoord parentCoord = buttonParent->getCoord();
     const MyGUI::IntCoord parentAbsolute = buttonParent->getAbsoluteCoord();
     const MyGUI::IntCoord anchorAbsolute = anchorWidget->getAbsoluteCoord();
-    const int maxLeft = parentCoord.width > kMarkerToggleButtonWidth ? parentCoord.width - kMarkerToggleButtonWidth : 0;
-    const int maxTop = parentCoord.height > kMarkerToggleButtonHeight ? parentCoord.height - kMarkerToggleButtonHeight : 0;
-    const int buttonLeft = ClampInt(
-        anchorAbsolute.left - parentAbsolute.left + kMarkerToggleButtonMargin,
-        0,
-        maxLeft);
-    const int buttonTop = ClampInt(
-        anchorAbsolute.top - parentAbsolute.top + anchorAbsolute.height - kMarkerToggleButtonHeight - kMarkerToggleButtonBottomMargin,
-        0,
-        maxTop);
+    if (anchorMode.empty())
+    {
+        anchorMode = "window_fallback";
+        const int maxLeft = parentCoord.width > kMarkerToggleButtonWidth ? parentCoord.width - kMarkerToggleButtonWidth : 0;
+        const int maxTop = parentCoord.height > kMarkerToggleButtonHeight ? parentCoord.height - kMarkerToggleButtonHeight : 0;
+        buttonLeft = ClampInt(
+            anchorAbsolute.left - parentAbsolute.left + kMarkerToggleButtonMargin,
+            0,
+            maxLeft);
+        buttonTop = ClampInt(
+            anchorAbsolute.top - parentAbsolute.top + anchorAbsolute.height - kMarkerToggleButtonHeight - kMarkerToggleButtonBottomMargin,
+            0,
+            maxTop);
+    }
 
+    SetAllWidgetsVisibleByNameExcept(kMarkerToggleButtonName, false, button);
     button->setVisible(true);
     button->setCaption(BuildMarkerToggleButtonCaption());
     button->setCoord(buttonLeft, buttonTop, kMarkerToggleButtonWidth, kMarkerToggleButtonHeight);
@@ -2384,9 +2908,32 @@ void EnsureMarkerToggleButtonUi()
              << " parent_abs=(" << parentAbsolute.left << "," << parentAbsolute.top << "," << parentAbsolute.width << "," << parentAbsolute.height << ")"
              << " anchor=" << BuildWidgetDescriptor(anchorWidget)
              << " anchor_abs=(" << anchorAbsolute.left << "," << anchorAbsolute.top << "," << anchorAbsolute.width << "," << anchorAbsolute.height << ")"
+             << " mode=" << anchorMode
+             << " footer_candidates=" << candidateCount
              << " coord=(" << buttonLeft << "," << buttonTop << "," << kMarkerToggleButtonWidth << "," << kMarkerToggleButtonHeight << ")"
              << " caption=\"" << BuildMarkerToggleButtonCaption() << "\"";
         LogProbeLine(line.str());
+
+        std::stringstream finalLine;
+        finalLine << "toggle_button final_state "
+                  << BuildDetailedWidgetStateForLog(button)
+                  << " chain=" << BuildWidgetChainForLog(button);
+        LogProbeLine(finalLine.str());
+    }
+
+    std::stringstream diagnosticsSignature;
+    diagnosticsSignature << BuildWidgetDescriptor(mapWindow)
+                         << "|" << anchorMode
+                         << "|" << candidateCount
+                         << "|" << buttonLeft << "," << buttonTop
+                         << "|" << parentCoord.width << "x" << parentCoord.height;
+    if (diagnosticsSignature.str() != g_lastToggleDiagnosticsSignature)
+    {
+        g_lastToggleDiagnosticsSignature = diagnosticsSignature.str();
+        if (mapWindow != 0)
+        {
+            LogMapFooterDiagnostics(mapWindow, anchorMode.c_str());
+        }
     }
 }
 
@@ -3070,6 +3617,14 @@ void TriggerManualSnapshot(const char* reason)
     LogSaveIdentityIfChanged(true);
     LogHoveredWidgetState(true);
     LogVisibleRootsSnapshot(reason);
+
+    if (MyGUI::ImageBox* mapImage = FindActiveMapImage())
+    {
+        if (MyGUI::Window* mapWindow = FindOwningWindow(mapImage))
+        {
+            LogMapFooterDiagnostics(mapWindow, reason);
+        }
+    }
 }
 
 bool AreProbeModifiersPressed(const InputHandler* inputHandler)
