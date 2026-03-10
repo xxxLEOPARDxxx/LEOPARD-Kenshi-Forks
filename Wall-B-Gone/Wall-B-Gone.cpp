@@ -34,10 +34,19 @@ static DWORD g_lastFailedDismantleTime = 0;
 static const DWORD DISMANTLE_COOLDOWN_MS = 1000;
 
 static const OIS::KeyCode kDefaultHotkey = OIS::KC_X;
+static const bool kDefaultHotkeyRequireCtrl = false;
+static const bool kDefaultHotkeyRequireShift = false;
+static const bool kDefaultHotkeyRequireAlt = false;
+static const uint32_t kHotkeyModifierCtrlMask = 1u << 0;
+static const uint32_t kHotkeyModifierShiftMask = 1u << 1;
+static const uint32_t kHotkeyModifierAltMask = 1u << 2;
 
 // --- Hotkey state (edge detect) ---
 static OIS::KeyCode g_hotkeyPrimary = kDefaultHotkey;
 static OIS::KeyCode g_pendingHotkeyPrimary = kDefaultHotkey;
+static bool g_hotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
+static bool g_hotkeyRequireShift = kDefaultHotkeyRequireShift;
+static bool g_hotkeyRequireAlt = kDefaultHotkeyRequireAlt;
 static bool g_prevHotkeyDown = false;
 static bool g_loggedRuntimeHotkeyFallback = false;
 
@@ -71,6 +80,9 @@ static const char* kHubModDisplayName = "Wall-B-Gone";
 static const char* kHubSettingEnabledId = "enabled";
 static const char* kHubSettingSleepingBagEnabledId = "sleeping_bag_dismantle_enabled";
 static const char* kHubSettingHotkeyId = "dismantle_hotkey";
+static const char* kHubSettingHotkeyRequireCtrlId = "dismantle_hotkey_require_ctrl";
+static const char* kHubSettingHotkeyRequireShiftId = "dismantle_hotkey_require_shift";
+static const char* kHubSettingHotkeyRequireAltId = "dismantle_hotkey_require_alt";
 static const char* kHubActionResetHotkeyId = "reset_hotkey_default";
 static const int32_t kHubAttachFailureModeNone = 0;
 static const int32_t kHubAttachFailureModeStartupOnly = 1;
@@ -95,6 +107,11 @@ struct WallBGoneRuntimeStateV1
 static bool SaveConfigState();
 static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration();
 static const char* KeyCodeToName(OIS::KeyCode keyCode);
+static std::string FormatHotkeyBinding(
+    OIS::KeyCode keyCode,
+    bool requireCtrl,
+    bool requireShift,
+    bool requireAlt);
 static void RefreshHotkeyUiWidgets();
 static void SyncNativeBindingFromHotkey();
 
@@ -133,11 +150,15 @@ static void RefreshHotkeyUiWidgets()
         std::stringstream caption;
         if (g_hotkeyCaptureState == HotkeyCapture_AwaitKey)
         {
-            caption << "Press key...";
+            caption << "Press primary key...";
         }
         else
         {
-            caption << KeyCodeToName(g_hotkeyPrimary);
+            caption << FormatHotkeyBinding(
+                g_hotkeyPrimary,
+                g_hotkeyRequireCtrl,
+                g_hotkeyRequireShift,
+                g_hotkeyRequireAlt);
         }
         g_hotkeyRebindButton->setCaption(caption.str());
     }
@@ -145,7 +166,13 @@ static void RefreshHotkeyUiWidgets()
     if (g_hotkeyResetButton)
     {
         std::stringstream caption;
-        caption << "Reset (" << KeyCodeToName(kDefaultHotkey) << ")";
+        caption << "Reset ("
+            << FormatHotkeyBinding(
+                kDefaultHotkey,
+                kDefaultHotkeyRequireCtrl,
+                kDefaultHotkeyRequireShift,
+                kDefaultHotkeyRequireAlt)
+            << ")";
         g_hotkeyResetButton->setCaption(caption.str());
     }
 
@@ -162,6 +189,9 @@ static void OnResetHotkeyButtonClicked(MyGUI::Widget*)
     EndHotkeyCapture();
     g_pendingHotkeyPrimary = kDefaultHotkey;
     g_hotkeyPrimary = kDefaultHotkey;
+    g_hotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
+    g_hotkeyRequireShift = kDefaultHotkeyRequireShift;
+    g_hotkeyRequireAlt = kDefaultHotkeyRequireAlt;
     SyncNativeBindingFromHotkey();
     SaveConfigState();
     RefreshHotkeyUiWidgets();
@@ -176,7 +206,7 @@ static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
     }
 
     const int panelW = parentWidget->getWidth();
-    const int y = 206;
+    const int y = 326;
     const int labelX = 43;
     const int rebindW = 360;
     const int resetW = 120;
@@ -213,7 +243,7 @@ static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
         g_hotkeyRebindButton->setVisible(true);
         g_hotkeyRebindButton->setEnabled(true);
         g_hotkeyRebindButton->setNeedToolTip(true);
-        g_hotkeyRebindButton->setUserString("ToolTip", "Click then press a key.");
+        g_hotkeyRebindButton->setUserString("ToolTip", "Click then press a primary key. Use the modifier toggles above to build combos.");
     }
 
     g_hotkeyResetButton = parentWidget->createWidget<MyGUI::Button>(
@@ -227,7 +257,7 @@ static void CreateFallbackKeybindControls(MyGUI::Widget* parentWidget)
         g_hotkeyResetButton->setVisible(true);
         g_hotkeyResetButton->setEnabled(true);
         g_hotkeyResetButton->setNeedToolTip(true);
-        g_hotkeyResetButton->setUserString("ToolTip", "Reset to default hotkey.");
+        g_hotkeyResetButton->setUserString("ToolTip", "Reset the dismantle hotkey and modifier requirements to defaults.");
     }
 
     RefreshHotkeyUiWidgets();
@@ -490,6 +520,87 @@ static const char* KeyCodeToName(OIS::KeyCode keyCode)
     return "UNKNOWN";
 }
 
+static bool IsCtrlKeyCode(OIS::KeyCode keyCode)
+{
+    return keyCode == OIS::KC_LCONTROL || keyCode == OIS::KC_RCONTROL;
+}
+
+static bool IsShiftKeyCode(OIS::KeyCode keyCode)
+{
+    return keyCode == OIS::KC_LSHIFT || keyCode == OIS::KC_RSHIFT;
+}
+
+static bool IsAltKeyCode(OIS::KeyCode keyCode)
+{
+    return keyCode == OIS::KC_LMENU || keyCode == OIS::KC_RMENU;
+}
+
+static bool IsModifierDown(OIS::Keyboard* keyboard, OIS::KeyCode keyCode)
+{
+    if (keyboard == 0)
+    {
+        return false;
+    }
+
+    if (IsCtrlKeyCode(keyCode))
+    {
+        return keyboard->isKeyDown(OIS::KC_LCONTROL) || keyboard->isKeyDown(OIS::KC_RCONTROL);
+    }
+
+    if (IsShiftKeyCode(keyCode))
+    {
+        return keyboard->isKeyDown(OIS::KC_LSHIFT) || keyboard->isKeyDown(OIS::KC_RSHIFT);
+    }
+
+    if (IsAltKeyCode(keyCode))
+    {
+        return keyboard->isKeyDown(OIS::KC_LMENU) || keyboard->isKeyDown(OIS::KC_RMENU);
+    }
+
+    return false;
+}
+
+static std::string FormatHotkeyBinding(
+    OIS::KeyCode keyCode,
+    bool requireCtrl,
+    bool requireShift,
+    bool requireAlt)
+{
+    std::stringstream ss;
+    bool wrotePrefix = false;
+
+    if (requireCtrl && !IsCtrlKeyCode(keyCode))
+    {
+        ss << "CTRL";
+        wrotePrefix = true;
+    }
+    if (requireShift && !IsShiftKeyCode(keyCode))
+    {
+        if (wrotePrefix)
+        {
+            ss << "+";
+        }
+        ss << "SHIFT";
+        wrotePrefix = true;
+    }
+    if (requireAlt && !IsAltKeyCode(keyCode))
+    {
+        if (wrotePrefix)
+        {
+            ss << "+";
+        }
+        ss << "ALT";
+        wrotePrefix = true;
+    }
+
+    if (wrotePrefix)
+    {
+        ss << "+";
+    }
+    ss << KeyCodeToName(keyCode);
+    return ss.str();
+}
+
 static bool IsSupportedKeyCode(OIS::KeyCode keyCode)
 {
     for (size_t i = 0; i < kHotkeyNameMapCount; ++i)
@@ -633,6 +744,30 @@ static bool ReadEnabledFromBody(const std::string& body, bool* foundValue)
     return true;
 }
 
+static bool ReadBoolKeyFromBody(const std::string& body, const char* keyName, bool defaultValue)
+{
+    if (!keyName || keyName[0] == '\0')
+    {
+        return defaultValue;
+    }
+
+    const std::string quotedKey = std::string("\"") + keyName + "\"";
+    const size_t keyPos = body.find(quotedKey);
+    if (keyPos == std::string::npos)
+    {
+        return defaultValue;
+    }
+
+    const size_t truePos = body.find("true", keyPos + quotedKey.size());
+    const size_t falsePos = body.find("false", keyPos + quotedKey.size());
+    if (falsePos != std::string::npos && (truePos == std::string::npos || falsePos < truePos))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 static bool ReadSleepingBagDismantleEnabledFromBody(const std::string& body, bool* foundValue)
 {
     const size_t keyPos = body.find("\"sleepingBagDismantleEnabled\"");
@@ -655,6 +790,21 @@ static bool ReadSleepingBagDismantleEnabledFromBody(const std::string& body, boo
     }
 
     return true;
+}
+
+static bool ReadHotkeyRequireCtrlFromBody(const std::string& body)
+{
+    return ReadBoolKeyFromBody(body, "hotkeyRequireCtrl", kDefaultHotkeyRequireCtrl);
+}
+
+static bool ReadHotkeyRequireShiftFromBody(const std::string& body)
+{
+    return ReadBoolKeyFromBody(body, "hotkeyRequireShift", kDefaultHotkeyRequireShift);
+}
+
+static bool ReadHotkeyRequireAltFromBody(const std::string& body)
+{
+    return ReadBoolKeyFromBody(body, "hotkeyRequireAlt", kDefaultHotkeyRequireAlt);
 }
 
 static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
@@ -702,9 +852,17 @@ static bool ReadConfigFromFile(
     const std::string& configPath,
     bool* enabledOut,
     bool* sleepingBagDismantleEnabledOut,
+    bool* hotkeyRequireCtrlOut,
+    bool* hotkeyRequireShiftOut,
+    bool* hotkeyRequireAltOut,
     OIS::KeyCode* hotkeyOut)
 {
-    if (!enabledOut || !sleepingBagDismantleEnabledOut || !hotkeyOut)
+    if (!enabledOut
+        || !sleepingBagDismantleEnabledOut
+        || !hotkeyRequireCtrlOut
+        || !hotkeyRequireShiftOut
+        || !hotkeyRequireAltOut
+        || !hotkeyOut)
     {
         return false;
     }
@@ -721,6 +879,9 @@ static bool ReadConfigFromFile(
     *enabledOut = ReadEnabledFromBody(body, &foundEnabled);
     bool foundSleepingBagDismantleEnabled = false;
     *sleepingBagDismantleEnabledOut = ReadSleepingBagDismantleEnabledFromBody(body, &foundSleepingBagDismantleEnabled);
+    *hotkeyRequireCtrlOut = ReadHotkeyRequireCtrlFromBody(body);
+    *hotkeyRequireShiftOut = ReadHotkeyRequireShiftFromBody(body);
+    *hotkeyRequireAltOut = ReadHotkeyRequireAltFromBody(body);
     return ReadHotkeyFromBody(body, hotkeyOut);
 }
 
@@ -728,6 +889,9 @@ static bool SaveConfigToFile(
     const std::string& configPath,
     bool enabled,
     bool sleepingBagDismantleEnabled,
+    bool hotkeyRequireCtrl,
+    bool hotkeyRequireShift,
+    bool hotkeyRequireAlt,
     OIS::KeyCode hotkey)
 {
     std::string validationReason;
@@ -750,6 +914,9 @@ static bool SaveConfigToFile(
     out << "{\n";
     out << "  \"enabled\": " << (enabled ? "true" : "false") << ",\n";
     out << "  \"sleepingBagDismantleEnabled\": " << (sleepingBagDismantleEnabled ? "true" : "false") << ",\n";
+    out << "  \"hotkeyRequireCtrl\": " << (hotkeyRequireCtrl ? "true" : "false") << ",\n";
+    out << "  \"hotkeyRequireShift\": " << (hotkeyRequireShift ? "true" : "false") << ",\n";
+    out << "  \"hotkeyRequireAlt\": " << (hotkeyRequireAlt ? "true" : "false") << ",\n";
     out << "  \"hotkey\": \"" << KeyCodeToName(hotkey) << "\"\n";
     out << "}\n";
 
@@ -762,6 +929,9 @@ static void LoadConfigState()
     g_sleepingBagDismantleEnabled = true;
     g_hotkeyPrimary = kDefaultHotkey;
     g_pendingHotkeyPrimary = kDefaultHotkey;
+    g_hotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
+    g_hotkeyRequireShift = kDefaultHotkeyRequireShift;
+    g_hotkeyRequireAlt = kDefaultHotkeyRequireAlt;
 
     if (g_settingsPath.empty())
     {
@@ -770,11 +940,17 @@ static void LoadConfigState()
 
     bool loadedEnabled = true;
     bool loadedSleepingBagDismantleEnabled = true;
+    bool loadedHotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
+    bool loadedHotkeyRequireShift = kDefaultHotkeyRequireShift;
+    bool loadedHotkeyRequireAlt = kDefaultHotkeyRequireAlt;
     OIS::KeyCode loadedHotkey = kDefaultHotkey;
     if (!ReadConfigFromFile(
         g_settingsPath,
         &loadedEnabled,
         &loadedSleepingBagDismantleEnabled,
+        &loadedHotkeyRequireCtrl,
+        &loadedHotkeyRequireShift,
+        &loadedHotkeyRequireAlt,
         &loadedHotkey))
     {
         ErrorLog("Wall-B-Gone ERROR: failed to read mod-config.json; using defaults");
@@ -785,12 +961,19 @@ static void LoadConfigState()
     g_sleepingBagDismantleEnabled = loadedSleepingBagDismantleEnabled;
     g_hotkeyPrimary = loadedHotkey;
     g_pendingHotkeyPrimary = loadedHotkey;
+    g_hotkeyRequireCtrl = loadedHotkeyRequireCtrl;
+    g_hotkeyRequireShift = loadedHotkeyRequireShift;
+    g_hotkeyRequireAlt = loadedHotkeyRequireAlt;
     SyncNativeBindingFromHotkey();
 
     std::stringstream info;
     info << "Wall-B-Gone INFO: loaded config enabled=" << (g_modEnabled ? "true" : "false")
         << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
-        << " hotkey=" << KeyCodeToName(g_hotkeyPrimary);
+        << " hotkey=" << FormatHotkeyBinding(
+            g_hotkeyPrimary,
+            g_hotkeyRequireCtrl,
+            g_hotkeyRequireShift,
+            g_hotkeyRequireAlt);
     DebugLog(info.str().c_str());
 }
 
@@ -806,6 +989,9 @@ static bool SaveConfigState()
         g_settingsPath,
         g_modEnabled,
         g_sleepingBagDismantleEnabled,
+        g_hotkeyRequireCtrl,
+        g_hotkeyRequireShift,
+        g_hotkeyRequireAlt,
         g_hotkeyPrimary))
     {
         ErrorLog("Wall-B-Gone: failed to save mod-config.json");
@@ -815,7 +1001,11 @@ static bool SaveConfigState()
     std::stringstream info;
     info << "Wall-B-Gone INFO: saved config enabled=" << (g_modEnabled ? "true" : "false")
         << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
-        << " hotkey=" << KeyCodeToName(g_hotkeyPrimary);
+        << " hotkey=" << FormatHotkeyBinding(
+            g_hotkeyPrimary,
+            g_hotkeyRequireCtrl,
+            g_hotkeyRequireShift,
+            g_hotkeyRequireAlt);
     DebugLog(info.str().c_str());
 
     return true;
@@ -914,6 +1104,51 @@ static EMC_Result __cdecl HubSetSleepingBagEnabledSetting(void* user_data, int32
     return HubSetBoolSetting(user_data, value, &g_sleepingBagDismantleEnabled, err_buf, err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetHotkeyRequireCtrlSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_hotkeyRequireCtrl, out_value);
+}
+
+static EMC_Result __cdecl HubSetHotkeyRequireCtrlSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    const EMC_Result result = HubSetBoolSetting(user_data, value, &g_hotkeyRequireCtrl, err_buf, err_buf_size);
+    if (result == EMC_OK)
+    {
+        RefreshHotkeyUiWidgets();
+    }
+    return result;
+}
+
+static EMC_Result __cdecl HubGetHotkeyRequireShiftSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_hotkeyRequireShift, out_value);
+}
+
+static EMC_Result __cdecl HubSetHotkeyRequireShiftSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    const EMC_Result result = HubSetBoolSetting(user_data, value, &g_hotkeyRequireShift, err_buf, err_buf_size);
+    if (result == EMC_OK)
+    {
+        RefreshHotkeyUiWidgets();
+    }
+    return result;
+}
+
+static EMC_Result __cdecl HubGetHotkeyRequireAltSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_hotkeyRequireAlt, out_value);
+}
+
+static EMC_Result __cdecl HubSetHotkeyRequireAltSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    const EMC_Result result = HubSetBoolSetting(user_data, value, &g_hotkeyRequireAlt, err_buf, err_buf_size);
+    if (result == EMC_OK)
+    {
+        RefreshHotkeyUiWidgets();
+    }
+    return result;
+}
+
 static EMC_Result __cdecl HubGetDismantleHotkeySetting(void* user_data, EMC_KeybindValueV1* out_value)
 {
     if (!IsHubUserDataValid(user_data) || out_value == 0)
@@ -941,7 +1176,7 @@ static EMC_Result __cdecl HubSetDismantleHotkeySetting(
 
     if (value.modifiers != 0u)
     {
-        WriteRuntimeApiError(err_buf, err_buf_size, "unsupported_modifiers");
+        WriteRuntimeApiError(err_buf, err_buf_size, "use_modifier_toggles");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
@@ -981,8 +1216,14 @@ static EMC_Result __cdecl HubResetHotkeyDefaultAction(void* user_data, char* err
     }
 
     const OIS::KeyCode previous_hotkey = g_hotkeyPrimary;
+    const bool previous_hotkey_require_ctrl = g_hotkeyRequireCtrl;
+    const bool previous_hotkey_require_shift = g_hotkeyRequireShift;
+    const bool previous_hotkey_require_alt = g_hotkeyRequireAlt;
     g_hotkeyPrimary = kDefaultHotkey;
     g_pendingHotkeyPrimary = kDefaultHotkey;
+    g_hotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
+    g_hotkeyRequireShift = kDefaultHotkeyRequireShift;
+    g_hotkeyRequireAlt = kDefaultHotkeyRequireAlt;
     SyncNativeBindingFromHotkey();
     RefreshHotkeyUiWidgets();
 
@@ -990,6 +1231,9 @@ static EMC_Result __cdecl HubResetHotkeyDefaultAction(void* user_data, char* err
     {
         g_hotkeyPrimary = previous_hotkey;
         g_pendingHotkeyPrimary = previous_hotkey;
+        g_hotkeyRequireCtrl = previous_hotkey_require_ctrl;
+        g_hotkeyRequireShift = previous_hotkey_require_shift;
+        g_hotkeyRequireAlt = previous_hotkey_require_alt;
         SyncNativeBindingFromHotkey();
         RefreshHotkeyUiWidgets();
         WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
@@ -1027,15 +1271,39 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_KeybindSettingDefV1 kHotkeySettingDef = {
         kHubSettingHotkeyId,
         "Dismantle hotkey",
-        "Hotkey used to dismantle the selected wall",
+        "Primary key used to dismantle the selected wall or sleeping bag. Use the modifier toggles below for combos.",
         &g_modHubClient,
         &HubGetDismantleHotkeySetting,
         &HubSetDismantleHotkeySetting };
 
+    static const EMC_BoolSettingDefV1 kHotkeyRequireCtrlSettingDef = {
+        kHubSettingHotkeyRequireCtrlId,
+        "Require Ctrl",
+        "Require Ctrl to be held with the dismantle hotkey",
+        &g_modHubClient,
+        &HubGetHotkeyRequireCtrlSetting,
+        &HubSetHotkeyRequireCtrlSetting };
+
+    static const EMC_BoolSettingDefV1 kHotkeyRequireShiftSettingDef = {
+        kHubSettingHotkeyRequireShiftId,
+        "Require Shift",
+        "Require Shift to be held with the dismantle hotkey",
+        &g_modHubClient,
+        &HubGetHotkeyRequireShiftSetting,
+        &HubSetHotkeyRequireShiftSetting };
+
+    static const EMC_BoolSettingDefV1 kHotkeyRequireAltSettingDef = {
+        kHubSettingHotkeyRequireAltId,
+        "Require Alt",
+        "Require Alt to be held with the dismantle hotkey",
+        &g_modHubClient,
+        &HubGetHotkeyRequireAltSetting,
+        &HubSetHotkeyRequireAltSetting };
+
     static const EMC_ActionRowDefV1 kResetHotkeyActionDef = {
         kHubActionResetHotkeyId,
         "Reset hotkey default",
-        "Reset dismantle hotkey to the default key",
+        "Reset dismantle hotkey and modifier requirements to defaults",
         &g_modHubClient,
         EMC_ACTION_FORCE_REFRESH,
         &HubResetHotkeyDefaultAction };
@@ -1044,6 +1312,9 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kSleepingBagEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, &kHotkeySettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireCtrlSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireShiftSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireAltSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetHotkeyActionDef }
     };
 
@@ -1211,6 +1482,18 @@ extern "C" __declspec(dllexport) int __cdecl WallBGone_GetRuntimeStateV1(WallBGo
     out_state->sleeping_bag_dismantle_enabled = g_sleepingBagDismantleEnabled ? 1 : 0;
     out_state->hotkey_keycode = static_cast<int32_t>(g_hotkeyPrimary);
     out_state->hotkey_modifiers = 0u;
+    if (g_hotkeyRequireCtrl)
+    {
+        out_state->hotkey_modifiers |= kHotkeyModifierCtrlMask;
+    }
+    if (g_hotkeyRequireShift)
+    {
+        out_state->hotkey_modifiers |= kHotkeyModifierShiftMask;
+    }
+    if (g_hotkeyRequireAlt)
+    {
+        out_state->hotkey_modifiers |= kHotkeyModifierAltMask;
+    }
     return 0;
 }
 
@@ -1232,9 +1515,10 @@ extern "C" __declspec(dllexport) int __cdecl WallBGone_SetRuntimeStateV1(
         return 1;
     }
 
-    if (state->hotkey_modifiers != 0u)
+    const uint32_t supportedModifierMask = kHotkeyModifierCtrlMask | kHotkeyModifierShiftMask | kHotkeyModifierAltMask;
+    if ((state->hotkey_modifiers & ~supportedModifierMask) != 0u)
     {
-        WriteRuntimeApiError(err_buf, err_buf_size, "unsupported_modifiers");
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_modifiers");
         return 1;
     }
 
@@ -1250,6 +1534,9 @@ extern "C" __declspec(dllexport) int __cdecl WallBGone_SetRuntimeStateV1(
     g_sleepingBagDismantleEnabled = state->sleeping_bag_dismantle_enabled != 0;
     g_hotkeyPrimary = requestedHotkey;
     g_pendingHotkeyPrimary = requestedHotkey;
+    g_hotkeyRequireCtrl = (state->hotkey_modifiers & kHotkeyModifierCtrlMask) != 0u;
+    g_hotkeyRequireShift = (state->hotkey_modifiers & kHotkeyModifierShiftMask) != 0u;
+    g_hotkeyRequireAlt = (state->hotkey_modifiers & kHotkeyModifierAltMask) != 0u;
     SyncNativeBindingFromHotkey();
     RefreshHotkeyUiWidgets();
 
@@ -1307,6 +1594,32 @@ static DataPanelLine* TryCreateNativeKeybindRow(
     }
 
     return 0;
+}
+
+static void CreateHotkeyModifierOptionLines(DatapanelGUI* panel, int tabID, ToolTip* tooltip)
+{
+    if (panel == 0 || g_fnCreateCheckboxLine == 0)
+    {
+        return;
+    }
+
+    DataPanelLine_CheckBox* requireCtrlLine = g_fnCreateCheckboxLine(panel, "   Require Ctrl", g_hotkeyRequireCtrl, tabID);
+    if (requireCtrlLine && tooltip)
+    {
+        requireCtrlLine->setTooltip("Require Ctrl to be held with the dismantle hotkey.", tooltip);
+    }
+
+    DataPanelLine_CheckBox* requireShiftLine = g_fnCreateCheckboxLine(panel, "   Require Shift", g_hotkeyRequireShift, tabID);
+    if (requireShiftLine && tooltip)
+    {
+        requireShiftLine->setTooltip("Require Shift to be held with the dismantle hotkey.", tooltip);
+    }
+
+    DataPanelLine_CheckBox* requireAltLine = g_fnCreateCheckboxLine(panel, "   Require Alt", g_hotkeyRequireAlt, tabID);
+    if (requireAltLine && tooltip)
+    {
+        requireAltLine->setTooltip("Require Alt to be held with the dismantle hotkey.", tooltip);
+    }
 }
 
 static void OptionsWindowInitHook(OptionsWindow* self)
@@ -1373,6 +1686,8 @@ static void OptionsWindowInitHook(OptionsWindow* self)
             self->tooltip);
     }
 
+    CreateHotkeyModifierOptionLines(pluginOptionPanel, tabID, self->tooltip);
+
     g_hotkeyRebindButton = 0;
     g_hotkeyResetButton = 0;
     g_hotkeyLabelWidget = 0;
@@ -1393,7 +1708,9 @@ static void OptionsWindowInitHook(OptionsWindow* self)
             g_nativeHotkeyBindingActive = true;
             if (self->tooltip)
             {
-                keyLine->setTooltip("Click and press a key to bind Wall-B-Gone dismantle hotkey.", self->tooltip);
+                keyLine->setTooltip(
+                    "Click and press the primary key for Wall-B-Gone. Use the Require Ctrl/Shift/Alt toggles above to build combos.",
+                    self->tooltip);
             }
         }
         else if (!keyLine)
@@ -1714,13 +2031,31 @@ static void HandleHotkeyAction()
         return;
 
     bool hotkeyDown = false;
+    bool modifiersSatisfied = false;
     if (key->keyboard)
     {
         hotkeyDown = key->keyboard->isKeyDown(g_hotkeyPrimary);
+        modifiersSatisfied = true;
+
+        if (g_hotkeyRequireCtrl && !IsModifierDown(key->keyboard, OIS::KC_LCONTROL))
+        {
+            modifiersSatisfied = false;
+        }
+
+        if (g_hotkeyRequireShift && !IsModifierDown(key->keyboard, OIS::KC_LSHIFT))
+        {
+            modifiersSatisfied = false;
+        }
+
+        if (g_hotkeyRequireAlt && !IsModifierDown(key->keyboard, OIS::KC_LMENU))
+        {
+            modifiersSatisfied = false;
+        }
     }
 
-    const bool pressedThisFrame = (hotkeyDown && !g_prevHotkeyDown);
-    g_prevHotkeyDown = hotkeyDown;
+    const bool hotkeyActive = hotkeyDown && modifiersSatisfied;
+    const bool pressedThisFrame = (hotkeyActive && !g_prevHotkeyDown);
+    g_prevHotkeyDown = hotkeyActive;
 
     if (!pressedThisFrame)
         return;

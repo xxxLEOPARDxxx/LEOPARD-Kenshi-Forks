@@ -38,11 +38,21 @@ After deploy, expected files:
 ## Enable in game
 Run RE_Kenshi and enable the mod via Kenshi's `Mods` tab.
 
-## Mod toggle
-This mod includes `mod-config.json` toggles for `enabled` and `sleepingBagDismantleEnabled`.
+## Settings
+This mod stores its runtime settings in `mod-config.json`:
+
+- `enabled`
+- `sleepingBagDismantleEnabled`
+- `hotkeyRequireCtrl`
+- `hotkeyRequireShift`
+- `hotkeyRequireAlt`
+- `hotkey`
+
+If `Emkejs-Mod-Core` is installed, these same settings can also appear in Emkejs Mod Hub. If Mod Hub is unavailable, Wall-B-Gone falls back to its native plugin settings tab.
+
 At runtime, the plugin reads:
 
 - `[Kenshi install dir]\mods\Wall-B-Gone\mod-config.json`
 - `%USERPROFILE%\AppData\LocalLow\Lo-Fi Games\Kenshi\mods\Wall-B-Gone\mod-config.json`
 
-`LocalLow` is treated as an override if both exist. If neither exists or either is unreadable, the mod defaults to enabled.
+`LocalLow` is treated as an override if both exist. If neither exists or either is unreadable, the mod defaults to `enabled=true`, `sleepingBagDismantleEnabled=true`, `hotkeyRequireCtrl=false`, `hotkeyRequireShift=false`, `hotkeyRequireAlt=false`, and `hotkey="X"`.
