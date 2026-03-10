@@ -4,6 +4,12 @@ All notable changes to Wall-B-Gone will be documented in this file.
 
 The format is based on Keep a Changelog, and this project uses SemVer-style versioning tags.
 
+## [0.1.0-beta.2] - 2026-02-21
+### Added
+- Sleeping bag dismantle support.
+- Occupied sleeping bag protection.
+- Sleeping bag dismantle toggle in plugin settings.
+
 ## [0.1.0-beta.1] - 2026-02-10
 ### Added
 - In-game plugin settings tab for Wall-B-Gone:
