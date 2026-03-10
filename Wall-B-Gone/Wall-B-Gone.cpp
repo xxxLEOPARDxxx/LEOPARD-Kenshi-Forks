@@ -1384,6 +1384,12 @@ static void StartModHubClient()
 
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
+        if (g_modHubClient.LastAttemptFailureResult() == EMC_ERR_NOT_FOUND)
+        {
+            DebugLog("Wall-B-Gone INFO: event=mod_hub_unavailable use_hub_ui=0");
+            return;
+        }
+
         ErrorLog("Wall-B-Gone WARN: event=mod_hub_fallback reason=get_api_failed use_hub_ui=0");
     }
     else if (result == emc::ModHubClient::REGISTRATION_FAILED)

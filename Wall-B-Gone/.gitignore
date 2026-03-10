@@ -24,3 +24,4 @@ dist/
 
 # Local env overrides
 .env
+RE_Kenshi_log.txt
