@@ -3,6 +3,7 @@
 #include "TraderCore.h"
 #include "TraderDiagnostics.h"
 #include "TraderInventoryBinding.h"
+#include "TraderSearchInputBehavior.h"
 #include "TraderSearchPipeline.h"
 #include "TraderSearchText.h"
 #include "TraderWindowDetection.h"
@@ -21,7 +22,6 @@
 
 #include <Windows.h>
 
-#include <cctype>
 #include <sstream>
 
 namespace
@@ -38,23 +38,18 @@ struct PendingSearchEditShortcut
 {
     PendingSearchEditShortcut()
         : active(false)
-        , rewriteText(false)
         , keyValue(0)
-        , cursorPosition(0u)
     {
     }
 
     bool active;
-    bool rewriteText;
     int keyValue;
-    std::string query;
-    std::size_t cursorPosition;
+    TraderSearchInputBehavior::EditResult editResult;
 };
 
 PendingSearchEditShortcut g_pendingSearchEditShortcut;
 bool g_haveSearchEditSnapshot = false;
-std::string g_searchEditSnapshotQuery;
-std::size_t g_searchEditSnapshotCursorPosition = 0u;
+TraderSearchInputBehavior::Snapshot g_searchEditSnapshot;
 
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
 #define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
@@ -116,63 +111,146 @@ void ResetPendingSearchEditShortcut()
 void ResetSearchEditSnapshot()
 {
     g_haveSearchEditSnapshot = false;
-    g_searchEditSnapshotQuery.clear();
-    g_searchEditSnapshotCursorPosition = 0u;
+    g_searchEditSnapshot = TraderSearchInputBehavior::Snapshot();
 }
 
-bool IsSearchTokenSeparator(MyGUI::UString::unicode_char value)
+TraderSearchInputBehavior::Text ToSearchInputText(const MyGUI::UString& text)
 {
-    if (value < 0x80u)
-    {
-        const unsigned char byte = static_cast<unsigned char>(value);
-        return byte == ':' || std::isspace(byte) != 0 || std::isalnum(byte) == 0;
-    }
-
-    return false;
-}
-
-std::size_t FindPreviousSearchTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
-{
+    TraderSearchInputBehavior::Text result;
     const std::size_t length = text.size();
-    if (cursor > length)
+    result.reserve(length);
+    for (std::size_t i = 0; i < length; ++i)
     {
-        cursor = length;
+        result.push_back(static_cast<TraderSearchInputBehavior::Codepoint>(text[i]));
     }
-
-    std::size_t position = cursor;
-    while (position > 0u && IsSearchTokenSeparator(text[position - 1u]))
-    {
-        --position;
-    }
-
-    while (position > 0u && !IsSearchTokenSeparator(text[position - 1u]))
-    {
-        --position;
-    }
-
-    return position;
+    return result;
 }
 
-std::size_t FindNextSearchTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
+MyGUI::UString ToMyGuiText(const TraderSearchInputBehavior::Text& text)
 {
+    MyGUI::UString result;
     const std::size_t length = text.size();
-    if (cursor > length)
+    for (std::size_t i = 0; i < length; ++i)
     {
-        cursor = length;
+        result.push_back(static_cast<MyGUI::UString::unicode_char>(text[i]));
+    }
+    return result;
+}
+
+TraderSearchInputBehavior::Selection CaptureSearchEditSelection(
+    MyGUI::EditBox* searchEdit,
+    std::size_t textLength)
+{
+    if (searchEdit == 0 || !searchEdit->isTextSelection())
+    {
+        return TraderSearchInputBehavior::Selection();
     }
 
-    std::size_t position = cursor;
-    while (position < length && !IsSearchTokenSeparator(text[position]))
+    const std::size_t selectionStart = searchEdit->getTextSelectionStart();
+    if (selectionStart == MyGUI::ITEM_NONE)
     {
-        ++position;
+        return TraderSearchInputBehavior::Selection();
     }
 
-    while (position < length && IsSearchTokenSeparator(text[position]))
+    const std::size_t selectionLength = searchEdit->getTextSelectionLength();
+    return TraderSearchInputBehavior::NormalizeSelection(
+        TraderSearchInputBehavior::Selection(true, selectionStart, selectionLength),
+        textLength);
+}
+
+TraderSearchInputBehavior::Snapshot BuildSearchInputSnapshot(
+    const MyGUI::UString& text,
+    std::size_t cursorPosition,
+    const TraderSearchInputBehavior::Selection& selection)
+{
+    return TraderSearchInputBehavior::Snapshot(
+        ToSearchInputText(text),
+        cursorPosition,
+        TraderSearchInputBehavior::NormalizeSelection(selection, text.size()));
+}
+
+TraderSearchInputBehavior::Snapshot CaptureSearchEditSnapshot(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0)
     {
-        ++position;
+        return TraderSearchInputBehavior::Snapshot();
     }
 
-    return position;
+    const MyGUI::UString text = searchEdit->getOnlyText();
+    const std::size_t textLength = text.size();
+    const std::size_t cursorPosition = TraderSearchInputBehavior::ClampCursor(
+        searchEdit->getTextCursor(),
+        textLength);
+    return BuildSearchInputSnapshot(
+        text,
+        cursorPosition,
+        CaptureSearchEditSelection(searchEdit, textLength));
+}
+
+TraderSearchInputBehavior::ShortcutKind ClassifySearchEditShortcut(MyGUI::KeyCode keyCode)
+{
+    const int keyValue = keyCode.getValue();
+    if (keyValue == MyGUI::KeyCode::ArrowLeft)
+    {
+        return TraderSearchInputBehavior::ShortcutKind_CtrlLeft;
+    }
+
+    if (keyValue == MyGUI::KeyCode::ArrowRight)
+    {
+        return TraderSearchInputBehavior::ShortcutKind_CtrlRight;
+    }
+
+    if (keyValue == MyGUI::KeyCode::Backspace)
+    {
+        return TraderSearchInputBehavior::ShortcutKind_CtrlBackspace;
+    }
+
+    return TraderSearchInputBehavior::ShortcutKind_None;
+}
+
+void ApplySearchEditSelection(
+    MyGUI::EditBox* searchEdit,
+    std::size_t cursorPosition,
+    const TraderSearchInputBehavior::Selection& selection)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    const std::size_t textLength = searchEdit->getTextLength();
+    const std::size_t clampedCursor = TraderSearchInputBehavior::ClampCursor(cursorPosition, textLength);
+    const TraderSearchInputBehavior::Selection normalizedSelection =
+        TraderSearchInputBehavior::NormalizeSelection(selection, textLength);
+    if (normalizedSelection.active)
+    {
+        searchEdit->setTextSelection(
+            normalizedSelection.start,
+            normalizedSelection.start + normalizedSelection.length);
+        return;
+    }
+
+    searchEdit->setTextCursor(clampedCursor);
+    searchEdit->setTextSelection(clampedCursor, clampedCursor);
+}
+
+TraderSearchInputBehavior::Snapshot BuildScheduledSearchShortcutSnapshot(
+    MyGUI::EditBox* searchEdit,
+    TraderSearchInputBehavior::ShortcutKind shortcut)
+{
+    TraderSearchInputBehavior::Snapshot snapshot = CaptureSearchEditSnapshot(searchEdit);
+    if (shortcut == TraderSearchInputBehavior::ShortcutKind_CtrlBackspace && g_haveSearchEditSnapshot)
+    {
+        snapshot.text = g_searchEditSnapshot.text;
+        snapshot.cursor = TraderSearchInputBehavior::ClampCursor(
+            g_searchEditSnapshot.cursor,
+            snapshot.text.size());
+        snapshot.selection = TraderSearchInputBehavior::NormalizeSelection(
+            snapshot.selection,
+            snapshot.text.size());
+    }
+
+    return snapshot;
 }
 
 bool ShouldShowAnySearchCountMetric()
@@ -328,17 +406,13 @@ void RememberSearchContainerPosition(MyGUI::Widget* container)
     g_searchContainerPositionCustomized = true;
 }
 
-void RememberSearchEditSnapshotValue(const std::string& query, std::size_t cursorPosition)
+void RememberSearchEditSnapshotValue(
+    const std::string& query,
+    std::size_t cursorPosition,
+    const TraderSearchInputBehavior::Selection& selection)
 {
-    const std::size_t textLength = MyGUI::UString(query).size();
-    if (cursorPosition > textLength)
-    {
-        cursorPosition = textLength;
-    }
-
     g_haveSearchEditSnapshot = true;
-    g_searchEditSnapshotQuery = query;
-    g_searchEditSnapshotCursorPosition = cursorPosition;
+    g_searchEditSnapshot = BuildSearchInputSnapshot(MyGUI::UString(query), cursorPosition, selection);
 }
 
 void RememberSearchEditSnapshot(MyGUI::EditBox* searchEdit)
@@ -349,14 +423,8 @@ void RememberSearchEditSnapshot(MyGUI::EditBox* searchEdit)
         return;
     }
 
-    std::size_t cursorPosition = searchEdit->getTextCursor();
-    const std::size_t textLength = searchEdit->getTextLength();
-    if (cursorPosition > textLength)
-    {
-        cursorPosition = textLength;
-    }
-
-    RememberSearchEditSnapshotValue(searchEdit->getOnlyText().asUTF8(), cursorPosition);
+    g_haveSearchEditSnapshot = true;
+    g_searchEditSnapshot = CaptureSearchEditSnapshot(searchEdit);
 }
 
 void PersistSearchContainerPosition()
@@ -1233,26 +1301,18 @@ void SetSearchQueryAndRefresh(
 
 void ApplySearchShortcutQueryAndCursor(
     MyGUI::EditBox* searchEdit,
-    const std::string& rawText,
-    std::size_t cursorPosition,
+    const TraderSearchInputBehavior::EditResult& editResult,
     const char* reason)
 {
-    if (searchEdit == 0)
+    if (searchEdit == 0 || !editResult.handled || !editResult.rewriteText)
     {
         return;
     }
 
+    const std::string rawText = ToMyGuiText(editResult.text).asUTF8();
     SetSearchQueryAndRefresh(searchEdit, rawText, reason, false);
-
-    const std::size_t textLength = searchEdit->getTextLength();
-    if (cursorPosition > textLength)
-    {
-        cursorPosition = textLength;
-    }
-
-    searchEdit->setTextCursor(cursorPosition);
-    searchEdit->setTextSelection(cursorPosition, cursorPosition);
-    RememberSearchEditSnapshotValue(rawText, cursorPosition);
+    ApplySearchEditSelection(searchEdit, editResult.cursor, editResult.selection);
+    RememberSearchEditSnapshotValue(rawText, editResult.cursor, editResult.selection);
 }
 
 bool ScheduleSearchEditMyGuiShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
@@ -1268,91 +1328,24 @@ bool ScheduleSearchEditMyGuiShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode 
         return false;
     }
 
-    MyGUI::UString text = searchEdit->getOnlyText();
-    std::size_t textLength = text.size();
-    std::size_t cursorPosition = searchEdit->getTextCursor();
-    if (cursorPosition > textLength)
+    const TraderSearchInputBehavior::ShortcutKind shortcut = ClassifySearchEditShortcut(keyCode);
+    if (shortcut == TraderSearchInputBehavior::ShortcutKind_None)
     {
-        cursorPosition = textLength;
+        return false;
     }
 
     ResetPendingSearchEditShortcut();
     g_pendingSearchEditShortcut.active = true;
     g_pendingSearchEditShortcut.keyValue = keyCode.getValue();
-
-    if (keyCode.getValue() == MyGUI::KeyCode::ArrowLeft)
-    {
-        g_pendingSearchEditShortcut.rewriteText = false;
-        g_pendingSearchEditShortcut.cursorPosition =
-            FindPreviousSearchTokenBoundary(text, cursorPosition);
-        return true;
-    }
-
-    if (keyCode.getValue() == MyGUI::KeyCode::ArrowRight)
-    {
-        g_pendingSearchEditShortcut.rewriteText = false;
-        g_pendingSearchEditShortcut.cursorPosition =
-            FindNextSearchTokenBoundary(text, cursorPosition);
-        return true;
-    }
-
-    if (keyCode.getValue() != MyGUI::KeyCode::Backspace)
+    g_pendingSearchEditShortcut.editResult = TraderSearchInputBehavior::ApplyShortcut(
+        shortcut,
+        BuildScheduledSearchShortcutSnapshot(searchEdit, shortcut));
+    if (!g_pendingSearchEditShortcut.editResult.handled)
     {
         ResetPendingSearchEditShortcut();
         return false;
     }
 
-    if (g_haveSearchEditSnapshot)
-    {
-        text = MyGUI::UString(g_searchEditSnapshotQuery);
-        textLength = text.size();
-        cursorPosition = g_searchEditSnapshotCursorPosition;
-        if (cursorPosition > textLength)
-        {
-            cursorPosition = textLength;
-        }
-    }
-
-    g_pendingSearchEditShortcut.rewriteText = true;
-    MyGUI::UString updated = text;
-
-    if (searchEdit->isTextSelection())
-    {
-        std::size_t selectionStart = searchEdit->getTextSelectionStart();
-        std::size_t selectionLength = searchEdit->getTextSelectionLength();
-        if (selectionStart != MyGUI::ITEM_NONE)
-        {
-            if (selectionStart > textLength)
-            {
-                selectionStart = textLength;
-            }
-            if (selectionStart + selectionLength > textLength)
-            {
-                selectionLength = textLength - selectionStart;
-            }
-        }
-
-        if (selectionStart != MyGUI::ITEM_NONE && selectionLength != 0u)
-        {
-            updated.erase(selectionStart, selectionLength);
-            g_pendingSearchEditShortcut.cursorPosition = selectionStart;
-        }
-        else
-        {
-            g_pendingSearchEditShortcut.cursorPosition = cursorPosition;
-        }
-    }
-    else
-    {
-        const std::size_t deleteStart = FindPreviousSearchTokenBoundary(text, cursorPosition);
-        if (deleteStart != cursorPosition)
-        {
-            updated.erase(deleteStart, cursorPosition - deleteStart);
-        }
-        g_pendingSearchEditShortcut.cursorPosition = deleteStart;
-    }
-
-    g_pendingSearchEditShortcut.query = updated.asUTF8();
     return true;
 }
 
@@ -1371,25 +1364,21 @@ void ApplyPendingSearchEditShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode k
         return;
     }
 
-    if (pending.rewriteText)
+    if (!pending.editResult.handled)
+    {
+        return;
+    }
+
+    if (pending.editResult.rewriteText)
     {
         ApplySearchShortcutQueryAndCursor(
             searchEdit,
-            pending.query,
-            pending.cursorPosition,
+            pending.editResult,
             "ctrl_shortcut");
         return;
     }
 
-    std::size_t cursorPosition = pending.cursorPosition;
-    const std::size_t textLength = searchEdit->getTextLength();
-    if (cursorPosition > textLength)
-    {
-        cursorPosition = textLength;
-    }
-
-    searchEdit->setTextCursor(cursorPosition);
-    searchEdit->setTextSelection(cursorPosition, cursorPosition);
+    ApplySearchEditSelection(searchEdit, pending.editResult.cursor, pending.editResult.selection);
     RememberSearchEditSnapshot(searchEdit);
 }
 

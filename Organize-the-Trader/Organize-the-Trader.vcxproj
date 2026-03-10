@@ -95,6 +95,7 @@
     <ClCompile Include="TraderInventoryResolver.cpp" />
     <ClCompile Include="TraderInventorySources.cpp" />
     <ClCompile Include="TraderModHub.cpp" />
+    <ClCompile Include="TraderSearchInputBehavior.cpp" />
     <ClCompile Include="TraderSearchPipeline.cpp" />
     <ClCompile Include="TraderSearchUi.cpp" />
     <ClCompile Include="TraderSearchText.cpp" />
@@ -109,6 +110,7 @@
     <ClInclude Include="TraderDiagnostics.h" />
     <ClInclude Include="TraderInventoryBinding.h" />
     <ClInclude Include="TraderModHub.h" />
+    <ClInclude Include="TraderSearchInputBehavior.h" />
     <ClInclude Include="TraderSearchPipeline.h" />
     <ClInclude Include="TraderSearchUi.h" />
     <ClInclude Include="TraderSearchText.h" />

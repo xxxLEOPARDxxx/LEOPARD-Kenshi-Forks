@@ -39,6 +39,9 @@
     <ClCompile Include="TraderModHub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TraderSearchInputBehavior.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="TraderSearchPipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -75,6 +78,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderModHub.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TraderSearchInputBehavior.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TraderSearchPipeline.h">
