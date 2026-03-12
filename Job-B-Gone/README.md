@@ -92,4 +92,4 @@ Supported keys:
 If config is missing or unreadable, defaults are used and written back.
 
 ## Emkejs Mod Hub
-If `Emkejs-Mod-Core` is present, Job-B-Gone registers its core boolean settings with Mod Hub on startup and keeps `mod-config.json` as the persistence source of truth. Hotkey and panel-position fields remain file-backed only. If the hub is unavailable or registration fails, Job-B-Gone falls back to its standalone file-based config without disabling the in-game panel.
+If `Emkejs-Mod-Core` is present, Job-B-Gone registers its core settings with Mod Hub on startup and keeps `mod-config.json` as the persistence source of truth. The panel toggle hotkey is exposed there as a primary key plus separate Ctrl/Alt/Shift toggles; panel-position fields remain file-backed only. If the hub is unavailable or registration fails, Job-B-Gone falls back to its standalone file-based config without disabling the in-game panel.
