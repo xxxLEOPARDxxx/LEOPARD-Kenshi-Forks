@@ -2,4 +2,4 @@
 set -euo pipefail
 
 SCRIPT_DIR_UNIX="$(cd "$(dirname "$0")" && pwd)"
-exec "$SCRIPT_DIR_UNIX/build-package.sh" "$@"
+exec bash "$SCRIPT_DIR_UNIX/build-package.sh" "$@"
