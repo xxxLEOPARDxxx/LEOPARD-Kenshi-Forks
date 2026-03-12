@@ -20,7 +20,10 @@ if [[ ! -f "$PS_SCRIPT_UNIX" ]]; then
   exit 1
 fi
 
-if command -v powershell.exe >/dev/null 2>&1; then
+if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
+  PSH="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+  CONVERT_PATHS=1
+elif command -v powershell.exe >/dev/null 2>&1; then
   PSH="powershell.exe"
   CONVERT_PATHS=1
 elif command -v pwsh >/dev/null 2>&1; then
