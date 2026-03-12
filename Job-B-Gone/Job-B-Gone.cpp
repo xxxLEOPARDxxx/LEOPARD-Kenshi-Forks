@@ -726,11 +726,14 @@ static void TickPanelVisibilityToggleHotkey(bool allowToggle, const char* blocke
             HideConfirmationOverlay();
         }
 
-        std::stringstream info;
-        info << "Job-B-Gone INFO: panel_visibility_toggled hidden="
-             << (g_panelHiddenByToggle ? "true" : "false")
-             << " hotkey=" << g_config.panelVisibilityToggleHotkey;
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Job-B-Gone INFO: panel_visibility_toggled hidden="
+                 << (g_panelHiddenByToggle ? "true" : "false")
+                 << " hotkey=" << g_config.panelVisibilityToggleHotkey;
+            DebugLog(info.str().c_str());
+        }
     }
 
     g_panelVisibilityTogglePrevDown = hotkeyDown;
@@ -832,9 +835,12 @@ static bool SaveConfigState()
         return false;
     }
 
-    std::stringstream info;
-    info << "Job-B-Gone INFO: saved mod-config.json path=\"" << g_settingsPath << "\"";
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone INFO: saved mod-config.json path=\"" << g_settingsPath << "\"";
+        DebugLog(info.str().c_str());
+    }
 
     return true;
 }

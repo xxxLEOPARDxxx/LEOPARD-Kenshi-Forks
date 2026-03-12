@@ -2563,11 +2563,14 @@ static void PersistPanelPositionIfChanged(const MyGUI::IntCoord& panelCoord, con
         return;
     }
 
-    std::stringstream info;
-    info << "Job-B-Gone INFO: persisted_panel_position source=" << (source ? source : "unknown")
-         << " x=" << panelCoord.left
-         << " y=" << storedTop;
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone INFO: persisted_panel_position source=" << (source ? source : "unknown")
+             << " x=" << panelCoord.left
+             << " y=" << storedTop;
+        DebugLog(info.str().c_str());
+    }
 }
 
 static void PersistPanelCollapsedStateIfChanged(const char* source)
@@ -2584,10 +2587,13 @@ static void PersistPanelCollapsedStateIfChanged(const char* source)
         return;
     }
 
-    std::stringstream info;
-    info << "Job-B-Gone INFO: persisted_panel_collapsed_state source=" << (source ? source : "unknown")
-         << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        std::stringstream info;
+        info << "Job-B-Gone INFO: persisted_panel_collapsed_state source=" << (source ? source : "unknown")
+             << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
+        DebugLog(info.str().c_str());
+    }
 }
 
 static void MoveJobBGonePanelByDelta(int deltaX, int deltaY)
