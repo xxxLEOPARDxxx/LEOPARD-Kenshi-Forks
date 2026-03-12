@@ -229,6 +229,7 @@ static bool TryGetMousePosition(int* xOut, int* yOut);
 static void MoveJobBGonePanelByDelta(int deltaX, int deltaY);
 static void FinalizeJobBGonePanelDrag(const char* source);
 static void TickJobBGonePanelDrag();
+static void DestroySelectedMemberJobPanelButton();
 static void SetWidgetTooltipAndHoverHint(MyGUI::Widget* widget, const char* tooltipText);
 static void OnActionButtonMouseSetFocus(MyGUI::Widget*, MyGUI::Widget*);
 static void OnActionButtonMouseLostFocus(MyGUI::Widget*, MyGUI::Widget*);
@@ -837,6 +838,9 @@ static bool SaveConfigState()
 
     return true;
 }
+
+// Keep Mod Hub registration in the existing single-TU layout so it can reuse config helpers directly.
+#include "JobBGoneModHub.inl"
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs)
 {

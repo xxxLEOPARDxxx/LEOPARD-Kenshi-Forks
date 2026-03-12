@@ -107,6 +107,23 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     CaptureHudToggleEventSignal();
     PlayerInterface_updateUT_orig(thisptr);
+
+    if (!g_config.enabled)
+    {
+        if (g_jobBGonePanel || g_jobBGoneConfirmOverlay)
+        {
+            DestroySelectedMemberJobPanelButton();
+        }
+
+        g_lastPlayerInterface = thisptr;
+        g_pendingSelectedMemberUiRefresh = false;
+        g_pendingSelectedMemberUiRefreshStartMs = 0;
+        g_lastSelectedMemberUiRefreshAttemptMs = 0;
+        g_selectedMemberUiRefreshAttempts = 0;
+        g_lastLoggedHasSelectedMemberForButton = false;
+        return;
+    }
+
     TickSelectedMemberUiRefresh();
     EnsureSelectedMemberJobPanelButton(thisptr);
 }
@@ -252,6 +269,8 @@ __declspec(dllexport) void startPlugin()
          << ", panel_visibility_toggle_hotkey=\"" << g_config.panelVisibilityToggleHotkey << "\""
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
+
+    StartModHubClient();
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)

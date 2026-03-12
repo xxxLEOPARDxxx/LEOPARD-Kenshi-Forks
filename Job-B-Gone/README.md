@@ -45,6 +45,10 @@ Build + package:
 Package-only:
 - `.\scripts\package.ps1`
 
+Sync and validate the bundled Mod Hub SDK:
+- `.\scripts\sync-mod-hub-sdk.ps1`
+- `./scripts/sync-mod-hub-sdk.sh`
+
 Optional parameters (where supported):
 - `-KenshiPath "H:\SteamLibrary\steamapps\common\Kenshi"`
 - `-Configuration "Release"`
@@ -86,3 +90,6 @@ Supported keys:
 - `panel_visibility_toggle_hotkey` (string): keyboard shortcut to toggle panel visibility. Default: `"CTRL+B"`. Set to `"NONE"` to disable.
 
 If config is missing or unreadable, defaults are used and written back.
+
+## Emkejs Mod Hub
+If `Emkejs-Mod-Core` is present, Job-B-Gone registers its core boolean settings with Mod Hub on startup and keeps `mod-config.json` as the persistence source of truth. Hotkey and panel-position fields remain file-backed only. If the hub is unavailable or registration fails, Job-B-Gone falls back to its standalone file-based config without disabling the in-game panel.

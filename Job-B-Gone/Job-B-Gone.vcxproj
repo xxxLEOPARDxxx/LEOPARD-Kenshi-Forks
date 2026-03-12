@@ -46,12 +46,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)tools\mod-hub-sdk\include;$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
     <LibraryPath>$(KENSHILIB_DIR)\Libraries;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)tools\mod-hub-sdk\include;$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
     <LibraryPath>$(KENSHILIB_DIR)\Libraries;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -88,6 +88,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Job-B-Gone.cpp" />
+    <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="JobBGoneModHub.inl" />
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_api.h" />
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_client.h" />
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_consumer_helpers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
