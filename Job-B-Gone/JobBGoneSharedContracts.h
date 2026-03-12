@@ -10,8 +10,7 @@ struct PluginConfig
 {
     bool enabled;
     bool debugLogTransitions;
-    bool enableDeleteAllJobsSelectedMemberAction;
-    bool enableExperimentalSingleJobDelete;
+    bool enableDeleteAllJobsTopActions;
     bool logSelectedMemberJobSnapshot;
     bool hidePanelDuringCharacterCreation;
     bool hidePanelDuringInventoryOpen;
@@ -48,10 +47,9 @@ struct ConfigParseDiagnostics
     bool invalidEnabled;
     bool foundDebugLogTransitions;
     bool invalidDebugLogTransitions;
-    bool foundEnableDeleteAllJobsSelectedMemberAction;
-    bool invalidEnableDeleteAllJobsSelectedMemberAction;
-    bool foundEnableExperimentalSingleJobDelete;
-    bool invalidEnableExperimentalSingleJobDelete;
+    bool foundEnableDeleteAllJobsTopActions;
+    bool invalidEnableDeleteAllJobsTopActions;
+    bool usedLegacyEnableDeleteAllJobsTopActionsKey;
     bool foundLogSelectedMemberJobSnapshot;
     bool invalidLogSelectedMemberJobSnapshot;
     bool foundHidePanelDuringCharacterCreation;

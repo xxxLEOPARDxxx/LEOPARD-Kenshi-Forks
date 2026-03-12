@@ -74,8 +74,7 @@ Runtime config path:
 Supported keys:
 - `enabled` (bool): master plugin toggle.
 - `debug_log_transitions` (bool): transition diagnostics.
-- `enable_delete_all_jobs_selected_member_action` (bool): top scoped delete-all toggle.
-- `enable_experimental_single_job_delete` (bool): reserved flag (single-row delete is implemented in current UI flow).
+- `enable_delete_all_jobs_top_actions` (bool): toggle the top scoped delete-all buttons (`Me`, `Selected`, `Squad`, `All`).
 - `log_selected_member_job_snapshot` (bool): debug logging for selected-member job snapshots.
 - `hide_panel_during_character_creation` (bool): hide the panel while in character creation/edit mode. Default: `true`.
 - `hide_panel_during_inventory_open` (bool): hide the panel while an inventory/trade window is open. Default: `true`.

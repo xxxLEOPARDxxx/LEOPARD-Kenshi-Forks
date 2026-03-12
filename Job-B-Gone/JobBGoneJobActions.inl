@@ -22,11 +22,6 @@ static Character* ResolveSelectedMember()
     }
 }
 
-static bool TryResolveSelectedMemberForDebug()
-{
-    return ResolveSelectedMember() != 0;
-}
-
 static bool TryGetPermajobCount(Character* member, int* countOut)
 {
     if (!member || !countOut)
@@ -1196,7 +1191,7 @@ static bool TryClearAllJobsForMember(Character* member, int* deletedOut, const c
 
 static void ExecuteDeleteAllJobsForScope(JobDeleteScope scope)
 {
-    const bool actionEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
+    const bool actionEnabled = g_config.enableDeleteAllJobsTopActions;
     bool success = false;
     const char* result = "disabled_by_config";
     int targetMembers = 0;

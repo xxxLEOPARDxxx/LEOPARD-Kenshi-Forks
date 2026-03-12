@@ -474,38 +474,23 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "enable_delete_all_jobs_selected_member_action")
+        else if (key == "enable_delete_all_jobs_top_actions"
+                 || key == "enable_delete_all_jobs_selected_member_action")
         {
+            const bool legacyKey = (key == "enable_delete_all_jobs_selected_member_action");
+            diagnostics->usedLegacyEnableDeleteAllJobsTopActionsKey =
+                diagnostics->usedLegacyEnableDeleteAllJobsTopActionsKey || legacyKey;
             bool parsedBool = false;
             size_t valuePos = pos;
             if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
             {
-                diagnostics->foundEnableDeleteAllJobsSelectedMemberAction = true;
-                configOut->enableDeleteAllJobsSelectedMemberAction = parsedBool;
+                diagnostics->foundEnableDeleteAllJobsTopActions = true;
+                configOut->enableDeleteAllJobsTopActions = parsedBool;
                 pos = valuePos;
             }
             else
             {
-                diagnostics->invalidEnableDeleteAllJobsSelectedMemberAction = true;
-                if (!SkipJsonValue(body, &pos))
-                {
-                    return RecordConfigSyntaxError(diagnostics, pos);
-                }
-            }
-        }
-        else if (key == "enable_experimental_single_job_delete")
-        {
-            bool parsedBool = false;
-            size_t valuePos = pos;
-            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
-            {
-                diagnostics->foundEnableExperimentalSingleJobDelete = true;
-                configOut->enableExperimentalSingleJobDelete = parsedBool;
-                pos = valuePos;
-            }
-            else
-            {
-                diagnostics->invalidEnableExperimentalSingleJobDelete = true;
+                diagnostics->invalidEnableDeleteAllJobsTopActions = true;
                 if (!SkipJsonValue(body, &pos))
                 {
                     return RecordConfigSyntaxError(diagnostics, pos);
@@ -729,14 +714,13 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser and state helpers.
-    PluginConfig parsedConfig = { true, false, true, false, true, true, true, true, false, false, 0, 0, "CTRL+B" };
+    PluginConfig parsedConfig = { true, false, true, false, true, true, true, false, false, 0, 0, "CTRL+B" };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
             "{\"enabled\":false,\"debug_log_transitions\":true,"
-            "\"enable_delete_all_jobs_selected_member_action\":false,"
-            "\"enable_experimental_single_job_delete\":true,"
+            "\"enable_delete_all_jobs_top_actions\":false,"
             "\"log_selected_member_job_snapshot\":false,"
             "\"hide_panel_during_character_creation\":false,"
             "\"hide_panel_during_inventory_open\":false,"
@@ -753,8 +737,7 @@ static bool RunInternalSelfChecks()
     }
     if (parsedConfig.enabled
         || !parsedConfig.debugLogTransitions
-        || parsedConfig.enableDeleteAllJobsSelectedMemberAction
-        || !parsedConfig.enableExperimentalSingleJobDelete
+        || parsedConfig.enableDeleteAllJobsTopActions
         || parsedConfig.logSelectedMemberJobSnapshot
         || parsedConfig.hidePanelDuringCharacterCreation
         || parsedConfig.hidePanelDuringInventoryOpen
@@ -770,8 +753,7 @@ static bool RunInternalSelfChecks()
 
     const std::string bomJson = std::string("\xEF\xBB\xBF")
         + "{\"enabled\":true,\"debug_log_transitions\":false,"
-          "\"enable_delete_all_jobs_selected_member_action\":true,"
-          "\"enable_experimental_single_job_delete\":false,"
+          "\"enable_delete_all_jobs_top_actions\":true,"
           "\"log_selected_member_job_snapshot\":true,"
           "\"hide_panel_during_character_creation\":true,"
           "\"hide_panel_during_inventory_open\":true,"
@@ -783,8 +765,7 @@ static bool RunInternalSelfChecks()
           "\"panel_visibility_toggle_hotkey\":\"CTRL+B\"}";
     parsedConfig.enabled = false;
     parsedConfig.debugLogTransitions = true;
-    parsedConfig.enableDeleteAllJobsSelectedMemberAction = false;
-    parsedConfig.enableExperimentalSingleJobDelete = true;
+    parsedConfig.enableDeleteAllJobsTopActions = false;
     parsedConfig.logSelectedMemberJobSnapshot = false;
     parsedConfig.hidePanelDuringCharacterCreation = false;
     parsedConfig.hidePanelDuringInventoryOpen = false;
@@ -801,8 +782,7 @@ static bool RunInternalSelfChecks()
     }
     if (!parsedConfig.enabled
         || parsedConfig.debugLogTransitions
-        || !parsedConfig.enableDeleteAllJobsSelectedMemberAction
-        || parsedConfig.enableExperimentalSingleJobDelete
+        || !parsedConfig.enableDeleteAllJobsTopActions
         || !parsedConfig.logSelectedMemberJobSnapshot
         || !parsedConfig.hidePanelDuringCharacterCreation
         || !parsedConfig.hidePanelDuringInventoryOpen
@@ -812,6 +792,20 @@ static bool RunInternalSelfChecks()
         || parsedConfig.jobBGonePanelPosX != 11
         || parsedConfig.jobBGonePanelPosY != 22
         || parsedConfig.panelVisibilityToggleHotkey != "CTRL+B")
+    {
+        return false;
+    }
+
+    parsedConfig.enableDeleteAllJobsTopActions = false;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson(
+            "{\"enable_delete_all_jobs_selected_member_action\":true}",
+            &parsedConfig,
+            &diagnostics))
+    {
+        return false;
+    }
+    if (!parsedConfig.enableDeleteAllJobsTopActions || !diagnostics.usedLegacyEnableDeleteAllJobsTopActionsKey)
     {
         return false;
     }
@@ -928,17 +922,15 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Job-B-Gone WARN: invalid/missing key \"debug_log_transitions\"; using default");
     }
-    if (!diagnostics.foundEnableDeleteAllJobsSelectedMemberAction
-        || diagnostics.invalidEnableDeleteAllJobsSelectedMemberAction)
+    if (!diagnostics.foundEnableDeleteAllJobsTopActions
+        || diagnostics.invalidEnableDeleteAllJobsTopActions)
     {
         needsWriteBack = true;
-        ErrorLog("Job-B-Gone WARN: invalid/missing key \"enable_delete_all_jobs_selected_member_action\"; using default");
+        ErrorLog("Job-B-Gone WARN: invalid/missing key \"enable_delete_all_jobs_top_actions\"; using default");
     }
-    if (!diagnostics.foundEnableExperimentalSingleJobDelete
-        || diagnostics.invalidEnableExperimentalSingleJobDelete)
+    if (diagnostics.usedLegacyEnableDeleteAllJobsTopActionsKey)
     {
         needsWriteBack = true;
-        ErrorLog("Job-B-Gone WARN: invalid/missing key \"enable_experimental_single_job_delete\"; using default");
     }
     if (!diagnostics.foundLogSelectedMemberJobSnapshot || diagnostics.invalidLogSelectedMemberJobSnapshot)
     {
@@ -1038,10 +1030,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
     out << "  \"debug_log_transitions\": " << (config.debugLogTransitions ? "true" : "false") << ",\n";
-    out << "  \"enable_delete_all_jobs_selected_member_action\": "
-        << (config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false") << ",\n";
-    out << "  \"enable_experimental_single_job_delete\": "
-        << (config.enableExperimentalSingleJobDelete ? "true" : "false") << ",\n";
+    out << "  \"enable_delete_all_jobs_top_actions\": "
+        << (config.enableDeleteAllJobsTopActions ? "true" : "false") << ",\n";
     out << "  \"log_selected_member_job_snapshot\": "
         << (config.logSelectedMemberJobSnapshot ? "true" : "false") << ",\n";
     out << "  \"hide_panel_during_character_creation\": "

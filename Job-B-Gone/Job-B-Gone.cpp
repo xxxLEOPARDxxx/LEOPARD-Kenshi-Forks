@@ -16,8 +16,6 @@
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
 #include <mygui/MyGUI_RenderManager.h>
-#include <mygui/MyGUI_TabControl.h>
-#include <mygui/MyGUI_TabItem.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
@@ -42,8 +40,6 @@ static const int kPanelExpandedHeight = kPanelExpandedMaxHeight;
 static const int kPanelCollapsedHeight = 46;
 static const int kPanelViewportPadding = 20;
 static const int kPanelMaxPersistedCoord = 100000;
-static const char* kPluginTabName = "Job-B-Gone";
-static const char* kPluginPanelName = "job_b_gone_options";
 static const int kMaxVisibleJobRows = 8;
 static const std::string kToggleBarCommandName = "toggle_bar";
 static const char* kPanelVisibilityToggleHotkeyDefault = "CTRL+B";
@@ -54,7 +50,6 @@ static PluginConfig g_config = {
     false,
     true,
     false,
-    true,
     true,
     true,
     true,
@@ -74,28 +69,12 @@ static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
 static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
 
-class ToolTip;
-class ForgottenGUI;
 class DatapanelGUI;
 class Dialogue
 {
 public:
     hand getConversationTarget();
     bool conversationHasEndedPrettyMuch() const;
-};
-
-class OptionsWindow : public GUIWindow, public wraps::BaseLayout
-{
-public:
-    char _0xd0;
-    lektor<std::string> _0xd8;
-    int _0xf0;
-    void* _0xf8;
-    DatapanelGUI* datapanel;
-    MyGUI::TabControl* optionsTab;
-    bool _0x110;
-    ToolTip* tooltip;
-    bool _0x120;
 };
 
 class DatapanelGUI : public GUIWindow
@@ -121,14 +100,6 @@ public:
     virtual void vfunc0xe8() {}
     virtual void vfunc0xf0() {}
 };
-
-typedef DatapanelGUI* (*FnCreateDatapanel)(ForgottenGUI*, const std::string&, MyGUI::Widget*, bool);
-typedef void (*FnOptionsInit)(OptionsWindow*);
-
-static FnCreateDatapanel g_fnCreateDatapanel = 0;
-static FnOptionsInit g_fnOptionsInit = 0;
-static FnOptionsInit g_fnOptionsInitOrig = 0;
-static ForgottenGUI* g_ptrKenshiGUI = 0;
 
 static MyGUI::TextBox* g_deleteAllJobsTitleText = 0;
 static MyGUI::Button* g_deleteAllJobsSelectedMemberButton = 0;
@@ -228,11 +199,9 @@ static std::vector<JobRowModel> g_selectedMemberJobRows;
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static bool InitPluginMenuFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddr);
-static void OptionsWindowInitHook(OptionsWindow* self);
 static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr);
 static void OnSaveLoadTransitionStart(const char* source);
 static Character* ResolveSelectedMember();
-static bool TryResolveSelectedMemberForDebug();
 static bool TryGetPermajobCount(Character* member, int* countOut);
 static bool TryGetPermajobRow(Character* member, int slot, TaskType* taskTypeOut, std::string* nameOut, uintptr_t* taskDataPtrOut);
 static bool BuildSelectedMemberJobSnapshot(Character* member, std::vector<JobRowModel>* rowsOut, const char** resultOut);
@@ -307,10 +276,9 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnabled = false;
     diagnostics->foundDebugLogTransitions = false;
     diagnostics->invalidDebugLogTransitions = false;
-    diagnostics->foundEnableDeleteAllJobsSelectedMemberAction = false;
-    diagnostics->invalidEnableDeleteAllJobsSelectedMemberAction = false;
-    diagnostics->foundEnableExperimentalSingleJobDelete = false;
-    diagnostics->invalidEnableExperimentalSingleJobDelete = false;
+    diagnostics->foundEnableDeleteAllJobsTopActions = false;
+    diagnostics->invalidEnableDeleteAllJobsTopActions = false;
+    diagnostics->usedLegacyEnableDeleteAllJobsTopActionsKey = false;
     diagnostics->foundLogSelectedMemberJobSnapshot = false;
     diagnostics->invalidLogSelectedMemberJobSnapshot = false;
     diagnostics->foundHidePanelDuringCharacterCreation = false;
@@ -774,8 +742,7 @@ static void LoadConfigState()
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
     g_config.debugLogTransitions = false;
-    g_config.enableDeleteAllJobsSelectedMemberAction = true;
-    g_config.enableExperimentalSingleJobDelete = false;
+    g_config.enableDeleteAllJobsTopActions = true;
     g_config.logSelectedMemberJobSnapshot = false;
     g_config.hidePanelDuringCharacterCreation = true;
     g_config.hidePanelDuringInventoryOpen = true;
@@ -819,10 +786,8 @@ static void LoadConfigState()
     info << "Job-B-Gone INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
          << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
-         << " enable_delete_all_jobs_selected_member_action="
-         << (g_config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false")
-         << " enable_experimental_single_job_delete="
-         << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
+         << " enable_delete_all_jobs_top_actions="
+         << (g_config.enableDeleteAllJobsTopActions ? "true" : "false")
          << " log_selected_member_job_snapshot="
          << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
          << " hide_panel_during_character_creation="

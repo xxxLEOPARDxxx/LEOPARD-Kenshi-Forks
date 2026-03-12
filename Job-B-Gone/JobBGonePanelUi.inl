@@ -3281,7 +3281,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
     g_jobBGoneHeaderButton->setCaption(headerCaption.str());
 
-    const bool topActionsEnabled = g_config.enableDeleteAllJobsSelectedMemberAction;
+    const bool topActionsEnabled = g_config.enableDeleteAllJobsTopActions;
     const bool topActionsVisible = topActionsEnabled && !g_jobBGonePanelCollapsed;
     const bool confirmationOverlayVisible = g_jobBGoneConfirmVisible && !g_jobBGonePanelCollapsed;
     const bool topActionsActuallyVisible = topActionsVisible && !confirmationOverlayVisible;

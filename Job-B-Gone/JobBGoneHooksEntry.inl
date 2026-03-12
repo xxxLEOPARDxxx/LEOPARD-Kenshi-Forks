@@ -137,17 +137,11 @@ static bool InitPluginMenuFunctions(unsigned int platform, const std::string& ve
     {
         if (version == "1.0.65")
         {
-            g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddr + 0x003F0120);
-            g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddr + 0x0073F4B0);
-            g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddr + 0x02132750);
             g_selectedMemberInfoWindowAddress = baseAddr + 0x0212CB70;
             return true;
         }
         if (version == "1.0.68")
         {
-            g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddr + 0x003F0260);
-            g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddr + 0x0073FFE0);
-            g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddr + 0x021337B0);
             g_selectedMemberInfoWindowAddress = baseAddr + 0x0212CB70;
             return true;
         }
@@ -156,33 +150,17 @@ static bool InitPluginMenuFunctions(unsigned int platform, const std::string& ve
     {
         if (version == "1.0.65")
         {
-            g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddr + 0x003EFD40);
-            g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddr + 0x0073EE10);
-            g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddr + 0x021306C0);
             g_selectedMemberInfoWindowAddress = baseAddr + 0x0212CB70;
             return true;
         }
         if (version == "1.0.68")
         {
-            g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddr + 0x003EFC00);
-            g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddr + 0x0073F980);
-            g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddr + 0x021326E0);
             g_selectedMemberInfoWindowAddress = baseAddr + 0x0212CB70;
             return true;
         }
     }
 
     return false;
-}
-
-
-
-static void OptionsWindowInitHook(OptionsWindow* self)
-{
-    if (g_fnOptionsInitOrig)
-    {
-        g_fnOptionsInitOrig(self);
-    }
 }
 
 __declspec(dllexport) void startPlugin()
@@ -202,14 +180,7 @@ __declspec(dllexport) void startPlugin()
     const uintptr_t baseAddr = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));
     if (!InitPluginMenuFunctions(platform, version, baseAddr))
     {
-        ErrorLog("Job-B-Gone WARN: failed to initialize plugin menu pointers; options button disabled");
-    }
-    else
-    {
-        if (KenshiLib::SUCCESS != KenshiLib::AddHook(g_fnOptionsInit, OptionsWindowInitHook, &g_fnOptionsInitOrig))
-        {
-            ErrorLog("Job-B-Gone WARN: Could not hook options init; options button disabled");
-        }
+        ErrorLog("Job-B-Gone WARN: failed to initialize selected-member UI pointers; info-panel detection may be reduced");
     }
 
     LoadConfigState();
@@ -268,10 +239,8 @@ __declspec(dllexport) void startPlugin()
 
     std::stringstream info;
     info << "Job-B-Gone INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false")
-         << ", enable_delete_all_jobs_selected_member_action="
-         << (g_config.enableDeleteAllJobsSelectedMemberAction ? "true" : "false")
-         << ", enable_experimental_single_job_delete="
-         << (g_config.enableExperimentalSingleJobDelete ? "true" : "false")
+         << ", enable_delete_all_jobs_top_actions="
+         << (g_config.enableDeleteAllJobsTopActions ? "true" : "false")
          << ", log_selected_member_job_snapshot="
          << (g_config.logSelectedMemberJobSnapshot ? "true" : "false")
          << ", job_b_gone_panel_collapsed="
