@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -n "${KENSHI_REPO_DIR:-}" ]]; then
   REPO_DIR="$KENSHI_REPO_DIR"
 else
-  REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+  REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
 ENV_FILE="$REPO_DIR/.env"
 
