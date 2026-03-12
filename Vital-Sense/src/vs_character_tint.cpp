@@ -1025,13 +1025,12 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
         return false;
     }
 
-    AnimalTintMaterialCloneEntry entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
-    gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
-
     if (!characterEntity)
     {
         return false;
     }
+
+    AnimalTintMaterialCloneEntry& entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
 
     size_t subEntityCount = 0;
     try
@@ -1043,10 +1042,14 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
         return false;
     }
 
-    const size_t restoreCount =
-        (subEntityCount < entry.originalMaterials.size()) ? subEntityCount : entry.originalMaterials.size();
+    if (subEntityCount < entry.originalMaterials.size())
+    {
+        return false;
+    }
+
     bool restoredAny = false;
-    for (size_t i = 0; i < restoreCount; ++i)
+    bool restoredAll = true;
+    for (size_t i = 0; i < entry.originalMaterials.size(); ++i)
     {
         if (entry.originalMaterials[i].isNull())
         {
@@ -1064,6 +1067,7 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
         }
         if (!subEntity)
         {
+            restoredAll = false;
             continue;
         }
 
@@ -1081,6 +1085,15 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
         {
             restoredAny = true;
         }
+        else
+        {
+            restoredAll = false;
+        }
+    }
+
+    if (restoredAll)
+    {
+        gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
     }
 
     return restoredAny;
