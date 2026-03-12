@@ -31,11 +31,11 @@ $initTemplateScript = Join-Path $scriptDir "init-mod-template.ps1"
 
 if (-not (Test-Path $buildScript)) {
     Write-Host "ERROR: build.ps1 not found at $buildScript" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 if (-not (Test-Path $packageScript)) {
     Write-Host "ERROR: package.ps1 not found at $packageScript" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 Write-Host "=== Kenshi Mod Build + Package ===" -ForegroundColor Cyan
@@ -52,10 +52,10 @@ $buildParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -Allo
     "PlatformToolset"
 )
 
-& $buildScript @buildParams
+Invoke-KenshiScriptWithSuppressedTimestamp { & $buildScript @buildParams }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: build.ps1 failed" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 $ctx = Initialize-KenshiScriptContext -InvocationPath $MyInvocation.MyCommand.Path
@@ -68,7 +68,7 @@ if (-not (Test-Path $resolved.ModDir)) {
     if (-not (Test-Path $initTemplateScript)) {
         Write-Host "ERROR: Mod template folder not found: $($resolved.ModDir)" -ForegroundColor Red
         Write-Host "ERROR: init-mod-template.ps1 not found at $initTemplateScript" -ForegroundColor Red
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 
     Write-Host "Mod template folder missing. Initializing baseline template..." -ForegroundColor Yellow
@@ -76,12 +76,12 @@ if (-not (Test-Path $resolved.ModDir)) {
         & $initTemplateScript -RepoDir $ctx.RepoDir -ModName $resolved.ModName -DllName $resolved.DllName -ModFileName $resolved.ModFileName -ConfigFileName $resolved.ConfigFileName
     } catch {
         Write-Host "ERROR: Failed while initializing mod template folder. Details: $_" -ForegroundColor Red
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 
     if (-not (Test-Path $resolved.ModDir)) {
         Write-Host "ERROR: Failed to initialize mod template folder: $($resolved.ModDir)" -ForegroundColor Red
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 }
 
@@ -112,8 +112,10 @@ if ($PSBoundParameters.ContainsKey("Version")) {
     $packageParams.Version = $Version
 }
 
-& $packageScript @packageParams
+Invoke-KenshiScriptWithSuppressedTimestamp { & $packageScript @packageParams }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: package.ps1 failed" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
+
+return (Exit-KenshiScriptWithTimestamp -ExitCode 0)

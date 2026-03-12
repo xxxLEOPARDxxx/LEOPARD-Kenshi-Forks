@@ -28,11 +28,11 @@ $deployScript = Join-Path $scriptDir "deploy.ps1"
 
 if (-not (Test-Path $buildScript)) {
     Write-Host "ERROR: build.ps1 not found at $buildScript" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 if (-not (Test-Path $deployScript)) {
     Write-Host "ERROR: deploy.ps1 not found at $deployScript" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 Write-Host "=== Kenshi Mod Build + Deploy ===" -ForegroundColor Cyan
@@ -49,10 +49,10 @@ $buildParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -Allo
     "PlatformToolset"
 )
 
-& $buildScript @buildParams
+Invoke-KenshiScriptWithSuppressedTimestamp { & $buildScript @buildParams }
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: build.ps1 failed" -ForegroundColor Red
-    exit 1
+    Write-Host "ERROR: build.ps1 failed (exit code $LASTEXITCODE)" -ForegroundColor Red
+    return (Exit-KenshiScriptWithTimestamp -ExitCode $LASTEXITCODE)
 }
 
 $deployParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -AllowedKeys @(
@@ -67,8 +67,10 @@ $deployParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -All
     "Platform"
 )
 
-& $deployScript @deployParams
+Invoke-KenshiScriptWithSuppressedTimestamp { & $deployScript @deployParams }
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: deploy.ps1 failed" -ForegroundColor Red
-    exit 1
+    Write-Host "ERROR: deploy.ps1 failed (exit code $LASTEXITCODE)" -ForegroundColor Red
+    return (Exit-KenshiScriptWithTimestamp -ExitCode $LASTEXITCODE)
 }
+
+return (Exit-KenshiScriptWithTimestamp -ExitCode 0)

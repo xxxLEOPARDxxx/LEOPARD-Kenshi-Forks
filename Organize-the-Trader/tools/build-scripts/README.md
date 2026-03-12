@@ -1,14 +1,24 @@
-# Kenshi Shared Build Scripts
+# Kenshi shared build scripts
 
 Shared build, deploy, and package scripts for Kenshi plugin mods.
 
-## Scope
-This repository stores the canonical script set extracted from Organize the Trader scripts.
+## Consumption (Subtree)
+Import this directory into each mod repo at `tools/build-scripts` via `git subtree`.
 
-## Consumption (Submodule)
-Add this repository as a submodule in each mod repo at `tools/build-scripts`.
+Initial import:
+```bash
+git remote add build-scripts git@github.com:Emkej/kenshi-mod-build-scripts.git
+git fetch build-scripts consumer-main
+git subtree add --prefix=tools/build-scripts build-scripts consumer-main
+```
 
-## Script Layout
+Update an existing consumer:
+```bash
+git fetch build-scripts consumer-main
+git subtree pull --prefix=tools/build-scripts build-scripts consumer-main
+```
+
+## Script layout
 Single-purpose scripts:
 - `build.ps1` / `build.sh`: compile only
 - `deploy.ps1` / `deploy.sh`: deploy only

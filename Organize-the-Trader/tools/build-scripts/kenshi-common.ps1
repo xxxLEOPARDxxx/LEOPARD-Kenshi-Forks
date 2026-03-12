@@ -45,6 +45,45 @@ function Get-KenshiEnvValue {
     return [string]$value
 }
 
+function Write-KenshiBuildFinishedTimestamp {
+    $suppressTimestamp = Get-KenshiEnvValue -Name "KENSHI_SUPPRESS_FINISH_TIMESTAMP"
+    if ($suppressTimestamp -and $suppressTimestamp -ne "0") {
+        return
+    }
+
+    $finishedAt = (Get-Date).ToString("HH:mm:ss, dd.MM.yyyy")
+    Write-Host $finishedAt -ForegroundColor Gray
+}
+
+function Exit-KenshiScriptWithTimestamp {
+    param(
+        [int]$ExitCode = 0
+    )
+
+    $global:LASTEXITCODE = $ExitCode
+    Write-KenshiBuildFinishedTimestamp
+    exit $ExitCode
+}
+
+function Invoke-KenshiScriptWithSuppressedTimestamp {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    $previousSuppressTimestamp = Get-KenshiEnvValue -Name "KENSHI_SUPPRESS_FINISH_TIMESTAMP"
+    $env:KENSHI_SUPPRESS_FINISH_TIMESTAMP = "1"
+    try {
+        & $Action
+        $global:LASTEXITCODE = $LASTEXITCODE
+    } finally {
+        if ($previousSuppressTimestamp) {
+            $env:KENSHI_SUPPRESS_FINISH_TIMESTAMP = $previousSuppressTimestamp
+        } else {
+            Remove-Item Env:KENSHI_SUPPRESS_FINISH_TIMESTAMP -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Resolve-KenshiValue {
     param(
         [string]$CurrentValue = "",
@@ -283,6 +322,143 @@ function Ensure-ModFile {
 
     Copy-Item -Path $TemplatePath -Destination $Path -Force
     Write-Host "Created missing mod file: $Path" -ForegroundColor Gray
+}
+
+function Get-SuspectedKenshiLockProcesses {
+    param(
+        [string]$KenshiPath = ""
+    )
+
+    $suspects = @()
+    $seenPids = @{}
+
+    foreach ($candidateName in @("kenshi_x64", "kenshi")) {
+        $matching = Get-Process -Name $candidateName -ErrorAction SilentlyContinue
+        foreach ($proc in $matching) {
+            if ($seenPids.ContainsKey($proc.Id)) {
+                continue
+            }
+
+            $seenPids[$proc.Id] = $true
+            $suspects += [pscustomobject]@{
+                Name = [string]$proc.ProcessName
+                Id = [int]$proc.Id
+            }
+        }
+    }
+
+    if ($suspects.Count -gt 0 -or -not $KenshiPath) {
+        return $suspects
+    }
+
+    $resolvedKenshiPath = ""
+    try {
+        $resolvedKenshiPath = [System.IO.Path]::GetFullPath($KenshiPath)
+    } catch {
+        return $suspects
+    }
+
+    if (-not (Test-Path $resolvedKenshiPath)) {
+        return $suspects
+    }
+
+    $allProcesses = Get-Process -ErrorAction SilentlyContinue
+    foreach ($proc in $allProcesses) {
+        if ($seenPids.ContainsKey($proc.Id)) {
+            continue
+        }
+
+        try {
+            $mainModule = $proc.MainModule
+            if ($null -eq $mainModule -or -not $mainModule.FileName) {
+                continue
+            }
+
+            $processPath = [System.IO.Path]::GetFullPath([string]$mainModule.FileName)
+            if (-not $processPath.StartsWith($resolvedKenshiPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $seenPids[$proc.Id] = $true
+            $suspects += [pscustomobject]@{
+                Name = [string]$proc.ProcessName
+                Id = [int]$proc.Id
+            }
+        } catch {
+            continue
+        }
+    }
+
+    return $suspects
+}
+
+function Test-DeploySharingViolationException {
+    param(
+        [Parameter(Mandatory = $true)][System.Exception]$Exception
+    )
+
+    $current = $Exception
+    while ($null -ne $current) {
+        if ($current -is [System.IO.IOException]) {
+            $nativeCode = $current.HResult -band 0xFFFF
+            if ($nativeCode -eq 32 -or $nativeCode -eq 33) {
+                return $true
+            }
+        }
+
+        $current = $current.InnerException
+    }
+
+    return $false
+}
+
+function Test-DeployTargetPreflight {
+    param(
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [string]$KenshiPath = ""
+    )
+
+    $result = [ordered]@{
+        CanProceed = $true
+        FailureReason = ""
+        ExitCode = 0
+        Details = ""
+        TargetPath = $TargetPath
+        SuspectedProcesses = @()
+    }
+
+    if (-not (Test-Path $TargetPath)) {
+        return [pscustomobject]$result
+    }
+
+    $stream = $null
+    try {
+        $stream = [System.IO.File]::Open(
+            $TargetPath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+        return [pscustomobject]$result
+    } catch {
+        $result.CanProceed = $false
+        $result.Details = [string]$_.Exception.Message
+
+        if (Test-DeploySharingViolationException -Exception $_.Exception) {
+            $result.FailureReason = "in_use"
+            $result.ExitCode = 32
+            $result.SuspectedProcesses = @(Get-SuspectedKenshiLockProcesses -KenshiPath $KenshiPath)
+        } else {
+            $result.FailureReason = "not_writable"
+            $result.ExitCode = 33
+        }
+
+        return [pscustomobject]$result
+    } finally {
+        if ($null -ne $stream) {
+            $stream.Dispose()
+        }
+    }
 }
 
 function Get-ForwardedParameters {
