@@ -266,18 +266,22 @@ function Invoke-KenshiBuild {
         [Parameter(Mandatory = $true)][string]$ProjectFile,
         [Parameter(Mandatory = $true)][string]$Configuration,
         [Parameter(Mandatory = $true)][string]$Platform,
-        [Parameter(Mandatory = $true)][string]$PlatformToolset
+        [Parameter(Mandatory = $true)][string]$PlatformToolset,
+        [switch]$Clean
     )
 
     Write-Host "Locating MSBuild..." -ForegroundColor Gray
     $msBuildPath = Get-MSBuildPath
     Write-Host "Using MSBuild: $msBuildPath" -ForegroundColor Gray
 
-    Write-Host "Building project..." -ForegroundColor Yellow
+    $buildTarget = if ($Clean) { "Clean,Rebuild" } else { "Build" }
+    $buildModeLabel = if ($Clean) { "clean rebuild" } else { "incremental build" }
+
+    Write-Host "Building project ($buildModeLabel)..." -ForegroundColor Yellow
 
     $buildArgs = @(
         $ProjectFile,
-        "/t:Clean,Rebuild",
+        "/t:$buildTarget",
         "/p:Configuration=$Configuration",
         "/p:Platform=$Platform",
         "/p:PlatformToolset=$PlatformToolset",

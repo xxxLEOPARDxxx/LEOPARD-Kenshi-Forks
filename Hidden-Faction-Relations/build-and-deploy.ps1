@@ -10,7 +10,8 @@ param(
     [string]$KenshiPath = "",
     [string]$Configuration = "",
     [string]$Platform = "",
-    [string]$PlatformToolset = ""
+    [string]$PlatformToolset = "",
+    [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,7 +47,8 @@ $buildParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -Allo
     "ConfigFileName",
     "Configuration",
     "Platform",
-    "PlatformToolset"
+    "PlatformToolset",
+    "Clean"
 )
 
 Invoke-KenshiScriptWithSuppressedTimestamp { & $buildScript @buildParams }

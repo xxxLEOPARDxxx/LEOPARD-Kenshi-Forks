@@ -9,7 +9,8 @@ param(
     [string]$ConfigFileName = "",
     [string]$Configuration = "",
     [string]$Platform = "",
-    [string]$PlatformToolset = ""
+    [string]$PlatformToolset = "",
+    [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,7 +43,7 @@ try {
 }
 
 try {
-    Invoke-KenshiBuild -ProjectFile $resolved.ProjectFile -Configuration $resolved.Configuration -Platform $resolved.Platform -PlatformToolset $resolved.PlatformToolset
+    Invoke-KenshiBuild -ProjectFile $resolved.ProjectFile -Configuration $resolved.Configuration -Platform $resolved.Platform -PlatformToolset $resolved.PlatformToolset -Clean:$Clean
     Write-Host "Build succeeded!" -ForegroundColor Green
 } catch {
     Write-Host "ERROR: $_" -ForegroundColor Red
