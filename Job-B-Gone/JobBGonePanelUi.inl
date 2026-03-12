@@ -893,7 +893,7 @@ static void MaybeLogMemberUiSuppressionProbe(
     bool memberInventoryVisible,
     bool targetInventoryVisible)
 {
-    if (!member)
+    if (!g_config.debugLogTransitions || !member)
     {
         return;
     }
@@ -967,6 +967,11 @@ static void LogPanelUiSuppressionSources(
     int desiredSuppressionMask,
     int reasonMask)
 {
+    if (!g_config.debugLogTransitions)
+    {
+        return;
+    }
+
     static bool s_initialized = false;
     static bool s_lastDialogueWindowOpen = false;
     static bool s_lastMenuOpen = false;
@@ -1164,6 +1169,11 @@ static void CaptureHudToggleEventSignal()
         return;
     }
 
+    if (!g_config.debugLogTransitions)
+    {
+        return;
+    }
+
     if (hiddenNow)
     {
         DebugLog(knownNow
@@ -1193,6 +1203,11 @@ static void LogHudSignalProbe(
     int sourceCode,
     bool finalHidden)
 {
+    if (!g_config.debugLogTransitions)
+    {
+        return;
+    }
+
     static bool s_initialized = false;
     static bool s_lastKeyPointerSeen = false;
     static bool s_lastToggleBarCommandFound = false;
@@ -1642,7 +1657,8 @@ static bool TryDetectDialogueWindowOpenState(bool* openOut, unsigned int* signal
     static bool s_hasLoggedState = false;
     static bool s_lastLoggedVisible = false;
     static unsigned int s_lastLoggedMask = DialogueUiSignalMask_None;
-    if (!s_hasLoggedState || s_lastLoggedVisible != dialogueVisible || s_lastLoggedMask != signalMask)
+    if (g_config.debugLogTransitions
+        && (!s_hasLoggedState || s_lastLoggedVisible != dialogueVisible || s_lastLoggedMask != signalMask))
     {
         std::stringstream info;
         info << "Job-B-Gone DEBUG: dialogue_window_probe"
@@ -3116,12 +3132,15 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
         if (g_jobBGoneConfirmOverlay && g_jobBGoneConfirmTitleText && g_jobBGoneConfirmTitleTextBold && g_jobBGoneConfirmBodyText
             && g_jobBGoneConfirmYesButton && g_jobBGoneConfirmNoButton)
         {
-            std::stringstream info;
-            info << "Job-B-Gone DEBUG: confirmation_overlay_created mode=panel_child"
-                 << " overlay_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_jobBGoneConfirmOverlay)
-                 << " panel_ptr=0x" << reinterpret_cast<uintptr_t>(g_jobBGonePanel)
-                 << std::dec;
-            DebugLog(info.str().c_str());
+            if (g_config.debugLogTransitions)
+            {
+                std::stringstream info;
+                info << "Job-B-Gone DEBUG: confirmation_overlay_created mode=panel_child"
+                     << " overlay_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_jobBGoneConfirmOverlay)
+                     << " panel_ptr=0x" << reinterpret_cast<uintptr_t>(g_jobBGonePanel)
+                     << std::dec;
+                DebugLog(info.str().c_str());
+            }
 
             g_jobBGoneConfirmOverlay->setCaption("");
             g_jobBGoneConfirmOverlay->setNeedMouseFocus(true);
@@ -3176,13 +3195,16 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     const bool hasSelectedMember = (selectedMember != 0);
     if (hasSelectedMember != g_lastLoggedHasSelectedMemberForButton)
     {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: selected_member_resolved_for_button="
-                << (hasSelectedMember ? "true" : "false")
-                << " selected_character_handle_valid="
-                << ((g_lastPlayerInterface && g_lastPlayerInterface->selectedCharacter
-                    && g_lastPlayerInterface->selectedCharacter.isValid()) ? "true" : "false");
-        DebugLog(logline.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream logline;
+            logline << "Job-B-Gone DEBUG: selected_member_resolved_for_button="
+                    << (hasSelectedMember ? "true" : "false")
+                    << " selected_character_handle_valid="
+                    << ((g_lastPlayerInterface && g_lastPlayerInterface->selectedCharacter
+                        && g_lastPlayerInterface->selectedCharacter.isValid()) ? "true" : "false");
+            DebugLog(logline.str().c_str());
+        }
         g_lastLoggedHasSelectedMemberForButton = hasSelectedMember;
     }
 
@@ -3210,11 +3232,14 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     if (panelVisibilityGateChanged)
     {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: panel_visibility_gate"
-                << " suppressed=" << (suppressPanel ? "true" : "false")
-                << " reasons=" << panelVisibilityReasonSummary;
-        DebugLog(logline.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream logline;
+            logline << "Job-B-Gone DEBUG: panel_visibility_gate"
+                    << " suppressed=" << (suppressPanel ? "true" : "false")
+                    << " reasons=" << panelVisibilityReasonSummary;
+            DebugLog(logline.str().c_str());
+        }
         g_lastLoggedPanelSuppressedByUiState = suppressPanelByUiState;
         g_lastLoggedPanelSuppressionReasonMask = panelUiSuppressionReasonMask;
         g_lastLoggedPanelSuppressedByToggle = suppressPanelByToggle;
@@ -3228,7 +3253,8 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
             s_lastPanelVisibilityGateChangeMs = nowMs;
             s_lastPanelVisibilityGateHeartbeatMs = nowMs;
         }
-        else if (DebounceWindowElapsed(nowMs, s_lastPanelVisibilityGateHeartbeatMs, 5000))
+        else if (g_config.debugLogTransitions
+            && DebounceWindowElapsed(nowMs, s_lastPanelVisibilityGateHeartbeatMs, 5000))
         {
             std::stringstream info;
             info << "Job-B-Gone DEBUG: panel_visibility_gate_stuck"
@@ -3388,17 +3414,20 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     }
     if (confirmationOverlayVisible != g_lastLoggedConfirmOverlayVisible)
     {
-        std::stringstream info;
-        const MyGUI::IntCoord coord = g_jobBGoneConfirmOverlay->getCoord();
-        info << "Job-B-Gone DEBUG: confirmation_overlay_visibility"
-             << " visible=" << (confirmationOverlayVisible ? "true" : "false")
-             << " widget_visible=" << (g_jobBGoneConfirmOverlay->getVisible() ? "true" : "false")
-             << " x=" << coord.left
-             << " y=" << coord.top
-             << " w=" << coord.width
-             << " h=" << coord.height
-             << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            const MyGUI::IntCoord coord = g_jobBGoneConfirmOverlay->getCoord();
+            info << "Job-B-Gone DEBUG: confirmation_overlay_visibility"
+                 << " visible=" << (confirmationOverlayVisible ? "true" : "false")
+                 << " widget_visible=" << (g_jobBGoneConfirmOverlay->getVisible() ? "true" : "false")
+                 << " x=" << coord.left
+                 << " y=" << coord.top
+                 << " w=" << coord.width
+                 << " h=" << coord.height
+                 << " collapsed=" << (g_jobBGonePanelCollapsed ? "true" : "false");
+            DebugLog(info.str().c_str());
+        }
         g_lastLoggedConfirmOverlayVisible = confirmationOverlayVisible;
     }
 
@@ -3568,13 +3597,16 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     }
     if (topActionsVisible != g_lastLoggedButtonVisibleState)
     {
-        std::stringstream logline;
-        logline << "Job-B-Gone DEBUG: delete-all-controls visible="
-                << (topActionsVisible ? "true" : "false")
-                << " selected_member_resolved=" << (hasSelectedMember ? "true" : "false")
-                << " action_enabled=" << (topActionsEnabled ? "true" : "false")
-                << " button_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_deleteAllJobsSelectedMemberButton);
-        DebugLog(logline.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream logline;
+            logline << "Job-B-Gone DEBUG: delete-all-controls visible="
+                    << (topActionsVisible ? "true" : "false")
+                    << " selected_member_resolved=" << (hasSelectedMember ? "true" : "false")
+                    << " action_enabled=" << (topActionsEnabled ? "true" : "false")
+                    << " button_ptr=0x" << std::hex << reinterpret_cast<uintptr_t>(g_deleteAllJobsSelectedMemberButton);
+            DebugLog(logline.str().c_str());
+        }
         g_lastLoggedButtonVisibleState = topActionsVisible;
     }
 }

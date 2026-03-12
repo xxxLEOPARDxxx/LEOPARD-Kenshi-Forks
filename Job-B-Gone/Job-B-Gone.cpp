@@ -735,7 +735,7 @@ static void TickPanelVisibilityToggleHotkey(bool allowToggle, const char* blocke
     const bool hotkeyDown = IsPanelVisibilityToggleHotkeyDown();
     if (!allowToggle)
     {
-        if (hotkeyDown && !g_panelVisibilityTogglePrevDown)
+        if (g_config.debugLogTransitions && hotkeyDown && !g_panelVisibilityTogglePrevDown)
         {
             std::stringstream info;
             info << "Job-B-Gone DEBUG: panel_visibility_toggle_blocked"
@@ -776,7 +776,7 @@ static void LoadConfigState()
     g_config.debugLogTransitions = false;
     g_config.enableDeleteAllJobsSelectedMemberAction = true;
     g_config.enableExperimentalSingleJobDelete = false;
-    g_config.logSelectedMemberJobSnapshot = true;
+    g_config.logSelectedMemberJobSnapshot = false;
     g_config.hidePanelDuringCharacterCreation = true;
     g_config.hidePanelDuringInventoryOpen = true;
     g_config.hidePanelDuringCharacterInteraction = true;

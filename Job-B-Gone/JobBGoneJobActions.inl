@@ -434,7 +434,7 @@ static void ClearDangerScopeArmState(const char* source)
     g_dangerScopeArmedAtMs = 0;
     SetDangerButtonCaption(previousButton, previousScope, false);
 
-    if (hadArmedScope)
+    if (hadArmedScope && g_config.debugLogTransitions)
     {
         std::stringstream info;
         info << "Job-B-Gone DEBUG: danger_scope_disarmed"
@@ -473,11 +473,14 @@ static bool HandleDangerScopeTwoStep(MyGUI::Widget* sender, JobDeleteScope scope
             g_jobBGoneHoverHintText->setCaption(hint.str());
         }
 
-        std::stringstream info;
-        info << "Job-B-Gone DEBUG: danger_scope_armed"
-             << " source=" << (source ? source : "unknown")
-             << " scope=" << GetScopeLogName(scope);
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Job-B-Gone DEBUG: danger_scope_armed"
+                 << " source=" << (source ? source : "unknown")
+                 << " scope=" << GetScopeLogName(scope);
+            DebugLog(info.str().c_str());
+        }
         return true;
     }
 
@@ -938,16 +941,19 @@ static bool ShowConfirmationOverlay(
     g_jobBGoneConfirmBodyText->setCaption(body);
     g_jobBGoneConfirmVisible = true;
 
-    const MyGUI::IntCoord overlayCoord = g_jobBGoneConfirmOverlay->getCoord();
-    std::stringstream info;
-    info << "Job-B-Gone DEBUG: confirmation_overlay_show"
-         << " type=" << static_cast<int>(type)
-         << " scope=" << GetScopeLogName(scope)
-         << " x=" << overlayCoord.left
-         << " y=" << overlayCoord.top
-         << " w=" << overlayCoord.width
-         << " h=" << overlayCoord.height;
-    DebugLog(info.str().c_str());
+    if (g_config.debugLogTransitions)
+    {
+        const MyGUI::IntCoord overlayCoord = g_jobBGoneConfirmOverlay->getCoord();
+        std::stringstream info;
+        info << "Job-B-Gone DEBUG: confirmation_overlay_show"
+             << " type=" << static_cast<int>(type)
+             << " scope=" << GetScopeLogName(scope)
+             << " x=" << overlayCoord.left
+             << " y=" << overlayCoord.top
+             << " w=" << overlayCoord.width
+             << " h=" << overlayCoord.height;
+        DebugLog(info.str().c_str());
+    }
 
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
     if (input && g_jobBGoneConfirmYesButton)
