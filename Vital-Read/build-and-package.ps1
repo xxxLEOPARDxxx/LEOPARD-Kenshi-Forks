@@ -7,6 +7,7 @@ param(
     [string]$Configuration = "",
     [string]$Platform = "",
     [string]$PlatformToolset = "",
+    [switch]$Clean,
     [string]$DllName = "",
     [string]$ModFileName = "",
     [string]$ConfigFileName = "",
@@ -49,7 +50,8 @@ $buildParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -Allo
     "ConfigFileName",
     "Configuration",
     "Platform",
-    "PlatformToolset"
+    "PlatformToolset",
+    "Clean"
 )
 
 Invoke-KenshiScriptWithSuppressedTimestamp { & $buildScript @buildParams }
