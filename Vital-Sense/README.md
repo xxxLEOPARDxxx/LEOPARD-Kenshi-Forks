@@ -3,7 +3,9 @@
 This repository is a clean starter base for a `Vital-Sense` RE_Kenshi native plugin.
 
 ## Setup
-Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-script submodule init step is required.
+
+This repo tracks the current Emkejs Mod Core consumer SDK through the `tools/mod-hub-sdk` submodule. Initialize it with `git submodule update --init --recursive -- tools/mod-hub-sdk`.
 
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
@@ -14,6 +16,15 @@ This sets:
 - `KENSHILIB_DEPS_DIR`
 - `KENSHILIB_DIR`
 - `BOOST_INCLUDE_PATH`
+
+## Mod Hub SDK Sync
+Sync and validate the pinned Mod Hub SDK with:
+
+```bash
+./scripts/sync-mod-hub-sdk.sh
+```
+
+Use `--skip-pull` for validation-only mode when you only want to check the currently checked out SDK revision.
 
 ## Build
 You can build in Visual Studio, or via the script below.
@@ -42,12 +53,21 @@ After deploy, expected files:
 Current keys:
 - `enabled` (bool): master toggle.
 - `update_interval_ms` (number): KO target refresh interval.
-- `only_when_alt_held` (bool): when true, KO highlights are visible only while `ALT` is pressed.
+- `highlight_key` (string): primary key that gates KO highlights. Use `UNBOUND` for always-on, default `ALT`.
+- `highlight_key_require_ctrl` (bool): require `CTRL` with `highlight_key`.
+- `highlight_key_require_shift` (bool): require `SHIFT` with `highlight_key`.
+- `highlight_key_require_alt` (bool): require `ALT` with `highlight_key`.
 - `max_highlight_distance_m` (number): max horizontal distance from camera center for KO highlights (default `3500`).
 - `show_icons` (bool): show state icons.
 - `show_text` (bool): show state text (`ZZ`, `RC`, `DY`, `PD`, `DE`).
 - `show_bounty_glow` (bool): show bounty glow.
 - `show_bounty_symbol` (bool): show bounty symbol text using tier colors.
+- `debug_log_diagnostics` (bool): enable extra runtime diagnostics.
+- `debug_log_texture_info` (bool): log custom icon texture resolution details.
+- `enable_character_tint` (bool): enable experimental per-character shader tint highlight (default `true`).
+- `character_tint_include_squad` (bool): tint conscious squadmates too when character tint is enabled (default `true`).
+- `character_tint_include_bounty_only` (bool): also tint non-downed bounty-only targets (default `false`).
+- `character_tint_force_depth_override` (bool): force tint to render through depth when supported by the shader (default `true`).
 - `show_bounty_symbol_on_all_characters` (bool): when true, bounty symbol is also shown for non-downed on-screen targets with bounty.
 - `bounty_symbol` (string): symbol text (for example `B` or `$`).
 - `bounty_symbol_size_px` (number): base bounty symbol font height (`$` gets a small automatic readability bump, and higher tiers scale up slightly).
@@ -61,3 +81,15 @@ Current keys:
 - `enemy_color_hex`, `ally_color_hex`, `squad_color_hex` (hex string): relation colors.
 - `unconscious_icon_texture`, `recovery_coma_icon_texture`, `dying_icon_texture`, `playing_dead_icon_texture`, `dead_icon_texture` (string): per-state icon textures.
 - `unconscious_icon_size_px`, `recovery_coma_icon_size_px`, `dying_icon_size_px`, `playing_dead_icon_size_px`, `dead_icon_size_px` (number): per-state icon sizes.
+
+## Mod Hub Menu Integration
+Vital Sense now registers supported settings with the `Emkejs-Mod-Core` Mod Hub using the current public consumer SDK/helper flow tracked in `tools/mod-hub-sdk`.
+
+- Namespace: `emkej.qol`
+- Mod ID: `vital_sense`
+
+Behavior:
+- If Mod Hub is available, supported bool/int/keybind settings can be changed in the hub and are persisted back to `mod-config.json`.
+- `highlight_key` is exposed as a keybind row, and the modifier requirements are exposed as separate bool rows so combos like `CTRL+SHIFT+C` can be built from the current menu surface.
+- If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
+- The Mod Hub menu intentionally exposes only a supported subset. File-only settings still include `update_interval_ms`, debug flags, advanced tint options, bounty live-anchor/tier tuning, relation colors, `bounty_symbol`, `bounty_symbol_position`, `*_text`, `*_icon_texture`, and `*_icon_size_px`.
