@@ -637,7 +637,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, false, false, true, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = { true, true, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 

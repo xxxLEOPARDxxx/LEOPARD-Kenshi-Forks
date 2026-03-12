@@ -35,17 +35,14 @@
 static const char* kPluginName = "Loot-Scoot-Execute";
 static const char* kConfigFileName = "mod-config.json";
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
-static const DWORD kDebugExecuteContextTargetMaxAgeMs = 1500;
 static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
 static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
 static const DWORD kQueuedExecuteRepathIntervalMs = 200;
-static const DWORD kQueuedExecuteStateLogMinIntervalMs = 500;
 static const DWORD kQueuedExecuteAttackWindupMs = 180;
 static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
 static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
 static const DWORD kQueuedExecuteFacingGraceMs = 1500;
 static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
-static const int kDebugExecuteHotkeyVirtualKey = VK_F8;
 static const float kQueuedExecuteMaxDistanceMeters = 2.0f;
 static const float kQueuedExecutePostTriggerDispatchExtraDistanceMeters = 1.5f;
 static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
@@ -68,7 +65,6 @@ static const char* kExecuteKillSoundEventCandidates[] =
 static const size_t kExecuteKillSoundEventCandidateCount =
     sizeof(kExecuteKillSoundEventCandidates) / sizeof(kExecuteKillSoundEventCandidates[0]);
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
-static const bool kEnableNativeContextMenuIntegration = false;
 static const bool kEnableCustomExecutePanelOverlay = true;
 static const int kCustomExecutePanelMinWidth = 280;
 static const int kCustomExecutePanelMinRowHeight = 24;
@@ -98,7 +94,6 @@ static const int kContextMenuOrderIdLoot = 26;
 static const int kContextMenuOrderIdLiftPersonPlayerOrder = static_cast<int>(LIFT_PERSON_PLAYER_ORDER);
 static const int kContextMenuOrderIdStealthKill = static_cast<int>(STEALTH_KILL);
 static const int kContextMenuOrderIdExecuteProxy = static_cast<int>(KILL_CAGE_OCCUPANT);
-static const size_t kContextMenuProbeOrderSampleCount = 6;
 static const uintptr_t kExpectedRvaContextMenuShow_1_0_65 = 0x007A5960;
 static const uintptr_t kExpectedRvaContextMenuBuildRows_1_0_65 = 0x007A7FE0;
 static const uintptr_t kExpectedRvaContextMenuUpdate_1_0_65 = 0x008055A0;
@@ -117,8 +112,6 @@ static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 
 static PluginConfig g_config = {
     true,
-    false,
-    false,
     true,
     kExecuteButtonDefaultWidth,
     kExecuteButtonDefaultHeight,
@@ -128,7 +121,6 @@ static PluginConfig g_config = {
 static std::string g_settingsPath;
 static bool g_configNeedsWriteBack = false;
 static bool g_contextMenuHookInstallVerified = false;
-static bool g_effectiveEnableContextMenuProbe = false;
 static bool g_effectiveEnableContextMenuInjection = false;
 static bool g_effectiveEnableExecuteAction = false;
 static uintptr_t g_resolvedContextMenuShowAddress = 0;
@@ -223,29 +215,11 @@ static uintptr_t g_queuedExecuteActorPtr = 0;
 static uintptr_t g_queuedExecuteTargetPtr = 0;
 static DWORD g_queuedExecuteArmedMs = 0;
 static DWORD g_queuedExecuteLastApproachCommandMs = 0;
-static DWORD g_queuedExecuteLastStateLogMs = 0;
 static bool g_queuedExecuteAttackTriggered = false;
 static DWORD g_queuedExecuteAttackTriggeredMs = 0;
 static DWORD g_queuedExecuteInRangeSinceMs = 0;
 static const char* g_queuedExecuteAnimationMode = "none";
 static bool g_queuedExecuteSlaveAnimPlaying = false;
-static bool g_debugExecuteHotkeyWasDown = false;
-static uintptr_t g_lastDebugExecuteContextTargetPtr = 0;
-static DWORD g_lastDebugExecuteContextTargetCaptureMs = 0;
-static bool g_nativeExecuteSelectionHookInstallVerified = false;
-static bool g_nativeExecuteProbabilityHookInstallVerified = false;
-static bool g_nativeExecuteOrderFilterHookInstallVerified = false;
-static bool g_nativeExecuteContextMenuProbabilityHookInstallVerified = false;
-static bool g_nativeExecuteOrderValidityHookInstallVerified = false;
-static bool g_nativeExecuteOrderAppendHookInstallVerified = false;
-static bool g_nativeExecuteTaskLabelHookInstallVerified = false;
-static bool g_nativeExecuteMenuBuildHookInstallVerified = false;
-static bool g_nativeExecuteRowInsertHookInstallVerified = false;
-static bool g_nativeExecuteLoopEntryHookInstallVerified = false;
-static bool g_nativeExecuteOrderFilterAlternateHookInstallVerified = false;
-static bool g_nativeExecuteContextMenuProbabilityAlternateHookInstallVerified = false;
-static bool g_nativeExecuteOrderAppendAlternateHookInstallVerified = false;
-static bool g_nativeExecuteTaskLabelAlternateHookInstallVerified = false;
 static bool g_nativeMenuExecuteDispatchArmed = false;
 static uintptr_t g_nativeMenuExecuteDispatchTargetPtr = 0;
 static DWORD g_nativeMenuExecuteDispatchArmMs = 0;
@@ -266,17 +240,10 @@ static __declspec(thread) bool g_nativeMenuAppendInjectionInProgress = false;
 static uintptr_t g_nativeMenuLoopEntryInjectedOrdersPtr = 0;
 static DWORD g_nativeMenuLoopEntryInjectedArmMs = 0;
 static __declspec(thread) bool g_nativeMenuLoopEntryInjectionInProgress = false;
-static bool g_contextMenuLoopEntryInlineHookInstalled = false;
-static uintptr_t g_contextMenuLoopEntryInlineTargetAddress = 0;
-static uintptr_t g_contextMenuLoopEntryInlineReturnAddress = 0;
-static void* g_contextMenuLoopEntryInlineStubAddress = 0;
-static unsigned char g_contextMenuLoopEntryInlineOriginalBytes[16] = { 0 };
 
 enum ExecutePredicateEntryPoint
 {
-    ExecutePredicateEntryPoint_DEBUG_TRIGGER = 0,
-    ExecutePredicateEntryPoint_NATIVE_MENU = 1,
-    ExecutePredicateEntryPoint_FALLBACK_POPUP = 2
+    ExecutePredicateEntryPoint_NATIVE_MENU = 1
 };
 
 struct CanExecuteDiagnostics
@@ -314,7 +281,6 @@ static void (*ContextMenu_update_orig)(ContextMenu*) = 0;
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static std::string DetectRuntimeLocaleTag();
-static Character* ResolveExecuteActorForPredicate();
 static Character* ResolveExecuteActorForPredicateWithTarget(RootObject* target, bool allowAnyFallback);
 static bool CanExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
@@ -322,20 +288,13 @@ static bool CanExecuteTarget(
     RootObject* target,
     CanExecuteDiagnostics* diagnosticsOut,
     bool verboseLog);
-static bool CanExecuteFromDebugTrigger(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
 static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
-static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog);
-static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
 static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
-static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog);
-static bool QueueExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog);
 static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
-static bool QueueExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog);
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
 static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
-static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor);
 static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
 static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target);
 static bool TryPlayCharacterAudioEvent(Character* character, const char* eventName, SoundRange range);
@@ -345,7 +304,6 @@ static bool TryPlayExecuteKillSound(
     const char** playedEventOut,
     const char** playedEmitterOut);
 static void RefreshEffectiveContextMenuFeatureFlags(const char* source);
-static bool IsNativeExecuteMenuMutationEnabled();
 static bool IsCustomExecutePanelOverlayEnabled();
 static void DisarmNativeMenuExecuteDispatchContext();
 static void DisarmNativeMenuOrderRemapContext();
@@ -357,7 +315,6 @@ static void ArmCustomExecutePanelOverlay(
     uint64_t showSeq,
     DWORD nowMs);
 static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs);
-static void TickDebugExecuteHotkey(PlayerInterface* thisptr);
 static void ModHub_OnPluginStart();
 static bool ModHub_UseHubUi();
 static bool ModHub_IsAttachRetryPending();
@@ -413,14 +370,11 @@ static void LoadConfigState()
 {
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
-    g_config.enableContextMenuProbe = false;
-    g_config.debugContextMenu = false;
     g_config.enableExecuteKillSound = true;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
     g_config.executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
     g_config.executeButtonOffsetYPx = kExecuteButtonDefaultAbsoluteY;
-    g_effectiveEnableContextMenuProbe = false;
     g_effectiveEnableContextMenuInjection = false;
     g_effectiveEnableExecuteAction = false;
 
@@ -437,10 +391,6 @@ static void LoadConfigState()
         g_configNeedsWriteBack = true;
         return;
     }
-
-    // Legacy/internal-only fields are not user-configurable.
-    g_config.enableContextMenuProbe = false;
-    g_config.debugContextMenu = false;
 
     if (g_config.executeButtonWidthPx <= 0)
     {
@@ -535,12 +485,8 @@ static const char* ExecutePredicateEntryPointToString(ExecutePredicateEntryPoint
 {
     switch (entryPoint)
     {
-    case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
-        return "debug_trigger";
     case ExecutePredicateEntryPoint_NATIVE_MENU:
         return "native_menu";
-    case ExecutePredicateEntryPoint_FALLBACK_POPUP:
-        return "fallback_popup";
     default:
         return "unknown";
     }
@@ -693,11 +639,6 @@ static Character* ResolveExecuteActorForPredicateWithTarget(RootObject* target, 
     }
 }
 
-static Character* ResolveExecuteActorForPredicate()
-{
-    return ResolveExecuteActorForPredicateWithTarget(0, true);
-}
-
 static bool CanExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
     Character* actor,
@@ -806,19 +747,9 @@ static bool CanExecuteTarget(
     return canExecute;
 }
 
-static bool CanExecuteFromDebugTrigger(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
-{
-    return CanExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, diagnosticsOut, verboseLog);
-}
-
 static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
 {
     return CanExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, diagnosticsOut, verboseLog);
-}
-
-static bool CanExecuteFromFallbackPopup(Character* actor, RootObject* target, CanExecuteDiagnostics* diagnosticsOut, bool verboseLog)
-{
-    return CanExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, diagnosticsOut, verboseLog);
 }
 
 static bool TryResolvePlayerInterface(PlayerInterface** playerOut)
@@ -1030,57 +961,6 @@ static bool TryPlayExecuteKillSound(
     return false;
 }
 
-static bool TryReadContextMenuVisible(PlayerInterface* player, bool* visibleOut)
-{
-    if (!player || !visibleOut)
-    {
-        return false;
-    }
-
-    __try
-    {
-        *visibleOut = player->contextMenu.isVisible();
-        return true;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        *visibleOut = false;
-        return false;
-    }
-}
-
-static Character* ResolvePreferredExecuteActorForQueue(RootObject* target, Character* fallbackActor)
-{
-    PlayerInterface* player = 0;
-    if (!TryResolvePlayerInterface(&player) || !player)
-    {
-        return fallbackActor;
-    }
-
-    Ogre::Vector3 targetPos;
-    if (!TryReadRootObjectPosition(target, &targetPos))
-    {
-        return fallbackActor;
-    }
-
-    Character* selectedActor = 0;
-    __try
-    {
-        selectedActor = player->getNearestSelectedCharacterTo(targetPos);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        selectedActor = 0;
-    }
-
-    if (selectedActor)
-    {
-        return selectedActor;
-    }
-
-    return fallbackActor;
-}
-
 static void TryEndQueuedExecuteSlaveAnim(Character* actor)
 {
     if (!actor)
@@ -1126,7 +1006,6 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteTargetPtr = 0;
     g_queuedExecuteArmedMs = 0;
     g_queuedExecuteLastApproachCommandMs = 0;
-    g_queuedExecuteLastStateLogMs = 0;
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
@@ -1420,12 +1299,6 @@ static bool QueueExecuteTarget(
     {
         actor = ResolveExecuteActorForPredicateWithTarget(target, true);
     }
-    // For menu/fallback dispatch, keep the actor chosen by the user.
-    // Auto-resolving nearest selected can switch actors mid-combat.
-    if (entryPoint == ExecutePredicateEntryPoint_DEBUG_TRIGGER)
-    {
-        actor = ResolvePreferredExecuteActorForQueue(target, actor);
-    }
     if (!actor)
     {
         return false;
@@ -1457,20 +1330,8 @@ static bool QueueExecuteTarget(
     }
 
     CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
-    const bool canQueue = [&]() -> bool
-    {
-        switch (entryPoint)
-        {
-        case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
-            return CanExecuteFromDebugTrigger(actor, target, &diagnostics, verboseLog);
-        case ExecutePredicateEntryPoint_NATIVE_MENU:
-            return CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, verboseLog);
-        case ExecutePredicateEntryPoint_FALLBACK_POPUP:
-            return CanExecuteFromFallbackPopup(actor, target, &diagnostics, verboseLog);
-        default:
-            return false;
-        }
-    }();
+    const bool canQueue = (entryPoint == ExecutePredicateEntryPoint_NATIVE_MENU)
+        && CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, verboseLog);
     if (!canQueue)
     {
         return false;
@@ -1487,7 +1348,6 @@ static bool QueueExecuteTarget(
     g_queuedExecuteTargetPtr = targetPtr;
     g_queuedExecuteArmedMs = nowMs;
     g_queuedExecuteLastApproachCommandMs = 0;
-    g_queuedExecuteLastStateLogMs = 0;
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
@@ -1512,19 +1372,9 @@ static bool QueueExecuteTarget(
     return true;
 }
 
-static bool QueueExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog)
-{
-    return QueueExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, verboseLog);
-}
-
 static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
 {
     return QueueExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
-}
-
-static bool QueueExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog)
-{
-    return QueueExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, verboseLog);
 }
 
 static void TickQueuedExecuteAction(PlayerInterface* player)
@@ -1628,31 +1478,6 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
         {
             g_queuedExecuteLastApproachCommandMs = nowMs;
         }
-        if (g_config.debugContextMenu
-            && (g_queuedExecuteLastStateLogMs == 0
-                || DebounceWindowElapsed(nowMs, g_queuedExecuteLastStateLogMs, kQueuedExecuteStateLogMinIntervalMs)))
-        {
-            std::stringstream logline;
-            logline << "Loot-Scoot-Execute DEBUG: queued_execute_waiting"
-                    << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-                    << " target=0x" << reinterpret_cast<uintptr_t>(target)
-                    << " in_range=" << (inRange ? "true" : "false")
-                    << " facing_target=" << (facingTarget ? "true" : "false")
-                    << " facing_required=false"
-                    << " facing_target_strict=" << (facingTargetStrict ? "true" : "false")
-                    << " facing_target_grace=" << (facingTargetGrace ? "true" : "false")
-                    << " facing_target_fallback=" << (facingTargetFallback ? "true" : "false")
-                    << " in_range_grace_elapsed=" << (inRangeGraceElapsed ? "true" : "false")
-                    << " distance_sq=" << std::dec << distanceSq
-                    << " max_distance_sq=" << maxDistanceSq
-                    << " post_trigger_dispatch_distance_sq=" << postTriggerDispatchDistanceSq
-                    << " post_trigger_commit_hold=" << (postTriggerCommitHold ? "true" : "false")
-                    << " post_trigger_dispatch_range=" << (inPostTriggerDispatchRange ? "true" : "false")
-                    << " facing_dot=" << facingDot
-                    << " in_range_since_ms=" << std::dec << g_queuedExecuteInRangeSinceMs;
-            PluginLog(logline.str().c_str());
-            g_queuedExecuteLastStateLogMs = nowMs;
-        }
         if (!postTriggerCommitHold || !inPostTriggerDispatchRange)
         {
             return;
@@ -1671,41 +1496,12 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
             && TryTriggerQueuedExecuteAttackAnimation(actor, target);
         g_queuedExecuteAttackTriggered = true;
         g_queuedExecuteAttackTriggeredMs = attackTriggered ? nowMs : 0;
-
-        if (g_config.debugContextMenu)
-        {
-            std::stringstream logline;
-            logline << "Loot-Scoot-Execute DEBUG: queued_execute_attack_trigger"
-                    << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-                    << " target=0x" << reinterpret_cast<uintptr_t>(target)
-                    << " triggered=" << (attackTriggered ? "true" : "false")
-                    << " mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none")
-                    << " distance_sq=" << std::dec << distanceSq
-                    << " max_distance_sq=" << maxDistanceSq
-                    << " fallback_to_direct_dispatch=" << (attackTriggered ? "false" : "true");
-            PluginLog(logline.str().c_str());
-        }
     }
 
     if (g_queuedExecuteAttackTriggeredMs != 0
         && !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecuteAttackWindupMs))
     {
         return;
-    }
-
-    if (g_config.debugContextMenu)
-    {
-        std::stringstream logline;
-        logline << "Loot-Scoot-Execute DEBUG: queued_execute_ready"
-                << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-                << " target=0x" << reinterpret_cast<uintptr_t>(target)
-                << " distance_sq=" << std::dec << distanceSq
-                << " max_distance_sq=" << maxDistanceSq
-                << " post_trigger_dispatch_distance_sq=" << postTriggerDispatchDistanceSq
-                << " queue_ready_by_range=" << (queueReadyByRange ? "true" : "false")
-                << " facing_dot=" << facingDot
-                << " in_range_confirmed=" << (inRangeConfirmed ? "true" : "false");
-        PluginLog(logline.str().c_str());
     }
 
     const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
@@ -1745,20 +1541,8 @@ static bool DispatchExecuteTarget(
     const char* killSoundEmitter = "none";
 
     CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
-    const bool canExecute = [&]() -> bool
-    {
-        switch (entryPoint)
-        {
-        case ExecutePredicateEntryPoint_DEBUG_TRIGGER:
-            return CanExecuteFromDebugTrigger(actor, target, &canExecuteDiagnostics, verboseLog);
-        case ExecutePredicateEntryPoint_NATIVE_MENU:
-            return CanExecuteFromNativeMenuSelection(actor, target, &canExecuteDiagnostics, verboseLog);
-        case ExecutePredicateEntryPoint_FALLBACK_POPUP:
-            return CanExecuteFromFallbackPopup(actor, target, &canExecuteDiagnostics, verboseLog);
-        default:
-            return false;
-        }
-    }();
+    const bool canExecute = (entryPoint == ExecutePredicateEntryPoint_NATIVE_MENU)
+        && CanExecuteFromNativeMenuSelection(actor, target, &canExecuteDiagnostics, verboseLog);
 
     if (!g_effectiveEnableExecuteAction)
     {
@@ -1900,94 +1684,9 @@ static bool DispatchExecuteTarget(
     return dispatchSucceeded;
 }
 
-static bool DispatchExecuteFromDebugTrigger(Character* actor, RootObject* target, bool verboseLog)
-{
-    return DispatchExecuteTarget(ExecutePredicateEntryPoint_DEBUG_TRIGGER, actor, target, verboseLog);
-}
-
 static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
 {
     return DispatchExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
-}
-
-static bool DispatchExecuteFromFallbackPopup(Character* actor, RootObject* target, bool verboseLog)
-{
-    return DispatchExecuteTarget(ExecutePredicateEntryPoint_FALLBACK_POPUP, actor, target, verboseLog);
-}
-
-static void LogDebugExecuteTargetSourceFromContextMenu(uintptr_t targetPtr)
-{
-    std::stringstream logline;
-    logline << "Loot-Scoot-Execute DEBUG: debug_execute_target_source source=context_menu_show_target"
-            << " target=0x" << std::hex << targetPtr;
-    PluginLog(logline.str().c_str());
-}
-
-static void TickDebugExecuteHotkey(PlayerInterface* thisptr)
-{
-    if (!thisptr || !g_effectiveEnableExecuteAction || !g_config.debugContextMenu)
-    {
-        g_debugExecuteHotkeyWasDown = false;
-        g_lastDebugExecuteContextTargetPtr = 0;
-        g_lastDebugExecuteContextTargetCaptureMs = 0;
-        return;
-    }
-
-    const bool keyDown = (GetAsyncKeyState(kDebugExecuteHotkeyVirtualKey) & 0x8000) != 0;
-    const bool pressedThisFrame = keyDown && !g_debugExecuteHotkeyWasDown;
-    g_debugExecuteHotkeyWasDown = keyDown;
-    if (!pressedThisFrame)
-    {
-        return;
-    }
-
-    RootObject* target = 0;
-    bool usedContextTargetFallback = false;
-    bool contextMenuVisible = false;
-    bool contextMenuVisibleResolved = TryReadContextMenuVisible(thisptr, &contextMenuVisible);
-    const DWORD nowMs = GetTickCount();
-    __try
-    {
-        if (thisptr->mouseRightTargetSet)
-        {
-            target = thisptr->mouseRightTarget;
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        target = 0;
-    }
-    const bool fallbackTargetFresh = g_lastDebugExecuteContextTargetCaptureMs != 0
-        && !DebounceWindowElapsed(nowMs, g_lastDebugExecuteContextTargetCaptureMs, kDebugExecuteContextTargetMaxAgeMs);
-    if (!target
-        && g_lastDebugExecuteContextTargetPtr != 0
-        && fallbackTargetFresh
-        && contextMenuVisibleResolved
-        && contextMenuVisible)
-    {
-        target = reinterpret_cast<RootObject*>(g_lastDebugExecuteContextTargetPtr);
-        usedContextTargetFallback = true;
-    }
-    else if (!target)
-    {
-        g_lastDebugExecuteContextTargetPtr = 0;
-        g_lastDebugExecuteContextTargetCaptureMs = 0;
-    }
-
-    Character* actor = ResolveExecuteActorForPredicateWithTarget(target, true);
-    if (usedContextTargetFallback)
-    {
-        LogDebugExecuteTargetSourceFromContextMenu(reinterpret_cast<uintptr_t>(target));
-    }
-    (void)QueueExecuteFromDebugTrigger(actor, target, true);
-}
-
-static bool IsNativeExecuteMenuMutationEnabled()
-{
-    return kEnableNativeContextMenuIntegration
-        && g_effectiveEnableContextMenuInjection
-        && g_effectiveEnableExecuteAction
-        && !kEnableCustomExecutePanelOverlay;
 }
 
 static bool IsCustomExecutePanelOverlayEnabled()
@@ -2533,30 +2232,6 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
         width,
         rowHeight);
 
-    if (g_config.debugContextMenu)
-    {
-        std::stringstream logline;
-        logline << "Loot-Scoot-Execute DEBUG: custom_execute_panel_layout"
-                << " anchor_source=" << std::dec << g_customExecutePanelAnchorSource
-                << " anchor_left=" << std::dec << anchor.left
-                << " anchor_top=" << anchor.top
-                << " anchor_width=" << anchor.width
-                << " anchor_height=" << anchor.height
-                << " panel_left=" << g_customExecutePanelRoot->getLeft()
-                << " panel_top=" << g_customExecutePanelRoot->getTop()
-                << " panel_width=" << g_customExecutePanelRoot->getWidth()
-                << " panel_height=" << g_customExecutePanelRoot->getHeight()
-                << " horizontal_offset=" << kCustomExecutePanelHorizontalOffset
-                << " bottom_extra_y=" << kCustomExecutePanelBottomExtraYOffset
-                << " additional_y=" << kCustomExecutePanelAdditionalYOffset
-                << " fallback_extra_y=" << kCustomExecutePanelFallbackExtraYOffset
-                << " cfg_width=" << g_config.executeButtonWidthPx
-                << " cfg_height=" << g_config.executeButtonHeightPx
-                << " cfg_x=" << g_config.executeButtonOffsetXPx
-                << " cfg_y=" << g_config.executeButtonOffsetYPx;
-        PluginLog(logline.str().c_str());
-    }
-
     int buttonLeft = width / 48;           // 2.0833%
     if (buttonLeft < 2)
     {
@@ -2647,18 +2322,6 @@ static void ArmCustomExecutePanelOverlay(
     LayoutCustomExecutePanelOverlay(menu);
     g_customExecutePanelRoot->setVisible(true);
     g_customExecutePanelVisible = true;
-
-    if (g_config.debugContextMenu)
-    {
-        std::stringstream logline;
-        logline << "Loot-Scoot-Execute INFO: custom_execute_panel_armed"
-                << " show_seq=" << std::dec << showSeq
-                << " menu=0x" << std::hex << reinterpret_cast<uintptr_t>(menu)
-                << " actor=0x" << std::hex << g_customExecutePanelActorPtr
-                << " target=0x" << std::hex << reinterpret_cast<uintptr_t>(target)
-                << " orders_count=" << std::dec << ordersCount;
-        PluginLog(logline.str().c_str());
-    }
 }
 
 static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)

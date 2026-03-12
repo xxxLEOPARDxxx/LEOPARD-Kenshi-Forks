@@ -4,23 +4,8 @@ static void RefreshEffectiveContextMenuFeatureFlags(const char* source)
 
     const bool hooksReady = g_contextMenuHookInstallVerified;
     const bool pluginEnabled = g_config.enabled;
-    g_effectiveEnableContextMenuProbe = hooksReady && pluginEnabled && g_config.enableContextMenuProbe;
     g_effectiveEnableContextMenuInjection = hooksReady && pluginEnabled;
     g_effectiveEnableExecuteAction = hooksReady && pluginEnabled;
-
-    if (g_config.debugContextMenu)
-    {
-        std::stringstream detail;
-        detail << "Loot-Scoot-Execute DEBUG: context_menu_feature_flags source=" << (source ? source : "unknown")
-               << " native_integration_enabled=false"
-               << " hooks_verified=" << (g_contextMenuHookInstallVerified ? "true" : "false")
-               << " cfg_enabled=" << (g_config.enabled ? "true" : "false")
-               << " cfg_probe=" << (g_config.enableContextMenuProbe ? "true" : "false")
-               << " effective_probe=" << (g_effectiveEnableContextMenuProbe ? "true" : "false")
-               << " effective_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
-               << " effective_execute=" << (g_effectiveEnableExecuteAction ? "true" : "false");
-        PluginLog(detail.str().c_str());
-    }
 }
 
 static void DisarmNativeMenuExecuteDispatchContext()
@@ -58,38 +43,20 @@ static void DisarmNativeMenuOrderRemapContext()
 static bool TryReadSimpleContextMenuSnapshot(
     ContextMenu* menu,
     bool* visibleOut,
-    uint32_t* ordersCountOut,
-    int* orderSampleOut,
-    size_t* orderSampleCountOut)
+    uint32_t* ordersCountOut)
 {
-    if (!menu || !visibleOut || !ordersCountOut || !orderSampleOut || !orderSampleCountOut)
+    if (!menu || !visibleOut || !ordersCountOut)
     {
         return false;
     }
 
     *visibleOut = false;
     *ordersCountOut = 0;
-    *orderSampleCountOut = 0;
-    for (size_t i = 0; i < kContextMenuProbeOrderSampleCount; ++i)
-    {
-        orderSampleOut[i] = 0;
-    }
 
     __try
     {
         *visibleOut = menu->isVisible();
-        const uint32_t count = static_cast<uint32_t>(menu->orders.size());
-        *ordersCountOut = count;
-
-        const size_t sampleCount = count < kContextMenuProbeOrderSampleCount
-            ? static_cast<size_t>(count)
-            : kContextMenuProbeOrderSampleCount;
-        *orderSampleCountOut = sampleCount;
-
-        for (size_t i = 0; i < sampleCount; ++i)
-        {
-            orderSampleOut[i] = static_cast<int>(menu->orders[static_cast<uint32_t>(i)]);
-        }
+        *ordersCountOut = static_cast<uint32_t>(menu->orders.size());
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -128,8 +95,6 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         g_lastShowTargetIsEnemy = false;
         g_lastShowTargetIsIncapacitated = false;
         g_lastShowTargetIsDead = false;
-        g_lastDebugExecuteContextTargetPtr = 0;
-        g_lastDebugExecuteContextTargetCaptureMs = 0;
         HideCustomExecutePanelOverlay();
         DisarmNativeMenuExecuteDispatchContext();
         DisarmNativeMenuOrderRemapContext();
@@ -143,14 +108,10 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
     bool visible = false;
     uint32_t ordersCount = 0;
-    int orderSample[kContextMenuProbeOrderSampleCount] = { 0 };
-    size_t orderSampleCount = 0;
     if (!TryReadSimpleContextMenuSnapshot(
-        thisptr,
-        &visible,
-        &ordersCount,
-        orderSample,
-        &orderSampleCount))
+            thisptr,
+            &visible,
+            &ordersCount))
     {
         HideCustomExecutePanelOverlay();
         return;
@@ -162,7 +123,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         executeActor,
         what,
         &diagnostics,
-        g_config.debugContextMenu);
+        false);
 
     const uintptr_t whatPtr = reinterpret_cast<uintptr_t>(what);
     if (on)
@@ -184,49 +145,6 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     else
     {
         HideCustomExecutePanelOverlay();
-    }
-
-    if (on && visible && canExecuteTarget && whatPtr != 0)
-    {
-        g_lastDebugExecuteContextTargetPtr = whatPtr;
-        g_lastDebugExecuteContextTargetCaptureMs = nowMs;
-    }
-
-    if (g_effectiveEnableContextMenuProbe && g_config.debugContextMenu)
-    {
-        std::stringstream probe;
-        probe << "Loot-Scoot-Execute DEBUG: context_menu_show_probe"
-              << " show_seq=" << std::dec << g_currentShowSeq
-              << " on=" << (on ? "true" : "false")
-              << " visible=" << (visible ? "true" : "false")
-              << " orders_count=" << std::dec << ordersCount
-              << " first_orders=[";
-
-        for (size_t i = 0; i < orderSampleCount; ++i)
-        {
-            if (i > 0)
-            {
-                probe << ",";
-            }
-            probe << std::dec << orderSample[i];
-        }
-        if (static_cast<size_t>(ordersCount) > orderSampleCount)
-        {
-            if (orderSampleCount > 0)
-            {
-                probe << ",";
-            }
-            probe << "...";
-        }
-
-        probe << "]"
-              << " what=0x" << std::hex << whatPtr
-              << " can_execute_target=" << (canExecuteTarget ? "true" : "false")
-              << " actor_resolved=" << (diagnostics.actorResolved ? "true" : "false")
-              << " target_is_enemy=" << (diagnostics.targetIsEnemy ? "true" : "false")
-              << " target_is_incapacitated=" << (diagnostics.targetIsIncapacitated ? "true" : "false")
-              << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
-        PluginLog(probe.str().c_str());
     }
 }
 
@@ -250,7 +168,6 @@ static void ContextMenu_update_hook(ContextMenu* thisptr)
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
-    TickDebugExecuteHotkey(thisptr);
     TickQueuedExecuteAction(thisptr);
 }
 
@@ -277,20 +194,6 @@ __declspec(dllexport) void startPlugin()
     }
 
     g_contextMenuHookInstallVerified = false;
-    g_nativeExecuteSelectionHookInstallVerified = false;
-    g_nativeExecuteProbabilityHookInstallVerified = false;
-    g_nativeExecuteOrderFilterHookInstallVerified = false;
-    g_nativeExecuteContextMenuProbabilityHookInstallVerified = false;
-    g_nativeExecuteOrderValidityHookInstallVerified = false;
-    g_nativeExecuteOrderAppendHookInstallVerified = false;
-    g_nativeExecuteTaskLabelHookInstallVerified = false;
-    g_nativeExecuteMenuBuildHookInstallVerified = false;
-    g_nativeExecuteRowInsertHookInstallVerified = false;
-    g_nativeExecuteLoopEntryHookInstallVerified = false;
-    g_nativeExecuteOrderFilterAlternateHookInstallVerified = false;
-    g_nativeExecuteContextMenuProbabilityAlternateHookInstallVerified = false;
-    g_nativeExecuteOrderAppendAlternateHookInstallVerified = false;
-    g_nativeExecuteTaskLabelAlternateHookInstallVerified = false;
 
     DisarmNativeMenuExecuteDispatchContext();
     DisarmNativeMenuOrderRemapContext();

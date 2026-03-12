@@ -9,8 +9,6 @@
 struct PluginConfig
 {
     bool enabled;
-    bool enableContextMenuProbe;
-    bool debugContextMenu;
     bool enableExecuteKillSound;
     int executeButtonWidthPx;
     int executeButtonHeightPx;
