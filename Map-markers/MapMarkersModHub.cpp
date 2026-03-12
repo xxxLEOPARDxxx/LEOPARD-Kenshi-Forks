@@ -279,14 +279,16 @@ void EnsureModHubClientConfigured()
         &GetShowHoverLabelsSetting,
         &SetShowHoverLabelsSetting };
 
-    static const EMC_IntSettingDefV1 kDefaultMarkerTypeSetting = {
+    static const EMC_IntSettingDefV2 kDefaultMarkerTypeSetting = {
         "default_marker_type",
-        "Default marker type (0-9)",
+        "Default marker type",
         "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo",
         &g_modHubClient,
         0,
         9,
         1,
+        { 1, 0, 0 },
+        { 1, 0, 0 },
         &GetDefaultMarkerTypeSetting,
         &SetDefaultMarkerTypeSetting };
 
@@ -294,7 +296,7 @@ void EnsureModHubClientConfigured()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kCloseEditorOnMapCloseSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowHoverLabelsSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kDefaultMarkerTypeSetting }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2, &kDefaultMarkerTypeSetting }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {

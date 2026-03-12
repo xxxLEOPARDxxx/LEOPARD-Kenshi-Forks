@@ -172,6 +172,14 @@ bool HasOptionsWindowInitObserverSupport(const EMC_HubApiV1* api, uint32_t api_s
         && api->unregister_options_window_init_observer != 0;
 }
 
+bool HasIntSettingV2Support(const EMC_HubApiV1* api, uint32_t api_size)
+{
+    return api != 0
+        && api_size >= EMC_HUB_API_V1_INT_SETTING_V2_MIN_SIZE
+        && api->api_size >= EMC_HUB_API_V1_INT_SETTING_V2_MIN_SIZE
+        && api->register_int_setting_v2 != 0;
+}
+
 uint32_t ResolveExpectedSdkApiVersion(const emc::ModHubClient::Config& config)
 {
     return config.expected_sdk_api_version != 0u
@@ -278,6 +286,7 @@ EMC_Result DefaultGetApi(
 
 EMC_Result RegisterSettingsRow(
     const EMC_HubApiV1* api,
+    uint32_t api_size,
     EMC_ModHandle mod_handle,
     const emc::ModHubClientSettingRowV1* row)
 {
@@ -309,6 +318,13 @@ EMC_Result RegisterSettingsRow(
         }
         return api->register_int_setting(mod_handle, static_cast<const EMC_IntSettingDefV1*>(row->def));
 
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2:
+        if (!HasIntSettingV2Support(api, api_size))
+        {
+            return EMC_ERR_API_SIZE_MISMATCH;
+        }
+        return api->register_int_setting_v2(mod_handle, static_cast<const EMC_IntSettingDefV2*>(row->def));
+
     case emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT:
         if (api->register_float_setting == 0)
         {
@@ -333,6 +349,14 @@ namespace emc
 {
 EMC_Result RegisterSettingsTableV1(
     const EMC_HubApiV1* api,
+    const ModHubClientTableRegistrationV1* table_registration)
+{
+    return RegisterSettingsTableWithApiSizeV1(api, api != 0 ? api->api_size : 0u, table_registration);
+}
+
+EMC_Result RegisterSettingsTableWithApiSizeV1(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
     const ModHubClientTableRegistrationV1* table_registration)
 {
     if (api == 0 || table_registration == 0 || table_registration->mod_desc == 0)
@@ -365,7 +389,7 @@ EMC_Result RegisterSettingsTableV1(
     for (uint32_t row_index = 0u; row_index < table_registration->row_count; ++row_index)
     {
         const ModHubClientSettingRowV1* row = &table_registration->rows[row_index];
-        result = RegisterSettingsRow(api, mod_handle, row);
+        result = RegisterSettingsRow(api, api_size, mod_handle, row);
         if (result != EMC_OK)
         {
             return result;
@@ -588,7 +612,7 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
     EMC_Result register_result = EMC_ERR_INVALID_ARGUMENT;
     if (config_.table_registration != 0)
     {
-        register_result = RegisterSettingsTableV1(api, config_.table_registration);
+        register_result = RegisterSettingsTableWithApiSizeV1(api, api_size, config_.table_registration);
     }
     else
     {

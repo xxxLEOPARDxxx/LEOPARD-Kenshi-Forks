@@ -24,7 +24,8 @@ enum ModHubClientSettingKind
     MOD_HUB_CLIENT_SETTING_KIND_KEYBIND = 1,
     MOD_HUB_CLIENT_SETTING_KIND_INT = 2,
     MOD_HUB_CLIENT_SETTING_KIND_FLOAT = 3,
-    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4
+    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4,
+    MOD_HUB_CLIENT_SETTING_KIND_INT_V2 = 5
 };
 
 struct ModHubClientSettingRowV1
@@ -42,6 +43,11 @@ struct ModHubClientTableRegistrationV1
 
 EMC_Result RegisterSettingsTableV1(
     const EMC_HubApiV1* api,
+    const ModHubClientTableRegistrationV1* table_registration);
+
+EMC_Result RegisterSettingsTableWithApiSizeV1(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
     const ModHubClientTableRegistrationV1* table_registration);
 
 class ModHubClient

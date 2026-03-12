@@ -105,6 +105,21 @@ typedef struct EMC_IntSettingDefV1
     EMC_SetIntCallback set_value;
 } EMC_IntSettingDefV1;
 
+typedef struct EMC_IntSettingDefV2
+{
+    const char* setting_id;
+    const char* label;
+    const char* description;
+    void* user_data;
+    int32_t min_value;
+    int32_t max_value;
+    int32_t step;
+    int32_t dec_button_deltas[3];
+    int32_t inc_button_deltas[3];
+    EMC_GetIntCallback get_value;
+    EMC_SetIntCallback set_value;
+} EMC_IntSettingDefV2;
+
 typedef struct EMC_FloatSettingDefV1
 {
     const char* setting_id;
@@ -141,11 +156,14 @@ typedef struct EMC_HubApiV1
     EMC_Result(__cdecl* register_action_row)(EMC_ModHandle mod, const EMC_ActionRowDefV1* def);
     EMC_Result(__cdecl* register_options_window_init_observer)(EMC_OptionsWindowInitObserverFn observer_fn, void* user_data);
     EMC_Result(__cdecl* unregister_options_window_init_observer)(EMC_OptionsWindowInitObserverFn observer_fn, void* user_data);
+    EMC_Result(__cdecl* register_int_setting_v2)(EMC_ModHandle mod, const EMC_IntSettingDefV2* def);
 } EMC_HubApiV1;
 
 #define EMC_HUB_API_V1_MIN_SIZE ((uint32_t)56u)
 #define EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE \
     ((uint32_t)(offsetof(EMC_HubApiV1, unregister_options_window_init_observer) + sizeof(void*)))
+#define EMC_HUB_API_V1_INT_SETTING_V2_MIN_SIZE \
+    ((uint32_t)(offsetof(EMC_HubApiV1, register_int_setting_v2) + sizeof(void*)))
 
 EMC_MOD_HUB_API EMC_Result __cdecl EMC_ModHub_GetApi(
     uint32_t requested_version,
@@ -216,6 +234,19 @@ EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV1, step, 40);
 EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV1, get_value, 48);
 EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV1, set_value, 56);
 
+EMC_ABI_ASSERT_SIZE(EMC_IntSettingDefV2, 88);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, setting_id, 0);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, label, 8);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, description, 16);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, user_data, 24);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, min_value, 32);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, max_value, 36);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, step, 40);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, dec_button_deltas, 44);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, inc_button_deltas, 56);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, get_value, 72);
+EMC_ABI_ASSERT_OFFSET(EMC_IntSettingDefV2, set_value, 80);
+
 EMC_ABI_ASSERT_SIZE(EMC_FloatSettingDefV1, 64);
 EMC_ABI_ASSERT_OFFSET(EMC_FloatSettingDefV1, setting_id, 0);
 EMC_ABI_ASSERT_OFFSET(EMC_FloatSettingDefV1, label, 8);
@@ -236,7 +267,7 @@ EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV1, user_data, 24);
 EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV1, action_flags, 32);
 EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV1, on_action, 40);
 
-EMC_ABI_ASSERT_SIZE(EMC_HubApiV1, 72);
+EMC_ABI_ASSERT_SIZE(EMC_HubApiV1, 80);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, api_version, 0);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, api_size, 4);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_mod, 8);
@@ -247,6 +278,7 @@ EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_float_setting, 40);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_action_row, 48);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_options_window_init_observer, 56);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, unregister_options_window_init_observer, 64);
+EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_int_setting_v2, 72);
 
 #undef EMC_ABI_ASSERT_OFFSET
 #undef EMC_ABI_ASSERT_SIZE
