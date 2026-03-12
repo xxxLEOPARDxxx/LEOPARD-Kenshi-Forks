@@ -156,7 +156,7 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
     const std::string version = versionInfo.GetVersion();
 
     return platform != KenshiLib::BinaryVersion::UNKNOWN
-        && (version == "1.0.65" || version == "1.0.68");
+        && version == "1.0.65";
 }
 
 void InventoryLayoutCreateGUI_hook(
@@ -289,7 +289,7 @@ void InventoryLayoutCreateGUI_hook(
 std::uintptr_t ResolveInventoryLayoutCreateGUIHookAddress(KenshiLib::BinaryVersion versionInfo)
 {
     const std::string version = versionInfo.GetVersion();
-    if (version != "1.0.65" && version != "1.0.68")
+    if (version != "1.0.65")
     {
         return 0;
     }
@@ -303,20 +303,12 @@ std::uintptr_t ResolveInventoryLayoutCreateGUIHookAddress(KenshiLib::BinaryVersi
     const bool hasNonZeroPlatform = versionInfo.GetPlatform() != 0;
     if (hasNonZeroPlatform)
     {
-        if (version == "1.0.65")
-        {
-            // 1.0.65 Steam: slot 37 (0x14F530) resolves into the backpack attach branch,
-            // but the inventory-item population path lives at slot 1 / RVA 0x14EEA0.
-            return baseAddress + 0x0014EEA0;
-        }
-        return baseAddress + 0x0014F570;
+        // 1.0.65 Steam: slot 37 (0x14F530) resolves into the backpack attach branch,
+        // but the inventory-item population path lives at slot 1 / RVA 0x14EEA0.
+        return baseAddress + 0x0014EEA0;
     }
 
-    if (version == "1.0.65")
-    {
-        return baseAddress + 0x0014F450;
-    }
-    return baseAddress + 0x0014F470;
+    return baseAddress + 0x0014F450;
 }
 
 bool IsAddressInMainModuleTextSection(std::uintptr_t address)
