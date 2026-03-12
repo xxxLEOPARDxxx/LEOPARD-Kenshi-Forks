@@ -56,6 +56,13 @@ Optional parameters:
 - `-Configuration "Release"`
 - `-Platform "x64"`
 
+### Runtime smoke check
+After launching Kenshi once with the deployed mod, validate the latest runtime log with:
+- `pwsh -NoProfile -File scripts/phase22_mod_hub_consumer_runtime_smoke_test.ps1 -ExpectedMode attached`
+
+For fallback validation without `Emkejs-Mod-Core.dll`, use:
+- `pwsh -NoProfile -File scripts/phase22_mod_hub_consumer_runtime_smoke_test.ps1 -ExpectedMode fallback`
+
 ## Deploy layout
 Mod data folder name: `Loot-Scoot-Execute`
 
