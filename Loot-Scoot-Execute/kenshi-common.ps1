@@ -13,7 +13,7 @@ function Initialize-KenshiScriptContext {
     } elseif ($env:KENSHI_REPO_DIR) {
         $repoDir = $env:KENSHI_REPO_DIR
     } else {
-        $repoDir = Split-Path -Parent $scriptDir
+        $repoDir = Split-Path -Parent (Split-Path -Parent $scriptDir)
     }
 
     $loadEnv = Join-Path $scriptDir "load-env.ps1"
