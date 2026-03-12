@@ -24,7 +24,7 @@
   "bounty_symbol": "$",
   "bounty_symbol_size_px": 18,
   "bounty_symbol_position": "before_state_icon",
-  "bounty_symbol_live_anchor_y_offset_cm": 2100,
+  "bounty_symbol_live_anchor_y_offset_cm": 420,
   "bounty_tier_trivial_max": 1999,
   "bounty_tier_low_max": 4999,
   "bounty_tier_modest_max": 9999,

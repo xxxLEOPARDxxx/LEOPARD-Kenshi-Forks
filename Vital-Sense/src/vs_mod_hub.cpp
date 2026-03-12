@@ -41,7 +41,6 @@ struct HubIntSettingDescriptor
     int32_t minValue;
     int32_t maxValue;
     int32_t step;
-    EMC_Result (*validate)(const PluginConfig& updated, char* err_buf, uint32_t err_buf_size);
 };
 
 struct HubKeybindSettingDescriptor
@@ -86,13 +85,13 @@ HubKeybindSettingDescriptor g_keybindSettingDescriptors[] = {
 };
 
 HubIntSettingDescriptor g_intSettingDescriptors[] = {
-    { "max_highlight_distance_m", "Max highlight distance", "Maximum horizontal distance from camera center for highlights", &PluginConfig::maxHighlightDistanceMeters, 5, 20000, 100, 0 },
-    { "bounty_symbol_size_px", "Bounty symbol size", "Base font height for the bounty symbol", &PluginConfig::bountySymbolTextSizePx, 8, 128, 1, 0 },
-    { "unconscious_text_size_px", "Unconscious text size", "Font height for the unconscious label", &PluginConfig::unconsciousTextSizePx, 8, 128, 1, 0 },
-    { "recovery_coma_text_size_px", "Recovery coma text size", "Font height for the recovery coma label", &PluginConfig::recoveryComaTextSizePx, 8, 128, 1, 0 },
-    { "dying_text_size_px", "Dying text size", "Font height for the dying label", &PluginConfig::dyingTextSizePx, 8, 128, 1, 0 },
-    { "playing_dead_text_size_px", "Playing dead text size", "Font height for the playing dead label", &PluginConfig::playingDeadTextSizePx, 8, 128, 1, 0 },
-    { "dead_text_size_px", "Dead text size", "Font height for the dead label", &PluginConfig::deadTextSizePx, 8, 128, 1, 0 }
+    { "max_highlight_distance_m", "Max highlight distance", "Maximum horizontal distance from camera center for highlights", &PluginConfig::maxHighlightDistanceMeters, 5, 20000, 100 },
+    { "bounty_symbol_size_px", "Bounty symbol size", "Base font height for the bounty symbol", &PluginConfig::bountySymbolTextSizePx, 8, 128, 1 },
+    { "unconscious_text_size_px", "Unconscious text size", "Font height for the unconscious label", &PluginConfig::unconsciousTextSizePx, 8, 128, 1 },
+    { "recovery_coma_text_size_px", "Recovery coma text size", "Font height for the recovery coma label", &PluginConfig::recoveryComaTextSizePx, 8, 128, 1 },
+    { "dying_text_size_px", "Dying text size", "Font height for the dying label", &PluginConfig::dyingTextSizePx, 8, 128, 1 },
+    { "playing_dead_text_size_px", "Playing dead text size", "Font height for the playing dead label", &PluginConfig::playingDeadTextSizePx, 8, 128, 1 },
+    { "dead_text_size_px", "Dead text size", "Font height for the dead label", &PluginConfig::deadTextSizePx, 8, 128, 1 }
 };
 
 enum
@@ -293,15 +292,6 @@ EMC_Result __cdecl SetIntSettingValue(void* user_data, int32_t value, char* err_
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     PluginConfig updated = state.config;
     updated.*(descriptor->field) = static_cast<DWORD>(value);
-
-    if (descriptor->validate != 0)
-    {
-        const EMC_Result validationResult = descriptor->validate(updated, err_buf, err_buf_size);
-        if (validationResult != EMC_OK)
-        {
-            return validationResult;
-        }
-    }
 
     return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
 }

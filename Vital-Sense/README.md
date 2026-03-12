@@ -92,4 +92,4 @@ Behavior:
 - If Mod Hub is available, supported bool/int/keybind settings can be changed in the hub and are persisted back to `mod-config.json`.
 - `highlight_key` is exposed as a keybind row, and the modifier requirements are exposed as separate bool rows so combos like `CTRL+SHIFT+C` can be built from the current menu surface.
 - If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
-- File-only settings remain the string and color fields: `bounty_symbol`, `bounty_symbol_position`, `*_text`, `*_icon_texture`, `*_color_hex`.
+- The Mod Hub menu intentionally exposes only a supported subset. File-only settings still include `update_interval_ms`, debug flags, advanced tint options, bounty live-anchor/tier tuning, relation colors, `bounty_symbol`, `bounty_symbol_position`, `*_text`, `*_icon_texture`, and `*_icon_size_px`.
