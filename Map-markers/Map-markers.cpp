@@ -125,6 +125,7 @@ struct FooterControlCandidate
 };
 
 bool g_probeLive = false;
+unsigned int g_probeLogScopeDepth = 0u;
 DWORD g_lastVisibleRootsScanTick = 0;
 DWORD g_lastHoverLogTick = 0;
 std::string g_lastVisibleRootsSignature;
@@ -165,6 +166,7 @@ PendingMarkerLabelShortcut g_pendingMarkerLabelShortcut = { false, false, 0, 0u,
 HMODULE g_moduleHandle = 0;
 
 void LogProbeLine(const std::string& message);
+bool ShouldEmitProbeLogs();
 MyGUI::Widget* FindMapTabInParentChain(MyGUI::Widget* widget);
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget);
 MyGUI::ImageBox* FindActiveMapImage();
@@ -186,6 +188,26 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
     return platform != KenshiLib::BinaryVersion::UNKNOWN
         && (version == "1.0.65" || version == "1.0.68");
 }
+
+struct ScopedProbeLogging
+{
+    ScopedProbeLogging()
+    {
+        ++g_probeLogScopeDepth;
+    }
+
+    ~ScopedProbeLogging()
+    {
+        if (g_probeLogScopeDepth != 0u)
+        {
+            --g_probeLogScopeDepth;
+        }
+    }
+
+private:
+    ScopedProbeLogging(const ScopedProbeLogging&);
+    ScopedProbeLogging& operator=(const ScopedProbeLogging&);
+};
 
 std::string ToLowerAscii(const std::string& value)
 {
@@ -1478,9 +1500,19 @@ void LoadMarkersForActiveSave()
 
 void LogProbeLine(const std::string& message)
 {
+    if (!ShouldEmitProbeLogs())
+    {
+        return;
+    }
+
     std::stringstream line;
     line << kPluginName << " PROBE: " << message;
     DebugLog(line.str().c_str());
+}
+
+bool ShouldEmitProbeLogs()
+{
+    return g_probeLive || g_probeLogScopeDepth != 0u;
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)
@@ -4008,6 +4040,8 @@ void LogHoveredWidgetState(bool force)
 
 void TriggerManualSnapshot(const char* reason)
 {
+    ScopedProbeLogging scopedProbeLogging;
+
     std::stringstream line;
     line << "snapshot reason=" << (reason == 0 ? "<unknown>" : reason);
     LogProbeLine(line.str());
@@ -4378,9 +4412,14 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
     {
         g_probeLive = !g_probeLive;
 
-        std::stringstream line;
-        line << "live_hover_probe=" << (g_probeLive ? "enabled" : "disabled");
-        LogProbeLine(line.str());
+        {
+            ScopedProbeLogging scopedProbeLogging;
+
+            std::stringstream line;
+            line << "live_hover_probe=" << (g_probeLive ? "enabled" : "disabled");
+            LogProbeLine(line.str());
+        }
+
         if (g_probeLive)
         {
             TriggerManualSnapshot("live_hover_enabled");
@@ -4434,8 +4473,6 @@ void MapMarkers_LogProbeMessage(const char* message)
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("Map-markers: startPlugin()");
-
     const KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
     if (!IsSupportedVersion(versionInfo))
     {
@@ -4465,21 +4502,7 @@ __declspec(dllexport) void startPlugin()
 
     MapMarkersModHub_OnStartup();
 
-    std::stringstream info;
-    info << kPluginName
-         << " INFO: diagnostics hooks installed"
-         << " snapshot_hotkey=CTRL+ALT+F7"
-         << " live_hover_hotkey=CTRL+ALT+F8"
-         << " add_action=MIDDLE_CLICK"
-         << " select_move_action=LEFT_CLICK"
-         << " delete_action=DELETE"
-         << " deselect_action=RIGHT_CLICK"
-         << " toggle_action=MAP_BUTTON"
-         << " marker_data=type_label"
-         << " persistence=active_save_json"
-         << " ui_persistence=mod_config_json"
-         << " markers=managed_widgets_with_editor";
-    DebugLog(info.str().c_str());
+    DebugLog("Map-markers INFO: initialized");
 }
 
 BOOL APIENTRY DllMain(HMODULE moduleHandle, DWORD reason, LPVOID)
