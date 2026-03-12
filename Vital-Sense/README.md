@@ -1,6 +1,6 @@
-## Vital Sense (RE_Kenshi plugin base)
+## Vital Sense
 
-This repository is a clean starter base for a `Vital-Sense` RE_Kenshi native plugin.
+Vital-Sense is a RE_Kenshi native plugin that highlights downed characters with state markers, optional body tint, and configurable bounty indicators.
 
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-script submodule init step is required.
