@@ -2,7 +2,7 @@
 
 `Map-markers` is a native RE_Kenshi plugin for Kenshi that adds persistent custom markers to the world map.
 
-Current status: pre-alpha MVP. The core marker flow is working, save-backed, and usable in-game.
+Current status: alpha MVP (`0.1.0-alpha.2`). The core marker flow is working, save-backed, and usable in-game.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ Current status: pre-alpha MVP. The core marker flow is working, save-backed, and
 - Selected-marker editor panel on the map
 - `Markers: On/Off` toggle button on the map footer
 - Remembered UI settings in `mod-config.json`
-- Optional Emkejs Mod Hub integration for selected marker UI settings
+- Optional Emkejs Mod Hub integration for key marker UI settings
 - Editor overlap masking so markers do not draw through the editor
 
 ## Controls

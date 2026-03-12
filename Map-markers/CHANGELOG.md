@@ -2,6 +2,12 @@
 
 All notable changes to Map-markers are documented in this file.
 
+## [0.1.0-alpha.2] - 2026-03-12
+
+- Added Mod Hub int-setting v2 support for `default_marker_type` on compatible Emkejs Mod Core builds.
+- Reduced default probe logging noise while keeping targeted diagnostics available.
+- Refreshed release and build documentation to match the current config defaults and subtree-tracked shared scripts.
+
 ## [0.1.0-alpha.1] - 2026-03-12
 
 - Proved world-map feasibility through runtime MyGUI discovery and diagnostics hooks.
