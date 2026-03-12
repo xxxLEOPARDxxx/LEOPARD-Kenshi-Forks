@@ -1,5 +1,6 @@
 #include "vs_probe.h"
 
+#include "vs_keybind.h"
 #include "vs_log.h"
 
 #include <core/Functions.h>
@@ -600,30 +601,7 @@ bool TryResolveMarkerState(RuntimeStateView& state, Character* candidate, int* m
 
 bool IsHighlightGateOpen(RuntimeStateView& state)
 {
-    if (!state.config.onlyWhenAltHeld)
-    {
-        return true;
-    }
-
-    bool gameHighlightKeyHeld = false;
-    if (key)
-    {
-        __try
-        {
-            gameHighlightKeyHeld = key->highlight;
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            gameHighlightKeyHeld = false;
-        }
-    }
-
-    if (gameHighlightKeyHeld)
-    {
-        return true;
-    }
-
-    return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    return vs_keybind::IsHighlightGateOpen(state.config);
 }
 
 bool IsGamePausedSafe()

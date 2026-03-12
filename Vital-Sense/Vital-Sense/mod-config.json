@@ -1,7 +1,10 @@
 {
   "enabled": true,
   "update_interval_ms": 150,
-  "only_when_alt_held": true,
+  "highlight_key": "ALT",
+  "highlight_key_require_ctrl": false,
+  "highlight_key_require_shift": false,
+  "highlight_key_require_alt": false,
   "enable_unconscious": true,
   "enable_recovery_coma": true,
   "enable_dying": true,

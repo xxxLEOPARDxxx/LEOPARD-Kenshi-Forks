@@ -9,6 +9,7 @@
 #include <kenshi/Character.h>
 #include <mygui/MyGUI_Colour.h>
 
+#include <stdint.h>
 #include <string>
 
 namespace MyGUI
@@ -21,7 +22,10 @@ struct PluginConfig
 {
     bool enabled;
     DWORD updateIntervalMs;
-    bool onlyWhenAltHeld;
+    int32_t highlightKeyCode;
+    bool highlightKeyRequireCtrl;
+    bool highlightKeyRequireShift;
+    bool highlightKeyRequireAlt;
     DWORD maxHighlightDistanceMeters;
     bool enableUnconsciousState;
     bool enableRecoveryComaState;

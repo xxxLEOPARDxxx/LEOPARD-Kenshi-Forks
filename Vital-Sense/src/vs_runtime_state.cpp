@@ -1,11 +1,16 @@
 #include "vs_runtime_state.h"
 
+#include "vs_keybind.h"
+
 namespace
 {
 PluginConfig g_config = {
     true,
     150,
-    true,
+    vs_keybind::kDefaultHighlightKeyCode,
+    false,
+    false,
+    false,
     3500,
     true,
     true,

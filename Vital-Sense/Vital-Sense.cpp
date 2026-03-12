@@ -8,10 +8,12 @@
 #include "src/vs_config.h"
 #include "src/vs_character_tint.h"
 #include "src/vs_log.h"
+#include "src/vs_keybind.h"
 #include "src/vs_marker_render.h"
 #include "src/vs_parse.h"
 #include "src/vs_probe.h"
 #include "src/vs_runtime_state.h"
+#include "src/vs_mod_hub.h"
 #include "src/vs_types.h"
 
 #ifndef BOOST_ALL_NO_LIB
@@ -113,7 +115,7 @@ __declspec(dllexport) void startPlugin()
     std::stringstream info;
     info << "loaded (enabled=" << (config.enabled ? "true" : "false")
          << ", update_interval_ms=" << config.updateIntervalMs
-         << ", only_when_alt_held=" << (config.onlyWhenAltHeld ? "true" : "false")
+         << ", highlight_key=" << vs_keybind::FormatKeybind(config)
          << ", show_icons=" << (config.showMarkerIcons ? "true" : "false")
          << ", show_text=" << (config.showMarkerText ? "true" : "false")
          << ", show_bounty_symbol=" << (config.showBountySymbol ? "true" : "false")
@@ -153,6 +155,7 @@ __declspec(dllexport) void startPlugin()
     }
 
     vs_log::LogInfo(kPluginName, "update and gpu hooks installed");
+    vs_mod_hub::OnStartup();
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)

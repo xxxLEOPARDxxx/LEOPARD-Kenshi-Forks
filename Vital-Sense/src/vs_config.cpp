@@ -1,9 +1,11 @@
 #include "vs_config.h"
 
+#include "vs_keybind.h"
 #include "vs_log.h"
 #include "vs_parse.h"
 
 #include <fstream>
+#include <ostream>
 #include <sstream>
 #include <string>
 
@@ -19,6 +21,132 @@ const DWORD kDefaultBountyTierNotableMax = 19999;
 const DWORD kDefaultBountyTierHighValueMax = 39999;
 const DWORD kDefaultBountyTierEliteMax = 74999;
 const DWORD kDefaultBountySymbolLiveAnchorYOffsetCm = 420;
+
+void WriteEscapedJsonString(std::ostream& out, const std::string& value)
+{
+    out << '"';
+    for (size_t i = 0; i < value.size(); ++i)
+    {
+        const unsigned char ch = static_cast<unsigned char>(value[i]);
+        switch (ch)
+        {
+        case '\"':
+            out << "\\\"";
+            break;
+        case '\\':
+            out << "\\\\";
+            break;
+        case '\b':
+            out << "\\b";
+            break;
+        case '\f':
+            out << "\\f";
+            break;
+        case '\n':
+            out << "\\n";
+            break;
+        case '\r':
+            out << "\\r";
+            break;
+        case '\t':
+            out << "\\t";
+            break;
+        default:
+            if (ch < 0x20u)
+            {
+                const char* kHex = "0123456789ABCDEF";
+                out << "\\u00"
+                    << kHex[(ch >> 4) & 0xFu]
+                    << kHex[ch & 0xFu];
+            }
+            else
+            {
+                out << static_cast<char>(ch);
+            }
+            break;
+        }
+    }
+    out << '"';
+}
+
+void WriteJsonKey(std::ofstream& out, const char* keyName)
+{
+    out << "  ";
+    WriteEscapedJsonString(out, keyName != 0 ? keyName : "");
+    out << ": ";
+}
+
+void WriteJsonLineEnd(std::ofstream& out, bool trailingComma)
+{
+    if (trailingComma)
+    {
+        out << ',';
+    }
+    out << '\n';
+}
+
+void WriteJsonBool(std::ofstream& out, const char* keyName, bool value, bool trailingComma)
+{
+    WriteJsonKey(out, keyName);
+    out << (value ? "true" : "false");
+    WriteJsonLineEnd(out, trailingComma);
+}
+
+void WriteJsonUnsigned(std::ofstream& out, const char* keyName, DWORD value, bool trailingComma)
+{
+    WriteJsonKey(out, keyName);
+    out << value;
+    WriteJsonLineEnd(out, trailingComma);
+}
+
+std::string BuildColourHexString(const MyGUI::Colour& colour)
+{
+    const char* kHex = "0123456789ABCDEF";
+    const auto toByte = [](float channel) -> unsigned int
+    {
+        if (channel < 0.0f)
+        {
+            channel = 0.0f;
+        }
+        if (channel > 1.0f)
+        {
+            channel = 1.0f;
+        }
+        return static_cast<unsigned int>(channel * 255.0f + 0.5f);
+    };
+
+    const unsigned int red = toByte(colour.red);
+    const unsigned int green = toByte(colour.green);
+    const unsigned int blue = toByte(colour.blue);
+    const unsigned int alpha = toByte(colour.alpha);
+
+    std::string value("#");
+    value.push_back(kHex[(red >> 4) & 0xFu]);
+    value.push_back(kHex[red & 0xFu]);
+    value.push_back(kHex[(green >> 4) & 0xFu]);
+    value.push_back(kHex[green & 0xFu]);
+    value.push_back(kHex[(blue >> 4) & 0xFu]);
+    value.push_back(kHex[blue & 0xFu]);
+    if (alpha < 255u)
+    {
+        value.push_back(kHex[(alpha >> 4) & 0xFu]);
+        value.push_back(kHex[alpha & 0xFu]);
+    }
+
+    return value;
+}
+
+void WriteJsonString(std::ofstream& out, const char* keyName, const std::string& value, bool trailingComma)
+{
+    WriteJsonKey(out, keyName);
+    WriteEscapedJsonString(out, value);
+    WriteJsonLineEnd(out, trailingComma);
+}
+
+void WriteJsonColour(std::ofstream& out, const char* keyName, const MyGUI::Colour& value, bool trailingComma)
+{
+    WriteJsonString(out, keyName, BuildColourHexString(value), trailingComma);
+}
 
 bool ParseUnsignedFromJsonSafe(const std::string& body, const char* keyName, DWORD* valueOut)
 {
@@ -36,7 +164,10 @@ void ApplyDefaultConfig(PluginConfig& config)
 {
     config.enabled = true;
     config.updateIntervalMs = 150;
-    config.onlyWhenAltHeld = true;
+    config.highlightKeyCode = vs_keybind::kDefaultHighlightKeyCode;
+    config.highlightKeyRequireCtrl = false;
+    config.highlightKeyRequireShift = false;
+    config.highlightKeyRequireAlt = false;
     config.maxHighlightDistanceMeters = 3500;
     config.enableUnconsciousState = true;
     config.enableRecoveryComaState = true;
@@ -94,6 +225,87 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.bountyTierEliteColour = MyGUI::Colour(1.000000f, 0.541176f, 0.168627f, 0.980392f);
     config.bountyTierLegendaryColour = MyGUI::Colour(0.878431f, 0.192157f, 0.192157f, 1.000000f);
     config.bountySymbolLiveAnchorYOffsetCm = kDefaultBountySymbolLiveAnchorYOffsetCm;
+}
+
+bool SaveConfigToFile(const std::string& configPath, const PluginConfig& config)
+{
+    std::ofstream out(configPath.c_str(), std::ios::out | std::ios::trunc | std::ios::binary);
+    if (!out)
+    {
+        return false;
+    }
+
+    out << "{\n";
+    WriteJsonBool(out, "enabled", config.enabled, true);
+    WriteJsonUnsigned(out, "update_interval_ms", config.updateIntervalMs, true);
+    WriteJsonString(out, "highlight_key", vs_keybind::KeyCodeToConfigString(config.highlightKeyCode), true);
+    WriteJsonBool(out, "highlight_key_require_ctrl", config.highlightKeyRequireCtrl, true);
+    WriteJsonBool(out, "highlight_key_require_shift", config.highlightKeyRequireShift, true);
+    WriteJsonBool(out, "highlight_key_require_alt", config.highlightKeyRequireAlt, true);
+    WriteJsonUnsigned(out, "max_highlight_distance_m", config.maxHighlightDistanceMeters, true);
+    WriteJsonBool(out, "enable_unconscious", config.enableUnconsciousState, true);
+    WriteJsonBool(out, "enable_recovery_coma", config.enableRecoveryComaState, true);
+    WriteJsonBool(out, "enable_dying", config.enableDyingState, true);
+    WriteJsonBool(out, "enable_playing_dead", config.enablePlayingDeadState, true);
+    WriteJsonBool(out, "enable_dead", config.enableDeadState, true);
+    WriteJsonBool(out, "show_icons", config.showMarkerIcons, true);
+    WriteJsonBool(out, "show_text", config.showMarkerText, true);
+    WriteJsonBool(out, "show_bounty_glow", config.showBountyGlow, true);
+    WriteJsonBool(out, "show_bounty_symbol", config.showBountySymbol, true);
+    WriteJsonBool(out, "debug_log_diagnostics", config.debugLogDiagnostics, true);
+    WriteJsonBool(out, "debug_log_texture_info", config.debugLogTextureInfo, true);
+    WriteJsonBool(out, "enable_character_tint", config.enableCharacterTint, true);
+    WriteJsonBool(out, "character_tint_include_squad", config.characterTintIncludeSquad, true);
+    WriteJsonBool(out, "character_tint_include_bounty_only", config.characterTintIncludeBountyOnly, true);
+    WriteJsonBool(out, "character_tint_force_depth_override", config.characterTintForceDepthOverride, true);
+    WriteJsonBool(out, "show_bounty_symbol_on_all_characters", config.showBountySymbolOnAllCharacters, true);
+    WriteJsonString(out, "bounty_symbol", config.bountySymbolText, true);
+    WriteJsonUnsigned(out, "bounty_symbol_size_px", config.bountySymbolTextSizePx, true);
+    WriteJsonString(
+        out,
+        "bounty_symbol_position",
+        config.placeBountySymbolBeforeStateIcon ? "before_state_icon" : "before_state_text",
+        true);
+    WriteJsonUnsigned(out, "bounty_symbol_live_anchor_y_offset_cm", config.bountySymbolLiveAnchorYOffsetCm, true);
+    WriteJsonUnsigned(out, "bounty_tier_trivial_max", config.bountyTierTrivialMax, true);
+    WriteJsonUnsigned(out, "bounty_tier_low_max", config.bountyTierLowMax, true);
+    WriteJsonUnsigned(out, "bounty_tier_modest_max", config.bountyTierModestMax, true);
+    WriteJsonUnsigned(out, "bounty_tier_notable_max", config.bountyTierNotableMax, true);
+    WriteJsonUnsigned(out, "bounty_tier_high_value_max", config.bountyTierHighValueMax, true);
+    WriteJsonUnsigned(out, "bounty_tier_elite_max", config.bountyTierEliteMax, true);
+    WriteJsonColour(out, "bounty_color_trivial_hex", config.bountyTierTrivialColour, true);
+    WriteJsonColour(out, "bounty_color_low_hex", config.bountyTierLowColour, true);
+    WriteJsonColour(out, "bounty_color_modest_hex", config.bountyTierModestColour, true);
+    WriteJsonColour(out, "bounty_color_notable_hex", config.bountyTierNotableColour, true);
+    WriteJsonColour(out, "bounty_color_high_value_hex", config.bountyTierHighValueColour, true);
+    WriteJsonColour(out, "bounty_color_elite_hex", config.bountyTierEliteColour, true);
+    WriteJsonColour(out, "bounty_color_legendary_hex", config.bountyTierLegendaryColour, true);
+    WriteJsonString(out, "unconscious_text", config.unconsciousText, true);
+    WriteJsonString(out, "recovery_coma_text", config.recoveryComaText, true);
+    WriteJsonString(out, "dying_text", config.dyingText, true);
+    WriteJsonString(out, "playing_dead_text", config.playingDeadText, true);
+    WriteJsonString(out, "dead_text", config.deadText, true);
+    WriteJsonUnsigned(out, "unconscious_text_size_px", config.unconsciousTextSizePx, true);
+    WriteJsonUnsigned(out, "recovery_coma_text_size_px", config.recoveryComaTextSizePx, true);
+    WriteJsonUnsigned(out, "dying_text_size_px", config.dyingTextSizePx, true);
+    WriteJsonUnsigned(out, "playing_dead_text_size_px", config.playingDeadTextSizePx, true);
+    WriteJsonUnsigned(out, "dead_text_size_px", config.deadTextSizePx, true);
+    WriteJsonColour(out, "enemy_color_hex", config.enemyMarkerColour, true);
+    WriteJsonColour(out, "ally_color_hex", config.allyMarkerColour, true);
+    WriteJsonColour(out, "squad_color_hex", config.squadMarkerColour, true);
+    WriteJsonString(out, "unconscious_icon_texture", config.customUnconsciousIconTexture, true);
+    WriteJsonUnsigned(out, "unconscious_icon_size_px", config.customUnconsciousIconSizePx, true);
+    WriteJsonString(out, "recovery_coma_icon_texture", config.customRecoveryComaIconTexture, true);
+    WriteJsonUnsigned(out, "recovery_coma_icon_size_px", config.customRecoveryComaIconSizePx, true);
+    WriteJsonString(out, "dying_icon_texture", config.customDyingIconTexture, true);
+    WriteJsonUnsigned(out, "dying_icon_size_px", config.customDyingIconSizePx, true);
+    WriteJsonString(out, "playing_dead_icon_texture", config.customPlayingDeadIconTexture, true);
+    WriteJsonUnsigned(out, "playing_dead_icon_size_px", config.customPlayingDeadIconSizePx, true);
+    WriteJsonString(out, "dead_icon_texture", config.customDeadIconTexture, true);
+    WriteJsonUnsigned(out, "dead_icon_size_px", config.customDeadIconSizePx, false);
+    out << "}\n";
+
+    return static_cast<bool>(out);
 }
 } // namespace
 
@@ -161,10 +373,47 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         }
     }
 
-    bool parsedAltGate = true;
-    if (vs_parse::ParseBoolFromJson(body, "only_when_alt_held", &parsedAltGate))
+    std::string parsedHighlightKey;
+    if (vs_parse::ParseStringFromJson(body, "highlight_key", &parsedHighlightKey))
     {
-        state.config.onlyWhenAltHeld = parsedAltGate;
+        int32_t parsedKeyCode = vs_keybind::kDefaultHighlightKeyCode;
+        if (vs_keybind::TryParseKeyCode(parsedHighlightKey, &parsedKeyCode))
+        {
+            state.config.highlightKeyCode = parsedKeyCode;
+        }
+        else
+        {
+            std::stringstream warning;
+            warning << "highlight_key invalid; using default " << vs_keybind::KeyCodeToConfigString(vs_keybind::kDefaultHighlightKeyCode);
+            vs_log::LogWarn(pluginName, warning.str());
+        }
+    }
+    else
+    {
+        bool parsedAltGate = true;
+        if (vs_parse::ParseBoolFromJson(body, "only_when_alt_held", &parsedAltGate) && !parsedAltGate)
+        {
+            state.config.highlightKeyCode = vs_keybind::kKeyCodeUnbound;
+            vs_log::LogWarn(pluginName, "only_when_alt_held=false is deprecated; migrated to highlight_key=UNBOUND");
+        }
+    }
+
+    bool parsedHighlightKeyRequireCtrl = false;
+    if (vs_parse::ParseBoolFromJson(body, "highlight_key_require_ctrl", &parsedHighlightKeyRequireCtrl))
+    {
+        state.config.highlightKeyRequireCtrl = parsedHighlightKeyRequireCtrl;
+    }
+
+    bool parsedHighlightKeyRequireShift = false;
+    if (vs_parse::ParseBoolFromJson(body, "highlight_key_require_shift", &parsedHighlightKeyRequireShift))
+    {
+        state.config.highlightKeyRequireShift = parsedHighlightKeyRequireShift;
+    }
+
+    bool parsedHighlightKeyRequireAlt = false;
+    if (vs_parse::ParseBoolFromJson(body, "highlight_key_require_alt", &parsedHighlightKeyRequireAlt))
+    {
+        state.config.highlightKeyRequireAlt = parsedHighlightKeyRequireAlt;
     }
 
     bool parsedShowIcons = true;
@@ -858,6 +1107,23 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         iconInfo << "custom DE icon configured texture=" << state.config.customDeadIconTexture
                  << " size=" << state.config.customDeadIconSizePx;
         vs_log::LogInfo(pluginName, iconInfo.str());
+    }
+
+    return true;
+}
+
+bool SaveConfigState(const RuntimeStateView& state, const char* pluginName)
+{
+    if (state.settingsPath.empty())
+    {
+        vs_log::LogError(pluginName, "settings path is empty; cannot save mod-config.json");
+        return false;
+    }
+
+    if (!SaveConfigToFile(state.settingsPath, state.config))
+    {
+        vs_log::LogError(pluginName, "failed to save mod-config.json");
+        return false;
     }
 
     return true;
