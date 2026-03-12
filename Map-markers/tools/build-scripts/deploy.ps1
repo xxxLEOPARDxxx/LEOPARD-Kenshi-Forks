@@ -33,23 +33,57 @@ Write-Host "Mod Destination:  $($resolved.KenshiModPath)" -ForegroundColor Gray
 
 if (-not $resolved.KenshiPath) {
     Write-Host "ERROR: Kenshi path is not set. Provide -KenshiPath or set KENSHI_PATH in .env." -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 if (-not (Test-Path $resolved.KenshiPath)) {
     Write-Host "ERROR: Kenshi directory not found: $($resolved.KenshiPath)" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 if (-not (Test-Path $resolved.DllPath)) {
     Write-Host "ERROR: DLL not found: $($resolved.DllPath)" -ForegroundColor Red
     Write-Host "Run build.ps1 (or a build wrapper) before deploy." -ForegroundColor Yellow
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 if (-not (Test-Path $resolved.KenshiModPath)) {
     New-Item -ItemType Directory -Path $resolved.KenshiModPath -Force | Out-Null
     Write-Host "Created mod directory: $($resolved.KenshiModPath)" -ForegroundColor Gray
+}
+
+$destDllPath = Join-Path $resolved.KenshiModPath $resolved.DllName
+$preflight = Test-DeployTargetPreflight -TargetPath $destDllPath -KenshiPath $resolved.KenshiPath
+if (-not $preflight.CanProceed) {
+    Write-Host "ERROR: Deploy preflight failed. Destination DLL cannot be replaced." -ForegroundColor Red
+    Write-Host "Target path: $($preflight.TargetPath)" -ForegroundColor Yellow
+
+    if ($preflight.FailureReason -eq "in_use") {
+        if ($preflight.SuspectedProcesses.Count -gt 0) {
+            Write-Host "Suspected locking process(es):" -ForegroundColor Yellow
+            foreach ($proc in $preflight.SuspectedProcesses) {
+                Write-Host "  - $($proc.Name) (PID $($proc.Id))" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "Suspected locking process(es): unavailable" -ForegroundColor Yellow
+        }
+
+        Write-Host "Next steps:" -ForegroundColor Yellow
+        Write-Host "  1) Close Kenshi and any tooling that may load this DLL." -ForegroundColor Yellow
+        Write-Host "  2) If a PID is listed above, stop that process first." -ForegroundColor Yellow
+        Write-Host "  3) Retry deploy after the lock is released." -ForegroundColor Yellow
+    } else {
+        Write-Host "Reason: Destination DLL is not writable." -ForegroundColor Yellow
+        Write-Host "Next steps:" -ForegroundColor Yellow
+        Write-Host "  1) Verify write permissions on the target mod folder." -ForegroundColor Yellow
+        Write-Host "  2) Retry deploy." -ForegroundColor Yellow
+    }
+
+    if ($preflight.Details) {
+        Write-Host "Details: $($preflight.Details)" -ForegroundColor Red
+    }
+
+    return (Exit-KenshiScriptWithTimestamp -ExitCode $preflight.ExitCode)
 }
 
 if (-not (Test-Path $resolved.ModDir) -and (Test-Path $initTemplateScript)) {
@@ -58,7 +92,7 @@ if (-not (Test-Path $resolved.ModDir) -and (Test-Path $initTemplateScript)) {
         & $initTemplateScript -RepoDir $ctx.RepoDir -ModName $resolved.ModName -DllName $resolved.DllName -ModFileName $resolved.ModFileName -ConfigFileName $resolved.ConfigFileName
     } catch {
         Write-Host "ERROR: Failed while initializing mod template folder. Details: $_" -ForegroundColor Red
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 }
 
@@ -70,13 +104,12 @@ if (Test-Path $resolved.ModDir) {
     Write-Host "Only DLL will be copied." -ForegroundColor Yellow
 }
 
-$destDllPath = Join-Path $resolved.KenshiModPath $resolved.DllName
 try {
     Copy-Item -Path $resolved.DllPath -Destination $destDllPath -Force
 } catch {
     Write-Host "ERROR: Failed to copy DLL. File might be in use (is Kenshi running?)." -ForegroundColor Red
     Write-Host "Details: $_" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 $sourceInfo = Get-Item $resolved.DllPath
@@ -85,7 +118,7 @@ if ($sourceInfo.Length -ne $destInfo.Length) {
     Write-Host "ERROR: Deployment failed. Destination DLL size mismatch." -ForegroundColor Red
     Write-Host "Source bytes: $($sourceInfo.Length)"
     Write-Host "Dest bytes:   $($destInfo.Length)"
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 Write-Host "Copied DLL: $($resolved.DllPath) -> $destDllPath" -ForegroundColor Gray
@@ -105,7 +138,7 @@ try {
     Write-Host "Successfully updated RE_Kenshi.json in deploy directory." -ForegroundColor Green
 } catch {
     Write-Host "ERROR: Failed to update RE_Kenshi.json. Details: $_" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 $destModFilePath = Join-Path $resolved.KenshiModPath $resolved.ModFileName
@@ -114,7 +147,7 @@ try {
     Ensure-ModFile -Path $destModFilePath -TemplatePath $defaultModTemplatePath
 } catch {
     Write-Host "ERROR: $_" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 Write-Host "`nVerifying deployment..." -ForegroundColor Yellow
@@ -142,3 +175,4 @@ if ($jsonFileDeployed) {
 
 Write-Host "`n=== Deployment Complete ===" -ForegroundColor Cyan
 Write-Host "Mod location: $($resolved.KenshiModPath)" -ForegroundColor Gray
+return (Exit-KenshiScriptWithTimestamp -ExitCode 0)

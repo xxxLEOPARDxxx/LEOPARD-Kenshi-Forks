@@ -2,7 +2,7 @@
 
 All notable changes to Map-markers are documented in this file.
 
-## [Unreleased] - 2026-03-09
+## [0.1.0-alpha.1] - 2026-03-12
 
 - Proved world-map feasibility through runtime MyGUI discovery and diagnostics hooks.
 - Added map-space marker rendering on the Kenshi world map.

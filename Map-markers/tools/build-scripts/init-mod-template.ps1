@@ -42,10 +42,15 @@ Ensure-ReKenshiJson -Path $reKenshiJsonPath -PluginDllName $resolved.DllName
 
 $modConfigPath = Join-Path $modTemplateDir "mod-config.json"
 if (-not (Test-Path $modConfigPath)) {
-    $modConfig = @{
+    $modConfig = [ordered]@{
         enabled = $true
-        pause_debounce_ms = 2000
-        debug_log_transitions = $false
+        markers_visible = $true
+        close_editor_on_map_close = $true
+        show_hover_labels = $true
+        default_marker_type = "note"
+        editor_position_customized = $false
+        editor_left = 0
+        editor_top = 0
     }
     $modConfig | ConvertTo-Json -Depth 4 | Set-Content -Path $modConfigPath
     Write-Host "Created missing mod-config.json: $modConfigPath" -ForegroundColor Gray

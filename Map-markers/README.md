@@ -65,7 +65,7 @@ Current status: pre-alpha MVP. The core marker flow is working, save-backed, and
 
 `default_marker_type` is stored in `mod-config.json` as a type id string such as `note`, `danger`, or `stash`. The loader also accepts legacy integer values.
 
-If `Emkejs-Mod-Core` Mod Hub is present, these user-facing settings can also be changed there:
+If a compatible `Emkejs-Mod-Core` Mod Hub build is present, these user-facing settings can also be changed there:
 
 - `enabled`
 - `close_editor_on_map_close`
@@ -76,9 +76,7 @@ Marker saves currently use schema version `3`.
 
 ## Build setup
 
-Clone with `--recurse-submodules`, or run:
-
-- `git submodule update --init --recursive`
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
 
 Then load the local environment once per shell:
 
@@ -127,4 +125,4 @@ After deploy, expected files are:
 - Markers that overlap the editor are hidden while the editor is open.
 - Drag-to-move markers is not implemented yet.
 - Marker visuals still use the current square MyGUI button skin.
-- Mod Hub integration currently exposes hover label, map-close, default-type, and master enable settings.
+- Compatible Mod Hub builds currently expose hover label, map-close, default-type, and master enable settings.

@@ -83,7 +83,7 @@ if (-not $packageSourcePath) {
         if ($runDeploy) {
             if (-not (Test-Path $deployScript)) {
                 Write-Host "ERROR: deploy.ps1 not found at $deployScript" -ForegroundColor Red
-                exit 1
+                return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
             }
 
             $deployParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -AllowedKeys @(
@@ -127,10 +127,10 @@ if (-not $packageSourcePath) {
             }
 
             Write-Host "Running deploy before package..." -ForegroundColor Yellow
-            & $deployScript @deployParams
+            Invoke-KenshiScriptWithSuppressedTimestamp { & $deployScript @deployParams }
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "ERROR: deploy.ps1 failed" -ForegroundColor Red
-                exit 1
+                return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
             }
 
             $status = Get-LocalPackagingStatus -Resolved $resolved -LocalModPath $resolved.ModDir
@@ -142,16 +142,16 @@ if (-not $packageSourcePath) {
         foreach ($missingPath in $status.MissingModFiles) {
             Write-Host " - $missingPath" -ForegroundColor Red
         }
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 
     if ($status.DllMissing) {
         Write-Host "ERROR: Built DLL not found: $($resolved.DllPath)" -ForegroundColor Red
         Write-Host "Run build.ps1 (or a build wrapper) before package." -ForegroundColor Yellow
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 
-    $stagingRoot = Join-Path $ctx.RepoDir ".packaging\$($resolved.ModName)-package-only"
+    $stagingRoot = Join-Path $ctx.RepoDir ".packaging\$($resolved.ModName)"
     if (Test-Path $stagingRoot) {
         Remove-Item -Path $stagingRoot -Recurse -Force
     }
@@ -163,7 +163,7 @@ if (-not $packageSourcePath) {
 
 if (-not (Test-Path $packageSourcePath)) {
     Write-Host "ERROR: Mod folder not found: $packageSourcePath" -ForegroundColor Red
-    exit 1
+    return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
 }
 
 $requiredFiles = @(
@@ -176,7 +176,7 @@ foreach ($fileName in $requiredFiles) {
     $filePath = Join-Path $packageSourcePath $fileName
     if (-not (Test-Path $filePath)) {
         Write-Host "ERROR: Missing required file in package source: $filePath" -ForegroundColor Red
-        exit 1
+        return (Exit-KenshiScriptWithTimestamp -ExitCode 1)
     }
 }
 
@@ -211,3 +211,4 @@ Write-Host "Output:    $zipPath" -ForegroundColor Gray
 Compress-Archive -Path $packageSourcePath -DestinationPath $zipPath
 
 Write-Host "Package created: $zipPath" -ForegroundColor Green
+return (Exit-KenshiScriptWithTimestamp -ExitCode 0)

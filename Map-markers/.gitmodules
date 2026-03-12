@@ -1,3 +1,0 @@
-[submodule "tools/build-scripts"]
-	path = tools/build-scripts
-	url = git@github.com:Emkej/kenshi-mod-build-scripts.git
