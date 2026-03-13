@@ -45,6 +45,61 @@ function Get-KenshiEnvValue {
     return [string]$value
 }
 
+function Initialize-KenshiScriptTiming {
+    $existingStartMs = Get-KenshiEnvValue -Name "KENSHI_SCRIPT_START_MS"
+    if ($existingStartMs) {
+        return
+    }
+
+    $env:KENSHI_SCRIPT_START_MS = [string][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+}
+
+function Get-KenshiScriptElapsedTime {
+    $startMsValue = Get-KenshiEnvValue -Name "KENSHI_SCRIPT_START_MS"
+    if (-not $startMsValue) {
+        return $null
+    }
+
+    $parsedStartMs = 0L
+    if (-not [long]::TryParse($startMsValue, [ref]$parsedStartMs)) {
+        return $null
+    }
+
+    $elapsedMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - $parsedStartMs
+    if ($elapsedMs -lt 0) {
+        $elapsedMs = 0
+    }
+
+    return [TimeSpan]::FromMilliseconds([double]$elapsedMs)
+}
+
+function Format-KenshiScriptElapsedTime {
+    param(
+        [Parameter(Mandatory = $true)][TimeSpan]$ElapsedTime
+    )
+
+    $hours = [int]$ElapsedTime.TotalHours
+    $minutes = [int]$ElapsedTime.Minutes
+    $seconds = [int]$ElapsedTime.Seconds
+    $hundredths = [int][math]::Floor($ElapsedTime.Milliseconds / 10)
+    return ("{0:D2}:{1:D2}:{2:D2}.{3:D2}" -f $hours, $minutes, $seconds, $hundredths)
+}
+
+function Write-KenshiScriptElapsedTime {
+    $suppressTimestamp = Get-KenshiEnvValue -Name "KENSHI_SUPPRESS_FINISH_TIMESTAMP"
+    if ($suppressTimestamp -and $suppressTimestamp -ne "0") {
+        return
+    }
+
+    $elapsedTime = Get-KenshiScriptElapsedTime
+    if ($null -eq $elapsedTime) {
+        return
+    }
+
+    $formattedElapsedTime = Format-KenshiScriptElapsedTime -ElapsedTime $elapsedTime
+    Write-Host "Duration: $formattedElapsedTime" -ForegroundColor Gray
+}
+
 function Write-KenshiBuildFinishedTimestamp {
     $suppressTimestamp = Get-KenshiEnvValue -Name "KENSHI_SUPPRESS_FINISH_TIMESTAMP"
     if ($suppressTimestamp -and $suppressTimestamp -ne "0") {
@@ -61,6 +116,7 @@ function Exit-KenshiScriptWithTimestamp {
     )
 
     $global:LASTEXITCODE = $ExitCode
+    Write-KenshiScriptElapsedTime
     Write-KenshiBuildFinishedTimestamp
     exit $ExitCode
 }
