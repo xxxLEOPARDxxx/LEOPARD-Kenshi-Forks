@@ -998,16 +998,6 @@ static bool SaveConfigState()
         return false;
     }
 
-    std::stringstream info;
-    info << "Wall-B-Gone INFO: saved config enabled=" << (g_modEnabled ? "true" : "false")
-        << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
-        << " hotkey=" << FormatHotkeyBinding(
-            g_hotkeyPrimary,
-            g_hotkeyRequireCtrl,
-            g_hotkeyRequireShift,
-            g_hotkeyRequireAlt);
-    DebugLog(info.str().c_str());
-
     return true;
 }
 
