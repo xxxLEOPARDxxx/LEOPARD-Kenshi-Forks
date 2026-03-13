@@ -270,7 +270,7 @@ __declspec(dllexport) void startPlugin()
          << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 
-    StartModHubClient();
+    JobBGoneModHub_OnStartup();
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)

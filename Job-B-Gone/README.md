@@ -95,3 +95,13 @@ If config is missing or unreadable, defaults are used and written back.
 
 ## Emkejs Mod Hub
 If `Emkejs-Mod-Core` is present, Job-B-Gone registers its core settings with Mod Hub on startup and keeps `mod-config.json` as the persistence source of truth. The panel toggle hotkey is exposed there as a primary key plus separate Ctrl/Alt/Shift toggles; panel-position fields remain file-backed only. If the hub is unavailable or registration fails, Job-B-Gone falls back to its standalone file-based config without disabling the in-game panel.
+
+Recommended load order:
+- `Emkejs-Mod-Core`
+- `Job-B-Gone`
+
+### Runtime smoke check
+After launching Kenshi with `Emkejs-Mod-Core` and `Job-B-Gone` enabled, run:
+- `.\scripts\phase22_mod_hub_runtime_smoke_test.ps1 -ExpectedMode attached`
+
+The script reads the latest `RE_Kenshi_log.txt` session and passes only when the latest Job-B-Gone startup reaches `event=mod_hub_attached` or `event=mod_hub_fallback`, which proves the current run reached a recognizable Mod Hub attach or fallback path.

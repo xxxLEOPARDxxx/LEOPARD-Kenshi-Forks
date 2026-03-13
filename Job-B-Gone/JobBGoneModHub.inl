@@ -629,7 +629,7 @@ void LogModHubFallback(const char* reason)
 {
     const bool modHubMissing = g_modHubClient.LastAttemptFailureResult() == EMC_ERR_NOT_FOUND;
     std::stringstream line;
-    line << (modHubMissing ? "Job-B-Gone INFO: mod_hub_fallback" : "Job-B-Gone WARN: mod_hub_fallback")
+    line << (modHubMissing ? "Job-B-Gone INFO: event=mod_hub_fallback" : "Job-B-Gone WARN: event=mod_hub_fallback")
          << " reason=" << (reason != 0 ? reason : "unknown")
          << " result=" << g_modHubClient.LastAttemptFailureResult()
          << " use_hub_ui=0";
@@ -658,14 +658,14 @@ void EnsureModHubClientConfigured()
     g_modHubClientConfigured = true;
 }
 
-void StartModHubClient()
+void JobBGoneModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
-        DebugLog("Job-B-Gone INFO: mod_hub_attached use_hub_ui=1");
+        DebugLog("Job-B-Gone INFO: event=mod_hub_attached use_hub_ui=1");
         return;
     }
 
