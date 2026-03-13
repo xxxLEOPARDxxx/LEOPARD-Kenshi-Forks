@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\mod_hub_client.cpp">
+    <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Wall-B-Gone.cpp">
@@ -23,10 +23,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\emc\mod_hub_api.h">
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_api.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\emc\mod_hub_client.h">
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_consumer_helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

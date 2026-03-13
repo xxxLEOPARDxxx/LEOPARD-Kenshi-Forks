@@ -3,6 +3,7 @@ Safely dismantles selected walls and sleeping bags (only when not occupied) with
 
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
+This repo tracks the current Emkejs Mod Core consumer SDK through the `tools/mod-hub-sdk` submodule. Initialize it with `git submodule update --init --recursive -- tools/mod-hub-sdk`.
 
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
@@ -14,6 +15,15 @@ This sets:
 - `KENSHILIB_DIR`
 - `BOOST_INCLUDE_PATH`
 The bash shims in `scripts/` also load `.env`.
+
+## Mod Hub SDK Sync
+Sync and validate the pinned Mod Hub SDK with:
+
+```bash
+./scripts/sync-mod-hub-sdk.sh
+```
+
+Use `--skip-pull` for validation-only mode when you only want to check the currently checked out SDK revision.
 
 ## Build
 You can build in Visual Studio, or via the script below.
@@ -49,6 +59,8 @@ This mod stores its runtime settings in `mod-config.json`:
 - `hotkey`
 
 If `Emkejs-Mod-Core` is installed, these same settings can also appear in Emkejs Mod Hub. If Mod Hub is unavailable, Wall-B-Gone falls back to its native plugin settings tab.
+
+Wall-B-Gone consumes the current public Mod Hub helper from `tools/mod-hub-sdk`, matching the documented `Emkejs-Mod-Core` consumer SDK flow rather than a vendored local copy.
 
 At runtime, the plugin reads:
 
