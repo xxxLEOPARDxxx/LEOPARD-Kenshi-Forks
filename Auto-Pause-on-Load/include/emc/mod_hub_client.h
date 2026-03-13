@@ -24,7 +24,8 @@ enum ModHubClientSettingKind
     MOD_HUB_CLIENT_SETTING_KIND_KEYBIND = 1,
     MOD_HUB_CLIENT_SETTING_KIND_INT = 2,
     MOD_HUB_CLIENT_SETTING_KIND_FLOAT = 3,
-    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4
+    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4,
+    MOD_HUB_CLIENT_SETTING_KIND_INT_V2 = 5
 };
 
 struct ModHubClientSettingRowV1
@@ -44,6 +45,11 @@ EMC_Result RegisterSettingsTableV1(
     const EMC_HubApiV1* api,
     const ModHubClientTableRegistrationV1* table_registration);
 
+EMC_Result RegisterSettingsTableWithApiSizeV1(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
+    const ModHubClientTableRegistrationV1* table_registration);
+
 class ModHubClient
 {
 public:
@@ -55,6 +61,8 @@ public:
         const ModHubClientTableRegistrationV1* table_registration;
         ModHubClientForceAttachFailureFn should_force_attach_failure_fn;
         void* attach_failure_user_data;
+        uint32_t expected_sdk_api_version;
+        uint32_t expected_sdk_min_api_size;
 
         Config();
     };
@@ -97,6 +105,7 @@ private:
     EMC_Result last_attempt_failure_result_;
     const EMC_HubApiV1* observer_api_;
     bool options_window_init_observer_registered_;
+    bool sdk_stamp_warning_emitted_;
 };
 }
 

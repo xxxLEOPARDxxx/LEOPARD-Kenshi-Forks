@@ -55,9 +55,6 @@ static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
-static const DWORD kModHubAttachRetryIntervalMs = 2000;
-static const DWORD kModHubAttachRetryMaxAttempts = 30;
-
 static const char* kHubNamespaceId = "emkej.qol";
 static const char* kHubNamespaceDisplayName = "Emkej QoL";
 static const char* kHubModId = "auto_pause_on_load";
@@ -70,9 +67,6 @@ static emc::ModHubClient g_modHubClient;
 static std::string g_settingsPath;
 static bool g_hasSaveLoadHook = false;
 static bool g_configNeedsWriteBack = false;
-static bool g_modHubAttachRetryActive = false;
-static DWORD g_modHubAttachRetryAttempts = 0;
-static DWORD g_modHubAttachRetryLastAttemptMs = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
@@ -81,7 +75,6 @@ static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
-static void TickModHubAttachRetry();
 
 struct ConfigParseDiagnostics
 {
@@ -1089,9 +1082,15 @@ static EMC_Result SetBoolHubSettingValue(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
+    if (value != 0 && value != 1)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
     PluginConfig* config = static_cast<PluginConfig*>(user_data);
     PluginConfig updated = *config;
-    updated.*field = value != 0;
+    updated.*field = value == 1;
     return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
 }
 
@@ -1217,35 +1216,9 @@ static void LogModHubFallback(const char* reason)
          << " WARN: event=mod_hub_fallback"
          << " reason=" << (reason ? reason : "unknown")
          << " result=" << g_modHubClient.LastAttemptFailureResult()
+         << " retry_pending=" << (g_modHubClient.IsAttachRetryPending() ? 1 : 0)
          << " use_hub_ui=0";
     ErrorLog(line.str().c_str());
-}
-
-static void LogModHubRetryEvent(const char* eventName, emc::ModHubClient::AttemptResult result)
-{
-    std::stringstream line;
-    line << kPluginName
-         << " INFO: event=" << (eventName ? eventName : "mod_hub_retry")
-         << " attempt=" << g_modHubAttachRetryAttempts
-         << " result_enum=" << static_cast<int32_t>(result)
-         << " result=" << g_modHubClient.LastAttemptFailureResult()
-         << " use_hub_ui=" << (g_modHubClient.UseHubUi() ? 1 : 0);
-    DebugLog(line.str().c_str());
-}
-
-static bool ShouldLogModHubRetryEvent(emc::ModHubClient::AttemptResult result)
-{
-    if (g_config.debugLogTransitions)
-    {
-        return true;
-    }
-
-    if (g_modHubAttachRetryAttempts <= 1)
-    {
-        return true;
-    }
-
-    return result != emc::ModHubClient::ATTACH_FAILED;
 }
 
 static const EMC_ModDescriptorV1 kModHubDescriptor = {
@@ -1338,10 +1311,6 @@ static void ConfigureModHubClient()
 
 static void StartModHubClient()
 {
-    g_modHubAttachRetryActive = false;
-    g_modHubAttachRetryAttempts = 0;
-    g_modHubAttachRetryLastAttemptMs = GetTickCount();
-
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -1351,61 +1320,17 @@ static void StartModHubClient()
 
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
-        LogModHubFallback("get_api_failed");
-        g_modHubAttachRetryActive = true;
+        LogModHubFallback("attach_failed");
         return;
     }
 
     if (result == emc::ModHubClient::REGISTRATION_FAILED)
     {
-        LogModHubFallback("register_mod_or_setting_failed");
+        LogModHubFallback("registration_failed");
         return;
     }
 
     LogModHubFallback("invalid_client_configuration");
-}
-
-static void TickModHubAttachRetry()
-{
-    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
-    {
-        return;
-    }
-
-    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
-    {
-        g_modHubAttachRetryActive = false;
-        ErrorLog("Auto-Pause-on-Load WARN: event=mod_hub_retry_stopped reason=max_attempts_reached");
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-    if (!DebounceWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
-    {
-        return;
-    }
-
-    ++g_modHubAttachRetryAttempts;
-    g_modHubAttachRetryLastAttemptMs = nowMs;
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (ShouldLogModHubRetryEvent(result))
-    {
-        LogModHubRetryEvent("mod_hub_retry_attempt", result);
-    }
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        g_modHubAttachRetryActive = false;
-        DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_retry_success");
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubFallback("register_mod_or_setting_failed");
-        return;
-    }
 }
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs)
@@ -1973,7 +1898,6 @@ static void TickPauseOnLoad()
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
-    TickModHubAttachRetry();
     TickPauseOnLoad();
     TickPauseOnTradeAndInventory();
 }
