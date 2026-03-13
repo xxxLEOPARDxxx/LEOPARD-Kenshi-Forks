@@ -816,7 +816,6 @@ void PlayerInterface_updateUT_hook(PlayerInterface* self)
         g_updateUTOrig(self);
     }
 
-    TraderModHub_TickAttachRetry();
     TickPhase2ControlsScaffold();
 }
 }

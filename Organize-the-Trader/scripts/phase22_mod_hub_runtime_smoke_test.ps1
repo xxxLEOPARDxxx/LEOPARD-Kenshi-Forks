@@ -101,9 +101,9 @@ $allLines = Get-Content -LiteralPath $resolvedLogPath
 $sessionLines = Get-LastSessionLines -Lines $allLines -StartupPattern "Organize-the-Trader INFO: startPlugin\(\)"
 
 $loadedConfig = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: mod config loaded"
-$attached = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: event=mod_hub_(attached|retry_success) use_hub_ui=1"
+$attached = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: event=mod_hub_attached use_hub_ui=1"
+$retryPending = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: event=mod_hub_attach_retry_pending use_hub_ui=0"
 $fallback = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader WARN: event=mod_hub_fallback .* use_hub_ui=0"
-$retryStopped = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader WARN: event=mod_hub_retry_stopped reason=max_attempts_reached"
 $pluginError = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader ERROR:"
 
 Assert-Condition -Condition ($null -ne $loadedConfig) -Message "Missing Organize-the-Trader mod-config load line in the latest RE_Kenshi session."
@@ -111,7 +111,7 @@ Assert-Condition -Condition ($null -eq $pluginError) -Message ("Found Organize-t
 
 $resolvedMode = "unknown"
 $lastModeEvent = $null
-foreach ($match in @($fallback, $retryStopped, $attached)) {
+foreach ($match in @($fallback, $retryPending, $attached)) {
     if ($null -eq $match) {
         continue
     }
@@ -124,6 +124,8 @@ foreach ($match in @($fallback, $retryStopped, $attached)) {
 if ($null -ne $lastModeEvent) {
     if ($lastModeEvent.Line -match "use_hub_ui=1") {
         $resolvedMode = "attached"
+    } elseif ($lastModeEvent.Line -match "event=mod_hub_attach_retry_pending") {
+        $resolvedMode = "pending_retry"
     } else {
         $resolvedMode = "fallback"
     }
@@ -131,13 +133,13 @@ if ($null -ne $lastModeEvent) {
 
 switch ($ExpectedMode) {
     "attached" {
-        Assert-Condition -Condition ($resolvedMode -eq "attached") -Message "Expected attached mode, but the latest session did not reach a successful Mod Hub attach/registration path."
+        Assert-Condition -Condition ($resolvedMode -eq "attached") -Message "Expected attached mode, but the latest session did not reach event=mod_hub_attached."
     }
     "fallback" {
         Assert-Condition -Condition ($resolvedMode -eq "fallback") -Message "Expected fallback mode, but the latest session did not end in the file-config-only path."
     }
     "either" {
-        Assert-Condition -Condition ($resolvedMode -ne "unknown") -Message "Latest session did not emit a recognizable Mod Hub attach or fallback result."
+        Assert-Condition -Condition (($resolvedMode -eq "attached") -or ($resolvedMode -eq "fallback")) -Message "Latest session did not emit a final Mod Hub attach or fallback result."
     }
 }
 
@@ -148,11 +150,10 @@ Write-Host ("Loaded config: {0}" -f $loadedConfig.Line)
 if ($null -ne $attached) {
     Write-Host ("Attach success: {0}" -f $attached.Line)
 }
+if ($null -ne $retryPending) {
+    Write-Host ("Retry pending: {0}" -f $retryPending.Line)
+}
 if ($null -ne $fallback) {
     Write-Host ("Fallback: {0}" -f $fallback.Line)
 }
-if ($null -ne $retryStopped) {
-    Write-Host ("Retry stopped: {0}" -f $retryStopped.Line)
-}
-
 exit 0

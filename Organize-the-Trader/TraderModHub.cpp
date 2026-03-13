@@ -3,8 +3,6 @@
 #include "TraderCore.h"
 #include "emc/mod_hub_client.h"
 
-#include <Windows.h>
-
 #include <sstream>
 
 namespace
@@ -14,17 +12,11 @@ const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "organize_the_trader";
 const char* kHubModDisplayName = "Organize the Trader";
 
-const DWORD kModHubAttachRetryIntervalMs = 5000u;
-const unsigned int kModHubAttachRetryMaxAttempts = 3u;
-
 typedef bool TraderConfigSnapshot::*TraderConfigBoolField;
 typedef int TraderConfigSnapshot::*TraderConfigIntField;
 
 emc::ModHubClient g_modHubClient;
 bool g_modHubClientConfigured = false;
-bool g_modHubAttachRetryActive = false;
-unsigned int g_modHubAttachRetryAttempts = 0u;
-DWORD g_modHubAttachRetryLastAttemptMs = 0u;
 
 void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
 {
@@ -271,11 +263,6 @@ void LogModHubFallback(const char* reason)
     LogWarnLine(line.str());
 }
 
-bool RetryWindowElapsed(DWORD nowMs, DWORD lastAttemptMs, DWORD minGapMs)
-{
-    return (nowMs - lastAttemptMs) >= minGapMs;
-}
-
 void EnsureModHubClientConfigured()
 {
     if (g_modHubClientConfigured)
@@ -369,10 +356,6 @@ void TraderModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
-    g_modHubAttachRetryActive = false;
-    g_modHubAttachRetryAttempts = 0u;
-    g_modHubAttachRetryLastAttemptMs = GetTickCount();
-
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -382,8 +365,13 @@ void TraderModHub_OnStartup()
 
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
+        if (g_modHubClient.IsAttachRetryPending())
+        {
+            LogInfoLine("event=mod_hub_attach_retry_pending use_hub_ui=0");
+            return;
+        }
+
         LogModHubFallback("get_api_failed");
-        g_modHubAttachRetryActive = true;
         return;
     }
 
@@ -394,52 +382,4 @@ void TraderModHub_OnStartup()
     }
 
     LogModHubFallback("invalid_client_configuration");
-}
-
-void TraderModHub_TickAttachRetry()
-{
-    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
-    {
-        return;
-    }
-
-    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
-    {
-        g_modHubAttachRetryActive = false;
-        if (g_modHubClient.LastAttemptFailureResult() != EMC_ERR_NOT_FOUND)
-        {
-            LogWarnLine("event=mod_hub_retry_stopped reason=max_attempts_reached");
-        }
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-    if (!RetryWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
-    {
-        return;
-    }
-
-    ++g_modHubAttachRetryAttempts;
-    g_modHubAttachRetryLastAttemptMs = nowMs;
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        g_modHubAttachRetryActive = false;
-        LogInfoLine("event=mod_hub_retry_success use_hub_ui=1");
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubFallback("register_mod_or_setting_failed");
-        return;
-    }
-
-    if (result == emc::ModHubClient::INVALID_CONFIGURATION)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubFallback("invalid_client_configuration");
-    }
 }

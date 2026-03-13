@@ -78,10 +78,10 @@ Recommended load order:
 - `Emkejs-Mod-Core`
 - `Organize-the-Trader`
 
-If Mod Core is absent or attach fails, this mod keeps using `mod-config.json` only.
+If Mod Core is absent, registration fails, or the helper retry path never attaches, this mod keeps using `mod-config.json` only.
 
 ### Runtime smoke check
 After launching Kenshi with `Emkejs-Mod-Core` and `Organize-the-Trader` enabled, run:
 - `.\scripts\phase22_mod_hub_runtime_smoke_test.ps1 -ExpectedMode attached`
 
-The script reads the latest `RE_Kenshi_log.txt` session and passes only when the latest Organize-the-Trader startup reaches `event=mod_hub_attached` or `event=mod_hub_retry_success`, which proves Mod Hub lookup and setting registration succeeded for that run.
+The script reads the latest `RE_Kenshi_log.txt` session and passes only when the latest Organize-the-Trader startup reaches `event=mod_hub_attached`, which proves Mod Hub lookup and setting registration succeeded for that run. If you see `event=mod_hub_attach_retry_pending`, the helper-owned retry path is still pending and that run is not a clean attached pass yet.
