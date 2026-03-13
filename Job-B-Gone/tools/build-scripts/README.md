@@ -2,6 +2,8 @@
 
 Shared build, deploy, and package scripts for Kenshi plugin mods.
 
+This `consumer/` directory is the shared build-scripts source inside `kenshi-mod-build-scripts`. It is not a mod repo by itself; consumer mod repos import it at `tools/build-scripts`.
+
 ## Consumption (Subtree)
 Import this directory into each mod repo at `tools/build-scripts` via `git subtree`.
 
