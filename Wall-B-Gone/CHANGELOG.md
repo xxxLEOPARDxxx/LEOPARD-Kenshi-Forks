@@ -4,6 +4,10 @@ All notable changes to Wall-B-Gone will be documented in this file.
 
 The format is based on Keep a Changelog, and this project uses SemVer-style versioning tags.
 
+## [Unreleased]
+### Added
+- Ctrl/Shift/Alt modifier toggles for combo dismantle hotkeys in the native settings tab and Mod Hub.
+
 ## [0.1.0-beta.2] - 2026-02-21
 ### Added
 - Sleeping bag dismantle support.

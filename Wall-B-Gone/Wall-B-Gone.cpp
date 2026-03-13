@@ -966,15 +966,6 @@ static void LoadConfigState()
     g_hotkeyRequireAlt = loadedHotkeyRequireAlt;
     SyncNativeBindingFromHotkey();
 
-    std::stringstream info;
-    info << "Wall-B-Gone INFO: loaded config enabled=" << (g_modEnabled ? "true" : "false")
-        << " sleepingBagDismantleEnabled=" << (g_sleepingBagDismantleEnabled ? "true" : "false")
-        << " hotkey=" << FormatHotkeyBinding(
-            g_hotkeyPrimary,
-            g_hotkeyRequireCtrl,
-            g_hotkeyRequireShift,
-            g_hotkeyRequireAlt);
-    DebugLog(info.str().c_str());
 }
 
 static bool SaveConfigState()
@@ -1376,7 +1367,6 @@ static void StartModHubClient()
     {
         if (g_modHubClient.LastAttemptFailureResult() == EMC_ERR_NOT_FOUND)
         {
-            DebugLog("Wall-B-Gone INFO: event=mod_hub_unavailable use_hub_ui=0");
             return;
         }
 
@@ -1711,7 +1701,6 @@ static void OptionsWindowInitHook(OptionsWindow* self)
         }
         else if (!keyLine)
         {
-            ErrorLog("Wall-B-Gone: failed to create native keybind row");
             CreateFallbackKeybindControls(panelWidget);
         }
     }
@@ -2207,8 +2196,6 @@ static void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode k
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("Wall-B-Gone: startPlugin()");
-
     KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
     const unsigned int platform = versionInfo.GetPlatform();
     const std::string version = versionInfo.GetVersion();
