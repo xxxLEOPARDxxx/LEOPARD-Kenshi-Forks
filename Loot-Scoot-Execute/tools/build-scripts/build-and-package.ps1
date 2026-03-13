@@ -7,6 +7,7 @@ param(
     [string]$Configuration = "",
     [string]$Platform = "",
     [string]$PlatformToolset = "",
+    [switch]$Clean,
     [string]$DllName = "",
     [string]$ModFileName = "",
     [string]$ConfigFileName = "",
@@ -24,6 +25,7 @@ if (-not (Test-Path $CommonScript)) {
     exit 1
 }
 . $CommonScript
+Initialize-KenshiScriptTiming
 
 $buildScript = Join-Path $scriptDir "build.ps1"
 $packageScript = Join-Path $scriptDir "package.ps1"
@@ -49,7 +51,8 @@ $buildParams = Get-ForwardedParameters -BoundParameters $PSBoundParameters -Allo
     "ConfigFileName",
     "Configuration",
     "Platform",
-    "PlatformToolset"
+    "PlatformToolset",
+    "Clean"
 )
 
 Invoke-KenshiScriptWithSuppressedTimestamp { & $buildScript @buildParams }
