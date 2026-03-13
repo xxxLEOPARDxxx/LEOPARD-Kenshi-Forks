@@ -54,3 +54,13 @@ Supported keys:
 - `resume_after_inventory_close` (bool, only applies when `pause_on_inventory_open=true`)
 
 If config is missing or unreadable, defaults are used and written back.
+
+## Mod Hub Menu Integration
+This plugin now registers its settings with the `Emkejs-Mod-Core` Mod Hub (SDK v1 client flow).
+
+- Namespace: `emkej.qol`
+- Mod ID: `auto_pause_on_load`
+
+Behavior:
+- If Mod Hub is available, settings can be changed from the hub menu and are persisted to `mod-config.json`.
+- If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.

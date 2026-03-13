@@ -88,10 +88,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Auto-Pause-on-Load.cpp" />
+    <ClCompile Include="src\mod_hub_client.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\emc\mod_hub_api.h" />
+    <ClInclude Include="include\emc\mod_hub_client.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-
 
