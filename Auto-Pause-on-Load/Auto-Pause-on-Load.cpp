@@ -1928,9 +1928,9 @@ __declspec(dllexport) void startPlugin()
     const unsigned int platform = versionInfo.GetPlatform();
     const std::string version = versionInfo.GetVersion();
 
-    if (platform == KenshiLib::BinaryVersion::UNKNOWN || (version != "1.0.65" && version != "1.0.68"))
+    if (platform == KenshiLib::BinaryVersion::UNKNOWN || version != "1.0.65")
     {
-        ErrorLog("Auto-Pause-on-Load: unsupported Kenshi version/platform");
+        ErrorLog("Auto-Pause-on-Load: unsupported Kenshi version/platform (supported: 1.0.65)");
         return;
     }
 

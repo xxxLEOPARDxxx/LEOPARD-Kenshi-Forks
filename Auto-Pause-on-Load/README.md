@@ -7,8 +7,6 @@ Current status: implemented for Kenshi `1.0.65` using:
 - `GameWorld::userPause(true)` to force paused state after load completes.
 
 ## Setup
-Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
-
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
 3) Source the env script:
