@@ -1,4 +1,4 @@
-# Local wrapper: delegates to shared scripts submodule.
+# Local wrapper: delegates to shared build scripts.
 param(
     [string]$RepoDir = "",
     [string]$ModName = "",
@@ -16,7 +16,7 @@ $SharedScript = Join-Path $LocalRepoDir "tools\build-scripts\init-mod-template.p
 
 if (-not (Test-Path $SharedScript)) {
     Write-Host "ERROR: Shared script not found: $SharedScript" -ForegroundColor Red
-    Write-Host "Run: git submodule update --init --recursive" -ForegroundColor Yellow
+    Write-Host "Sync tools\build-scripts from the shared repo and retry." -ForegroundColor Yellow
     exit 1
 }
 
