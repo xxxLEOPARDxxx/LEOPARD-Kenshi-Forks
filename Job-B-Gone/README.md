@@ -19,8 +19,10 @@ It is a QoL mod only. It does not change game balance, stats, or content.
 - Debug/info logs for actions and safety outcomes
 
 ## Setup
-Clone with `--recurse-submodules` or run:
-- `git submodule update --init --recursive`
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-scripts submodule init step is required.
+
+Initialize the Mod Hub SDK submodule:
+- `git submodule update --init --recursive tools/mod-hub-sdk`
 
 1. Open a PowerShell terminal in this repo.
 2. (Optional) Create `.env` from `.env.example` for local paths.
