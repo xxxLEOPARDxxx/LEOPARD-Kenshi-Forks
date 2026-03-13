@@ -22,6 +22,7 @@ if (-not (Test-Path $CommonScript)) {
     exit 1
 }
 . $CommonScript
+Initialize-KenshiScriptTiming
 
 $ctx = Initialize-KenshiScriptContext -InvocationPath $MyInvocation.MyCommand.Path
 $resolved = Resolve-KenshiBuildContext -BoundParameters $PSBoundParameters -RepoDir $ctx.RepoDir -ModName $ModName -ProjectFileName $ProjectFileName -OutputSubdir $OutputSubdir -DllName $DllName -ModFileName $ModFileName -ConfigFileName $ConfigFileName -KenshiPath $KenshiPath -Configuration $Configuration -Platform $Platform

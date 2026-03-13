@@ -25,6 +25,7 @@ if (-not (Test-Path $CommonScript)) {
     exit 1
 }
 . $CommonScript
+Initialize-KenshiScriptTiming
 
 $buildScript = Join-Path $scriptDir "build.ps1"
 $packageScript = Join-Path $scriptDir "package.ps1"
