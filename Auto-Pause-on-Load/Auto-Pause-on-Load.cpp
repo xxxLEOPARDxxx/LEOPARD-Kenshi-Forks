@@ -1,7 +1,6 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
-#include "emc/mod_hub_client.h"
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -55,33 +54,35 @@ static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
-static const DWORD kModHubAttachRetryIntervalMs = 2000;
-static const DWORD kModHubAttachRetryMaxAttempts = 30;
-
-static const char* kHubNamespaceId = "emkej.qol";
-static const char* kHubNamespaceDisplayName = "Emkej QoL";
-static const char* kHubModId = "auto_pause_on_load";
-static const char* kHubModDisplayName = "Auto Pause on Load";
-
 static PluginConfig g_config = { true, 2000, false, true, true, true, true };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false, false, false, false, false, false, false };
-static emc::ModHubClient g_modHubClient;
 
 static std::string g_settingsPath;
 static bool g_hasSaveLoadHook = false;
 static bool g_configNeedsWriteBack = false;
-static bool g_modHubAttachRetryActive = false;
-static DWORD g_modHubAttachRetryAttempts = 0;
-static DWORD g_modHubAttachRetryLastAttemptMs = 0;
+static bool g_hasObservedLoadSignal = false;
+static bool g_lastObservedLoadSignal = false;
+static bool g_loadHostProbeBound = false;
+static volatile LONG g_loadHostProbeFired = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
 static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
+static bool g_hooksInstalled = false;
+static bool g_updateUTHookVerified = false;
+static DWORD g_updateUTHookVerifyTimeMs = 0;
 
+static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr);
+static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos);
+static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName);
+
+static bool IsSupportedVersion(unsigned int platform, const std::string& version);
+static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version);
+static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out_version);
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
-static void TickModHubAttachRetry();
+static void LogLoadHostProbeEvent(const char* stage, const std::string& detail);
 
 struct ConfigParseDiagnostics
 {
@@ -128,6 +129,60 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidResumeAfterInventoryClose = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
+}
+
+static bool IsSupportedVersion(unsigned int platform, const std::string& version)
+{
+    return platform != KenshiLib::BinaryVersion::UNKNOWN
+        && (version == "1.0.65" || version == "1.0.68");
+}
+
+static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version)
+{
+    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    const unsigned int platform = versionInfo.GetPlatform();
+    const std::string version = versionInfo.GetVersion();
+    if (!IsSupportedVersion(platform, version))
+    {
+        return false;
+    }
+
+    if (out_platform)
+    {
+        *out_platform = platform;
+    }
+    if (out_version)
+    {
+        *out_version = version;
+    }
+    return true;
+}
+
+static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out_version)
+{
+#ifdef _DEBUG
+    // Debug deployments run under RE_Kenshi.exe here; use the local Steam 1.0.65 test runtime
+    // instead of crossing CRT boundaries through KenshiLib's version helper.
+    if (out_platform)
+    {
+        *out_platform = KenshiLib::BinaryVersion::STEAM;
+    }
+    if (out_version)
+    {
+        *out_version = "1.0.65";
+    }
+    return true;
+#else
+    __try
+    {
+        return ResolveSupportedRuntimeNoSeh(out_platform, out_version);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Auto-Pause-on-Load ERROR: GetKenshiVersion() faulted during startup");
+        return false;
+    }
+#endif
 }
 
 static std::string TrimAscii(const std::string& value)
@@ -1013,400 +1068,9 @@ static bool SaveConfigState()
     return true;
 }
 
-static void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
-{
-    if (!err_buf || err_buf_size == 0u)
-    {
-        return;
-    }
-
-    if (!text)
-    {
-        err_buf[0] = '\0';
-        return;
-    }
-
-    const size_t copyLen = static_cast<size_t>(err_buf_size - 1u);
-    std::strncpy(err_buf, text, copyLen);
-    err_buf[copyLen] = '\0';
-}
-
-static EMC_Result ApplyHubConfigUpdate(
-    PluginConfig* config,
-    const PluginConfig& updated,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    if (!config || config != &g_config)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "invalid_config_target");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig previous = *config;
-    *config = updated;
-    if (!SaveConfigState())
-    {
-        *config = previous;
-        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
-        return EMC_ERR_INTERNAL;
-    }
-
-    g_configNeedsWriteBack = false;
-    if (!config->enabled)
-    {
-        DisarmPauseAfterLoad();
-        ResetUiTracking();
-    }
-
-    return EMC_OK;
-}
-
-typedef bool PluginConfig::*PluginConfigBoolField;
-
-static EMC_Result GetBoolHubSettingValue(void* user_data, int32_t* out_value, PluginConfigBoolField field)
-{
-    if (!user_data || !out_value)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig* config = static_cast<const PluginConfig*>(user_data);
-    *out_value = (config->*field) ? 1 : 0;
-    return EMC_OK;
-}
-
-static EMC_Result SetBoolHubSettingValue(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size,
-    PluginConfigBoolField field)
-{
-    if (!user_data)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.*field = value != 0;
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
-}
-
-static EMC_Result __cdecl GetEnabledSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::enabled);
-}
-
-static EMC_Result __cdecl SetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::enabled);
-}
-
-static EMC_Result __cdecl GetPauseDebounceMsSetting(void* user_data, int32_t* out_value)
-{
-    if (!user_data || !out_value)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig* config = static_cast<const PluginConfig*>(user_data);
-    *out_value = static_cast<int32_t>(config->pauseDebounceMs);
-    return EMC_OK;
-}
-
-static EMC_Result __cdecl SetPauseDebounceMsSetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    if (!user_data)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    if (value < static_cast<int32_t>(kPauseDebounceMsMin) || value > static_cast<int32_t>(kPauseDebounceMsMax))
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "pause_debounce_ms_out_of_range");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.pauseDebounceMs = static_cast<DWORD>(value);
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
-}
-
-static EMC_Result __cdecl GetDebugLogTransitionsSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::debugLogTransitions);
-}
-
-static EMC_Result __cdecl SetDebugLogTransitionsSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::debugLogTransitions);
-}
-
-static EMC_Result __cdecl GetPauseOnTradeSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::pauseOnTrade);
-}
-
-static EMC_Result __cdecl SetPauseOnTradeSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::pauseOnTrade);
-}
-
-static EMC_Result __cdecl GetResumeAfterTradeSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::resumeAfterTrade);
-}
-
-static EMC_Result __cdecl SetResumeAfterTradeSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::resumeAfterTrade);
-}
-
-static EMC_Result __cdecl GetPauseOnInventoryOpenSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::pauseOnInventoryOpen);
-}
-
-static EMC_Result __cdecl SetPauseOnInventoryOpenSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::pauseOnInventoryOpen);
-}
-
-static EMC_Result __cdecl GetResumeAfterInventoryCloseSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::resumeAfterInventoryClose);
-}
-
-static EMC_Result __cdecl SetResumeAfterInventoryCloseSetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::resumeAfterInventoryClose);
-}
-
-static void LogModHubFallback(const char* reason)
-{
-    std::stringstream line;
-    line << kPluginName
-         << " WARN: event=mod_hub_fallback"
-         << " reason=" << (reason ? reason : "unknown")
-         << " result=" << g_modHubClient.LastAttemptFailureResult()
-         << " use_hub_ui=0";
-    ErrorLog(line.str().c_str());
-}
-
-static void LogModHubRetryEvent(const char* eventName, emc::ModHubClient::AttemptResult result)
-{
-    std::stringstream line;
-    line << kPluginName
-         << " INFO: event=" << (eventName ? eventName : "mod_hub_retry")
-         << " attempt=" << g_modHubAttachRetryAttempts
-         << " result_enum=" << static_cast<int32_t>(result)
-         << " result=" << g_modHubClient.LastAttemptFailureResult()
-         << " use_hub_ui=" << (g_modHubClient.UseHubUi() ? 1 : 0);
-    DebugLog(line.str().c_str());
-}
-
-static bool ShouldLogModHubRetryEvent(emc::ModHubClient::AttemptResult result)
-{
-    if (g_config.debugLogTransitions)
-    {
-        return true;
-    }
-
-    if (g_modHubAttachRetryAttempts <= 1)
-    {
-        return true;
-    }
-
-    return result != emc::ModHubClient::ATTACH_FAILED;
-}
-
-static const EMC_ModDescriptorV1 kModHubDescriptor = {
-    kHubNamespaceId,
-    kHubNamespaceDisplayName,
-    kHubModId,
-    kHubModDisplayName,
-    &g_config };
-
-static const EMC_BoolSettingDefV1 kHubEnabledSetting = {
-    "enabled",
-    "Enabled",
-    "Enable all Auto-Pause-on-Load behavior",
-    &g_config,
-    &GetEnabledSetting,
-    &SetEnabledSetting };
-
-static const EMC_IntSettingDefV1 kHubPauseDebounceMsSetting = {
-    "pause_debounce_ms",
-    "Pause debounce (ms)",
-    "Minimum interval between automatic pause events",
-    &g_config,
-    static_cast<int32_t>(kPauseDebounceMsMin),
-    static_cast<int32_t>(kPauseDebounceMsMax),
-    100,
-    &GetPauseDebounceMsSetting,
-    &SetPauseDebounceMsSetting };
-
-static const EMC_BoolSettingDefV1 kHubDebugLogTransitionsSetting = {
-    "debug_log_transitions",
-    "Debug log transitions",
-    "Emit verbose transition logs for load and UI pause flows",
-    &g_config,
-    &GetDebugLogTransitionsSetting,
-    &SetDebugLogTransitionsSetting };
-
-static const EMC_BoolSettingDefV1 kHubPauseOnTradeSetting = {
-    "pause_on_trade",
-    "Pause on trade",
-    "Pause the game when trade UI opens",
-    &g_config,
-    &GetPauseOnTradeSetting,
-    &SetPauseOnTradeSetting };
-
-static const EMC_BoolSettingDefV1 kHubResumeAfterTradeSetting = {
-    "resume_after_trade",
-    "Resume after trade",
-    "Resume when trade UI closes if this mod paused the game",
-    &g_config,
-    &GetResumeAfterTradeSetting,
-    &SetResumeAfterTradeSetting };
-
-static const EMC_BoolSettingDefV1 kHubPauseOnInventoryOpenSetting = {
-    "pause_on_inventory_open",
-    "Pause on inventory open",
-    "Pause the game when inventory opens",
-    &g_config,
-    &GetPauseOnInventoryOpenSetting,
-    &SetPauseOnInventoryOpenSetting };
-
-static const EMC_BoolSettingDefV1 kHubResumeAfterInventoryCloseSetting = {
-    "resume_after_inventory_close",
-    "Resume after inventory close",
-    "Resume when inventory closes if this mod paused the game",
-    &g_config,
-    &GetResumeAfterInventoryCloseSetting,
-    &SetResumeAfterInventoryCloseSetting };
-
-static const emc::ModHubClientSettingRowV1 kModHubSettingRows[] = {
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubEnabledSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kHubPauseDebounceMsSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubDebugLogTransitionsSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnTradeSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubResumeAfterTradeSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnInventoryOpenSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubResumeAfterInventoryCloseSetting }
-};
-
-static const emc::ModHubClientTableRegistrationV1 kModHubTableRegistration = {
-    &kModHubDescriptor,
-    kModHubSettingRows,
-    static_cast<uint32_t>(sizeof(kModHubSettingRows) / sizeof(kModHubSettingRows[0])) };
-
-static void ConfigureModHubClient()
-{
-    emc::ModHubClient::Config hubConfig;
-    hubConfig.table_registration = &kModHubTableRegistration;
-    g_modHubClient.SetConfig(hubConfig);
-}
-
-static void StartModHubClient()
-{
-    g_modHubAttachRetryActive = false;
-    g_modHubAttachRetryAttempts = 0;
-    g_modHubAttachRetryLastAttemptMs = GetTickCount();
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_attached use_hub_ui=1");
-        return;
-    }
-
-    if (result == emc::ModHubClient::ATTACH_FAILED)
-    {
-        LogModHubFallback("get_api_failed");
-        g_modHubAttachRetryActive = true;
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        LogModHubFallback("register_mod_or_setting_failed");
-        return;
-    }
-
-    LogModHubFallback("invalid_client_configuration");
-}
-
-static void TickModHubAttachRetry()
-{
-    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
-    {
-        return;
-    }
-
-    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
-    {
-        g_modHubAttachRetryActive = false;
-        ErrorLog("Auto-Pause-on-Load WARN: event=mod_hub_retry_stopped reason=max_attempts_reached");
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-    if (!DebounceWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
-    {
-        return;
-    }
-
-    ++g_modHubAttachRetryAttempts;
-    g_modHubAttachRetryLastAttemptMs = nowMs;
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (ShouldLogModHubRetryEvent(result))
-    {
-        LogModHubRetryEvent("mod_hub_retry_attempt", result);
-    }
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        g_modHubAttachRetryActive = false;
-        DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_retry_success");
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubFallback("register_mod_or_setting_failed");
-        return;
-    }
-}
+// Keep Mod Hub registration in the existing single-TU layout so startup hook resolution
+// runs in a similar compilation environment to the working multi-file mods.
+#include "AutoPauseModHub.inl"
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs)
 {
@@ -1731,6 +1395,19 @@ static void ResetUiTracking()
     g_state.inventoryWasPausedBeforeStart = false;
 }
 
+static void LogLoadHostProbeEvent(const char* stage, const std::string& detail)
+{
+    std::stringstream line;
+    line << "Auto-Pause-on-Load INFO: [investigate][load-host]"
+         << " stage=" << (stage ? stage : "unknown")
+         << " thread=" << GetCurrentThreadId();
+    if (!detail.empty())
+    {
+        line << " " << detail;
+    }
+    DebugLog(line.str().c_str());
+}
+
 static void TryPauseOnUiOpen(
     DWORD nowMs,
     const char* reason,
@@ -1903,6 +1580,8 @@ static void TickPauseOnLoad()
 {
     if (!g_config.enabled)
     {
+        g_hasObservedLoadSignal = false;
+        g_lastObservedLoadSignal = false;
         return;
     }
 
@@ -1917,12 +1596,10 @@ static void TickPauseOnLoad()
         }
     }
 
-    if (!g_hasSaveLoadHook || !g_state.pauseArmed)
-    {
-        return;
-    }
-
-    if (g_state.armTimestampMs != 0 && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
+    if (g_state.pauseArmed
+        && !g_state.loadInProgress
+        && g_state.armTimestampMs != 0
+        && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
     {
         ErrorLog("Auto-Pause-on-Load WARN: armed pause timed out before load completion");
         DisarmPauseAfterLoad();
@@ -1935,6 +1612,25 @@ static void TickPauseOnLoad()
         return;
     }
 
+    if (!g_hasObservedLoadSignal)
+    {
+        g_hasObservedLoadSignal = true;
+        g_lastObservedLoadSignal = isLoadingSave;
+        if (isLoadingSave)
+        {
+            ArmPauseAfterLoad("polling");
+        }
+    }
+    else
+    {
+        const bool loadStarted = (!g_lastObservedLoadSignal && isLoadingSave);
+        g_lastObservedLoadSignal = isLoadingSave;
+        if (loadStarted)
+        {
+            ArmPauseAfterLoad("polling");
+        }
+    }
+
     if (isLoadingSave)
     {
         if (!g_state.loadInProgress && g_config.debugLogTransitions)
@@ -1943,6 +1639,11 @@ static void TickPauseOnLoad()
         }
         g_state.loadInProgress = true;
         g_state.loadSignalSeenAfterArm = true;
+        return;
+    }
+
+    if (!g_state.pauseArmed)
+    {
         return;
     }
 
@@ -1970,10 +1671,96 @@ static void TickPauseOnLoad()
     }
 }
 
+static bool TryInstallGameHooks()
+{
+    if (g_hooksInstalled)
+    {
+        return true;
+    }
+
+    bool anySuccess = false;
+
+    if (PlayerInterface_updateUT_orig == 0)
+    {
+        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+                KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
+                PlayerInterface_updateUT_hook,
+                &PlayerInterface_updateUT_orig))
+        {
+            DebugLog("Auto-Pause-on-Load INFO: PlayerInterface::updateUT hook installed");
+            anySuccess = true;
+        }
+        else
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: failed to install PlayerInterface::updateUT hook");
+        }
+    }
+
+    if (SaveManager_loadByInfo_orig == 0)
+    {
+        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+                KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
+                SaveManager_loadByInfo_hook,
+                &SaveManager_loadByInfo_orig))
+        {
+            g_hasSaveLoadHook = true;
+            anySuccess = true;
+        }
+        else
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: failed to install SaveManager::load(SaveInfo,bool) hook");
+        }
+    }
+
+    if (SaveManager_loadByName_orig == 0)
+    {
+        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+                KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
+                SaveManager_loadByName_hook,
+                &SaveManager_loadByName_orig))
+        {
+            g_hasSaveLoadHook = true;
+            anySuccess = true;
+        }
+        else
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: failed to install SaveManager::load(std::string) hook");
+        }
+    }
+
+    if (anySuccess)
+    {
+        g_hooksInstalled = true;
+    }
+
+    return g_hooksInstalled;
+}
+
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
     TickModHubAttachRetry();
+
+    if (!g_hooksInstalled)
+    {
+        TryInstallGameHooks();
+        return;
+    }
+
+    if (!g_updateUTHookVerified)
+    {
+        if (g_updateUTHookVerifyTimeMs == 0)
+        {
+            g_updateUTHookVerifyTimeMs = GetTickCount();
+        }
+        else if (GetTickCount() - g_updateUTHookVerifyTimeMs > 1000)
+        {
+            g_updateUTHookVerified = true;
+            DebugLog("Auto-Pause-on-Load INFO: updateUT hook verified alive");
+        }
+        return;
+    }
+
     TickPauseOnLoad();
     TickPauseOnTradeAndInventory();
 }
@@ -2000,11 +1787,9 @@ __declspec(dllexport) void startPlugin()
 {
     DebugLog("Auto-Pause-on-Load: startPlugin()");
 
-    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
-    const unsigned int platform = versionInfo.GetPlatform();
-    const std::string version = versionInfo.GetVersion();
-
-    if (platform == KenshiLib::BinaryVersion::UNKNOWN || (version != "1.0.65" && version != "1.0.68"))
+    unsigned int platform = KenshiLib::BinaryVersion::UNKNOWN;
+    std::string version;
+    if (!ResolveSupportedRuntime(&platform, &version))
     {
         ErrorLog("Auto-Pause-on-Load: unsupported Kenshi version/platform");
         return;
@@ -2025,44 +1810,12 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
-        PlayerInterface_updateUT_hook,
-        &PlayerInterface_updateUT_orig))
-    {
-        ErrorLog("Auto-Pause-on-Load: Could not hook PlayerInterface::updateUT");
-        return;
-    }
+    DebugLog("Auto-Pause-on-Load INFO: hooks will be installed lazily via late lifecycle host");
 
-    g_hasSaveLoadHook = false;
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
-        SaveManager_loadByInfo_hook,
-        &SaveManager_loadByInfo_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(SaveInfo,bool)");
-    }
-
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
-        SaveManager_loadByName_hook,
-        &SaveManager_loadByName_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(std::string)");
-    }
-
-    if (!g_hasSaveLoadHook)
-    {
-        ErrorLog("Auto-Pause-on-Load: no SaveManager load hooks active; feature disabled");
-    }
+    g_hasObservedLoadSignal = false;
+    g_lastObservedLoadSignal = false;
+    g_loadHostProbeBound = false;
+    g_loadHostProbeFired = 0;
 
     ConfigureModHubClient();
     StartModHubClient();
@@ -2077,7 +1830,8 @@ __declspec(dllexport) void startPlugin()
              << ", pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
              << ", resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
     }
-    info << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false")
+    info << ", hooks_installed=" << (g_hooksInstalled ? "true" : "false")
+         << ", updateUT_verified=" << (g_updateUTHookVerified ? "true" : "false")
          << ", hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }
@@ -2097,6 +1851,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
                 g_settingsPath = myDirectory + "\\" + kConfigFileName;
             }
         }
+
     }
     return TRUE;
 }
