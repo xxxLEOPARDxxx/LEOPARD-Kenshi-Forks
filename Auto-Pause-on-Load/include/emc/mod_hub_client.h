@@ -12,6 +12,7 @@ typedef EMC_Result(__cdecl* ModHubClientGetApiFn)(
     uint32_t* out_api_size);
 
 typedef EMC_Result(__cdecl* ModHubClientRegisterFn)(const EMC_HubApiV1* api, void* user_data);
+typedef void(__cdecl* ModHubClientOptionsWindowInitObserverFn)(void* user_data);
 
 typedef bool(__cdecl* ModHubClientForceAttachFailureFn)(
     void* user_data,
@@ -53,6 +54,8 @@ public:
         ModHubClientRegisterFn register_fn;
         void* register_user_data;
         const ModHubClientTableRegistrationV1* table_registration;
+        ModHubClientOptionsWindowInitObserverFn options_window_init_callback;
+        void* options_window_init_user_data;
         ModHubClientForceAttachFailureFn should_force_attach_failure_fn;
         void* attach_failure_user_data;
 
@@ -81,6 +84,7 @@ public:
     bool UseHubUi() const;
     bool IsAttachRetryPending() const;
     bool HasAttachRetryAttempted() const;
+    bool IsOptionsWindowInitObserverRegistered() const;
     EMC_Result LastAttemptFailureResult() const;
 
 private:

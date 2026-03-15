@@ -271,6 +271,8 @@ ModHubClient::Config::Config()
     , register_fn(0)
     , register_user_data(0)
     , table_registration(0)
+    , options_window_init_callback(0)
+    , options_window_init_user_data(0)
     , should_force_attach_failure_fn(0)
     , attach_failure_user_data(0)
 {
@@ -360,6 +362,11 @@ bool ModHubClient::HasAttachRetryAttempted() const
     return attach_retry_attempted_;
 }
 
+bool ModHubClient::IsOptionsWindowInitObserverRegistered() const
+{
+    return options_window_init_observer_registered_;
+}
+
 EMC_Result ModHubClient::LastAttemptFailureResult() const
 {
     return last_attempt_failure_result_;
@@ -399,12 +406,25 @@ void ModHubClient::UnregisterOptionsWindowInitObserverIfNeeded()
 
 void __cdecl ModHubClient::OnOptionsWindowInitObserverThunk(void* user_data)
 {
+#if defined(_WIN32)
+    OutputDebugStringA("Auto-Pause-on-Load INFO: [investigate][options-observer] stage=thunk_enter source=mod_hub_options_init\n");
+#endif
     if (user_data == 0)
     {
         return;
     }
 
     ModHubClient* client = static_cast<ModHubClient*>(user_data);
+    if (client->config_.options_window_init_callback != 0)
+    {
+        client->config_.options_window_init_callback(client->config_.options_window_init_user_data);
+    }
+
+    if (!client->attach_retry_pending_)
+    {
+        client->UnregisterOptionsWindowInitObserverIfNeeded();
+    }
+
     client->OnOptionsWindowInit();
 }
 
@@ -472,7 +492,10 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
         return REGISTRATION_FAILED;
     }
 
-    UnregisterOptionsWindowInitObserverIfNeeded();
+    if (config_.options_window_init_callback == 0)
+    {
+        UnregisterOptionsWindowInitObserverIfNeeded();
+    }
     use_hub_ui_ = true;
     last_attempt_failure_result_ = EMC_OK;
     return ATTACH_SUCCESS;
