@@ -12,7 +12,6 @@ typedef EMC_Result(__cdecl* ModHubClientGetApiFn)(
     uint32_t* out_api_size);
 
 typedef EMC_Result(__cdecl* ModHubClientRegisterFn)(const EMC_HubApiV1* api, void* user_data);
-typedef void(__cdecl* ModHubClientOptionsWindowInitObserverFn)(void* user_data);
 
 typedef bool(__cdecl* ModHubClientForceAttachFailureFn)(
     void* user_data,
@@ -25,7 +24,8 @@ enum ModHubClientSettingKind
     MOD_HUB_CLIENT_SETTING_KIND_KEYBIND = 1,
     MOD_HUB_CLIENT_SETTING_KIND_INT = 2,
     MOD_HUB_CLIENT_SETTING_KIND_FLOAT = 3,
-    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4
+    MOD_HUB_CLIENT_SETTING_KIND_ACTION = 4,
+    MOD_HUB_CLIENT_SETTING_KIND_INT_V2 = 5
 };
 
 struct ModHubClientSettingRowV1
@@ -45,6 +45,11 @@ EMC_Result RegisterSettingsTableV1(
     const EMC_HubApiV1* api,
     const ModHubClientTableRegistrationV1* table_registration);
 
+EMC_Result RegisterSettingsTableWithApiSizeV1(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
+    const ModHubClientTableRegistrationV1* table_registration);
+
 class ModHubClient
 {
 public:
@@ -54,10 +59,10 @@ public:
         ModHubClientRegisterFn register_fn;
         void* register_user_data;
         const ModHubClientTableRegistrationV1* table_registration;
-        ModHubClientOptionsWindowInitObserverFn options_window_init_callback;
-        void* options_window_init_user_data;
         ModHubClientForceAttachFailureFn should_force_attach_failure_fn;
         void* attach_failure_user_data;
+        uint32_t expected_sdk_api_version;
+        uint32_t expected_sdk_min_api_size;
 
         Config();
     };
@@ -84,7 +89,6 @@ public:
     bool UseHubUi() const;
     bool IsAttachRetryPending() const;
     bool HasAttachRetryAttempted() const;
-    bool IsOptionsWindowInitObserverRegistered() const;
     EMC_Result LastAttemptFailureResult() const;
 
 private:
@@ -101,6 +105,7 @@ private:
     EMC_Result last_attempt_failure_result_;
     const EMC_HubApiV1* observer_api_;
     bool options_window_init_observer_registered_;
+    bool sdk_stamp_warning_emitted_;
 };
 }
 

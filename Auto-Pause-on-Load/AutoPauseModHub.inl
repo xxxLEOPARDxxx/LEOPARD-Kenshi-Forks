@@ -1,40 +1,11 @@
 #include "emc/mod_hub_client.h"
 
-static const DWORD kModHubAttachRetryIntervalMs = 2000;
-static const DWORD kModHubAttachRetryMaxAttempts = 30;
-
 static const char* kHubNamespaceId = "emkej.qol";
 static const char* kHubNamespaceDisplayName = "Emkej QoL";
 static const char* kHubModId = "auto_pause_on_load";
 static const char* kHubModDisplayName = "Auto Pause on Load";
 
 static emc::ModHubClient g_modHubClient;
-static bool g_modHubAttachRetryActive = false;
-static DWORD g_modHubAttachRetryAttempts = 0;
-static DWORD g_modHubAttachRetryLastAttemptMs = 0;
-static bool g_loggedOptionsObserverCallback = false;
-
-static bool TryInstallGameHooks();
-
-static void __cdecl OnModHubOptionsWindowInitProbe(void* user_data)
-{
-    static_cast<void>(user_data);
-
-    if (g_loggedOptionsObserverCallback)
-    {
-        return;
-    }
-
-    g_loggedOptionsObserverCallback = true;
-    std::stringstream line;
-    line << "Auto-Pause-on-Load INFO: [investigate][options-observer]"
-         << " stage=callback_enter"
-         << " thread=" << GetCurrentThreadId()
-         << " source=mod_hub_options_init";
-    DebugLog(line.str().c_str());
-
-    TryInstallGameHooks();
-}
 
 static void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
 {
@@ -112,9 +83,15 @@ static EMC_Result SetBoolHubSettingValue(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
+    if (value != 0 && value != 1)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
     PluginConfig* config = static_cast<PluginConfig*>(user_data);
     PluginConfig updated = *config;
-    updated.*field = value != 0;
+    updated.*field = value == 1;
     return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
 }
 
@@ -240,35 +217,9 @@ static void LogModHubFallback(const char* reason)
          << " WARN: event=mod_hub_fallback"
          << " reason=" << (reason ? reason : "unknown")
          << " result=" << g_modHubClient.LastAttemptFailureResult()
+         << " retry_pending=" << (g_modHubClient.IsAttachRetryPending() ? 1 : 0)
          << " use_hub_ui=0";
     ErrorLog(line.str().c_str());
-}
-
-static void LogModHubRetryEvent(const char* eventName, emc::ModHubClient::AttemptResult result)
-{
-    std::stringstream line;
-    line << kPluginName
-         << " INFO: event=" << (eventName ? eventName : "mod_hub_retry")
-         << " attempt=" << g_modHubAttachRetryAttempts
-         << " result_enum=" << static_cast<int32_t>(result)
-         << " result=" << g_modHubClient.LastAttemptFailureResult()
-         << " use_hub_ui=" << (g_modHubClient.UseHubUi() ? 1 : 0);
-    DebugLog(line.str().c_str());
-}
-
-static bool ShouldLogModHubRetryEvent(emc::ModHubClient::AttemptResult result)
-{
-    if (g_config.debugLogTransitions)
-    {
-        return true;
-    }
-
-    if (g_modHubAttachRetryAttempts <= 1)
-    {
-        return true;
-    }
-
-    return result != emc::ModHubClient::ATTACH_FAILED;
 }
 
 static const EMC_ModDescriptorV1 kModHubDescriptor = {
@@ -356,26 +307,12 @@ static void ConfigureModHubClient()
 {
     emc::ModHubClient::Config hubConfig;
     hubConfig.table_registration = &kModHubTableRegistration;
-    hubConfig.options_window_init_callback = &OnModHubOptionsWindowInitProbe;
     g_modHubClient.SetConfig(hubConfig);
 }
 
 static void StartModHubClient()
 {
-    g_modHubAttachRetryActive = false;
-    g_modHubAttachRetryAttempts = 0;
-    g_modHubAttachRetryLastAttemptMs = GetTickCount();
-
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    {
-        std::stringstream line;
-        line << "Auto-Pause-on-Load INFO: [investigate][options-observer]"
-             << " stage="
-             << (g_modHubClient.IsOptionsWindowInitObserverRegistered() ? "registered" : "not_registered")
-             << " thread=" << GetCurrentThreadId()
-             << " source=mod_hub_options_init";
-        DebugLog(line.str().c_str());
-    }
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
         DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_attached use_hub_ui=1");
@@ -384,8 +321,13 @@ static void StartModHubClient()
 
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
+        if (g_modHubClient.IsAttachRetryPending())
+        {
+            DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_attach_retry_pending use_hub_ui=0");
+            return;
+        }
+
         LogModHubFallback("get_api_failed");
-        g_modHubAttachRetryActive = true;
         return;
     }
 
@@ -396,47 +338,4 @@ static void StartModHubClient()
     }
 
     LogModHubFallback("invalid_client_configuration");
-}
-
-static void TickModHubAttachRetry()
-{
-    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
-    {
-        return;
-    }
-
-    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
-    {
-        g_modHubAttachRetryActive = false;
-        ErrorLog("Auto-Pause-on-Load WARN: event=mod_hub_retry_stopped reason=max_attempts_reached");
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-    if (!DebounceWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
-    {
-        return;
-    }
-
-    ++g_modHubAttachRetryAttempts;
-    g_modHubAttachRetryLastAttemptMs = nowMs;
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (ShouldLogModHubRetryEvent(result))
-    {
-        LogModHubRetryEvent("mod_hub_retry_attempt", result);
-    }
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        g_modHubAttachRetryActive = false;
-        DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_retry_success");
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubFallback("register_mod_or_setting_failed");
-        return;
-    }
 }

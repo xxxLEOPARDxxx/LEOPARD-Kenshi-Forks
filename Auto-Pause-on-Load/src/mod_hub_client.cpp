@@ -5,8 +5,16 @@
 #include <TlHelp32.h>
 #endif
 
+#include <cstdio>
+
 namespace
 {
+#if defined(EMC_ENABLE_TEST_EXPORTS)
+const int32_t kDefaultLookupModeAuto = 0;
+const int32_t kDefaultLookupModeAliasOnly = 1;
+const int32_t kDefaultLookupModeMissing = 2;
+#endif
+
 #if defined(_WIN32)
 const char* kDefaultGetApiAliasExportNames[] = {
     EMC_MOD_HUB_GET_API_COMPAT_EXPORT_NAME };
@@ -15,11 +23,17 @@ struct DefaultGetApiResolverState
 {
     emc::ModHubClientGetApiFn fn;
     bool initialized;
+#if defined(EMC_ENABLE_TEST_EXPORTS)
+    int32_t lookup_mode;
+#endif
 };
 
 DefaultGetApiResolverState g_default_get_api_resolver_state = {
     0,
-    false
+    false,
+#if defined(EMC_ENABLE_TEST_EXPORTS)
+    kDefaultLookupModeAuto
+#endif
 };
 
 void ResetDefaultGetApiResolverCache()
@@ -101,8 +115,26 @@ emc::ModHubClientGetApiFn ResolveGetApiFromLoadedModules(HMODULE skip_module, bo
 
 emc::ModHubClientGetApiFn ResolveDefaultGetApiFn()
 {
-    const bool allow_canonical = true;
-    const bool allow_alias = true;
+    bool allow_canonical = true;
+    bool allow_alias = true;
+
+#if defined(EMC_ENABLE_TEST_EXPORTS)
+    if (g_default_get_api_resolver_state.lookup_mode == kDefaultLookupModeAliasOnly)
+    {
+        allow_canonical = false;
+        allow_alias = true;
+    }
+    else if (g_default_get_api_resolver_state.lookup_mode == kDefaultLookupModeMissing)
+    {
+        allow_canonical = false;
+        allow_alias = false;
+    }
+#endif
+
+    if (!allow_canonical && !allow_alias)
+    {
+        return 0;
+    }
 
     HMODULE self_module = 0;
     if (GetModuleHandleExA(
@@ -140,6 +172,91 @@ bool HasOptionsWindowInitObserverSupport(const EMC_HubApiV1* api, uint32_t api_s
         && api->unregister_options_window_init_observer != 0;
 }
 
+bool HasIntSettingV2Support(const EMC_HubApiV1* api, uint32_t api_size)
+{
+    return api != 0
+        && api_size >= EMC_HUB_API_V1_INT_SETTING_V2_MIN_SIZE
+        && api->api_size >= EMC_HUB_API_V1_INT_SETTING_V2_MIN_SIZE
+        && api->register_int_setting_v2 != 0;
+}
+
+uint32_t ResolveExpectedSdkApiVersion(const emc::ModHubClient::Config& config)
+{
+    return config.expected_sdk_api_version != 0u
+        ? config.expected_sdk_api_version
+        : EMC_HUB_API_VERSION_1;
+}
+
+uint32_t ResolveExpectedSdkMinApiSize(const emc::ModHubClient::Config& config)
+{
+    return config.expected_sdk_min_api_size != 0u
+        ? config.expected_sdk_min_api_size
+        : EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
+}
+
+bool IsSdkStampDriftDetected(
+    uint32_t expected_api_version,
+    uint32_t expected_min_api_size,
+    const EMC_HubApiV1* api,
+    uint32_t api_size)
+{
+    if (api == 0)
+    {
+        return false;
+    }
+
+    return api->api_version != expected_api_version
+        || api_size < expected_min_api_size
+        || api->api_size < expected_min_api_size
+        || api->api_size != api_size;
+}
+
+void EmitSdkStampWarning(
+    uint32_t expected_api_version,
+    uint32_t expected_min_api_size,
+    uint32_t runtime_api_version,
+    uint32_t runtime_api_size,
+    uint32_t runtime_struct_api_size)
+{
+    char message[320];
+    message[0] = '\0';
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+    _snprintf_s(
+        message,
+        sizeof(message),
+        _TRUNCATE,
+        "Emkejs-Mod-Core: Mod Hub SDK stamp drift detected (expected version=%u min_api_size=%u, runtime version=%u out_api_size=%u api_struct_size=%u).",
+        (unsigned int)expected_api_version,
+        (unsigned int)expected_min_api_size,
+        (unsigned int)runtime_api_version,
+        (unsigned int)runtime_api_size,
+        (unsigned int)runtime_struct_api_size);
+#else
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Emkejs-Mod-Core: Mod Hub SDK stamp drift detected (expected version=%u min_api_size=%u, runtime version=%u out_api_size=%u api_struct_size=%u).",
+        (unsigned int)expected_api_version,
+        (unsigned int)expected_min_api_size,
+        (unsigned int)runtime_api_version,
+        (unsigned int)runtime_api_size,
+        (unsigned int)runtime_struct_api_size);
+#endif
+
+    if (message[0] == '\0')
+    {
+        return;
+    }
+
+#if defined(_WIN32)
+    OutputDebugStringA(message);
+    OutputDebugStringA("\n");
+#else
+    std::fprintf(stderr, "%s\n", message);
+#endif
+}
+
 EMC_Result DefaultGetApi(
     uint32_t requested_version,
     uint32_t caller_api_size,
@@ -169,6 +286,7 @@ EMC_Result DefaultGetApi(
 
 EMC_Result RegisterSettingsRow(
     const EMC_HubApiV1* api,
+    uint32_t api_size,
     EMC_ModHandle mod_handle,
     const emc::ModHubClientSettingRowV1* row)
 {
@@ -200,6 +318,13 @@ EMC_Result RegisterSettingsRow(
         }
         return api->register_int_setting(mod_handle, static_cast<const EMC_IntSettingDefV1*>(row->def));
 
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2:
+        if (!HasIntSettingV2Support(api, api_size))
+        {
+            return EMC_ERR_API_SIZE_MISMATCH;
+        }
+        return api->register_int_setting_v2(mod_handle, static_cast<const EMC_IntSettingDefV2*>(row->def));
+
     case emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT:
         if (api->register_float_setting == 0)
         {
@@ -224,6 +349,14 @@ namespace emc
 {
 EMC_Result RegisterSettingsTableV1(
     const EMC_HubApiV1* api,
+    const ModHubClientTableRegistrationV1* table_registration)
+{
+    return RegisterSettingsTableWithApiSizeV1(api, api != 0 ? api->api_size : 0u, table_registration);
+}
+
+EMC_Result RegisterSettingsTableWithApiSizeV1(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
     const ModHubClientTableRegistrationV1* table_registration)
 {
     if (api == 0 || table_registration == 0 || table_registration->mod_desc == 0)
@@ -256,7 +389,7 @@ EMC_Result RegisterSettingsTableV1(
     for (uint32_t row_index = 0u; row_index < table_registration->row_count; ++row_index)
     {
         const ModHubClientSettingRowV1* row = &table_registration->rows[row_index];
-        result = RegisterSettingsRow(api, mod_handle, row);
+        result = RegisterSettingsRow(api, api_size, mod_handle, row);
         if (result != EMC_OK)
         {
             return result;
@@ -271,16 +404,17 @@ ModHubClient::Config::Config()
     , register_fn(0)
     , register_user_data(0)
     , table_registration(0)
-    , options_window_init_callback(0)
-    , options_window_init_user_data(0)
     , should_force_attach_failure_fn(0)
     , attach_failure_user_data(0)
+    , expected_sdk_api_version(EMC_HUB_API_VERSION_1)
+    , expected_sdk_min_api_size(EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE)
 {
 }
 
 ModHubClient::ModHubClient()
     : observer_api_(0)
     , options_window_init_observer_registered_(false)
+    , sdk_stamp_warning_emitted_(false)
 {
     Reset();
 }
@@ -289,6 +423,7 @@ ModHubClient::ModHubClient(const Config& config)
     : config_(config)
     , observer_api_(0)
     , options_window_init_observer_registered_(false)
+    , sdk_stamp_warning_emitted_(false)
 {
     Reset();
 }
@@ -318,6 +453,7 @@ void ModHubClient::Reset()
     last_attempt_failure_result_ = EMC_OK;
     observer_api_ = 0;
     options_window_init_observer_registered_ = false;
+    sdk_stamp_warning_emitted_ = false;
 }
 
 ModHubClient::AttemptResult ModHubClient::OnStartup()
@@ -362,11 +498,6 @@ bool ModHubClient::HasAttachRetryAttempted() const
     return attach_retry_attempted_;
 }
 
-bool ModHubClient::IsOptionsWindowInitObserverRegistered() const
-{
-    return options_window_init_observer_registered_;
-}
-
 EMC_Result ModHubClient::LastAttemptFailureResult() const
 {
     return last_attempt_failure_result_;
@@ -406,25 +537,12 @@ void ModHubClient::UnregisterOptionsWindowInitObserverIfNeeded()
 
 void __cdecl ModHubClient::OnOptionsWindowInitObserverThunk(void* user_data)
 {
-#if defined(_WIN32)
-    OutputDebugStringA("Auto-Pause-on-Load INFO: [investigate][options-observer] stage=thunk_enter source=mod_hub_options_init\n");
-#endif
     if (user_data == 0)
     {
         return;
     }
 
     ModHubClient* client = static_cast<ModHubClient*>(user_data);
-    if (client->config_.options_window_init_callback != 0)
-    {
-        client->config_.options_window_init_callback(client->config_.options_window_init_user_data);
-    }
-
-    if (!client->attach_retry_pending_)
-    {
-        client->UnregisterOptionsWindowInitObserverIfNeeded();
-    }
-
     client->OnOptionsWindowInit();
 }
 
@@ -459,6 +577,22 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
         return ATTACH_FAILED;
     }
 
+    if (!sdk_stamp_warning_emitted_)
+    {
+        const uint32_t expected_api_version = ResolveExpectedSdkApiVersion(config_);
+        const uint32_t expected_min_api_size = ResolveExpectedSdkMinApiSize(config_);
+        if (IsSdkStampDriftDetected(expected_api_version, expected_min_api_size, api, api_size))
+        {
+            EmitSdkStampWarning(
+                expected_api_version,
+                expected_min_api_size,
+                api->api_version,
+                api_size,
+                api->api_size);
+            sdk_stamp_warning_emitted_ = true;
+        }
+    }
+
     if (!is_retry)
     {
         RegisterOptionsWindowInitObserverIfAvailable(api, api_size);
@@ -478,7 +612,7 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
     EMC_Result register_result = EMC_ERR_INVALID_ARGUMENT;
     if (config_.table_registration != 0)
     {
-        register_result = RegisterSettingsTableV1(api, config_.table_registration);
+        register_result = RegisterSettingsTableWithApiSizeV1(api, api_size, config_.table_registration);
     }
     else
     {
@@ -492,12 +626,48 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
         return REGISTRATION_FAILED;
     }
 
-    if (config_.options_window_init_callback == 0)
-    {
-        UnregisterOptionsWindowInitObserverIfNeeded();
-    }
+    UnregisterOptionsWindowInitObserverIfNeeded();
     use_hub_ui_ = true;
     last_attempt_failure_result_ = EMC_OK;
     return ATTACH_SUCCESS;
 }
 }
+
+#if defined(EMC_ENABLE_TEST_EXPORTS)
+extern "C" EMC_MOD_HUB_API void __cdecl EMC_ModHub_Test_Client_DefaultLookup_SetMode(int32_t mode)
+{
+#if defined(_WIN32)
+    int32_t resolved_mode = kDefaultLookupModeAuto;
+    if (mode == kDefaultLookupModeAliasOnly)
+    {
+        resolved_mode = kDefaultLookupModeAliasOnly;
+    }
+    else if (mode == kDefaultLookupModeMissing)
+    {
+        resolved_mode = kDefaultLookupModeMissing;
+    }
+
+    g_default_get_api_resolver_state.lookup_mode = resolved_mode;
+    ResetDefaultGetApiResolverCache();
+#else
+    (void)mode;
+#endif
+}
+
+extern "C" EMC_MOD_HUB_API void __cdecl EMC_ModHub_Test_Client_DefaultLookup_Reset()
+{
+#if defined(_WIN32)
+    g_default_get_api_resolver_state.lookup_mode = kDefaultLookupModeAuto;
+    ResetDefaultGetApiResolverCache();
+#endif
+}
+
+extern "C" EMC_MOD_HUB_API EMC_Result __cdecl EMC_ModHub_Test_Client_DefaultLookup_CallGetApi(
+    uint32_t requested_version,
+    uint32_t caller_api_size,
+    const EMC_HubApiV1** out_api,
+    uint32_t* out_api_size)
+{
+    return DefaultGetApi(requested_version, caller_api_size, out_api, out_api_size);
+}
+#endif

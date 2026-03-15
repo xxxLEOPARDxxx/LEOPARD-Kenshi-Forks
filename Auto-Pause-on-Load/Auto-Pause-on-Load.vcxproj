@@ -93,9 +93,9 @@
   <ItemGroup>
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
+    <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-

@@ -1745,7 +1745,6 @@ static bool TryInstallGameHooks()
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
-    TickModHubAttachRetry();
 
     if (!g_hooksInstalled)
     {
