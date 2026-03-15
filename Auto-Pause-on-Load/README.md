@@ -7,7 +7,9 @@ Current status: implemented for Kenshi `1.0.65` using:
 - `GameWorld::userPause(true)` to force paused state after load completes.
 
 ## Setup
-Clone with `--recurse-submodules` or run `git submodule update --init --recursive`.
+Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-script submodule init step is required.
+
+This repo tracks the current Emkejs Mod Core consumer SDK through the `tools/mod-hub-sdk` submodule. Initialize it with `git submodule update --init --recursive -- tools/mod-hub-sdk`.
 
 1) Open a PowerShell terminal in this repo.
 2) (Optional) Create `.env` from `.env.example` to set local paths.
@@ -18,6 +20,15 @@ This sets:
 - `KENSHILIB_DEPS_DIR`
 - `KENSHILIB_DIR`
 - `BOOST_INCLUDE_PATH`
+
+## Mod Hub SDK Sync
+Sync and validate the pinned Mod Hub SDK with:
+
+```bash
+./scripts/sync-mod-hub-sdk.sh
+```
+
+Use `--skip-pull` for validation-only mode when you only want to check the currently checked out SDK revision.
 
 ## Build
 You can build in Visual Studio, or via the script below.
@@ -56,7 +67,7 @@ Supported keys:
 If config is missing or unreadable, defaults are used and written back.
 
 ## Mod Hub Menu Integration
-This plugin now registers its settings with the `Emkejs-Mod-Core` Mod Hub (SDK v1 client flow).
+This plugin now registers its settings with the `Emkejs-Mod-Core` Mod Hub using the current public consumer SDK/helper flow tracked in `tools/mod-hub-sdk`.
 
 - Namespace: `emkej.qol`
 - Mod ID: `auto_pause_on_load`
