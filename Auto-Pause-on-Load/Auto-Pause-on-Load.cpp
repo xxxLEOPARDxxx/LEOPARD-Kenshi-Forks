@@ -1671,30 +1671,36 @@ static void TickPauseOnLoad()
     }
 }
 
-static bool TryInstallGameHooks()
+static bool TryInstallUpdateUTHook()
 {
-    if (g_hooksInstalled)
+    if (PlayerInterface_updateUT_orig != 0)
     {
+        g_hooksInstalled = true;
         return true;
     }
 
-    bool anySuccess = false;
-
-    if (PlayerInterface_updateUT_orig == 0)
+    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
+            PlayerInterface_updateUT_hook,
+            &PlayerInterface_updateUT_orig))
     {
-        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
-                PlayerInterface_updateUT_hook,
-                &PlayerInterface_updateUT_orig))
-        {
-            DebugLog("Auto-Pause-on-Load INFO: PlayerInterface::updateUT hook installed");
-            anySuccess = true;
-        }
-        else
-        {
-            ErrorLog("Auto-Pause-on-Load WARN: failed to install PlayerInterface::updateUT hook");
-        }
+        DebugLog("Auto-Pause-on-Load INFO: PlayerInterface::updateUT hook installed");
+        g_hooksInstalled = true;
+        return true;
     }
+
+    ErrorLog("Auto-Pause-on-Load WARN: failed to install PlayerInterface::updateUT hook");
+    return false;
+}
+
+static bool TryInstallGameHooks()
+{
+    if (!TryInstallUpdateUTHook())
+    {
+        return false;
+    }
+
+    bool anySuccess = false;
 
     if (SaveManager_loadByInfo_orig == 0)
     {
@@ -1733,7 +1739,7 @@ static bool TryInstallGameHooks()
         g_hooksInstalled = true;
     }
 
-    return g_hooksInstalled;
+    return true;
 }
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
@@ -1810,7 +1816,14 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    DebugLog("Auto-Pause-on-Load INFO: hooks will be installed lazily via late lifecycle host");
+    if (TryInstallUpdateUTHook())
+    {
+        DebugLog("Auto-Pause-on-Load INFO: updateUT host installed at startup; SaveManager hooks remain deferred");
+    }
+    else
+    {
+        DebugLog("Auto-Pause-on-Load INFO: hooks will remain deferred until a later lifecycle callback");
+    }
 
     g_hasObservedLoadSignal = false;
     g_lastObservedLoadSignal = false;
