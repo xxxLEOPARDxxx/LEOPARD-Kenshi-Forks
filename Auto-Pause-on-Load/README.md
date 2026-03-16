@@ -2,8 +2,8 @@
 Pauses Kenshi after a save load lifecycle is detected.
 
 Current status: implemented for Kenshi `1.0.65` using:
-- `SaveManager::load(...)` hooks to arm a one-shot pause.
-- `GameWorld::isLoadingFromASaveGame()` to detect load phase transitions.
+- `PlayerInterface::updateUT` as the recurring gameplay host.
+- `GameWorld::isLoadingFromASaveGame()` polling to detect load phase transitions and arm a one-shot load pause.
 - `GameWorld::userPause(true)` to force paused state after load completes.
 
 ## Setup

@@ -9,8 +9,6 @@
 #include <kenshi/Dialogue.h>
 #include <kenshi/Inventory.h>
 #include <kenshi/PlayerInterface.h>
-#include <kenshi/SaveManager.h>
-
 #include <Windows.h>
 
 #include <cctype>
@@ -58,23 +56,16 @@ static PluginConfig g_config = { true, 2000, false, true, true, true, true };
 static RuntimeState g_state = { false, false, false, 0, 0, 0, false, false, false, false, false, false, false };
 
 static std::string g_settingsPath;
-static bool g_hasSaveLoadHook = false;
 static bool g_configNeedsWriteBack = false;
 static bool g_hasObservedLoadSignal = false;
 static bool g_lastObservedLoadSignal = false;
-static bool g_loadHostProbeBound = false;
-static volatile LONG g_loadHostProbeFired = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
-static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
-static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
 static bool g_hooksInstalled = false;
 static bool g_updateUTHookVerified = false;
 static DWORD g_updateUTHookVerifyTimeMs = 0;
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr);
-static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos);
-static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName);
 
 static bool IsSupportedVersion(unsigned int platform, const std::string& version);
 static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version);
@@ -82,7 +73,6 @@ static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
-static void LogLoadHostProbeEvent(const char* stage, const std::string& detail);
 
 struct ConfigParseDiagnostics
 {
@@ -1395,19 +1385,6 @@ static void ResetUiTracking()
     g_state.inventoryWasPausedBeforeStart = false;
 }
 
-static void LogLoadHostProbeEvent(const char* stage, const std::string& detail)
-{
-    std::stringstream line;
-    line << "Auto-Pause-on-Load INFO: [investigate][load-host]"
-         << " stage=" << (stage ? stage : "unknown")
-         << " thread=" << GetCurrentThreadId();
-    if (!detail.empty())
-    {
-        line << " " << detail;
-    }
-    DebugLog(line.str().c_str());
-}
-
 static void TryPauseOnUiOpen(
     DWORD nowMs,
     const char* reason,
@@ -1693,64 +1670,9 @@ static bool TryInstallUpdateUTHook()
     return false;
 }
 
-static bool TryInstallGameHooks()
-{
-    if (!TryInstallUpdateUTHook())
-    {
-        return false;
-    }
-
-    bool anySuccess = false;
-
-    if (SaveManager_loadByInfo_orig == 0)
-    {
-        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
-                SaveManager_loadByInfo_hook,
-                &SaveManager_loadByInfo_orig))
-        {
-            g_hasSaveLoadHook = true;
-            anySuccess = true;
-        }
-        else
-        {
-            ErrorLog("Auto-Pause-on-Load WARN: failed to install SaveManager::load(SaveInfo,bool) hook");
-        }
-    }
-
-    if (SaveManager_loadByName_orig == 0)
-    {
-        if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
-                SaveManager_loadByName_hook,
-                &SaveManager_loadByName_orig))
-        {
-            g_hasSaveLoadHook = true;
-            anySuccess = true;
-        }
-        else
-        {
-            ErrorLog("Auto-Pause-on-Load WARN: failed to install SaveManager::load(std::string) hook");
-        }
-    }
-
-    if (anySuccess)
-    {
-        g_hooksInstalled = true;
-    }
-
-    return true;
-}
-
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
-
-    if (!g_hooksInstalled)
-    {
-        TryInstallGameHooks();
-        return;
-    }
 
     if (!g_updateUTHookVerified)
     {
@@ -1768,24 +1690,6 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 
     TickPauseOnLoad();
     TickPauseOnTradeAndInventory();
-}
-
-static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
-{
-    ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
-    if (SaveManager_loadByInfo_orig)
-    {
-        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
-    }
-}
-
-static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
-{
-    ArmPauseAfterLoad("SaveManager::load(name)");
-    if (SaveManager_loadByName_orig)
-    {
-        SaveManager_loadByName_orig(thisptr, saveName);
-    }
 }
 
 __declspec(dllexport) void startPlugin()
@@ -1817,17 +1721,15 @@ __declspec(dllexport) void startPlugin()
 
     if (TryInstallUpdateUTHook())
     {
-        DebugLog("Auto-Pause-on-Load INFO: updateUT host installed at startup; SaveManager hooks remain deferred");
+        DebugLog("Auto-Pause-on-Load INFO: updateUT host installed at startup");
     }
     else
     {
-        DebugLog("Auto-Pause-on-Load INFO: hooks will remain deferred until a later lifecycle callback");
+        ErrorLog("Auto-Pause-on-Load WARN: failed to install updateUT host at startup; pause runtime will remain inactive");
     }
 
     g_hasObservedLoadSignal = false;
     g_lastObservedLoadSignal = false;
-    g_loadHostProbeBound = false;
-    g_loadHostProbeFired = 0;
 
     ConfigureModHubClient();
     StartModHubClient();
