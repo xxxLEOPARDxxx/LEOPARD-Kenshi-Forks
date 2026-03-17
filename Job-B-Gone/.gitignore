@@ -24,3 +24,7 @@ dist/
 
 # Local env overrides
 .env
+
+#Artifacts
+.artifacts
+.tmp_kenshi
