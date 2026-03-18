@@ -131,19 +131,24 @@ std::string NormalizeCraftingRecipeCaption(const std::string& rawCaption)
     }
 
     std::string trimmed = rawCaption.substr(begin);
-    if (!trimmed.empty() && trimmed[0] == '#')
+    while (trimmed.size() >= 7 && trimmed[0] == '#')
     {
-        std::size_t cursor = 1;
-        while (cursor < trimmed.size()
-            && cursor <= 7
-            && std::isxdigit(static_cast<unsigned char>(trimmed[cursor])) != 0)
+        bool hasRgbPrefix = true;
+        for (std::size_t index = 1; index < 7; ++index)
         {
-            ++cursor;
+            if (std::isxdigit(static_cast<unsigned char>(trimmed[index])) == 0)
+            {
+                hasRgbPrefix = false;
+                break;
+            }
         }
-        if (cursor > 1)
+
+        if (!hasRgbPrefix)
         {
-            trimmed = trimmed.substr(cursor);
+            break;
         }
+
+        trimmed = trimmed.substr(7);
     }
 
     return NormalizeSearchText(trimmed);
