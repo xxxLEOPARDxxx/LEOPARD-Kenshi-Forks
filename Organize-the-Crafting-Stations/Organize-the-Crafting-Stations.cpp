@@ -908,7 +908,7 @@ __declspec(dllexport) void startPlugin()
 
     std::stringstream info;
     info << "phase 2 controls scaffold active."
-         << " Auto-attach is enabled for detected trader windows."
+         << " Auto-attach is enabled for detected crafting windows."
          << " Press " << kToggleHotkeyHint << " to hide/show."
          << " Press " << kDiagnosticsHotkeyHint
          << " for a diagnostics snapshot (includes crafting-window probe output).";

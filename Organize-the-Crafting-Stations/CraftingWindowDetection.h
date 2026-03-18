@@ -28,6 +28,7 @@ bool HasTraderStructure(MyGUI::Widget* parent);
 void DumpTraderTargetProbe();
 void DumpVisibleWindowCandidateDiagnostics();
 void DumpVisibleCraftingWindowCandidateDiagnostics();
+bool IsLikelyCraftingWindow(MyGUI::Widget* parent);
 bool TryResolveVisibleCraftingTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent);
 bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent);
 bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures);

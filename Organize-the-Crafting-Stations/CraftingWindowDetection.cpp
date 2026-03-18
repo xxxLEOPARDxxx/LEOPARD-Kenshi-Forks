@@ -856,6 +856,11 @@ bool TryResolveVisibleCraftingTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** 
     return true;
 }
 
+bool IsLikelyCraftingWindow(MyGUI::Widget* parent)
+{
+    return ComputeCraftingWindowCandidateScore(parent, 0) > 0;
+}
+
 bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent)
 {
     if (outAnchor != 0)

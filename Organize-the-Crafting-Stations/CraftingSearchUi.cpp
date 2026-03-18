@@ -26,12 +26,12 @@
 
 namespace
 {
-const char* kControlsContainerName = "OTT_TraderControlsContainer";
-const char* kSearchEditName = "OTT_SearchEdit";
-const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
-const char* kSearchClearButtonName = "OTT_SearchClearButton";
-const char* kSearchDragHandleName = "OTT_SearchDragHandle";
-const char* kSearchCountTextName = "OTT_SearchCountText";
+const char* kControlsContainerName = "OTCS_ControlsContainer";
+const char* kSearchEditName = "OTCS_SearchEdit";
+const char* kSearchPlaceholderName = "OTCS_SearchPlaceholder";
+const char* kSearchClearButtonName = "OTCS_SearchClearButton";
+const char* kSearchDragHandleName = "OTCS_SearchDragHandle";
+const char* kSearchCountTextName = "OTCS_SearchCountText";
 const int kSearchCountGap = 2;
 
 struct PendingSearchEditShortcut
@@ -299,6 +299,30 @@ int ResolveSearchCountTextWidth(int availableWidth)
     if (desiredWidth > maxAllowedWidth)
     {
         desiredWidth = maxAllowedWidth;
+    }
+
+    return desiredWidth;
+}
+
+int ResolveSearchCountCaptionWidth(const std::string& caption, int maxWidth)
+{
+    if (caption.empty())
+    {
+        return 0;
+    }
+
+    const int minCountWidth = 44;
+    const int horizontalPadding = 6;
+    const int estimatedCharacterWidth = 5;
+    int desiredWidth =
+        horizontalPadding + (static_cast<int>(caption.size()) * estimatedCharacterWidth);
+    if (desiredWidth < minCountWidth)
+    {
+        desiredWidth = minCountWidth;
+    }
+    if (maxWidth > 0 && desiredWidth > maxWidth)
+    {
+        desiredWidth = maxWidth;
     }
 
     return desiredWidth;
@@ -922,7 +946,16 @@ void UpdateSearchCountText(
     }
 
     countText->setVisible(ShouldShowAnySearchCountMetric());
-    countText->setCaption(BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity));
+    const std::string caption =
+        BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity);
+    countText->setCaption(caption);
+    const MyGUI::IntCoord countCoord = countText->getCoord();
+    const int desiredWidth = ResolveSearchCountCaptionWidth(caption, countCoord.width);
+    if (desiredWidth > 0 && desiredWidth != countCoord.width)
+    {
+        const int countRight = countCoord.left + countCoord.width;
+        countText->setCoord(countRight - desiredWidth, countCoord.top, desiredWidth, countCoord.height);
+    }
     UpdateSearchUiState();
 }
 
@@ -1566,23 +1599,13 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
         return false;
     }
 
-    std::string candidateReason;
-    const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
-    const std::string source = sourceTag == 0 ? std::string() : std::string(sourceTag);
-    const bool acceptedTarget = source == "hover-direct"
-        || source.find("crafting") != std::string::npos
-        || candidateScore > 0;
-
-    if (!acceptedTarget)
+    if (!IsLikelyCraftingWindow(parent))
     {
         std::stringstream line;
-        line << "rejecting injection target reason=not_likely_trader_window"
+        line << "rejecting injection target reason=not_likely_crafting_window"
              << " source=" << (sourceTag == 0 ? "<unknown>" : sourceTag)
              << " anchor=" << SafeWidgetName(anchor)
-             << " parent=" << SafeWidgetName(parent)
-             << " candidate_score=" << candidateScore
-             << " candidate_reason=\"" << TruncateForLog(candidateReason, 120) << "\""
-             << " has_trader_structure=" << (HasTraderStructure(parent) ? "true" : "false");
+             << " parent=" << SafeWidgetName(parent);
         if (ShouldLogDebug())
         {
             LogWarnLine(line.str());
@@ -1659,8 +1682,19 @@ bool TryInjectControlsToHoveredWindowDirect()
         return false;
     }
 
+    if (!IsLikelyCraftingWindow(parent))
+    {
+        std::stringstream line;
+        line << "manual attach failed: hovered window is not a crafting target"
+             << " anchor=" << SafeWidgetName(anchor)
+             << " parent=" << SafeWidgetName(parent)
+             << " hovered_chain=" << BuildParentChainForLog(hovered);
+        LogWarnLine(line.str());
+        return false;
+    }
+
     std::stringstream line;
-    line << "manual attach using hovered window"
+    line << "manual attach using hovered crafting window"
          << " anchor=" << SafeWidgetName(anchor)
          << " parent=" << SafeWidgetName(parent)
          << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
@@ -1673,7 +1707,7 @@ bool TryInjectControlsToHoveredWindowDirect()
         DumpHoveredAttachDiagnostics(hovered, anchor, parent);
     }
 
-    return TryInjectControlsToTarget(anchor, parent, "hover-direct");
+    return TryInjectControlsToTarget(anchor, parent, "crafting-hover-direct");
 }
 
 void EnsureControlsInjectedIfEnabled()
@@ -1700,34 +1734,14 @@ void EnsureControlsInjectedIfEnabled()
         return;
     }
 
-    if (!TryResolveVisibleTraderTarget(&anchor, &parent))
+    if (!g_loggedNoVisibleTraderTarget)
     {
-        if (TryResolveHoveredTarget(&anchor, &parent, false))
+        if (ShouldLogDebug())
         {
-            g_loggedNoVisibleTraderTarget = false;
-            if (!TryInjectControlsToTarget(anchor, parent, "hover-auto"))
-            {
-                LogWarnLine("hover auto controls scaffold injection failed");
-            }
-            return;
+            LogDebugLine("controls enabled but no visible crafting target found yet");
+            DumpVisibleCraftingWindowCandidateDiagnostics();
         }
-
-        if (!g_loggedNoVisibleTraderTarget)
-        {
-            if (ShouldLogDebug())
-            {
-                LogDebugLine("controls enabled but no visible search target found yet");
-                DumpTraderTargetProbe();
-                DumpVisibleWindowCandidateDiagnostics();
-            }
-            g_loggedNoVisibleTraderTarget = true;
-        }
-        return;
-    }
-    g_loggedNoVisibleTraderTarget = false;
-    if (!TryInjectControlsToTarget(anchor, parent, "auto"))
-    {
-        LogWarnLine("auto controls scaffold injection failed");
+        g_loggedNoVisibleTraderTarget = true;
     }
 }
 
