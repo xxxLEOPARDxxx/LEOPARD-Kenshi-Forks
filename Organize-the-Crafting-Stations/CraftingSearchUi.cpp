@@ -1566,7 +1566,9 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
 
     std::string candidateReason;
     const int candidateScore = ComputeTraderWindowCandidateScore(parent, &candidateReason);
-    const bool acceptedTarget = (sourceTag != 0 && std::string(sourceTag) == "hover-direct")
+    const std::string source = sourceTag == 0 ? std::string() : std::string(sourceTag);
+    const bool acceptedTarget = source == "hover-direct"
+        || source.find("crafting") != std::string::npos
         || candidateScore > 0;
 
     if (!acceptedTarget)
@@ -1618,10 +1620,7 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
 
     g_controlsWereInjected = true;
     MarkSearchFilterDirty("controls_injected");
-    if (ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug()))
-    {
-        g_searchFilterDirty = false;
-    }
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
 
     std::stringstream line;
     line << "controls scaffold injected"
@@ -1689,6 +1688,16 @@ void EnsureControlsInjectedIfEnabled()
 
     MyGUI::Widget* anchor = 0;
     MyGUI::Widget* parent = 0;
+    if (TryResolveVisibleCraftingTarget(&anchor, &parent))
+    {
+        g_loggedNoVisibleTraderTarget = false;
+        if (!TryInjectControlsToTarget(anchor, parent, "crafting-auto"))
+        {
+            LogWarnLine("crafting auto controls scaffold injection failed");
+        }
+        return;
+    }
+
     if (!TryResolveVisibleTraderTarget(&anchor, &parent))
     {
         if (TryResolveHoveredTarget(&anchor, &parent, false))
@@ -1705,7 +1714,7 @@ void EnsureControlsInjectedIfEnabled()
         {
             if (ShouldLogDebug())
             {
-                LogDebugLine("controls enabled but no visible trader target found yet");
+                LogDebugLine("controls enabled but no visible search target found yet");
                 DumpTraderTargetProbe();
                 DumpVisibleWindowCandidateDiagnostics();
             }

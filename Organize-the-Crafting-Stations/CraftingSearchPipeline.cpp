@@ -6,9 +6,11 @@
 #include "CraftingSearchUi.h"
 #include "CraftingWindowDetection.h"
 
+#include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
 #include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <vector>
 
@@ -25,6 +27,429 @@
 #define g_loggedInventoryBindingFailure (TraderState().binding.g_loggedInventoryBindingFailure)
 #define g_loggedInventoryBindingDiagnostics (TraderState().binding.g_loggedInventoryBindingDiagnostics)
 #define g_lastPanelBindingRefusedSignature (TraderState().binding.g_lastPanelBindingRefusedSignature)
+
+namespace
+{
+const char* kCraftingOriginalCoordUserStringKey = "OTT_CraftingOrigCoord";
+
+struct CraftingRecipeWidget
+{
+    MyGUI::Widget* widget;
+    MyGUI::IntCoord originalCoord;
+    std::string normalizedText;
+};
+
+struct CraftingRecipeRowGroup
+{
+    int originalTop;
+    std::vector<CraftingRecipeWidget> widgets;
+    std::string normalizedText;
+};
+
+std::string SerializeCraftingCoord(const MyGUI::IntCoord& coord)
+{
+    std::stringstream line;
+    line << coord.left << "," << coord.top << "," << coord.width << "," << coord.height;
+    return line.str();
+}
+
+bool TryParseCraftingCoord(const std::string& text, MyGUI::IntCoord* outCoord)
+{
+    if (outCoord == 0)
+    {
+        return false;
+    }
+
+    int left = 0;
+    int top = 0;
+    int width = 0;
+    int height = 0;
+    char comma1 = '\0';
+    char comma2 = '\0';
+    char comma3 = '\0';
+    std::stringstream input(text);
+    if (!(input >> left >> comma1 >> top >> comma2 >> width >> comma3 >> height))
+    {
+        return false;
+    }
+
+    if (comma1 != ',' || comma2 != ',' || comma3 != ',')
+    {
+        return false;
+    }
+
+    *outCoord = MyGUI::IntCoord(left, top, width, height);
+    return true;
+}
+
+bool TryGetStoredCraftingOriginalCoord(MyGUI::Widget* widget, MyGUI::IntCoord* outCoord)
+{
+    if (widget == 0 || outCoord == 0)
+    {
+        return false;
+    }
+
+    const MyGUI::MapString& userStrings = widget->getUserStrings();
+    const MyGUI::MapString::const_iterator it = userStrings.find(kCraftingOriginalCoordUserStringKey);
+    if (it == userStrings.end())
+    {
+        return false;
+    }
+
+    return TryParseCraftingCoord(it->second, outCoord);
+}
+
+MyGUI::IntCoord RememberCraftingOriginalCoord(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return MyGUI::IntCoord();
+    }
+
+    MyGUI::IntCoord storedCoord;
+    if (TryGetStoredCraftingOriginalCoord(widget, &storedCoord))
+    {
+        return storedCoord;
+    }
+
+    const MyGUI::IntCoord currentCoord = widget->getCoord();
+    widget->setUserString(kCraftingOriginalCoordUserStringKey, SerializeCraftingCoord(currentCoord));
+    return currentCoord;
+}
+
+std::string NormalizeCraftingRecipeCaption(const std::string& rawCaption)
+{
+    if (rawCaption.empty())
+    {
+        return "";
+    }
+
+    std::size_t begin = 0;
+    while (begin < rawCaption.size() && std::isspace(static_cast<unsigned char>(rawCaption[begin])) != 0)
+    {
+        ++begin;
+    }
+
+    std::string trimmed = rawCaption.substr(begin);
+    if (!trimmed.empty() && trimmed[0] == '#')
+    {
+        std::size_t cursor = 1;
+        while (cursor < trimmed.size()
+            && cursor <= 7
+            && std::isxdigit(static_cast<unsigned char>(trimmed[cursor])) != 0)
+        {
+            ++cursor;
+        }
+        if (cursor > 1)
+        {
+            trimmed = trimmed.substr(cursor);
+        }
+    }
+
+    return NormalizeSearchText(trimmed);
+}
+
+void CollectCraftingRecipeWidgetsRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::vector<CraftingRecipeWidget>* outWidgets)
+{
+    if (widget == 0 || outWidgets == 0 || depth > maxDepth)
+    {
+        return;
+    }
+
+    if (depth > 0)
+    {
+        MyGUI::IntCoord storedCoord;
+        const bool hadStoredCoord = TryGetStoredCraftingOriginalCoord(widget, &storedCoord);
+        if (widget->getInheritedVisible() || hadStoredCoord)
+        {
+            CraftingRecipeWidget entry;
+            entry.widget = widget;
+            entry.originalCoord = hadStoredCoord ? storedCoord : RememberCraftingOriginalCoord(widget);
+            if (widget->castType<MyGUI::TextBox>(false) != 0)
+            {
+                entry.normalizedText = NormalizeCraftingRecipeCaption(WidgetCaptionForLog(widget));
+            }
+            outWidgets->push_back(entry);
+        }
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        CollectCraftingRecipeWidgetsRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth,
+            outWidgets);
+    }
+}
+
+bool GroupContainsWidget(const CraftingRecipeRowGroup& group, MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < group.widgets.size(); ++index)
+    {
+        if (group.widgets[index].widget == widget)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+int ResolveCraftingRowIndex(const std::vector<int>& rowTops, int centerY)
+{
+    if (rowTops.empty())
+    {
+        return -1;
+    }
+
+    for (std::size_t index = 0; index + 1 < rowTops.size(); ++index)
+    {
+        const int boundary = (rowTops[index] + rowTops[index + 1]) / 2;
+        if (centerY < boundary)
+        {
+            return static_cast<int>(index);
+        }
+    }
+
+    return static_cast<int>(rowTops.size() - 1);
+}
+
+bool BuildCraftingRecipeRowGroups(
+    MyGUI::Widget* queueItemsPanel,
+    std::vector<CraftingRecipeRowGroup>* outGroups,
+    std::size_t* outTrackedWidgetCount)
+{
+    if (outGroups == 0)
+    {
+        return false;
+    }
+
+    outGroups->clear();
+    if (outTrackedWidgetCount != 0)
+    {
+        *outTrackedWidgetCount = 0;
+    }
+
+    if (queueItemsPanel == 0)
+    {
+        return false;
+    }
+
+    std::vector<CraftingRecipeWidget> widgets;
+    CollectCraftingRecipeWidgetsRecursive(queueItemsPanel, 0, 6, &widgets);
+    if (outTrackedWidgetCount != 0)
+    {
+        *outTrackedWidgetCount = widgets.size();
+    }
+
+    std::vector<int> rowTops;
+    int rowHeight = 0;
+    for (std::size_t index = 0; index < widgets.size(); ++index)
+    {
+        const CraftingRecipeWidget& widget = widgets[index];
+        if (widget.normalizedText.empty())
+        {
+            continue;
+        }
+
+        rowTops.push_back(widget.originalCoord.top);
+        if (widget.originalCoord.height > rowHeight)
+        {
+            rowHeight = widget.originalCoord.height;
+        }
+    }
+    if (rowTops.empty())
+    {
+        return false;
+    }
+
+    std::sort(rowTops.begin(), rowTops.end());
+    rowTops.erase(std::unique(rowTops.begin(), rowTops.end()), rowTops.end());
+
+    int rowPitch = rowHeight > 0 ? rowHeight : 34;
+    for (std::size_t index = 1; index < rowTops.size(); ++index)
+    {
+        const int delta = rowTops[index] - rowTops[index - 1];
+        if (delta > 0 && (delta < rowPitch || rowPitch == rowHeight))
+        {
+            rowPitch = delta;
+        }
+    }
+    if (rowPitch < rowHeight)
+    {
+        rowPitch = rowHeight;
+    }
+    const int maxTrackedHeight = rowPitch * 2;
+
+    struct CraftingRecipeRowGroupLess
+    {
+        bool operator()(const CraftingRecipeRowGroup& left, const CraftingRecipeRowGroup& right) const
+        {
+            return left.originalTop < right.originalTop;
+        }
+    };
+
+    for (std::size_t index = 0; index < rowTops.size(); ++index)
+    {
+        CraftingRecipeRowGroup group;
+        group.originalTop = rowTops[index];
+        outGroups->push_back(group);
+    }
+
+    for (std::size_t index = 0; index < widgets.size(); ++index)
+    {
+        const CraftingRecipeWidget& widget = widgets[index];
+        const MyGUI::IntCoord coord = widget.originalCoord;
+        if (coord.height <= 0 || coord.height > maxTrackedHeight)
+        {
+            continue;
+        }
+
+        const int centerY = coord.top + coord.height / 2;
+        const int rowIndex = ResolveCraftingRowIndex(rowTops, centerY);
+        if (rowIndex < 0 || static_cast<std::size_t>(rowIndex) >= outGroups->size())
+        {
+            continue;
+        }
+
+        CraftingRecipeRowGroup& group = (*outGroups)[static_cast<std::size_t>(rowIndex)];
+        group.widgets.push_back(widget);
+        if (widget.normalizedText.size() > group.normalizedText.size())
+        {
+            group.normalizedText = widget.normalizedText;
+        }
+    }
+
+    for (std::size_t groupIndex = 0; groupIndex < outGroups->size(); ++groupIndex)
+    {
+        CraftingRecipeRowGroup& group = (*outGroups)[groupIndex];
+        std::vector<CraftingRecipeWidget> topLevelWidgets;
+        topLevelWidgets.reserve(group.widgets.size());
+        for (std::size_t widgetIndex = 0; widgetIndex < group.widgets.size(); ++widgetIndex)
+        {
+            const CraftingRecipeWidget& candidate = group.widgets[widgetIndex];
+            bool hasTrackedAncestor = false;
+            MyGUI::Widget* current = candidate.widget == 0 ? 0 : candidate.widget->getParent();
+            while (current != 0 && current != queueItemsPanel)
+            {
+                if (GroupContainsWidget(group, current))
+                {
+                    hasTrackedAncestor = true;
+                    break;
+                }
+                current = current->getParent();
+            }
+
+            if (!hasTrackedAncestor)
+            {
+                topLevelWidgets.push_back(candidate);
+            }
+        }
+        group.widgets.swap(topLevelWidgets);
+    }
+
+    std::sort(outGroups->begin(), outGroups->end(), CraftingRecipeRowGroupLess());
+    return !outGroups->empty();
+}
+
+bool ApplySearchFilterToCraftingParent(MyGUI::Widget* craftingParent, bool forceShowAll, bool logSummary)
+{
+    if (craftingParent == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* queueItemsPanel = FindWidgetInParentByToken(craftingParent, "QueueItemsPanel");
+    if (queueItemsPanel == 0)
+    {
+        UpdateSearchCountText(0, 0, 0);
+        return false;
+    }
+
+    std::vector<CraftingRecipeRowGroup> rowGroups;
+    std::size_t trackedWidgetCount = 0;
+    if (!BuildCraftingRecipeRowGroups(queueItemsPanel, &rowGroups, &trackedWidgetCount))
+    {
+        UpdateSearchCountText(0, 0, 0);
+        return false;
+    }
+
+    const std::string query = forceShowAll ? std::string() : g_searchQueryNormalized;
+    std::size_t totalCount = 0;
+    std::size_t visibleCount = 0;
+    std::vector<int> visibleSlotTops;
+    visibleSlotTops.reserve(rowGroups.size());
+    for (std::size_t groupIndex = 0; groupIndex < rowGroups.size(); ++groupIndex)
+    {
+        visibleSlotTops.push_back(rowGroups[groupIndex].originalTop);
+    }
+
+    std::size_t nextVisibleSlot = 0;
+    for (std::size_t groupIndex = 0; groupIndex < rowGroups.size(); ++groupIndex)
+    {
+        CraftingRecipeRowGroup& group = rowGroups[groupIndex];
+        const bool hasSearchableText = !group.normalizedText.empty();
+        if (hasSearchableText)
+        {
+            ++totalCount;
+        }
+
+        const bool shouldBeVisible =
+            query.empty() || (!group.normalizedText.empty() && group.normalizedText.find(query) != std::string::npos);
+        int targetTop = group.originalTop;
+        if (shouldBeVisible && nextVisibleSlot < visibleSlotTops.size())
+        {
+            targetTop = visibleSlotTops[nextVisibleSlot];
+            ++nextVisibleSlot;
+        }
+
+        const int topDelta = targetTop - group.originalTop;
+        for (std::size_t widgetIndex = 0; widgetIndex < group.widgets.size(); ++widgetIndex)
+        {
+            CraftingRecipeWidget& widget = group.widgets[widgetIndex];
+            if (widget.widget != 0)
+            {
+                MyGUI::IntCoord coord = widget.originalCoord;
+                coord.top += topDelta;
+                widget.widget->setCoord(coord);
+                widget.widget->setVisible(shouldBeVisible);
+            }
+        }
+
+        if (shouldBeVisible && hasSearchableText)
+        {
+            ++visibleCount;
+        }
+    }
+
+    if (logSummary && ShouldLogSearchDebug())
+    {
+        std::stringstream line;
+        line << "crafting search filter applied"
+             << " query=\"" << (forceShowAll ? "" : g_searchQueryRaw) << "\""
+             << " normalized=\"" << (forceShowAll ? "" : query) << "\""
+             << " visible=" << visibleCount
+             << " total=" << totalCount
+             << " row_groups=" << rowGroups.size()
+             << " tracked_widgets=" << trackedWidgetCount
+             << " entries_root=" << SafeWidgetName(queueItemsPanel);
+        LogInfoLine(line.str());
+    }
+
+    UpdateSearchCountText(visibleCount, totalCount, 0);
+    return true;
+}
+}
 
 void MarkSearchFilterDirty(const char* reason)
 {
@@ -958,13 +1383,22 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
 
 void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary)
 {
-    MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
-    if (traderParent == 0)
+    MyGUI::Widget* targetParent = ResolveTraderParentFromControlsContainer();
+    if (targetParent == 0)
     {
         return;
     }
 
-    if (ApplySearchFilterToTraderParent(traderParent, forceShowAll, logSummary))
+    if (FindWidgetInParentByToken(targetParent, "QueueItemsPanel") != 0)
+    {
+        if (ApplySearchFilterToCraftingParent(targetParent, forceShowAll, logSummary))
+        {
+            g_searchFilterDirty = false;
+        }
+        return;
+    }
+
+    if (ApplySearchFilterToTraderParent(targetParent, forceShowAll, logSummary))
     {
         g_searchFilterDirty = false;
     }
