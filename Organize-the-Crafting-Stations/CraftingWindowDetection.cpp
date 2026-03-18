@@ -1,7 +1,7 @@
-#include "TraderWindowDetection.h"
+#include "CraftingWindowDetection.h"
 
-#include "TraderCore.h"
-#include "TraderSearchText.h"
+#include "CraftingCore.h"
+#include "CraftingSearchText.h"
 
 #include <kenshi/Character.h>
 #include <kenshi/Dialogue.h>
@@ -19,6 +19,189 @@
 
 #include <sstream>
 #include <vector>
+
+namespace
+{
+struct CraftingProbeToken
+{
+    const char* token;
+    int score;
+};
+
+bool WidgetMatchesCraftingProbeToken(MyGUI::Widget* widget, const char* token)
+{
+    if (widget == 0 || token == 0 || *token == '\0')
+    {
+        return false;
+    }
+
+    return ContainsAsciiCaseInsensitive(SafeWidgetName(widget), token)
+        || ContainsAsciiCaseInsensitive(WidgetCaptionForLog(widget), token);
+}
+
+bool FindCraftingProbeTokenMatchRecursive(
+    MyGUI::Widget* widget,
+    const char* token,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::string* outMatchedWidgetName)
+{
+    if (widget == 0 || token == 0 || depth > maxDepth)
+    {
+        return false;
+    }
+
+    if (WidgetMatchesCraftingProbeToken(widget, token))
+    {
+        if (outMatchedWidgetName != 0)
+        {
+            *outMatchedWidgetName = SafeWidgetName(widget);
+        }
+        return true;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        if (FindCraftingProbeTokenMatchRecursive(
+                widget->getChildAt(childIndex),
+                token,
+                depth + 1,
+                maxDepth,
+                outMatchedWidgetName))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int ComputeCraftingWindowCandidateScore(MyGUI::Widget* parent, std::string* outReason)
+{
+    if (outReason != 0)
+    {
+        outReason->clear();
+    }
+
+    if (parent == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Window* window = FindOwningWindow(parent);
+    const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+
+    int score = 0;
+    bool hasSignal = false;
+    std::stringstream reason;
+
+    if (ContainsAsciiCaseInsensitive(caption, "craft"))
+    {
+        score += 2200;
+        hasSignal = true;
+        reason << " caption=craft";
+    }
+
+    if (ContainsAsciiCaseInsensitive(caption, "recipe"))
+    {
+        score += 2400;
+        hasSignal = true;
+        reason << " caption=recipe";
+    }
+
+    if (ContainsAsciiCaseInsensitive(caption, "cook"))
+    {
+        score += 1600;
+        hasSignal = true;
+        reason << " caption=cook";
+    }
+
+    static const CraftingProbeToken kCraftingProbeTokens[] =
+    {
+        { "recipe", 1800 },
+        { "ingredient", 1500 },
+        { "material", 1300 },
+        { "craft", 1200 },
+        { "queue", 900 },
+        { "blueprint", 800 },
+        { "production", 700 },
+        { "cook", 600 },
+    };
+
+    for (std::size_t index = 0; index < sizeof(kCraftingProbeTokens) / sizeof(kCraftingProbeTokens[0]); ++index)
+    {
+        std::string matchedWidgetName;
+        if (!FindCraftingProbeTokenMatchRecursive(
+                parent,
+                kCraftingProbeTokens[index].token,
+                0,
+                5,
+                &matchedWidgetName))
+        {
+            continue;
+        }
+
+        score += kCraftingProbeTokens[index].score;
+        hasSignal = true;
+        reason << " token=" << kCraftingProbeTokens[index].token
+               << "@" << TruncateForLog(matchedWidgetName, 48);
+    }
+
+    if (!hasSignal)
+    {
+        return 0;
+    }
+
+    if (outReason != 0)
+    {
+        *outReason = reason.str();
+    }
+
+    return score;
+}
+
+void DumpVisibleWindowSummaryForCraftingProbe()
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    std::size_t index = 0;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
+        if (window == 0)
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord coord = root->getCoord();
+        std::stringstream line;
+        line << "craft_search.window_detect visible_window[" << index << "]"
+             << " name=" << SafeWidgetName(root)
+             << " caption=\"" << TruncateForLog(window->getCaption().asUTF8(), 60) << "\""
+             << " child_count=" << root->getChildCount()
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+        LogInfoLine(line.str());
+
+        ++index;
+        if (index >= 12)
+        {
+            break;
+        }
+    }
+}
+}
 
 MyGUI::Widget* FindNamedDescendantRecursive(
     MyGUI::Widget* root,
@@ -377,6 +560,96 @@ void DumpVisibleWindowCandidateDiagnostics()
     if (index == 0)
     {
         LogInfoLine("window-candidate scan found no likely trader windows");
+    }
+}
+
+void DumpVisibleCraftingWindowCandidateDiagnostics()
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        LogWarnLine("craft_search.window_detect gui_unavailable");
+        return;
+    }
+
+    std::size_t candidateIndex = 0;
+    std::size_t subtreeDumpCount = 0;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
+        if (window == 0)
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        std::string candidateReason;
+        const int candidateScore = ComputeCraftingWindowCandidateScore(parent, &candidateReason);
+        if (candidateScore <= 0)
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord coord = root->getCoord();
+        std::stringstream line;
+        line << "craft_search.window_detect candidate[" << candidateIndex << "]"
+             << " name=" << SafeWidgetName(root)
+             << " parent=" << SafeWidgetName(parent)
+             << " caption=\"" << TruncateForLog(window->getCaption().asUTF8(), 60) << "\""
+             << " score=" << candidateScore
+             << " reason=\"" << TruncateForLog(candidateReason, 220) << "\""
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+        LogInfoLine(line.str());
+
+        if (subtreeDumpCount < 3)
+        {
+            DumpWidgetSubtreeDiagnostics("craft_search.widget_probe", parent);
+            ++subtreeDumpCount;
+        }
+
+        ++candidateIndex;
+    }
+
+    if (candidateIndex > 0)
+    {
+        return;
+    }
+
+    LogInfoLine("craft_search.window_detect no candidates found; dumping visible window summary");
+    DumpVisibleWindowSummaryForCraftingProbe();
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        LogWarnLine("craft_search.widget_probe hovered_widget_unavailable");
+        return;
+    }
+
+    MyGUI::Widget* hovered = inputManager->getMouseFocusWidget();
+    if (hovered == 0)
+    {
+        LogWarnLine("craft_search.widget_probe no hovered widget for fallback diagnostics");
+        return;
+    }
+
+    MyGUI::Widget* anchor = FindBestWindowAnchor(hovered);
+    MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+    DumpHoveredAttachDiagnostics(hovered, anchor, parent);
+    if (parent != 0)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_hovered_parent", parent);
     }
 }
 

@@ -1,6 +1,6 @@
-#include "TraderSearchText.h"
+#include "CraftingSearchText.h"
 
-#include "TraderCore.h"
+#include "CraftingCore.h"
 
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>

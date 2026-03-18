@@ -1,7 +1,7 @@
-#include "TraderInventoryBinding.h"
+#include "CraftingInventoryBinding.h"
 
-#include "TraderSearchText.h"
-#include "TraderWindowDetection.h"
+#include "CraftingSearchText.h"
+#include "CraftingWindowDetection.h"
 
 #include <kenshi/Building.h>
 #include <kenshi/Character.h>

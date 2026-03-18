@@ -1,12 +1,12 @@
-#include "TraderSearchUi.h"
+#include "CraftingSearchUi.h"
 
-#include "TraderCore.h"
-#include "TraderDiagnostics.h"
-#include "TraderInventoryBinding.h"
-#include "TraderSearchInputBehavior.h"
-#include "TraderSearchPipeline.h"
-#include "TraderSearchText.h"
-#include "TraderWindowDetection.h"
+#include "CraftingCore.h"
+#include "CraftingDiagnostics.h"
+#include "CraftingInventoryBinding.h"
+#include "CraftingSearchInputBehavior.h"
+#include "CraftingSearchPipeline.h"
+#include "CraftingSearchText.h"
+#include "CraftingWindowDetection.h"
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>

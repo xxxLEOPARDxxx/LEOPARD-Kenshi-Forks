@@ -1,6 +1,6 @@
-#include "TraderModHub.h"
+#include "CraftingModHub.h"
 
-#include "TraderCore.h"
+#include "CraftingCore.h"
 #include "emc/mod_hub_client.h"
 
 #include <sstream>
@@ -9,8 +9,8 @@ namespace
 {
 const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
-const char* kHubModId = "organize_the_trader";
-const char* kHubModDisplayName = "Organize the Trader";
+const char* kHubModId = "organize_the_crafting_stations";
+const char* kHubModDisplayName = "Organize the Crafting Stations";
 
 typedef bool TraderConfigSnapshot::*TraderConfigBoolField;
 typedef int TraderConfigSnapshot::*TraderConfigIntField;
@@ -280,7 +280,7 @@ void EnsureModHubClientConfigured()
     static const EMC_BoolSettingDefV1 kEnabledSetting = {
         "enabled",
         "Enabled",
-        "Enable Organize the Trader search controls",
+        "Enable Organize the Crafting Stations search controls",
         &g_modHubClient,
         &GetEnabledSetting,
         &SetEnabledSetting };

@@ -32,8 +32,20 @@ if (Test-Path $LoadEnvScript) {
     . $LoadEnvScript -RepoDir $RepoDir
 }
 
-$Forward = @{}
-foreach ($k in @('ModName','ProjectFileName','OutputSubdir','Configuration','Platform','PlatformToolset','DllName','ModFileName','ConfigFileName','OutDir','ZipName','Version')) {
+if (-not $ModName) { $ModName = "Organize-the-Crafting-Stations" }
+if (-not $ProjectFileName) { $ProjectFileName = "Organize-the-Crafting-Stations.vcxproj" }
+if (-not $DllName) { $DllName = "Organize-the-Crafting-Stations.dll" }
+if (-not $ModFileName) { $ModFileName = "Organize-the-Crafting-Stations.mod" }
+
+$Forward = @{
+    ModName = $ModName
+    ProjectFileName = $ProjectFileName
+    DllName = $DllName
+    ModFileName = $ModFileName
+    ConfigFileName = $ConfigFileName
+}
+
+foreach ($k in @('OutputSubdir','Configuration','Platform','PlatformToolset','OutDir','ZipName','Version')) {
     if ($PSBoundParameters.ContainsKey($k)) { $Forward[$k] = (Get-Variable -Name $k -ValueOnly) }
 }
 

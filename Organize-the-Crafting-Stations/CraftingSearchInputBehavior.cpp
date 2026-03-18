@@ -1,4 +1,4 @@
-#include "TraderSearchInputBehavior.h"
+#include "CraftingSearchInputBehavior.h"
 
 #include <cctype>
 

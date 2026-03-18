@@ -78,7 +78,7 @@ function Get-LastSessionLines {
         }
     }
 
-    throw "Could not find a recent Organize-the-Trader startup line in the log."
+    throw "Could not find a recent Organize-the-Crafting-Stations startup line in the log."
 }
 
 function Get-LastMatch {
@@ -98,16 +98,16 @@ $ageMinutes = ((Get-Date).ToUniversalTime() - $logItem.LastWriteTimeUtc).TotalMi
 Assert-Condition -Condition ($ageMinutes -le $MaxAgeMinutes) -Message ("Log file is stale ({0:N1} minutes old): {1}" -f $ageMinutes, $resolvedLogPath)
 
 $allLines = Get-Content -LiteralPath $resolvedLogPath
-$sessionLines = Get-LastSessionLines -Lines $allLines -StartupPattern "Organize-the-Trader INFO: startPlugin\(\)"
+$sessionLines = Get-LastSessionLines -Lines $allLines -StartupPattern "Organize-the-Crafting-Stations INFO: startPlugin\(\)"
 
-$loadedConfig = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: mod config loaded"
-$attached = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: event=mod_hub_attached use_hub_ui=1"
-$retryPending = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader INFO: event=mod_hub_attach_retry_pending use_hub_ui=0"
-$fallback = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader WARN: event=mod_hub_fallback .* use_hub_ui=0"
-$pluginError = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Trader ERROR:"
+$loadedConfig = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Crafting-Stations INFO: mod config loaded"
+$attached = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Crafting-Stations INFO: event=mod_hub_attached use_hub_ui=1"
+$retryPending = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Crafting-Stations INFO: event=mod_hub_attach_retry_pending use_hub_ui=0"
+$fallback = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Crafting-Stations WARN: event=mod_hub_fallback .* use_hub_ui=0"
+$pluginError = Get-LastMatch -Lines $sessionLines -Pattern "Organize-the-Crafting-Stations ERROR:"
 
-Assert-Condition -Condition ($null -ne $loadedConfig) -Message "Missing Organize-the-Trader mod-config load line in the latest RE_Kenshi session."
-Assert-Condition -Condition ($null -eq $pluginError) -Message ("Found Organize-the-Trader error line: " + $pluginError.Line)
+Assert-Condition -Condition ($null -ne $loadedConfig) -Message "Missing Organize-the-Crafting-Stations mod-config load line in the latest RE_Kenshi session."
+Assert-Condition -Condition ($null -eq $pluginError) -Message ("Found Organize-the-Crafting-Stations error line: " + $pluginError.Line)
 
 $resolvedMode = "unknown"
 $lastModeEvent = $null
@@ -143,7 +143,7 @@ switch ($ExpectedMode) {
     }
 }
 
-Write-Host ("PASS: phase22 Organize-the-Trader Mod Hub runtime smoke completed ({0})" -f $resolvedMode)
+Write-Host ("PASS: phase22 Organize-the-Crafting-Stations Mod Hub runtime smoke completed ({0})" -f $resolvedMode)
 Write-Host ("Log: {0}" -f $resolvedLogPath)
 Write-Host ("Log age (minutes): {0:N1}" -f $ageMinutes)
 Write-Host ("Loaded config: {0}" -f $loadedConfig.Line)

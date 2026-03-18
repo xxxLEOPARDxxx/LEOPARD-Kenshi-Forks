@@ -27,6 +27,7 @@ bool IsLikelyTraderWindow(MyGUI::Widget* parent);
 bool HasTraderStructure(MyGUI::Widget* parent);
 void DumpTraderTargetProbe();
 void DumpVisibleWindowCandidateDiagnostics();
+void DumpVisibleCraftingWindowCandidateDiagnostics();
 bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent);
 bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent, bool logFailures);
 MyGUI::Widget* FindBestWindowAnchor(MyGUI::Widget* fromWidget);

@@ -56,14 +56,14 @@ public:
     Ogre::vector<InventoryIcon*>::type _icons;
 };
 
-#include "TraderCore.h"
-#include "TraderDiagnostics.h"
-#include "TraderInventoryBinding.h"
-#include "TraderSearchPipeline.h"
-#include "TraderSearchUi.h"
-#include "TraderSearchText.h"
-#include "TraderModHub.h"
-#include "TraderWindowDetection.h"
+#include "CraftingCore.h"
+#include "CraftingDiagnostics.h"
+#include "CraftingInventoryBinding.h"
+#include "CraftingSearchPipeline.h"
+#include "CraftingSearchUi.h"
+#include "CraftingSearchText.h"
+#include "CraftingModHub.h"
+#include "CraftingWindowDetection.h"
 
 namespace
 {
@@ -910,7 +910,8 @@ __declspec(dllexport) void startPlugin()
     info << "phase 2 controls scaffold active."
          << " Auto-attach is enabled for detected trader windows."
          << " Press " << kToggleHotkeyHint << " to hide/show."
-         << " Press " << kDiagnosticsHotkeyHint << " for a diagnostics snapshot.";
+         << " Press " << kDiagnosticsHotkeyHint
+         << " for a diagnostics snapshot (includes crafting-window probe output).";
     LogInfoLine(info.str());
 }
 

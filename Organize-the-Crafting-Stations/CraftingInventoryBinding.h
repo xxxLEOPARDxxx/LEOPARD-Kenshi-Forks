@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TraderCore.h"
+#include "CraftingCore.h"
 
 #include <cstddef>
 #include <cstdint>

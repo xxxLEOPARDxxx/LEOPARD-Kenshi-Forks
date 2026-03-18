@@ -1,11 +1,11 @@
-#include "TraderDiagnostics.h"
+#include "CraftingDiagnostics.h"
 
-#include "TraderCore.h"
-#include "TraderInventoryBinding.h"
-#include "TraderSearchPipeline.h"
-#include "TraderSearchText.h"
-#include "TraderSearchUi.h"
-#include "TraderWindowDetection.h"
+#include "CraftingCore.h"
+#include "CraftingInventoryBinding.h"
+#include "CraftingSearchPipeline.h"
+#include "CraftingSearchText.h"
+#include "CraftingSearchUi.h"
+#include "CraftingWindowDetection.h"
 
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_Widget.h>
@@ -91,6 +91,8 @@ void DumpOnDemandTraderDiagnosticsSnapshot()
         LogWarnLine("manual diagnostics snapshot skipped: debugBindingLogging=false");
         return;
     }
+
+    DumpVisibleCraftingWindowCandidateDiagnostics();
 
     MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
     if (traderParent == 0)

@@ -1,4 +1,4 @@
-#include "TraderCore.h"
+#include "CraftingCore.h"
 
 #include <Debug.h>
 
@@ -10,7 +10,7 @@
 
 namespace
 {
-const char* kPluginName = "Organize-the-Trader";
+const char* kPluginName = "Organize-the-Crafting-Stations";
 
 TraderRuntimeState g_traderRuntimeState;
 

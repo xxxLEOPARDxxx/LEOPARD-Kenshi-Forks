@@ -1,10 +1,10 @@
-#include "TraderSearchPipeline.h"
+#include "CraftingSearchPipeline.h"
 
-#include "TraderCore.h"
-#include "TraderInventoryBinding.h"
-#include "TraderSearchText.h"
-#include "TraderSearchUi.h"
-#include "TraderWindowDetection.h"
+#include "CraftingCore.h"
+#include "CraftingInventoryBinding.h"
+#include "CraftingSearchText.h"
+#include "CraftingSearchUi.h"
+#include "CraftingWindowDetection.h"
 
 #include <mygui/MyGUI_Widget.h>
 

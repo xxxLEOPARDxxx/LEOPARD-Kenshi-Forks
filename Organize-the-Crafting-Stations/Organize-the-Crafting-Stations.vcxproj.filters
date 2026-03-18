@@ -15,43 +15,43 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Organize-the-Trader.cpp">
+    <ClCompile Include="Organize-the-Crafting-Stations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderCore.cpp">
+    <ClCompile Include="CraftingCore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderDiagnostics.cpp">
+    <ClCompile Include="CraftingDiagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryBinding.cpp">
+    <ClCompile Include="CraftingInventoryBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryKeyset.cpp">
+    <ClCompile Include="CraftingInventoryKeyset.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryResolver.cpp">
+    <ClCompile Include="CraftingInventoryResolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventorySources.cpp">
+    <ClCompile Include="CraftingInventorySources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderModHub.cpp">
+    <ClCompile Include="CraftingModHub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchInputBehavior.cpp">
+    <ClCompile Include="CraftingSearchInputBehavior.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchPipeline.cpp">
+    <ClCompile Include="CraftingSearchPipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchUi.cpp">
+    <ClCompile Include="CraftingSearchUi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchText.cpp">
+    <ClCompile Include="CraftingSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderWindowDetection.cpp">
+    <ClCompile Include="CraftingWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mod_hub_client.cpp">
@@ -68,31 +68,31 @@
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderCore.h">
+    <ClInclude Include="CraftingCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderDiagnostics.h">
+    <ClInclude Include="CraftingDiagnostics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderInventoryBinding.h">
+    <ClInclude Include="CraftingInventoryBinding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderModHub.h">
+    <ClInclude Include="CraftingModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchInputBehavior.h">
+    <ClInclude Include="CraftingSearchInputBehavior.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchPipeline.h">
+    <ClInclude Include="CraftingSearchPipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchUi.h">
+    <ClInclude Include="CraftingSearchUi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchText.h">
+    <ClInclude Include="CraftingSearchText.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderWindowDetection.h">
+    <ClInclude Include="CraftingWindowDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

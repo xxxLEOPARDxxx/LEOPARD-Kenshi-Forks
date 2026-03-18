@@ -20,9 +20,16 @@ if (-not (Test-Path $SharedScript)) {
     exit 1
 }
 
-$Forward = @{}
-foreach ($k in @('RepoDir','ModName','DllName','ModFileName','ConfigFileName')) {
-    if ($PSBoundParameters.ContainsKey($k)) { $Forward[$k] = (Get-Variable -Name $k -ValueOnly) }
+if (-not $ModName) { $ModName = "Organize-the-Crafting-Stations" }
+if (-not $DllName) { $DllName = "Organize-the-Crafting-Stations.dll" }
+if (-not $ModFileName) { $ModFileName = "Organize-the-Crafting-Stations.mod" }
+
+$Forward = @{
+    RepoDir = $RepoDir
+    ModName = $ModName
+    DllName = $DllName
+    ModFileName = $ModFileName
+    ConfigFileName = $ConfigFileName
 }
 
 & $SharedScript @Forward
