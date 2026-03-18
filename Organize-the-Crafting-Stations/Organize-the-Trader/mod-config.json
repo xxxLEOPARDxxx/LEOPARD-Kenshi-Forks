@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "showSearchEntryCount": true,
+  "showSearchQuantityCount": true,
+  "showSearchClearButton": true,
+  "debugLogging": false,
+  "debugSearchLogging": false,
+  "debugBindingLogging": false,
+  "searchInputWidth": 372,
+  "searchInputHeight": 26,
+  "searchInputPositionCustomized": false,
+  "searchInputLeft": 0,
+  "searchInputTop": 0
+}
