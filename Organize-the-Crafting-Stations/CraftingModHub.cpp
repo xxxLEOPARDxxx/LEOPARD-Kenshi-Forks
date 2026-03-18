@@ -173,25 +173,6 @@ EMC_Result __cdecl SetShowSearchEntryCountSetting(
         &TraderConfigSnapshot::showSearchEntryCount);
 }
 
-EMC_Result __cdecl GetShowSearchQuantityCountSetting(void* user_data, int32_t* out_value)
-{
-    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchQuantityCount);
-}
-
-EMC_Result __cdecl SetShowSearchQuantityCountSetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    return SetHubBoolSetting(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &TraderConfigSnapshot::showSearchQuantityCount);
-}
-
 EMC_Result __cdecl GetShowSearchClearButtonSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchClearButton);
@@ -296,14 +277,6 @@ void EnsureModHubClientConfigured()
         &GetShowSearchEntryCountSetting,
         &SetShowSearchEntryCountSetting };
 
-    static const EMC_BoolSettingDefV1 kShowSearchQuantityCountSetting = {
-        "show_search_quantity_count",
-        "Show quantity count",
-        "Show visible stack quantity in the search bar",
-        &g_modHubClient,
-        &GetShowSearchQuantityCountSetting,
-        &SetShowSearchQuantityCountSetting };
-
     static const EMC_BoolSettingDefV1 kShowSearchClearButtonSetting = {
         "show_search_clear_button",
         "Show clear button",
@@ -337,7 +310,6 @@ void EnsureModHubClientConfigured()
     static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }

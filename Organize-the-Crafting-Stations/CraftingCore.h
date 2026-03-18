@@ -31,7 +31,7 @@ static const int kSearchInputConfiguredWidthMin = 120;
 static const int kSearchInputConfiguredWidthMax = 720;
 static const int kSearchInputConfiguredHeightMin = 22;
 static const int kSearchInputConfiguredHeightMax = 48;
-static const int kDefaultSearchInputConfiguredWidth = 372;
+static const int kDefaultSearchInputConfiguredWidth = 220;
 static const int kDefaultSearchInputConfiguredHeight = 26;
 
 struct TraderConfigSnapshot
@@ -39,7 +39,6 @@ struct TraderConfigSnapshot
     TraderConfigSnapshot()
         : enabled(true)
         , showSearchEntryCount(true)
-        , showSearchQuantityCount(true)
         , showSearchClearButton(true)
         , debugLogging(false)
         , debugSearchLogging(false)
@@ -54,7 +53,6 @@ struct TraderConfigSnapshot
 
     bool enabled;
     bool showSearchEntryCount;
-    bool showSearchQuantityCount;
     bool showSearchClearButton;
     bool debugLogging;
     bool debugSearchLogging;
@@ -128,20 +126,18 @@ struct CoreState
         : g_updateTickCounter(0)
         , g_controlsEnabled(true)
         , g_showSearchEntryCount(true)
-        , g_showSearchQuantityCount(true)
         , g_showSearchClearButton(true)
         , g_debugLogging(false)
         , g_debugSearchLogging(false)
         , g_debugBindingLogging(false)
-        , g_searchInputConfiguredWidth(372)
-        , g_searchInputConfiguredHeight(26)
+        , g_searchInputConfiguredWidth(kDefaultSearchInputConfiguredWidth)
+        , g_searchInputConfiguredHeight(kDefaultSearchInputConfiguredHeight)
     {
     }
 
     unsigned long long g_updateTickCounter;
     bool g_controlsEnabled;
     bool g_showSearchEntryCount;
-    bool g_showSearchQuantityCount;
     bool g_showSearchClearButton;
     bool g_debugLogging;
     bool g_debugSearchLogging;

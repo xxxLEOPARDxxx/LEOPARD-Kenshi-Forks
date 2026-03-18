@@ -235,8 +235,6 @@ std::string BuildTraderConfigText(const TraderConfigSnapshot& config)
             << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n"
             << "  \"showSearchEntryCount\": "
             << (config.showSearchEntryCount ? "true" : "false") << ",\n"
-            << "  \"showSearchQuantityCount\": "
-            << (config.showSearchQuantityCount ? "true" : "false") << ",\n"
             << "  \"showSearchClearButton\": "
             << (config.showSearchClearButton ? "true" : "false") << ",\n"
             << "  \"debugLogging\": " << (config.debugLogging ? "true" : "false") << ",\n"
@@ -260,8 +258,6 @@ void LogTraderConfigSnapshot(const char* prefix, const TraderConfigSnapshot& con
     line << prefix
          << " enabled=" << (config.enabled ? "true" : "false")
          << " showSearchEntryCount=" << (config.showSearchEntryCount ? "true" : "false")
-         << " showSearchQuantityCount="
-         << (config.showSearchQuantityCount ? "true" : "false")
          << " showSearchClearButton="
          << (config.showSearchClearButton ? "true" : "false")
          << " debugLogging=" << (config.debugLogging ? "true" : "false")
@@ -394,7 +390,6 @@ TraderConfigSnapshot CaptureTraderConfigSnapshot()
     TraderConfigSnapshot config;
     config.enabled = TraderState().core.g_controlsEnabled;
     config.showSearchEntryCount = TraderState().core.g_showSearchEntryCount;
-    config.showSearchQuantityCount = TraderState().core.g_showSearchQuantityCount;
     config.showSearchClearButton = TraderState().core.g_showSearchClearButton;
     config.debugLogging = TraderState().core.g_debugLogging;
     config.debugSearchLogging = TraderState().core.g_debugSearchLogging;
@@ -415,7 +410,6 @@ void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config)
 
     TraderState().core.g_controlsEnabled = normalized.enabled;
     TraderState().core.g_showSearchEntryCount = normalized.showSearchEntryCount;
-    TraderState().core.g_showSearchQuantityCount = normalized.showSearchQuantityCount;
     TraderState().core.g_showSearchClearButton = normalized.showSearchClearButton;
     TraderState().core.g_debugLogging = normalized.debugLogging;
     TraderState().core.g_debugSearchLogging = normalized.debugSearchLogging;
@@ -487,10 +481,6 @@ void LoadModConfig()
     if (TryParseJsonBoolByKey(configText, "showSearchEntryCount", &parsedValue))
     {
         config.showSearchEntryCount = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "showSearchQuantityCount", &parsedValue))
-    {
-        config.showSearchQuantityCount = parsedValue;
     }
     if (TryParseJsonBoolByKey(configText, "showSearchClearButton", &parsedValue))
     {

@@ -52,7 +52,6 @@ bool g_haveSearchEditSnapshot = false;
 TraderSearchInputBehavior::Snapshot g_searchEditSnapshot;
 
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
-#define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
 #define g_showSearchClearButton (TraderState().core.g_showSearchClearButton)
 #define g_searchInputConfiguredWidth (TraderState().core.g_searchInputConfiguredWidth)
 #define g_searchInputConfiguredHeight (TraderState().core.g_searchInputConfiguredHeight)
@@ -255,7 +254,7 @@ TraderSearchInputBehavior::Snapshot BuildScheduledSearchShortcutSnapshot(
 
 bool ShouldShowAnySearchCountMetric()
 {
-    return g_showSearchEntryCount || g_showSearchQuantityCount;
+    return g_showSearchEntryCount;
 }
 
 bool SearchHasNoVisibleResults()
@@ -270,11 +269,6 @@ int ResolvePreferredSearchCountTextWidth()
     if (!ShouldShowAnySearchCountMetric())
     {
         return 0;
-    }
-
-    if (g_showSearchEntryCount && g_showSearchQuantityCount)
-    {
-        return 132;
     }
 
     return 72;
@@ -333,24 +327,10 @@ std::string BuildSearchCountCaption(
     std::size_t totalEntryCount,
     std::size_t visibleQuantity)
 {
+    (void)visibleQuantity;
+
     std::stringstream line;
-    bool wroteMetric = false;
-
-    if (g_showSearchEntryCount)
-    {
-        line << visibleEntryCount << " / " << totalEntryCount;
-        wroteMetric = true;
-    }
-
-    if (g_showSearchQuantityCount)
-    {
-        if (wroteMetric)
-        {
-            line << " | ";
-        }
-        line << "qty " << visibleQuantity;
-    }
-
+    line << visibleEntryCount << " / " << totalEntryCount;
     return line.str();
 }
 
