@@ -9,6 +9,7 @@
 
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_Widget.h>
+#include <mygui/MyGUI_Window.h>
 
 #include <algorithm>
 #include <sstream>
@@ -16,6 +17,505 @@
 
 namespace
 {
+struct CraftingRowScanCandidate
+{
+    MyGUI::Widget* widget;
+    std::size_t depth;
+    int score;
+    int quantity;
+    std::string type;
+    std::string caption;
+    std::string nameHint;
+    std::string searchText;
+    std::string rawProbe;
+};
+
+void LogCraftingProbeWidgetSummary(const char* token, MyGUI::Widget* widget)
+{
+    std::stringstream line;
+    line << "manual diagnostics crafting widget"
+         << " token=" << (token == 0 ? "<null>" : token)
+         << " found=" << (widget != 0 ? "true" : "false");
+
+    if (widget != 0)
+    {
+        const MyGUI::IntCoord coord = widget->getCoord();
+        line << " name=" << SafeWidgetName(widget)
+             << " type=" << WidgetTypeForLog(widget)
+             << " visible=" << (widget->getInheritedVisible() ? "true" : "false")
+             << " children=" << widget->getChildCount()
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+
+        const std::string caption = TruncateForLog(WidgetCaptionForLog(widget), 60);
+        if (!caption.empty())
+        {
+            line << " caption=\"" << caption << "\"";
+        }
+    }
+
+    LogWarnLine(line.str());
+}
+
+int ComputeCraftingRowScanCandidateScore(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::string* outCaption,
+    std::string* outNameHint,
+    std::string* outSearchText,
+    std::string* outRawProbe,
+    int* outQuantity)
+{
+    if (outCaption != 0)
+    {
+        outCaption->clear();
+    }
+    if (outNameHint != 0)
+    {
+        outNameHint->clear();
+    }
+    if (outSearchText != 0)
+    {
+        outSearchText->clear();
+    }
+    if (outRawProbe != 0)
+    {
+        outRawProbe->clear();
+    }
+    if (outQuantity != 0)
+    {
+        *outQuantity = 0;
+    }
+
+    if (widget == 0 || !widget->getInheritedVisible())
+    {
+        return 0;
+    }
+
+    const std::string caption = NormalizeSearchText(WidgetCaptionForLog(widget));
+    const std::string nameHint = NormalizeSearchText(ResolveItemNameHintRecursive(widget, 0, 5));
+    const std::string searchText = NormalizeSearchText(BuildItemSearchText(widget));
+    const std::string rawProbe = BuildItemRawProbe(widget);
+    int quantity = 0;
+    TryResolveItemQuantityFromWidget(widget, &quantity);
+
+    int score = 0;
+    if (!caption.empty())
+    {
+        score += 2600;
+    }
+    if (!nameHint.empty())
+    {
+        score += 1800;
+    }
+    if (!searchText.empty())
+    {
+        score += 1200;
+    }
+    if (quantity > 0)
+    {
+        score += 900;
+    }
+
+    const std::string type = WidgetTypeForLog(widget);
+    if (type == "Button")
+    {
+        score += 700;
+    }
+    else if (type == "TextBox")
+    {
+        score += 250;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    if (childCount > 0 && childCount <= 8)
+    {
+        score += static_cast<int>(childCount) * 90;
+    }
+    if (depth >= 1 && depth <= 4)
+    {
+        score += 220;
+    }
+    if (ContainsAsciiCaseInsensitive(SafeWidgetName(widget), "queue")
+        || ContainsAsciiCaseInsensitive(SafeWidgetName(widget), "item")
+        || ContainsAsciiCaseInsensitive(SafeWidgetName(widget), "craft"))
+    {
+        score += 180;
+    }
+
+    if (score <= 0)
+    {
+        return 0;
+    }
+
+    if (outCaption != 0)
+    {
+        *outCaption = caption;
+    }
+    if (outNameHint != 0)
+    {
+        *outNameHint = nameHint;
+    }
+    if (outSearchText != 0)
+    {
+        *outSearchText = searchText;
+    }
+    if (outRawProbe != 0)
+    {
+        *outRawProbe = rawProbe;
+    }
+    if (outQuantity != 0)
+    {
+        *outQuantity = quantity;
+    }
+
+    return score;
+}
+
+void CollectCraftingRowScanCandidatesRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth,
+    std::vector<CraftingRowScanCandidate>* outCandidates)
+{
+    if (widget == 0 || outCandidates == 0 || depth > maxDepth)
+    {
+        return;
+    }
+
+    if (depth > 0)
+    {
+        CraftingRowScanCandidate candidate;
+        candidate.widget = widget;
+        candidate.depth = depth;
+        candidate.score = ComputeCraftingRowScanCandidateScore(
+            widget,
+            depth,
+            &candidate.caption,
+            &candidate.nameHint,
+            &candidate.searchText,
+            &candidate.rawProbe,
+            &candidate.quantity);
+        candidate.type = WidgetTypeForLog(widget);
+
+        if (candidate.score >= 1200)
+        {
+            outCandidates->push_back(candidate);
+        }
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        CollectCraftingRowScanCandidatesRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth,
+            outCandidates);
+    }
+}
+
+void DumpCraftingRowScan(const char* rootToken, MyGUI::Widget* root)
+{
+    std::stringstream summary;
+    summary << "craft_search.row_scan"
+            << " root_token=" << (rootToken == 0 ? "<null>" : rootToken)
+            << " found=" << (root != 0 ? "true" : "false");
+
+    if (root == 0)
+    {
+        LogWarnLine(summary.str());
+        return;
+    }
+
+    const MyGUI::IntCoord coord = root->getCoord();
+    summary << " name=" << SafeWidgetName(root)
+            << " type=" << WidgetTypeForLog(root)
+            << " visible=" << (root->getInheritedVisible() ? "true" : "false")
+            << " children=" << root->getChildCount()
+            << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")";
+    LogWarnLine(summary.str());
+
+    std::vector<CraftingRowScanCandidate> candidates;
+    CollectCraftingRowScanCandidatesRecursive(root, 0, 6, &candidates);
+
+    struct CraftingRowScanCandidateLess
+    {
+        bool operator()(const CraftingRowScanCandidate& left, const CraftingRowScanCandidate& right) const
+        {
+            if (left.score != right.score)
+            {
+                return left.score > right.score;
+            }
+            if (left.depth != right.depth)
+            {
+                return left.depth < right.depth;
+            }
+
+            const MyGUI::IntCoord leftCoord = left.widget == 0 ? MyGUI::IntCoord() : left.widget->getCoord();
+            const MyGUI::IntCoord rightCoord = right.widget == 0 ? MyGUI::IntCoord() : right.widget->getCoord();
+            if (leftCoord.top != rightCoord.top)
+            {
+                return leftCoord.top < rightCoord.top;
+            }
+            if (leftCoord.left != rightCoord.left)
+            {
+                return leftCoord.left < rightCoord.left;
+            }
+            return left.widget < right.widget;
+        }
+    };
+    std::sort(candidates.begin(), candidates.end(), CraftingRowScanCandidateLess());
+
+    const std::size_t limit = candidates.size() < 18 ? candidates.size() : 18;
+    for (std::size_t index = 0; index < limit; ++index)
+    {
+        const CraftingRowScanCandidate& candidate = candidates[index];
+        const MyGUI::IntCoord candidateCoord =
+            candidate.widget == 0 ? MyGUI::IntCoord() : candidate.widget->getCoord();
+
+        std::stringstream line;
+        line << "craft_search.row_scan"
+             << " root_token=" << (rootToken == 0 ? "<null>" : rootToken)
+             << " idx=" << index
+             << " depth=" << candidate.depth
+             << " score=" << candidate.score
+             << " type=" << candidate.type
+             << " name=" << SafeWidgetName(candidate.widget)
+             << " children=" << (candidate.widget == 0 ? 0 : candidate.widget->getChildCount())
+             << " coord=(" << candidateCoord.left << "," << candidateCoord.top << ","
+             << candidateCoord.width << "," << candidateCoord.height << ")"
+             << " quantity=" << candidate.quantity;
+        if (!candidate.caption.empty())
+        {
+            line << " caption=\"" << TruncateForLog(candidate.caption, 72) << "\"";
+        }
+        if (!candidate.nameHint.empty())
+        {
+            line << " hint=\"" << TruncateForLog(candidate.nameHint, 72) << "\"";
+        }
+        if (!candidate.searchText.empty())
+        {
+            line << " text=\"" << TruncateForLog(candidate.searchText, 120) << "\"";
+        }
+        if (!candidate.rawProbe.empty())
+        {
+            line << " raw_probe=\"" << TruncateForLog(candidate.rawProbe, 180) << "\"";
+        }
+        LogWarnLine(line.str());
+    }
+
+    if (candidates.empty())
+    {
+        std::stringstream line;
+        line << "craft_search.text_extract"
+             << " root_token=" << (rootToken == 0 ? "<null>" : rootToken)
+             << " candidates=0";
+        LogWarnLine(line.str());
+        return;
+    }
+
+    const std::size_t textLimit = candidates.size() < 8 ? candidates.size() : 8;
+    for (std::size_t index = 0; index < textLimit; ++index)
+    {
+        const CraftingRowScanCandidate& candidate = candidates[index];
+        std::stringstream line;
+        line << "craft_search.text_extract"
+             << " root_token=" << (rootToken == 0 ? "<null>" : rootToken)
+             << " idx=" << index
+             << " name=" << SafeWidgetName(candidate.widget)
+             << " hint=\"" << TruncateForLog(candidate.nameHint, 72) << "\""
+             << " text=\"" << TruncateForLog(candidate.searchText, 120) << "\"";
+        LogWarnLine(line.str());
+    }
+}
+
+MyGUI::Widget* ResolveCraftingProbeRoot(MyGUI::Widget* craftingParent, const char** outToken)
+{
+    if (outToken != 0)
+    {
+        *outToken = 0;
+    }
+
+    if (craftingParent == 0)
+    {
+        return 0;
+    }
+
+    struct ProbeRootCandidate
+    {
+        const char* token;
+        int baseScore;
+    };
+
+    const ProbeRootCandidate probeTokens[] =
+    {
+        { "CraftTab", 5200 },
+        { "CraftingStationsList", 4200 },
+        { "BlueprintsAvailablePanel", 3200 },
+        { "ResearchQueuePanel", 2800 },
+        { "CraftingPanel", 1800 }
+    };
+
+    MyGUI::Widget* bestWidget = 0;
+    const char* bestToken = 0;
+    int bestScore = -1000000;
+    for (std::size_t index = 0; index < sizeof(probeTokens) / sizeof(probeTokens[0]); ++index)
+    {
+        MyGUI::Widget* widget = FindWidgetInParentByToken(craftingParent, probeTokens[index].token);
+        if (widget == 0)
+        {
+            continue;
+        }
+
+        int score = probeTokens[index].baseScore;
+        if (widget->getInheritedVisible())
+        {
+            score += 2600;
+        }
+        else
+        {
+            score -= 1200;
+        }
+
+        const std::size_t childCount = widget->getChildCount();
+        score += static_cast<int>(childCount > 12 ? 12 : childCount) * 120;
+
+        const std::string token(probeTokens[index].token);
+        if ((token == "BlueprintsAvailablePanel" || token == "ResearchQueuePanel")
+            && !widget->getInheritedVisible())
+        {
+            score -= 800;
+        }
+
+        if (bestWidget == 0 || score > bestScore)
+        {
+            bestWidget = widget;
+            bestToken = probeTokens[index].token;
+            bestScore = score;
+        }
+    }
+
+    if (bestWidget != 0)
+    {
+        if (outToken != 0)
+        {
+            *outToken = bestToken;
+        }
+        return bestWidget;
+    }
+
+    return craftingParent;
+}
+
+void DumpOnDemandCraftingDiagnosticsSnapshot(MyGUI::Widget* craftingAnchor, MyGUI::Widget* craftingParent)
+{
+    MyGUI::Window* owningWindow = FindOwningWindow(craftingAnchor != 0 ? craftingAnchor : craftingParent);
+    std::stringstream line;
+    line << "manual diagnostics crafting target"
+         << " anchor=" << SafeWidgetName(craftingAnchor)
+         << " parent=" << SafeWidgetName(craftingParent)
+         << " caption=\"" << (owningWindow == 0 ? "" : TruncateForLog(owningWindow->getCaption().asUTF8(), 80)) << "\"";
+    LogWarnLine(line.str());
+
+    const char* probeTokens[] =
+    {
+        "CraftTab",
+        "CraftingPanel",
+        "BlueprintsAvailablePanel",
+        "ResearchQueuePanel",
+        "QueueItemsPanel",
+        "QueuePanel",
+        "CraftQueue",
+        "CraftingStationsList",
+        "QueueButton",
+        "QueueRepeat",
+        "lbCraftingItems",
+        "lbCraftingQueue",
+        "lbCraftingStations",
+        "lbCraftingDescription"
+    };
+
+    MyGUI::Widget* craftingPanel = 0;
+    MyGUI::Widget* blueprintsPanel = 0;
+    MyGUI::Widget* queuePanel = 0;
+    MyGUI::Widget* queueItemsPanel = 0;
+    MyGUI::Widget* craftQueue = 0;
+    MyGUI::Widget* stationsList = 0;
+    for (std::size_t index = 0; index < sizeof(probeTokens) / sizeof(probeTokens[0]); ++index)
+    {
+        MyGUI::Widget* widget = FindWidgetInParentByToken(craftingParent, probeTokens[index]);
+        LogCraftingProbeWidgetSummary(probeTokens[index], widget);
+
+        if (widget == 0)
+        {
+            continue;
+        }
+
+        if (std::string(probeTokens[index]) == "CraftingPanel")
+        {
+            craftingPanel = widget;
+        }
+        else if (std::string(probeTokens[index]) == "BlueprintsAvailablePanel")
+        {
+            blueprintsPanel = widget;
+        }
+        else if (std::string(probeTokens[index]) == "ResearchQueuePanel")
+        {
+            queuePanel = widget;
+        }
+        else if (std::string(probeTokens[index]) == "QueueItemsPanel")
+        {
+            queueItemsPanel = widget;
+        }
+        else if (std::string(probeTokens[index]) == "CraftQueue")
+        {
+            craftQueue = widget;
+        }
+        else if (std::string(probeTokens[index]) == "CraftingStationsList")
+        {
+            stationsList = widget;
+        }
+    }
+
+    const char* probeRootToken = 0;
+    MyGUI::Widget* probeRoot = ResolveCraftingProbeRoot(craftingParent, &probeRootToken);
+    std::stringstream rootLine;
+    rootLine << "manual diagnostics crafting probe_root"
+             << " token=" << (probeRootToken == 0 ? "<parent>" : probeRootToken)
+             << " name=" << SafeWidgetName(probeRoot);
+    LogWarnLine(rootLine.str());
+
+    DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_target", probeRoot);
+    if (craftingPanel != 0 && craftingPanel != probeRoot)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_crafting_panel", craftingPanel);
+    }
+    if (blueprintsPanel != 0 && blueprintsPanel != probeRoot && blueprintsPanel != craftingPanel)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_blueprints", blueprintsPanel);
+    }
+    if (queuePanel != 0 && queuePanel != probeRoot && queuePanel != craftingPanel && queuePanel != blueprintsPanel)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_queue", queuePanel);
+    }
+    if (stationsList != 0 && stationsList != probeRoot && stationsList != craftingPanel)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_stations", stationsList);
+    }
+    if (queueItemsPanel != 0 && queueItemsPanel != probeRoot && queueItemsPanel != stationsList)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_items", queueItemsPanel);
+    }
+    if (craftQueue != 0 && craftQueue != probeRoot && craftQueue != queueItemsPanel && craftQueue != stationsList)
+    {
+        DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_craft_queue", craftQueue);
+    }
+
+    DumpCraftingRowScan("QueueItemsPanel", queueItemsPanel);
+    DumpCraftingRowScan("CraftQueue", craftQueue);
+    DumpCraftingRowScan("CraftingStationsList", stationsList);
+}
+
 void LogRecentRefreshedInventorySummary(std::size_t expectedEntryCount)
 {
     TraderRuntimeState& state = TraderState();
@@ -93,6 +593,14 @@ void DumpOnDemandTraderDiagnosticsSnapshot()
     }
 
     DumpVisibleCraftingWindowCandidateDiagnostics();
+
+    MyGUI::Widget* craftingAnchor = 0;
+    MyGUI::Widget* craftingParent = 0;
+    if (TryResolveVisibleCraftingTarget(&craftingAnchor, &craftingParent) && craftingParent != 0)
+    {
+        DumpOnDemandCraftingDiagnosticsSnapshot(craftingAnchor, craftingParent);
+        return;
+    }
 
     MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
     if (traderParent == 0)

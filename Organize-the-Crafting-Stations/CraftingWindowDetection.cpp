@@ -28,6 +28,12 @@ struct CraftingProbeToken
     int score;
 };
 
+struct CraftingResolutionProbeToken
+{
+    const char* token;
+    int score;
+};
+
 bool WidgetMatchesCraftingProbeToken(MyGUI::Widget* widget, const char* token)
 {
     if (widget == 0 || token == 0 || *token == '\0')
@@ -151,6 +157,100 @@ int ComputeCraftingWindowCandidateScore(MyGUI::Widget* parent, std::string* outR
     if (!hasSignal)
     {
         return 0;
+    }
+
+    if (outReason != 0)
+    {
+        *outReason = reason.str();
+    }
+
+    return score;
+}
+
+int ComputeCraftingWindowResolutionBias(MyGUI::Widget* parent, std::string* outReason)
+{
+    if (outReason != 0)
+    {
+        outReason->clear();
+    }
+
+    if (parent == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Window* window = FindOwningWindow(parent);
+    const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+
+    int score = 0;
+    std::stringstream reason;
+
+    if (ContainsAsciiCaseInsensitive(caption, "bench"))
+    {
+        score += 400;
+        reason << " caption=bench";
+    }
+
+    if (ContainsAsciiCaseInsensitive(caption, "oven"))
+    {
+        score += 300;
+        reason << " caption=oven";
+    }
+
+    if (ContainsAsciiCaseInsensitive(caption, "stove"))
+    {
+        score += 300;
+        reason << " caption=stove";
+    }
+
+    static const CraftingResolutionProbeToken kResolutionTokens[] =
+    {
+        { "CraftingPanel", 800 },
+        { "QueueButton", 600 },
+        { "QueueRepeat", 1200 },
+        { "BlueprintsAvailablePanel", 2200 },
+        { "ResearchQueuePanel", 1800 },
+        { "CraftingStationsList", 2200 },
+        { "lbCraftingItems", 900 },
+        { "lbCraftingQueue", 900 },
+        { "lbCraftingStations", 900 },
+        { "lbCraftingDescription", 600 },
+    };
+
+    std::size_t richSignalCount = 0;
+    bool hasHeaderOnlySignal = false;
+    for (std::size_t index = 0; index < sizeof(kResolutionTokens) / sizeof(kResolutionTokens[0]); ++index)
+    {
+        MyGUI::Widget* matched = FindWidgetInParentByToken(parent, kResolutionTokens[index].token);
+        if (matched == 0)
+        {
+            continue;
+        }
+
+        score += kResolutionTokens[index].score;
+        reason << " token=" << kResolutionTokens[index].token
+               << "@" << TruncateForLog(SafeWidgetName(matched), 48);
+
+        const std::string token(kResolutionTokens[index].token);
+        if (token == "CraftingPanel" || token == "QueueButton")
+        {
+            hasHeaderOnlySignal = true;
+        }
+        else
+        {
+            ++richSignalCount;
+        }
+    }
+
+    if (richSignalCount >= 2)
+    {
+        score += 2600;
+        reason << " rich_layout=true";
+    }
+    else if (hasHeaderOnlySignal && richSignalCount == 0)
+    {
+        score -= 1200;
+        reason << " header_only=true";
     }
 
     if (outReason != 0)
@@ -651,6 +751,109 @@ void DumpVisibleCraftingWindowCandidateDiagnostics()
     {
         DumpWidgetSubtreeDiagnostics("craft_search.widget_probe_hovered_parent", parent);
     }
+}
+
+bool TryResolveVisibleCraftingTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent)
+{
+    if (outAnchor != 0)
+    {
+        *outAnchor = 0;
+    }
+    if (outParent != 0)
+    {
+        *outParent = 0;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* bestAnchor = 0;
+    MyGUI::Widget* bestParent = 0;
+    std::string bestReason;
+    int bestScore = -1;
+    int bestArea = 0;
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
+        if (window == 0)
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        std::string candidateReason;
+        const int candidateScore = ComputeCraftingWindowCandidateScore(parent, &candidateReason);
+        if (candidateScore <= 0)
+        {
+            continue;
+        }
+
+        std::string resolutionReason;
+        const int resolutionBias = ComputeCraftingWindowResolutionBias(parent, &resolutionReason);
+        const int totalScore = candidateScore + resolutionBias;
+        const MyGUI::IntCoord coord = root->getCoord();
+        const int area = coord.width * coord.height;
+
+        if (bestAnchor == 0
+            || totalScore > bestScore
+            || (totalScore == bestScore && area < bestArea))
+        {
+            bestAnchor = root;
+            bestParent = parent;
+            bestScore = totalScore;
+            bestArea = area;
+            bestReason = candidateReason;
+            if (!resolutionReason.empty())
+            {
+                if (!bestReason.empty())
+                {
+                    bestReason += " ";
+                }
+                bestReason += resolutionReason;
+            }
+        }
+    }
+
+    if (bestAnchor == 0 || bestParent == 0)
+    {
+        return false;
+    }
+
+    if (outAnchor != 0)
+    {
+        *outAnchor = bestAnchor;
+    }
+    if (outParent != 0)
+    {
+        *outParent = bestParent;
+    }
+
+    MyGUI::Window* window = bestAnchor->castType<MyGUI::Window>(false);
+    std::stringstream line;
+    line << "resolved crafting target via window-scan"
+         << " anchor=" << SafeWidgetName(bestAnchor)
+         << " parent=" << SafeWidgetName(bestParent)
+         << " caption=\"" << (window == 0 ? "" : TruncateForLog(window->getCaption().asUTF8(), 60)) << "\""
+         << " candidate_score=" << bestScore
+         << " candidate_reason=\"" << TruncateForLog(bestReason, 200) << "\"";
+    LogDebugLine(line.str());
+    return true;
 }
 
 bool TryResolveVisibleTraderTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParent)
