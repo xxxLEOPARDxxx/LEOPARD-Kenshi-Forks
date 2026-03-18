@@ -1527,9 +1527,11 @@ void DestroyControlsIfPresent()
     }
 
     const MyGUI::IntCoord coord = controlsContainer->getCoord();
-    g_searchContainerStoredLeft = coord.left;
-    g_searchContainerStoredTop = coord.top;
-    g_searchContainerPositionCustomized = true;
+    if (g_searchContainerPositionCustomized)
+    {
+        g_searchContainerStoredLeft = coord.left;
+        g_searchContainerStoredTop = coord.top;
+    }
     g_searchContainerDragging = false;
     g_searchContainerDragStartLeft = 0;
     g_searchContainerDragStartTop = 0;
@@ -1726,6 +1728,51 @@ void EnsureControlsInjectedIfEnabled()
     if (!TryInjectControlsToTarget(anchor, parent, "auto"))
     {
         LogWarnLine("auto controls scaffold injection failed");
+    }
+}
+
+void ApplyRuntimeSearchUiConfig(const char* reason)
+{
+    const bool hadControls = FindControlsContainer() != 0;
+    if (!g_controlsEnabled)
+    {
+        if (hadControls)
+        {
+            ApplySearchFilterFromControls(true, false);
+            DestroyControlsIfPresent();
+        }
+
+        g_loggedNoVisibleTraderTarget = false;
+        if (ShouldLogDebug())
+        {
+            std::stringstream line;
+            line << "runtime search ui config applied"
+                 << " reason=" << (reason == 0 ? "<unknown>" : reason)
+                 << " enabled=false"
+                 << " had_controls=" << (hadControls ? "true" : "false");
+            LogDebugLine(line.str());
+        }
+        return;
+    }
+
+    if (hadControls)
+    {
+        DestroyControlsIfPresent();
+    }
+
+    g_loggedNoVisibleTraderTarget = false;
+    EnsureControlsInjectedIfEnabled();
+
+    if (ShouldLogDebug())
+    {
+        const bool hasControls = FindControlsContainer() != 0;
+        std::stringstream line;
+        line << "runtime search ui config applied"
+             << " reason=" << (reason == 0 ? "<unknown>" : reason)
+             << " enabled=true"
+             << " rebuilt=" << (hadControls ? "true" : "false")
+             << " controls_present=" << (hasControls ? "true" : "false");
+        LogDebugLine(line.str());
     }
 }
 

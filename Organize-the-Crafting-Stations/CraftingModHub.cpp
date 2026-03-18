@@ -1,6 +1,7 @@
 #include "CraftingModHub.h"
 
 #include "CraftingCore.h"
+#include "CraftingSearchUi.h"
 #include "emc/mod_hub_client.h"
 
 #include <sstream>
@@ -90,6 +91,7 @@ EMC_Result SetHubBoolSetting(
         return EMC_ERR_INTERNAL;
     }
 
+    ApplyRuntimeSearchUiConfig("mod_hub_bool_setting");
     WriteHubErrorText(err_buf, err_buf_size, 0);
     return EMC_OK;
 }
@@ -132,6 +134,7 @@ EMC_Result SetHubIntSetting(
         return EMC_ERR_INTERNAL;
     }
 
+    ApplyRuntimeSearchUiConfig("mod_hub_int_setting");
     WriteHubErrorText(err_buf, err_buf_size, 0);
     return EMC_OK;
 }
