@@ -85,7 +85,6 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_updateTickCounter (TraderState().core.g_updateTickCounter)
 #define g_controlsEnabled (TraderState().core.g_controlsEnabled)
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
-#define g_showSearchQuantityCount (TraderState().core.g_showSearchQuantityCount)
 #define g_debugLogging (TraderState().core.g_debugLogging)
 #define g_debugSearchLogging (TraderState().core.g_debugSearchLogging)
 #define g_debugBindingLogging (TraderState().core.g_debugBindingLogging)

@@ -230,7 +230,7 @@ int ResolveCraftingRowIndex(const std::vector<int>& rowTops, int centerY)
 }
 
 bool BuildCraftingRecipeRowGroups(
-    MyGUI::Widget* queueItemsPanel,
+    MyGUI::Widget* entriesRoot,
     std::vector<CraftingRecipeRowGroup>* outGroups,
     std::size_t* outTrackedWidgetCount)
 {
@@ -245,13 +245,13 @@ bool BuildCraftingRecipeRowGroups(
         *outTrackedWidgetCount = 0;
     }
 
-    if (queueItemsPanel == 0)
+    if (entriesRoot == 0)
     {
         return false;
     }
 
     std::vector<CraftingRecipeWidget> widgets;
-    CollectCraftingRecipeWidgetsRecursive(queueItemsPanel, 0, 6, &widgets);
+    CollectCraftingRecipeWidgetsRecursive(entriesRoot, 0, 6, &widgets);
     if (outTrackedWidgetCount != 0)
     {
         *outTrackedWidgetCount = widgets.size();
@@ -345,7 +345,7 @@ bool BuildCraftingRecipeRowGroups(
             const CraftingRecipeWidget& candidate = group.widgets[widgetIndex];
             bool hasTrackedAncestor = false;
             MyGUI::Widget* current = candidate.widget == 0 ? 0 : candidate.widget->getParent();
-            while (current != 0 && current != queueItemsPanel)
+            while (current != 0 && current != entriesRoot)
             {
                 if (GroupContainsWidget(group, current))
                 {
@@ -367,6 +367,61 @@ bool BuildCraftingRecipeRowGroups(
     return !outGroups->empty();
 }
 
+MyGUI::Widget* ResolveVisibleCraftingSearchEntriesRoot(MyGUI::Widget* craftingParent, const char** outToken)
+{
+    if (outToken != 0)
+    {
+        *outToken = 0;
+    }
+
+    if (craftingParent == 0)
+    {
+        return 0;
+    }
+
+    const char* preferredTokens[] =
+    {
+        "QueueItemsPanel",
+        "BlueprintsAvailablePanel",
+        "CraftingStationsList",
+        "ResearchQueuePanel"
+    };
+
+    MyGUI::Widget* fallback = 0;
+    const char* fallbackToken = 0;
+    for (std::size_t index = 0; index < sizeof(preferredTokens) / sizeof(preferredTokens[0]); ++index)
+    {
+        MyGUI::Widget* widget = FindWidgetInParentByToken(craftingParent, preferredTokens[index]);
+        if (widget == 0)
+        {
+            continue;
+        }
+
+        if (fallback == 0)
+        {
+            fallback = widget;
+            fallbackToken = preferredTokens[index];
+        }
+
+        if (!widget->getInheritedVisible())
+        {
+            continue;
+        }
+
+        if (outToken != 0)
+        {
+            *outToken = preferredTokens[index];
+        }
+        return widget;
+    }
+
+    if (outToken != 0)
+    {
+        *outToken = fallbackToken;
+    }
+    return fallback;
+}
+
 bool ApplySearchFilterToCraftingParent(MyGUI::Widget* craftingParent, bool forceShowAll, bool logSummary)
 {
     if (craftingParent == 0)
@@ -374,8 +429,9 @@ bool ApplySearchFilterToCraftingParent(MyGUI::Widget* craftingParent, bool force
         return false;
     }
 
-    MyGUI::Widget* queueItemsPanel = FindWidgetInParentByToken(craftingParent, "QueueItemsPanel");
-    if (queueItemsPanel == 0)
+    const char* entriesRootToken = 0;
+    MyGUI::Widget* entriesRoot = ResolveVisibleCraftingSearchEntriesRoot(craftingParent, &entriesRootToken);
+    if (entriesRoot == 0)
     {
         UpdateSearchCountText(0, 0, 0);
         return false;
@@ -383,7 +439,7 @@ bool ApplySearchFilterToCraftingParent(MyGUI::Widget* craftingParent, bool force
 
     std::vector<CraftingRecipeRowGroup> rowGroups;
     std::size_t trackedWidgetCount = 0;
-    if (!BuildCraftingRecipeRowGroups(queueItemsPanel, &rowGroups, &trackedWidgetCount))
+    if (!BuildCraftingRecipeRowGroups(entriesRoot, &rowGroups, &trackedWidgetCount))
     {
         UpdateSearchCountText(0, 0, 0);
         return false;
@@ -447,7 +503,8 @@ bool ApplySearchFilterToCraftingParent(MyGUI::Widget* craftingParent, bool force
              << " total=" << totalCount
              << " row_groups=" << rowGroups.size()
              << " tracked_widgets=" << trackedWidgetCount
-             << " entries_root=" << SafeWidgetName(queueItemsPanel);
+             << " entries_root_token=" << (entriesRootToken == 0 ? "<null>" : entriesRootToken)
+             << " entries_root=" << SafeWidgetName(entriesRoot);
         LogInfoLine(line.str());
     }
 
@@ -935,7 +992,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
 
     if (!hasInventoryNameKeys && !query.empty() && !g_loggedInventoryBindingFailure)
     {
-        LogWarnLine("could not resolve trader inventory-backed name keys; search is using widget-only metadata");
+        LogWarnLine("could not resolve inventory-backed name keys for the current crafting list; search is using widget-only metadata");
         g_loggedInventoryBindingFailure = true;
     }
     if (hasInventoryNameKeys)
