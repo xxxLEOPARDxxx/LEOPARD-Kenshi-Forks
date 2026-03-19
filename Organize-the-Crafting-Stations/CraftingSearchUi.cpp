@@ -125,6 +125,113 @@ TraderSearchInputBehavior::Text ToSearchInputText(const MyGUI::UString& text)
     return result;
 }
 
+MyGUI::Widget* FindNearestVisibleCommonAncestor(
+    MyGUI::Widget* parent,
+    MyGUI::Widget* left,
+    MyGUI::Widget* right)
+{
+    for (MyGUI::Widget* currentLeft = left; currentLeft != 0 && currentLeft != parent; currentLeft = currentLeft->getParent())
+    {
+        if (!currentLeft->getInheritedVisible())
+        {
+            continue;
+        }
+
+        for (MyGUI::Widget* currentRight = right;
+             currentRight != 0 && currentRight != parent;
+             currentRight = currentRight->getParent())
+        {
+            if (currentLeft == currentRight && currentRight->getInheritedVisible())
+            {
+                return currentLeft;
+            }
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* PromoteScopedControlsMarker(MyGUI::Widget* parent, MyGUI::Widget* marker)
+{
+    if (marker == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* current = marker;
+    for (std::size_t depth = 0; depth < 2; ++depth)
+    {
+        MyGUI::Widget* next = current->getParent();
+        if (next == 0 || next == parent || !next->getInheritedVisible())
+        {
+            break;
+        }
+        current = next;
+    }
+
+    return current;
+}
+
+MyGUI::Widget* ResolveCraftingControlsParent(MyGUI::Widget* parent)
+{
+    if (parent == 0)
+    {
+        return 0;
+    }
+
+    const char* scopedPanelTokens[] =
+    {
+        "BlueprintsAvailablePanel",
+        "ResearchQueuePanel",
+        "QueueItemsPanel",
+        "CraftingStationsList"
+    };
+
+    MyGUI::Widget* firstMarker = 0;
+    MyGUI::Widget* scopedRoot = 0;
+    bool usedCommonAncestor = false;
+    for (std::size_t index = 0; index < sizeof(scopedPanelTokens) / sizeof(scopedPanelTokens[0]); ++index)
+    {
+        MyGUI::Widget* marker = FindNamedDescendantByTokenRecursive(parent, scopedPanelTokens[index], true);
+        if (marker == 0)
+        {
+            continue;
+        }
+
+        if (firstMarker == 0)
+        {
+            firstMarker = marker;
+            scopedRoot = marker;
+            continue;
+        }
+
+        MyGUI::Widget* commonAncestor = FindNearestVisibleCommonAncestor(parent, scopedRoot, marker);
+        if (commonAncestor != 0 && commonAncestor != parent)
+        {
+            scopedRoot = commonAncestor;
+            usedCommonAncestor = true;
+        }
+    }
+
+    if (scopedRoot == 0)
+    {
+        return parent;
+    }
+
+    if (usedCommonAncestor)
+    {
+        return scopedRoot;
+    }
+
+    MyGUI::Widget* promoted = PromoteScopedControlsMarker(parent, firstMarker);
+    if (promoted != 0)
+    {
+        return promoted;
+    }
+
+    return parent;
+}
+
 MyGUI::UString ToMyGuiText(const TraderSearchInputBehavior::Text& text)
 {
     MyGUI::UString result;
@@ -1601,15 +1708,12 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     g_activeTraderTargetId = nextTraderTargetId;
     g_focusSearchEditOnNextInjection = true;
 
-    MyGUI::Widget* controlsParent = parent;
-    int topOverride = -1;
-
-    MyGUI::Window* owningWindow = FindOwningWindow(parent);
-    if (owningWindow != 0 && parent != owningWindow)
+    MyGUI::Widget* controlsParent = ResolveCraftingControlsParent(parent);
+    if (controlsParent == 0)
     {
-        controlsParent = owningWindow;
-        topOverride = 12;
+        controlsParent = parent;
     }
+    int topOverride = -1;
 
     DestroyControlsIfPresent();
     SearchUiCallbacks callbacks;
@@ -1697,9 +1801,16 @@ void EnsureControlsInjectedIfEnabled()
         return;
     }
 
-    if (FindControlsContainer() != 0)
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer != 0)
     {
-        return;
+        if (controlsContainer->getInheritedVisible())
+        {
+            return;
+        }
+
+        ApplySearchFilterFromControls(true, false);
+        DestroyControlsIfPresent();
     }
 
     MyGUI::Widget* anchor = 0;

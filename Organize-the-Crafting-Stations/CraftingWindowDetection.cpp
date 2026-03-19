@@ -57,6 +57,11 @@ bool FindCraftingProbeTokenMatchRecursive(
         return false;
     }
 
+    if (!widget->getInheritedVisible())
+    {
+        return false;
+    }
+
     if (WidgetMatchesCraftingProbeToken(widget, token))
     {
         if (outMatchedWidgetName != 0)
@@ -83,6 +88,68 @@ bool FindCraftingProbeTokenMatchRecursive(
     return false;
 }
 
+int ComputeVisibleCraftingLayoutMarkerScore(MyGUI::Widget* parent, std::string* outReason)
+{
+    if (outReason != 0)
+    {
+        outReason->clear();
+    }
+
+    if (parent == 0)
+    {
+        return 0;
+    }
+
+    static const CraftingProbeToken kVisibleLayoutTokens[] =
+    {
+        { "QueueItemsPanel", 2800 },
+        { "BlueprintsAvailablePanel", 2600 },
+        { "ResearchQueuePanel", 2400 },
+        { "CraftingStationsList", 2600 },
+        { "CraftQueue", 1400 },
+        { "QueueRepeat", 1200 },
+        { "lbCraftingItems", 900 },
+        { "lbCraftingQueue", 900 },
+        { "lbCraftingStations", 900 },
+        { "lbCraftingDescription", 600 },
+    };
+
+    int score = 0;
+    std::size_t matchCount = 0;
+    std::stringstream reason;
+    for (std::size_t index = 0; index < sizeof(kVisibleLayoutTokens) / sizeof(kVisibleLayoutTokens[0]); ++index)
+    {
+        MyGUI::Widget* matched = FindNamedDescendantByTokenRecursive(parent, kVisibleLayoutTokens[index].token, true);
+        if (matched == 0)
+        {
+            continue;
+        }
+
+        score += kVisibleLayoutTokens[index].score;
+        ++matchCount;
+        reason << " visible_token=" << kVisibleLayoutTokens[index].token
+               << "@" << TruncateForLog(SafeWidgetName(matched), 48);
+    }
+
+    if (matchCount == 0)
+    {
+        return 0;
+    }
+
+    if (matchCount >= 2)
+    {
+        score += 1200;
+        reason << " visible_layout=true";
+    }
+
+    if (outReason != 0)
+    {
+        *outReason = reason.str();
+    }
+
+    return score;
+}
+
 int ComputeCraftingWindowCandidateScore(MyGUI::Widget* parent, std::string* outReason)
 {
     if (outReason != 0)
@@ -99,27 +166,33 @@ int ComputeCraftingWindowCandidateScore(MyGUI::Widget* parent, std::string* outR
     const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
 
     int score = 0;
-    bool hasSignal = false;
     std::stringstream reason;
+
+    std::string visibleLayoutReason;
+    const int visibleLayoutScore = ComputeVisibleCraftingLayoutMarkerScore(parent, &visibleLayoutReason);
+    if (visibleLayoutScore <= 0)
+    {
+        return 0;
+    }
+
+    score += visibleLayoutScore;
+    reason << visibleLayoutReason;
 
     if (ContainsAsciiCaseInsensitive(caption, "craft"))
     {
         score += 2200;
-        hasSignal = true;
         reason << " caption=craft";
     }
 
     if (ContainsAsciiCaseInsensitive(caption, "recipe"))
     {
         score += 2400;
-        hasSignal = true;
         reason << " caption=recipe";
     }
 
     if (ContainsAsciiCaseInsensitive(caption, "cook"))
     {
         score += 1600;
-        hasSignal = true;
         reason << " caption=cook";
     }
 
@@ -149,14 +222,8 @@ int ComputeCraftingWindowCandidateScore(MyGUI::Widget* parent, std::string* outR
         }
 
         score += kCraftingProbeTokens[index].score;
-        hasSignal = true;
         reason << " token=" << kCraftingProbeTokens[index].token
                << "@" << TruncateForLog(matchedWidgetName, 48);
-    }
-
-    if (!hasSignal)
-    {
-        return 0;
     }
 
     if (outReason != 0)
