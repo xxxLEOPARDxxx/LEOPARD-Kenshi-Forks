@@ -1,10 +1,27 @@
 ## Organize the Crafting Stations
 
-This repository is the working RE_Kenshi plugin repo for a crafting-window recipe-search mod.
+RE_Kenshi plugin that adds a reusable search bar to Kenshi crafting and research windows.
 
-## Current status
+## Current behavior
 
-On 2026-03-18 this repo was reseeded from the existing trader-search working tree so the crafting mod could reuse the proven search-input behavior, UI flow, and diagnostics while replacing the trader-specific adapter layer.
+- Auto-attaches a search input to detected crafting and research windows.
+- Filters visible recipe and blueprint rows by substring match.
+- Compacts visible matches upward so filtering does not leave empty scroll gaps.
+- Shows visible and total entry counts.
+- Supports a clear button, configurable width and height, and persisted custom position.
+- Applies Mod Hub setting changes live.
+- Coexists with `Organize-the-Trader` without taking over trader windows.
+
+## Configuration
+
+Settings live in [Organize-the-Crafting-Stations/mod-config.json](/mnt/i/Kenshi_modding/mods/Organize-the-Crafting-Stations/Organize-the-Crafting-Stations/mod-config.json).
+
+Shipped defaults:
+- `enabled`: `true`
+- `showSearchEntryCount`: `true`
+- `showSearchClearButton`: `true`
+- `searchInputWidth`: `220`
+- `searchInputHeight`: `26`
 
 The authoritative implementation plan is:
 - [docs/plans/main_plan.md](/mnt/i/Kenshi_modding/mods/Organize-the-Crafting-Stations/docs/plans/main_plan.md)
@@ -18,13 +35,3 @@ The authoritative developer role is:
 - Remove stale trader-only docs and planning residue.
 - Do not trust copied trader placement or binding assumptions for crafting.
 - Keep external build and deploy identity aligned to `Organize-the-Crafting-Stations`.
-
-## Planned implementation shape
-
-- Reuse: search input behavior, text editing, shortcuts, clear button, counts, persistence, config style, and logging style.
-- Replace: crafting window detection, clamp parent discovery, recipe row discovery, recipe-name extraction, filter apply/reset, and selection handling.
-- Development rule: probe first, then place, then filter.
-
-## Build note
-
-The external build and deploy identity now uses `Organize-the-Crafting-Stations`. Some internal `Trader*` module names still reflect the reuse source and can be cleaned up separately once the crafting adapter is stable.
