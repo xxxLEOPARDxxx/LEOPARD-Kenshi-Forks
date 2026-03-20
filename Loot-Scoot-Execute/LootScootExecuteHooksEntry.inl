@@ -118,12 +118,12 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
     }
 
     Character* executeActor = ResolveExecuteActorForPredicateWithTarget(what, true);
-    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
     const bool canExecuteTarget = CanExecuteFromNativeMenuSelection(
         executeActor,
         what,
         &diagnostics,
-        false);
+        ShouldLogExecuteDebug());
 
     const uintptr_t whatPtr = reinterpret_cast<uintptr_t>(what);
     if (on)
@@ -253,6 +253,7 @@ __declspec(dllexport) void startPlugin()
          << ", runtime_mapping_key=" << g_runtimeGameVersion << "|" << g_runtimeLocaleTag << "|downed_enemy"
          << ", native_context_menu_integration=removed"
          << ", enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
+         << ", debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
          << ", execute_button_width=" << g_config.executeButtonWidthPx
          << ", execute_button_height=" << g_config.executeButtonHeightPx
          << ", execute_button_x=" << g_config.executeButtonOffsetXPx

@@ -487,6 +487,44 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "debug_execute_logging")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundDebugExecuteLogging = true;
+                configOut->debugExecuteLogging = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidDebugExecuteLogging = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
+        else if (key == "ignore_execute_alliance_check")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundIgnoreExecuteAllianceCheck = true;
+                configOut->ignoreExecuteAllianceCheck = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidIgnoreExecuteAllianceCheck = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "execute_button_width")
         {
             bool clamped = false;
@@ -637,13 +675,15 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, true, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
             "{\"enabled\":false,"
             "\"enable_execute_kill_sound\":false,"
+            "\"debug_execute_logging\":true,"
+            "\"ignore_execute_alliance_check\":true,"
             "\"execute_button_width\":320,"
             "\"execute_button_height\":44,"
             "\"execute_button_x\":15,"
@@ -655,6 +695,8 @@ static bool RunInternalSelfChecks()
     }
     if (parsedConfig.enabled
         || parsedConfig.enableExecuteKillSound
+        || !parsedConfig.debugExecuteLogging
+        || !parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeButtonWidthPx != 320
         || parsedConfig.executeButtonHeightPx != 44
         || parsedConfig.executeButtonOffsetXPx != 15
@@ -666,12 +708,16 @@ static bool RunInternalSelfChecks()
     const std::string bomJson = std::string("\xEF\xBB\xBF")
         + "{\"enabled\":true,"
           "\"enable_execute_kill_sound\":true,"
+          "\"debug_execute_logging\":false,"
+          "\"ignore_execute_alliance_check\":false,"
           "\"execute_button_width\":0,"
           "\"execute_button_height\":0,"
           "\"execute_button_x\":0,"
           "\"execute_button_y\":0}";
     parsedConfig.enabled = false;
     parsedConfig.enableExecuteKillSound = false;
+    parsedConfig.debugExecuteLogging = true;
+    parsedConfig.ignoreExecuteAllianceCheck = true;
     parsedConfig.executeButtonWidthPx = 1;
     parsedConfig.executeButtonHeightPx = 1;
     parsedConfig.executeButtonOffsetXPx = 1;
@@ -683,6 +729,8 @@ static bool RunInternalSelfChecks()
     }
     if (!parsedConfig.enabled
         || !parsedConfig.enableExecuteKillSound
+        || parsedConfig.debugExecuteLogging
+        || parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeButtonWidthPx != 0
         || parsedConfig.executeButtonHeightPx != 0
         || parsedConfig.executeButtonOffsetXPx != 0
@@ -698,6 +746,28 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!diagnostics.invalidEnabled)
+    {
+        return false;
+    }
+
+    parsedConfig.debugExecuteLogging = false;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"debug_execute_logging\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidDebugExecuteLogging)
+    {
+        return false;
+    }
+
+    parsedConfig.ignoreExecuteAllianceCheck = false;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"ignore_execute_alliance_check\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidIgnoreExecuteAllianceCheck)
     {
         return false;
     }
@@ -778,6 +848,16 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_kill_sound\"; using default");
     }
+    if (!diagnostics.foundDebugExecuteLogging || diagnostics.invalidDebugExecuteLogging)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"debug_execute_logging\"; using default");
+    }
+    if (!diagnostics.foundIgnoreExecuteAllianceCheck || diagnostics.invalidIgnoreExecuteAllianceCheck)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"ignore_execute_alliance_check\"; using default");
+    }
     if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
     {
         needsWriteBack = true;
@@ -816,6 +896,8 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << ",\n";
+    out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
+    out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
     out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";

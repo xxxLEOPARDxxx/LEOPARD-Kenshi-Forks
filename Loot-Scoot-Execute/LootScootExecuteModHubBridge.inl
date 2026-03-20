@@ -8,6 +8,8 @@ const char* kModHubModDisplayName = "Loot-Scoot-Execute";
 
 const char* kModHubSettingEnabledId = "enabled";
 const char* kModHubSettingExecuteKillSoundId = "enable_execute_kill_sound";
+const char* kModHubSettingDebugExecuteLoggingId = "debug_execute_logging";
+const char* kModHubSettingIgnoreExecuteAllianceCheckId = "ignore_execute_alliance_check";
 const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
 const char* kModHubSettingExecuteButtonHeightId = "execute_button_height";
 const char* kModHubSettingExecuteButtonXId = "execute_button_x";
@@ -199,6 +201,36 @@ static EMC_Result __cdecl HubSetExecuteKillSound(void* user_data, int32_t value,
         err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetDebugExecuteLogging(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->debugExecuteLogging, out_value);
+}
+
+static EMC_Result __cdecl HubSetDebugExecuteLogging(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolConfigValue(
+        user_data,
+        value,
+        &g_modHubState.config->debugExecuteLogging,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetIgnoreExecuteAllianceCheck(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->ignoreExecuteAllianceCheck, out_value);
+}
+
+static EMC_Result __cdecl HubSetIgnoreExecuteAllianceCheck(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolConfigValue(
+        user_data,
+        value,
+        &g_modHubState.config->ignoreExecuteAllianceCheck,
+        err_buf,
+        err_buf_size);
+}
+
 static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out_value)
 {
     return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonWidthPx, out_value);
@@ -330,6 +362,22 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetExecuteKillSound,
         &HubSetExecuteKillSound};
 
+    static const EMC_BoolSettingDefV1 kDebugExecuteLoggingSettingDef = {
+        kModHubSettingDebugExecuteLoggingId,
+        "Debug execute logging",
+        "Enable focused execute investigation logs in RE_Kenshi_log.txt",
+        &g_modHubState,
+        &HubGetDebugExecuteLogging,
+        &HubSetDebugExecuteLogging};
+
+    static const EMC_BoolSettingDefV1 kIgnoreExecuteAllianceCheckSettingDef = {
+        kModHubSettingIgnoreExecuteAllianceCheckId,
+        "Ignore execute alliance check",
+        "Allow execute on incapacitated non-hostiles; player characters remain blocked",
+        &g_modHubState,
+        &HubGetIgnoreExecuteAllianceCheck,
+        &HubSetIgnoreExecuteAllianceCheck};
+
     static const EMC_IntSettingDefV1 kExecuteButtonWidthSettingDef = {
         kModHubSettingExecuteButtonWidthId,
         "Execute button width",
@@ -385,6 +433,8 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const emc::ModHubClientSettingRowV1 kSettingRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kIgnoreExecuteAllianceCheckSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonWidthSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
