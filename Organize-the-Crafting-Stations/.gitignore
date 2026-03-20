@@ -15,6 +15,7 @@ x64/
 build/
 .packaging/
 dist/
+.tmp
 
 # Files
 *.obj
