@@ -67,6 +67,7 @@ static bool g_hasObservedSaveManagerSignal = false;
 static int g_lastObservedSaveManagerSignal = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
+static PlayerInterface* g_lastPlayerInterface = 0;
 static bool g_hooksInstalled = false;
 static bool g_updateUTHookVerified = false;
 static DWORD g_updateUTHookVerifyTimeMs = 0;
@@ -79,6 +80,10 @@ static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
+static void AccumulateSelectedCharacterUiSignals(
+    Character* primarySelected,
+    bool* anyTradeActiveOut,
+    bool* anyInventoryVisibleOut);
 static const char* DescribeSaveManagerSignal(int signal);
 static bool QuerySaveManagerState(
     bool* loadRequestedOut,
@@ -1271,15 +1276,15 @@ static bool TryResolveCharacterInventoryVisible(Character* character, bool* visi
         return true;
     }
 
+    // APOL only needs to know whether a character's inventory widget is actually visible.
+    // Character::isInventoryVisible() faults repeatedly in ambient squad scans in this runtime,
+    // so keep this probe to the direct inventory widget only.
     __try
     {
-        if (character->inventory && character->inventory->isVisible())
+        if (character->inventory)
         {
-            *visibleOut = true;
-            return true;
+            *visibleOut = character->inventory->isVisible();
         }
-
-        *visibleOut = character->isInventoryVisible();
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1370,26 +1375,43 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
         AccumulateCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
     }
 
-    if (!ou || !ou->player)
+    AccumulateSelectedCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
+
+    *tradeActiveOut = anyTradeActive;
+    *inventoryActiveOut = anyInventoryVisible;
+    return true;
+}
+
+static void AccumulateSelectedCharacterUiSignals(
+    Character* primarySelected,
+    bool* anyTradeActiveOut,
+    bool* anyInventoryVisibleOut)
+{
+    if (!g_lastPlayerInterface || !anyTradeActiveOut || !anyInventoryVisibleOut)
     {
-        *tradeActiveOut = anyTradeActive;
-        *inventoryActiveOut = anyInventoryVisible;
-        return true;
+        return;
     }
 
     __try
     {
-        const lektor<Character*>& allPlayerCharacters = ou->player->getAllPlayerCharacters();
-        for (auto iter = allPlayerCharacters.begin(); iter != allPlayerCharacters.end(); ++iter)
+        for (ogre_unordered_set<hand>::type::const_iterator it = g_lastPlayerInterface->selectedCharacters.begin();
+             it != g_lastPlayerInterface->selectedCharacters.end();
+             ++it)
         {
-            Character* candidate = *iter;
-            if (!candidate || candidate == selected)
+            const hand& selectedHandle = *it;
+            if (!selectedHandle || !selectedHandle.isValid() || selectedHandle.type != CHARACTER)
             {
                 continue;
             }
 
-            AccumulateCharacterUiSignals(candidate, &anyTradeActive, &anyInventoryVisible);
-            if (anyTradeActive && anyInventoryVisible)
+            Character* candidate = selectedHandle.getCharacter();
+            if (!candidate || candidate == primarySelected)
+            {
+                continue;
+            }
+
+            AccumulateCharacterUiSignals(candidate, anyTradeActiveOut, anyInventoryVisibleOut);
+            if (*anyTradeActiveOut && *anyInventoryVisibleOut)
             {
                 break;
             }
@@ -1399,13 +1421,9 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
     {
         if (g_config.debugLogTransitions)
         {
-            ErrorLog("Auto-Pause-on-Load WARN: exception while scanning player characters for UI signals");
+            ErrorLog("Auto-Pause-on-Load WARN: exception while scanning selected characters for UI signals");
         }
     }
-
-    *tradeActiveOut = anyTradeActive;
-    *inventoryActiveOut = anyInventoryVisible;
-    return true;
 }
 
 static void ResetUiTracking()
@@ -1931,6 +1949,7 @@ static bool TryInstallUpdateUTHook()
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
+    g_lastPlayerInterface = thisptr;
 
     if (!g_updateUTHookVerified)
     {
@@ -1993,6 +2012,7 @@ __declspec(dllexport) void startPlugin()
     g_lastObservedLoadSignal = false;
     g_hasObservedSaveManagerSignal = false;
     g_lastObservedSaveManagerSignal = 0;
+    g_lastPlayerInterface = 0;
     DisarmPauseAfterLoad();
 
     ConfigureModHubClient();
