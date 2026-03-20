@@ -47,12 +47,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <IncludePath>$(ProjectDir)tools\mod-hub-sdk\include;$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
-    <LibraryPath>$(KENSHILIB_DIR)\Libraries;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(BOOST_LINK_OVERRIDE_PATH);$(KENSHILIB_DIR)\Libraries;$(BOOST_INCLUDE_PATH)\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>$(ProjectDir)tools\mod-hub-sdk\include;$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
-    <LibraryPath>$(KENSHILIB_DIR)\Libraries;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(BOOST_LINK_OVERRIDE_PATH);$(KENSHILIB_DIR)\Libraries;$(BOOST_INCLUDE_PATH)\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
