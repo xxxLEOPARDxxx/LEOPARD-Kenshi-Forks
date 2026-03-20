@@ -7,6 +7,7 @@
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
 #include <kenshi/Damages.h>
+#include <kenshi/Faction.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
 
@@ -113,6 +114,8 @@ static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
 static PluginConfig g_config = {
     true,
     true,
+    false,
+    false,
     kExecuteButtonDefaultWidth,
     kExecuteButtonDefaultHeight,
     kExecuteButtonDefaultAbsoluteX,
@@ -172,6 +175,11 @@ static bool IsInternalDebugLogLine(const char* message)
     return std::strstr(message, " DEBUG:") != nullptr;
 }
 
+static bool ShouldLogExecuteDebug()
+{
+    return kEnableInternalDebugLogs || g_config.debugExecuteLogging;
+}
+
 static void PluginLog(const char* message)
 {
     if (!message || message[0] == '\0')
@@ -179,7 +187,7 @@ static void PluginLog(const char* message)
         return;
     }
 
-    if (!kEnableInternalDebugLogs && IsInternalDebugLogLine(message))
+    if (!ShouldLogExecuteDebug() && IsInternalDebugLogLine(message))
     {
         return;
     }
@@ -252,6 +260,9 @@ struct CanExecuteDiagnostics
     bool targetResolved;
     bool targetIsCharacter;
     bool targetIsEnemy;
+    bool targetIsEnemyByPlayerFaction;
+    bool targetIsEnemyByActor;
+    bool targetIsPlayerCharacter;
     bool targetIsIncapacitated;
     bool targetIsDead;
     bool targetIsDown;
@@ -293,6 +304,7 @@ static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject*
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog);
 static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static void TickQueuedExecuteAction(PlayerInterface* player);
+static bool TryResolvePlayerInterface(PlayerInterface** playerOut);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
 static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
 static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
@@ -320,6 +332,14 @@ static bool ModHub_UseHubUi();
 static bool ModHub_IsAttachRetryPending();
 static EMC_Result ModHub_LastAttachFailureResult();
 
+static CanExecuteDiagnostics MakeCanExecuteDiagnostics()
+{
+    CanExecuteDiagnostics diagnostics;
+    std::memset(&diagnostics, 0, sizeof(diagnostics));
+    diagnostics.targetType = NULL_ITEM;
+    return diagnostics;
+}
+
 static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
 {
     if (!diagnostics)
@@ -331,6 +351,10 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnabled = false;
     diagnostics->foundEnableExecuteKillSound = false;
     diagnostics->invalidEnableExecuteKillSound = false;
+    diagnostics->foundDebugExecuteLogging = false;
+    diagnostics->invalidDebugExecuteLogging = false;
+    diagnostics->foundIgnoreExecuteAllianceCheck = false;
+    diagnostics->invalidIgnoreExecuteAllianceCheck = false;
     diagnostics->foundExecuteButtonWidthPx = false;
     diagnostics->invalidExecuteButtonWidthPx = false;
     diagnostics->clampedExecuteButtonWidthPx = false;
@@ -371,6 +395,8 @@ static void LoadConfigState()
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
     g_config.enableExecuteKillSound = true;
+    g_config.debugExecuteLogging = false;
+    g_config.ignoreExecuteAllianceCheck = false;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
     g_config.executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
@@ -424,6 +450,8 @@ static void LoadConfigState()
     info << "Loot-Scoot-Execute INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
          << " settings_path=\"" << g_settingsPath << "\""
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
+         << " debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
+         << " ignore_execute_alliance_check=" << (g_config.ignoreExecuteAllianceCheck ? "true" : "false")
          << " execute_button_width=" << g_config.executeButtonWidthPx
          << " execute_button_height=" << g_config.executeButtonHeightPx
          << " execute_button_x=" << g_config.executeButtonOffsetXPx
@@ -492,6 +520,269 @@ static const char* ExecutePredicateEntryPointToString(ExecutePredicateEntryPoint
     }
 }
 
+static void CopySanitizedLogText(const char* source, char* dest, size_t destSize)
+{
+    if (!dest || destSize == 0)
+    {
+        return;
+    }
+
+    if (!source || source[0] == '\0')
+    {
+        source = "unnamed";
+    }
+
+    size_t writeIndex = 0;
+    while (source[writeIndex] != '\0' && (writeIndex + 1) < destSize)
+    {
+        const unsigned char c = static_cast<unsigned char>(source[writeIndex]);
+        if (c < 0x20)
+        {
+            dest[writeIndex] = ' ';
+        }
+        else if (source[writeIndex] == '"')
+        {
+            dest[writeIndex] = '\'';
+        }
+        else
+        {
+            dest[writeIndex] = source[writeIndex];
+        }
+        ++writeIndex;
+    }
+
+    dest[writeIndex] = '\0';
+}
+
+static Faction* TryGetRootObjectFactionForLog(RootObject* object)
+{
+    if (!object)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return object->getFaction();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static Faction* TryGetPlayerFactionForLog()
+{
+    PlayerInterface* player = 0;
+    if (!TryResolvePlayerInterface(&player) || !player)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return player->getFaction();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static bool TryReadFactionNameForLog(Faction* faction, char* buffer, size_t bufferSize)
+{
+    if (!buffer || bufferSize == 0)
+    {
+        return false;
+    }
+
+    if (!faction)
+    {
+        CopySanitizedLogText("null", buffer, bufferSize);
+        return false;
+    }
+
+    __try
+    {
+        const char* name = 0;
+        if (!faction->name.empty())
+        {
+            name = faction->name.c_str();
+        }
+        CopySanitizedLogText(name, buffer, bufferSize);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        CopySanitizedLogText("exception", buffer, bufferSize);
+        return false;
+    }
+}
+
+static bool TryReadRootObjectNameForLog(RootObject* object, char* buffer, size_t bufferSize)
+{
+    if (!buffer || bufferSize == 0)
+    {
+        return false;
+    }
+
+    if (!object)
+    {
+        CopySanitizedLogText("null", buffer, bufferSize);
+        return false;
+    }
+
+    __try
+    {
+        const char* name = 0;
+        if (!object->displayName.empty())
+        {
+            name = object->displayName.c_str();
+        }
+        CopySanitizedLogText(name, buffer, bufferSize);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        CopySanitizedLogText("exception", buffer, bufferSize);
+        return false;
+    }
+}
+
+static const char* DescribeCanExecuteFailure(const CanExecuteDiagnostics& diagnostics)
+{
+    const bool requireEnemy = !g_config.ignoreExecuteAllianceCheck;
+    if (!diagnostics.targetResolved)
+    {
+        return "target_null";
+    }
+    if (!diagnostics.targetIsCharacter)
+    {
+        return "target_not_character";
+    }
+    if (diagnostics.targetIsDead)
+    {
+        return "target_dead";
+    }
+    if (diagnostics.targetIsPlayerCharacter)
+    {
+        return "target_is_player_character";
+    }
+    if (requireEnemy && !diagnostics.targetIsEnemy)
+    {
+        return "target_not_enemy";
+    }
+    if (!diagnostics.targetIsIncapacitated)
+    {
+        return "target_not_incapacitated";
+    }
+
+    return "ok";
+}
+
+static void LogExecutePredicateInvestigation(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    const CanExecuteDiagnostics& diagnostics,
+    bool canExecute)
+{
+    if (!ShouldLogExecuteDebug())
+    {
+        return;
+    }
+
+    char actorName[128];
+    char actorFaction[128];
+    char playerFaction[128];
+    char targetName[128];
+    char targetFaction[128];
+    (void)TryReadRootObjectNameForLog(actor, actorName, sizeof(actorName));
+    (void)TryReadFactionNameForLog(TryGetRootObjectFactionForLog(actor), actorFaction, sizeof(actorFaction));
+    (void)TryReadFactionNameForLog(TryGetPlayerFactionForLog(), playerFaction, sizeof(playerFaction));
+    (void)TryReadRootObjectNameForLog(target, targetName, sizeof(targetName));
+    (void)TryReadFactionNameForLog(TryGetRootObjectFactionForLog(target), targetFaction, sizeof(targetFaction));
+
+    std::stringstream line;
+    line << "[investigate][execute] predicate"
+         << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+         << " result=" << (canExecute ? "true" : "false")
+         << " reason=" << DescribeCanExecuteFailure(diagnostics)
+         << " ignore_execute_alliance_check=" << (!g_config.ignoreExecuteAllianceCheck ? "false" : "true")
+         << " actor=0x" << std::hex << diagnostics.actorPtr
+         << " actor_name=\"" << actorName << "\""
+         << " actor_faction=\"" << actorFaction << "\""
+         << " player_faction=\"" << playerFaction << "\""
+         << " target=0x" << diagnostics.targetPtr
+         << " target_name=\"" << targetName << "\""
+         << " target_faction=\"" << targetFaction << "\""
+         << " target_type=" << std::dec << static_cast<int>(diagnostics.targetType)
+         << " target_is_enemy_by_player=" << (diagnostics.targetIsEnemyByPlayerFaction ? "true" : "false")
+         << " target_is_enemy_by_actor=" << (diagnostics.targetIsEnemyByActor ? "true" : "false")
+         << " target_is_player_character=" << (diagnostics.targetIsPlayerCharacter ? "true" : "false")
+         << " target_is_down=" << (diagnostics.targetIsDown ? "true" : "false")
+         << " target_is_unconscious=" << (diagnostics.targetIsUnconscious ? "true" : "false")
+         << " target_is_literally_unconscious=" << (diagnostics.targetIsLiterallyUnconscious ? "true" : "false")
+         << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
+    PluginLog(line.str().c_str());
+}
+
+static void LogExecuteDispatchInvestigation(
+    ExecutePredicateEntryPoint entryPoint,
+    Character* actor,
+    RootObject* target,
+    const CanExecuteDiagnostics& canExecuteDiagnostics,
+    bool dispatchSucceeded,
+    const char* failureReason,
+    bool actorIsPlayerCharacter,
+    bool actorIsDead,
+    bool actorIsUnconscious,
+    bool targetHandleValid,
+    bool directDamageDispatchSucceeded,
+    bool targetDeadAfterDamageCheck,
+    bool declareDeadAttempted,
+    bool declareDeadCallSucceeded,
+    bool targetDeadAfterFinalizeCheck)
+{
+    if (!ShouldLogExecuteDebug())
+    {
+        return;
+    }
+
+    char actorName[128];
+    char actorFaction[128];
+    char targetName[128];
+    char targetFaction[128];
+    (void)TryReadRootObjectNameForLog(actor, actorName, sizeof(actorName));
+    (void)TryReadFactionNameForLog(TryGetRootObjectFactionForLog(actor), actorFaction, sizeof(actorFaction));
+    (void)TryReadRootObjectNameForLog(target, targetName, sizeof(targetName));
+    (void)TryReadFactionNameForLog(TryGetRootObjectFactionForLog(target), targetFaction, sizeof(targetFaction));
+
+    std::stringstream line;
+    line << "[investigate][execute] dispatch"
+         << " source=" << ExecutePredicateEntryPointToString(entryPoint)
+         << " result=" << (dispatchSucceeded ? "true" : "false")
+         << " reason=" << (dispatchSucceeded ? "none" : (failureReason ? failureReason : "unknown"))
+         << " predicate_reason=" << DescribeCanExecuteFailure(canExecuteDiagnostics)
+         << " ignore_execute_alliance_check=" << (!g_config.ignoreExecuteAllianceCheck ? "false" : "true")
+         << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+         << " actor_name=\"" << actorName << "\""
+         << " actor_faction=\"" << actorFaction << "\""
+         << " target=0x" << reinterpret_cast<uintptr_t>(target)
+         << " target_name=\"" << targetName << "\""
+         << " target_faction=\"" << targetFaction << "\""
+         << " actor_is_player_character=" << (actorIsPlayerCharacter ? "true" : "false")
+         << " actor_is_dead=" << (actorIsDead ? "true" : "false")
+         << " actor_is_unconscious=" << (actorIsUnconscious ? "true" : "false")
+         << " target_handle_valid=" << (targetHandleValid ? "true" : "false")
+         << " direct_damage_dispatch_succeeded=" << (directDamageDispatchSucceeded ? "true" : "false")
+         << " target_dead_after_damage_check=" << (targetDeadAfterDamageCheck ? "true" : "false")
+         << " declare_dead_attempted=" << (declareDeadAttempted ? "true" : "false")
+         << " declare_dead_call_succeeded=" << (declareDeadCallSucceeded ? "true" : "false")
+         << " target_dead_after_finalize_check=" << (targetDeadAfterFinalizeCheck ? "true" : "false");
+    PluginLog(line.str().c_str());
+}
+
 static bool IsCharacterDataType(itemType type)
 {
     return type == CHARACTER
@@ -522,6 +813,8 @@ static bool TryEvaluateCharacterExecuteFlags(
     Character* actor,
     Character* targetCharacter,
     bool* targetIsEnemyOut,
+    bool* targetIsEnemyByPlayerOut,
+    bool* targetIsEnemyByActorOut,
     bool* targetIsPlayerCharacterOut,
     bool* targetIsDeadOut,
     bool* targetIsDownOut,
@@ -530,6 +823,8 @@ static bool TryEvaluateCharacterExecuteFlags(
 {
     if (!targetCharacter
         || !targetIsEnemyOut
+        || !targetIsEnemyByPlayerOut
+        || !targetIsEnemyByActorOut
         || !targetIsPlayerCharacterOut
         || !targetIsDeadOut
         || !targetIsDownOut
@@ -542,6 +837,8 @@ static bool TryEvaluateCharacterExecuteFlags(
     __try
     {
         *targetIsEnemyOut = false;
+        *targetIsEnemyByPlayerOut = false;
+        *targetIsEnemyByActorOut = false;
         *targetIsPlayerCharacterOut = targetCharacter->isPlayerCharacter();
         *targetIsDeadOut = targetCharacter->isDead();
         *targetIsDownOut = false;
@@ -557,12 +854,13 @@ static bool TryEvaluateCharacterExecuteFlags(
             PlayerInterface* player = (ou ? ou->player : 0);
             if (player)
             {
-                *targetIsEnemyOut = player->isEnemy(targetCharacter);
+                *targetIsEnemyByPlayerOut = player->isEnemy(targetCharacter);
             }
-            if (!*targetIsEnemyOut && actor)
+            if (actor)
             {
-                *targetIsEnemyOut = actor->isEnemy(targetCharacter, true);
+                *targetIsEnemyByActorOut = actor->isEnemy(targetCharacter, true);
             }
+            *targetIsEnemyOut = *targetIsEnemyByPlayerOut || *targetIsEnemyByActorOut;
         }
 
         return true;
@@ -646,7 +944,7 @@ static bool CanExecuteTarget(
     CanExecuteDiagnostics* diagnosticsOut,
     bool verboseLog)
 {
-    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
     diagnostics.actorResolved = actor != 0;
     diagnostics.targetResolved = target != 0;
     diagnostics.actorPtr = reinterpret_cast<uintptr_t>(actor);
@@ -671,12 +969,13 @@ static bool CanExecuteTarget(
 
     if (targetCharacter)
     {
-        bool targetIsPlayerCharacter = false;
         if (TryEvaluateCharacterExecuteFlags(
             actor,
             targetCharacter,
             &diagnostics.targetIsEnemy,
-            &targetIsPlayerCharacter,
+            &diagnostics.targetIsEnemyByPlayerFaction,
+            &diagnostics.targetIsEnemyByActor,
+            &diagnostics.targetIsPlayerCharacter,
             &diagnostics.targetIsDead,
             &diagnostics.targetIsDown,
             &diagnostics.targetIsUnconscious,
@@ -685,7 +984,7 @@ static bool CanExecuteTarget(
             diagnostics.targetIsIncapacitated = diagnostics.targetIsDown
                 || diagnostics.targetIsUnconscious
                 || diagnostics.targetIsLiterallyUnconscious;
-            if (targetIsPlayerCharacter)
+            if (diagnostics.targetIsPlayerCharacter)
             {
                 diagnostics.targetIsEnemy = false;
             }
@@ -694,6 +993,9 @@ static bool CanExecuteTarget(
         {
             diagnostics.targetIsCharacter = false;
             diagnostics.targetIsEnemy = false;
+            diagnostics.targetIsEnemyByPlayerFaction = false;
+            diagnostics.targetIsEnemyByActor = false;
+            diagnostics.targetIsPlayerCharacter = false;
             diagnostics.targetIsIncapacitated = false;
             diagnostics.targetIsDead = false;
             diagnostics.targetIsDown = false;
@@ -702,8 +1004,10 @@ static bool CanExecuteTarget(
         }
     }
 
+    const bool passesAllianceCheck = g_config.ignoreExecuteAllianceCheck || diagnostics.targetIsEnemy;
     const bool canExecute = diagnostics.targetIsCharacter
-        && diagnostics.targetIsEnemy
+        && !diagnostics.targetIsPlayerCharacter
+        && passesAllianceCheck
         && diagnostics.targetIsIncapacitated
         && !diagnostics.targetIsDead;
 
@@ -731,12 +1035,17 @@ static bool CanExecuteTarget(
                 << " target_type=" << std::dec << static_cast<int>(diagnostics.targetType)
                 << " target_is_character=" << (diagnostics.targetIsCharacter ? "true" : "false")
                 << " target_is_enemy=" << (diagnostics.targetIsEnemy ? "true" : "false")
+                << " target_is_enemy_by_player=" << (diagnostics.targetIsEnemyByPlayerFaction ? "true" : "false")
+                << " target_is_enemy_by_actor=" << (diagnostics.targetIsEnemyByActor ? "true" : "false")
+                << " target_is_player_character=" << (diagnostics.targetIsPlayerCharacter ? "true" : "false")
                 << " target_is_down=" << (diagnostics.targetIsDown ? "true" : "false")
                 << " target_is_unconscious=" << (diagnostics.targetIsUnconscious ? "true" : "false")
                 << " target_is_literally_unconscious=" << (diagnostics.targetIsLiterallyUnconscious ? "true" : "false")
                 << " target_is_incapacitated=" << (diagnostics.targetIsIncapacitated ? "true" : "false")
-                << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false");
+                << " target_is_dead=" << (diagnostics.targetIsDead ? "true" : "false")
+                << " reason=" << DescribeCanExecuteFailure(diagnostics);
         PluginLog(logline.str().c_str());
+        LogExecutePredicateInvestigation(entryPoint, actor, target, diagnostics, canExecute);
 
         g_hasLastCanExecuteDecision = true;
         g_lastCanExecuteDecisionTargetPtr = diagnostics.targetPtr;
@@ -1329,7 +1638,7 @@ static bool QueueExecuteTarget(
         DisarmQueuedExecuteAction("queue_replaced", false);
     }
 
-    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
     const bool canQueue = (entryPoint == ExecutePredicateEntryPoint_NATIVE_MENU)
         && CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, verboseLog);
     if (!canQueue)
@@ -1401,9 +1710,13 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
         return;
     }
 
-    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
     if (!CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false))
     {
+        if (ShouldLogExecuteDebug())
+        {
+            (void)CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, true);
+        }
         DisarmQueuedExecuteAction("target_not_executable", true);
         return;
     }
@@ -1540,7 +1853,7 @@ static bool DispatchExecuteTarget(
     const char* killSoundEvent = "none";
     const char* killSoundEmitter = "none";
 
-    CanExecuteDiagnostics canExecuteDiagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics canExecuteDiagnostics = MakeCanExecuteDiagnostics();
     const bool canExecute = (entryPoint == ExecutePredicateEntryPoint_NATIVE_MENU)
         && CanExecuteFromNativeMenuSelection(actor, target, &canExecuteDiagnostics, verboseLog);
 
@@ -1677,8 +1990,25 @@ static bool DispatchExecuteTarget(
                 << " kill_sound_played=" << (killSoundPlayed ? "true" : "false")
                 << " kill_sound_event=" << killSoundEvent
                 << " kill_sound_emitter=" << killSoundEmitter
+                << " predicate_reason=" << DescribeCanExecuteFailure(canExecuteDiagnostics)
                 << " reason=" << (dispatchSucceeded ? "none" : failureReason);
         PluginLog(logline.str().c_str());
+        LogExecuteDispatchInvestigation(
+            entryPoint,
+            actor,
+            target,
+            canExecuteDiagnostics,
+            dispatchSucceeded,
+            failureReason,
+            actorIsPlayerCharacter,
+            actorIsDead,
+            actorIsUnconscious,
+            targetHandleValid,
+            directDamageDispatchSucceeded,
+            targetDeadAfterDamageCheck,
+            declareDeadAttempted,
+            declareDeadCallSucceeded,
+            targetDeadAfterFinalizeCheck);
     }
 
     return dispatchSucceeded;
@@ -2366,10 +2696,14 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
         HideCustomExecutePanelOverlay();
         return;
     }
-    CanExecuteDiagnostics diagnostics = { false, false, false, false, false, false, false, false, false, NULL_ITEM, 0, 0 };
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
     const bool canExecute = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
     if (!canExecute)
     {
+        if (ShouldLogExecuteDebug())
+        {
+            (void)CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, true);
+        }
         HideCustomExecutePanelOverlay();
         return;
     }
