@@ -9,6 +9,7 @@
 #include <kenshi/Dialogue.h>
 #include <kenshi/Inventory.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/SaveManager.h>
 #include <Windows.h>
 
 #include <cctype>
@@ -33,7 +34,9 @@ struct RuntimeState
     bool loadInProgress;
     bool pauseArmed;
     bool loadSignalSeenAfterArm;
+    bool saveLoadIntentPending;
     DWORD armTimestampMs;
+    DWORD saveLoadIntentTimestampMs;
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
     bool loggedWorldUnavailable;
@@ -50,15 +53,18 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
+static const DWORD kSaveLoadIntentTimeoutMs = 5000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
 static PluginConfig g_config = { true, 2000, false, true, true, true, true };
-static RuntimeState g_state = { false, false, false, 0, 0, 0, false, false, false, false, false, false, false };
+static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, false, false, false, false, false, false, false };
 
 static std::string g_settingsPath;
 static bool g_configNeedsWriteBack = false;
 static bool g_hasObservedLoadSignal = false;
 static bool g_lastObservedLoadSignal = false;
+static bool g_hasObservedSaveManagerSignal = false;
+static int g_lastObservedSaveManagerSignal = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 static bool g_hooksInstalled = false;
@@ -73,6 +79,20 @@ static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
+static const char* DescribeSaveManagerSignal(int signal);
+static bool QuerySaveManagerState(
+    bool* loadRequestedOut,
+    int* signalOut,
+    int* delayOut,
+    std::string* currentGameOut,
+    std::string* requestedNameOut);
+static void LogLoadInvestigation(
+    const char* stage,
+    bool isLoadingSave,
+    int saveManagerSignal,
+    int saveManagerDelay,
+    const std::string* currentGame,
+    const std::string* requestedName);
 
 struct ConfigParseDiagnostics
 {
@@ -173,6 +193,25 @@ static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out
         return false;
     }
 #endif
+}
+
+static const char* DescribeSaveManagerSignal(int signal)
+{
+    switch (signal)
+    {
+    case 0:
+        return "NONE";
+    case SaveManager::SAVEGAME:
+        return "SAVEGAME";
+    case SaveManager::LOADGAME:
+        return "LOADGAME";
+    case SaveManager::IMPORTGAME:
+        return "IMPORTGAME";
+    case SaveManager::NEWGAME:
+        return "NEWGAME";
+    default:
+        return "UNKNOWN";
+    }
 }
 
 static std::string TrimAscii(const std::string& value)
@@ -868,14 +907,18 @@ static bool RunInternalSelfChecks()
     g_state.loadInProgress = true;
     g_state.pauseArmed = true;
     g_state.loadSignalSeenAfterArm = true;
+    g_state.saveLoadIntentPending = true;
     g_state.armTimestampMs = 99;
+    g_state.saveLoadIntentTimestampMs = 123;
     g_state.loggedWorldUnavailable = true;
     DisarmPauseAfterLoad();
     const bool disarmedOk =
         !g_state.loadInProgress
         && !g_state.pauseArmed
         && !g_state.loadSignalSeenAfterArm
+        && !g_state.saveLoadIntentPending
         && g_state.armTimestampMs == 0
+        && g_state.saveLoadIntentTimestampMs == 0
         && !g_state.loggedWorldUnavailable;
     g_state = savedState;
     return disarmedOk;
@@ -1022,23 +1065,6 @@ static void LoadConfigState()
     }
 
     g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
-    if (!foundConfigFile)
-    {
-        DebugLog("Auto-Pause-on-Load INFO: mod-config.json not found; using defaults");
-    }
-
-    if (g_config.debugLogTransitions)
-    {
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
-             << " pause_debounce_ms=" << g_config.pauseDebounceMs
-             << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
-             << " pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
-             << " resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
-             << " pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
-             << " resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
-        DebugLog(info.str().c_str());
-    }
 }
 
 static bool SaveConfigState()
@@ -1073,7 +1099,9 @@ static void DisarmPauseAfterLoad()
     g_state.pauseArmed = false;
     g_state.loadInProgress = false;
     g_state.loadSignalSeenAfterArm = false;
+    g_state.saveLoadIntentPending = false;
     g_state.armTimestampMs = 0;
+    g_state.saveLoadIntentTimestampMs = 0;
     g_state.loggedWorldUnavailable = false;
 }
 
@@ -1103,6 +1131,11 @@ static bool QuerySaveLoadSignal(bool* isLoadingOut)
     *isLoadingOut = false;
     if (!ou)
     {
+        if (!g_updateUTHookVerified)
+        {
+            return false;
+        }
+
         if (!g_state.loggedWorldUnavailable)
         {
             ErrorLog("Auto-Pause-on-Load WARN: game world unavailable while waiting for save-load completion");
@@ -1461,9 +1494,12 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
     if (ForcePauseTrue())
     {
         g_state.lastPauseMs = nowMs;
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: paused_after_load=true source=" << reason;
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Auto-Pause-on-Load INFO: paused_after_load=true source=" << reason;
+            DebugLog(info.str().c_str());
+        }
     }
 
     DisarmPauseAfterLoad();
@@ -1559,6 +1595,9 @@ static void TickPauseOnLoad()
     {
         g_hasObservedLoadSignal = false;
         g_lastObservedLoadSignal = false;
+        g_hasObservedSaveManagerSignal = false;
+        g_lastObservedSaveManagerSignal = 0;
+        DisarmPauseAfterLoad();
         return;
     }
 
@@ -1589,34 +1628,166 @@ static void TickPauseOnLoad()
         return;
     }
 
+    std::string currentGame;
+    std::string requestedName;
+    bool loadRequested = false;
+    int saveManagerSignal = 0;
+    int saveManagerDelay = 0;
+    std::string* currentGameLog = g_config.debugLogTransitions ? &currentGame : 0;
+    std::string* requestedNameLog = g_config.debugLogTransitions ? &requestedName : 0;
+    if (!QuerySaveManagerState(
+            &loadRequested,
+            &saveManagerSignal,
+            &saveManagerDelay,
+            currentGameLog,
+            requestedNameLog))
+    {
+        return;
+    }
+
+    if (!g_hasObservedSaveManagerSignal || g_lastObservedSaveManagerSignal != saveManagerSignal)
+    {
+        LogLoadInvestigation(
+            "save_manager_signal",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+        g_hasObservedSaveManagerSignal = true;
+        g_lastObservedSaveManagerSignal = saveManagerSignal;
+    }
+
+    if (loadRequested)
+    {
+        const bool wasPending = g_state.saveLoadIntentPending;
+        g_state.saveLoadIntentPending = true;
+        g_state.saveLoadIntentTimestampMs = nowMs;
+        if (!wasPending)
+        {
+            LogLoadInvestigation(
+                "load_intent_seen",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+    }
+    else if (g_state.saveLoadIntentPending
+        && !g_state.pauseArmed
+        && g_state.saveLoadIntentTimestampMs != 0
+        && DebounceWindowElapsed(nowMs, g_state.saveLoadIntentTimestampMs, kSaveLoadIntentTimeoutMs))
+    {
+        LogLoadInvestigation(
+            "load_intent_expired",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+        g_state.saveLoadIntentPending = false;
+        g_state.saveLoadIntentTimestampMs = 0;
+    }
+
+    bool loadStarted = false;
+    bool loadFinished = false;
+    bool bootstrapLoadIntent = false;
     if (!g_hasObservedLoadSignal)
     {
         g_hasObservedLoadSignal = true;
-        g_lastObservedLoadSignal = isLoadingSave;
-        if (isLoadingSave)
-        {
-            ArmPauseAfterLoad("polling");
-        }
+        loadStarted = isLoadingSave;
+        bootstrapLoadIntent = isLoadingSave && !g_updateUTHookVerified;
     }
     else
     {
-        const bool loadStarted = (!g_lastObservedLoadSignal && isLoadingSave);
-        g_lastObservedLoadSignal = isLoadingSave;
-        if (loadStarted)
+        loadStarted = (!g_lastObservedLoadSignal && isLoadingSave);
+        loadFinished = (g_lastObservedLoadSignal && !isLoadingSave);
+    }
+    g_lastObservedLoadSignal = isLoadingSave;
+
+    if (loadStarted)
+    {
+        LogLoadInvestigation(
+            "load_flag_started",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+
+        if (g_state.saveLoadIntentPending)
         {
-            ArmPauseAfterLoad("polling");
+            ArmPauseAfterLoad("save_manager_signal");
+            LogLoadInvestigation(
+                "load_arm_accepted",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
         }
+        else if (bootstrapLoadIntent)
+        {
+            ArmPauseAfterLoad("startup_load_bootstrap");
+            LogLoadInvestigation(
+                "load_arm_bootstrap",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+        else
+        {
+            LogLoadInvestigation(
+                "load_ignored_no_intent",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+    }
+
+    if (isLoadingSave
+        && g_state.saveLoadIntentPending
+        && !g_state.pauseArmed
+        && !g_state.loadInProgress)
+    {
+        ArmPauseAfterLoad("save_manager_signal_late");
+        LogLoadInvestigation(
+            "load_arm_late",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
     }
 
     if (isLoadingSave)
     {
-        if (!g_state.loadInProgress && g_config.debugLogTransitions)
+        if (g_state.pauseArmed)
         {
-            DebugLog("Auto-Pause-on-Load DEBUG: load started");
+            if (!g_state.loadInProgress && g_config.debugLogTransitions)
+            {
+                DebugLog("Auto-Pause-on-Load DEBUG: load started");
+            }
+            g_state.loadInProgress = true;
+            g_state.loadSignalSeenAfterArm = true;
         }
-        g_state.loadInProgress = true;
-        g_state.loadSignalSeenAfterArm = true;
         return;
+    }
+
+    if (loadFinished)
+    {
+        LogLoadInvestigation(
+            "load_flag_finished",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
     }
 
     if (!g_state.pauseArmed)
@@ -1648,6 +1819,94 @@ static void TickPauseOnLoad()
     }
 }
 
+static bool QuerySaveManagerState(
+    bool* loadRequestedOut,
+    int* signalOut,
+    int* delayOut,
+    std::string* currentGameOut,
+    std::string* requestedNameOut)
+{
+    if (!loadRequestedOut || !signalOut || !delayOut)
+    {
+        return false;
+    }
+
+    *loadRequestedOut = false;
+    *signalOut = 0;
+    *delayOut = 0;
+    if (currentGameOut)
+    {
+        currentGameOut->clear();
+    }
+    if (requestedNameOut)
+    {
+        requestedNameOut->clear();
+    }
+
+    __try
+    {
+        SaveManager* saveManager = SaveManager::getSingleton();
+        if (!saveManager)
+        {
+            return true;
+        }
+
+        *signalOut = saveManager->signal;
+        *delayOut = saveManager->delay;
+        *loadRequestedOut = (saveManager->signal == SaveManager::LOADGAME);
+        if (currentGameOut)
+        {
+            *currentGameOut = saveManager->currentGame;
+        }
+        if (requestedNameOut)
+        {
+            *requestedNameOut = saveManager->name;
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (g_config.debugLogTransitions)
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: exception while querying SaveManager state");
+        }
+        return false;
+    }
+}
+
+static void LogLoadInvestigation(
+    const char* stage,
+    bool isLoadingSave,
+    int saveManagerSignal,
+    int saveManagerDelay,
+    const std::string* currentGame,
+    const std::string* requestedName)
+{
+    if (!g_config.debugLogTransitions)
+    {
+        return;
+    }
+
+    std::stringstream line;
+    line << "Auto-Pause-on-Load INFO: [investigate][load]"
+         << " stage=" << (stage ? stage : "unknown")
+         << " is_loading=" << (isLoadingSave ? "true" : "false")
+         << " signal=" << DescribeSaveManagerSignal(saveManagerSignal)
+         << " delay=" << saveManagerDelay
+         << " intent_pending=" << (g_state.saveLoadIntentPending ? "true" : "false")
+         << " pause_armed=" << (g_state.pauseArmed ? "true" : "false")
+         << " load_in_progress=" << (g_state.loadInProgress ? "true" : "false");
+    if (currentGame && !currentGame->empty())
+    {
+        line << " current_game=\"" << *currentGame << "\"";
+    }
+    if (requestedName && !requestedName->empty())
+    {
+        line << " requested_name=\"" << *requestedName << "\"";
+    }
+    DebugLog(line.str().c_str());
+}
+
 static bool TryInstallUpdateUTHook()
 {
     if (PlayerInterface_updateUT_orig != 0)
@@ -1661,7 +1920,6 @@ static bool TryInstallUpdateUTHook()
             PlayerInterface_updateUT_hook,
             &PlayerInterface_updateUT_orig))
     {
-        DebugLog("Auto-Pause-on-Load INFO: PlayerInterface::updateUT hook installed");
         g_hooksInstalled = true;
         return true;
     }
@@ -1683,19 +1941,26 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
         else if (GetTickCount() - g_updateUTHookVerifyTimeMs > 1000)
         {
             g_updateUTHookVerified = true;
-            DebugLog("Auto-Pause-on-Load INFO: updateUT hook verified alive");
+            if (g_config.debugLogTransitions)
+            {
+                DebugLog("Auto-Pause-on-Load INFO: updateUT hook verified alive");
+            }
         }
-        return;
     }
 
     TickPauseOnLoad();
-    TickPauseOnTradeAndInventory();
+    if (g_updateUTHookVerified)
+    {
+        TickPauseOnTradeAndInventory();
+    }
+    else
+    {
+        ResetUiTracking();
+    }
 }
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("Auto-Pause-on-Load: startPlugin()");
-
     unsigned int platform = KenshiLib::BinaryVersion::UNKNOWN;
     std::string version;
     if (!ResolveSupportedRuntime(&platform, &version))
@@ -1719,34 +1984,34 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    if (TryInstallUpdateUTHook())
-    {
-        DebugLog("Auto-Pause-on-Load INFO: updateUT host installed at startup");
-    }
-    else
+    if (!TryInstallUpdateUTHook())
     {
         ErrorLog("Auto-Pause-on-Load WARN: failed to install updateUT host at startup; pause runtime will remain inactive");
     }
 
     g_hasObservedLoadSignal = false;
     g_lastObservedLoadSignal = false;
+    g_hasObservedSaveManagerSignal = false;
+    g_lastObservedSaveManagerSignal = 0;
+    DisarmPauseAfterLoad();
 
     ConfigureModHubClient();
     StartModHubClient();
 
     std::stringstream info;
-    info << "Auto-Pause-on-Load INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false");
+    info << "Auto-Pause-on-Load INFO: initialized enabled=" << (g_config.enabled ? "true" : "false")
+         << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
+         << " hooks_installed=" << (g_hooksInstalled ? "true" : "false")
+         << " hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false")
+         << " config_needs_writeback=" << (g_configNeedsWriteBack ? "true" : "false");
     if (g_config.debugLogTransitions)
     {
-        info << ", pause_debounce_ms=" << g_config.pauseDebounceMs
-             << ", pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
-             << ", resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
-             << ", pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
-             << ", resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
+        info << " pause_debounce_ms=" << g_config.pauseDebounceMs
+             << " pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
+             << " resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
+             << " pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
+             << " resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
     }
-    info << ", hooks_installed=" << (g_hooksInstalled ? "true" : "false")
-         << ", updateUT_verified=" << (g_updateUTHookVerified ? "true" : "false")
-         << ", hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }
 
