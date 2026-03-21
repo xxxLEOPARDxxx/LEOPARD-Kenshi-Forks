@@ -26,11 +26,17 @@
 #include <ogre/OgreInstancedEntity.h>
 #include <ogre/OgreGpuProgramParams.h>
 #include <ogre/OgreMaterial.h>
+#include <ogre/OgreMaterialManager.h>
+#include <ogre/OgreManualObject.h>
 #include <ogre/OgreMovableObject.h>
 #include <ogre/OgrePass.h>
+#include <ogre/OgreRenderQueue.h>
+#include <ogre/OgreResourceGroupManager.h>
+#include <ogre/OgreSceneManager.h>
 #include <ogre/OgreSceneNode.h>
 #include <ogre/OgreSubEntity.h>
 #include <ogre/OgreTechnique.h>
+#include <ogre/Math/Simple/C/OgreAabb.h>
 
 #include <ois/OISKeyboard.h>
 
@@ -138,11 +144,26 @@ struct TintBatchBinding
     Ogre::MaterialPtr cloneMaterial;
 };
 
+struct TintOverlayBinding
+{
+    TintOverlayBinding()
+        : sceneManager(0)
+        , sceneNode(0)
+        , manualObject(0)
+    {
+    }
+
+    Ogre::SceneManager* sceneManager;
+    Ogre::SceneNode* sceneNode;
+    Ogre::ManualObject* manualObject;
+};
+
 struct ContainerTintEntry
 {
     hand targetHandle;
     std::vector<TintEntityBinding> entityBindings;
     std::vector<TintBatchBinding> batchBindings;
+    TintOverlayBinding overlayBinding;
 };
 
 struct RuntimeState
@@ -221,6 +242,14 @@ const char* kHighlightObjectDoubleSidedColouredFragmentProgram = "CH_Object_Doub
 const bool kEnableInstancedBatchTint = false;
 const char* kHighlightObjectDualFragmentProgram = "CH_Object_Dual_FP";
 const char* kHighlightObjectEmissiveFragmentProgram = "CH_Object_Emissive_FP";
+const char* kTintOverlayFillMaterialName = "ContainerHighlight/TintOverlayFill";
+const char* kTintOverlayOutlineMaterialName = "ContainerHighlight/TintOverlayOutline";
+const char* kTintOverlayDepthOutlineMaterialName = "ContainerHighlight/TintOverlayDepthOutline";
+const float kTintOverlayPaddingWorld = 0.35f;
+const float kTintOverlayMinExtentWorld = 0.60f;
+const unsigned char kTintOverlayRenderQueueGroup = Ogre::RENDER_QUEUE_OVERLAY;
+const float kTintOverlayDiagnosticScaleMultiplier = 1.75f;
+const float kTintOverlayDiagnosticYOffsetMultiplier = 0.90f;
 
 RuntimeState g_state;
 PlayerInterfaceUpdateUTFn* g_playerInterfaceUpdateUTOrig = 0;
@@ -304,6 +333,23 @@ void LogDebugLine(const std::string& message)
     }
 
     LogInfoLine(message);
+}
+
+bool ShouldEmitTintInvestigation()
+{
+    if (!ShouldLogDebug())
+    {
+        return false;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (g_state.lastTintDebugLogTickMs != 0 && (nowMs - g_state.lastTintDebugLogTickMs) < 1000)
+    {
+        return false;
+    }
+
+    g_state.lastTintDebugLogTickMs = nowMs;
+    return true;
 }
 
 const char* ItemTypeNameForLog(itemType type)
@@ -3728,6 +3774,557 @@ bool ApplyTintToMaterialClone(const Ogre::MaterialPtr& material, const Ogre::Col
     return appliedAny;
 }
 
+bool IsFiniteVector3(const Ogre::Vector3& value)
+{
+    return _finite(value.x) != 0 && _finite(value.y) != 0 && _finite(value.z) != 0;
+}
+
+Ogre::SceneManager* TryGetSceneManagerFromNode(Ogre::SceneNode* node)
+{
+    if (node == 0)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return node->getCreator();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+Ogre::SceneManager* TryResolveMovableSceneManager(Ogre::MovableObject* movable)
+{
+    if (movable == 0)
+    {
+        return 0;
+    }
+
+    __try
+    {
+        Ogre::SceneManager* manager = movable->_getManager();
+        if (manager != 0)
+        {
+            return manager;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+
+    __try
+    {
+        return TryGetSceneManagerFromNode(movable->getParentSceneNode());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+bool TryGetMovableWorldBounds(
+    Ogre::MovableObject* movable,
+    Ogre::Vector3* minOut,
+    Ogre::Vector3* maxOut,
+    Ogre::SceneManager** sceneManagerOut)
+{
+    if (movable == 0 || minOut == 0 || maxOut == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const Ogre::Aabb aabb = movable->getWorldAabbUpdated();
+        const Ogre::Vector3 minValue = aabb.mCenter - aabb.mHalfSize;
+        const Ogre::Vector3 maxValue = aabb.mCenter + aabb.mHalfSize;
+        if (!IsFiniteVector3(minValue) || !IsFiniteVector3(maxValue))
+        {
+            return false;
+        }
+
+        *minOut = minValue;
+        *maxOut = maxValue;
+        if (sceneManagerOut != 0 && *sceneManagerOut == 0)
+        {
+            *sceneManagerOut = TryResolveMovableSceneManager(movable);
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void MergeBounds(
+    bool* hasBounds,
+    Ogre::Vector3* minOut,
+    Ogre::Vector3* maxOut,
+    const Ogre::Vector3& candidateMin,
+    const Ogre::Vector3& candidateMax)
+{
+    if (hasBounds == 0 || minOut == 0 || maxOut == 0)
+    {
+        return;
+    }
+
+    if (!*hasBounds)
+    {
+        *minOut = candidateMin;
+        *maxOut = candidateMax;
+        *hasBounds = true;
+        return;
+    }
+
+    minOut->x = std::min(minOut->x, candidateMin.x);
+    minOut->y = std::min(minOut->y, candidateMin.y);
+    minOut->z = std::min(minOut->z, candidateMin.z);
+    maxOut->x = std::max(maxOut->x, candidateMax.x);
+    maxOut->y = std::max(maxOut->y, candidateMax.y);
+    maxOut->z = std::max(maxOut->z, candidateMax.z);
+}
+
+void CollectSceneNodeTintOverlayBoundsRecursive(
+    Ogre::SceneNode* node,
+    size_t depth,
+    bool* hasBounds,
+    Ogre::Vector3* minOut,
+    Ogre::Vector3* maxOut,
+    Ogre::SceneManager** sceneManagerOut)
+{
+    if (node == 0 || depth > 10 || hasBounds == 0 || minOut == 0 || maxOut == 0)
+    {
+        return;
+    }
+
+    __try
+    {
+        if (sceneManagerOut != 0 && *sceneManagerOut == 0)
+        {
+            *sceneManagerOut = TryGetSceneManagerFromNode(node);
+        }
+
+        const size_t attachedCount = node->numAttachedObjects();
+        for (size_t attachedIndex = 0; attachedIndex < attachedCount; ++attachedIndex)
+        {
+            Ogre::MovableObject* movable = node->getAttachedObject(attachedIndex);
+            Ogre::Vector3 movableMin;
+            Ogre::Vector3 movableMax;
+            if (TryGetMovableWorldBounds(movable, &movableMin, &movableMax, sceneManagerOut))
+            {
+                MergeBounds(hasBounds, minOut, maxOut, movableMin, movableMax);
+            }
+        }
+
+        const size_t childCount = node->numChildren();
+        for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
+        {
+            Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
+            CollectSceneNodeTintOverlayBoundsRecursive(
+                childNode,
+                depth + 1,
+                hasBounds,
+                minOut,
+                maxOut,
+                sceneManagerOut);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+void CollectPhysicalTintOverlayBounds(
+    Building* building,
+    bool* hasBounds,
+    Ogre::Vector3* minOut,
+    Ogre::Vector3* maxOut,
+    Ogre::SceneManager** sceneManagerOut)
+{
+    if (building == 0 || hasBounds == 0 || minOut == 0 || maxOut == 0)
+    {
+        return;
+    }
+
+    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    if (physical == 0)
+    {
+        return;
+    }
+
+    __try
+    {
+        for (lektor<PhysicsCollection::StaticEnt*>::const_iterator it = physical->staticEnts.begin();
+             it != physical->staticEnts.end();
+             ++it)
+        {
+            PhysicsCollection::StaticEnt* staticEnt = *it;
+            if (staticEnt == 0 || staticEnt->ent == 0)
+            {
+                continue;
+            }
+
+            Ogre::Vector3 movableMin;
+            Ogre::Vector3 movableMax;
+            if (TryGetMovableWorldBounds(staticEnt->ent, &movableMin, &movableMax, sceneManagerOut))
+            {
+                MergeBounds(hasBounds, minOut, maxOut, movableMin, movableMax);
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+bool TryGetTintOverlayBoundsForTarget(
+    const hand& targetHandle,
+    Ogre::SceneManager** sceneManagerOut,
+    Ogre::Vector3* centerOut,
+    Ogre::Vector3* sizeOut)
+{
+    if (centerOut == 0 || sizeOut == 0)
+    {
+        return false;
+    }
+
+    Building* building = targetHandle.getBuilding();
+    if (building == 0 || !IsHighlightableContainerBuilding(building))
+    {
+        return false;
+    }
+
+    bool hasBounds = false;
+    Ogre::Vector3 minValue = Ogre::Vector3::ZERO;
+    Ogre::Vector3 maxValue = Ogre::Vector3::ZERO;
+    Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building);
+    if (sceneManagerOut != 0 && *sceneManagerOut == 0)
+    {
+        *sceneManagerOut = TryGetSceneManagerFromNode(rootNode);
+    }
+    CollectSceneNodeTintOverlayBoundsRecursive(rootNode, 0, &hasBounds, &minValue, &maxValue, sceneManagerOut);
+    CollectPhysicalTintOverlayBounds(building, &hasBounds, &minValue, &maxValue, sceneManagerOut);
+    if (!hasBounds)
+    {
+        return false;
+    }
+
+    Ogre::Vector3 size = maxValue - minValue;
+    size.x = std::max(size.x + (kTintOverlayPaddingWorld * 2.0f), kTintOverlayMinExtentWorld);
+    size.y = std::max(size.y + (kTintOverlayPaddingWorld * 2.0f), kTintOverlayMinExtentWorld);
+    size.z = std::max(size.z + (kTintOverlayPaddingWorld * 2.0f), kTintOverlayMinExtentWorld);
+    *centerOut = (minValue + maxValue) * 0.5f;
+    *sizeOut = size;
+    return true;
+}
+
+Ogre::MaterialPtr EnsureTintOverlayMaterial(
+    const char* materialName,
+    const Ogre::ColourValue& colour,
+    bool additive,
+    bool depthCheckEnabled,
+    bool depthWriteEnabled,
+    Ogre::PolygonMode polygonMode,
+    float depthBias)
+{
+    if (materialName == 0)
+    {
+        return Ogre::MaterialPtr();
+    }
+
+    Ogre::MaterialPtr material = Ogre::MaterialManager::getSingleton().getByName(materialName);
+    if (material.isNull())
+    {
+        try
+        {
+            material = Ogre::MaterialManager::getSingleton().create(
+                materialName,
+                Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+        }
+        catch (...)
+        {
+            material.setNull();
+        }
+    }
+    if (material.isNull())
+    {
+        return material;
+    }
+
+    try
+    {
+        material->removeAllTechniques();
+        Ogre::Technique* technique = material->createTechnique();
+        Ogre::Pass* pass = technique->createPass();
+        pass->setLightingEnabled(false);
+        pass->setAmbient(Ogre::ColourValue(colour.r, colour.g, colour.b, 1.0f));
+        pass->setDiffuse(colour);
+        pass->setSelfIllumination(Ogre::ColourValue(colour.r, colour.g, colour.b, 1.0f));
+        pass->setSceneBlending(additive ? Ogre::SBT_ADD : Ogre::SBT_TRANSPARENT_ALPHA);
+        pass->setDepthWriteEnabled(depthWriteEnabled);
+        pass->setDepthCheckEnabled(depthCheckEnabled);
+        pass->setCullingMode(Ogre::CULL_NONE);
+        pass->setPolygonMode(polygonMode);
+        pass->setDepthBias(depthBias, depthBias);
+        material->setReceiveShadows(false);
+        material->load();
+    }
+    catch (...)
+    {
+    }
+
+    return material;
+}
+
+bool EnsureTintOverlayMaterials()
+{
+    const Ogre::ColourValue fillColour(1.0f, 0.0f, 1.0f, 1.0f);
+    const Ogre::MaterialPtr fillMaterial = EnsureTintOverlayMaterial(
+        kTintOverlayFillMaterialName,
+        fillColour,
+        false,
+        false,
+        false,
+        Ogre::PM_SOLID,
+        0.0f);
+    if (fillMaterial.isNull())
+    {
+        return false;
+    }
+
+    const Ogre::ColourValue outlineColour(0.0f, 1.0f, 1.0f, 1.0f);
+    const Ogre::MaterialPtr outlineMaterial = EnsureTintOverlayMaterial(
+        kTintOverlayOutlineMaterialName,
+        outlineColour,
+        true,
+        false,
+        false,
+        Ogre::PM_SOLID,
+        0.0f);
+    if (outlineMaterial.isNull())
+    {
+        return false;
+    }
+
+    const Ogre::ColourValue depthOutlineColour(0.2f, 1.0f, 0.1f, 1.0f);
+    const Ogre::MaterialPtr depthOutlineMaterial = EnsureTintOverlayMaterial(
+        kTintOverlayDepthOutlineMaterialName,
+        depthOutlineColour,
+        true,
+        true,
+        false,
+        Ogre::PM_SOLID,
+        2.0f);
+    return !depthOutlineMaterial.isNull();
+}
+
+void BuildTintOverlayGeometry(Ogre::ManualObject* manualObject)
+{
+    if (manualObject == 0)
+    {
+        return;
+    }
+
+    manualObject->clear();
+    manualObject->setDynamic(true);
+    manualObject->estimateVertexCount(24);
+    manualObject->estimateIndexCount(84);
+    manualObject->begin(kTintOverlayFillMaterialName, Ogre::RenderOperation::OT_TRIANGLE_LIST);
+
+    const Ogre::Vector3 vertices[8] = {
+        Ogre::Vector3(-0.5f, -0.5f, -0.5f),
+        Ogre::Vector3( 0.5f, -0.5f, -0.5f),
+        Ogre::Vector3( 0.5f,  0.5f, -0.5f),
+        Ogre::Vector3(-0.5f,  0.5f, -0.5f),
+        Ogre::Vector3(-0.5f, -0.5f,  0.5f),
+        Ogre::Vector3( 0.5f, -0.5f,  0.5f),
+        Ogre::Vector3( 0.5f,  0.5f,  0.5f),
+        Ogre::Vector3(-0.5f,  0.5f,  0.5f)
+    };
+    for (size_t i = 0; i < 8; ++i)
+    {
+        manualObject->position(vertices[i]);
+    }
+
+    const unsigned int indices[] = {
+        0, 1, 2, 0, 2, 3,
+        4, 6, 5, 4, 7, 6,
+        0, 4, 5, 0, 5, 1,
+        3, 2, 6, 3, 6, 7,
+        1, 5, 6, 1, 6, 2,
+        0, 3, 7, 0, 7, 4
+    };
+    for (size_t i = 0; i < (sizeof(indices) / sizeof(indices[0])); ++i)
+    {
+        manualObject->index(indices[i]);
+    }
+
+    manualObject->end();
+    manualObject->begin(kTintOverlayOutlineMaterialName, Ogre::RenderOperation::OT_LINE_LIST);
+    for (size_t i = 0; i < 8; ++i)
+    {
+        manualObject->position(vertices[i]);
+    }
+
+    const unsigned int lineIndices[] = {
+        0, 1, 1, 2, 2, 3, 3, 0,
+        4, 5, 5, 6, 6, 7, 7, 4,
+        0, 4, 1, 5, 2, 6, 3, 7
+    };
+    for (size_t i = 0; i < (sizeof(lineIndices) / sizeof(lineIndices[0])); ++i)
+    {
+        manualObject->index(lineIndices[i]);
+    }
+
+    manualObject->end();
+    manualObject->begin(kTintOverlayDepthOutlineMaterialName, Ogre::RenderOperation::OT_LINE_LIST);
+    for (size_t i = 0; i < 8; ++i)
+    {
+        manualObject->position(vertices[i]);
+    }
+
+    for (size_t i = 0; i < (sizeof(lineIndices) / sizeof(lineIndices[0])); ++i)
+    {
+        manualObject->index(lineIndices[i]);
+    }
+
+    manualObject->end();
+    manualObject->setRenderQueueGroup(kTintOverlayRenderQueueGroup);
+}
+
+void ClearTintOverlayBinding(TintOverlayBinding* binding)
+{
+    if (binding == 0)
+    {
+        return;
+    }
+
+    if (binding->sceneNode != 0)
+    {
+        try
+        {
+            binding->sceneNode->detachAllObjects();
+        }
+        catch (...)
+        {
+        }
+    }
+
+    if (binding->sceneManager != 0 && binding->manualObject != 0)
+    {
+        try
+        {
+            binding->sceneManager->destroyManualObject(binding->manualObject);
+        }
+        catch (...)
+        {
+        }
+    }
+
+    if (binding->sceneManager != 0 && binding->sceneNode != 0)
+    {
+        try
+        {
+            binding->sceneManager->destroySceneNode(binding->sceneNode);
+        }
+        catch (...)
+        {
+        }
+    }
+
+    binding->sceneManager = 0;
+    binding->sceneNode = 0;
+    binding->manualObject = 0;
+}
+
+bool ApplyTintOverlayBinding(
+    Ogre::SceneManager* sceneManager,
+    const Ogre::Vector3& center,
+    const Ogre::Vector3& size,
+    TintOverlayBinding* binding,
+    const char** outcomeOut)
+{
+    if (outcomeOut != 0)
+    {
+        *outcomeOut = "unknown";
+    }
+
+    if (sceneManager == 0 || binding == 0)
+    {
+        if (outcomeOut != 0)
+        {
+            *outcomeOut = "scene_manager_null";
+        }
+        return false;
+    }
+
+    if (!EnsureTintOverlayMaterials())
+    {
+        if (outcomeOut != 0)
+        {
+            *outcomeOut = "material_missing";
+        }
+        return false;
+    }
+
+    if (binding->sceneManager != sceneManager || binding->sceneNode == 0 || binding->manualObject == 0)
+    {
+        ClearTintOverlayBinding(binding);
+
+        try
+        {
+            binding->sceneManager = sceneManager;
+            binding->manualObject = sceneManager->createManualObject(Ogre::SCENE_DYNAMIC);
+            binding->manualObject->setCastShadows(false);
+            binding->manualObject->setRenderingDistance(0.0f);
+            binding->manualObject->setQueryFlags(0);
+            BuildTintOverlayGeometry(binding->manualObject);
+            binding->sceneNode = sceneManager->getRootSceneNode(Ogre::SCENE_DYNAMIC)->createChildSceneNode(Ogre::SCENE_DYNAMIC);
+            binding->sceneNode->attachObject(binding->manualObject);
+        }
+        catch (...)
+        {
+            ClearTintOverlayBinding(binding);
+            if (outcomeOut != 0)
+            {
+                *outcomeOut = "create_failed";
+            }
+            return false;
+        }
+    }
+
+    try
+    {
+        Ogre::Vector3 diagnosticSize = size * kTintOverlayDiagnosticScaleMultiplier;
+        diagnosticSize.x = std::max(diagnosticSize.x, 4.0f);
+        diagnosticSize.y = std::max(diagnosticSize.y, 4.0f);
+        diagnosticSize.z = std::max(diagnosticSize.z, 4.0f);
+        Ogre::Vector3 diagnosticCenter = center;
+        diagnosticCenter.y += (size.y * kTintOverlayDiagnosticYOffsetMultiplier) + 2.0f;
+        binding->sceneNode->setPosition(diagnosticCenter);
+        binding->sceneNode->setScale(diagnosticSize);
+        binding->manualObject->setVisible(true);
+        if (outcomeOut != 0)
+        {
+            *outcomeOut = "applied";
+        }
+        return true;
+    }
+    catch (...)
+    {
+        ClearTintOverlayBinding(binding);
+        if (outcomeOut != 0)
+        {
+            *outcomeOut = "apply_failed";
+        }
+        return false;
+    }
+}
+
 void ClearTintBinding(TintEntityBinding* binding)
 {
     if (binding == 0)
@@ -3834,6 +4431,8 @@ void ClearTintEntry(ContainerTintEntry* entry)
         ClearTintBatchBinding(&entry->batchBindings[i]);
     }
     entry->batchBindings.clear();
+
+    ClearTintOverlayBinding(&entry->overlayBinding);
 }
 
 int FindTintEntryByHandle(const hand& targetHandle)
@@ -4075,15 +4674,7 @@ void SyncTint()
         return;
     }
 
-    const DWORD nowMs = GetTickCount();
-    const bool emitTintInvestigation =
-        ShouldLogDebug()
-        && (g_state.lastTintDebugLogTickMs == 0 || (nowMs - g_state.lastTintDebugLogTickMs) >= 1000);
-    if (emitTintInvestigation)
-    {
-        g_state.lastTintDebugLogTickMs = nowMs;
-    }
-
+    const bool emitTintInvestigation = ShouldEmitTintInvestigation();
     std::vector<hand> activeHandles;
     for (size_t targetIndex = 0; targetIndex < g_state.targetCache.size(); ++targetIndex)
     {
@@ -4091,17 +4682,16 @@ void SyncTint()
         std::vector<Ogre::Entity*> entities;
         std::vector<Ogre::InstanceBatch*> batches;
         CollectTintTargetsForTarget(targetHandle, &entities, &batches);
-        if (entities.empty() && batches.empty())
+        Ogre::SceneManager* overlaySceneManager = 0;
+        Ogre::Vector3 overlayCenter = Ogre::Vector3::ZERO;
+        Ogre::Vector3 overlaySize = Ogre::Vector3::ZERO;
+        const bool hasOverlayBounds = TryGetTintOverlayBoundsForTarget(
+            targetHandle,
+            &overlaySceneManager,
+            &overlayCenter,
+            &overlaySize);
+        if (entities.empty() && batches.empty() && !hasOverlayBounds)
         {
-            if (emitTintInvestigation)
-            {
-                LogTintEntityCollectionInvestigation(targetHandle);
-                std::stringstream line;
-                line << "[investigate][tint] target="
-                     << targetHandle.type << ":" << targetHandle.index << ":" << targetHandle.serial
-                     << " entities=0 batches=0 applied=false";
-                LogDebugLine(line.str());
-            }
             continue;
         }
 
@@ -4164,7 +4754,24 @@ void SyncTint()
             }
         }
 
-        if (appliedAny)
+        bool overlayApplied = false;
+        const char* overlayOutcome = "not_attempted";
+        if (!appliedAny && hasOverlayBounds)
+        {
+            overlayApplied = ApplyTintOverlayBinding(
+                overlaySceneManager,
+                overlayCenter,
+                overlaySize,
+                &tintEntry.overlayBinding,
+                &overlayOutcome);
+        }
+        else
+        {
+            ClearTintOverlayBinding(&tintEntry.overlayBinding);
+            overlayOutcome = appliedAny ? "skipped_direct_tint" : "no_bounds";
+        }
+
+        if (appliedAny || overlayApplied)
         {
             activeHandles.push_back(tintEntry.targetHandle);
         }
@@ -4172,11 +4779,25 @@ void SyncTint()
         if (emitTintInvestigation)
         {
             std::stringstream line;
-            line << "[investigate][tint] target="
+            line << "[investigate][tint_overlay] target="
                  << targetHandle.type << ":" << targetHandle.index << ":" << targetHandle.serial
+                 << " name=\"" << RootObjectDisplayNameForLog(static_cast<RootObject*>(targetHandle.getBuilding())) << "\""
                  << " entities=" << entities.size()
                  << " batches=" << batches.size()
-                 << " applied=" << (appliedAny ? "true" : "false");
+                 << " direct=" << (appliedAny ? 1 : 0)
+                 << " bounds=" << (hasOverlayBounds ? 1 : 0)
+                 << " scene_manager=" << (overlaySceneManager != 0 ? 1 : 0)
+                 << " overlay=" << (overlayApplied ? 1 : 0)
+                 << " overlay_result=" << overlayOutcome
+                 << " node=" << (tintEntry.overlayBinding.sceneNode != 0 ? 1 : 0)
+                 << " manual=" << (tintEntry.overlayBinding.manualObject != 0 ? 1 : 0);
+            if (hasOverlayBounds)
+            {
+                line << " center=("
+                     << overlayCenter.x << "," << overlayCenter.y << "," << overlayCenter.z << ")"
+                     << " size=("
+                     << overlaySize.x << "," << overlaySize.y << "," << overlaySize.z << ")";
+            }
             LogDebugLine(line.str());
         }
     }
