@@ -3,9 +3,13 @@
 #include <core/Functions.h>
 #include <emc/mod_hub_client.h>
 #include <emc/mod_hub_consumer_helpers.h>
+#include <kenshi/Character.h>
+#include <kenshi/GameWorld.h>
+#include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/Platoon.h>
 
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
@@ -43,6 +47,7 @@ const OIS::KeyCode kDumpHoveredWidgetHotkey = OIS::KC_F7;
 const OIS::KeyCode kDumpPortraitBarTreeHotkey = OIS::KC_F8;
 const OIS::KeyCode kDumpPortraitCandidatesHotkey = OIS::KC_F9;
 const OIS::KeyCode kMarkHoveredPortraitHotkey = OIS::KC_F10;
+const OIS::KeyCode kDumpSelectedSquadMembersHotkey = OIS::KC_F11;
 
 const DWORD kHoveredMarkerLifetimeMs = 1500;
 const int kHoveredMarkerInsetPx = 2;
@@ -492,6 +497,51 @@ std::string FormatFloat2(float value)
     std::ostringstream line;
     line << std::fixed << std::setprecision(2) << value;
     return line.str();
+}
+
+std::string SafeCharacterName(Character* character)
+{
+    if (character == 0)
+    {
+        return "";
+    }
+
+    if (!character->displayName.empty())
+    {
+        return character->displayName;
+    }
+
+    return character->getName();
+}
+
+std::string SafePlatoonName(Platoon* platoon)
+{
+    if (platoon == 0)
+    {
+        return "";
+    }
+
+    return platoon->getName();
+}
+
+std::string SafeHandleString(const hand& value)
+{
+    if (!value.isValid())
+    {
+        return "";
+    }
+
+    return value.toString();
+}
+
+bool TryIsCharacterSelected(PlayerInterface* player, Character* character)
+{
+    if (player == 0 || character == 0)
+    {
+        return false;
+    }
+
+    return player->isObjectSelected(character);
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)
@@ -1234,6 +1284,146 @@ void DumpPortraitCandidatesProbe(const char* reason)
     EndProbeLogging();
 }
 
+void DumpSelectedSquadMembersProbeImpl(const char* reason)
+{
+    if (ou == 0 || ou->player == 0)
+    {
+        LogProbeRecord(
+            "dump_selected_squad_members",
+            "summary",
+            "status=no_player_interface reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    PlayerInterface* player = ou->player;
+    Character* selectedCharacter = player->selectedCharacter.getCharacter();
+    Platoon* targetPlatoon = player->getCurrentPlatoon();
+    ActivePlatoon* targetActivePlatoon = targetPlatoon == 0 ? 0 : targetPlatoon->activePlatoon;
+    const char* scope = "current_platoon";
+
+    if (targetPlatoon == 0 && selectedCharacter != 0 && selectedCharacter->platoon != 0)
+    {
+        targetActivePlatoon = selectedCharacter->platoon;
+        targetPlatoon = targetActivePlatoon == 0 ? 0 : targetActivePlatoon->me;
+        scope = "selected_character_platoon";
+    }
+
+    if (targetPlatoon == 0)
+    {
+        scope = "all_player_characters";
+    }
+
+    const lektor<Character*>& allPlayerCharacters = player->getAllPlayerCharacters();
+    size_t scopedMemberCount = 0u;
+    int selectedScopeIndex = -1;
+    for (uint32_t rawIndex = 0u; rawIndex < allPlayerCharacters.size(); ++rawIndex)
+    {
+        Character* candidate = allPlayerCharacters[rawIndex];
+        if (candidate == 0)
+        {
+            continue;
+        }
+
+        Platoon* candidatePlatoon = candidate->platoon == 0 ? 0 : candidate->platoon->me;
+        if (targetPlatoon != 0 && candidatePlatoon != targetPlatoon)
+        {
+            continue;
+        }
+
+        if (candidate == selectedCharacter)
+        {
+            selectedScopeIndex = static_cast<int>(scopedMemberCount);
+        }
+
+        ++scopedMemberCount;
+    }
+
+    std::stringstream summary;
+    summary << "status=" << (scopedMemberCount == 0u ? "no_members" : "ok")
+            << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
+            << " scope=" << QuoteForLog(scope)
+            << " player_pointer=" << QuoteForLog(FormatPointer(player))
+            << " selected_character_pointer=" << QuoteForLog(FormatPointer(selectedCharacter))
+            << " selected_character_handle=" << QuoteForLog(SafeHandleString(player->selectedCharacter))
+            << " selected_character_name=" << QuoteForLog(SafeCharacterName(selectedCharacter))
+            << " selected_scope_index=" << selectedScopeIndex
+            << " target_platoon_pointer=" << QuoteForLog(FormatPointer(targetPlatoon))
+            << " target_platoon_name=" << QuoteForLog(SafePlatoonName(targetPlatoon))
+            << " target_active_platoon_pointer=" << QuoteForLog(FormatPointer(targetActivePlatoon))
+            << " target_platoon_index=" << (targetPlatoon == 0 ? -1 : static_cast<int>(targetPlatoon->index))
+            << " target_squad_type=" << (targetPlatoon == 0 ? -1 : static_cast<int>(targetPlatoon->squadType))
+            << " all_player_character_count=" << allPlayerCharacters.size()
+            << " scoped_member_count=" << scopedMemberCount
+            << " platoon_character_count_hint=" << (targetPlatoon == 0 ? -1 : targetPlatoon->getCharacterCount())
+            << " squad_size_hint=" << (targetActivePlatoon == 0 ? -1 : targetActivePlatoon->getSquadSize());
+    LogProbeRecord("dump_selected_squad_members", "summary", summary.str());
+
+    if (scopedMemberCount == 0u)
+    {
+        return;
+    }
+
+    size_t scopedIndex = 0u;
+    for (uint32_t rawIndex = 0u; rawIndex < allPlayerCharacters.size(); ++rawIndex)
+    {
+        Character* candidate = allPlayerCharacters[rawIndex];
+        if (candidate == 0)
+        {
+            continue;
+        }
+
+        ActivePlatoon* candidateActivePlatoon = candidate->platoon;
+        Platoon* candidatePlatoon = candidateActivePlatoon == 0 ? 0 : candidateActivePlatoon->me;
+        if (targetPlatoon != 0 && candidatePlatoon != targetPlatoon)
+        {
+            continue;
+        }
+
+        std::stringstream payload;
+        payload << "index=" << scopedIndex
+                << " raw_index=" << rawIndex
+                << " character_pointer=" << QuoteForLog(FormatPointer(candidate))
+                << " character_handle=" << QuoteForLog(SafeHandleString(candidate->handle))
+                << " name=" << QuoteForLog(SafeCharacterName(candidate))
+                << " active_selected=" << FormatBool(candidate == selectedCharacter)
+                << " currently_selected=" << FormatBool(TryIsCharacterSelected(player, candidate))
+                << " active_platoon_pointer=" << QuoteForLog(FormatPointer(candidateActivePlatoon))
+                << " platoon_pointer=" << QuoteForLog(FormatPointer(candidatePlatoon))
+                << " platoon_name=" << QuoteForLog(SafePlatoonName(candidatePlatoon))
+                << " platoon_index=" << (candidatePlatoon == 0 ? -1 : static_cast<int>(candidatePlatoon->index))
+                << " squad_type=" << (candidatePlatoon == 0 ? -1 : static_cast<int>(candidatePlatoon->squadType))
+                << " squad_member_id=" << candidate->squadMemberID
+                << " portrait_index=" << static_cast<int>(candidate->portraitIndex)
+                << " current_scope_match=" << FormatBool(targetPlatoon == 0 || candidatePlatoon == targetPlatoon);
+        LogProbeRecord("dump_selected_squad_members", "member", payload.str());
+        ++scopedIndex;
+    }
+}
+
+bool TryDumpSelectedSquadMembersProbeSeh(const char* reason)
+{
+    __try
+    {
+        DumpSelectedSquadMembersProbeImpl(reason);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void DumpSelectedSquadMembersProbe(const char* reason)
+{
+    EnsureActiveProbeSession(reason);
+    BeginProbeLogging();
+    if (!TryDumpSelectedSquadMembersProbeSeh(reason))
+    {
+        LogProbeRecord("dump_selected_squad_members", "exception", "status=seh_guard");
+    }
+    EndProbeLogging();
+}
+
 bool EnsureHoveredMarkerWidget()
 {
     if (g_hoveredMarkerWidget != 0)
@@ -1477,6 +1667,12 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
             MarkHoveredPortraitProbe("manual_hotkey");
             return;
         }
+
+        if (keyCode == kDumpSelectedSquadMembersHotkey)
+        {
+            DumpSelectedSquadMembersProbe("manual_hotkey");
+            return;
+        }
     }
 
     if (InputHandler_keyDownEvent_orig != 0)
@@ -1539,7 +1735,7 @@ __declspec(dllexport) void startPlugin()
     if (g_enabled)
     {
         LogInfoLine(
-            "phase 1 probes ready: start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10");
+            "probe hotkeys ready: start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11");
     }
     else
     {
