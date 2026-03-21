@@ -18,5 +18,8 @@
     <ClCompile Include="Vital-Read.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
