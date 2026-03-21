@@ -61,8 +61,10 @@ When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch 
 Probe hotkeys are manual and quiet by default.
 
 - `Ctrl+Alt+F6`: start a new probe session
+- `Ctrl+Alt+F5`: place a temporary marker on the first strictly unconscious matched portrait
 - `Ctrl+Alt+F7`: dump hovered widget + parent chain
 - `Ctrl+Alt+F8`: dump the hovered root widget subtree as the current portrait-bar tree probe
 - `Ctrl+Alt+F9`: dump portrait-like widget candidates across visible MyGUI roots
 - `Ctrl+Alt+F10`: place a temporary hovered-portrait debug marker when confidence is high enough
 - `Ctrl+Alt+F11`: dump the currently scoped squad members from the player/member side
+- `Ctrl+Alt+F12`: dump the currently scoped squad member states

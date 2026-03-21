@@ -43,11 +43,13 @@ const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 
 const OIS::KeyCode kProbeNewSessionHotkey = OIS::KC_F6;
+const OIS::KeyCode kMarkStateMatchedPortraitHotkey = OIS::KC_F5;
 const OIS::KeyCode kDumpHoveredWidgetHotkey = OIS::KC_F7;
 const OIS::KeyCode kDumpPortraitBarTreeHotkey = OIS::KC_F8;
 const OIS::KeyCode kDumpPortraitCandidatesHotkey = OIS::KC_F9;
 const OIS::KeyCode kMarkHoveredPortraitHotkey = OIS::KC_F10;
 const OIS::KeyCode kDumpSelectedSquadMembersHotkey = OIS::KC_F11;
+const OIS::KeyCode kDumpMemberStatesHotkey = OIS::KC_F12;
 
 const DWORD kHoveredMarkerLifetimeMs = 1500;
 const int kHoveredMarkerInsetPx = 2;
@@ -117,6 +119,73 @@ struct PortraitCandidateRecord
     bool inheritedVisible;
     size_t childCount;
 };
+
+struct SquadProbeScope
+{
+    SquadProbeScope()
+        : player(0)
+        , selectedCharacter(0)
+        , targetPlatoon(0)
+        , targetActivePlatoon(0)
+        , allPlayerCharacters(0)
+        , scope("current_platoon")
+    {
+    }
+
+    PlayerInterface* player;
+    Character* selectedCharacter;
+    Platoon* targetPlatoon;
+    ActivePlatoon* targetActivePlatoon;
+    const lektor<Character*>* allPlayerCharacters;
+    const char* scope;
+};
+
+struct MemberStateSnapshot
+{
+    MemberStateSnapshot()
+        : proneState(PS_NORMAL)
+        , dead(false)
+        , unconscious(false)
+        , playingDead(false)
+        , dying(false)
+        , recoveryComa(false)
+        , medicalUnconcious(false)
+        , koProne(false)
+        , probablyDying(false)
+        , bloodlossTrauma(false)
+        , sub50KO(false)
+        , canGetUpWakeUp(false)
+        , blood(0.0f)
+        , pointOfNoReturn(0.0f)
+        , currentBleedRate(0.0f)
+        , extraBloodLoss(0.0f)
+        , knockoutTimer(0.0f)
+        , stateLabel("awake")
+    {
+    }
+
+    ProneState proneState;
+    bool dead;
+    bool unconscious;
+    bool playingDead;
+    bool dying;
+    bool recoveryComa;
+    bool medicalUnconcious;
+    bool koProne;
+    bool probablyDying;
+    bool bloodlossTrauma;
+    bool sub50KO;
+    bool canGetUpWakeUp;
+    float blood;
+    float pointOfNoReturn;
+    float currentBleedRate;
+    float extraBloodLoss;
+    float knockoutTimer;
+    const char* stateLabel;
+};
+
+bool EnsureHoveredMarkerWidget();
+void HideHoveredMarker();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
 {
@@ -542,6 +611,145 @@ bool TryIsCharacterSelected(PlayerInterface* player, Character* character)
     }
 
     return player->isObjectSelected(character);
+}
+
+bool TryResolveSquadProbeScope(SquadProbeScope* outScope)
+{
+    if (outScope == 0 || ou == 0 || ou->player == 0)
+    {
+        return false;
+    }
+
+    SquadProbeScope scope;
+    scope.player = ou->player;
+    scope.selectedCharacter = scope.player->selectedCharacter.getCharacter();
+    scope.targetPlatoon = scope.player->getCurrentPlatoon();
+    scope.targetActivePlatoon = scope.targetPlatoon == 0 ? 0 : scope.targetPlatoon->activePlatoon;
+    scope.scope = "current_platoon";
+
+    if (scope.targetPlatoon == 0 && scope.selectedCharacter != 0 && scope.selectedCharacter->platoon != 0)
+    {
+        scope.targetActivePlatoon = scope.selectedCharacter->platoon;
+        scope.targetPlatoon = scope.targetActivePlatoon == 0 ? 0 : scope.targetActivePlatoon->me;
+        scope.scope = "selected_character_platoon";
+    }
+
+    if (scope.targetPlatoon == 0)
+    {
+        scope.scope = "all_player_characters";
+    }
+
+    scope.allPlayerCharacters = &scope.player->getAllPlayerCharacters();
+    *outScope = scope;
+    return true;
+}
+
+bool CharacterMatchesSquadProbeScope(const SquadProbeScope& scope, Character* candidate)
+{
+    if (candidate == 0)
+    {
+        return false;
+    }
+
+    Platoon* candidatePlatoon = candidate->platoon == 0 ? 0 : candidate->platoon->me;
+    return scope.targetPlatoon == 0 || candidatePlatoon == scope.targetPlatoon;
+}
+
+size_t CountScopedSquadMembers(const SquadProbeScope& scope, int* selectedScopeIndexOut)
+{
+    if (selectedScopeIndexOut != 0)
+    {
+        *selectedScopeIndexOut = -1;
+    }
+
+    if (scope.allPlayerCharacters == 0)
+    {
+        return 0u;
+    }
+
+    size_t scopedCount = 0u;
+    for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+    {
+        Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+        if (!CharacterMatchesSquadProbeScope(scope, candidate))
+        {
+            continue;
+        }
+
+        if (selectedScopeIndexOut != 0 && candidate == scope.selectedCharacter)
+        {
+            *selectedScopeIndexOut = static_cast<int>(scopedCount);
+        }
+
+        ++scopedCount;
+    }
+
+    return scopedCount;
+}
+
+bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* outSnapshot)
+{
+    if (candidate == 0 || outSnapshot == 0)
+    {
+        return false;
+    }
+
+    MemberStateSnapshot snapshot;
+    snapshot.proneState = candidate->_currentProneState;
+    snapshot.dead = candidate->isDead() || candidate->medical.isDead() || candidate->medical.dead;
+    snapshot.medicalUnconcious = candidate->medical.unconcious;
+    snapshot.koProne = (snapshot.proneState == PS_KO);
+    snapshot.unconscious = candidate->isUnconcious() || snapshot.medicalUnconcious || snapshot.koProne;
+    snapshot.playingDead = (snapshot.proneState == PS_PLAYING_DEAD);
+    snapshot.probablyDying = candidate->medical.isProbablyDying();
+    snapshot.bloodlossTrauma = candidate->medical.isInBloodlossTrauma();
+    snapshot.sub50KO = candidate->medical.sub50KO;
+    snapshot.blood = candidate->medical.blood;
+    snapshot.pointOfNoReturn = candidate->medical.pointOfNoReturn();
+    snapshot.currentBleedRate = candidate->medical.currentBleedRate;
+    snapshot.extraBloodLoss = candidate->medical.extraBloodLossFromBodyparts;
+    snapshot.knockoutTimer = candidate->medical.knockoutTimer;
+    snapshot.canGetUpWakeUp = candidate->medical.canGetUpWakeUp();
+
+    const bool dyingByBloodThreshold = (snapshot.blood <= snapshot.pointOfNoReturn);
+    const bool dyingByActiveBleed =
+        snapshot.probablyDying
+        && (snapshot.currentBleedRate > 0.0f || snapshot.extraBloodLoss > 0.0f);
+    snapshot.recoveryComa =
+        !snapshot.canGetUpWakeUp
+        && snapshot.sub50KO
+        && snapshot.knockoutTimer <= 0.0f
+        && !snapshot.probablyDying
+        && !dyingByBloodThreshold
+        && !snapshot.bloodlossTrauma
+        && !dyingByActiveBleed;
+
+    snapshot.dying =
+        !snapshot.dead
+        && snapshot.unconscious
+        && !snapshot.playingDead
+        && !snapshot.recoveryComa
+        && (dyingByBloodThreshold || snapshot.sub50KO);
+
+    if (snapshot.dead)
+    {
+        snapshot.stateLabel = "dead";
+    }
+    else if (snapshot.dying)
+    {
+        snapshot.stateLabel = "dying";
+    }
+    else if (snapshot.playingDead)
+    {
+        snapshot.stateLabel = "playing_dead";
+    }
+    else if (snapshot.unconscious)
+    {
+        snapshot.stateLabel = snapshot.recoveryComa ? "recovery_coma" : "unconscious";
+    }
+
+    *outSnapshot = snapshot;
+    return true;
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)
@@ -1186,12 +1394,133 @@ bool PortraitCandidateSortPredicate(const PortraitCandidateRecord& left, const P
     return reinterpret_cast<size_t>(left.widget) < reinterpret_cast<size_t>(right.widget);
 }
 
+bool TryCollectPortraitCandidates(
+    MyGUI::Widget* hoveredWidget,
+    std::vector<PortraitCandidateRecord>* outCandidates,
+    size_t* outVisibleRootCount,
+    size_t* outScannedNodes)
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0 || outCandidates == 0 || outVisibleRootCount == 0 || outScannedNodes == 0)
+    {
+        return false;
+    }
+
+    *outVisibleRootCount = 0u;
+    *outScannedNodes = 0u;
+    outCandidates->clear();
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next() && *outScannedNodes < kPortraitCandidateScanLimit)
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        ++(*outVisibleRootCount);
+        CollectPortraitCandidatesRecursive(root, hoveredWidget, outCandidates, outScannedNodes);
+    }
+
+    std::stable_sort(outCandidates->begin(), outCandidates->end(), PortraitCandidateSortPredicate);
+    return true;
+}
+
+bool IsVisibleDisplayPortraitCandidate(const PortraitCandidateRecord& candidate)
+{
+    if (candidate.widget == 0 || !candidate.inheritedVisible)
+    {
+        return false;
+    }
+
+    if (candidate.typeName != "ImageBox" || !IsPortraitSizedCoord(candidate.absoluteCoord))
+    {
+        return false;
+    }
+
+    if (ContainsAsciiCaseInsensitive(candidate.name, "portraitimage"))
+    {
+        return true;
+    }
+
+    return candidate.score >= 0.95f
+        && ContainsAsciiCaseInsensitive(candidate.reason, "portrait_token");
+}
+
+void CollectDisplayPortraitCandidates(
+    const std::vector<PortraitCandidateRecord>& allCandidates,
+    std::vector<PortraitCandidateRecord>* outDisplayPortraits)
+{
+    if (outDisplayPortraits == 0)
+    {
+        return;
+    }
+
+    outDisplayPortraits->clear();
+    for (size_t index = 0u; index < allCandidates.size(); ++index)
+    {
+        const PortraitCandidateRecord& candidate = allCandidates[index];
+        if (IsVisibleDisplayPortraitCandidate(candidate))
+        {
+            outDisplayPortraits->push_back(candidate);
+        }
+    }
+
+    std::stable_sort(outDisplayPortraits->begin(), outDisplayPortraits->end(), PortraitCandidateSortPredicate);
+}
+
+bool PlaceProbeMarkerAtPortrait(
+    const PortraitCandidateRecord& target,
+    MyGUI::IntCoord* outMarkerBounds)
+{
+    if (target.widget == 0 || !EnsureHoveredMarkerWidget())
+    {
+        return false;
+    }
+
+    const int smallerSide = target.absoluteCoord.width < target.absoluteCoord.height
+        ? target.absoluteCoord.width
+        : target.absoluteCoord.height;
+    const int markerSize = ClampInt(
+        smallerSide / 4,
+        kHoveredMarkerMinSizePx,
+        kHoveredMarkerMaxSizePx);
+
+    MyGUI::IntSize viewSize(0, 0);
+    const bool haveViewSize = TryGetViewSize(&viewSize);
+
+    int markerLeft = target.absoluteCoord.left + kHoveredMarkerInsetPx;
+    int markerTop = target.absoluteCoord.top + target.absoluteCoord.height - markerSize - kHoveredMarkerInsetPx;
+    if (haveViewSize)
+    {
+        const int maxLeft = viewSize.width - markerSize > 0 ? viewSize.width - markerSize : 0;
+        const int maxTop = viewSize.height - markerSize > 0 ? viewSize.height - markerSize : 0;
+        markerLeft = ClampInt(markerLeft, 0, maxLeft);
+        markerTop = ClampInt(markerTop, 0, maxTop);
+    }
+
+    const MyGUI::IntCoord markerBounds(markerLeft, markerTop, markerSize, markerSize);
+    g_hoveredMarkerWidget->setCoord(markerBounds);
+    g_hoveredMarkerWidget->setVisible(true);
+    g_hoveredMarkerExpireTick = GetTickCount() + kHoveredMarkerLifetimeMs;
+
+    if (outMarkerBounds != 0)
+    {
+        *outMarkerBounds = markerBounds;
+    }
+
+    return true;
+}
+
 void DumpPortraitCandidatesProbeImpl(const char* reason)
 {
     HoverContext hover;
     const bool hoverAvailable = TryGetHoverContext(&hover);
-    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui == 0)
+    std::vector<PortraitCandidateRecord> candidates;
+    size_t visibleRootCount = 0u;
+    size_t scannedNodes = 0u;
+    if (!TryCollectPortraitCandidates(hover.hoveredWidget, &candidates, &visibleRootCount, &scannedNodes))
     {
         LogProbeRecord(
             "dump_portrait_candidates",
@@ -1202,25 +1531,6 @@ void DumpPortraitCandidatesProbeImpl(const char* reason)
 
     MyGUI::IntSize viewSize(0, 0);
     const bool haveViewSize = TryGetViewSize(&viewSize);
-
-    size_t visibleRootCount = 0u;
-    size_t scannedNodes = 0u;
-    std::vector<PortraitCandidateRecord> candidates;
-
-    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
-    while (roots.next() && scannedNodes < kPortraitCandidateScanLimit)
-    {
-        MyGUI::Widget* root = roots.current();
-        if (root == 0 || !root->getInheritedVisible())
-        {
-            continue;
-        }
-
-        ++visibleRootCount;
-        CollectPortraitCandidatesRecursive(root, hover.hoveredWidget, &candidates, &scannedNodes);
-    }
-
-    std::stable_sort(candidates.begin(), candidates.end(), PortraitCandidateSortPredicate);
 
     std::stringstream header;
     header << "status=ok"
@@ -1286,7 +1596,8 @@ void DumpPortraitCandidatesProbe(const char* reason)
 
 void DumpSelectedSquadMembersProbeImpl(const char* reason)
 {
-    if (ou == 0 || ou->player == 0)
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
     {
         LogProbeRecord(
             "dump_selected_squad_members",
@@ -1295,89 +1606,45 @@ void DumpSelectedSquadMembersProbeImpl(const char* reason)
         return;
     }
 
-    PlayerInterface* player = ou->player;
-    Character* selectedCharacter = player->selectedCharacter.getCharacter();
-    Platoon* targetPlatoon = player->getCurrentPlatoon();
-    ActivePlatoon* targetActivePlatoon = targetPlatoon == 0 ? 0 : targetPlatoon->activePlatoon;
-    const char* scope = "current_platoon";
-
-    if (targetPlatoon == 0 && selectedCharacter != 0 && selectedCharacter->platoon != 0)
-    {
-        targetActivePlatoon = selectedCharacter->platoon;
-        targetPlatoon = targetActivePlatoon == 0 ? 0 : targetActivePlatoon->me;
-        scope = "selected_character_platoon";
-    }
-
-    if (targetPlatoon == 0)
-    {
-        scope = "all_player_characters";
-    }
-
-    const lektor<Character*>& allPlayerCharacters = player->getAllPlayerCharacters();
-    size_t scopedMemberCount = 0u;
     int selectedScopeIndex = -1;
-    for (uint32_t rawIndex = 0u; rawIndex < allPlayerCharacters.size(); ++rawIndex)
-    {
-        Character* candidate = allPlayerCharacters[rawIndex];
-        if (candidate == 0)
-        {
-            continue;
-        }
-
-        Platoon* candidatePlatoon = candidate->platoon == 0 ? 0 : candidate->platoon->me;
-        if (targetPlatoon != 0 && candidatePlatoon != targetPlatoon)
-        {
-            continue;
-        }
-
-        if (candidate == selectedCharacter)
-        {
-            selectedScopeIndex = static_cast<int>(scopedMemberCount);
-        }
-
-        ++scopedMemberCount;
-    }
+    const size_t scopedMemberCount = CountScopedSquadMembers(scope, &selectedScopeIndex);
 
     std::stringstream summary;
     summary << "status=" << (scopedMemberCount == 0u ? "no_members" : "ok")
             << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
-            << " scope=" << QuoteForLog(scope)
-            << " player_pointer=" << QuoteForLog(FormatPointer(player))
-            << " selected_character_pointer=" << QuoteForLog(FormatPointer(selectedCharacter))
-            << " selected_character_handle=" << QuoteForLog(SafeHandleString(player->selectedCharacter))
-            << " selected_character_name=" << QuoteForLog(SafeCharacterName(selectedCharacter))
+            << " scope=" << QuoteForLog(scope.scope)
+            << " player_pointer=" << QuoteForLog(FormatPointer(scope.player))
+            << " selected_character_pointer=" << QuoteForLog(FormatPointer(scope.selectedCharacter))
+            << " selected_character_handle=" << QuoteForLog(SafeHandleString(scope.player->selectedCharacter))
+            << " selected_character_name=" << QuoteForLog(SafeCharacterName(scope.selectedCharacter))
             << " selected_scope_index=" << selectedScopeIndex
-            << " target_platoon_pointer=" << QuoteForLog(FormatPointer(targetPlatoon))
-            << " target_platoon_name=" << QuoteForLog(SafePlatoonName(targetPlatoon))
-            << " target_active_platoon_pointer=" << QuoteForLog(FormatPointer(targetActivePlatoon))
-            << " target_platoon_index=" << (targetPlatoon == 0 ? -1 : static_cast<int>(targetPlatoon->index))
-            << " target_squad_type=" << (targetPlatoon == 0 ? -1 : static_cast<int>(targetPlatoon->squadType))
-            << " all_player_character_count=" << allPlayerCharacters.size()
+            << " target_platoon_pointer=" << QuoteForLog(FormatPointer(scope.targetPlatoon))
+            << " target_platoon_name=" << QuoteForLog(SafePlatoonName(scope.targetPlatoon))
+            << " target_active_platoon_pointer=" << QuoteForLog(FormatPointer(scope.targetActivePlatoon))
+            << " target_platoon_index=" << (scope.targetPlatoon == 0 ? -1 : static_cast<int>(scope.targetPlatoon->index))
+            << " target_squad_type=" << (scope.targetPlatoon == 0 ? -1 : static_cast<int>(scope.targetPlatoon->squadType))
+            << " all_player_character_count=" << (scope.allPlayerCharacters == 0 ? 0 : scope.allPlayerCharacters->size())
             << " scoped_member_count=" << scopedMemberCount
-            << " platoon_character_count_hint=" << (targetPlatoon == 0 ? -1 : targetPlatoon->getCharacterCount())
-            << " squad_size_hint=" << (targetActivePlatoon == 0 ? -1 : targetActivePlatoon->getSquadSize());
+            << " platoon_character_count_hint=" << (scope.targetPlatoon == 0 ? -1 : scope.targetPlatoon->getCharacterCount())
+            << " squad_size_hint=" << (scope.targetActivePlatoon == 0 ? -1 : scope.targetActivePlatoon->getSquadSize());
     LogProbeRecord("dump_selected_squad_members", "summary", summary.str());
 
-    if (scopedMemberCount == 0u)
+    if (scopedMemberCount == 0u || scope.allPlayerCharacters == 0)
     {
         return;
     }
 
     size_t scopedIndex = 0u;
-    for (uint32_t rawIndex = 0u; rawIndex < allPlayerCharacters.size(); ++rawIndex)
+    for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
     {
-        Character* candidate = allPlayerCharacters[rawIndex];
-        if (candidate == 0)
+        Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+        if (!CharacterMatchesSquadProbeScope(scope, candidate))
         {
             continue;
         }
 
         ActivePlatoon* candidateActivePlatoon = candidate->platoon;
         Platoon* candidatePlatoon = candidateActivePlatoon == 0 ? 0 : candidateActivePlatoon->me;
-        if (targetPlatoon != 0 && candidatePlatoon != targetPlatoon)
-        {
-            continue;
-        }
 
         std::stringstream payload;
         payload << "index=" << scopedIndex
@@ -1385,8 +1652,8 @@ void DumpSelectedSquadMembersProbeImpl(const char* reason)
                 << " character_pointer=" << QuoteForLog(FormatPointer(candidate))
                 << " character_handle=" << QuoteForLog(SafeHandleString(candidate->handle))
                 << " name=" << QuoteForLog(SafeCharacterName(candidate))
-                << " active_selected=" << FormatBool(candidate == selectedCharacter)
-                << " currently_selected=" << FormatBool(TryIsCharacterSelected(player, candidate))
+                << " active_selected=" << FormatBool(candidate == scope.selectedCharacter)
+                << " currently_selected=" << FormatBool(TryIsCharacterSelected(scope.player, candidate))
                 << " active_platoon_pointer=" << QuoteForLog(FormatPointer(candidateActivePlatoon))
                 << " platoon_pointer=" << QuoteForLog(FormatPointer(candidatePlatoon))
                 << " platoon_name=" << QuoteForLog(SafePlatoonName(candidatePlatoon))
@@ -1394,7 +1661,7 @@ void DumpSelectedSquadMembersProbeImpl(const char* reason)
                 << " squad_type=" << (candidatePlatoon == 0 ? -1 : static_cast<int>(candidatePlatoon->squadType))
                 << " squad_member_id=" << candidate->squadMemberID
                 << " portrait_index=" << static_cast<int>(candidate->portraitIndex)
-                << " current_scope_match=" << FormatBool(targetPlatoon == 0 || candidatePlatoon == targetPlatoon);
+                << " current_scope_match=" << FormatBool(CharacterMatchesSquadProbeScope(scope, candidate));
         LogProbeRecord("dump_selected_squad_members", "member", payload.str());
         ++scopedIndex;
     }
@@ -1420,6 +1687,315 @@ void DumpSelectedSquadMembersProbe(const char* reason)
     if (!TryDumpSelectedSquadMembersProbeSeh(reason))
     {
         LogProbeRecord("dump_selected_squad_members", "exception", "status=seh_guard");
+    }
+    EndProbeLogging();
+}
+
+void DumpMemberStatesProbeImpl(const char* reason)
+{
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        LogProbeRecord(
+            "dump_member_states",
+            "summary",
+            "status=no_player_interface reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    int selectedScopeIndex = -1;
+    const size_t scopedMemberCount = CountScopedSquadMembers(scope, &selectedScopeIndex);
+    size_t deadCount = 0u;
+    size_t unconsciousCount = 0u;
+    size_t playingDeadCount = 0u;
+    size_t dyingCount = 0u;
+    size_t awakeCount = 0u;
+
+    if (scope.allPlayerCharacters != 0)
+    {
+        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+        {
+            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+            if (!CharacterMatchesSquadProbeScope(scope, candidate))
+            {
+                continue;
+            }
+
+            MemberStateSnapshot snapshot;
+            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
+            {
+                continue;
+            }
+
+            if (snapshot.dead)
+            {
+                ++deadCount;
+            }
+            else if (snapshot.dying)
+            {
+                ++dyingCount;
+            }
+            else if (snapshot.playingDead)
+            {
+                ++playingDeadCount;
+            }
+            else if (snapshot.unconscious)
+            {
+                ++unconsciousCount;
+            }
+            else
+            {
+                ++awakeCount;
+            }
+        }
+    }
+
+    std::stringstream summary;
+    summary << "status=" << (scopedMemberCount == 0u ? "no_members" : "ok")
+            << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
+            << " scope=" << QuoteForLog(scope.scope)
+            << " selected_scope_index=" << selectedScopeIndex
+            << " target_platoon_pointer=" << QuoteForLog(FormatPointer(scope.targetPlatoon))
+            << " target_platoon_name=" << QuoteForLog(SafePlatoonName(scope.targetPlatoon))
+            << " scoped_member_count=" << scopedMemberCount
+            << " unconscious_count=" << unconsciousCount
+            << " playing_dead_count=" << playingDeadCount
+            << " dying_count=" << dyingCount
+            << " dead_count=" << deadCount
+            << " awake_count=" << awakeCount;
+    LogProbeRecord("dump_member_states", "summary", summary.str());
+
+    if (scopedMemberCount == 0u || scope.allPlayerCharacters == 0)
+    {
+        return;
+    }
+
+    size_t scopedIndex = 0u;
+    for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+    {
+        Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+        if (!CharacterMatchesSquadProbeScope(scope, candidate))
+        {
+            continue;
+        }
+
+        MemberStateSnapshot snapshot;
+        if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
+        {
+            std::stringstream failurePayload;
+            failurePayload << "index=" << scopedIndex
+                           << " raw_index=" << rawIndex
+                           << " character_pointer=" << QuoteForLog(FormatPointer(candidate))
+                           << " status=state_read_failed";
+            LogProbeRecord(
+                "dump_member_states",
+                "member",
+                failurePayload.str());
+            ++scopedIndex;
+            continue;
+        }
+
+        std::stringstream payload;
+        payload << "index=" << scopedIndex
+                << " raw_index=" << rawIndex
+                << " character_pointer=" << QuoteForLog(FormatPointer(candidate))
+                << " character_handle=" << QuoteForLog(SafeHandleString(candidate->handle))
+                << " name=" << QuoteForLog(SafeCharacterName(candidate))
+                << " active_selected=" << FormatBool(candidate == scope.selectedCharacter)
+                << " portrait_index=" << static_cast<int>(candidate->portraitIndex)
+                << " squad_member_id=" << candidate->squadMemberID
+                << " prone_state=" << static_cast<int>(snapshot.proneState)
+                << " state_label=" << QuoteForLog(snapshot.stateLabel)
+                << " unconscious=" << FormatBool(snapshot.unconscious)
+                << " playing_dead=" << FormatBool(snapshot.playingDead)
+                << " dying=" << FormatBool(snapshot.dying)
+                << " dead=" << FormatBool(snapshot.dead)
+                << " recovery_coma=" << FormatBool(snapshot.recoveryComa)
+                << " medical_unconcious=" << FormatBool(snapshot.medicalUnconcious)
+                << " ko_prone=" << FormatBool(snapshot.koProne)
+                << " probably_dying=" << FormatBool(snapshot.probablyDying)
+                << " bloodloss_trauma=" << FormatBool(snapshot.bloodlossTrauma)
+                << " sub50ko=" << FormatBool(snapshot.sub50KO)
+                << " can_get_up=" << FormatBool(snapshot.canGetUpWakeUp)
+                << " blood=" << FormatFloat2(snapshot.blood)
+                << " point_of_no_return=" << FormatFloat2(snapshot.pointOfNoReturn)
+                << " current_bleed_rate=" << FormatFloat2(snapshot.currentBleedRate)
+                << " extra_blood_loss=" << FormatFloat2(snapshot.extraBloodLoss)
+                << " knockout_timer=" << FormatFloat2(snapshot.knockoutTimer);
+        LogProbeRecord("dump_member_states", "member", payload.str());
+        ++scopedIndex;
+    }
+}
+
+bool TryDumpMemberStatesProbeSeh(const char* reason)
+{
+    __try
+    {
+        DumpMemberStatesProbeImpl(reason);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void DumpMemberStatesProbe(const char* reason)
+{
+    EnsureActiveProbeSession(reason);
+    BeginProbeLogging();
+    if (!TryDumpMemberStatesProbeSeh(reason))
+    {
+        LogProbeRecord("dump_member_states", "exception", "status=seh_guard");
+    }
+    EndProbeLogging();
+}
+
+void MarkStateMatchedPortraitProbeImpl(const char* reason)
+{
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        LogProbeRecord(
+            "mark_state_matched_portrait",
+            "summary",
+            "status=no_player_interface reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    Character* matchedCharacter = 0;
+    MemberStateSnapshot matchedState;
+    if (scope.allPlayerCharacters != 0)
+    {
+        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+        {
+            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+            if (!CharacterMatchesSquadProbeScope(scope, candidate))
+            {
+                continue;
+            }
+
+            MemberStateSnapshot snapshot;
+            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
+            {
+                continue;
+            }
+
+            if (snapshot.unconscious
+                && !snapshot.dead
+                && !snapshot.playingDead
+                && !snapshot.dying
+                && !snapshot.recoveryComa)
+            {
+                matchedCharacter = candidate;
+                matchedState = snapshot;
+                break;
+            }
+        }
+    }
+
+    if (matchedCharacter == 0)
+    {
+        HideHoveredMarker();
+        LogProbeRecord(
+            "mark_state_matched_portrait",
+            "summary",
+            "status=no_state_match reason=" + QuoteForLog(reason == 0 ? "manual" : reason)
+                + " target_state=" + QuoteForLog("unconscious"));
+        return;
+    }
+
+    std::vector<PortraitCandidateRecord> allCandidates;
+    size_t visibleRootCount = 0u;
+    size_t scannedNodes = 0u;
+    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
+    {
+        HideHoveredMarker();
+        LogProbeRecord(
+            "mark_state_matched_portrait",
+            "summary",
+            "status=no_gui reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    std::vector<PortraitCandidateRecord> displayPortraits;
+    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
+
+    const int portraitIndex = static_cast<int>(matchedCharacter->portraitIndex);
+    if (portraitIndex < 0 || static_cast<size_t>(portraitIndex) >= displayPortraits.size())
+    {
+        HideHoveredMarker();
+        std::stringstream payload;
+        payload << "status=no_portrait_match"
+                << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
+                << " target_state=" << QuoteForLog("unconscious")
+                << " character_pointer=" << QuoteForLog(FormatPointer(matchedCharacter))
+                << " character_handle=" << QuoteForLog(SafeHandleString(matchedCharacter->handle))
+                << " character_name=" << QuoteForLog(SafeCharacterName(matchedCharacter))
+                << " portrait_index=" << portraitIndex
+                << " display_portrait_count=" << displayPortraits.size()
+                << " visible_root_count=" << visibleRootCount
+                << " scanned_nodes=" << scannedNodes;
+        LogProbeRecord("mark_state_matched_portrait", "summary", payload.str());
+        return;
+    }
+
+    const PortraitCandidateRecord& target = displayPortraits[portraitIndex];
+    MyGUI::IntCoord markerBounds;
+    if (!PlaceProbeMarkerAtPortrait(target, &markerBounds))
+    {
+        HideHoveredMarker();
+        LogProbeRecord(
+            "mark_state_matched_portrait",
+            "summary",
+            "status=no_marker_widget reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    std::stringstream payload;
+    payload << "status=placed"
+            << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
+            << " target_state=" << QuoteForLog("unconscious")
+            << " character_pointer=" << QuoteForLog(FormatPointer(matchedCharacter))
+            << " character_handle=" << QuoteForLog(SafeHandleString(matchedCharacter->handle))
+            << " character_name=" << QuoteForLog(SafeCharacterName(matchedCharacter))
+            << " portrait_index=" << portraitIndex
+            << " squad_member_id=" << matchedCharacter->squadMemberID
+            << " state_label=" << QuoteForLog(matchedState.stateLabel)
+            << " target_pointer=" << QuoteForLog(FormatPointer(target.widget))
+            << " target_bounds=" << QuoteForLog(FormatCoord(target.absoluteCoord))
+            << " marker_bounds=" << QuoteForLog(FormatCoord(markerBounds))
+            << " anchor=" << QuoteForLog("bottom_left")
+            << " lifetime_ms=" << kHoveredMarkerLifetimeMs
+            << " display_portrait_count=" << displayPortraits.size()
+            << " visible_root_count=" << visibleRootCount
+            << " scanned_nodes=" << scannedNodes
+            << " confidence_score=" << FormatFloat2(1.00f)
+            << " confidence_reason=" << QuoteForLog("strict_unconscious,portrait_index,portraitimage_widget_order");
+    LogProbeRecord("mark_state_matched_portrait", "summary", payload.str());
+}
+
+bool TryMarkStateMatchedPortraitProbeSeh(const char* reason)
+{
+    __try
+    {
+        MarkStateMatchedPortraitProbeImpl(reason);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void MarkStateMatchedPortraitProbe(const char* reason)
+{
+    EnsureActiveProbeSession(reason);
+    BeginProbeLogging();
+    if (!TryMarkStateMatchedPortraitProbeSeh(reason))
+    {
+        HideHoveredMarker();
+        LogProbeRecord("mark_state_matched_portrait", "exception", "status=seh_guard");
     }
     EndProbeLogging();
 }
@@ -1546,30 +2122,15 @@ void MarkHoveredPortraitProbeImpl(const char* reason)
         return;
     }
 
-    const int smallerSide = target.absoluteCoord.width < target.absoluteCoord.height
-        ? target.absoluteCoord.width
-        : target.absoluteCoord.height;
-    const int markerSize = ClampInt(
-        smallerSide / 4,
-        kHoveredMarkerMinSizePx,
-        kHoveredMarkerMaxSizePx);
-
-    MyGUI::IntSize viewSize(0, 0);
-    const bool haveViewSize = TryGetViewSize(&viewSize);
-
-    int markerLeft = target.absoluteCoord.left + kHoveredMarkerInsetPx;
-    int markerTop = target.absoluteCoord.top + target.absoluteCoord.height - markerSize - kHoveredMarkerInsetPx;
-    if (haveViewSize)
+    MyGUI::IntCoord markerBounds;
+    if (!PlaceProbeMarkerAtPortrait(target, &markerBounds))
     {
-        const int maxLeft = viewSize.width - markerSize > 0 ? viewSize.width - markerSize : 0;
-        const int maxTop = viewSize.height - markerSize > 0 ? viewSize.height - markerSize : 0;
-        markerLeft = ClampInt(markerLeft, 0, maxLeft);
-        markerTop = ClampInt(markerTop, 0, maxTop);
+        LogProbeRecord(
+            "mark_hovered_portrait",
+            "summary",
+            "status=no_marker_widget reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
     }
-
-    g_hoveredMarkerWidget->setCoord(markerLeft, markerTop, markerSize, markerSize);
-    g_hoveredMarkerWidget->setVisible(true);
-    g_hoveredMarkerExpireTick = GetTickCount() + kHoveredMarkerLifetimeMs;
 
     std::stringstream payload;
     payload << "status=placed"
@@ -1577,7 +2138,7 @@ void MarkHoveredPortraitProbeImpl(const char* reason)
             << " hovered_pointer=" << QuoteForLog(FormatPointer(hover.hoveredWidget))
             << " target_pointer=" << QuoteForLog(FormatPointer(target.widget))
             << " target_bounds=" << QuoteForLog(FormatCoord(target.absoluteCoord))
-            << " marker_bounds=" << QuoteForLog(FormatCoord(MyGUI::IntCoord(markerLeft, markerTop, markerSize, markerSize)))
+            << " marker_bounds=" << QuoteForLog(FormatCoord(markerBounds))
             << " anchor=" << QuoteForLog("bottom_left")
             << " lifetime_ms=" << kHoveredMarkerLifetimeMs
             << " confidence_score=" << FormatFloat2(target.score)
@@ -1644,6 +2205,12 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
             return;
         }
 
+        if (keyCode == kMarkStateMatchedPortraitHotkey)
+        {
+            MarkStateMatchedPortraitProbe("manual_hotkey");
+            return;
+        }
+
         if (keyCode == kDumpHoveredWidgetHotkey)
         {
             DumpHoveredWidgetProbe("manual_hotkey");
@@ -1671,6 +2238,12 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
         if (keyCode == kDumpSelectedSquadMembersHotkey)
         {
             DumpSelectedSquadMembersProbe("manual_hotkey");
+            return;
+        }
+
+        if (keyCode == kDumpMemberStatesHotkey)
+        {
+            DumpMemberStatesProbe("manual_hotkey");
             return;
         }
     }
@@ -1735,7 +2308,7 @@ __declspec(dllexport) void startPlugin()
     if (g_enabled)
     {
         LogInfoLine(
-            "probe hotkeys ready: start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11");
+            "probe hotkeys ready: matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
     }
     else
     {
