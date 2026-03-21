@@ -60,6 +60,7 @@ When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch 
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.
 
+- `Ctrl+Alt+F4`: run the full current mapping probe chain
 - `Ctrl+Alt+F6`: start a new probe session
 - `Ctrl+Alt+F5`: place a temporary marker on the first strictly unconscious matched portrait
 - `Ctrl+Alt+F7`: dump hovered widget + parent chain

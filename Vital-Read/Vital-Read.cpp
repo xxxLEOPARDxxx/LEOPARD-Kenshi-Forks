@@ -42,6 +42,7 @@ const char* kPluginName = "Vital-Read";
 const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 
+const OIS::KeyCode kRunMappingProbeHotkey = OIS::KC_F4;
 const OIS::KeyCode kProbeNewSessionHotkey = OIS::KC_F6;
 const OIS::KeyCode kMarkStateMatchedPortraitHotkey = OIS::KC_F5;
 const OIS::KeyCode kDumpHoveredWidgetHotkey = OIS::KC_F7;
@@ -2000,6 +2001,33 @@ void MarkStateMatchedPortraitProbe(const char* reason)
     EndProbeLogging();
 }
 
+void RunMappingProbeChain(const char* reason)
+{
+    const char* effectiveReason = reason == 0 ? "manual" : reason;
+    StartNewProbeSession(effectiveReason);
+
+    BeginProbeLogging();
+    LogProbeRecord(
+        "probe_chain",
+        "summary",
+        "status=started reason=" + QuoteForLog(effectiveReason)
+            + " chain=" + QuoteForLog("dump_portrait_candidates,dump_selected_squad_members,dump_member_states,mark_state_matched_portrait"));
+    EndProbeLogging();
+
+    DumpPortraitCandidatesProbe(effectiveReason);
+    DumpSelectedSquadMembersProbe(effectiveReason);
+    DumpMemberStatesProbe(effectiveReason);
+    MarkStateMatchedPortraitProbe(effectiveReason);
+
+    BeginProbeLogging();
+    LogProbeRecord(
+        "probe_chain",
+        "summary",
+        "status=completed reason=" + QuoteForLog(effectiveReason)
+            + " chain=" + QuoteForLog("dump_portrait_candidates,dump_selected_squad_members,dump_member_states,mark_state_matched_portrait"));
+    EndProbeLogging();
+}
+
 bool EnsureHoveredMarkerWidget()
 {
     if (g_hoveredMarkerWidget != 0)
@@ -2199,6 +2227,12 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
     if (g_enabled && AreProbeModifiersPressed(thisptr))
     {
+        if (keyCode == kRunMappingProbeHotkey)
+        {
+            RunMappingProbeChain("manual_hotkey");
+            return;
+        }
+
         if (keyCode == kProbeNewSessionHotkey)
         {
             StartNewProbeSession("manual_hotkey");
@@ -2308,7 +2342,7 @@ __declspec(dllexport) void startPlugin()
     if (g_enabled)
     {
         LogInfoLine(
-            "probe hotkeys ready: matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
+            "probe hotkeys ready: full mapping chain Ctrl+Alt+F4, matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
     }
     else
     {
