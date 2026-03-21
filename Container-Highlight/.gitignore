@@ -24,3 +24,6 @@ dist/
 
 # Local env overrides
 .env
+
+# Local documentation
+/docs/
