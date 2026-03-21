@@ -1,7 +1,6 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
-#include "emc/mod_hub_client.h"
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -11,7 +10,6 @@
 #include <kenshi/Inventory.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/SaveManager.h>
-
 #include <Windows.h>
 
 #include <cctype>
@@ -36,7 +34,9 @@ struct RuntimeState
     bool loadInProgress;
     bool pauseArmed;
     bool loadSignalSeenAfterArm;
+    bool saveLoadIntentPending;
     DWORD armTimestampMs;
+    DWORD saveLoadIntentTimestampMs;
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
     bool loggedWorldUnavailable;
@@ -53,28 +53,51 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
+static const DWORD kSaveLoadIntentTimeoutMs = 5000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
-static const char* kHubNamespaceId = "emkej.qol";
-static const char* kHubNamespaceDisplayName = "Emkej QoL";
-static const char* kHubModId = "auto_pause_on_load";
-static const char* kHubModDisplayName = "Auto Pause on Load";
-
 static PluginConfig g_config = { true, 2000, false, true, true, true, true };
-static RuntimeState g_state = { false, false, false, 0, 0, 0, false, false, false, false, false, false, false };
-static emc::ModHubClient g_modHubClient;
+static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, false, false, false, false, false, false, false };
 
 static std::string g_settingsPath;
-static bool g_hasSaveLoadHook = false;
 static bool g_configNeedsWriteBack = false;
+static bool g_hasObservedLoadSignal = false;
+static bool g_lastObservedLoadSignal = false;
+static bool g_hasObservedSaveManagerSignal = false;
+static int g_lastObservedSaveManagerSignal = 0;
 
 static void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
-static void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
-static void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
+static PlayerInterface* g_lastPlayerInterface = 0;
+static bool g_hooksInstalled = false;
+static bool g_updateUTHookVerified = false;
+static DWORD g_updateUTHookVerifyTimeMs = 0;
 
+static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr);
+
+static bool IsSupportedVersion(unsigned int platform, const std::string& version);
+static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version);
+static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out_version);
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs);
 static void DisarmPauseAfterLoad();
 static void ResetUiTracking();
+static void AccumulateSelectedCharacterUiSignals(
+    Character* primarySelected,
+    bool* anyTradeActiveOut,
+    bool* anyInventoryVisibleOut);
+static const char* DescribeSaveManagerSignal(int signal);
+static bool QuerySaveManagerState(
+    bool* loadRequestedOut,
+    int* signalOut,
+    int* delayOut,
+    std::string* currentGameOut,
+    std::string* requestedNameOut);
+static void LogLoadInvestigation(
+    const char* stage,
+    bool isLoadingSave,
+    int saveManagerSignal,
+    int saveManagerDelay,
+    const std::string* currentGame,
+    const std::string* requestedName);
 
 struct ConfigParseDiagnostics
 {
@@ -121,6 +144,79 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidResumeAfterInventoryClose = false;
     diagnostics->syntaxError = false;
     diagnostics->syntaxErrorOffset = 0;
+}
+
+static bool IsSupportedVersion(unsigned int platform, const std::string& version)
+{
+    return platform != KenshiLib::BinaryVersion::UNKNOWN
+        && (version == "1.0.65" || version == "1.0.68");
+}
+
+static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version)
+{
+    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    const unsigned int platform = versionInfo.GetPlatform();
+    const std::string version = versionInfo.GetVersion();
+    if (!IsSupportedVersion(platform, version))
+    {
+        return false;
+    }
+
+    if (out_platform)
+    {
+        *out_platform = platform;
+    }
+    if (out_version)
+    {
+        *out_version = version;
+    }
+    return true;
+}
+
+static bool ResolveSupportedRuntime(unsigned int* out_platform, std::string* out_version)
+{
+#ifdef _DEBUG
+    // Debug deployments run under RE_Kenshi.exe here; use the local Steam 1.0.65 test runtime
+    // instead of crossing CRT boundaries through KenshiLib's version helper.
+    if (out_platform)
+    {
+        *out_platform = KenshiLib::BinaryVersion::STEAM;
+    }
+    if (out_version)
+    {
+        *out_version = "1.0.65";
+    }
+    return true;
+#else
+    __try
+    {
+        return ResolveSupportedRuntimeNoSeh(out_platform, out_version);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Auto-Pause-on-Load ERROR: GetKenshiVersion() faulted during startup");
+        return false;
+    }
+#endif
+}
+
+static const char* DescribeSaveManagerSignal(int signal)
+{
+    switch (signal)
+    {
+    case 0:
+        return "NONE";
+    case SaveManager::SAVEGAME:
+        return "SAVEGAME";
+    case SaveManager::LOADGAME:
+        return "LOADGAME";
+    case SaveManager::IMPORTGAME:
+        return "IMPORTGAME";
+    case SaveManager::NEWGAME:
+        return "NEWGAME";
+    default:
+        return "UNKNOWN";
+    }
 }
 
 static std::string TrimAscii(const std::string& value)
@@ -816,14 +912,18 @@ static bool RunInternalSelfChecks()
     g_state.loadInProgress = true;
     g_state.pauseArmed = true;
     g_state.loadSignalSeenAfterArm = true;
+    g_state.saveLoadIntentPending = true;
     g_state.armTimestampMs = 99;
+    g_state.saveLoadIntentTimestampMs = 123;
     g_state.loggedWorldUnavailable = true;
     DisarmPauseAfterLoad();
     const bool disarmedOk =
         !g_state.loadInProgress
         && !g_state.pauseArmed
         && !g_state.loadSignalSeenAfterArm
+        && !g_state.saveLoadIntentPending
         && g_state.armTimestampMs == 0
+        && g_state.saveLoadIntentTimestampMs == 0
         && !g_state.loggedWorldUnavailable;
     g_state = savedState;
     return disarmedOk;
@@ -970,23 +1070,6 @@ static void LoadConfigState()
     }
 
     g_configNeedsWriteBack = (!foundConfigFile) || needsWriteBack;
-    if (!foundConfigFile)
-    {
-        DebugLog("Auto-Pause-on-Load INFO: mod-config.json not found; using defaults");
-    }
-
-    if (g_config.debugLogTransitions)
-    {
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: loaded config enabled=" << (g_config.enabled ? "true" : "false")
-             << " pause_debounce_ms=" << g_config.pauseDebounceMs
-             << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
-             << " pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
-             << " resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
-             << " pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
-             << " resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
-        DebugLog(info.str().c_str());
-    }
 }
 
 static bool SaveConfigState()
@@ -1006,332 +1089,9 @@ static bool SaveConfigState()
     return true;
 }
 
-static void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
-{
-    if (!err_buf || err_buf_size == 0u)
-    {
-        return;
-    }
-
-    if (!text)
-    {
-        err_buf[0] = '\0';
-        return;
-    }
-
-    const size_t copyLen = static_cast<size_t>(err_buf_size - 1u);
-    std::strncpy(err_buf, text, copyLen);
-    err_buf[copyLen] = '\0';
-}
-
-static EMC_Result ApplyHubConfigUpdate(
-    PluginConfig* config,
-    const PluginConfig& updated,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    if (!config || config != &g_config)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "invalid_config_target");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig previous = *config;
-    *config = updated;
-    if (!SaveConfigState())
-    {
-        *config = previous;
-        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
-        return EMC_ERR_INTERNAL;
-    }
-
-    g_configNeedsWriteBack = false;
-    if (!config->enabled)
-    {
-        DisarmPauseAfterLoad();
-        ResetUiTracking();
-    }
-
-    return EMC_OK;
-}
-
-typedef bool PluginConfig::*PluginConfigBoolField;
-
-static EMC_Result GetBoolHubSettingValue(void* user_data, int32_t* out_value, PluginConfigBoolField field)
-{
-    if (!user_data || !out_value)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig* config = static_cast<const PluginConfig*>(user_data);
-    *out_value = (config->*field) ? 1 : 0;
-    return EMC_OK;
-}
-
-static EMC_Result SetBoolHubSettingValue(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size,
-    PluginConfigBoolField field)
-{
-    if (!user_data)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    if (value != 0 && value != 1)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.*field = value == 1;
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
-}
-
-static EMC_Result __cdecl GetEnabledSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::enabled);
-}
-
-static EMC_Result __cdecl SetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::enabled);
-}
-
-static EMC_Result __cdecl GetPauseDebounceMsSetting(void* user_data, int32_t* out_value)
-{
-    if (!user_data || !out_value)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig* config = static_cast<const PluginConfig*>(user_data);
-    *out_value = static_cast<int32_t>(config->pauseDebounceMs);
-    return EMC_OK;
-}
-
-static EMC_Result __cdecl SetPauseDebounceMsSetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    if (!user_data)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    if (value < static_cast<int32_t>(kPauseDebounceMsMin) || value > static_cast<int32_t>(kPauseDebounceMsMax))
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "pause_debounce_ms_out_of_range");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.pauseDebounceMs = static_cast<DWORD>(value);
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
-}
-
-static EMC_Result __cdecl GetDebugLogTransitionsSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::debugLogTransitions);
-}
-
-static EMC_Result __cdecl SetDebugLogTransitionsSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::debugLogTransitions);
-}
-
-static EMC_Result __cdecl GetPauseOnTradeSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::pauseOnTrade);
-}
-
-static EMC_Result __cdecl SetPauseOnTradeSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::pauseOnTrade);
-}
-
-static EMC_Result __cdecl GetResumeAfterTradeSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::resumeAfterTrade);
-}
-
-static EMC_Result __cdecl SetResumeAfterTradeSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(user_data, value, err_buf, err_buf_size, &PluginConfig::resumeAfterTrade);
-}
-
-static EMC_Result __cdecl GetPauseOnInventoryOpenSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::pauseOnInventoryOpen);
-}
-
-static EMC_Result __cdecl SetPauseOnInventoryOpenSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::pauseOnInventoryOpen);
-}
-
-static EMC_Result __cdecl GetResumeAfterInventoryCloseSetting(void* user_data, int32_t* out_value)
-{
-    return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::resumeAfterInventoryClose);
-}
-
-static EMC_Result __cdecl SetResumeAfterInventoryCloseSetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    return SetBoolHubSettingValue(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &PluginConfig::resumeAfterInventoryClose);
-}
-
-static void LogModHubFallback(const char* reason)
-{
-    std::stringstream line;
-    line << kPluginName
-         << " WARN: event=mod_hub_fallback"
-         << " reason=" << (reason ? reason : "unknown")
-         << " result=" << g_modHubClient.LastAttemptFailureResult()
-         << " retry_pending=" << (g_modHubClient.IsAttachRetryPending() ? 1 : 0)
-         << " use_hub_ui=0";
-    ErrorLog(line.str().c_str());
-}
-
-static const EMC_ModDescriptorV1 kModHubDescriptor = {
-    kHubNamespaceId,
-    kHubNamespaceDisplayName,
-    kHubModId,
-    kHubModDisplayName,
-    &g_config };
-
-static const EMC_BoolSettingDefV1 kHubEnabledSetting = {
-    "enabled",
-    "Enabled",
-    "Enable all Auto-Pause-on-Load behavior",
-    &g_config,
-    &GetEnabledSetting,
-    &SetEnabledSetting };
-
-static const EMC_IntSettingDefV1 kHubPauseDebounceMsSetting = {
-    "pause_debounce_ms",
-    "Pause debounce (ms)",
-    "Minimum interval between automatic pause events",
-    &g_config,
-    static_cast<int32_t>(kPauseDebounceMsMin),
-    static_cast<int32_t>(kPauseDebounceMsMax),
-    100,
-    &GetPauseDebounceMsSetting,
-    &SetPauseDebounceMsSetting };
-
-static const EMC_BoolSettingDefV1 kHubDebugLogTransitionsSetting = {
-    "debug_log_transitions",
-    "Debug log transitions",
-    "Emit verbose transition logs for load and UI pause flows",
-    &g_config,
-    &GetDebugLogTransitionsSetting,
-    &SetDebugLogTransitionsSetting };
-
-static const EMC_BoolSettingDefV1 kHubPauseOnTradeSetting = {
-    "pause_on_trade",
-    "Pause on trade",
-    "Pause the game when trade UI opens",
-    &g_config,
-    &GetPauseOnTradeSetting,
-    &SetPauseOnTradeSetting };
-
-static const EMC_BoolSettingDefV1 kHubResumeAfterTradeSetting = {
-    "resume_after_trade",
-    "Resume after trade",
-    "Resume when trade UI closes if this mod paused the game",
-    &g_config,
-    &GetResumeAfterTradeSetting,
-    &SetResumeAfterTradeSetting };
-
-static const EMC_BoolSettingDefV1 kHubPauseOnInventoryOpenSetting = {
-    "pause_on_inventory_open",
-    "Pause on inventory open",
-    "Pause the game when inventory opens",
-    &g_config,
-    &GetPauseOnInventoryOpenSetting,
-    &SetPauseOnInventoryOpenSetting };
-
-static const EMC_BoolSettingDefV1 kHubResumeAfterInventoryCloseSetting = {
-    "resume_after_inventory_close",
-    "Resume after inventory close",
-    "Resume when inventory closes if this mod paused the game",
-    &g_config,
-    &GetResumeAfterInventoryCloseSetting,
-    &SetResumeAfterInventoryCloseSetting };
-
-static const emc::ModHubClientSettingRowV1 kModHubSettingRows[] = {
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubEnabledSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kHubPauseDebounceMsSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubDebugLogTransitionsSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnTradeSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubResumeAfterTradeSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnInventoryOpenSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubResumeAfterInventoryCloseSetting }
-};
-
-static const emc::ModHubClientTableRegistrationV1 kModHubTableRegistration = {
-    &kModHubDescriptor,
-    kModHubSettingRows,
-    static_cast<uint32_t>(sizeof(kModHubSettingRows) / sizeof(kModHubSettingRows[0])) };
-
-static void ConfigureModHubClient()
-{
-    emc::ModHubClient::Config hubConfig;
-    hubConfig.table_registration = &kModHubTableRegistration;
-    g_modHubClient.SetConfig(hubConfig);
-}
-
-static void StartModHubClient()
-{
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        DebugLog("Auto-Pause-on-Load INFO: event=mod_hub_attached use_hub_ui=1");
-        return;
-    }
-
-    if (result == emc::ModHubClient::ATTACH_FAILED)
-    {
-        LogModHubFallback("attach_failed");
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        LogModHubFallback("registration_failed");
-        return;
-    }
-
-    LogModHubFallback("invalid_client_configuration");
-}
+// Keep Mod Hub registration in the existing single-TU layout so startup hook resolution
+// runs in a similar compilation environment to the working multi-file mods.
+#include "AutoPauseModHub.inl"
 
 static bool DebounceWindowElapsed(DWORD nowMs, DWORD lastEventMs, DWORD minGapMs)
 {
@@ -1344,7 +1104,9 @@ static void DisarmPauseAfterLoad()
     g_state.pauseArmed = false;
     g_state.loadInProgress = false;
     g_state.loadSignalSeenAfterArm = false;
+    g_state.saveLoadIntentPending = false;
     g_state.armTimestampMs = 0;
+    g_state.saveLoadIntentTimestampMs = 0;
     g_state.loggedWorldUnavailable = false;
 }
 
@@ -1374,6 +1136,11 @@ static bool QuerySaveLoadSignal(bool* isLoadingOut)
     *isLoadingOut = false;
     if (!ou)
     {
+        if (!g_updateUTHookVerified)
+        {
+            return false;
+        }
+
         if (!g_state.loggedWorldUnavailable)
         {
             ErrorLog("Auto-Pause-on-Load WARN: game world unavailable while waiting for save-load completion");
@@ -1509,15 +1276,15 @@ static bool TryResolveCharacterInventoryVisible(Character* character, bool* visi
         return true;
     }
 
+    // APOL only needs to know whether a character's inventory widget is actually visible.
+    // Character::isInventoryVisible() faults repeatedly in ambient squad scans in this runtime,
+    // so keep this probe to the direct inventory widget only.
     __try
     {
-        if (character->inventory && character->inventory->isVisible())
+        if (character->inventory)
         {
-            *visibleOut = true;
-            return true;
+            *visibleOut = character->inventory->isVisible();
         }
-
-        *visibleOut = character->isInventoryVisible();
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1608,26 +1375,43 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
         AccumulateCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
     }
 
-    if (!ou || !ou->player)
+    AccumulateSelectedCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
+
+    *tradeActiveOut = anyTradeActive;
+    *inventoryActiveOut = anyInventoryVisible;
+    return true;
+}
+
+static void AccumulateSelectedCharacterUiSignals(
+    Character* primarySelected,
+    bool* anyTradeActiveOut,
+    bool* anyInventoryVisibleOut)
+{
+    if (!g_lastPlayerInterface || !anyTradeActiveOut || !anyInventoryVisibleOut)
     {
-        *tradeActiveOut = anyTradeActive;
-        *inventoryActiveOut = anyInventoryVisible;
-        return true;
+        return;
     }
 
     __try
     {
-        const lektor<Character*>& allPlayerCharacters = ou->player->getAllPlayerCharacters();
-        for (auto iter = allPlayerCharacters.begin(); iter != allPlayerCharacters.end(); ++iter)
+        for (ogre_unordered_set<hand>::type::const_iterator it = g_lastPlayerInterface->selectedCharacters.begin();
+             it != g_lastPlayerInterface->selectedCharacters.end();
+             ++it)
         {
-            Character* candidate = *iter;
-            if (!candidate || candidate == selected)
+            const hand& selectedHandle = *it;
+            if (!selectedHandle || !selectedHandle.isValid() || selectedHandle.type != CHARACTER)
             {
                 continue;
             }
 
-            AccumulateCharacterUiSignals(candidate, &anyTradeActive, &anyInventoryVisible);
-            if (anyTradeActive && anyInventoryVisible)
+            Character* candidate = selectedHandle.getCharacter();
+            if (!candidate || candidate == primarySelected)
+            {
+                continue;
+            }
+
+            AccumulateCharacterUiSignals(candidate, anyTradeActiveOut, anyInventoryVisibleOut);
+            if (*anyTradeActiveOut && *anyInventoryVisibleOut)
             {
                 break;
             }
@@ -1637,13 +1421,9 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
     {
         if (g_config.debugLogTransitions)
         {
-            ErrorLog("Auto-Pause-on-Load WARN: exception while scanning player characters for UI signals");
+            ErrorLog("Auto-Pause-on-Load WARN: exception while scanning selected characters for UI signals");
         }
     }
-
-    *tradeActiveOut = anyTradeActive;
-    *inventoryActiveOut = anyInventoryVisible;
-    return true;
 }
 
 static void ResetUiTracking()
@@ -1732,9 +1512,12 @@ static void TryPauseAndDisarm(DWORD nowMs, const char* reason)
     if (ForcePauseTrue())
     {
         g_state.lastPauseMs = nowMs;
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: paused_after_load=true source=" << reason;
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Auto-Pause-on-Load INFO: paused_after_load=true source=" << reason;
+            DebugLog(info.str().c_str());
+        }
     }
 
     DisarmPauseAfterLoad();
@@ -1828,6 +1611,11 @@ static void TickPauseOnLoad()
 {
     if (!g_config.enabled)
     {
+        g_hasObservedLoadSignal = false;
+        g_lastObservedLoadSignal = false;
+        g_hasObservedSaveManagerSignal = false;
+        g_lastObservedSaveManagerSignal = 0;
+        DisarmPauseAfterLoad();
         return;
     }
 
@@ -1842,12 +1630,10 @@ static void TickPauseOnLoad()
         }
     }
 
-    if (!g_hasSaveLoadHook || !g_state.pauseArmed)
-    {
-        return;
-    }
-
-    if (g_state.armTimestampMs != 0 && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
+    if (g_state.pauseArmed
+        && !g_state.loadInProgress
+        && g_state.armTimestampMs != 0
+        && DebounceWindowElapsed(nowMs, g_state.armTimestampMs, kArmedTimeoutMs))
     {
         ErrorLog("Auto-Pause-on-Load WARN: armed pause timed out before load completion");
         DisarmPauseAfterLoad();
@@ -1860,14 +1646,170 @@ static void TickPauseOnLoad()
         return;
     }
 
+    std::string currentGame;
+    std::string requestedName;
+    bool loadRequested = false;
+    int saveManagerSignal = 0;
+    int saveManagerDelay = 0;
+    std::string* currentGameLog = g_config.debugLogTransitions ? &currentGame : 0;
+    std::string* requestedNameLog = g_config.debugLogTransitions ? &requestedName : 0;
+    if (!QuerySaveManagerState(
+            &loadRequested,
+            &saveManagerSignal,
+            &saveManagerDelay,
+            currentGameLog,
+            requestedNameLog))
+    {
+        return;
+    }
+
+    if (!g_hasObservedSaveManagerSignal || g_lastObservedSaveManagerSignal != saveManagerSignal)
+    {
+        LogLoadInvestigation(
+            "save_manager_signal",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+        g_hasObservedSaveManagerSignal = true;
+        g_lastObservedSaveManagerSignal = saveManagerSignal;
+    }
+
+    if (loadRequested)
+    {
+        const bool wasPending = g_state.saveLoadIntentPending;
+        g_state.saveLoadIntentPending = true;
+        g_state.saveLoadIntentTimestampMs = nowMs;
+        if (!wasPending)
+        {
+            LogLoadInvestigation(
+                "load_intent_seen",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+    }
+    else if (g_state.saveLoadIntentPending
+        && !g_state.pauseArmed
+        && g_state.saveLoadIntentTimestampMs != 0
+        && DebounceWindowElapsed(nowMs, g_state.saveLoadIntentTimestampMs, kSaveLoadIntentTimeoutMs))
+    {
+        LogLoadInvestigation(
+            "load_intent_expired",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+        g_state.saveLoadIntentPending = false;
+        g_state.saveLoadIntentTimestampMs = 0;
+    }
+
+    bool loadStarted = false;
+    bool loadFinished = false;
+    bool bootstrapLoadIntent = false;
+    if (!g_hasObservedLoadSignal)
+    {
+        g_hasObservedLoadSignal = true;
+        loadStarted = isLoadingSave;
+        bootstrapLoadIntent = isLoadingSave && !g_updateUTHookVerified;
+    }
+    else
+    {
+        loadStarted = (!g_lastObservedLoadSignal && isLoadingSave);
+        loadFinished = (g_lastObservedLoadSignal && !isLoadingSave);
+    }
+    g_lastObservedLoadSignal = isLoadingSave;
+
+    if (loadStarted)
+    {
+        LogLoadInvestigation(
+            "load_flag_started",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+
+        if (g_state.saveLoadIntentPending)
+        {
+            ArmPauseAfterLoad("save_manager_signal");
+            LogLoadInvestigation(
+                "load_arm_accepted",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+        else if (bootstrapLoadIntent)
+        {
+            ArmPauseAfterLoad("startup_load_bootstrap");
+            LogLoadInvestigation(
+                "load_arm_bootstrap",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+        else
+        {
+            LogLoadInvestigation(
+                "load_ignored_no_intent",
+                isLoadingSave,
+                saveManagerSignal,
+                saveManagerDelay,
+                currentGameLog,
+                requestedNameLog);
+        }
+    }
+
+    if (isLoadingSave
+        && g_state.saveLoadIntentPending
+        && !g_state.pauseArmed
+        && !g_state.loadInProgress)
+    {
+        ArmPauseAfterLoad("save_manager_signal_late");
+        LogLoadInvestigation(
+            "load_arm_late",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+    }
+
     if (isLoadingSave)
     {
-        if (!g_state.loadInProgress && g_config.debugLogTransitions)
+        if (g_state.pauseArmed)
         {
-            DebugLog("Auto-Pause-on-Load DEBUG: load started");
+            if (!g_state.loadInProgress && g_config.debugLogTransitions)
+            {
+                DebugLog("Auto-Pause-on-Load DEBUG: load started");
+            }
+            g_state.loadInProgress = true;
+            g_state.loadSignalSeenAfterArm = true;
         }
-        g_state.loadInProgress = true;
-        g_state.loadSignalSeenAfterArm = true;
+        return;
+    }
+
+    if (loadFinished)
+    {
+        LogLoadInvestigation(
+            "load_flag_finished",
+            isLoadingSave,
+            saveManagerSignal,
+            saveManagerDelay,
+            currentGameLog,
+            requestedNameLog);
+    }
+
+    if (!g_state.pauseArmed)
+    {
         return;
     }
 
@@ -1895,42 +1837,154 @@ static void TickPauseOnLoad()
     }
 }
 
-static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
+static bool QuerySaveManagerState(
+    bool* loadRequestedOut,
+    int* signalOut,
+    int* delayOut,
+    std::string* currentGameOut,
+    std::string* requestedNameOut)
 {
-    PlayerInterface_updateUT_orig(thisptr);
-    TickPauseOnLoad();
-    TickPauseOnTradeAndInventory();
-}
-
-static void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
-{
-    ArmPauseAfterLoad("SaveManager::load(saveInfo,resetPos)");
-    if (SaveManager_loadByInfo_orig)
+    if (!loadRequestedOut || !signalOut || !delayOut)
     {
-        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
+        return false;
+    }
+
+    *loadRequestedOut = false;
+    *signalOut = 0;
+    *delayOut = 0;
+    if (currentGameOut)
+    {
+        currentGameOut->clear();
+    }
+    if (requestedNameOut)
+    {
+        requestedNameOut->clear();
+    }
+
+    __try
+    {
+        SaveManager* saveManager = SaveManager::getSingleton();
+        if (!saveManager)
+        {
+            return true;
+        }
+
+        *signalOut = saveManager->signal;
+        *delayOut = saveManager->delay;
+        *loadRequestedOut = (saveManager->signal == SaveManager::LOADGAME);
+        if (currentGameOut)
+        {
+            *currentGameOut = saveManager->currentGame;
+        }
+        if (requestedNameOut)
+        {
+            *requestedNameOut = saveManager->name;
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (g_config.debugLogTransitions)
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: exception while querying SaveManager state");
+        }
+        return false;
     }
 }
 
-static void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
+static void LogLoadInvestigation(
+    const char* stage,
+    bool isLoadingSave,
+    int saveManagerSignal,
+    int saveManagerDelay,
+    const std::string* currentGame,
+    const std::string* requestedName)
 {
-    ArmPauseAfterLoad("SaveManager::load(name)");
-    if (SaveManager_loadByName_orig)
+    if (!g_config.debugLogTransitions)
     {
-        SaveManager_loadByName_orig(thisptr, saveName);
+        return;
+    }
+
+    std::stringstream line;
+    line << "Auto-Pause-on-Load INFO: [investigate][load]"
+         << " stage=" << (stage ? stage : "unknown")
+         << " is_loading=" << (isLoadingSave ? "true" : "false")
+         << " signal=" << DescribeSaveManagerSignal(saveManagerSignal)
+         << " delay=" << saveManagerDelay
+         << " intent_pending=" << (g_state.saveLoadIntentPending ? "true" : "false")
+         << " pause_armed=" << (g_state.pauseArmed ? "true" : "false")
+         << " load_in_progress=" << (g_state.loadInProgress ? "true" : "false");
+    if (currentGame && !currentGame->empty())
+    {
+        line << " current_game=\"" << *currentGame << "\"";
+    }
+    if (requestedName && !requestedName->empty())
+    {
+        line << " requested_name=\"" << *requestedName << "\"";
+    }
+    DebugLog(line.str().c_str());
+}
+
+static bool TryInstallUpdateUTHook()
+{
+    if (PlayerInterface_updateUT_orig != 0)
+    {
+        g_hooksInstalled = true;
+        return true;
+    }
+
+    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
+            PlayerInterface_updateUT_hook,
+            &PlayerInterface_updateUT_orig))
+    {
+        g_hooksInstalled = true;
+        return true;
+    }
+
+    ErrorLog("Auto-Pause-on-Load WARN: failed to install PlayerInterface::updateUT hook");
+    return false;
+}
+
+static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
+{
+    PlayerInterface_updateUT_orig(thisptr);
+    g_lastPlayerInterface = thisptr;
+
+    if (!g_updateUTHookVerified)
+    {
+        if (g_updateUTHookVerifyTimeMs == 0)
+        {
+            g_updateUTHookVerifyTimeMs = GetTickCount();
+        }
+        else if (GetTickCount() - g_updateUTHookVerifyTimeMs > 1000)
+        {
+            g_updateUTHookVerified = true;
+            if (g_config.debugLogTransitions)
+            {
+                DebugLog("Auto-Pause-on-Load INFO: updateUT hook verified alive");
+            }
+        }
+    }
+
+    TickPauseOnLoad();
+    if (g_updateUTHookVerified)
+    {
+        TickPauseOnTradeAndInventory();
+    }
+    else
+    {
+        ResetUiTracking();
     }
 }
 
 __declspec(dllexport) void startPlugin()
 {
-    DebugLog("Auto-Pause-on-Load: startPlugin()");
-
-    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
-    const unsigned int platform = versionInfo.GetPlatform();
-    const std::string version = versionInfo.GetVersion();
-
-    if (platform == KenshiLib::BinaryVersion::UNKNOWN || version != "1.0.65")
+    unsigned int platform = KenshiLib::BinaryVersion::UNKNOWN;
+    std::string version;
+    if (!ResolveSupportedRuntime(&platform, &version))
     {
-        ErrorLog("Auto-Pause-on-Load: unsupported Kenshi version/platform (supported: 1.0.65)");
+        ErrorLog("Auto-Pause-on-Load: unsupported Kenshi version/platform");
         return;
     }
 
@@ -1949,60 +2003,35 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(&PlayerInterface::updateUT),
-        PlayerInterface_updateUT_hook,
-        &PlayerInterface_updateUT_orig))
+    if (!TryInstallUpdateUTHook())
     {
-        ErrorLog("Auto-Pause-on-Load: Could not hook PlayerInterface::updateUT");
-        return;
+        ErrorLog("Auto-Pause-on-Load WARN: failed to install updateUT host at startup; pause runtime will remain inactive");
     }
 
-    g_hasSaveLoadHook = false;
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
-        SaveManager_loadByInfo_hook,
-        &SaveManager_loadByInfo_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(SaveInfo,bool)");
-    }
-
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
-        SaveManager_loadByName_hook,
-        &SaveManager_loadByName_orig))
-    {
-        g_hasSaveLoadHook = true;
-    }
-    else
-    {
-        ErrorLog("Auto-Pause-on-Load: Could not hook SaveManager::load(std::string)");
-    }
-
-    if (!g_hasSaveLoadHook)
-    {
-        ErrorLog("Auto-Pause-on-Load: no SaveManager load hooks active; feature disabled");
-    }
+    g_hasObservedLoadSignal = false;
+    g_lastObservedLoadSignal = false;
+    g_hasObservedSaveManagerSignal = false;
+    g_lastObservedSaveManagerSignal = 0;
+    g_lastPlayerInterface = 0;
+    DisarmPauseAfterLoad();
 
     ConfigureModHubClient();
     StartModHubClient();
 
     std::stringstream info;
-    info << "Auto-Pause-on-Load INFO: initialized (enabled=" << (g_config.enabled ? "true" : "false");
+    info << "Auto-Pause-on-Load INFO: initialized enabled=" << (g_config.enabled ? "true" : "false")
+         << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
+         << " hooks_installed=" << (g_hooksInstalled ? "true" : "false")
+         << " hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false")
+         << " config_needs_writeback=" << (g_configNeedsWriteBack ? "true" : "false");
     if (g_config.debugLogTransitions)
     {
-        info << ", pause_debounce_ms=" << g_config.pauseDebounceMs
-             << ", pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
-             << ", resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
-             << ", pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
-             << ", resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
+        info << " pause_debounce_ms=" << g_config.pauseDebounceMs
+             << " pause_on_trade=" << (g_config.pauseOnTrade ? "true" : "false")
+             << " resume_after_trade=" << (g_config.resumeAfterTrade ? "true" : "false")
+             << " pause_on_inventory_open=" << (g_config.pauseOnInventoryOpen ? "true" : "false")
+             << " resume_after_inventory_close=" << (g_config.resumeAfterInventoryClose ? "true" : "false");
     }
-    info << ", save_load_hooks=" << (g_hasSaveLoadHook ? "true" : "false")
-         << ", hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false") << ")";
     DebugLog(info.str().c_str());
 }
 
@@ -2021,6 +2050,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
                 g_settingsPath = myDirectory + "\\" + kConfigFileName;
             }
         }
+
     }
     return TRUE;
 }
