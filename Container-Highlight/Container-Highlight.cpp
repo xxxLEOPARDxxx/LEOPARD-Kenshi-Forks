@@ -22,6 +22,8 @@
 #include <ogre/OgreAxisAlignedBox.h>
 #include <ogre/OgreColourValue.h>
 #include <ogre/OgreEntity.h>
+#include <ogre/OgreInstanceBatch.h>
+#include <ogre/OgreInstancedEntity.h>
 #include <ogre/OgreGpuProgramParams.h>
 #include <ogre/OgreMaterial.h>
 #include <ogre/OgreMovableObject.h>
@@ -55,10 +57,10 @@ namespace
 const char* kPluginName = "Container-Highlight";
 const char* kConfigFileName = "mod-config.json";
 const size_t kMaxContainerMarkers = 48;
-const int kMarkerWidthPx = 88;
+const int kMarkerWidthPx = 64;
 const int kMarkerHeightPx = 18;
 const int kMarkerYOffsetPx = 24;
-const int kMarkerIconGapPx = 2;
+const int kMarkerIconGapPx = 1;
 const int kMarkerIconSizePx = 18;
 const float kDefaultAnchorYOffsetWorld = 0.90f;
 const float kContainerAnchorPaddingWorld = 0.30f;
@@ -66,7 +68,7 @@ const DWORD kDefaultUpdateIntervalMs = 150;
 const float kDefaultMaxHighlightDistance = 900.0f;
 const int kDefaultMaxObjectsPerType = 256;
 const char* kDefaultMarkerText = "BOX";
-const char* kDefaultMarkerIconTexture = "gui/gfx/figure.png";
+const char* kDefaultMarkerIconTexture = "figure.png";
 const int kKeyCodeUnbound = -1;
 const int kDefaultHighlightKeyCode = static_cast<int>(OIS::KC_LMENU);
 const float kHubMinHighlightDistance = 100.0f;
@@ -129,10 +131,18 @@ struct TintEntityBinding
     std::vector<Ogre::MaterialPtr> cloneMaterials;
 };
 
+struct TintBatchBinding
+{
+    Ogre::InstanceBatch* batch;
+    Ogre::MaterialPtr originalMaterial;
+    Ogre::MaterialPtr cloneMaterial;
+};
+
 struct ContainerTintEntry
 {
     hand targetHandle;
-    std::vector<TintEntityBinding> bindings;
+    std::vector<TintEntityBinding> entityBindings;
+    std::vector<TintBatchBinding> batchBindings;
 };
 
 struct RuntimeState
@@ -140,6 +150,7 @@ struct RuntimeState
     RuntimeState()
         : projectionUtility(0)
         , lastProbeTickMs(0)
+        , lastTintDebugLogTickMs(0)
         , markerWidgetSerial(0)
         , tintCloneSerial(0)
         , highlightRuntimeActive(false)
@@ -153,6 +164,7 @@ struct RuntimeState
     std::vector<ContainerTintEntry> tintEntries;
     UtilityT* projectionUtility;
     DWORD lastProbeTickMs;
+    DWORD lastTintDebugLogTickMs;
     unsigned int markerWidgetSerial;
     unsigned int tintCloneSerial;
     bool highlightRuntimeActive;
@@ -199,6 +211,16 @@ const char* kColorOverrideParamCamel = "colorOverride";
 const char* kColourOverrideParamCamel = "colourOverride";
 const char* kDepthOverrideParam = "overrideDepth";
 const char* kOverrideDepthLowerParam = "overridedepth";
+const char* kHighlightObjectVertexProgram = "CH_Object_VP";
+const char* kHighlightObjectColouredVertexProgram = "CH_Object_Coloured_VP";
+const char* kHighlightObjectFragmentProgram = "CH_Object_FP";
+const char* kHighlightObjectAlphaFragmentProgram = "CH_Object_Alpha_FP";
+const char* kHighlightObjectColouredFragmentProgram = "CH_Object_Coloured_FP";
+const char* kHighlightObjectDoubleSidedFragmentProgram = "CH_Object_DoubleSided_FP";
+const char* kHighlightObjectDoubleSidedColouredFragmentProgram = "CH_Object_DoubleSided_Coloured_FP";
+const bool kEnableInstancedBatchTint = false;
+const char* kHighlightObjectDualFragmentProgram = "CH_Object_Dual_FP";
+const char* kHighlightObjectEmissiveFragmentProgram = "CH_Object_Emissive_FP";
 
 RuntimeState g_state;
 PlayerInterfaceUpdateUTFn* g_playerInterfaceUpdateUTOrig = 0;
@@ -212,6 +234,8 @@ std::string RootObjectDisplayNameForLog(RootObject* object);
 Inventory* TryGetBuildingInventorySafe(Building* building);
 bool LooksLikeContainerDisplayName(const std::string& value);
 Inventory* ResolveContainerInventory(RootObject* object, bool* usedBuildingFallback);
+PhysicsCollection* TryGetBuildingPhysical(Building* building);
+Ogre::SceneNode* TryGetBuildingRootNode(Building* building);
 
 PluginConfig MakeDefaultConfig()
 {
@@ -1789,6 +1813,447 @@ bool EntityVectorContains(const std::vector<Ogre::Entity*>& values, Ogre::Entity
     return false;
 }
 
+bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
+{
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        if (values[i] == needle)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AppendMovableAsTintEntityUnique(std::vector<Ogre::Entity*>* outEntities, Ogre::MovableObject* movable)
+{
+    if (outEntities == 0 || movable == 0)
+    {
+        return;
+    }
+
+    try
+    {
+        if (movable->getMovableType() == Ogre::EntityFactory::FACTORY_TYPE_NAME)
+        {
+            AppendTintEntityUnique(outEntities, static_cast<Ogre::Entity*>(movable));
+        }
+    }
+    catch (...)
+    {
+    }
+}
+
+bool InstanceBatchVectorContains(const std::vector<Ogre::InstanceBatch*>& batches, Ogre::InstanceBatch* batch)
+{
+    if (batch == 0)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < batches.size(); ++i)
+    {
+        if (batches[i] == batch)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void AppendTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatches, Ogre::InstanceBatch* batch)
+{
+    if (outBatches == 0 || batch == 0 || InstanceBatchVectorContains(*outBatches, batch))
+    {
+        return;
+    }
+
+    outBatches->push_back(batch);
+}
+
+void AppendMovableAsTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatches, Ogre::MovableObject* movable)
+{
+    if (outBatches == 0 || movable == 0)
+    {
+        return;
+    }
+
+    try
+    {
+        const std::string movableType = movable->getMovableType().c_str();
+        if (movableType == "InstancedEntity")
+        {
+            Ogre::InstancedEntity* instancedEntity = static_cast<Ogre::InstancedEntity*>(movable);
+            AppendTintBatchUnique(outBatches, instancedEntity->_getOwner());
+        }
+        else if (movableType == "InstanceBatch")
+        {
+            AppendTintBatchUnique(outBatches, static_cast<Ogre::InstanceBatch*>(movable));
+        }
+    }
+    catch (...)
+    {
+    }
+}
+
+std::string SafeGetMovableTypeName(Ogre::MovableObject* movable)
+{
+    if (movable == 0)
+    {
+        return "null";
+    }
+
+    try
+    {
+        return movable->getMovableType().c_str();
+    }
+    catch (...)
+    {
+        return "unknown";
+    }
+}
+
+std::string SafeGetMovableName(Ogre::MovableObject* movable)
+{
+    if (movable == 0)
+    {
+        return "<null>";
+    }
+
+    try
+    {
+        const std::string name = movable->getName().c_str();
+        return name.empty() ? "<unnamed>" : name;
+    }
+    catch (...)
+    {
+        return "<name-error>";
+    }
+}
+
+const char* SafeGetBuildingClassTypeName(Building* building)
+{
+    if (building == 0)
+    {
+        return "null";
+    }
+
+    __try
+    {
+        return BuildingClassTypeNameForLog(building->getBuildingClass());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return "error";
+    }
+}
+
+const char* SafeGetBuildingFunctionTypeName(Building* building)
+{
+    if (building == 0)
+    {
+        return "null";
+    }
+
+    __try
+    {
+        return BuildingFunctionNameForLog(building->getSpecialFunction());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return "error";
+    }
+}
+
+int SafeGetBuildingEntitiesLoaded(Building* building)
+{
+    if (building == 0)
+    {
+        return -1;
+    }
+
+    __try
+    {
+        return building->entitiesLoaded ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+int SafeGetBuildingVisible(Building* building)
+{
+    if (building == 0)
+    {
+        return -1;
+    }
+
+    __try
+    {
+        return building->getVisible() ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+int SafeGetBuildingCreated(Building* building)
+{
+    if (building == 0)
+    {
+        return -1;
+    }
+
+    __try
+    {
+        return building->isCreated() ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+int SafeGetPhysicalLoaded(PhysicsCollection* physical)
+{
+    if (physical == 0)
+    {
+        return -1;
+    }
+
+    __try
+    {
+        return physical->isLoaded() ? 1 : 0;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1;
+    }
+}
+
+std::string BuildMovableInvestigationSample(const char* prefix, size_t depth, Ogre::MovableObject* movable)
+{
+    std::stringstream sample;
+    sample << prefix;
+    if (depth != static_cast<size_t>(-1))
+    {
+        sample << ":" << depth;
+    }
+    sample << ":" << SafeGetMovableTypeName(movable)
+           << ":" << SafeGetMovableName(movable);
+    return sample.str();
+}
+
+void AppendInvestigationSample(std::vector<std::string>* samples, const std::string& value)
+{
+    if (samples == 0 || value.empty() || samples->size() >= 6)
+    {
+        return;
+    }
+
+    samples->push_back(value);
+}
+
+void CollectSceneNodeMovableTypeSamples(
+    Ogre::SceneNode* node,
+    size_t depth,
+    size_t* nodeCountOut,
+    size_t* attachedCountOut,
+    size_t* entityLikeCountOut,
+    std::vector<std::string>* samples)
+{
+    if (node == 0 || depth > 6)
+    {
+        return;
+    }
+
+    if (nodeCountOut != 0)
+    {
+        ++(*nodeCountOut);
+    }
+
+    const size_t attachedCount = node->numAttachedObjects();
+    if (attachedCountOut != 0)
+    {
+        *attachedCountOut += attachedCount;
+    }
+
+    for (size_t attachedIndex = 0; attachedIndex < attachedCount; ++attachedIndex)
+    {
+        Ogre::MovableObject* movable = node->getAttachedObject(attachedIndex);
+        if (movable == 0)
+        {
+            continue;
+        }
+
+        const std::string movableType = SafeGetMovableTypeName(movable);
+        if (entityLikeCountOut != 0 && movableType == Ogre::EntityFactory::FACTORY_TYPE_NAME)
+        {
+            ++(*entityLikeCountOut);
+        }
+
+        AppendInvestigationSample(samples, BuildMovableInvestigationSample("node", depth, movable));
+    }
+
+    const size_t childCount = node->numChildren();
+    for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
+        CollectSceneNodeMovableTypeSamples(
+            childNode,
+            depth + 1,
+            nodeCountOut,
+            attachedCountOut,
+            entityLikeCountOut,
+            samples);
+    }
+}
+
+void CollectPhysicalMovableTypeSamples(
+    PhysicsCollection* physical,
+    size_t* staticEntCountOut,
+    size_t* partCountOut,
+    size_t* instancedStaticEntCountOut,
+    size_t* entityLikeStaticEntCountOut,
+    std::vector<std::string>* staticEntSamples)
+{
+    if (physical == 0)
+    {
+        return;
+    }
+
+    if (staticEntCountOut != 0)
+    {
+        *staticEntCountOut = physical->staticEnts.size();
+    }
+    if (partCountOut != 0)
+    {
+        *partCountOut = physical->parts.size();
+    }
+
+    for (lektor<PhysicsCollection::StaticEnt*>::const_iterator it = physical->staticEnts.begin();
+         it != physical->staticEnts.end();
+         ++it)
+    {
+        PhysicsCollection::StaticEnt* staticEnt = *it;
+        if (staticEnt == 0 || staticEnt->ent == 0)
+        {
+            continue;
+        }
+
+        if (instancedStaticEntCountOut != 0 && staticEnt->instanced)
+        {
+            ++(*instancedStaticEntCountOut);
+        }
+
+        const std::string movableType = SafeGetMovableTypeName(staticEnt->ent);
+        if (entityLikeStaticEntCountOut != 0 && movableType == Ogre::EntityFactory::FACTORY_TYPE_NAME)
+        {
+            ++(*entityLikeStaticEntCountOut);
+        }
+
+        std::stringstream sample;
+        sample << BuildMovableInvestigationSample("static", static_cast<size_t>(-1), staticEnt->ent)
+               << ":inst=" << (staticEnt->instanced ? 1 : 0)
+               << ":shell=" << (staticEnt->isShell ? 1 : 0)
+               << ":emissive=" << (staticEnt->isEmissive ? 1 : 0);
+        if (staticEnt->partData != 0 && !staticEnt->partData->name.empty())
+        {
+            sample << ":part=" << staticEnt->partData->name;
+        }
+        if (staticEnt->mat != 0 && !staticEnt->mat->name.empty())
+        {
+            sample << ":mat=" << staticEnt->mat->name;
+        }
+        AppendInvestigationSample(staticEntSamples, sample.str());
+    }
+}
+
+void LogTintEntityCollectionInvestigation(const hand& targetHandle)
+{
+    Building* building = targetHandle.getBuilding();
+    Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building);
+    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    size_t rootNodeCount = 0;
+    size_t rootAttachedCount = 0;
+    size_t rootEntityLikeCount = 0;
+    size_t staticEntCount = 0;
+    size_t partCount = 0;
+    size_t instancedStaticEntCount = 0;
+    size_t entityLikeStaticEntCount = 0;
+    std::vector<std::string> rootSamples;
+    std::vector<std::string> staticSamples;
+    CollectSceneNodeMovableTypeSamples(
+        rootNode,
+        0,
+        &rootNodeCount,
+        &rootAttachedCount,
+        &rootEntityLikeCount,
+        &rootSamples);
+    CollectPhysicalMovableTypeSamples(
+        physical,
+        &staticEntCount,
+        &partCount,
+        &instancedStaticEntCount,
+        &entityLikeStaticEntCount,
+        &staticSamples);
+
+    std::stringstream summary;
+    summary << "[investigate][tint_collect] target="
+            << targetHandle.type << ":" << targetHandle.index << ":" << targetHandle.serial
+            << " name=\"" << RootObjectDisplayNameForLog(static_cast<RootObject*>(building)) << "\""
+            << " building_present=" << (building != 0 ? 1 : 0)
+            << " building_class=" << SafeGetBuildingClassTypeName(building)
+            << " building_function=" << SafeGetBuildingFunctionTypeName(building)
+            << " created=" << SafeGetBuildingCreated(building)
+            << " visible=" << SafeGetBuildingVisible(building)
+            << " entities_loaded=" << SafeGetBuildingEntitiesLoaded(building)
+            << " root_node=" << (rootNode != 0 ? 1 : 0)
+            << " root_nodes=" << rootNodeCount
+            << " root_attached=" << rootAttachedCount
+            << " root_entity_like=" << rootEntityLikeCount
+            << " physical=" << (physical != 0 ? 1 : 0)
+            << " physical_loaded=" << SafeGetPhysicalLoaded(physical)
+            << " static_ents=" << staticEntCount
+            << " static_entity_like=" << entityLikeStaticEntCount
+            << " static_instanced=" << instancedStaticEntCount
+            << " parts=" << partCount;
+    LogDebugLine(summary.str());
+
+    if (!rootSamples.empty())
+    {
+        std::stringstream line;
+        line << "[investigate][tint_collect] root_samples=";
+        for (size_t i = 0; i < rootSamples.size(); ++i)
+        {
+            if (i != 0)
+            {
+                line << ",";
+            }
+            line << rootSamples[i];
+        }
+        LogDebugLine(line.str());
+    }
+
+    if (!staticSamples.empty())
+    {
+        std::stringstream line;
+        line << "[investigate][tint_collect] static_samples=";
+        for (size_t i = 0; i < staticSamples.size(); ++i)
+        {
+            if (i != 0)
+            {
+                line << ",";
+            }
+            line << staticSamples[i];
+        }
+        LogDebugLine(line.str());
+    }
+}
+
 void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth, std::vector<Ogre::Entity*>* outEntities)
 {
     if (node == 0 || outEntities == 0 || depth > 10)
@@ -1807,10 +2272,7 @@ void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth, std::
                 continue;
             }
 
-            if (movable->getMovableType() == Ogre::EntityFactory::FACTORY_TYPE_NAME)
-            {
-                AppendTintEntityUnique(outEntities, static_cast<Ogre::Entity*>(movable));
-            }
+            AppendMovableAsTintEntityUnique(outEntities, movable);
         }
 
         const size_t childCount = node->numChildren();
@@ -1818,6 +2280,125 @@ void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth, std::
         {
             Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
             CollectBuildingEntitiesRecursive(childNode, depth + 1, outEntities);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+void CollectBuildingInstanceBatchesRecursive(
+    Ogre::SceneNode* node,
+    size_t depth,
+    std::vector<Ogre::InstanceBatch*>* outBatches)
+{
+    if (node == 0 || outBatches == 0 || depth > 10)
+    {
+        return;
+    }
+
+    __try
+    {
+        const size_t attachedCount = node->numAttachedObjects();
+        for (size_t attachedIndex = 0; attachedIndex < attachedCount; ++attachedIndex)
+        {
+            Ogre::MovableObject* movable = node->getAttachedObject(attachedIndex);
+            if (movable == 0)
+            {
+                continue;
+            }
+
+            AppendMovableAsTintBatchUnique(outBatches, movable);
+        }
+
+        const size_t childCount = node->numChildren();
+        for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
+        {
+            Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
+            CollectBuildingInstanceBatchesRecursive(childNode, depth + 1, outBatches);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+PhysicsCollection* TryGetBuildingPhysical(Building* building)
+{
+    if (building == 0 || !building->isValid())
+    {
+        return 0;
+    }
+
+    __try
+    {
+        return building->physical;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+void CollectBuildingPhysicalEntities(Building* building, std::vector<Ogre::Entity*>* outEntities)
+{
+    if (building == 0 || outEntities == 0)
+    {
+        return;
+    }
+
+    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    if (physical == 0)
+    {
+        return;
+    }
+
+    __try
+    {
+        for (lektor<PhysicsCollection::StaticEnt*>::const_iterator it = physical->staticEnts.begin();
+             it != physical->staticEnts.end();
+             ++it)
+        {
+            PhysicsCollection::StaticEnt* staticEnt = *it;
+            if (staticEnt == 0)
+            {
+                continue;
+            }
+
+            AppendMovableAsTintEntityUnique(outEntities, staticEnt->ent);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+}
+
+void CollectBuildingPhysicalInstanceBatches(Building* building, std::vector<Ogre::InstanceBatch*>* outBatches)
+{
+    if (building == 0 || outBatches == 0)
+    {
+        return;
+    }
+
+    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    if (physical == 0)
+    {
+        return;
+    }
+
+    __try
+    {
+        for (lektor<PhysicsCollection::StaticEnt*>::const_iterator it = physical->staticEnts.begin();
+             it != physical->staticEnts.end();
+             ++it)
+        {
+            PhysicsCollection::StaticEnt* staticEnt = *it;
+            if (staticEnt == 0)
+            {
+                continue;
+            }
+
+            AppendMovableAsTintBatchUnique(outBatches, staticEnt->ent);
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1914,6 +2495,7 @@ float ResolveTargetAnchorYOffsetWorld(const hand& targetHandle)
         Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building);
         std::vector<Ogre::Entity*> entities;
         CollectBuildingEntitiesRecursive(rootNode, 0, &entities);
+        CollectBuildingPhysicalEntities(building, &entities);
         float maxHalfSizeY = 0.0f;
         for (size_t entityIndex = 0; entityIndex < entities.size(); ++entityIndex)
         {
@@ -2282,15 +2864,80 @@ bool TryApplyMarkerIconTexture(MyGUI::ImageBox* imageBox, const std::string& tex
     }
 
     std::vector<std::string> candidates;
-    candidates.push_back(textureName);
-    if (textureName.find('/') == std::string::npos && textureName.find('\\') == std::string::npos)
+    const auto addCandidate = [&candidates](const std::string& candidate)
     {
-        candidates.push_back(std::string("gui/gfx/") + textureName);
-        candidates.push_back(std::string("mods/") + kPluginName + "/gui/gfx/" + textureName);
+        if (!candidate.empty() && !StringListContains(candidates, candidate))
+        {
+            candidates.push_back(candidate);
+        }
+    };
+
+    const auto addCandidateWithSeparatorVariants = [&addCandidate](const std::string& candidate)
+    {
+        if (candidate.empty())
+        {
+            return;
+        }
+
+        addCandidate(candidate);
+
+        std::string withForwardSlashes = candidate;
+        bool changedToForward = false;
+        for (size_t i = 0; i < withForwardSlashes.size(); ++i)
+        {
+            if (withForwardSlashes[i] == '\\')
+            {
+                withForwardSlashes[i] = '/';
+                changedToForward = true;
+            }
+        }
+        if (changedToForward)
+        {
+            addCandidate(withForwardSlashes);
+        }
+
+        std::string withBackSlashes = candidate;
+        bool changedToBack = false;
+        for (size_t i = 0; i < withBackSlashes.size(); ++i)
+        {
+            if (withBackSlashes[i] == '/')
+            {
+                withBackSlashes[i] = '\\';
+                changedToBack = true;
+            }
+        }
+        if (changedToBack)
+        {
+            addCandidate(withBackSlashes);
+        }
+    };
+
+    addCandidateWithSeparatorVariants(textureName);
+
+    const bool hasPathSeparator = (textureName.find('/') != std::string::npos || textureName.find('\\') != std::string::npos);
+    const bool isAbsolutePath = (textureName.size() >= 2 && textureName[1] == ':')
+        || (!textureName.empty() && (textureName[0] == '/' || textureName[0] == '\\'));
+    const bool isModQualified = (textureName.rfind("mods/", 0) == 0 || textureName.rfind("mods\\", 0) == 0);
+
+    if (!hasPathSeparator)
+    {
+        addCandidateWithSeparatorVariants(std::string("gui/gfx/") + textureName);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/gui/gfx/" + textureName);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + textureName);
     }
-    else if (textureName.find("mods/") != 0 && textureName.find("mods\\") != 0)
+    else if (!isAbsolutePath && !isModQualified)
     {
-        candidates.push_back(std::string("mods/") + kPluginName + "/" + textureName);
+        addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + textureName);
+
+        const size_t fileNameStart = textureName.find_last_of("/\\");
+        if (fileNameStart != std::string::npos && (fileNameStart + 1) < textureName.size())
+        {
+            const std::string fileName = textureName.substr(fileNameStart + 1);
+            addCandidateWithSeparatorVariants(fileName);
+            addCandidateWithSeparatorVariants(std::string("gui/gfx/") + fileName);
+            addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/gui/gfx/" + fileName);
+            addCandidateWithSeparatorVariants(std::string("mods/") + kPluginName + "/" + fileName);
+        }
     }
 
     for (size_t i = 0; i < candidates.size(); ++i)
@@ -2313,15 +2960,23 @@ bool TryApplyMarkerIconTexture(MyGUI::ImageBox* imageBox, const std::string& tex
         }
     }
 
+    if (textureName != kDefaultMarkerIconTexture)
+    {
+        return TryApplyMarkerIconTexture(imageBox, kDefaultMarkerIconTexture);
+    }
+
     return false;
 }
 
 void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, bool showText)
 {
+    int layoutLeft = left;
     int iconLeft = left;
-    if (!showText && showIcon)
+
+    if (showIcon)
     {
-        iconLeft = left + ((kMarkerWidthPx - kMarkerIconSizePx) / 2);
+        iconLeft = layoutLeft;
+        layoutLeft += kMarkerHeightPx + kMarkerIconGapPx;
     }
 
     if (marker.icon)
@@ -2339,14 +2994,24 @@ void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, b
     {
         try
         {
-            const int textLeft = showIcon ? (iconLeft + kMarkerIconSizePx + kMarkerIconGapPx) : left;
-            int textWidth = kMarkerWidthPx - (textLeft - left);
+            int textWidth = kMarkerWidthPx - (layoutLeft - left);
             if (textWidth < 0)
             {
                 textWidth = 0;
             }
-            marker.text->setCoord(textLeft, top, textWidth, kMarkerHeightPx);
-            marker.text->setTextAlign(showIcon ? MyGUI::Align::Left : MyGUI::Align::Center);
+            if (textWidth > kMarkerWidthPx)
+            {
+                textWidth = kMarkerWidthPx;
+            }
+
+            if (showText)
+            {
+                marker.text->setCoord(layoutLeft, top, textWidth, kMarkerHeightPx);
+            }
+            else
+            {
+                marker.text->setCoord(layoutLeft, top, 0, kMarkerHeightPx);
+            }
         }
         catch (...)
         {
@@ -2390,7 +3055,7 @@ bool CreateMarkerWidgetAt(size_t index)
 
         MyGUI::TextBox* text = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(kMarkerIconSizePx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerIconSizePx + kMarkerIconGapPx), kMarkerHeightPx),
+            MyGUI::IntCoord(kMarkerHeightPx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerHeightPx + kMarkerIconGapPx), kMarkerHeightPx),
             MyGUI::Align::Default,
             "Top",
             name.str());
@@ -2398,7 +3063,7 @@ bool CreateMarkerWidgetAt(size_t index)
         {
             text = gui->createWidget<MyGUI::TextBox>(
                 "TextBox",
-                MyGUI::IntCoord(kMarkerIconSizePx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerIconSizePx + kMarkerIconGapPx), kMarkerHeightPx),
+                MyGUI::IntCoord(kMarkerHeightPx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerHeightPx + kMarkerIconGapPx), kMarkerHeightPx),
                 MyGUI::Align::Default,
                 "Top",
                 name.str() + "_fallback");
@@ -2726,6 +3391,159 @@ std::string BuildTintCloneName(const hand& targetHandle, size_t bindingIndex, si
     return name.str();
 }
 
+std::string SafeGetPassVertexProgramName(Ogre::Pass* pass)
+{
+    if (!pass)
+    {
+        return std::string();
+    }
+
+    try
+    {
+        return pass->getVertexProgramName().c_str();
+    }
+    catch (...)
+    {
+        return std::string();
+    }
+}
+
+std::string SafeGetPassFragmentProgramName(Ogre::Pass* pass)
+{
+    if (!pass)
+    {
+        return std::string();
+    }
+
+    try
+    {
+        return pass->getFragmentProgramName().c_str();
+    }
+    catch (...)
+    {
+        return std::string();
+    }
+}
+
+bool PassUsesObjectLikePrograms(const std::string& vertexProgramNameLower, const std::string& fragmentProgramNameLower)
+{
+    if (vertexProgramNameLower.find("shadow") != std::string::npos
+        || fragmentProgramNameLower.find("shadow") != std::string::npos)
+    {
+        return false;
+    }
+
+    return vertexProgramNameLower.empty()
+        || fragmentProgramNameLower.empty()
+        || vertexProgramNameLower.find("object") != std::string::npos
+        || fragmentProgramNameLower.find("object") != std::string::npos
+        || vertexProgramNameLower.find("building") != std::string::npos
+        || fragmentProgramNameLower.find("building") != std::string::npos
+        || vertexProgramNameLower.find("ch_object") != std::string::npos
+        || fragmentProgramNameLower.find("ch_object") != std::string::npos;
+}
+
+const char* SelectHighlightVertexProgramName(
+    const std::string& vertexProgramNameLower,
+    const std::string& fragmentProgramNameLower)
+{
+    if (vertexProgramNameLower.find("coloured") != std::string::npos
+        || fragmentProgramNameLower.find("coloured") != std::string::npos
+        || fragmentProgramNameLower.find("dual") != std::string::npos)
+    {
+        return kHighlightObjectColouredVertexProgram;
+    }
+
+    return kHighlightObjectVertexProgram;
+}
+
+const char* SelectHighlightFragmentProgramName(
+    const std::string& vertexProgramNameLower,
+    const std::string& fragmentProgramNameLower)
+{
+    const bool usesColouring =
+        vertexProgramNameLower.find("coloured") != std::string::npos
+        || fragmentProgramNameLower.find("coloured") != std::string::npos;
+
+    if (fragmentProgramNameLower.find("double") != std::string::npos)
+    {
+        return usesColouring
+            ? kHighlightObjectDoubleSidedColouredFragmentProgram
+            : kHighlightObjectDoubleSidedFragmentProgram;
+    }
+
+    if (fragmentProgramNameLower.find("dual") != std::string::npos)
+    {
+        return kHighlightObjectDualFragmentProgram;
+    }
+
+    if (fragmentProgramNameLower.find("emissive") != std::string::npos)
+    {
+        return kHighlightObjectEmissiveFragmentProgram;
+    }
+
+    if (fragmentProgramNameLower.find("alpha") != std::string::npos)
+    {
+        return kHighlightObjectAlphaFragmentProgram;
+    }
+
+    if (usesColouring)
+    {
+        return kHighlightObjectColouredFragmentProgram;
+    }
+
+    return kHighlightObjectFragmentProgram;
+}
+
+bool ApplyContainerHighlightProgramsToPass(Ogre::Pass* pass)
+{
+    if (!pass)
+    {
+        return false;
+    }
+
+    unsigned short textureUnitCount = 0;
+    try
+    {
+        textureUnitCount = pass->getNumTextureUnitStates();
+    }
+    catch (...)
+    {
+        textureUnitCount = 0;
+    }
+    if (textureUnitCount == 0)
+    {
+        return false;
+    }
+
+    const std::string originalVertexProgramName = SafeGetPassVertexProgramName(pass);
+    const std::string originalFragmentProgramName = SafeGetPassFragmentProgramName(pass);
+    const std::string vertexProgramNameLower = ToLowerAsciiCopy(originalVertexProgramName);
+    const std::string fragmentProgramNameLower = ToLowerAsciiCopy(originalFragmentProgramName);
+    if (!PassUsesObjectLikePrograms(vertexProgramNameLower, fragmentProgramNameLower))
+    {
+        return false;
+    }
+
+    const char* highlightVertexProgram = SelectHighlightVertexProgramName(
+        vertexProgramNameLower,
+        fragmentProgramNameLower);
+    const char* highlightFragmentProgram = SelectHighlightFragmentProgramName(
+        vertexProgramNameLower,
+        fragmentProgramNameLower);
+
+    try
+    {
+        pass->setVertexProgram(highlightVertexProgram, true);
+        pass->setFragmentProgram(highlightFragmentProgram, true);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool ApplyTintConstantsToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour, bool depthOverride, bool* appliedColourOut)
 {
     if (!pass)
@@ -2814,8 +3632,9 @@ bool ApplyFallbackTintToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour, 
     try
     {
         pass->setAmbient(Ogre::ColourValue(colour.r * 0.35f, colour.g * 0.35f, colour.b * 0.35f, 1.0f));
-        pass->setDiffuse(Ogre::ColourValue(1.0f, 1.0f, 1.0f, 1.0f));
-        pass->setSelfIllumination(Ogre::ColourValue(colour.r * 0.65f, colour.g * 0.65f, colour.b * 0.65f, 1.0f));
+        pass->setDiffuse(Ogre::ColourValue(colour.r, colour.g, colour.b, 1.0f));
+        pass->setSelfIllumination(Ogre::ColourValue(colour.r * 0.75f, colour.g * 0.75f, colour.b * 0.75f, 1.0f));
+        pass->setSpecular(Ogre::ColourValue(colour.r * 0.15f, colour.g * 0.15f, colour.b * 0.15f, 1.0f));
         if (depthOverride)
         {
             pass->setDepthCheckEnabled(false);
@@ -2889,6 +3708,8 @@ bool ApplyTintToMaterialClone(const Ogre::MaterialPtr& material, const Ogre::Col
                 continue;
             }
 
+            ApplyContainerHighlightProgramsToPass(pass);
+
             bool appliedColourConstant = false;
             ApplyTintConstantsToPass(pass, colour, depthOverride, &appliedColourConstant);
             if (appliedColourConstant)
@@ -2942,6 +3763,59 @@ void ClearTintBinding(TintEntityBinding* binding)
     binding->cloneMaterials.clear();
 }
 
+Ogre::MaterialPtr GetInstanceBatchMaterial(Ogre::InstanceBatch* batch)
+{
+    if (batch == 0)
+    {
+        return Ogre::MaterialPtr();
+    }
+
+    try
+    {
+        return batch->getMaterial();
+    }
+    catch (...)
+    {
+        return Ogre::MaterialPtr();
+    }
+}
+
+bool SetInstanceBatchMaterial(Ogre::InstanceBatch* batch, const Ogre::MaterialPtr& material)
+{
+    if (batch == 0 || material.isNull())
+    {
+        return false;
+    }
+
+    try
+    {
+        Ogre::MaterialPtr& materialSlot = const_cast<Ogre::MaterialPtr&>(batch->getMaterial());
+        materialSlot = material;
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+void ClearTintBatchBinding(TintBatchBinding* binding)
+{
+    if (binding == 0)
+    {
+        return;
+    }
+
+    if (binding->batch != 0 && !binding->originalMaterial.isNull())
+    {
+        SetInstanceBatchMaterial(binding->batch, binding->originalMaterial);
+    }
+
+    binding->batch = 0;
+    binding->originalMaterial.setNull();
+    binding->cloneMaterial.setNull();
+}
+
 void ClearTintEntry(ContainerTintEntry* entry)
 {
     if (entry == 0)
@@ -2949,11 +3823,17 @@ void ClearTintEntry(ContainerTintEntry* entry)
         return;
     }
 
-    for (size_t i = 0; i < entry->bindings.size(); ++i)
+    for (size_t i = 0; i < entry->entityBindings.size(); ++i)
     {
-        ClearTintBinding(&entry->bindings[i]);
+        ClearTintBinding(&entry->entityBindings[i]);
     }
-    entry->bindings.clear();
+    entry->entityBindings.clear();
+
+    for (size_t i = 0; i < entry->batchBindings.size(); ++i)
+    {
+        ClearTintBatchBinding(&entry->batchBindings[i]);
+    }
+    entry->batchBindings.clear();
 }
 
 int FindTintEntryByHandle(const hand& targetHandle)
@@ -2978,20 +3858,30 @@ void AppendTintEntityUnique(std::vector<Ogre::Entity*>* outEntities, Ogre::Entit
     outEntities->push_back(entity);
 }
 
-void CollectTintEntitiesForTarget(const hand& targetHandle, std::vector<Ogre::Entity*>* outEntities)
+void CollectTintTargetsForTarget(
+    const hand& targetHandle,
+    std::vector<Ogre::Entity*>* outEntities,
+    std::vector<Ogre::InstanceBatch*>* outBatches)
 {
-    if (outEntities == 0)
+    if (outEntities == 0 || outBatches == 0)
     {
         return;
     }
 
     outEntities->clear();
+    outBatches->clear();
 
     Building* building = targetHandle.getBuilding();
     if (building != 0 && IsHighlightableContainerBuilding(building))
     {
         Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building);
         CollectBuildingEntitiesRecursive(rootNode, 0, outEntities);
+        CollectBuildingPhysicalEntities(building, outEntities);
+        if (kEnableInstancedBatchTint)
+        {
+            CollectBuildingInstanceBatchesRecursive(rootNode, 0, outBatches);
+            CollectBuildingPhysicalInstanceBatches(building, outBatches);
+        }
     }
 
     (void)targetHandle;
@@ -3112,6 +4002,62 @@ bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogr
     return appliedAny;
 }
 
+bool ApplyTintToBatchBinding(const hand& targetHandle, size_t bindingIndex, Ogre::InstanceBatch* batch, TintBatchBinding* binding)
+{
+    if (batch == 0 || binding == 0)
+    {
+        return false;
+    }
+
+    if (binding->batch != batch)
+    {
+        ClearTintBatchBinding(binding);
+        binding->batch = batch;
+    }
+
+    Ogre::MaterialPtr currentMaterial = GetInstanceBatchMaterial(batch);
+    if (currentMaterial.isNull())
+    {
+        return false;
+    }
+
+    const bool currentIsClone =
+        !binding->cloneMaterial.isNull() && MaterialPtrsReferSameObject(currentMaterial, binding->cloneMaterial);
+    if (!currentIsClone)
+    {
+        binding->originalMaterial = currentMaterial;
+        binding->cloneMaterial.setNull();
+    }
+    if (binding->originalMaterial.isNull())
+    {
+        binding->originalMaterial = currentMaterial;
+    }
+
+    if (binding->cloneMaterial.isNull())
+    {
+        try
+        {
+            binding->cloneMaterial = binding->originalMaterial->clone(
+                BuildTintCloneName(targetHandle, bindingIndex, 0));
+        }
+        catch (...)
+        {
+            binding->cloneMaterial.setNull();
+        }
+    }
+    if (binding->cloneMaterial.isNull())
+    {
+        return false;
+    }
+
+    if (!ApplyTintToMaterialClone(binding->cloneMaterial, g_state.config.tintColour, g_state.config.tintForceDepthOverride))
+    {
+        return false;
+    }
+
+    return SetInstanceBatchMaterial(batch, binding->cloneMaterial);
+}
+
 void ClearAllTint()
 {
     for (size_t i = 0; i < g_state.tintEntries.size(); ++i)
@@ -3129,36 +4075,68 @@ void SyncTint()
         return;
     }
 
+    const DWORD nowMs = GetTickCount();
+    const bool emitTintInvestigation =
+        ShouldLogDebug()
+        && (g_state.lastTintDebugLogTickMs == 0 || (nowMs - g_state.lastTintDebugLogTickMs) >= 1000);
+    if (emitTintInvestigation)
+    {
+        g_state.lastTintDebugLogTickMs = nowMs;
+    }
+
     std::vector<hand> activeHandles;
     for (size_t targetIndex = 0; targetIndex < g_state.targetCache.size(); ++targetIndex)
     {
+        const hand targetHandle = g_state.targetCache[targetIndex].targetHandle;
         std::vector<Ogre::Entity*> entities;
-        CollectTintEntitiesForTarget(g_state.targetCache[targetIndex].targetHandle, &entities);
-        if (entities.empty())
+        std::vector<Ogre::InstanceBatch*> batches;
+        CollectTintTargetsForTarget(targetHandle, &entities, &batches);
+        if (entities.empty() && batches.empty())
         {
+            if (emitTintInvestigation)
+            {
+                LogTintEntityCollectionInvestigation(targetHandle);
+                std::stringstream line;
+                line << "[investigate][tint] target="
+                     << targetHandle.type << ":" << targetHandle.index << ":" << targetHandle.serial
+                     << " entities=0 batches=0 applied=false";
+                LogDebugLine(line.str());
+            }
             continue;
         }
 
-        int tintEntryIndex = FindTintEntryByHandle(g_state.targetCache[targetIndex].targetHandle);
+        int tintEntryIndex = FindTintEntryByHandle(targetHandle);
         if (tintEntryIndex < 0)
         {
             ContainerTintEntry entry;
-            entry.targetHandle = g_state.targetCache[targetIndex].targetHandle;
+            entry.targetHandle = targetHandle;
             g_state.tintEntries.push_back(entry);
             tintEntryIndex = static_cast<int>(g_state.tintEntries.size() - 1);
         }
 
         ContainerTintEntry& tintEntry = g_state.tintEntries[static_cast<size_t>(tintEntryIndex)];
-        while (tintEntry.bindings.size() > entities.size())
+        while (tintEntry.entityBindings.size() > entities.size())
         {
-            ClearTintBinding(&tintEntry.bindings.back());
-            tintEntry.bindings.pop_back();
+            ClearTintBinding(&tintEntry.entityBindings.back());
+            tintEntry.entityBindings.pop_back();
         }
-        while (tintEntry.bindings.size() < entities.size())
+        while (tintEntry.entityBindings.size() < entities.size())
         {
             TintEntityBinding binding;
             binding.entity = 0;
-            tintEntry.bindings.push_back(binding);
+            tintEntry.entityBindings.push_back(binding);
+        }
+
+        while (tintEntry.batchBindings.size() > batches.size())
+        {
+            ClearTintBatchBinding(&tintEntry.batchBindings.back());
+            tintEntry.batchBindings.pop_back();
+        }
+        while (tintEntry.batchBindings.size() < batches.size())
+        {
+            TintBatchBinding binding;
+            binding.batch = 0;
+            tintEntry.batchBindings.push_back(binding);
         }
 
         bool appliedAny = false;
@@ -3168,7 +4146,19 @@ void SyncTint()
                 tintEntry.targetHandle,
                 entityIndex,
                 entities[entityIndex],
-                &tintEntry.bindings[entityIndex]))
+                &tintEntry.entityBindings[entityIndex]))
+            {
+                appliedAny = true;
+            }
+        }
+
+        for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex)
+        {
+            if (ApplyTintToBatchBinding(
+                tintEntry.targetHandle,
+                entities.size() + batchIndex,
+                batches[batchIndex],
+                &tintEntry.batchBindings[batchIndex]))
             {
                 appliedAny = true;
             }
@@ -3177,6 +4167,17 @@ void SyncTint()
         if (appliedAny)
         {
             activeHandles.push_back(tintEntry.targetHandle);
+        }
+
+        if (emitTintInvestigation)
+        {
+            std::stringstream line;
+            line << "[investigate][tint] target="
+                 << targetHandle.type << ":" << targetHandle.index << ":" << targetHandle.serial
+                 << " entities=" << entities.size()
+                 << " batches=" << batches.size()
+                 << " applied=" << (appliedAny ? "true" : "false");
+            LogDebugLine(line.str());
         }
     }
 
@@ -3198,6 +4199,7 @@ void ResetHighlightRuntime()
     g_state.highlightRuntimeActive = false;
     g_state.targetCache.clear();
     g_state.lastProbeTickMs = 0;
+    g_state.lastTintDebugLogTickMs = 0;
     HideAllMarkerWidgetsInternal();
     ClearAllTint();
 }
@@ -3244,6 +4246,11 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
     (void)thisptr;
     (void)time;
 
+    if (g_gameWorldMainLoopGPUSensitiveStuffOrig)
+    {
+        g_gameWorldMainLoopGPUSensitiveStuffOrig(thisptr, time);
+    }
+
     if (g_state.highlightRuntimeActive)
     {
         SyncTint();
@@ -3253,10 +4260,6 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
         ClearAllTint();
     }
 
-    if (g_gameWorldMainLoopGPUSensitiveStuffOrig)
-    {
-        g_gameWorldMainLoopGPUSensitiveStuffOrig(thisptr, time);
-    }
 }
 }
 
