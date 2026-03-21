@@ -1,6 +1,6 @@
-## Container-Highlight (RE_Kenshi plugin)
+## Container Highlight (RE_Kenshi plugin)
 
-This repository is the starter scaffolding for the Container-Highlight native RE_Kenshi plugin mod.
+This repository is the starter scaffolding for the Container Highlight native RE_Kenshi plugin mod.
 
 ## Setup
 1. Review .env and adjust local paths as needed (.env.example is kept as a reference copy).
