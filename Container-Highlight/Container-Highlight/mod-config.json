@@ -1,6 +1,20 @@
 {
   "enabled": true,
-  "debugLogging": false,
-  "debugSearchLogging": false,
-  "debugBindingLogging": false
+  "update_interval_ms": 150,
+  "highlight_key": "ALT",
+  "highlight_key_require_ctrl": false,
+  "highlight_key_require_shift": false,
+  "highlight_key_require_alt": false,
+  "max_highlight_distance_m": 900,
+  "max_objects_per_type": 256,
+  "show_icons": true,
+  "show_text": true,
+  "enable_tint": true,
+  "tint_force_depth_override": true,
+  "marker_text": "BOX",
+  "marker_text_size_px": 18,
+  "marker_icon_texture": "gui/gfx/figure.png",
+  "marker_color_hex": "#F6C454",
+  "tint_color_hex": "#F6C454D9",
+  "debug_logging": false
 }
