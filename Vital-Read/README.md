@@ -57,6 +57,9 @@ mod-config.json starts with the shared logging baseline:
 
 When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch plus the three debug logging flags so they can be toggled in-game.
 
+## Current Runtime
+When `enabled` is on, Vital Read now shows a small always-on corner pip on each strictly unconscious squad portrait it can map with high confidence. Probe hotkeys remain available for verification.
+
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.
 

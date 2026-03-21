@@ -94,6 +94,7 @@ EMC_Result __cdecl SetHubBoolSetting(void* user_data, int32_t value, char* err_b
     if (descriptor->field == &g_enabled && !g_enabled)
     {
         HideHoveredMarker();
+        ResetUnconsciousOverlayState();
     }
 
     emc::consumer::WriteErrorMessage(err_buf, err_buf_size, 0);

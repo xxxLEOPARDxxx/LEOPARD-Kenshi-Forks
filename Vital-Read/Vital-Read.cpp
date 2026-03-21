@@ -40,6 +40,7 @@ namespace
 {
 const char* kPluginName = "Vital-Read";
 const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
+const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayMarker_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 
 const OIS::KeyCode kRunMappingProbeHotkey = OIS::KC_F4;
@@ -53,9 +54,13 @@ const OIS::KeyCode kDumpSelectedSquadMembersHotkey = OIS::KC_F11;
 const OIS::KeyCode kDumpMemberStatesHotkey = OIS::KC_F12;
 
 const DWORD kHoveredMarkerLifetimeMs = 1500;
+const DWORD kUnconsciousOverlayRefreshIntervalMs = 250;
 const int kHoveredMarkerInsetPx = 2;
 const int kHoveredMarkerMinSizePx = 10;
 const int kHoveredMarkerMaxSizePx = 18;
+const int kUnconsciousOverlayInsetPx = 2;
+const int kUnconsciousOverlayMinSizePx = 12;
+const int kUnconsciousOverlayMaxSizePx = 18;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
@@ -80,6 +85,8 @@ unsigned int g_activeProbeSessionId = 0u;
 unsigned int g_activeProbeSequence = 0u;
 DWORD g_hoveredMarkerExpireTick = 0u;
 MyGUI::Widget* g_hoveredMarkerWidget = 0;
+DWORD g_unconsciousOverlayNextRefreshTick = 0u;
+std::vector<MyGUI::Widget*> g_unconsciousOverlayWidgets;
 
 struct HoverContext
 {
@@ -185,8 +192,44 @@ struct MemberStateSnapshot
     const char* stateLabel;
 };
 
+enum StrictUnconsciousPortraitMatchStatus
+{
+    STRICT_UNCONSCIOUS_MATCH_OK = 0,
+    STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE,
+    STRICT_UNCONSCIOUS_MATCH_NO_STATE,
+    STRICT_UNCONSCIOUS_MATCH_NO_GUI,
+    STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT
+};
+
+struct StrictUnconsciousPortraitMatch
+{
+    StrictUnconsciousPortraitMatch()
+        : status(STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE)
+        , character(0)
+        , displaySlotIndex(-1)
+        , mappingKey("unresolved")
+        , displayPortraitCount(0u)
+        , visibleRootCount(0u)
+        , scannedNodes(0u)
+    {
+    }
+
+    StrictUnconsciousPortraitMatchStatus status;
+    Character* character;
+    MemberStateSnapshot state;
+    PortraitCandidateRecord target;
+    int displaySlotIndex;
+    const char* mappingKey;
+    size_t displayPortraitCount;
+    size_t visibleRootCount;
+    size_t scannedNodes;
+};
+
 bool EnsureHoveredMarkerWidget();
 void HideHoveredMarker();
+MyGUI::Widget* EnsureUnconsciousOverlayWidget(size_t index);
+void HideUnconsciousOverlay();
+void ResetUnconsciousOverlayState();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
 {
@@ -1471,11 +1514,195 @@ void CollectDisplayPortraitCandidates(
     std::stable_sort(outDisplayPortraits->begin(), outDisplayPortraits->end(), PortraitCandidateSortPredicate);
 }
 
-bool PlaceProbeMarkerAtPortrait(
+bool TryResolveDisplayPortraitSlotIndex(
+    Character* character,
+    const size_t displayPortraitCount,
+    int* outDisplaySlotIndex,
+    const char** outMappingKey)
+{
+    if (character == 0 || outDisplaySlotIndex == 0 || outMappingKey == 0)
+    {
+        return false;
+    }
+
+    const int squadMemberIndex = static_cast<int>(character->squadMemberID);
+    if (squadMemberIndex >= 0 && static_cast<size_t>(squadMemberIndex) < displayPortraitCount)
+    {
+        *outDisplaySlotIndex = squadMemberIndex;
+        *outMappingKey = "squad_member_id";
+        return true;
+    }
+
+    const int portraitIndex = static_cast<int>(character->portraitIndex);
+    if (portraitIndex >= 0 && static_cast<size_t>(portraitIndex) < displayPortraitCount)
+    {
+        *outDisplaySlotIndex = portraitIndex;
+        *outMappingKey = "portrait_index_fallback";
+        return true;
+    }
+
+    return false;
+}
+
+bool TryCollectStrictUnconsciousPortraitMatches(
+    std::vector<StrictUnconsciousPortraitMatch>* outMatches,
+    StrictUnconsciousPortraitMatchStatus* outFailureStatus)
+{
+    if (outMatches == 0 || outFailureStatus == 0)
+    {
+        return false;
+    }
+
+    outMatches->clear();
+    *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
+
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        return true;
+    }
+
+    std::vector<StrictUnconsciousPortraitMatch> stateMatches;
+    if (scope.allPlayerCharacters != 0)
+    {
+        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+        {
+            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+            if (!CharacterMatchesSquadProbeScope(scope, candidate))
+            {
+                continue;
+            }
+
+            MemberStateSnapshot snapshot;
+            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
+            {
+                continue;
+            }
+
+            if (!snapshot.unconscious
+                || snapshot.dead
+                || snapshot.playingDead
+                || snapshot.dying
+                || snapshot.recoveryComa)
+            {
+                continue;
+            }
+
+            StrictUnconsciousPortraitMatch match;
+            match.character = candidate;
+            match.state = snapshot;
+            stateMatches.push_back(match);
+        }
+    }
+
+    if (stateMatches.empty())
+    {
+        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_STATE;
+        return true;
+    }
+
+    size_t visibleRootCount = 0u;
+    size_t scannedNodes = 0u;
+    std::vector<PortraitCandidateRecord> allCandidates;
+    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
+    {
+        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_GUI;
+        return true;
+    }
+
+    std::vector<PortraitCandidateRecord> displayPortraits;
+    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
+    std::vector<bool> usedSlots(displayPortraits.size(), false);
+
+    for (size_t index = 0u; index < stateMatches.size(); ++index)
+    {
+        StrictUnconsciousPortraitMatch match = stateMatches[index];
+        match.visibleRootCount = visibleRootCount;
+        match.scannedNodes = scannedNodes;
+        match.displayPortraitCount = displayPortraits.size();
+
+        if (!TryResolveDisplayPortraitSlotIndex(
+                match.character,
+                displayPortraits.size(),
+                &match.displaySlotIndex,
+                &match.mappingKey))
+        {
+            continue;
+        }
+
+        if (match.displaySlotIndex < 0
+            || static_cast<size_t>(match.displaySlotIndex) >= displayPortraits.size())
+        {
+            continue;
+        }
+
+        if (usedSlots[static_cast<size_t>(match.displaySlotIndex)])
+        {
+            continue;
+        }
+
+        usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
+        match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
+        match.status = STRICT_UNCONSCIOUS_MATCH_OK;
+        outMatches->push_back(match);
+    }
+
+    if (outMatches->empty())
+    {
+        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT;
+        return true;
+    }
+
+    std::stable_sort(
+        outMatches->begin(),
+        outMatches->end(),
+        [](const StrictUnconsciousPortraitMatch& left, const StrictUnconsciousPortraitMatch& right) -> bool
+        {
+            if (left.displaySlotIndex != right.displaySlotIndex)
+            {
+                return left.displaySlotIndex < right.displaySlotIndex;
+            }
+            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
+        });
+
+    *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_OK;
+    return true;
+}
+
+bool TryResolveStrictUnconsciousPortraitMatch(StrictUnconsciousPortraitMatch* outMatch)
+{
+    if (outMatch == 0)
+    {
+        return false;
+    }
+
+    *outMatch = StrictUnconsciousPortraitMatch();
+
+    std::vector<StrictUnconsciousPortraitMatch> matches;
+    StrictUnconsciousPortraitMatchStatus failureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
+    if (!TryCollectStrictUnconsciousPortraitMatches(&matches, &failureStatus))
+    {
+        return false;
+    }
+
+    if (failureStatus != STRICT_UNCONSCIOUS_MATCH_OK || matches.empty())
+    {
+        outMatch->status = failureStatus;
+        return true;
+    }
+
+    *outMatch = matches.front();
+    return true;
+}
+
+bool TryComputePortraitMarkerBounds(
     const PortraitCandidateRecord& target,
+    const int markerInsetPx,
+    const int markerMinSizePx,
+    const int markerMaxSizePx,
     MyGUI::IntCoord* outMarkerBounds)
 {
-    if (target.widget == 0 || !EnsureHoveredMarkerWidget())
+    if (target.widget == 0 || outMarkerBounds == 0)
     {
         return false;
     }
@@ -1485,14 +1712,14 @@ bool PlaceProbeMarkerAtPortrait(
         : target.absoluteCoord.height;
     const int markerSize = ClampInt(
         smallerSide / 4,
-        kHoveredMarkerMinSizePx,
-        kHoveredMarkerMaxSizePx);
+        markerMinSizePx,
+        markerMaxSizePx);
 
     MyGUI::IntSize viewSize(0, 0);
     const bool haveViewSize = TryGetViewSize(&viewSize);
 
-    int markerLeft = target.absoluteCoord.left + kHoveredMarkerInsetPx;
-    int markerTop = target.absoluteCoord.top + target.absoluteCoord.height - markerSize - kHoveredMarkerInsetPx;
+    int markerLeft = target.absoluteCoord.left + markerInsetPx;
+    int markerTop = target.absoluteCoord.top + target.absoluteCoord.height - markerSize - markerInsetPx;
     if (haveViewSize)
     {
         const int maxLeft = viewSize.width - markerSize > 0 ? viewSize.width - markerSize : 0;
@@ -1501,16 +1728,66 @@ bool PlaceProbeMarkerAtPortrait(
         markerTop = ClampInt(markerTop, 0, maxTop);
     }
 
-    const MyGUI::IntCoord markerBounds(markerLeft, markerTop, markerSize, markerSize);
-    g_hoveredMarkerWidget->setCoord(markerBounds);
-    g_hoveredMarkerWidget->setVisible(true);
-    g_hoveredMarkerExpireTick = GetTickCount() + kHoveredMarkerLifetimeMs;
+    *outMarkerBounds = MyGUI::IntCoord(markerLeft, markerTop, markerSize, markerSize);
+    return true;
+}
+
+bool ShowMarkerWidgetAtPortrait(
+    MyGUI::Widget* markerWidget,
+    const PortraitCandidateRecord& target,
+    const int markerInsetPx,
+    const int markerMinSizePx,
+    const int markerMaxSizePx,
+    MyGUI::IntCoord* outMarkerBounds)
+{
+    if (markerWidget == 0)
+    {
+        return false;
+    }
+
+    MyGUI::IntCoord markerBounds;
+    if (!TryComputePortraitMarkerBounds(
+            target,
+            markerInsetPx,
+            markerMinSizePx,
+            markerMaxSizePx,
+            &markerBounds))
+    {
+        return false;
+    }
+
+    markerWidget->setCoord(markerBounds);
+    markerWidget->setVisible(true);
 
     if (outMarkerBounds != 0)
     {
         *outMarkerBounds = markerBounds;
     }
 
+    return true;
+}
+
+bool PlaceProbeMarkerAtPortrait(
+    const PortraitCandidateRecord& target,
+    MyGUI::IntCoord* outMarkerBounds)
+{
+    if (target.widget == 0 || !EnsureHoveredMarkerWidget())
+    {
+        return false;
+    }
+
+    if (!ShowMarkerWidgetAtPortrait(
+            g_hoveredMarkerWidget,
+            target,
+            kHoveredMarkerInsetPx,
+            kHoveredMarkerMinSizePx,
+            kHoveredMarkerMaxSizePx,
+            outMarkerBounds))
+    {
+        return false;
+    }
+
+    g_hoveredMarkerExpireTick = GetTickCount() + kHoveredMarkerLifetimeMs;
     return true;
 }
 
@@ -1854,9 +2131,17 @@ void DumpMemberStatesProbe(const char* reason)
 
 void MarkStateMatchedPortraitProbeImpl(const char* reason)
 {
-    SquadProbeScope scope;
-    if (!TryResolveSquadProbeScope(&scope))
+    StrictUnconsciousPortraitMatch match;
+    if (!TryResolveStrictUnconsciousPortraitMatch(&match))
     {
+        HideHoveredMarker();
+        LogProbeRecord("mark_state_matched_portrait", "exception", "status=match_resolve_failed");
+        return;
+    }
+
+    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE)
+    {
+        HideHoveredMarker();
         LogProbeRecord(
             "mark_state_matched_portrait",
             "summary",
@@ -1864,38 +2149,7 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
         return;
     }
 
-    Character* matchedCharacter = 0;
-    MemberStateSnapshot matchedState;
-    if (scope.allPlayerCharacters != 0)
-    {
-        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
-        {
-            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
-            if (!CharacterMatchesSquadProbeScope(scope, candidate))
-            {
-                continue;
-            }
-
-            MemberStateSnapshot snapshot;
-            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
-            {
-                continue;
-            }
-
-            if (snapshot.unconscious
-                && !snapshot.dead
-                && !snapshot.playingDead
-                && !snapshot.dying
-                && !snapshot.recoveryComa)
-            {
-                matchedCharacter = candidate;
-                matchedState = snapshot;
-                break;
-            }
-        }
-    }
-
-    if (matchedCharacter == 0)
+    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_STATE)
     {
         HideHoveredMarker();
         LogProbeRecord(
@@ -1906,10 +2160,7 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
         return;
     }
 
-    std::vector<PortraitCandidateRecord> allCandidates;
-    size_t visibleRootCount = 0u;
-    size_t scannedNodes = 0u;
-    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
+    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_GUI)
     {
         HideHoveredMarker();
         LogProbeRecord(
@@ -1919,31 +2170,29 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
         return;
     }
 
-    std::vector<PortraitCandidateRecord> displayPortraits;
-    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
-
-    const int portraitIndex = static_cast<int>(matchedCharacter->portraitIndex);
-    if (portraitIndex < 0 || static_cast<size_t>(portraitIndex) >= displayPortraits.size())
+    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT)
     {
         HideHoveredMarker();
         std::stringstream payload;
         payload << "status=no_portrait_match"
                 << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
                 << " target_state=" << QuoteForLog("unconscious")
-                << " character_pointer=" << QuoteForLog(FormatPointer(matchedCharacter))
-                << " character_handle=" << QuoteForLog(SafeHandleString(matchedCharacter->handle))
-                << " character_name=" << QuoteForLog(SafeCharacterName(matchedCharacter))
-                << " portrait_index=" << portraitIndex
-                << " display_portrait_count=" << displayPortraits.size()
-                << " visible_root_count=" << visibleRootCount
-                << " scanned_nodes=" << scannedNodes;
+                << " character_pointer=" << QuoteForLog(FormatPointer(match.character))
+                << " character_handle=" << QuoteForLog(match.character == 0 ? "" : SafeHandleString(match.character->handle))
+                << " character_name=" << QuoteForLog(SafeCharacterName(match.character))
+                << " squad_member_id=" << (match.character == 0 ? -1 : static_cast<int>(match.character->squadMemberID))
+                << " portrait_index=" << (match.character == 0 ? -1 : static_cast<int>(match.character->portraitIndex))
+                << " display_slot_index=" << match.displaySlotIndex
+                << " mapping_key=" << QuoteForLog(match.mappingKey == 0 ? "unresolved" : match.mappingKey)
+                << " display_portrait_count=" << match.displayPortraitCount
+                << " visible_root_count=" << match.visibleRootCount
+                << " scanned_nodes=" << match.scannedNodes;
         LogProbeRecord("mark_state_matched_portrait", "summary", payload.str());
         return;
     }
 
-    const PortraitCandidateRecord& target = displayPortraits[portraitIndex];
     MyGUI::IntCoord markerBounds;
-    if (!PlaceProbeMarkerAtPortrait(target, &markerBounds))
+    if (!PlaceProbeMarkerAtPortrait(match.target, &markerBounds))
     {
         HideHoveredMarker();
         LogProbeRecord(
@@ -1957,22 +2206,27 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
     payload << "status=placed"
             << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
             << " target_state=" << QuoteForLog("unconscious")
-            << " character_pointer=" << QuoteForLog(FormatPointer(matchedCharacter))
-            << " character_handle=" << QuoteForLog(SafeHandleString(matchedCharacter->handle))
-            << " character_name=" << QuoteForLog(SafeCharacterName(matchedCharacter))
-            << " portrait_index=" << portraitIndex
-            << " squad_member_id=" << matchedCharacter->squadMemberID
-            << " state_label=" << QuoteForLog(matchedState.stateLabel)
-            << " target_pointer=" << QuoteForLog(FormatPointer(target.widget))
-            << " target_bounds=" << QuoteForLog(FormatCoord(target.absoluteCoord))
+            << " character_pointer=" << QuoteForLog(FormatPointer(match.character))
+            << " character_handle=" << QuoteForLog(SafeHandleString(match.character->handle))
+            << " character_name=" << QuoteForLog(SafeCharacterName(match.character))
+            << " display_slot_index=" << match.displaySlotIndex
+            << " mapping_key=" << QuoteForLog(match.mappingKey == 0 ? "unresolved" : match.mappingKey)
+            << " portrait_index=" << static_cast<int>(match.character->portraitIndex)
+            << " squad_member_id=" << match.character->squadMemberID
+            << " state_label=" << QuoteForLog(match.state.stateLabel)
+            << " target_pointer=" << QuoteForLog(FormatPointer(match.target.widget))
+            << " target_bounds=" << QuoteForLog(FormatCoord(match.target.absoluteCoord))
             << " marker_bounds=" << QuoteForLog(FormatCoord(markerBounds))
             << " anchor=" << QuoteForLog("bottom_left")
             << " lifetime_ms=" << kHoveredMarkerLifetimeMs
-            << " display_portrait_count=" << displayPortraits.size()
-            << " visible_root_count=" << visibleRootCount
-            << " scanned_nodes=" << scannedNodes
+            << " display_portrait_count=" << match.displayPortraitCount
+            << " visible_root_count=" << match.visibleRootCount
+            << " scanned_nodes=" << match.scannedNodes
             << " confidence_score=" << FormatFloat2(1.00f)
-            << " confidence_reason=" << QuoteForLog("strict_unconscious,portrait_index,portraitimage_widget_order");
+            << " confidence_reason=" << QuoteForLog(
+                   std::string("strict_unconscious,")
+                   + (match.mappingKey == 0 ? "unresolved" : match.mappingKey)
+                   + ",portraitimage_widget_order");
     LogProbeRecord("mark_state_matched_portrait", "summary", payload.str());
 }
 
@@ -2064,6 +2318,63 @@ bool EnsureHoveredMarkerWidget()
     return true;
 }
 
+std::string BuildUnconsciousOverlayWidgetName(const size_t index)
+{
+    std::stringstream name;
+    name << kUnconsciousOverlayWidgetNamePrefix << index;
+    return name.str();
+}
+
+MyGUI::Widget* EnsureUnconsciousOverlayWidget(const size_t index)
+{
+    if (g_unconsciousOverlayWidgets.size() <= index)
+    {
+        g_unconsciousOverlayWidgets.resize(index + 1u, 0);
+    }
+
+    if (g_unconsciousOverlayWidgets[index] != 0)
+    {
+        return g_unconsciousOverlayWidgets[index];
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return 0;
+    }
+
+    const std::string widgetName = BuildUnconsciousOverlayWidgetName(index);
+
+    MyGUI::Widget* widget = gui->findWidgetT(widgetName, false);
+    if (widget == 0)
+    {
+        widget = gui->createWidget<MyGUI::TextBox>(
+            kProbeMarkerSkin,
+            MyGUI::IntCoord(0, 0, kUnconsciousOverlayMinSizePx, kUnconsciousOverlayMinSizePx),
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            "Top",
+            widgetName);
+    }
+
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    widget->setNeedMouseFocus(false);
+    widget->setAlpha(0.92f);
+    widget->setColour(MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f));
+    widget->setVisible(false);
+    if (MyGUI::TextBox* textBox = widget->castType<MyGUI::TextBox>(false))
+    {
+        textBox->setCaption("!");
+        textBox->setTextAlign(MyGUI::Align::Center);
+    }
+
+    g_unconsciousOverlayWidgets[index] = widget;
+    return widget;
+}
+
 void HideHoveredMarker()
 {
     if (g_hoveredMarkerWidget != 0)
@@ -2071,6 +2382,23 @@ void HideHoveredMarker()
         g_hoveredMarkerWidget->setVisible(false);
     }
     g_hoveredMarkerExpireTick = 0u;
+}
+
+void HideUnconsciousOverlay()
+{
+    for (size_t index = 0u; index < g_unconsciousOverlayWidgets.size(); ++index)
+    {
+        if (g_unconsciousOverlayWidgets[index] != 0)
+        {
+            g_unconsciousOverlayWidgets[index]->setVisible(false);
+        }
+    }
+}
+
+void ResetUnconsciousOverlayState()
+{
+    HideUnconsciousOverlay();
+    g_unconsciousOverlayNextRefreshTick = 0u;
 }
 
 void TickHoveredMarker()
@@ -2083,6 +2411,84 @@ void TickHoveredMarker()
     if (GetTickCount() >= g_hoveredMarkerExpireTick)
     {
         HideHoveredMarker();
+    }
+}
+
+void RefreshUnconsciousOverlayImpl()
+{
+    std::vector<StrictUnconsciousPortraitMatch> matches;
+    StrictUnconsciousPortraitMatchStatus failureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
+    if (!TryCollectStrictUnconsciousPortraitMatches(&matches, &failureStatus)
+        || failureStatus != STRICT_UNCONSCIOUS_MATCH_OK
+        || matches.empty())
+    {
+        HideUnconsciousOverlay();
+        return;
+    }
+
+    size_t visibleWidgetCount = 0u;
+    for (size_t index = 0u; index < matches.size(); ++index)
+    {
+        MyGUI::Widget* widget = EnsureUnconsciousOverlayWidget(visibleWidgetCount);
+        if (widget == 0)
+        {
+            break;
+        }
+
+        if (!ShowMarkerWidgetAtPortrait(
+                widget,
+                matches[index].target,
+                kUnconsciousOverlayInsetPx,
+                kUnconsciousOverlayMinSizePx,
+                kUnconsciousOverlayMaxSizePx,
+                0))
+        {
+            widget->setVisible(false);
+            continue;
+        }
+
+        ++visibleWidgetCount;
+    }
+
+    for (size_t index = visibleWidgetCount; index < g_unconsciousOverlayWidgets.size(); ++index)
+    {
+        if (g_unconsciousOverlayWidgets[index] != 0)
+        {
+            g_unconsciousOverlayWidgets[index]->setVisible(false);
+        }
+    }
+
+    if (visibleWidgetCount == 0u)
+    {
+        HideUnconsciousOverlay();
+    }
+}
+
+bool TryRefreshUnconsciousOverlaySeh()
+{
+    __try
+    {
+        RefreshUnconsciousOverlayImpl();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void TickUnconsciousOverlay()
+{
+    const DWORD now = GetTickCount();
+    if (g_unconsciousOverlayNextRefreshTick != 0u && now < g_unconsciousOverlayNextRefreshTick)
+    {
+        return;
+    }
+
+    g_unconsciousOverlayNextRefreshTick = now + kUnconsciousOverlayRefreshIntervalMs;
+    if (!TryRefreshUnconsciousOverlaySeh())
+    {
+        HideUnconsciousOverlay();
     }
 }
 
@@ -2217,10 +2623,12 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     if (!g_enabled)
     {
         HideHoveredMarker();
+        ResetUnconsciousOverlayState();
         return;
     }
 
     TickHoveredMarker();
+    TickUnconsciousOverlay();
 }
 
 void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
@@ -2294,7 +2702,6 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 __declspec(dllexport) void startPlugin()
 {
     LogInfoLine("startPlugin()");
-
     KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
     if (!IsSupportedVersion(versionInfo))
     {
