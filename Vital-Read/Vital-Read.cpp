@@ -11,6 +11,7 @@
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Platoon.h>
 
+#include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
@@ -42,6 +43,7 @@ const char* kPluginName = "Vital-Read";
 const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
 const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayMarker_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
+const char* kUnconsciousOverlaySkin = "Kenshi_Button1";
 
 const OIS::KeyCode kRunMappingProbeHotkey = OIS::KC_F4;
 const OIS::KeyCode kProbeNewSessionHotkey = OIS::KC_F6;
@@ -58,9 +60,9 @@ const DWORD kUnconsciousOverlayRefreshIntervalMs = 250;
 const int kHoveredMarkerInsetPx = 2;
 const int kHoveredMarkerMinSizePx = 10;
 const int kHoveredMarkerMaxSizePx = 18;
-const int kUnconsciousOverlayInsetPx = 2;
-const int kUnconsciousOverlayMinSizePx = 12;
-const int kUnconsciousOverlayMaxSizePx = 18;
+const int kUnconsciousOverlayInsetPx = 1;
+const int kUnconsciousOverlayMinSizePx = 14;
+const int kUnconsciousOverlayMaxSizePx = 20;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
@@ -307,6 +309,11 @@ void LogBindingDebugLine(const std::string& message)
     {
         LogInfoLine(message);
     }
+}
+
+void LogStartupInvestigate(const std::string& message)
+{
+    LogInfoLine("[investigate][startup] " + message);
 }
 
 bool TryResolveModConfigPath(std::string* outPath)
@@ -2348,8 +2355,8 @@ MyGUI::Widget* EnsureUnconsciousOverlayWidget(const size_t index)
     MyGUI::Widget* widget = gui->findWidgetT(widgetName, false);
     if (widget == 0)
     {
-        widget = gui->createWidget<MyGUI::TextBox>(
-            kProbeMarkerSkin,
+        widget = gui->createWidget<MyGUI::Button>(
+            kUnconsciousOverlaySkin,
             MyGUI::IntCoord(0, 0, kUnconsciousOverlayMinSizePx, kUnconsciousOverlayMinSizePx),
             MyGUI::Align::Left | MyGUI::Align::Top,
             "Top",
@@ -2365,10 +2372,9 @@ MyGUI::Widget* EnsureUnconsciousOverlayWidget(const size_t index)
     widget->setAlpha(0.92f);
     widget->setColour(MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f));
     widget->setVisible(false);
-    if (MyGUI::TextBox* textBox = widget->castType<MyGUI::TextBox>(false))
+    if (MyGUI::Button* button = widget->castType<MyGUI::Button>(false))
     {
-        textBox->setCaption("!");
-        textBox->setTextAlign(MyGUI::Align::Center);
+        button->setCaption("");
     }
 
     g_unconsciousOverlayWidgets[index] = widget;
@@ -2702,9 +2708,20 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 __declspec(dllexport) void startPlugin()
 {
     LogInfoLine("startPlugin()");
+    LogStartupInvestigate("stage=enter");
+
+    LogStartupInvestigate("stage=before_get_kenshi_version");
     KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    {
+        std::stringstream payload;
+        payload << "stage=after_get_kenshi_version"
+                << " version=" << versionInfo.GetVersion()
+                << " platform=" << versionInfo.GetPlatform();
+        LogStartupInvestigate(payload.str());
+    }
     if (!IsSupportedVersion(versionInfo))
     {
+        LogStartupInvestigate("stage=unsupported_version");
         std::stringstream error;
         error << "unsupported Kenshi version/platform"
               << " version=" << versionInfo.GetVersion()
@@ -2717,9 +2734,22 @@ __declspec(dllexport) void startPlugin()
     versionLine << "supported Kenshi version detected: " << versionInfo.GetVersion();
     LogInfoLine(versionLine.str());
 
+    LogStartupInvestigate("stage=before_load_logging_config");
     LoadLoggingConfig();
+    {
+        std::stringstream payload;
+        payload << "stage=after_load_logging_config"
+                << " enabled=" << (g_enabled ? "true" : "false")
+                << " debug_logging=" << (g_debugLogging ? "true" : "false")
+                << " debug_search_logging=" << (g_debugSearchLogging ? "true" : "false")
+                << " debug_binding_logging=" << (g_debugBindingLogging ? "true" : "false");
+        LogStartupInvestigate(payload.str());
+    }
 
+    LogStartupInvestigate("stage=before_get_real_address_update_ut");
     const intptr_t updateUTTarget = KenshiLib::GetRealAddress(&PlayerInterface::updateUT);
+    LogStartupInvestigate("stage=after_get_real_address_update_ut target=" + FormatPointer(reinterpret_cast<const void*>(updateUTTarget)));
+    LogStartupInvestigate("stage=before_add_hook_update_ut");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         updateUTTarget,
         PlayerInterface_updateUT_hook,
@@ -2728,8 +2758,12 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook PlayerInterface::updateUT");
         return;
     }
+    LogStartupInvestigate("stage=after_add_hook_update_ut");
 
+    LogStartupInvestigate("stage=before_get_real_address_keydown");
     const intptr_t keyDownEventTarget = KenshiLib::GetRealAddress(&InputHandler::keyDownEvent);
+    LogStartupInvestigate("stage=after_get_real_address_keydown target=" + FormatPointer(reinterpret_cast<const void*>(keyDownEventTarget)));
+    LogStartupInvestigate("stage=before_add_hook_keydown");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         keyDownEventTarget,
         InputHandler_keyDownEvent_hook,
@@ -2738,9 +2772,14 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook InputHandler::keyDownEvent");
         return;
     }
+    LogStartupInvestigate("stage=after_add_hook_keydown");
 
+    LogStartupInvestigate("stage=before_configure_mod_hub");
     ConfigureModHubClient();
+    LogStartupInvestigate("stage=after_configure_mod_hub");
+    LogStartupInvestigate("stage=before_start_mod_hub");
     StartModHubClient();
+    LogStartupInvestigate("stage=after_start_mod_hub");
 
     LogDebugLine("runtime debug logging is enabled");
     LogSearchDebugLine("search diagnostics are enabled");
@@ -2755,6 +2794,8 @@ __declspec(dllexport) void startPlugin()
     {
         LogInfoLine("plugin disabled via mod-config.json; Mod Hub remains available and runtime probes are inactive");
     }
+
+    LogStartupInvestigate("stage=startup_complete");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
