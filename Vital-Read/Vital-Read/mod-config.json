@@ -8,5 +8,9 @@
   "unconsciousIconCoordLeft": 45,
   "unconsciousIconCoordTop": 122,
   "unconsciousIconCoordWidth": 32,
-  "unconsciousIconCoordHeight": 32
+  "unconsciousIconCoordHeight": 32,
+  "recoveryComaIconTexture": "gui/gfx/heart_64px.png",
+  "recoveryComaIconSizePx": 64,
+  "dyingIconTexture": "gui/gfx/death_64px.png",
+  "dyingIconSizePx": 64
 }

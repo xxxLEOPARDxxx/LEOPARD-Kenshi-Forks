@@ -25,6 +25,20 @@ struct PluginConfig
     int unconsciousIconCoordTop;
     int unconsciousIconCoordWidth;
     int unconsciousIconCoordHeight;
+    std::string recoveryComaIconTexture;
+    DWORD recoveryComaIconSizePx;
+    bool recoveryComaIconHasImageCoord;
+    int recoveryComaIconCoordLeft;
+    int recoveryComaIconCoordTop;
+    int recoveryComaIconCoordWidth;
+    int recoveryComaIconCoordHeight;
+    std::string dyingIconTexture;
+    DWORD dyingIconSizePx;
+    bool dyingIconHasImageCoord;
+    int dyingIconCoordLeft;
+    int dyingIconCoordTop;
+    int dyingIconCoordWidth;
+    int dyingIconCoordHeight;
 };
 
 enum LoadStatus

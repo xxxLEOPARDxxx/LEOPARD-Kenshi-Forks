@@ -59,8 +59,14 @@ Optional runtime marker settings:
 - unconsciousIconTexture
 - unconsciousIconSizePx
 - unconsciousIconCoordLeft / Top / Width / Height
+- recoveryComaIconTexture
+- recoveryComaIconSizePx
+- recoveryComaIconCoordLeft / Top / Width / Height
+- dyingIconTexture
+- dyingIconSizePx
+- dyingIconCoordLeft / Top / Width / Height
 
-Custom unconscious icon example:
+Custom state icon example:
 ```json
 {
   "unconsciousIconTexture": "Kenshi_UI.png",
@@ -68,11 +74,15 @@ Custom unconscious icon example:
   "unconsciousIconCoordLeft": 45,
   "unconsciousIconCoordTop": 122,
   "unconsciousIconCoordWidth": 32,
-  "unconsciousIconCoordHeight": 32
+  "unconsciousIconCoordHeight": 32,
+  "recoveryComaIconTexture": "gui/gfx/heart_64px.png",
+  "recoveryComaIconSizePx": 64,
+  "dyingIconTexture": "gui/gfx/death_64px.png",
+  "dyingIconSizePx": 64
 }
 ```
 
-Texture lookup accepts plain filenames and relative paths. If no coord crop is provided, the whole image is used. The runtime will try common locations including:
+Texture lookup accepts plain filenames and relative paths. If no coord crop is provided, the whole image is used. All states share the same lookup behavior, and the runtime will try common locations including:
 - `mods/Vital-Read/icons/`
 - `mods/Vital-Read/gui/gfx/`
 - `mods/Vital-Read/`
@@ -81,7 +91,7 @@ Texture lookup accepts plain filenames and relative paths. If no coord crop is p
 When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch plus the three debug logging flags so they can be toggled in-game.
 
 ## Current Runtime
-When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious squad portrait it can map with high confidence. By default that marker uses the built-in pip, and `unconsciousIconTexture` can switch it to a custom icon. Probe hotkeys remain available for verification.
+When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, or `dying` squad portrait it can map with high confidence. By default unconscious uses the built-in atlas pip, while recovery coma and dying use the same heart/death textures shipped with Vital Sense. `unconsciousIconTexture`, `recoveryComaIconTexture`, and `dyingIconTexture` can override those per state. Probe hotkeys remain available for verification.
 
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.

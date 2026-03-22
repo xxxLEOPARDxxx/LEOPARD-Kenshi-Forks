@@ -10,8 +10,44 @@ namespace vr_config
 namespace
 {
 const DWORD kDefaultUnconsciousIconSizePx = 64u;
+const DWORD kDefaultRecoveryComaIconSizePx = 64u;
+const DWORD kDefaultDyingIconSizePx = 64u;
 const DWORD kMinIconSizePx = 8u;
 const DWORD kMaxIconSizePx = 512u;
+const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px.png";
+const char* kDefaultDyingIconTexture = "gui/gfx/death_64px.png";
+
+struct StateIconConfigBinding
+{
+    StateIconConfigBinding(
+        const char* keyPrefixValue,
+        std::string* textureValue,
+        DWORD* sizePxValue,
+        bool* hasImageCoordValue,
+        int* coordLeftValue,
+        int* coordTopValue,
+        int* coordWidthValue,
+        int* coordHeightValue)
+        : keyPrefix(keyPrefixValue)
+        , texture(textureValue)
+        , sizePx(sizePxValue)
+        , hasImageCoord(hasImageCoordValue)
+        , coordLeft(coordLeftValue)
+        , coordTop(coordTopValue)
+        , coordWidth(coordWidthValue)
+        , coordHeight(coordHeightValue)
+    {
+    }
+
+    const char* keyPrefix;
+    std::string* texture;
+    DWORD* sizePx;
+    bool* hasImageCoord;
+    int* coordLeft;
+    int* coordTop;
+    int* coordWidth;
+    int* coordHeight;
+};
 
 bool TryReadTextFile(const std::string& path, std::string* outContent)
 {
@@ -306,6 +342,109 @@ void WriteEscapedJsonString(std::ostream& out, const std::string& value)
     out << '"';
 }
 
+std::string BuildStateIconKey(const char* keyPrefix, const char* suffix)
+{
+    std::stringstream key;
+    key << (keyPrefix == 0 ? "" : keyPrefix) << suffix;
+    return key.str();
+}
+
+bool HasAnyCoordValue(const int coordLeft, const int coordTop, const int coordWidth, const int coordHeight)
+{
+    return coordLeft != 0
+        || coordTop != 0
+        || coordWidth != 0
+        || coordHeight != 0;
+}
+
+void WriteStateIconConfig(
+    std::ostream& out,
+    const char* keyPrefix,
+    const std::string& texture,
+    const DWORD sizePx,
+    const bool hasImageCoord,
+    const int coordLeft,
+    const int coordTop,
+    const int coordWidth,
+    const int coordHeight,
+    const bool withTrailingComma)
+{
+    out << "  \"" << BuildStateIconKey(keyPrefix, "Texture") << "\": ";
+    WriteEscapedJsonString(out, texture);
+    out << ",\n";
+    out << "  \"" << BuildStateIconKey(keyPrefix, "SizePx") << "\": " << sizePx;
+
+    const bool writeCoords = hasImageCoord || HasAnyCoordValue(coordLeft, coordTop, coordWidth, coordHeight);
+    if (writeCoords)
+    {
+        out << ",\n";
+        out << "  \"" << BuildStateIconKey(keyPrefix, "CoordLeft") << "\": " << coordLeft << ",\n";
+        out << "  \"" << BuildStateIconKey(keyPrefix, "CoordTop") << "\": " << coordTop << ",\n";
+        out << "  \"" << BuildStateIconKey(keyPrefix, "CoordWidth") << "\": " << coordWidth << ",\n";
+        out << "  \"" << BuildStateIconKey(keyPrefix, "CoordHeight") << "\": " << coordHeight;
+    }
+
+    if (withTrailingComma)
+    {
+        out << ",";
+    }
+    out << "\n";
+}
+
+void LoadStateIconConfig(const std::string& content, const StateIconConfigBinding& binding)
+{
+    if (binding.texture == 0
+        || binding.sizePx == 0
+        || binding.hasImageCoord == 0
+        || binding.coordLeft == 0
+        || binding.coordTop == 0
+        || binding.coordWidth == 0
+        || binding.coordHeight == 0)
+    {
+        return;
+    }
+
+    std::string parsedString;
+    if (TryParseJsonStringByKey(content, BuildStateIconKey(binding.keyPrefix, "Texture").c_str(), &parsedString))
+    {
+        *binding.texture = TrimAscii(parsedString);
+    }
+
+    DWORD parsedUnsigned = 0u;
+    if (TryParseJsonUnsignedByKey(content, BuildStateIconKey(binding.keyPrefix, "SizePx").c_str(), &parsedUnsigned))
+    {
+        *binding.sizePx = ClampUnsigned(parsedUnsigned, kMinIconSizePx, kMaxIconSizePx);
+    }
+
+    DWORD coordValue = 0u;
+    bool haveCoord = false;
+    if (TryParseJsonUnsignedByKey(content, BuildStateIconKey(binding.keyPrefix, "CoordLeft").c_str(), &coordValue))
+    {
+        *binding.coordLeft = static_cast<int>(coordValue);
+        haveCoord = true;
+    }
+    if (TryParseJsonUnsignedByKey(content, BuildStateIconKey(binding.keyPrefix, "CoordTop").c_str(), &coordValue))
+    {
+        *binding.coordTop = static_cast<int>(coordValue);
+        haveCoord = true;
+    }
+    if (TryParseJsonUnsignedByKey(content, BuildStateIconKey(binding.keyPrefix, "CoordWidth").c_str(), &coordValue))
+    {
+        *binding.coordWidth = static_cast<int>(coordValue);
+        haveCoord = true;
+    }
+    if (TryParseJsonUnsignedByKey(content, BuildStateIconKey(binding.keyPrefix, "CoordHeight").c_str(), &coordValue))
+    {
+        *binding.coordHeight = static_cast<int>(coordValue);
+        haveCoord = true;
+    }
+
+    *binding.hasImageCoord =
+        haveCoord
+        && *binding.coordWidth > 0
+        && *binding.coordHeight > 0;
+}
+
 std::string BuildConfigText(const PluginConfig& config)
 {
     std::stringstream out;
@@ -314,10 +453,39 @@ std::string BuildConfigText(const PluginConfig& config)
     out << "  \"debugLogging\": " << (config.debugLogging ? "true" : "false") << ",\n";
     out << "  \"debugSearchLogging\": " << (config.debugSearchLogging ? "true" : "false") << ",\n";
     out << "  \"debugBindingLogging\": " << (config.debugBindingLogging ? "true" : "false") << ",\n";
-    out << "  \"unconsciousIconTexture\": ";
-    WriteEscapedJsonString(out, config.unconsciousIconTexture);
-    out << ",\n";
-    out << "  \"unconsciousIconSizePx\": " << config.unconsciousIconSizePx << "\n";
+    WriteStateIconConfig(
+        out,
+        "unconsciousIcon",
+        config.unconsciousIconTexture,
+        config.unconsciousIconSizePx,
+        config.unconsciousIconHasImageCoord,
+        config.unconsciousIconCoordLeft,
+        config.unconsciousIconCoordTop,
+        config.unconsciousIconCoordWidth,
+        config.unconsciousIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "recoveryComaIcon",
+        config.recoveryComaIconTexture,
+        config.recoveryComaIconSizePx,
+        config.recoveryComaIconHasImageCoord,
+        config.recoveryComaIconCoordLeft,
+        config.recoveryComaIconCoordTop,
+        config.recoveryComaIconCoordWidth,
+        config.recoveryComaIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "dyingIcon",
+        config.dyingIconTexture,
+        config.dyingIconSizePx,
+        config.dyingIconHasImageCoord,
+        config.dyingIconCoordLeft,
+        config.dyingIconCoordTop,
+        config.dyingIconCoordWidth,
+        config.dyingIconCoordHeight,
+        false);
     out << "}\n";
     return out.str();
 }
@@ -335,6 +503,20 @@ PluginConfig::PluginConfig()
     , unconsciousIconCoordTop(0)
     , unconsciousIconCoordWidth(0)
     , unconsciousIconCoordHeight(0)
+    , recoveryComaIconTexture(kDefaultRecoveryComaIconTexture)
+    , recoveryComaIconSizePx(kDefaultRecoveryComaIconSizePx)
+    , recoveryComaIconHasImageCoord(false)
+    , recoveryComaIconCoordLeft(0)
+    , recoveryComaIconCoordTop(0)
+    , recoveryComaIconCoordWidth(0)
+    , recoveryComaIconCoordHeight(0)
+    , dyingIconTexture(kDefaultDyingIconTexture)
+    , dyingIconSizePx(kDefaultDyingIconSizePx)
+    , dyingIconHasImageCoord(false)
+    , dyingIconCoordLeft(0)
+    , dyingIconCoordTop(0)
+    , dyingIconCoordWidth(0)
+    , dyingIconCoordHeight(0)
 {
 }
 
@@ -369,45 +551,39 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
         outConfig->debugBindingLogging = parsedBool;
     }
 
-    std::string parsedString;
-    if (TryParseJsonStringByKey(content, "unconsciousIconTexture", &parsedString))
-    {
-        outConfig->unconsciousIconTexture = TrimAscii(parsedString);
-    }
-
-    DWORD parsedUnsigned = 0u;
-    if (TryParseJsonUnsignedByKey(content, "unconsciousIconSizePx", &parsedUnsigned))
-    {
-        outConfig->unconsciousIconSizePx = ClampUnsigned(parsedUnsigned, kMinIconSizePx, kMaxIconSizePx);
-    }
-
-    DWORD coordValue = 0u;
-    bool haveCoord = false;
-    if (TryParseJsonUnsignedByKey(content, "unconsciousIconCoordLeft", &coordValue))
-    {
-        outConfig->unconsciousIconCoordLeft = static_cast<int>(coordValue);
-        haveCoord = true;
-    }
-    if (TryParseJsonUnsignedByKey(content, "unconsciousIconCoordTop", &coordValue))
-    {
-        outConfig->unconsciousIconCoordTop = static_cast<int>(coordValue);
-        haveCoord = true;
-    }
-    if (TryParseJsonUnsignedByKey(content, "unconsciousIconCoordWidth", &coordValue))
-    {
-        outConfig->unconsciousIconCoordWidth = static_cast<int>(coordValue);
-        haveCoord = true;
-    }
-    if (TryParseJsonUnsignedByKey(content, "unconsciousIconCoordHeight", &coordValue))
-    {
-        outConfig->unconsciousIconCoordHeight = static_cast<int>(coordValue);
-        haveCoord = true;
-    }
-
-    outConfig->unconsciousIconHasImageCoord =
-        haveCoord
-        && outConfig->unconsciousIconCoordWidth > 0
-        && outConfig->unconsciousIconCoordHeight > 0;
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "unconsciousIcon",
+            &outConfig->unconsciousIconTexture,
+            &outConfig->unconsciousIconSizePx,
+            &outConfig->unconsciousIconHasImageCoord,
+            &outConfig->unconsciousIconCoordLeft,
+            &outConfig->unconsciousIconCoordTop,
+            &outConfig->unconsciousIconCoordWidth,
+            &outConfig->unconsciousIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "recoveryComaIcon",
+            &outConfig->recoveryComaIconTexture,
+            &outConfig->recoveryComaIconSizePx,
+            &outConfig->recoveryComaIconHasImageCoord,
+            &outConfig->recoveryComaIconCoordLeft,
+            &outConfig->recoveryComaIconCoordTop,
+            &outConfig->recoveryComaIconCoordWidth,
+            &outConfig->recoveryComaIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "dyingIcon",
+            &outConfig->dyingIconTexture,
+            &outConfig->dyingIconSizePx,
+            &outConfig->dyingIconHasImageCoord,
+            &outConfig->dyingIconCoordLeft,
+            &outConfig->dyingIconCoordTop,
+            &outConfig->dyingIconCoordWidth,
+            &outConfig->dyingIconCoordHeight));
 
     return LOAD_OK;
 }

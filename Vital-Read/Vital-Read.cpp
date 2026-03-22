@@ -44,6 +44,8 @@ namespace
 const char* kPluginName = "Vital-Read";
 const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
 const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayMarker_";
+const char* kRecoveryComaOverlayWidgetNamePrefix = "VitalRead_RecoveryComaOverlayMarker_";
+const char* kDyingOverlayWidgetNamePrefix = "VitalRead_DyingOverlayMarker_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 const char* kUnconsciousOverlaySkin = "Kenshi_Button1";
 
@@ -58,13 +60,13 @@ const OIS::KeyCode kDumpSelectedSquadMembersHotkey = OIS::KC_F11;
 const OIS::KeyCode kDumpMemberStatesHotkey = OIS::KC_F12;
 
 const DWORD kHoveredMarkerLifetimeMs = 1500;
-const DWORD kUnconsciousOverlayRefreshIntervalMs = 250;
+const DWORD kPortraitOverlayRefreshIntervalMs = 250;
 const int kHoveredMarkerInsetPx = 2;
 const int kHoveredMarkerMinSizePx = 10;
 const int kHoveredMarkerMaxSizePx = 18;
-const int kUnconsciousOverlayInsetPx = 1;
-const int kUnconsciousOverlayMinSizePx = 14;
-const int kUnconsciousOverlayMaxSizePx = 20;
+const int kPortraitOverlayInsetPx = 1;
+const int kPortraitOverlayMinSizePx = 14;
+const int kPortraitOverlayMaxSizePx = 20;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
@@ -86,14 +88,31 @@ bool& g_debugSearchLogging = g_config.debugSearchLogging;
 bool& g_debugBindingLogging = g_config.debugBindingLogging;
 std::string& g_unconsciousIconTexture = g_config.unconsciousIconTexture;
 DWORD& g_unconsciousIconSizePx = g_config.unconsciousIconSizePx;
+std::string& g_recoveryComaIconTexture = g_config.recoveryComaIconTexture;
+DWORD& g_recoveryComaIconSizePx = g_config.recoveryComaIconSizePx;
+std::string& g_dyingIconTexture = g_config.dyingIconTexture;
+DWORD& g_dyingIconSizePx = g_config.dyingIconSizePx;
 unsigned int g_probeLogScopeDepth = 0u;
 unsigned int g_nextProbeSessionId = 1u;
 unsigned int g_activeProbeSessionId = 0u;
 unsigned int g_activeProbeSequence = 0u;
 DWORD g_hoveredMarkerExpireTick = 0u;
 MyGUI::Widget* g_hoveredMarkerWidget = 0;
-DWORD g_unconsciousOverlayNextRefreshTick = 0u;
-std::vector<MyGUI::Widget*> g_unconsciousOverlayWidgets;
+
+struct PortraitOverlayRuntime
+{
+    PortraitOverlayRuntime()
+        : nextRefreshTick(0u)
+    {
+    }
+
+    DWORD nextRefreshTick;
+    std::vector<MyGUI::Widget*> widgets;
+};
+
+PortraitOverlayRuntime g_unconsciousOverlayRuntime;
+PortraitOverlayRuntime g_recoveryComaOverlayRuntime;
+PortraitOverlayRuntime g_dyingOverlayRuntime;
 
 struct HoverContext
 {
@@ -199,19 +218,27 @@ struct MemberStateSnapshot
     const char* stateLabel;
 };
 
-enum StrictUnconsciousPortraitMatchStatus
+enum PortraitOverlayState
 {
-    STRICT_UNCONSCIOUS_MATCH_OK = 0,
-    STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE,
-    STRICT_UNCONSCIOUS_MATCH_NO_STATE,
-    STRICT_UNCONSCIOUS_MATCH_NO_GUI,
-    STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT
+    PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS = 0,
+    PORTRAIT_OVERLAY_STATE_RECOVERY_COMA,
+    PORTRAIT_OVERLAY_STATE_DYING
 };
 
-struct StrictUnconsciousPortraitMatch
+enum PortraitOverlayMatchStatus
 {
-    StrictUnconsciousPortraitMatch()
-        : status(STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE)
+    PORTRAIT_OVERLAY_MATCH_OK = 0,
+    PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE,
+    PORTRAIT_OVERLAY_MATCH_NO_STATE,
+    PORTRAIT_OVERLAY_MATCH_NO_GUI,
+    PORTRAIT_OVERLAY_MATCH_NO_PORTRAIT
+};
+
+struct PortraitOverlayMatch
+{
+    PortraitOverlayMatch()
+        : overlayState(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS)
+        , status(PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE)
         , character(0)
         , displaySlotIndex(-1)
         , mappingKey("unresolved")
@@ -221,7 +248,8 @@ struct StrictUnconsciousPortraitMatch
     {
     }
 
-    StrictUnconsciousPortraitMatchStatus status;
+    PortraitOverlayState overlayState;
+    PortraitOverlayMatchStatus status;
     Character* character;
     MemberStateSnapshot state;
     PortraitCandidateRecord target;
@@ -234,8 +262,7 @@ struct StrictUnconsciousPortraitMatch
 
 bool EnsureHoveredMarkerWidget();
 void HideHoveredMarker();
-void HideUnconsciousOverlay();
-void ResetUnconsciousOverlayState();
+void ResetStateOverlays();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
 {
@@ -315,11 +342,6 @@ void LogBindingDebugLine(const std::string& message)
     }
 }
 
-void LogStartupInvestigate(const std::string& message)
-{
-    LogInfoLine("[investigate][startup] " + message);
-}
-
 bool TryResolveModConfigPath(std::string* outPath)
 {
     if (outPath == 0 || g_configPath.empty())
@@ -362,6 +384,10 @@ void LoadLoggingConfig()
              << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
              << " unconsciousIconConfigured=" << (!g_unconsciousIconTexture.empty() ? "true" : "false")
              << " unconsciousIconSizePx=" << g_unconsciousIconSizePx
+             << " recoveryComaIconConfigured=" << (!g_recoveryComaIconTexture.empty() ? "true" : "false")
+             << " recoveryComaIconSizePx=" << g_recoveryComaIconSizePx
+             << " dyingIconConfigured=" << (!g_dyingIconTexture.empty() ? "true" : "false")
+             << " dyingIconSizePx=" << g_dyingIconSizePx
              << " verboseDiagnostics=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
         LogDebugLine(line.str());
     }
@@ -694,6 +720,41 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
 
     *outSnapshot = snapshot;
     return true;
+}
+
+const char* GetPortraitOverlayStateLabel(const PortraitOverlayState overlayState)
+{
+    switch (overlayState)
+    {
+    case PORTRAIT_OVERLAY_STATE_DYING:
+        return "dying";
+    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
+        return "recovery_coma";
+    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
+    default:
+        return "unconscious";
+    }
+}
+
+bool SnapshotMatchesPortraitOverlayState(
+    const MemberStateSnapshot& snapshot,
+    const PortraitOverlayState overlayState)
+{
+    if (snapshot.dead || snapshot.playingDead)
+    {
+        return false;
+    }
+
+    switch (overlayState)
+    {
+    case PORTRAIT_OVERLAY_STATE_DYING:
+        return snapshot.dying;
+    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
+        return snapshot.recoveryComa;
+    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
+    default:
+        return snapshot.unconscious && !snapshot.recoveryComa && !snapshot.dying;
+    }
 }
 
 std::string SafeWidgetName(MyGUI::Widget* widget)
@@ -1444,9 +1505,10 @@ bool TryResolveDisplayPortraitSlotIndex(
     return false;
 }
 
-bool TryCollectStrictUnconsciousPortraitMatches(
-    std::vector<StrictUnconsciousPortraitMatch>* outMatches,
-    StrictUnconsciousPortraitMatchStatus* outFailureStatus)
+bool TryCollectPortraitOverlayMatches(
+    const PortraitOverlayState overlayState,
+    std::vector<PortraitOverlayMatch>* outMatches,
+    PortraitOverlayMatchStatus* outFailureStatus)
 {
     if (outMatches == 0 || outFailureStatus == 0)
     {
@@ -1454,7 +1516,7 @@ bool TryCollectStrictUnconsciousPortraitMatches(
     }
 
     outMatches->clear();
-    *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
+    *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
 
     SquadProbeScope scope;
     if (!TryResolveSquadProbeScope(&scope))
@@ -1462,7 +1524,7 @@ bool TryCollectStrictUnconsciousPortraitMatches(
         return true;
     }
 
-    std::vector<StrictUnconsciousPortraitMatch> stateMatches;
+    std::vector<PortraitOverlayMatch> stateMatches;
     if (scope.allPlayerCharacters != 0)
     {
         for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
@@ -1479,16 +1541,13 @@ bool TryCollectStrictUnconsciousPortraitMatches(
                 continue;
             }
 
-            if (!snapshot.unconscious
-                || snapshot.dead
-                || snapshot.playingDead
-                || snapshot.dying
-                || snapshot.recoveryComa)
+            if (!SnapshotMatchesPortraitOverlayState(snapshot, overlayState))
             {
                 continue;
             }
 
-            StrictUnconsciousPortraitMatch match;
+            PortraitOverlayMatch match;
+            match.overlayState = overlayState;
             match.character = candidate;
             match.state = snapshot;
             stateMatches.push_back(match);
@@ -1497,7 +1556,7 @@ bool TryCollectStrictUnconsciousPortraitMatches(
 
     if (stateMatches.empty())
     {
-        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_STATE;
+        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_STATE;
         return true;
     }
 
@@ -1506,7 +1565,7 @@ bool TryCollectStrictUnconsciousPortraitMatches(
     std::vector<PortraitCandidateRecord> allCandidates;
     if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
     {
-        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_GUI;
+        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_GUI;
         return true;
     }
 
@@ -1516,7 +1575,7 @@ bool TryCollectStrictUnconsciousPortraitMatches(
 
     for (size_t index = 0u; index < stateMatches.size(); ++index)
     {
-        StrictUnconsciousPortraitMatch match = stateMatches[index];
+        PortraitOverlayMatch match = stateMatches[index];
         match.visibleRootCount = visibleRootCount;
         match.scannedNodes = scannedNodes;
         match.displayPortraitCount = displayPortraits.size();
@@ -1543,20 +1602,20 @@ bool TryCollectStrictUnconsciousPortraitMatches(
 
         usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
         match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
-        match.status = STRICT_UNCONSCIOUS_MATCH_OK;
+        match.status = PORTRAIT_OVERLAY_MATCH_OK;
         outMatches->push_back(match);
     }
 
     if (outMatches->empty())
     {
-        *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT;
+        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_PORTRAIT;
         return true;
     }
 
     std::stable_sort(
         outMatches->begin(),
         outMatches->end(),
-        [](const StrictUnconsciousPortraitMatch& left, const StrictUnconsciousPortraitMatch& right) -> bool
+        [](const PortraitOverlayMatch& left, const PortraitOverlayMatch& right) -> bool
         {
             if (left.displaySlotIndex != right.displaySlotIndex)
             {
@@ -1565,27 +1624,30 @@ bool TryCollectStrictUnconsciousPortraitMatches(
             return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
         });
 
-    *outFailureStatus = STRICT_UNCONSCIOUS_MATCH_OK;
+    *outFailureStatus = PORTRAIT_OVERLAY_MATCH_OK;
     return true;
 }
 
-bool TryResolveStrictUnconsciousPortraitMatch(StrictUnconsciousPortraitMatch* outMatch)
+bool TryResolvePortraitOverlayMatch(
+    const PortraitOverlayState overlayState,
+    PortraitOverlayMatch* outMatch)
 {
     if (outMatch == 0)
     {
         return false;
     }
 
-    *outMatch = StrictUnconsciousPortraitMatch();
+    *outMatch = PortraitOverlayMatch();
+    outMatch->overlayState = overlayState;
 
-    std::vector<StrictUnconsciousPortraitMatch> matches;
-    StrictUnconsciousPortraitMatchStatus failureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
-    if (!TryCollectStrictUnconsciousPortraitMatches(&matches, &failureStatus))
+    std::vector<PortraitOverlayMatch> matches;
+    PortraitOverlayMatchStatus failureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
+    if (!TryCollectPortraitOverlayMatches(overlayState, &matches, &failureStatus))
     {
         return false;
     }
 
-    if (failureStatus != STRICT_UNCONSCIOUS_MATCH_OK || matches.empty())
+    if (failureStatus != PORTRAIT_OVERLAY_MATCH_OK || matches.empty())
     {
         outMatch->status = failureStatus;
         return true;
@@ -1864,6 +1926,7 @@ void DumpMemberStatesProbeImpl(const char* reason)
     const size_t scopedMemberCount = CountScopedSquadMembers(scope, &selectedScopeIndex);
     size_t deadCount = 0u;
     size_t unconsciousCount = 0u;
+    size_t recoveryComaCount = 0u;
     size_t playingDeadCount = 0u;
     size_t dyingCount = 0u;
     size_t awakeCount = 0u;
@@ -1896,6 +1959,10 @@ void DumpMemberStatesProbeImpl(const char* reason)
             {
                 ++playingDeadCount;
             }
+            else if (snapshot.recoveryComa)
+            {
+                ++recoveryComaCount;
+            }
             else if (snapshot.unconscious)
             {
                 ++unconsciousCount;
@@ -1916,6 +1983,7 @@ void DumpMemberStatesProbeImpl(const char* reason)
             << " target_platoon_name=" << QuoteForLog(SafePlatoonName(scope.targetPlatoon))
             << " scoped_member_count=" << scopedMemberCount
             << " unconscious_count=" << unconsciousCount
+            << " recovery_coma_count=" << recoveryComaCount
             << " playing_dead_count=" << playingDeadCount
             << " dying_count=" << dyingCount
             << " dead_count=" << deadCount
@@ -2010,15 +2078,15 @@ void DumpMemberStatesProbe(const char* reason)
 
 void MarkStateMatchedPortraitProbeImpl(const char* reason)
 {
-    StrictUnconsciousPortraitMatch match;
-    if (!TryResolveStrictUnconsciousPortraitMatch(&match))
+    PortraitOverlayMatch match;
+    if (!TryResolvePortraitOverlayMatch(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS, &match))
     {
         HideHoveredMarker();
         LogProbeRecord("mark_state_matched_portrait", "exception", "status=match_resolve_failed");
         return;
     }
 
-    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE)
+    if (match.status == PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE)
     {
         HideHoveredMarker();
         LogProbeRecord(
@@ -2028,18 +2096,18 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
         return;
     }
 
-    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_STATE)
+    if (match.status == PORTRAIT_OVERLAY_MATCH_NO_STATE)
     {
         HideHoveredMarker();
         LogProbeRecord(
             "mark_state_matched_portrait",
             "summary",
             "status=no_state_match reason=" + QuoteForLog(reason == 0 ? "manual" : reason)
-                + " target_state=" + QuoteForLog("unconscious"));
+                + " target_state=" + QuoteForLog(GetPortraitOverlayStateLabel(match.overlayState)));
         return;
     }
 
-    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_GUI)
+    if (match.status == PORTRAIT_OVERLAY_MATCH_NO_GUI)
     {
         HideHoveredMarker();
         LogProbeRecord(
@@ -2049,13 +2117,13 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
         return;
     }
 
-    if (match.status == STRICT_UNCONSCIOUS_MATCH_NO_PORTRAIT)
+    if (match.status == PORTRAIT_OVERLAY_MATCH_NO_PORTRAIT)
     {
         HideHoveredMarker();
         std::stringstream payload;
         payload << "status=no_portrait_match"
                 << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
-                << " target_state=" << QuoteForLog("unconscious")
+                << " target_state=" << QuoteForLog(GetPortraitOverlayStateLabel(match.overlayState))
                 << " character_pointer=" << QuoteForLog(FormatPointer(match.character))
                 << " character_handle=" << QuoteForLog(match.character == 0 ? "" : SafeHandleString(match.character->handle))
                 << " character_name=" << QuoteForLog(SafeCharacterName(match.character))
@@ -2084,7 +2152,7 @@ void MarkStateMatchedPortraitProbeImpl(const char* reason)
     std::stringstream payload;
     payload << "status=placed"
             << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
-            << " target_state=" << QuoteForLog("unconscious")
+            << " target_state=" << QuoteForLog(GetPortraitOverlayStateLabel(match.overlayState))
             << " character_pointer=" << QuoteForLog(FormatPointer(match.character))
             << " character_handle=" << QuoteForLog(SafeHandleString(match.character->handle))
             << " character_name=" << QuoteForLog(SafeCharacterName(match.character))
@@ -2197,24 +2265,70 @@ bool EnsureHoveredMarkerWidget()
     return true;
 }
 
-vr_marker_ui::OverlayStyle BuildUnconsciousOverlayStyle()
+PortraitOverlayRuntime* GetPortraitOverlayRuntime(const PortraitOverlayState overlayState)
+{
+    switch (overlayState)
+    {
+    case PORTRAIT_OVERLAY_STATE_DYING:
+        return &g_dyingOverlayRuntime;
+    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
+        return &g_recoveryComaOverlayRuntime;
+    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
+    default:
+        return &g_unconsciousOverlayRuntime;
+    }
+}
+
+vr_marker_ui::OverlayStyle BuildPortraitOverlayStyle(const PortraitOverlayState overlayState)
 {
     vr_marker_ui::OverlayStyle style;
-    style.widgetNamePrefix = kUnconsciousOverlayWidgetNamePrefix;
     style.fallbackSkin = kUnconsciousOverlaySkin;
-    style.iconTexture = g_unconsciousIconTexture;
-    style.iconTextureSizePx = static_cast<int>(g_unconsciousIconSizePx);
-    style.hasIconImageCoord = g_config.unconsciousIconHasImageCoord;
-    style.iconImageCoord = vr_marker_ui::Rect(
-        g_config.unconsciousIconCoordLeft,
-        g_config.unconsciousIconCoordTop,
-        g_config.unconsciousIconCoordWidth,
-        g_config.unconsciousIconCoordHeight);
-    style.colour = MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f);
     style.alpha = 0.92f;
-    style.insetPx = kUnconsciousOverlayInsetPx;
-    style.minSizePx = kUnconsciousOverlayMinSizePx;
-    style.maxSizePx = kUnconsciousOverlayMaxSizePx;
+    style.insetPx = kPortraitOverlayInsetPx;
+    style.minSizePx = kPortraitOverlayMinSizePx;
+    style.maxSizePx = kPortraitOverlayMaxSizePx;
+
+    switch (overlayState)
+    {
+    case PORTRAIT_OVERLAY_STATE_DYING:
+        style.widgetNamePrefix = kDyingOverlayWidgetNamePrefix;
+        style.iconTexture = g_dyingIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_dyingIconSizePx);
+        style.hasIconImageCoord = g_config.dyingIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.dyingIconCoordLeft,
+            g_config.dyingIconCoordTop,
+            g_config.dyingIconCoordWidth,
+            g_config.dyingIconCoordHeight);
+        style.colour = MyGUI::Colour(1.0f, 0.24f, 0.24f, 0.95f);
+        break;
+    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
+        style.widgetNamePrefix = kRecoveryComaOverlayWidgetNamePrefix;
+        style.iconTexture = g_recoveryComaIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_recoveryComaIconSizePx);
+        style.hasIconImageCoord = g_config.recoveryComaIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.recoveryComaIconCoordLeft,
+            g_config.recoveryComaIconCoordTop,
+            g_config.recoveryComaIconCoordWidth,
+            g_config.recoveryComaIconCoordHeight);
+        style.colour = MyGUI::Colour(0.20f, 0.82f, 0.60f, 0.95f);
+        break;
+    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
+    default:
+        style.widgetNamePrefix = kUnconsciousOverlayWidgetNamePrefix;
+        style.iconTexture = g_unconsciousIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_unconsciousIconSizePx);
+        style.hasIconImageCoord = g_config.unconsciousIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.unconsciousIconCoordLeft,
+            g_config.unconsciousIconCoordTop,
+            g_config.unconsciousIconCoordWidth,
+            g_config.unconsciousIconCoordHeight);
+        style.colour = MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f);
+        break;
+    }
+
     return style;
 }
 
@@ -2227,15 +2341,32 @@ void HideHoveredMarker()
     g_hoveredMarkerExpireTick = 0u;
 }
 
-void HideUnconsciousOverlay()
+void HidePortraitOverlay(PortraitOverlayRuntime* overlayRuntime)
 {
-    vr_marker_ui::HideWidgets(&g_unconsciousOverlayWidgets);
+    if (overlayRuntime == 0)
+    {
+        return;
+    }
+
+    vr_marker_ui::HideWidgets(&overlayRuntime->widgets);
 }
 
-void ResetUnconsciousOverlayState()
+void ResetPortraitOverlayRuntime(PortraitOverlayRuntime* overlayRuntime)
 {
-    HideUnconsciousOverlay();
-    g_unconsciousOverlayNextRefreshTick = 0u;
+    if (overlayRuntime == 0)
+    {
+        return;
+    }
+
+    HidePortraitOverlay(overlayRuntime);
+    overlayRuntime->nextRefreshTick = 0u;
+}
+
+void ResetStateOverlays()
+{
+    ResetPortraitOverlayRuntime(&g_unconsciousOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
 }
 
 void TickHoveredMarker()
@@ -2251,15 +2382,21 @@ void TickHoveredMarker()
     }
 }
 
-void RefreshUnconsciousOverlayImpl()
+void RefreshPortraitOverlayImpl(const PortraitOverlayState overlayState)
 {
-    std::vector<StrictUnconsciousPortraitMatch> matches;
-    StrictUnconsciousPortraitMatchStatus failureStatus = STRICT_UNCONSCIOUS_MATCH_NO_PLAYER_INTERFACE;
-    if (!TryCollectStrictUnconsciousPortraitMatches(&matches, &failureStatus)
-        || failureStatus != STRICT_UNCONSCIOUS_MATCH_OK
+    PortraitOverlayRuntime* overlayRuntime = GetPortraitOverlayRuntime(overlayState);
+    if (overlayRuntime == 0)
+    {
+        return;
+    }
+
+    std::vector<PortraitOverlayMatch> matches;
+    PortraitOverlayMatchStatus failureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
+    if (!TryCollectPortraitOverlayMatches(overlayState, &matches, &failureStatus)
+        || failureStatus != PORTRAIT_OVERLAY_MATCH_OK
         || matches.empty())
     {
-        HideUnconsciousOverlay();
+        HidePortraitOverlay(overlayRuntime);
         return;
     }
 
@@ -2272,12 +2409,12 @@ void RefreshUnconsciousOverlayImpl()
         viewSizePtr = &viewSize;
     }
 
-    const vr_marker_ui::OverlayStyle overlayStyle = BuildUnconsciousOverlayStyle();
+    const vr_marker_ui::OverlayStyle overlayStyle = BuildPortraitOverlayStyle(overlayState);
     size_t visibleWidgetCount = 0u;
     for (size_t index = 0u; index < matches.size(); ++index)
     {
         if (!vr_marker_ui::ShowOverlayMarker(
-                &g_unconsciousOverlayWidgets,
+                &overlayRuntime->widgets,
                 visibleWidgetCount,
                 kPluginName,
                 overlayStyle,
@@ -2294,19 +2431,19 @@ void RefreshUnconsciousOverlayImpl()
         ++visibleWidgetCount;
     }
 
-    vr_marker_ui::HideWidgetsFrom(&g_unconsciousOverlayWidgets, visibleWidgetCount);
+    vr_marker_ui::HideWidgetsFrom(&overlayRuntime->widgets, visibleWidgetCount);
 
     if (visibleWidgetCount == 0u)
     {
-        HideUnconsciousOverlay();
+        HidePortraitOverlay(overlayRuntime);
     }
 }
 
-bool TryRefreshUnconsciousOverlaySeh()
+bool TryRefreshPortraitOverlaySeh(const PortraitOverlayState overlayState)
 {
     __try
     {
-        RefreshUnconsciousOverlayImpl();
+        RefreshPortraitOverlayImpl(overlayState);
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -2315,19 +2452,32 @@ bool TryRefreshUnconsciousOverlaySeh()
     }
 }
 
-void TickUnconsciousOverlay()
+void TickPortraitOverlay(const PortraitOverlayState overlayState)
 {
-    const DWORD now = GetTickCount();
-    if (g_unconsciousOverlayNextRefreshTick != 0u && now < g_unconsciousOverlayNextRefreshTick)
+    PortraitOverlayRuntime* overlayRuntime = GetPortraitOverlayRuntime(overlayState);
+    if (overlayRuntime == 0)
     {
         return;
     }
 
-    g_unconsciousOverlayNextRefreshTick = now + kUnconsciousOverlayRefreshIntervalMs;
-    if (!TryRefreshUnconsciousOverlaySeh())
+    const DWORD now = GetTickCount();
+    if (overlayRuntime->nextRefreshTick != 0u && now < overlayRuntime->nextRefreshTick)
     {
-        HideUnconsciousOverlay();
+        return;
     }
+
+    overlayRuntime->nextRefreshTick = now + kPortraitOverlayRefreshIntervalMs;
+    if (!TryRefreshPortraitOverlaySeh(overlayState))
+    {
+        HidePortraitOverlay(overlayRuntime);
+    }
+}
+
+void TickStateOverlays()
+{
+    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
+    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
+    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
 }
 
 bool ResolveHoveredPortraitTarget(MyGUI::Widget* hoveredWidget, PortraitCandidateRecord* outRecord)
@@ -2461,12 +2611,12 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     if (!g_enabled)
     {
         HideHoveredMarker();
-        ResetUnconsciousOverlayState();
+        ResetStateOverlays();
         return;
     }
 
     TickHoveredMarker();
-    TickUnconsciousOverlay();
+    TickStateOverlays();
 }
 
 void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
@@ -2540,20 +2690,10 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 __declspec(dllexport) void startPlugin()
 {
     LogInfoLine("startPlugin()");
-    LogStartupInvestigate("stage=enter");
 
-    LogStartupInvestigate("stage=before_get_kenshi_version");
     KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
-    {
-        std::stringstream payload;
-        payload << "stage=after_get_kenshi_version"
-                << " version=" << versionInfo.GetVersion()
-                << " platform=" << versionInfo.GetPlatform();
-        LogStartupInvestigate(payload.str());
-    }
     if (!IsSupportedVersion(versionInfo))
     {
-        LogStartupInvestigate("stage=unsupported_version");
         std::stringstream error;
         error << "unsupported Kenshi version/platform"
               << " version=" << versionInfo.GetVersion()
@@ -2566,22 +2706,9 @@ __declspec(dllexport) void startPlugin()
     versionLine << "supported Kenshi version detected: " << versionInfo.GetVersion();
     LogInfoLine(versionLine.str());
 
-    LogStartupInvestigate("stage=before_load_logging_config");
     LoadLoggingConfig();
-    {
-        std::stringstream payload;
-        payload << "stage=after_load_logging_config"
-                << " enabled=" << (g_enabled ? "true" : "false")
-                << " debug_logging=" << (g_debugLogging ? "true" : "false")
-                << " debug_search_logging=" << (g_debugSearchLogging ? "true" : "false")
-                << " debug_binding_logging=" << (g_debugBindingLogging ? "true" : "false");
-        LogStartupInvestigate(payload.str());
-    }
 
-    LogStartupInvestigate("stage=before_get_real_address_update_ut");
     const intptr_t updateUTTarget = KenshiLib::GetRealAddress(&PlayerInterface::updateUT);
-    LogStartupInvestigate("stage=after_get_real_address_update_ut target=" + FormatPointer(reinterpret_cast<const void*>(updateUTTarget)));
-    LogStartupInvestigate("stage=before_add_hook_update_ut");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         updateUTTarget,
         PlayerInterface_updateUT_hook,
@@ -2590,12 +2717,8 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook PlayerInterface::updateUT");
         return;
     }
-    LogStartupInvestigate("stage=after_add_hook_update_ut");
 
-    LogStartupInvestigate("stage=before_get_real_address_keydown");
     const intptr_t keyDownEventTarget = KenshiLib::GetRealAddress(&InputHandler::keyDownEvent);
-    LogStartupInvestigate("stage=after_get_real_address_keydown target=" + FormatPointer(reinterpret_cast<const void*>(keyDownEventTarget)));
-    LogStartupInvestigate("stage=before_add_hook_keydown");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
         keyDownEventTarget,
         InputHandler_keyDownEvent_hook,
@@ -2604,14 +2727,9 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook InputHandler::keyDownEvent");
         return;
     }
-    LogStartupInvestigate("stage=after_add_hook_keydown");
 
-    LogStartupInvestigate("stage=before_configure_mod_hub");
     ConfigureModHubClient();
-    LogStartupInvestigate("stage=after_configure_mod_hub");
-    LogStartupInvestigate("stage=before_start_mod_hub");
     StartModHubClient();
-    LogStartupInvestigate("stage=after_start_mod_hub");
 
     LogDebugLine("runtime debug logging is enabled");
     LogSearchDebugLine("search diagnostics are enabled");
@@ -2626,8 +2744,6 @@ __declspec(dllexport) void startPlugin()
     {
         LogInfoLine("plugin disabled via mod-config.json; Mod Hub remains available and runtime probes are inactive");
     }
-
-    LogStartupInvestigate("stage=startup_complete");
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
