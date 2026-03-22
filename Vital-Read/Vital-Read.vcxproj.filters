@@ -15,11 +15,25 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\vr_config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vr_marker_ui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Vital-Read.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\vr_config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\vr_marker_ui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

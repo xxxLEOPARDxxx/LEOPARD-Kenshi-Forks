@@ -55,10 +55,33 @@ mod-config.json starts with the shared logging baseline:
 - debugSearchLogging
 - debugBindingLogging
 
+Optional runtime marker settings:
+- unconsciousIconTexture
+- unconsciousIconSizePx
+- unconsciousIconCoordLeft / Top / Width / Height
+
+Custom unconscious icon example:
+```json
+{
+  "unconsciousIconTexture": "Kenshi_UI.png",
+  "unconsciousIconSizePx": 64,
+  "unconsciousIconCoordLeft": 45,
+  "unconsciousIconCoordTop": 122,
+  "unconsciousIconCoordWidth": 32,
+  "unconsciousIconCoordHeight": 32
+}
+```
+
+Texture lookup accepts plain filenames and relative paths. If no coord crop is provided, the whole image is used. The runtime will try common locations including:
+- `mods/Vital-Read/icons/`
+- `mods/Vital-Read/gui/gfx/`
+- `mods/Vital-Read/`
+- `gui/gfx/`
+
 When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch plus the three debug logging flags so they can be toggled in-game.
 
 ## Current Runtime
-When `enabled` is on, Vital Read now shows a small always-on solid corner pip on each strictly unconscious squad portrait it can map with high confidence. Probe hotkeys remain available for verification.
+When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious squad portrait it can map with high confidence. By default that marker uses the built-in pip, and `unconsciousIconTexture` can switch it to a custom icon. Probe hotkeys remain available for verification.
 
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.

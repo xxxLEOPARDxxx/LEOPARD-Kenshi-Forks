@@ -1,5 +1,8 @@
 #include <Debug.h>
 
+#include "vr_config.h"
+#include "vr_marker_ui.h"
+
 #include <core/Functions.h>
 #include <emc/mod_hub_client.h>
 #include <emc/mod_hub_consumer_helpers.h>
@@ -11,7 +14,6 @@
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Platoon.h>
 
-#include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
@@ -77,10 +79,13 @@ void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
 
 std::string g_configPath;
-bool g_enabled = true;
-bool g_debugLogging = false;
-bool g_debugSearchLogging = false;
-bool g_debugBindingLogging = false;
+vr_config::PluginConfig g_config;
+bool& g_enabled = g_config.enabled;
+bool& g_debugLogging = g_config.debugLogging;
+bool& g_debugSearchLogging = g_config.debugSearchLogging;
+bool& g_debugBindingLogging = g_config.debugBindingLogging;
+std::string& g_unconsciousIconTexture = g_config.unconsciousIconTexture;
+DWORD& g_unconsciousIconSizePx = g_config.unconsciousIconSizePx;
 unsigned int g_probeLogScopeDepth = 0u;
 unsigned int g_nextProbeSessionId = 1u;
 unsigned int g_activeProbeSessionId = 0u;
@@ -229,7 +234,6 @@ struct StrictUnconsciousPortraitMatch
 
 bool EnsureHoveredMarkerWidget();
 void HideHoveredMarker();
-MyGUI::Widget* EnsureUnconsciousOverlayWidget(size_t index);
 void HideUnconsciousOverlay();
 void ResetUnconsciousOverlayState();
 
@@ -327,91 +331,9 @@ bool TryResolveModConfigPath(std::string* outPath)
     return true;
 }
 
-bool TryReadTextFile(const std::string& path, std::string* outContent)
-{
-    if (outContent == 0)
-    {
-        return false;
-    }
-
-    std::ifstream input(path.c_str(), std::ios::in | std::ios::binary);
-    if (!input)
-    {
-        return false;
-    }
-
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    if (!input.good() && !input.eof())
-    {
-        return false;
-    }
-
-    *outContent = buffer.str();
-    return true;
-}
-
-bool TryWriteTextFile(const std::string& path, const std::string& content)
-{
-    std::ofstream output(path.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
-    if (!output)
-    {
-        return false;
-    }
-
-    output << content;
-    output.flush();
-    return output.good();
-}
-
-bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* outValue)
-{
-    if (key == 0 || outValue == 0)
-    {
-        return false;
-    }
-
-    const std::string needle = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = content.find(needle);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
-    if (valuePos == std::string::npos)
-    {
-        return false;
-    }
-
-    ++valuePos;
-    while (valuePos < content.size()
-        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    if (content.compare(valuePos, 4, "true") == 0)
-    {
-        *outValue = true;
-        return true;
-    }
-
-    if (content.compare(valuePos, 5, "false") == 0)
-    {
-        *outValue = false;
-        return true;
-    }
-
-    return false;
-}
-
 void LoadLoggingConfig()
 {
-    g_enabled = true;
-    g_debugLogging = false;
-    g_debugSearchLogging = false;
-    g_debugBindingLogging = false;
+    g_config = vr_config::PluginConfig();
 
     std::string configPath;
     if (!TryResolveModConfigPath(&configPath))
@@ -420,32 +342,13 @@ void LoadLoggingConfig()
         return;
     }
 
-    std::string configText;
-    if (!TryReadTextFile(configPath, &configText))
+    if (vr_config::LoadFromFile(configPath, &g_config) != vr_config::LOAD_OK)
     {
         std::stringstream line;
         line << "mod config load skipped: could not read " << configPath
              << " (using quiet logging defaults)";
         LogWarnLine(line.str());
         return;
-    }
-
-    bool parsedValue = false;
-    if (TryParseJsonBoolByKey(configText, "enabled", &parsedValue))
-    {
-        g_enabled = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugLogging", &parsedValue))
-    {
-        g_debugLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugSearchLogging", &parsedValue))
-    {
-        g_debugSearchLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugBindingLogging", &parsedValue))
-    {
-        g_debugBindingLogging = parsedValue;
     }
 
     LogInfoLine("mod config loaded");
@@ -457,21 +360,11 @@ void LoadLoggingConfig()
              << " debugLogging=" << (g_debugLogging ? "true" : "false")
              << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
              << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
+             << " unconsciousIconConfigured=" << (!g_unconsciousIconTexture.empty() ? "true" : "false")
+             << " unconsciousIconSizePx=" << g_unconsciousIconSizePx
              << " verboseDiagnostics=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
         LogDebugLine(line.str());
     }
-}
-
-std::string BuildConfigText()
-{
-    std::stringstream out;
-    out << "{\n";
-    out << "  \"enabled\": " << (g_enabled ? "true" : "false") << ",\n";
-    out << "  \"debugLogging\": " << (g_debugLogging ? "true" : "false") << ",\n";
-    out << "  \"debugSearchLogging\": " << (g_debugSearchLogging ? "true" : "false") << ",\n";
-    out << "  \"debugBindingLogging\": " << (g_debugBindingLogging ? "true" : "false") << "\n";
-    out << "}\n";
-    return out.str();
 }
 
 bool SaveConfigState()
@@ -483,7 +376,7 @@ bool SaveConfigState()
         return false;
     }
 
-    if (!TryWriteTextFile(configPath, BuildConfigText()))
+    if (!vr_config::SaveToFile(configPath, g_config))
     {
         std::stringstream line;
         line << "failed to save mod-config.json at " << configPath;
@@ -1702,43 +1595,6 @@ bool TryResolveStrictUnconsciousPortraitMatch(StrictUnconsciousPortraitMatch* ou
     return true;
 }
 
-bool TryComputePortraitMarkerBounds(
-    const PortraitCandidateRecord& target,
-    const int markerInsetPx,
-    const int markerMinSizePx,
-    const int markerMaxSizePx,
-    MyGUI::IntCoord* outMarkerBounds)
-{
-    if (target.widget == 0 || outMarkerBounds == 0)
-    {
-        return false;
-    }
-
-    const int smallerSide = target.absoluteCoord.width < target.absoluteCoord.height
-        ? target.absoluteCoord.width
-        : target.absoluteCoord.height;
-    const int markerSize = ClampInt(
-        smallerSide / 4,
-        markerMinSizePx,
-        markerMaxSizePx);
-
-    MyGUI::IntSize viewSize(0, 0);
-    const bool haveViewSize = TryGetViewSize(&viewSize);
-
-    int markerLeft = target.absoluteCoord.left + markerInsetPx;
-    int markerTop = target.absoluteCoord.top + target.absoluteCoord.height - markerSize - markerInsetPx;
-    if (haveViewSize)
-    {
-        const int maxLeft = viewSize.width - markerSize > 0 ? viewSize.width - markerSize : 0;
-        const int maxTop = viewSize.height - markerSize > 0 ? viewSize.height - markerSize : 0;
-        markerLeft = ClampInt(markerLeft, 0, maxLeft);
-        markerTop = ClampInt(markerTop, 0, maxTop);
-    }
-
-    *outMarkerBounds = MyGUI::IntCoord(markerLeft, markerTop, markerSize, markerSize);
-    return true;
-}
-
 bool ShowMarkerWidgetAtPortrait(
     MyGUI::Widget* markerWidget,
     const PortraitCandidateRecord& target,
@@ -1752,9 +1608,24 @@ bool ShowMarkerWidgetAtPortrait(
         return false;
     }
 
-    MyGUI::IntCoord markerBounds;
-    if (!TryComputePortraitMarkerBounds(
-            target,
+    MyGUI::IntSize rawViewSize(0, 0);
+    vr_marker_ui::ViewSize viewSize;
+    vr_marker_ui::ViewSize* viewSizePtr = 0;
+    if (TryGetViewSize(&rawViewSize))
+    {
+        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
+        viewSizePtr = &viewSize;
+    }
+
+    vr_marker_ui::Rect markerBounds;
+    if (!vr_marker_ui::TryPlaceMarkerWidget(
+            markerWidget,
+            vr_marker_ui::Rect(
+                target.absoluteCoord.left,
+                target.absoluteCoord.top,
+                target.absoluteCoord.width,
+                target.absoluteCoord.height),
+            viewSizePtr,
             markerInsetPx,
             markerMinSizePx,
             markerMaxSizePx,
@@ -1763,12 +1634,13 @@ bool ShowMarkerWidgetAtPortrait(
         return false;
     }
 
-    markerWidget->setCoord(markerBounds);
-    markerWidget->setVisible(true);
-
     if (outMarkerBounds != 0)
     {
-        *outMarkerBounds = markerBounds;
+        *outMarkerBounds = MyGUI::IntCoord(
+            markerBounds.left,
+            markerBounds.top,
+            markerBounds.width,
+            markerBounds.height);
     }
 
     return true;
@@ -2325,60 +2197,25 @@ bool EnsureHoveredMarkerWidget()
     return true;
 }
 
-std::string BuildUnconsciousOverlayWidgetName(const size_t index)
+vr_marker_ui::OverlayStyle BuildUnconsciousOverlayStyle()
 {
-    std::stringstream name;
-    name << kUnconsciousOverlayWidgetNamePrefix << index;
-    return name.str();
-}
-
-MyGUI::Widget* EnsureUnconsciousOverlayWidget(const size_t index)
-{
-    if (g_unconsciousOverlayWidgets.size() <= index)
-    {
-        g_unconsciousOverlayWidgets.resize(index + 1u, 0);
-    }
-
-    if (g_unconsciousOverlayWidgets[index] != 0)
-    {
-        return g_unconsciousOverlayWidgets[index];
-    }
-
-    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui == 0)
-    {
-        return 0;
-    }
-
-    const std::string widgetName = BuildUnconsciousOverlayWidgetName(index);
-
-    MyGUI::Widget* widget = gui->findWidgetT(widgetName, false);
-    if (widget == 0)
-    {
-        widget = gui->createWidget<MyGUI::Button>(
-            kUnconsciousOverlaySkin,
-            MyGUI::IntCoord(0, 0, kUnconsciousOverlayMinSizePx, kUnconsciousOverlayMinSizePx),
-            MyGUI::Align::Left | MyGUI::Align::Top,
-            "Top",
-            widgetName);
-    }
-
-    if (widget == 0)
-    {
-        return 0;
-    }
-
-    widget->setNeedMouseFocus(false);
-    widget->setAlpha(0.92f);
-    widget->setColour(MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f));
-    widget->setVisible(false);
-    if (MyGUI::Button* button = widget->castType<MyGUI::Button>(false))
-    {
-        button->setCaption("");
-    }
-
-    g_unconsciousOverlayWidgets[index] = widget;
-    return widget;
+    vr_marker_ui::OverlayStyle style;
+    style.widgetNamePrefix = kUnconsciousOverlayWidgetNamePrefix;
+    style.fallbackSkin = kUnconsciousOverlaySkin;
+    style.iconTexture = g_unconsciousIconTexture;
+    style.iconTextureSizePx = static_cast<int>(g_unconsciousIconSizePx);
+    style.hasIconImageCoord = g_config.unconsciousIconHasImageCoord;
+    style.iconImageCoord = vr_marker_ui::Rect(
+        g_config.unconsciousIconCoordLeft,
+        g_config.unconsciousIconCoordTop,
+        g_config.unconsciousIconCoordWidth,
+        g_config.unconsciousIconCoordHeight);
+    style.colour = MyGUI::Colour(1.0f, 0.42f, 0.10f, 0.95f);
+    style.alpha = 0.92f;
+    style.insetPx = kUnconsciousOverlayInsetPx;
+    style.minSizePx = kUnconsciousOverlayMinSizePx;
+    style.maxSizePx = kUnconsciousOverlayMaxSizePx;
+    return style;
 }
 
 void HideHoveredMarker()
@@ -2392,13 +2229,7 @@ void HideHoveredMarker()
 
 void HideUnconsciousOverlay()
 {
-    for (size_t index = 0u; index < g_unconsciousOverlayWidgets.size(); ++index)
-    {
-        if (g_unconsciousOverlayWidgets[index] != 0)
-        {
-            g_unconsciousOverlayWidgets[index]->setVisible(false);
-        }
-    }
+    vr_marker_ui::HideWidgets(&g_unconsciousOverlayWidgets);
 }
 
 void ResetUnconsciousOverlayState()
@@ -2432,37 +2263,38 @@ void RefreshUnconsciousOverlayImpl()
         return;
     }
 
+    MyGUI::IntSize rawViewSize(0, 0);
+    vr_marker_ui::ViewSize viewSize;
+    vr_marker_ui::ViewSize* viewSizePtr = 0;
+    if (TryGetViewSize(&rawViewSize))
+    {
+        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
+        viewSizePtr = &viewSize;
+    }
+
+    const vr_marker_ui::OverlayStyle overlayStyle = BuildUnconsciousOverlayStyle();
     size_t visibleWidgetCount = 0u;
     for (size_t index = 0u; index < matches.size(); ++index)
     {
-        MyGUI::Widget* widget = EnsureUnconsciousOverlayWidget(visibleWidgetCount);
-        if (widget == 0)
+        if (!vr_marker_ui::ShowOverlayMarker(
+                &g_unconsciousOverlayWidgets,
+                visibleWidgetCount,
+                kPluginName,
+                overlayStyle,
+                vr_marker_ui::Rect(
+                    matches[index].target.absoluteCoord.left,
+                    matches[index].target.absoluteCoord.top,
+                    matches[index].target.absoluteCoord.width,
+                    matches[index].target.absoluteCoord.height),
+                viewSizePtr))
         {
-            break;
-        }
-
-        if (!ShowMarkerWidgetAtPortrait(
-                widget,
-                matches[index].target,
-                kUnconsciousOverlayInsetPx,
-                kUnconsciousOverlayMinSizePx,
-                kUnconsciousOverlayMaxSizePx,
-                0))
-        {
-            widget->setVisible(false);
             continue;
         }
 
         ++visibleWidgetCount;
     }
 
-    for (size_t index = visibleWidgetCount; index < g_unconsciousOverlayWidgets.size(); ++index)
-    {
-        if (g_unconsciousOverlayWidgets[index] != 0)
-        {
-            g_unconsciousOverlayWidgets[index]->setVisible(false);
-        }
-    }
+    vr_marker_ui::HideWidgetsFrom(&g_unconsciousOverlayWidgets, visibleWidgetCount);
 
     if (visibleWidgetCount == 0u)
     {

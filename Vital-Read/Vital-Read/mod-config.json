@@ -2,5 +2,11 @@
   "enabled": true,
   "debugLogging": false,
   "debugSearchLogging": false,
-  "debugBindingLogging": false
+  "debugBindingLogging": false,
+  "unconsciousIconTexture": "Kenshi_UI.png",
+  "unconsciousIconSizePx": 64,
+  "unconsciousIconCoordLeft": 45,
+  "unconsciousIconCoordTop": 122,
+  "unconsciousIconCoordWidth": 32,
+  "unconsciousIconCoordHeight": 32
 }
