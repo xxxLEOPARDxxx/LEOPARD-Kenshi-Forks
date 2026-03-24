@@ -75,3 +75,7 @@ This plugin now registers its settings with the `Emkejs-Mod-Core` Mod Hub using 
 Behavior:
 - If Mod Hub is available, settings can be changed from the hub menu and are persisted to `mod-config.json`.
 - If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
