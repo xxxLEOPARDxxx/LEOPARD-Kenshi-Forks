@@ -68,3 +68,7 @@ At runtime, the plugin reads:
 - `%USERPROFILE%\AppData\LocalLow\Lo-Fi Games\Kenshi\mods\Wall-B-Gone\mod-config.json`
 
 `LocalLow` is treated as an override if both exist. If neither exists or either is unreadable, the mod defaults to `enabled=true`, `sleepingBagDismantleEnabled=true`, `hotkeyRequireCtrl=false`, `hotkeyRequireShift=false`, `hotkeyRequireAlt=false`, and `hotkey="X"`.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
