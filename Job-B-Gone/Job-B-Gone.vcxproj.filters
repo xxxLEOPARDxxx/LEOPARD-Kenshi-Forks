@@ -15,7 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Job-B-Gone.cpp">
+    <ClCompile Include="src\Job-B-Gone.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp">
@@ -23,7 +23,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="JobBGoneModHub.inl">
+    <ClInclude Include="src\JobBGoneModHub.inl">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_api.h">

@@ -87,11 +87,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Job-B-Gone.cpp" />
+    <ClCompile Include="src\Job-B-Gone.cpp" />
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="JobBGoneModHub.inl" />
+    <ClInclude Include="src\JobBGoneModHub.inl" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_api.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_client.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_consumer_helpers.h" />
