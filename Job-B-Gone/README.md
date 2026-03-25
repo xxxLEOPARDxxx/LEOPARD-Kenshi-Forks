@@ -105,3 +105,7 @@ After launching Kenshi with `Emkejs-Mod-Core` and `Job-B-Gone` enabled, run:
 - `.\scripts\phase22_mod_hub_runtime_smoke_test.ps1 -ExpectedMode attached`
 
 The script reads the latest `RE_Kenshi_log.txt` session and passes only when the latest Job-B-Gone startup reaches `event=mod_hub_attached` or `event=mod_hub_fallback`, which proves the current run reached a recognizable Mod Hub attach or fallback path.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
