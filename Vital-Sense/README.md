@@ -93,3 +93,7 @@ Behavior:
 - `highlight_key` is exposed as a keybind row, and the modifier requirements are exposed as separate bool rows so combos like `CTRL+SHIFT+C` can be built from the current menu surface.
 - If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
 - The Mod Hub menu intentionally exposes only a supported subset. File-only settings still include `update_interval_ms`, debug flags, advanced tint options, bounty live-anchor/tier tuning, relation colors, `bounty_symbol`, `bounty_symbol_position`, `*_text`, `*_icon_texture`, and `*_icon_size_px`.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
