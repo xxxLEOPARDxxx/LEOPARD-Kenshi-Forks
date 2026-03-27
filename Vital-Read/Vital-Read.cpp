@@ -13,6 +13,7 @@
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Platoon.h>
+#include <kenshi/TitleScreen.h>
 
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
@@ -47,9 +48,11 @@ const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayM
 const char* kRecoveryComaOverlayWidgetNamePrefix = "VitalRead_RecoveryComaOverlayMarker_";
 const char* kDyingOverlayWidgetNamePrefix = "VitalRead_DyingOverlayMarker_";
 const char* kPlayingDeadOverlayWidgetNamePrefix = "VitalRead_PlayingDeadOverlayMarker_";
+const char* kPortraitTextLabelWidgetNamePrefix = "VitalRead_PortraitTextLabel_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 const char* kUnconsciousOverlaySkin = "Kenshi_Button1";
 
+const OIS::KeyCode kDumpHoveredStatePanelHotkey = OIS::KC_F3;
 const OIS::KeyCode kRunMappingProbeHotkey = OIS::KC_F4;
 const OIS::KeyCode kProbeNewSessionHotkey = OIS::KC_F6;
 const OIS::KeyCode kMarkStateMatchedPortraitHotkey = OIS::KC_F5;
@@ -68,6 +71,10 @@ const int kHoveredMarkerMaxSizePx = 18;
 const int kPortraitOverlayInsetPx = 1;
 const int kPortraitOverlayMinSizePx = 14;
 const int kPortraitOverlayMaxSizePx = 20;
+const int kPortraitTextLabelInsetPx = 1;
+const int kPortraitTextLabelMinSizePx = 26;
+const int kPortraitTextLabelMaxSizePx = 32;
+const int kPortraitTextLabelFontHeightPx = 14;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
@@ -75,11 +82,17 @@ const size_t kPortraitCandidateScanLimit = 512u;
 const size_t kPortraitCandidateLogLimit = 24u;
 const size_t kHoveredPortraitDescendantDepthLimit = 3u;
 const size_t kHoveredPortraitDescendantNodeLimit = 24u;
+const size_t kHoveredStateTextNodeLimit = 256u;
+const size_t kHoveredStateTextLogLimit = 24u;
+const size_t kMedicalGuiTextFieldNodeLimit = 256u;
+const size_t kMedicalGuiTextFieldLogLimit = 16u;
 const float kPortraitCandidateLogThreshold = 0.20f;
 const float kHoveredPortraitMarkThreshold = 0.25f;
+const DWORD kPendingMedicalGuiProbeLifetimeMs = 2000u;
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
+void (*MedicalSystem_getMedicalGUIData_orig)(MedicalSystem*, DatapanelGUI*) = 0;
 
 std::string g_configPath;
 vr_config::PluginConfig g_config;
@@ -101,6 +114,9 @@ unsigned int g_activeProbeSessionId = 0u;
 unsigned int g_activeProbeSequence = 0u;
 DWORD g_hoveredMarkerExpireTick = 0u;
 MyGUI::Widget* g_hoveredMarkerWidget = 0;
+Character* g_pendingMedicalGuiProbeCharacter = 0;
+DWORD g_pendingMedicalGuiProbeExpireTick = 0u;
+std::string g_pendingMedicalGuiProbeReason;
 
 struct PortraitOverlayRuntime
 {
@@ -117,6 +133,7 @@ PortraitOverlayRuntime g_unconsciousOverlayRuntime;
 PortraitOverlayRuntime g_recoveryComaOverlayRuntime;
 PortraitOverlayRuntime g_dyingOverlayRuntime;
 PortraitOverlayRuntime g_playingDeadOverlayRuntime;
+PortraitOverlayRuntime g_portraitTextLabelRuntime;
 
 struct HoverContext
 {
@@ -158,6 +175,49 @@ struct PortraitCandidateRecord
     size_t childCount;
 };
 
+struct HoveredTextCandidateRecord
+{
+    HoveredTextCandidateRecord()
+        : widget(0)
+        , parent(0)
+        , absoluteCoord(0, 0, 0, 0)
+        , inheritedVisible(false)
+        , containsMouse(false)
+        , centerDistance(0)
+    {
+    }
+
+    MyGUI::Widget* widget;
+    MyGUI::Widget* parent;
+    MyGUI::IntCoord absoluteCoord;
+    std::string typeName;
+    std::string name;
+    std::string caption;
+    bool inheritedVisible;
+    bool containsMouse;
+    int centerDistance;
+};
+
+struct PanelTextFieldRecord
+{
+    PanelTextFieldRecord()
+        : widget(0)
+        , parent(0)
+        , absoluteCoord(0, 0, 0, 0)
+        , inheritedVisible(false)
+    {
+    }
+
+    MyGUI::Widget* widget;
+    MyGUI::Widget* parent;
+    MyGUI::IntCoord absoluteCoord;
+    std::string typeName;
+    std::string name;
+    std::string caption;
+    std::string captionPlain;
+    bool inheritedVisible;
+};
+
 struct SquadProbeScope
 {
     SquadProbeScope()
@@ -192,6 +252,10 @@ struct MemberStateSnapshot
         , probablyDying(false)
         , bloodlossTrauma(false)
         , sub50KO(false)
+        , medicalIsCrippled(false)
+        , leftArmOk(true)
+        , rightArmOk(true)
+        , canKick(true)
         , canGetUpWakeUp(false)
         , blood(0.0f)
         , pointOfNoReturn(0.0f)
@@ -213,6 +277,10 @@ struct MemberStateSnapshot
     bool probablyDying;
     bool bloodlossTrauma;
     bool sub50KO;
+    bool medicalIsCrippled;
+    bool leftArmOk;
+    bool rightArmOk;
+    bool canKick;
     bool canGetUpWakeUp;
     float blood;
     float pointOfNoReturn;
@@ -228,6 +296,14 @@ enum PortraitOverlayState
     PORTRAIT_OVERLAY_STATE_RECOVERY_COMA,
     PORTRAIT_OVERLAY_STATE_DYING,
     PORTRAIT_OVERLAY_STATE_PLAYING_DEAD
+};
+
+enum PortraitTextLabelState
+{
+    PORTRAIT_TEXT_LABEL_NONE = 0,
+    PORTRAIT_TEXT_LABEL_RECOVERY_COMA,
+    PORTRAIT_TEXT_LABEL_CRIPPLED_ARM,
+    PORTRAIT_TEXT_LABEL_CRIPPLED_LEG
 };
 
 enum PortraitOverlayMatchStatus
@@ -263,6 +339,24 @@ struct PortraitOverlayMatch
     size_t displayPortraitCount;
     size_t visibleRootCount;
     size_t scannedNodes;
+};
+
+struct PortraitTextLabelMatch
+{
+    PortraitTextLabelMatch()
+        : labelState(PORTRAIT_TEXT_LABEL_NONE)
+        , character(0)
+        , displaySlotIndex(-1)
+        , mappingKey("unresolved")
+    {
+    }
+
+    PortraitTextLabelState labelState;
+    Character* character;
+    MemberStateSnapshot state;
+    PortraitCandidateRecord target;
+    int displaySlotIndex;
+    const char* mappingKey;
 };
 
 bool EnsureHoveredMarkerWidget();
@@ -440,6 +534,30 @@ bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needl
     return ToLowerAscii(haystack).find(ToLowerAscii(needle)) != std::string::npos;
 }
 
+bool IsAsciiHexDigit(const char value)
+{
+    return (value >= '0' && value <= '9')
+        || (value >= 'a' && value <= 'f')
+        || (value >= 'A' && value <= 'F');
+}
+
+std::string StripLeadingGuiColorTags(const std::string& value)
+{
+    std::string stripped(value);
+    while (stripped.size() >= 7u
+        && stripped[0] == '#'
+        && IsAsciiHexDigit(stripped[1])
+        && IsAsciiHexDigit(stripped[2])
+        && IsAsciiHexDigit(stripped[3])
+        && IsAsciiHexDigit(stripped[4])
+        && IsAsciiHexDigit(stripped[5])
+        && IsAsciiHexDigit(stripped[6]))
+    {
+        stripped.erase(0u, 7u);
+    }
+    return stripped;
+}
+
 int ClampInt(int value, int minimum, int maximum)
 {
     if (value < minimum)
@@ -469,6 +587,21 @@ float ClampUnitFloat(float value)
 int AbsoluteInt(int value)
 {
     return value < 0 ? -value : value;
+}
+
+bool CoordContainsPoint(const MyGUI::IntCoord& coord, const MyGUI::IntPoint& point)
+{
+    return point.left >= coord.left
+        && point.left < (coord.left + coord.width)
+        && point.top >= coord.top
+        && point.top < (coord.top + coord.height);
+}
+
+int CoordCenterDistance(const MyGUI::IntCoord& coord, const MyGUI::IntPoint& point)
+{
+    const int centerLeft = coord.left + (coord.width / 2);
+    const int centerTop = coord.top + (coord.height / 2);
+    return AbsoluteInt(centerLeft - point.left) + AbsoluteInt(centerTop - point.top);
 }
 
 std::string EscapeForLog(const std::string& value)
@@ -681,6 +814,10 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
     snapshot.probablyDying = candidate->medical.isProbablyDying();
     snapshot.bloodlossTrauma = candidate->medical.isInBloodlossTrauma();
     snapshot.sub50KO = candidate->medical.sub50KO;
+    snapshot.medicalIsCrippled = candidate->medical.isCrippled();
+    snapshot.leftArmOk = candidate->medical.isLeftArmOk();
+    snapshot.rightArmOk = candidate->medical.isRightArmOk();
+    snapshot.canKick = candidate->medical.canIkick();
     snapshot.blood = candidate->medical.blood;
     snapshot.pointOfNoReturn = candidate->medical.pointOfNoReturn();
     snapshot.currentBleedRate = candidate->medical.currentBleedRate;
@@ -743,6 +880,59 @@ const char* GetPortraitOverlayStateLabel(const PortraitOverlayState overlayState
     default:
         return "unconscious";
     }
+}
+
+const char* GetPortraitTextLabelCaption(const PortraitTextLabelState labelState)
+{
+    switch (labelState)
+    {
+    case PORTRAIT_TEXT_LABEL_RECOVERY_COMA:
+        return "RC";
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
+        return "CrA";
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_LEG:
+        return "CrL";
+    case PORTRAIT_TEXT_LABEL_NONE:
+    default:
+        return "";
+    }
+}
+
+bool TryResolvePortraitTextLabelState(
+    const MemberStateSnapshot& snapshot,
+    PortraitTextLabelState* outLabelState)
+{
+    if (outLabelState == 0)
+    {
+        return false;
+    }
+
+    *outLabelState = PORTRAIT_TEXT_LABEL_NONE;
+
+    if (snapshot.dead || snapshot.playingDead || snapshot.dying)
+    {
+        return true;
+    }
+
+    if (snapshot.recoveryComa)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_RECOVERY_COMA;
+        return true;
+    }
+
+    if (!snapshot.leftArmOk || !snapshot.rightArmOk)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_CRIPPLED_ARM;
+        return true;
+    }
+
+    if (snapshot.medicalIsCrippled && !snapshot.canKick)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_CRIPPLED_LEG;
+        return true;
+    }
+
+    return true;
 }
 
 bool SnapshotMatchesPortraitOverlayState(
@@ -1219,6 +1409,518 @@ void LogWidgetRecord(const char* probe, const char* eventName, int depth, int si
     LogProbeRecord(probe, eventName, payload.str());
 }
 
+HoveredTextCandidateRecord BuildHoveredTextCandidateRecord(
+    MyGUI::Widget* widget,
+    const MyGUI::IntPoint& mouse)
+{
+    HoveredTextCandidateRecord record;
+    record.widget = widget;
+    record.parent = widget == 0 ? 0 : widget->getParent();
+    record.typeName = SafeWidgetType(widget);
+    record.name = SafeWidgetName(widget);
+    record.caption = SafeWidgetCaption(widget);
+
+    if (widget == 0)
+    {
+        return record;
+    }
+
+    record.absoluteCoord = widget->getAbsoluteCoord();
+    record.inheritedVisible = widget->getInheritedVisible();
+    record.containsMouse = CoordContainsPoint(record.absoluteCoord, mouse);
+    record.centerDistance = CoordCenterDistance(record.absoluteCoord, mouse);
+    return record;
+}
+
+bool MatchesMedicalGuiTextFieldName(const std::string& name)
+{
+    return ContainsAsciiCaseInsensitive(name, "healthtext")
+        || ContainsAsciiCaseInsensitive(name, "statetext")
+        || ContainsAsciiCaseInsensitive(name, "goaltext")
+        || ContainsAsciiCaseInsensitive(name, "blood")
+        || ContainsAsciiCaseInsensitive(name, "encumbrance")
+        || ContainsAsciiCaseInsensitive(name, "nametext");
+}
+
+PanelTextFieldRecord BuildPanelTextFieldRecord(MyGUI::Widget* widget)
+{
+    PanelTextFieldRecord record;
+    record.widget = widget;
+    record.parent = widget == 0 ? 0 : widget->getParent();
+    record.typeName = SafeWidgetType(widget);
+    record.name = SafeWidgetName(widget);
+    record.caption = SafeWidgetCaption(widget);
+    record.captionPlain = StripLeadingGuiColorTags(record.caption);
+
+    if (widget == 0)
+    {
+        return record;
+    }
+
+    record.absoluteCoord = widget->getAbsoluteCoord();
+    record.inheritedVisible = widget->getInheritedVisible();
+    return record;
+}
+
+void CollectMedicalGuiTextFieldsRecursive(
+    MyGUI::Widget* widget,
+    std::vector<PanelTextFieldRecord>* outFields,
+    size_t* scannedNodes)
+{
+    if (widget == 0 || outFields == 0 || scannedNodes == 0 || *scannedNodes >= kMedicalGuiTextFieldNodeLimit)
+    {
+        return;
+    }
+
+    ++(*scannedNodes);
+
+    const PanelTextFieldRecord record = BuildPanelTextFieldRecord(widget);
+    if (record.inheritedVisible
+        && !record.caption.empty()
+        && MatchesMedicalGuiTextFieldName(record.name))
+    {
+        outFields->push_back(record);
+    }
+
+    const size_t childCount = widget->getChildCount();
+    for (size_t index = 0u; index < childCount; ++index)
+    {
+        if (*scannedNodes >= kMedicalGuiTextFieldNodeLimit)
+        {
+            return;
+        }
+
+        CollectMedicalGuiTextFieldsRecursive(widget->getChildAt(index), outFields, scannedNodes);
+    }
+}
+
+bool PanelTextFieldSortPredicate(const PanelTextFieldRecord& left, const PanelTextFieldRecord& right)
+{
+    if (left.absoluteCoord.top != right.absoluteCoord.top)
+    {
+        return left.absoluteCoord.top < right.absoluteCoord.top;
+    }
+    if (left.absoluteCoord.left != right.absoluteCoord.left)
+    {
+        return left.absoluteCoord.left < right.absoluteCoord.left;
+    }
+    return reinterpret_cast<size_t>(left.widget) < reinterpret_cast<size_t>(right.widget);
+}
+
+void ClearPendingMedicalGuiProbe()
+{
+    g_pendingMedicalGuiProbeCharacter = 0;
+    g_pendingMedicalGuiProbeExpireTick = 0u;
+    g_pendingMedicalGuiProbeReason.clear();
+}
+
+void ExpirePendingMedicalGuiProbeIfNeeded()
+{
+    if (g_pendingMedicalGuiProbeCharacter == 0 || g_pendingMedicalGuiProbeExpireTick == 0u)
+    {
+        return;
+    }
+
+    const DWORD now = GetTickCount();
+    if (now <= g_pendingMedicalGuiProbeExpireTick)
+    {
+        return;
+    }
+
+    BeginProbeLogging();
+    LogProbeRecord("dump_hovered_state_panel", "medical_gui_snapshot", "status=expired");
+    EndProbeLogging();
+    ClearPendingMedicalGuiProbe();
+}
+
+void ArmPendingMedicalGuiProbe(const char* reason)
+{
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        ClearPendingMedicalGuiProbe();
+        LogProbeRecord("dump_hovered_state_panel", "medical_gui_arm", "status=no_player_interface");
+        return;
+    }
+
+    if (scope.selectedCharacter == 0)
+    {
+        ClearPendingMedicalGuiProbe();
+        LogProbeRecord("dump_hovered_state_panel", "medical_gui_arm", "status=no_selected_character");
+        return;
+    }
+
+    g_pendingMedicalGuiProbeCharacter = scope.selectedCharacter;
+    g_pendingMedicalGuiProbeExpireTick = GetTickCount() + kPendingMedicalGuiProbeLifetimeMs;
+    g_pendingMedicalGuiProbeReason = reason == 0 ? "manual" : reason;
+
+    std::stringstream payload;
+    payload << "status=armed"
+            << " reason=" << QuoteForLog(g_pendingMedicalGuiProbeReason)
+            << " character_pointer=" << QuoteForLog(FormatPointer(scope.selectedCharacter))
+            << " character_name=" << QuoteForLog(SafeCharacterName(scope.selectedCharacter))
+            << " expire_in_ms=" << kPendingMedicalGuiProbeLifetimeMs;
+    LogProbeRecord("dump_hovered_state_panel", "medical_gui_arm", payload.str());
+}
+
+void TryCapturePendingMedicalGuiProbe(MedicalSystem* medical, DatapanelGUI* panel)
+{
+    if (g_pendingMedicalGuiProbeCharacter == 0)
+    {
+        return;
+    }
+
+    const DWORD now = GetTickCount();
+    if (g_pendingMedicalGuiProbeExpireTick != 0u && now > g_pendingMedicalGuiProbeExpireTick)
+    {
+        ExpirePendingMedicalGuiProbeIfNeeded();
+        return;
+    }
+
+    if (medical == 0 || medical->me != g_pendingMedicalGuiProbeCharacter)
+    {
+        return;
+    }
+
+    GUIWindow* panelWindow = reinterpret_cast<GUIWindow*>(panel);
+    MyGUI::Widget* panelWidget = panelWindow == 0 ? 0 : panelWindow->win;
+    std::vector<PanelTextFieldRecord> fields;
+    size_t scannedNodes = 0u;
+    if (panelWidget != 0)
+    {
+        CollectMedicalGuiTextFieldsRecursive(panelWidget, &fields, &scannedNodes);
+        std::stable_sort(fields.begin(), fields.end(), PanelTextFieldSortPredicate);
+    }
+
+    std::string healthTextRaw;
+    std::string healthTextPlain;
+    std::string stateTextRaw;
+    std::string stateTextPlain;
+    std::string goalTextRaw;
+    std::string goalTextPlain;
+    for (size_t index = 0u; index < fields.size(); ++index)
+    {
+        const PanelTextFieldRecord& field = fields[index];
+        if (healthTextRaw.empty() && ContainsAsciiCaseInsensitive(field.name, "healthtext"))
+        {
+            healthTextRaw = field.caption;
+            healthTextPlain = field.captionPlain;
+        }
+        if (stateTextRaw.empty() && ContainsAsciiCaseInsensitive(field.name, "statetext"))
+        {
+            stateTextRaw = field.caption;
+            stateTextPlain = field.captionPlain;
+        }
+        if (goalTextRaw.empty() && ContainsAsciiCaseInsensitive(field.name, "goaltext"))
+        {
+            goalTextRaw = field.caption;
+            goalTextPlain = field.captionPlain;
+        }
+    }
+
+    BeginProbeLogging();
+
+    std::stringstream summary;
+    summary << "status=ok"
+            << " reason=" << QuoteForLog(g_pendingMedicalGuiProbeReason.empty() ? "manual" : g_pendingMedicalGuiProbeReason)
+            << " character_pointer=" << QuoteForLog(FormatPointer(g_pendingMedicalGuiProbeCharacter))
+            << " character_name=" << QuoteForLog(SafeCharacterName(g_pendingMedicalGuiProbeCharacter))
+            << " medical_pointer=" << QuoteForLog(FormatPointer(medical))
+            << " panel_pointer=" << QuoteForLog(FormatPointer(panel))
+            << " panel_widget_pointer=" << QuoteForLog(FormatPointer(panelWidget))
+            << " panel_widget_type=" << QuoteForLog(SafeWidgetType(panelWidget))
+            << " panel_widget_name=" << QuoteForLog(SafeWidgetName(panelWidget))
+            << " top_root_pointer=" << QuoteForLog(FormatPointer(GetTopRootWidget(panelWidget)))
+            << " top_root_name=" << QuoteForLog(SafeWidgetName(GetTopRootWidget(panelWidget)))
+            << " scanned_nodes=" << scannedNodes
+            << " field_count=" << fields.size()
+            << " health_text=" << QuoteForLog(healthTextRaw)
+            << " health_text_plain=" << QuoteForLog(healthTextPlain)
+            << " state_text=" << QuoteForLog(stateTextRaw)
+            << " state_text_plain=" << QuoteForLog(stateTextPlain)
+            << " goal_text=" << QuoteForLog(goalTextRaw)
+            << " goal_text_plain=" << QuoteForLog(goalTextPlain);
+    LogProbeRecord("dump_hovered_state_panel", "medical_gui_snapshot", summary.str());
+
+    const size_t logCount = fields.size() < kMedicalGuiTextFieldLogLimit
+        ? fields.size()
+        : kMedicalGuiTextFieldLogLimit;
+    for (size_t index = 0u; index < logCount; ++index)
+    {
+        const PanelTextFieldRecord& field = fields[index];
+        std::stringstream payload;
+        payload << "index=" << index
+                << " pointer=" << QuoteForLog(FormatPointer(field.widget))
+                << " parent_pointer=" << QuoteForLog(FormatPointer(field.parent))
+                << " type=" << QuoteForLog(field.typeName)
+                << " name=" << QuoteForLog(field.name)
+                << " caption=" << QuoteForLog(field.caption)
+                << " caption_plain=" << QuoteForLog(field.captionPlain)
+                << " bounds=" << QuoteForLog(FormatCoord(field.absoluteCoord));
+        LogProbeRecord("dump_hovered_state_panel", "medical_gui_field", payload.str());
+    }
+
+    EndProbeLogging();
+    ClearPendingMedicalGuiProbe();
+}
+
+void CollectHoveredTextCandidatesRecursive(
+    MyGUI::Widget* widget,
+    const MyGUI::IntPoint& mouse,
+    std::vector<HoveredTextCandidateRecord>* outCandidates,
+    size_t* scannedNodes)
+{
+    if (widget == 0 || outCandidates == 0 || scannedNodes == 0 || *scannedNodes >= kHoveredStateTextNodeLimit)
+    {
+        return;
+    }
+
+    ++(*scannedNodes);
+
+    const HoveredTextCandidateRecord record = BuildHoveredTextCandidateRecord(widget, mouse);
+    if (record.inheritedVisible && !record.caption.empty())
+    {
+        outCandidates->push_back(record);
+    }
+
+    const size_t childCount = widget->getChildCount();
+    for (size_t index = 0u; index < childCount; ++index)
+    {
+        if (*scannedNodes >= kHoveredStateTextNodeLimit)
+        {
+            return;
+        }
+
+        CollectHoveredTextCandidatesRecursive(widget->getChildAt(index), mouse, outCandidates, scannedNodes);
+    }
+}
+
+bool HoveredTextCandidateSortPredicate(
+    const HoveredTextCandidateRecord& left,
+    const HoveredTextCandidateRecord& right)
+{
+    if (left.containsMouse != right.containsMouse)
+    {
+        return left.containsMouse;
+    }
+    if (left.centerDistance != right.centerDistance)
+    {
+        return left.centerDistance < right.centerDistance;
+    }
+    if (left.absoluteCoord.top != right.absoluteCoord.top)
+    {
+        return left.absoluteCoord.top < right.absoluteCoord.top;
+    }
+    if (left.absoluteCoord.left != right.absoluteCoord.left)
+    {
+        return left.absoluteCoord.left < right.absoluteCoord.left;
+    }
+    return reinterpret_cast<size_t>(left.widget) < reinterpret_cast<size_t>(right.widget);
+}
+
+void DumpHoveredStatePanelProbeImpl(const char* reason)
+{
+    HoverContext hover;
+    const bool hoverAvailable = TryGetHoverContext(&hover);
+    if (!hoverAvailable)
+    {
+        LogProbeRecord(
+            "dump_hovered_state_panel",
+            "summary",
+            "status=no_input_manager reason=" + QuoteForLog(reason == 0 ? "manual" : reason));
+        return;
+    }
+
+    MyGUI::Widget* root = GetTopRootWidget(hover.hoveredWidget);
+
+    std::stringstream summary;
+    summary << "status=" << (hover.hoveredWidget == 0 ? "no_hovered_widget" : "ok")
+            << " reason=" << QuoteForLog(reason == 0 ? "manual" : reason)
+            << " mouse=" << QuoteForLog(FormatPoint(hover.mouse))
+            << " hovered_pointer=" << QuoteForLog(FormatPointer(hover.hoveredWidget))
+            << " hovered_type=" << QuoteForLog(SafeWidgetType(hover.hoveredWidget))
+            << " hovered_name=" << QuoteForLog(SafeWidgetName(hover.hoveredWidget))
+            << " hovered_caption=" << QuoteForLog(SafeWidgetCaption(hover.hoveredWidget))
+            << " root_pointer=" << QuoteForLog(FormatPointer(root))
+            << " root_type=" << QuoteForLog(SafeWidgetType(root))
+            << " root_name=" << QuoteForLog(SafeWidgetName(root))
+            << " chain_depth=" << CountWidgetChainDepth(hover.hoveredWidget, kHoveredChainDepthLimit);
+    LogProbeRecord("dump_hovered_state_panel", "summary", summary.str());
+
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        LogProbeRecord("dump_hovered_state_panel", "selected_member", "status=no_player_interface");
+    }
+    else if (scope.selectedCharacter == 0)
+    {
+        LogProbeRecord("dump_hovered_state_panel", "selected_member", "status=no_selected_character");
+    }
+    else
+    {
+        MemberStateSnapshot snapshot;
+        if (!TryResolveMemberStateSnapshot(scope.selectedCharacter, &snapshot))
+        {
+            LogProbeRecord("dump_hovered_state_panel", "selected_member", "status=state_read_failed");
+        }
+        else
+        {
+            const bool characterIsCrippled = scope.selectedCharacter->isCrippled();
+            const bool medicalIsCrippled = scope.selectedCharacter->medical.isCrippled();
+            const bool medicalIsReallyHungry = scope.selectedCharacter->medical.isReallyHungry();
+            const bool medicalIsHungerKo = scope.selectedCharacter->medical.isHungerKO();
+            const bool medicalIsFed = scope.selectedCharacter->medical.isFed();
+            const bool medicalLeftArmOk = scope.selectedCharacter->medical.isLeftArmOk();
+            const bool medicalRightArmOk = scope.selectedCharacter->medical.isRightArmOk();
+            const bool medicalCanKick = scope.selectedCharacter->medical.canIkick();
+            const float leftArmDerivedHealth = scope.selectedCharacter->medical.leftArm == 0
+                ? 0.0f
+                : scope.selectedCharacter->medical.leftArm->derivedFleshHealthPercent;
+            const float rightArmDerivedHealth = scope.selectedCharacter->medical.rightArm == 0
+                ? 0.0f
+                : scope.selectedCharacter->medical.rightArm->derivedFleshHealthPercent;
+            const float leftLegDerivedHealth = scope.selectedCharacter->medical.leftLeg == 0
+                ? 0.0f
+                : scope.selectedCharacter->medical.leftLeg->derivedFleshHealthPercent;
+            const float rightLegDerivedHealth = scope.selectedCharacter->medical.rightLeg == 0
+                ? 0.0f
+                : scope.selectedCharacter->medical.rightLeg->derivedFleshHealthPercent;
+
+            std::stringstream payload;
+            payload << "status=ok"
+                    << " character_pointer=" << QuoteForLog(FormatPointer(scope.selectedCharacter))
+                    << " character_handle=" << QuoteForLog(SafeHandleString(scope.selectedCharacter->handle))
+                    << " character_name=" << QuoteForLog(SafeCharacterName(scope.selectedCharacter))
+                    << " squad_member_id=" << scope.selectedCharacter->squadMemberID
+                    << " portrait_index=" << static_cast<int>(scope.selectedCharacter->portraitIndex)
+                    << " prone_state=" << static_cast<int>(snapshot.proneState)
+                    << " state_label=" << QuoteForLog(snapshot.stateLabel)
+                    << " unconscious=" << FormatBool(snapshot.unconscious)
+                    << " playing_dead=" << FormatBool(snapshot.playingDead)
+                    << " dying=" << FormatBool(snapshot.dying)
+                    << " dead=" << FormatBool(snapshot.dead)
+                    << " recovery_coma=" << FormatBool(snapshot.recoveryComa)
+                    << " medical_unconcious=" << FormatBool(snapshot.medicalUnconcious)
+                    << " ko_prone=" << FormatBool(snapshot.koProne)
+                    << " probably_dying=" << FormatBool(snapshot.probablyDying)
+                    << " bloodloss_trauma=" << FormatBool(snapshot.bloodlossTrauma)
+                    << " sub50ko=" << FormatBool(snapshot.sub50KO)
+                    << " can_get_up=" << FormatBool(snapshot.canGetUpWakeUp)
+                    << " blood=" << FormatFloat2(snapshot.blood)
+                    << " point_of_no_return=" << FormatFloat2(snapshot.pointOfNoReturn)
+                    << " current_bleed_rate=" << FormatFloat2(snapshot.currentBleedRate)
+                    << " extra_blood_loss=" << FormatFloat2(snapshot.extraBloodLoss)
+                    << " knockout_timer=" << FormatFloat2(snapshot.knockoutTimer)
+                    << " character_is_crippled=" << FormatBool(characterIsCrippled)
+                    << " medical_is_crippled=" << FormatBool(medicalIsCrippled)
+                    << " medical_crippled_flag=" << FormatBool(scope.selectedCharacter->medical.crippled)
+                    << " medical_is_really_hungry=" << FormatBool(medicalIsReallyHungry)
+                    << " medical_is_hunger_ko=" << FormatBool(medicalIsHungerKo)
+                    << " medical_is_fed=" << FormatBool(medicalIsFed)
+                    << " hunger=" << FormatFloat2(scope.selectedCharacter->medical.hunger)
+                    << " fed=" << FormatFloat2(scope.selectedCharacter->medical.fed)
+                    << " hunger_speed_modifier=" << FormatFloat2(scope.selectedCharacter->medical.getHungerSpeedModifier())
+                    << " left_arm_ok=" << FormatBool(medicalLeftArmOk)
+                    << " right_arm_ok=" << FormatBool(medicalRightArmOk)
+                    << " can_kick=" << FormatBool(medicalCanKick)
+                    << " left_arm_derived=" << FormatFloat2(leftArmDerivedHealth)
+                    << " right_arm_derived=" << FormatFloat2(rightArmDerivedHealth)
+                    << " left_leg_derived=" << FormatFloat2(leftLegDerivedHealth)
+                    << " right_leg_derived=" << FormatFloat2(rightLegDerivedHealth)
+                    << " part_best_arm=" << FormatFloat2(scope.selectedCharacter->medical.partBestArm)
+                    << " part_head=" << FormatFloat2(scope.selectedCharacter->medical.partHead)
+                    << " part_worst_torso=" << FormatFloat2(scope.selectedCharacter->medical.partWorstTorso)
+                    << " worst_damage=" << FormatFloat2(scope.selectedCharacter->medical.worstDamage)
+                    << " weather_feedback_primary=" << QuoteForLog(scope.selectedCharacter->medical.weatherGUIfeedback.s1)
+                    << " weather_feedback_secondary=" << QuoteForLog(scope.selectedCharacter->medical.weatherGUIfeedback.s2);
+            LogProbeRecord("dump_hovered_state_panel", "selected_member", payload.str());
+        }
+    }
+
+    ArmPendingMedicalGuiProbe(reason);
+
+    if (root == 0)
+    {
+        return;
+    }
+
+    std::vector<HoveredTextCandidateRecord> textCandidates;
+    size_t scannedNodes = 0u;
+    CollectHoveredTextCandidatesRecursive(root, hover.mouse, &textCandidates, &scannedNodes);
+    std::stable_sort(textCandidates.begin(), textCandidates.end(), HoveredTextCandidateSortPredicate);
+
+    size_t containsMouseCount = 0u;
+    for (size_t index = 0u; index < textCandidates.size(); ++index)
+    {
+        if (textCandidates[index].containsMouse)
+        {
+            ++containsMouseCount;
+        }
+    }
+
+    std::stringstream textSummary;
+    textSummary << "status=ok"
+                << " scanned_nodes=" << scannedNodes
+                << " text_candidate_count=" << textCandidates.size()
+                << " contains_mouse_count=" << containsMouseCount
+                << " node_limit=" << kHoveredStateTextNodeLimit
+                << " log_limit=" << kHoveredStateTextLogLimit;
+    LogProbeRecord("dump_hovered_state_panel", "text_summary", textSummary.str());
+
+    const size_t logCount = textCandidates.size() < kHoveredStateTextLogLimit
+        ? textCandidates.size()
+        : kHoveredStateTextLogLimit;
+    for (size_t index = 0u; index < logCount; ++index)
+    {
+        const HoveredTextCandidateRecord& candidate = textCandidates[index];
+        std::stringstream payload;
+        payload << "index=" << index
+                << " pointer=" << QuoteForLog(FormatPointer(candidate.widget))
+                << " parent_pointer=" << QuoteForLog(FormatPointer(candidate.parent))
+                << " type=" << QuoteForLog(candidate.typeName)
+                << " name=" << QuoteForLog(candidate.name)
+                << " caption=" << QuoteForLog(candidate.caption)
+                << " bounds=" << QuoteForLog(FormatCoord(candidate.absoluteCoord))
+                << " contains_mouse=" << FormatBool(candidate.containsMouse)
+                << " center_distance=" << candidate.centerDistance;
+        LogProbeRecord("dump_hovered_state_panel", "text_candidate", payload.str());
+    }
+}
+
+bool TryDumpHoveredStatePanelProbeSeh(const char* reason)
+{
+    __try
+    {
+        DumpHoveredStatePanelProbeImpl(reason);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void DumpHoveredStatePanelProbe(const char* reason)
+{
+    EnsureActiveProbeSession(reason);
+    BeginProbeLogging();
+    if (!TryDumpHoveredStatePanelProbeSeh(reason))
+    {
+        LogProbeRecord("dump_hovered_state_panel", "exception", "status=seh_guard");
+    }
+    EndProbeLogging();
+}
+
+void MedicalSystem_getMedicalGUIData_hook(MedicalSystem* self, DatapanelGUI* panel)
+{
+    if (MedicalSystem_getMedicalGUIData_orig != 0)
+    {
+        MedicalSystem_getMedicalGUIData_orig(self, panel);
+    }
+
+    TryCapturePendingMedicalGuiProbe(self, panel);
+}
+
 void DumpHoveredWidgetProbeImpl(const char* reason)
 {
     HoverContext hover;
@@ -1662,6 +2364,113 @@ bool TryResolvePortraitOverlayMatch(
     }
 
     *outMatch = matches.front();
+    return true;
+}
+
+bool TryCollectPortraitTextLabelMatches(std::vector<PortraitTextLabelMatch>* outMatches)
+{
+    if (outMatches == 0)
+    {
+        return false;
+    }
+
+    outMatches->clear();
+
+    SquadProbeScope scope;
+    if (!TryResolveSquadProbeScope(&scope))
+    {
+        return true;
+    }
+
+    std::vector<PortraitTextLabelMatch> stateMatches;
+    if (scope.allPlayerCharacters != 0)
+    {
+        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
+        {
+            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
+            if (!CharacterMatchesSquadProbeScope(scope, candidate))
+            {
+                continue;
+            }
+
+            MemberStateSnapshot snapshot;
+            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
+            {
+                continue;
+            }
+
+            PortraitTextLabelState labelState = PORTRAIT_TEXT_LABEL_NONE;
+            if (!TryResolvePortraitTextLabelState(snapshot, &labelState)
+                || labelState == PORTRAIT_TEXT_LABEL_NONE)
+            {
+                continue;
+            }
+
+            PortraitTextLabelMatch match;
+            match.labelState = labelState;
+            match.character = candidate;
+            match.state = snapshot;
+            stateMatches.push_back(match);
+        }
+    }
+
+    if (stateMatches.empty())
+    {
+        return true;
+    }
+
+    size_t visibleRootCount = 0u;
+    size_t scannedNodes = 0u;
+    std::vector<PortraitCandidateRecord> allCandidates;
+    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
+    {
+        return false;
+    }
+
+    std::vector<PortraitCandidateRecord> displayPortraits;
+    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
+    std::vector<bool> usedSlots(displayPortraits.size(), false);
+
+    for (size_t index = 0u; index < stateMatches.size(); ++index)
+    {
+        PortraitTextLabelMatch match = stateMatches[index];
+        if (!TryResolveDisplayPortraitSlotIndex(
+                match.character,
+                displayPortraits.size(),
+                &match.displaySlotIndex,
+                &match.mappingKey))
+        {
+            continue;
+        }
+
+        if (match.displaySlotIndex < 0
+            || static_cast<size_t>(match.displaySlotIndex) >= displayPortraits.size())
+        {
+            continue;
+        }
+
+        if (usedSlots[static_cast<size_t>(match.displaySlotIndex)])
+        {
+            continue;
+        }
+
+        usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
+        match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
+        outMatches->push_back(match);
+    }
+
+    std::stable_sort(
+        outMatches->begin(),
+        outMatches->end(),
+        [](const PortraitTextLabelMatch& left, const PortraitTextLabelMatch& right) -> bool
+        {
+            if (left.displaySlotIndex != right.displaySlotIndex)
+            {
+                return left.displaySlotIndex < right.displaySlotIndex;
+            }
+            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
+        });
+
     return true;
 }
 
@@ -2354,6 +3163,38 @@ vr_marker_ui::OverlayStyle BuildPortraitOverlayStyle(const PortraitOverlayState 
     return style;
 }
 
+vr_marker_ui::OverlayStyle BuildPortraitTextLabelStyle(const PortraitTextLabelState labelState)
+{
+    vr_marker_ui::OverlayStyle style;
+    style.widgetNamePrefix = kPortraitTextLabelWidgetNamePrefix;
+    style.text = GetPortraitTextLabelCaption(labelState);
+    style.textFontHeightPx = kPortraitTextLabelFontHeightPx;
+    style.anchor = vr_marker_ui::OVERLAY_ANCHOR_TOP_RIGHT;
+    style.alpha = 0.98f;
+    style.insetPx = kPortraitTextLabelInsetPx;
+    style.minSizePx = kPortraitTextLabelMinSizePx;
+    style.maxSizePx = kPortraitTextLabelMaxSizePx;
+
+    switch (labelState)
+    {
+    case PORTRAIT_TEXT_LABEL_RECOVERY_COMA:
+        style.colour = MyGUI::Colour(0.20f, 0.95f, 0.70f, 1.0f);
+        break;
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
+        style.colour = MyGUI::Colour(1.0f, 0.82f, 0.24f, 1.0f);
+        break;
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_LEG:
+        style.colour = MyGUI::Colour(1.0f, 0.52f, 0.22f, 1.0f);
+        break;
+    case PORTRAIT_TEXT_LABEL_NONE:
+    default:
+        style.colour = MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f);
+        break;
+    }
+
+    return style;
+}
+
 void HideHoveredMarker()
 {
     if (g_hoveredMarkerWidget != 0)
@@ -2390,6 +3231,7 @@ void ResetStateOverlays()
     ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
 }
 
 void TickHoveredMarker()
@@ -2496,12 +3338,88 @@ void TickPortraitOverlay(const PortraitOverlayState overlayState)
     }
 }
 
+void RefreshPortraitTextLabelsImpl()
+{
+    std::vector<PortraitTextLabelMatch> matches;
+    if (!TryCollectPortraitTextLabelMatches(&matches) || matches.empty())
+    {
+        HidePortraitOverlay(&g_portraitTextLabelRuntime);
+        return;
+    }
+
+    MyGUI::IntSize rawViewSize(0, 0);
+    vr_marker_ui::ViewSize viewSize;
+    vr_marker_ui::ViewSize* viewSizePtr = 0;
+    if (TryGetViewSize(&rawViewSize))
+    {
+        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
+        viewSizePtr = &viewSize;
+    }
+
+    size_t visibleWidgetCount = 0u;
+    for (size_t index = 0u; index < matches.size(); ++index)
+    {
+        const vr_marker_ui::OverlayStyle style = BuildPortraitTextLabelStyle(matches[index].labelState);
+        if (!vr_marker_ui::ShowOverlayMarker(
+                &g_portraitTextLabelRuntime.widgets,
+                visibleWidgetCount,
+                kPluginName,
+                style,
+                vr_marker_ui::Rect(
+                    matches[index].target.absoluteCoord.left,
+                    matches[index].target.absoluteCoord.top,
+                    matches[index].target.absoluteCoord.width,
+                    matches[index].target.absoluteCoord.height),
+                viewSizePtr))
+        {
+            continue;
+        }
+
+        ++visibleWidgetCount;
+    }
+
+    vr_marker_ui::HideWidgetsFrom(&g_portraitTextLabelRuntime.widgets, visibleWidgetCount);
+    if (visibleWidgetCount == 0u)
+    {
+        HidePortraitOverlay(&g_portraitTextLabelRuntime);
+    }
+}
+
+bool TryRefreshPortraitTextLabelsSeh()
+{
+    __try
+    {
+        RefreshPortraitTextLabelsImpl();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void TickPortraitTextLabels()
+{
+    const DWORD now = GetTickCount();
+    if (g_portraitTextLabelRuntime.nextRefreshTick != 0u && now < g_portraitTextLabelRuntime.nextRefreshTick)
+    {
+        return;
+    }
+
+    g_portraitTextLabelRuntime.nextRefreshTick = now + kPortraitOverlayRefreshIntervalMs;
+    if (!TryRefreshPortraitTextLabelsSeh())
+    {
+        HidePortraitOverlay(&g_portraitTextLabelRuntime);
+    }
+}
+
 void TickStateOverlays()
 {
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
+    TickPortraitTextLabels();
 }
 
 bool ResolveHoveredPortraitTarget(MyGUI::Widget* hoveredWidget, PortraitCandidateRecord* outRecord)
@@ -2641,12 +3559,19 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 
     TickHoveredMarker();
     TickStateOverlays();
+    ExpirePendingMedicalGuiProbeIfNeeded();
 }
 
 void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
     if (g_enabled && AreProbeModifiersPressed(thisptr))
     {
+        if (keyCode == kDumpHoveredStatePanelHotkey)
+        {
+            DumpHoveredStatePanelProbe("manual_hotkey");
+            return;
+        }
+
         if (keyCode == kRunMappingProbeHotkey)
         {
             RunMappingProbeChain("manual_hotkey");
@@ -2752,6 +3677,14 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&MedicalSystem::getMedicalGUIData),
+        MedicalSystem_getMedicalGUIData_hook,
+        &MedicalSystem_getMedicalGUIData_orig))
+    {
+        LogErrorLine("could not hook MedicalSystem::getMedicalGUIData; hovered state panel live capture is unavailable");
+    }
+
     ConfigureModHubClient();
     StartModHubClient();
 
@@ -2762,7 +3695,7 @@ __declspec(dllexport) void startPlugin()
     if (g_enabled)
     {
         LogInfoLine(
-            "probe hotkeys ready: full mapping chain Ctrl+Alt+F4, matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
+            "probe hotkeys ready: hovered state panel Ctrl+Alt+F3, full mapping chain Ctrl+Alt+F4, matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
     }
     else
     {

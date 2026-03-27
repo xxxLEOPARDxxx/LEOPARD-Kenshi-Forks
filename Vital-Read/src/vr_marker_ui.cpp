@@ -3,6 +3,7 @@
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_ImageBox.h>
+#include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
 #include <cstring>
@@ -50,6 +51,39 @@ Rect FromMyGuiCoord(const MyGUI::IntCoord& coord)
 bool IsImageModeWidget(MyGUI::Widget* widget)
 {
     return widget != 0 && widget->castType<MyGUI::ImageBox>(false) != 0;
+}
+
+enum WidgetMode
+{
+    WIDGET_MODE_NONE = 0,
+    WIDGET_MODE_BUTTON,
+    WIDGET_MODE_IMAGE,
+    WIDGET_MODE_TEXT
+};
+
+WidgetMode GetWidgetMode(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return WIDGET_MODE_NONE;
+    }
+
+    if (widget->castType<MyGUI::ImageBox>(false) != 0)
+    {
+        return WIDGET_MODE_IMAGE;
+    }
+
+    if (widget->castType<MyGUI::Button>(false) != 0)
+    {
+        return WIDGET_MODE_BUTTON;
+    }
+
+    if (widget->castType<MyGUI::TextBox>(false) != 0)
+    {
+        return WIDGET_MODE_TEXT;
+    }
+
+    return WIDGET_MODE_NONE;
 }
 
 bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, const std::string& textureName, int textureSizePx)
@@ -221,9 +255,11 @@ bool EnsureWidgetMode(
         return false;
     }
 
-    const bool wantsImageWidget = !style.iconTexture.empty();
+    const WidgetMode desiredMode = !style.text.empty()
+        ? WIDGET_MODE_TEXT
+        : (!style.iconTexture.empty() ? WIDGET_MODE_IMAGE : WIDGET_MODE_BUTTON);
     MyGUI::Widget* widget = (*widgets)[index];
-    if (widget != 0 && IsImageModeWidget(widget) != wantsImageWidget)
+    if (widget != 0 && GetWidgetMode(widget) != desiredMode)
     {
         try
         {
@@ -243,7 +279,7 @@ bool EnsureWidgetMode(
 
         try
         {
-            if (wantsImageWidget)
+            if (desiredMode == WIDGET_MODE_IMAGE)
             {
                 widget = gui->createWidget<MyGUI::ImageBox>(
                     "ImageBox",
@@ -251,6 +287,24 @@ bool EnsureWidgetMode(
                     MyGUI::Align::Left | MyGUI::Align::Top,
                     "Top",
                     name.str());
+            }
+            else if (desiredMode == WIDGET_MODE_TEXT)
+            {
+                widget = gui->createWidget<MyGUI::TextBox>(
+                    "Kenshi_TextboxStandardText",
+                    MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
+                    MyGUI::Align::Left | MyGUI::Align::Top,
+                    "Top",
+                    name.str());
+                if (widget == 0)
+                {
+                    widget = gui->createWidget<MyGUI::TextBox>(
+                        "TextBox",
+                        MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
+                        MyGUI::Align::Left | MyGUI::Align::Top,
+                        "Top",
+                        name.str() + "_fallback");
+                }
             }
             else
             {
@@ -280,12 +334,15 @@ bool EnsureWidgetMode(
     widget->setAlpha(style.alpha);
     widget->setColour(style.colour);
 
-    if (MyGUI::Button* button = widget->castType<MyGUI::Button>(false))
+    if (desiredMode == WIDGET_MODE_BUTTON)
     {
-        button->setCaption("");
+        if (MyGUI::Button* button = widget->castType<MyGUI::Button>(false))
+        {
+            button->setCaption("");
+        }
     }
 
-    if (wantsImageWidget)
+    if (desiredMode == WIDGET_MODE_IMAGE)
     {
         MyGUI::ImageBox* imageBox = widget->castType<MyGUI::ImageBox>(false);
         if (imageBox == 0 || !EnsureTextureApplied(imageBox, pluginName != 0 ? pluginName : "", style.iconTexture, style.iconTextureSizePx))
@@ -295,8 +352,84 @@ bool EnsureWidgetMode(
         }
         ApplyImageCoord(imageBox, style);
     }
+    else if (desiredMode == WIDGET_MODE_TEXT)
+    {
+        MyGUI::TextBox* textBox = widget->castType<MyGUI::TextBox>(false);
+        if (textBox == 0)
+        {
+            widget->setVisible(false);
+            return false;
+        }
+
+        textBox->setCaption(style.text.c_str());
+        textBox->setTextAlign(MyGUI::Align::Center);
+        textBox->setTextColour(style.colour);
+        textBox->setTextShadow(true);
+        textBox->setTextShadowColour(MyGUI::Colour(0.0f, 0.0f, 0.0f, 0.95f));
+        if (style.textFontHeightPx > 0)
+        {
+            textBox->setFontHeight(style.textFontHeightPx);
+        }
+    }
 
     *outWidget = widget;
+    return true;
+}
+
+bool TryPlaceOverlayWidget(
+    MyGUI::Widget* widget,
+    const Rect& targetBounds,
+    const ViewSize* viewSize,
+    const int markerInsetPx,
+    const int markerMinSizePx,
+    const int markerMaxSizePx,
+    const OverlayAnchor anchor,
+    Rect* outMarkerBounds)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    const int smallerSide = targetBounds.width < targetBounds.height
+        ? targetBounds.width
+        : targetBounds.height;
+    const int markerSize = ClampInt(
+        smallerSide / 4,
+        markerMinSizePx,
+        markerMaxSizePx);
+    int markerWidth = markerSize;
+    int markerHeight = markerSize;
+    if (GetWidgetMode(widget) == WIDGET_MODE_TEXT)
+    {
+        markerWidth = markerSize + (markerSize / 2);
+    }
+
+    int markerLeft = targetBounds.left + markerInsetPx;
+    int markerTop = targetBounds.top + targetBounds.height - markerHeight - markerInsetPx;
+    if (anchor == OVERLAY_ANCHOR_TOP_RIGHT)
+    {
+        markerLeft = targetBounds.left + targetBounds.width - markerWidth - markerInsetPx;
+        markerTop = targetBounds.top + markerInsetPx;
+    }
+
+    if (viewSize != 0)
+    {
+        const int maxLeft = viewSize->width - markerWidth > 0 ? viewSize->width - markerWidth : 0;
+        const int maxTop = viewSize->height - markerHeight > 0 ? viewSize->height - markerHeight : 0;
+        markerLeft = ClampInt(markerLeft, 0, maxLeft);
+        markerTop = ClampInt(markerTop, 0, maxTop);
+    }
+
+    const Rect markerBounds(markerLeft, markerTop, markerWidth, markerHeight);
+    widget->setCoord(ToMyGuiCoord(markerBounds));
+    widget->setVisible(true);
+
+    if (outMarkerBounds != 0)
+    {
+        *outMarkerBounds = markerBounds;
+    }
+
     return true;
 }
 }
@@ -336,6 +469,9 @@ OverlayStyle::OverlayStyle()
     , iconTextureSizePx(64)
     , hasIconImageCoord(false)
     , iconImageCoord()
+    , text()
+    , textFontHeightPx(0)
+    , anchor(OVERLAY_ANCHOR_BOTTOM_LEFT)
     , colour(1.0f, 1.0f, 1.0f, 1.0f)
     , alpha(1.0f)
     , insetPx(0)
@@ -353,39 +489,15 @@ bool TryPlaceMarkerWidget(
     const int markerMaxSizePx,
     Rect* outMarkerBounds)
 {
-    if (widget == 0)
-    {
-        return false;
-    }
-
-    const int smallerSide = targetBounds.width < targetBounds.height
-        ? targetBounds.width
-        : targetBounds.height;
-    const int markerSize = ClampInt(
-        smallerSide / 4,
+    return TryPlaceOverlayWidget(
+        widget,
+        targetBounds,
+        viewSize,
+        markerInsetPx,
         markerMinSizePx,
-        markerMaxSizePx);
-
-    int markerLeft = targetBounds.left + markerInsetPx;
-    int markerTop = targetBounds.top + targetBounds.height - markerSize - markerInsetPx;
-    if (viewSize != 0)
-    {
-        const int maxLeft = viewSize->width - markerSize > 0 ? viewSize->width - markerSize : 0;
-        const int maxTop = viewSize->height - markerSize > 0 ? viewSize->height - markerSize : 0;
-        markerLeft = ClampInt(markerLeft, 0, maxLeft);
-        markerTop = ClampInt(markerTop, 0, maxTop);
-    }
-
-    const Rect markerBounds(markerLeft, markerTop, markerSize, markerSize);
-    widget->setCoord(ToMyGuiCoord(markerBounds));
-    widget->setVisible(true);
-
-    if (outMarkerBounds != 0)
-    {
-        *outMarkerBounds = markerBounds;
-    }
-
-    return true;
+        markerMaxSizePx,
+        OVERLAY_ANCHOR_BOTTOM_LEFT,
+        outMarkerBounds);
 }
 
 bool ShowOverlayMarker(
@@ -402,13 +514,14 @@ bool ShowOverlayMarker(
         return false;
     }
 
-    return TryPlaceMarkerWidget(
+    return TryPlaceOverlayWidget(
         widget,
         targetBounds,
         viewSize,
         style.insetPx,
         style.minSizePx,
         style.maxSizePx,
+        style.anchor,
         0);
 }
 

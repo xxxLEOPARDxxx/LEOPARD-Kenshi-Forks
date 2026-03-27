@@ -96,11 +96,12 @@ Texture lookup accepts plain filenames and relative paths. If no coord crop is p
 When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch plus the three debug logging flags so they can be toggled in-game.
 
 ## Current Runtime
-When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, or `playing_dead` squad portrait it can map with high confidence. By default unconscious uses the built-in atlas pip, recovery coma and dying use the same heart/death textures shipped with Vital Sense, and playing dead uses a distinct tinted pip unless you override it. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, and `playingDeadIconTexture` can override those per state. Probe hotkeys remain available for verification.
+When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, or `playing_dead` squad portrait it can map with high confidence. By default unconscious uses the built-in atlas pip, recovery coma and dying use the same heart/death textures shipped with Vital Sense, and playing dead uses a distinct tinted pip unless you override it. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, and `playingDeadIconTexture` can override those per state. Portraits can also show a short top-right text badge: `RC` for `recovery_coma`, `CrA` for a conservative true crippled-arm read, and `CrL` for a conservative true crippled-leg read. Probe hotkeys remain available for verification.
 
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.
 
+- `Ctrl+Alt+F3`: dump the hovered state panel text candidates, the selected character's raw backend snapshot, and arm a one-shot live medical GUI capture for the selected character
 - `Ctrl+Alt+F4`: run the full current mapping probe chain
 - `Ctrl+Alt+F6`: start a new probe session
 - `Ctrl+Alt+F5`: place a temporary marker on the first strictly unconscious matched portrait

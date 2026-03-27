@@ -12,6 +12,12 @@ class Widget;
 
 namespace vr_marker_ui
 {
+enum OverlayAnchor
+{
+    OVERLAY_ANCHOR_BOTTOM_LEFT = 0,
+    OVERLAY_ANCHOR_TOP_RIGHT
+};
+
 struct Rect
 {
     Rect();
@@ -42,6 +48,9 @@ struct OverlayStyle
     int iconTextureSizePx;
     bool hasIconImageCoord;
     Rect iconImageCoord;
+    std::string text;
+    int textFontHeightPx;
+    OverlayAnchor anchor;
     MyGUI::Colour colour;
     float alpha;
     int insetPx;
