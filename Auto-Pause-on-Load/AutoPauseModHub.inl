@@ -1,5 +1,5 @@
 #include "emc/mod_hub_client.h"
-#include "include/emc/mod_hub_consumer_helpers.h"
+#include "emc/mod_hub_consumer_helpers.h"
 
 static const char* kHubNamespaceId = "emkej.qol";
 static const char* kHubNamespaceDisplayName = "Emkej QoL";
