@@ -12,10 +12,12 @@ namespace
 const DWORD kDefaultUnconsciousIconSizePx = 64u;
 const DWORD kDefaultRecoveryComaIconSizePx = 64u;
 const DWORD kDefaultDyingIconSizePx = 64u;
+const DWORD kDefaultPlayingDeadIconSizePx = 64u;
 const DWORD kMinIconSizePx = 8u;
 const DWORD kMaxIconSizePx = 512u;
 const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px.png";
 const char* kDefaultDyingIconTexture = "gui/gfx/death_64px.png";
+const char* kDefaultPlayingDeadIconTexture = "";
 
 struct StateIconConfigBinding
 {
@@ -485,6 +487,17 @@ std::string BuildConfigText(const PluginConfig& config)
         config.dyingIconCoordTop,
         config.dyingIconCoordWidth,
         config.dyingIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "playingDeadIcon",
+        config.playingDeadIconTexture,
+        config.playingDeadIconSizePx,
+        config.playingDeadIconHasImageCoord,
+        config.playingDeadIconCoordLeft,
+        config.playingDeadIconCoordTop,
+        config.playingDeadIconCoordWidth,
+        config.playingDeadIconCoordHeight,
         false);
     out << "}\n";
     return out.str();
@@ -517,6 +530,13 @@ PluginConfig::PluginConfig()
     , dyingIconCoordTop(0)
     , dyingIconCoordWidth(0)
     , dyingIconCoordHeight(0)
+    , playingDeadIconTexture(kDefaultPlayingDeadIconTexture)
+    , playingDeadIconSizePx(kDefaultPlayingDeadIconSizePx)
+    , playingDeadIconHasImageCoord(false)
+    , playingDeadIconCoordLeft(0)
+    , playingDeadIconCoordTop(0)
+    , playingDeadIconCoordWidth(0)
+    , playingDeadIconCoordHeight(0)
 {
 }
 
@@ -584,6 +604,17 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
             &outConfig->dyingIconCoordTop,
             &outConfig->dyingIconCoordWidth,
             &outConfig->dyingIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "playingDeadIcon",
+            &outConfig->playingDeadIconTexture,
+            &outConfig->playingDeadIconSizePx,
+            &outConfig->playingDeadIconHasImageCoord,
+            &outConfig->playingDeadIconCoordLeft,
+            &outConfig->playingDeadIconCoordTop,
+            &outConfig->playingDeadIconCoordWidth,
+            &outConfig->playingDeadIconCoordHeight));
 
     return LOAD_OK;
 }

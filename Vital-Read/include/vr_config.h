@@ -39,6 +39,13 @@ struct PluginConfig
     int dyingIconCoordTop;
     int dyingIconCoordWidth;
     int dyingIconCoordHeight;
+    std::string playingDeadIconTexture;
+    DWORD playingDeadIconSizePx;
+    bool playingDeadIconHasImageCoord;
+    int playingDeadIconCoordLeft;
+    int playingDeadIconCoordTop;
+    int playingDeadIconCoordWidth;
+    int playingDeadIconCoordHeight;
 };
 
 enum LoadStatus

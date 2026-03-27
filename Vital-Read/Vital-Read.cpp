@@ -46,6 +46,7 @@ const char* kProbeMarkerWidgetName = "VitalRead_Phase1HoveredPortraitMarker";
 const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayMarker_";
 const char* kRecoveryComaOverlayWidgetNamePrefix = "VitalRead_RecoveryComaOverlayMarker_";
 const char* kDyingOverlayWidgetNamePrefix = "VitalRead_DyingOverlayMarker_";
+const char* kPlayingDeadOverlayWidgetNamePrefix = "VitalRead_PlayingDeadOverlayMarker_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 const char* kUnconsciousOverlaySkin = "Kenshi_Button1";
 
@@ -92,6 +93,8 @@ std::string& g_recoveryComaIconTexture = g_config.recoveryComaIconTexture;
 DWORD& g_recoveryComaIconSizePx = g_config.recoveryComaIconSizePx;
 std::string& g_dyingIconTexture = g_config.dyingIconTexture;
 DWORD& g_dyingIconSizePx = g_config.dyingIconSizePx;
+std::string& g_playingDeadIconTexture = g_config.playingDeadIconTexture;
+DWORD& g_playingDeadIconSizePx = g_config.playingDeadIconSizePx;
 unsigned int g_probeLogScopeDepth = 0u;
 unsigned int g_nextProbeSessionId = 1u;
 unsigned int g_activeProbeSessionId = 0u;
@@ -113,6 +116,7 @@ struct PortraitOverlayRuntime
 PortraitOverlayRuntime g_unconsciousOverlayRuntime;
 PortraitOverlayRuntime g_recoveryComaOverlayRuntime;
 PortraitOverlayRuntime g_dyingOverlayRuntime;
+PortraitOverlayRuntime g_playingDeadOverlayRuntime;
 
 struct HoverContext
 {
@@ -222,7 +226,8 @@ enum PortraitOverlayState
 {
     PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS = 0,
     PORTRAIT_OVERLAY_STATE_RECOVERY_COMA,
-    PORTRAIT_OVERLAY_STATE_DYING
+    PORTRAIT_OVERLAY_STATE_DYING,
+    PORTRAIT_OVERLAY_STATE_PLAYING_DEAD
 };
 
 enum PortraitOverlayMatchStatus
@@ -388,6 +393,8 @@ void LoadLoggingConfig()
              << " recoveryComaIconSizePx=" << g_recoveryComaIconSizePx
              << " dyingIconConfigured=" << (!g_dyingIconTexture.empty() ? "true" : "false")
              << " dyingIconSizePx=" << g_dyingIconSizePx
+             << " playingDeadIconConfigured=" << (!g_playingDeadIconTexture.empty() ? "true" : "false")
+             << " playingDeadIconSizePx=" << g_playingDeadIconSizePx
              << " verboseDiagnostics=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
         LogDebugLine(line.str());
     }
@@ -726,6 +733,8 @@ const char* GetPortraitOverlayStateLabel(const PortraitOverlayState overlayState
 {
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
+        return "playing_dead";
     case PORTRAIT_OVERLAY_STATE_DYING:
         return "dying";
     case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
@@ -740,20 +749,25 @@ bool SnapshotMatchesPortraitOverlayState(
     const MemberStateSnapshot& snapshot,
     const PortraitOverlayState overlayState)
 {
-    if (snapshot.dead || snapshot.playingDead)
+    if (snapshot.dead)
     {
         return false;
     }
 
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
+        return snapshot.playingDead;
     case PORTRAIT_OVERLAY_STATE_DYING:
-        return snapshot.dying;
+        return snapshot.dying && !snapshot.playingDead;
     case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
-        return snapshot.recoveryComa;
+        return snapshot.recoveryComa && !snapshot.playingDead && !snapshot.dying;
     case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
     default:
-        return snapshot.unconscious && !snapshot.recoveryComa && !snapshot.dying;
+        return snapshot.unconscious
+            && !snapshot.recoveryComa
+            && !snapshot.dying
+            && !snapshot.playingDead;
     }
 }
 
@@ -1444,13 +1458,7 @@ bool IsVisibleDisplayPortraitCandidate(const PortraitCandidateRecord& candidate)
         return false;
     }
 
-    if (ContainsAsciiCaseInsensitive(candidate.name, "portraitimage"))
-    {
-        return true;
-    }
-
-    return candidate.score >= 0.95f
-        && ContainsAsciiCaseInsensitive(candidate.reason, "portrait_token");
+    return ContainsAsciiCaseInsensitive(candidate.name, "portraitimage");
 }
 
 void CollectDisplayPortraitCandidates(
@@ -2269,6 +2277,8 @@ PortraitOverlayRuntime* GetPortraitOverlayRuntime(const PortraitOverlayState ove
 {
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
+        return &g_playingDeadOverlayRuntime;
     case PORTRAIT_OVERLAY_STATE_DYING:
         return &g_dyingOverlayRuntime;
     case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
@@ -2290,6 +2300,18 @@ vr_marker_ui::OverlayStyle BuildPortraitOverlayStyle(const PortraitOverlayState 
 
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
+        style.widgetNamePrefix = kPlayingDeadOverlayWidgetNamePrefix;
+        style.iconTexture = g_playingDeadIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_playingDeadIconSizePx);
+        style.hasIconImageCoord = g_config.playingDeadIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.playingDeadIconCoordLeft,
+            g_config.playingDeadIconCoordTop,
+            g_config.playingDeadIconCoordWidth,
+            g_config.playingDeadIconCoordHeight);
+        style.colour = MyGUI::Colour(0.72f, 0.72f, 0.78f, 0.95f);
+        break;
     case PORTRAIT_OVERLAY_STATE_DYING:
         style.widgetNamePrefix = kDyingOverlayWidgetNamePrefix;
         style.iconTexture = g_dyingIconTexture;
@@ -2367,6 +2389,7 @@ void ResetStateOverlays()
     ResetPortraitOverlayRuntime(&g_unconsciousOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
 }
 
 void TickHoveredMarker()
@@ -2478,6 +2501,7 @@ void TickStateOverlays()
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
     TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
+    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
 }
 
 bool ResolveHoveredPortraitTarget(MyGUI::Widget* hoveredWidget, PortraitCandidateRecord* outRecord)

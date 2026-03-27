@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "debugLogging": false,
-  "debugSearchLogging": false,
-  "debugBindingLogging": false,
+  "debugLogging": true,
+  "debugSearchLogging": true,
+  "debugBindingLogging": true,
   "unconsciousIconTexture": "Kenshi_UI.png",
   "unconsciousIconSizePx": 64,
   "unconsciousIconCoordLeft": 45,
@@ -12,5 +12,7 @@
   "recoveryComaIconTexture": "gui/gfx/heart_64px.png",
   "recoveryComaIconSizePx": 64,
   "dyingIconTexture": "gui/gfx/death_64px.png",
-  "dyingIconSizePx": 64
+  "dyingIconSizePx": 64,
+  "playingDeadIconTexture": "",
+  "playingDeadIconSizePx": 64
 }
