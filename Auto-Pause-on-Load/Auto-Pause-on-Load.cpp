@@ -1464,9 +1464,12 @@ static void TryPauseOnUiOpen(
     {
         g_state.lastPauseMs = nowMs;
         *pausedByPluginOut = true;
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: paused=true source=" << reason;
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Auto-Pause-on-Load INFO: paused=true source=" << reason;
+            DebugLog(info.str().c_str());
+        }
     }
 }
 
@@ -1491,9 +1494,12 @@ static void TryResumeAfterUiClose(const char* reason)
 
     if (ForcePauseFalse())
     {
-        std::stringstream info;
-        info << "Auto-Pause-on-Load INFO: resumed=true source=" << reason;
-        DebugLog(info.str().c_str());
+        if (g_config.debugLogTransitions)
+        {
+            std::stringstream info;
+            info << "Auto-Pause-on-Load INFO: resumed=true source=" << reason;
+            DebugLog(info.str().c_str());
+        }
     }
 }
 
