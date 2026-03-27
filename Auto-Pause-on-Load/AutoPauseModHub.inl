@@ -1,4 +1,5 @@
 #include "emc/mod_hub_client.h"
+#include "include/emc/mod_hub_consumer_helpers.h"
 
 static const char* kHubNamespaceId = "emkej.qol";
 static const char* kHubNamespaceDisplayName = "Emkej QoL";
@@ -7,56 +8,55 @@ static const char* kHubModDisplayName = "Auto Pause on Load";
 
 static emc::ModHubClient g_modHubClient;
 
-static void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
+static bool PersistHubConfig(const PluginConfig& next_config)
 {
-    if (!err_buf || err_buf_size == 0u)
-    {
-        return;
-    }
-
-    if (!text)
-    {
-        err_buf[0] = '\0';
-        return;
-    }
-
-    const size_t copyLen = static_cast<size_t>(err_buf_size - 1u);
-    std::strncpy(err_buf, text, copyLen);
-    err_buf[copyLen] = '\0';
-}
-
-static EMC_Result ApplyHubConfigUpdate(
-    PluginConfig* config,
-    const PluginConfig& updated,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    if (!config || config != &g_config)
-    {
-        WriteHubErrorText(err_buf, err_buf_size, "invalid_config_target");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    const PluginConfig previous = *config;
-    *config = updated;
+    (void)next_config;
     if (!SaveConfigState())
     {
-        *config = previous;
-        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
-        return EMC_ERR_INTERNAL;
+        return false;
     }
 
     g_configNeedsWriteBack = false;
-    if (!config->enabled)
+    if (!g_config.enabled)
     {
         DisarmPauseAfterLoad();
         ResetUiTracking();
     }
 
-    return EMC_OK;
+    return true;
 }
 
 typedef bool PluginConfig::*PluginConfigBoolField;
+
+template <typename UpdateFn>
+static EMC_Result ApplyHubConfigUpdate(
+    void* user_data,
+    char* err_buf,
+    uint32_t err_buf_size,
+    UpdateFn update)
+{
+    PluginConfig* config = static_cast<PluginConfig*>(user_data);
+    if (!config || config != &g_config)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_config_target");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const PluginConfig previous = *config;
+    PluginConfig updated = previous;
+    update(updated);
+
+    return emc::consumer::ApplyUpdateWithRollback(
+        previous,
+        updated,
+        err_buf,
+        err_buf_size,
+        [config](const PluginConfig& snapshot) {
+            *config = snapshot;
+        },
+        &PersistHubConfig,
+        "save_config_failed");
+}
 
 static EMC_Result GetBoolHubSettingValue(void* user_data, int32_t* out_value, PluginConfigBoolField field)
 {
@@ -79,20 +79,23 @@ static EMC_Result SetBoolHubSettingValue(
 {
     if (!user_data)
     {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "missing_user_data");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
-    if (value != 0 && value != 1)
+    const EMC_Result boolValidation = emc::consumer::ValidateBoolValue(value, err_buf, err_buf_size);
+    if (boolValidation != EMC_OK)
     {
-        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
-        return EMC_ERR_INVALID_ARGUMENT;
+        return boolValidation;
     }
 
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.*field = value == 1;
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
+    return ApplyHubConfigUpdate(
+        user_data,
+        err_buf,
+        err_buf_size,
+        [field, value](PluginConfig& updated) {
+            updated.*field = value == 1;
+        });
 }
 
 static EMC_Result __cdecl GetEnabledSetting(void* user_data, int32_t* out_value)
@@ -125,20 +128,29 @@ static EMC_Result __cdecl SetPauseDebounceMsSetting(
 {
     if (!user_data)
     {
-        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "missing_user_data");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
-    if (value < static_cast<int32_t>(kPauseDebounceMsMin) || value > static_cast<int32_t>(kPauseDebounceMsMax))
+    const EMC_Result rangeValidation = emc::consumer::ValidateValueInRange<int32_t>(
+        value,
+        static_cast<int32_t>(kPauseDebounceMsMin),
+        static_cast<int32_t>(kPauseDebounceMsMax),
+        err_buf,
+        err_buf_size,
+        "pause_debounce_ms_out_of_range");
+    if (rangeValidation != EMC_OK)
     {
-        WriteHubErrorText(err_buf, err_buf_size, "pause_debounce_ms_out_of_range");
-        return EMC_ERR_INVALID_ARGUMENT;
+        return rangeValidation;
     }
 
-    PluginConfig* config = static_cast<PluginConfig*>(user_data);
-    PluginConfig updated = *config;
-    updated.pauseDebounceMs = static_cast<DWORD>(value);
-    return ApplyHubConfigUpdate(config, updated, err_buf, err_buf_size);
+    return ApplyHubConfigUpdate(
+        user_data,
+        err_buf,
+        err_buf_size,
+        [value](PluginConfig& updated) {
+            updated.pauseDebounceMs = static_cast<DWORD>(value);
+        });
 }
 
 static EMC_Result __cdecl GetDebugLogTransitionsSetting(void* user_data, int32_t* out_value)

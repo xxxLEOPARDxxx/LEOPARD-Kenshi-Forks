@@ -30,6 +30,62 @@ inline void WriteErrorMessage(char* err_buf, uint32_t err_buf_size, const char* 
     err_buf[index] = '\0';
 }
 
+inline EMC_Result ValidateBoolValue(
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    const char* invalid_message = "invalid_bool")
+{
+    if (value != 0 && value != 1)
+    {
+        WriteErrorMessage(err_buf, err_buf_size, invalid_message);
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    return EMC_OK;
+}
+
+template <typename ValueType>
+inline EMC_Result ValidateValueInRange(
+    ValueType value,
+    ValueType min_value,
+    ValueType max_value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    const char* invalid_message = "value_out_of_range")
+{
+    if (value < min_value || value > max_value)
+    {
+        WriteErrorMessage(err_buf, err_buf_size, invalid_message);
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    return EMC_OK;
+}
+
+template <typename StateType, typename ApplyFn, typename PersistFn>
+inline EMC_Result ApplyUpdateWithRollback(
+    const StateType& previous,
+    const StateType& updated,
+    char* err_buf,
+    uint32_t err_buf_size,
+    ApplyFn apply,
+    PersistFn persist,
+    const char* persist_failed_message = "persist_failed")
+{
+    apply(updated);
+
+    if (!persist(updated))
+    {
+        apply(previous);
+        WriteErrorMessage(err_buf, err_buf_size, persist_failed_message);
+        return EMC_ERR_INTERNAL;
+    }
+
+    WriteErrorMessage(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
 template <typename StateType, typename ValueType>
 inline EMC_Result GetFieldValue(void* user_data, ValueType* out_value, ValueType StateType::*field)
 {
@@ -95,10 +151,10 @@ inline EMC_Result SetBoolFieldValueWithRollback(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
-    if (value != 0 && value != 1)
+    const EMC_Result bool_validation = ValidateBoolValue(value, err_buf, err_buf_size);
+    if (bool_validation != EMC_OK)
     {
-        WriteErrorMessage(err_buf, err_buf_size, "invalid_bool");
-        return EMC_ERR_INVALID_ARGUMENT;
+        return bool_validation;
     }
 
     StateType* state = static_cast<StateType*>(user_data);
