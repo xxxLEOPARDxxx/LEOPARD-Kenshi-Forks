@@ -54,6 +54,9 @@ mod-config.json starts with the shared logging baseline:
 - debugLogging
 - debugSearchLogging
 - debugBindingLogging
+- showIcons
+- showText
+- portraitTextFontHeightPx
 
 Optional runtime marker settings:
 - unconsciousIconTexture
@@ -72,6 +75,9 @@ Optional runtime marker settings:
 Custom state icon example:
 ```json
 {
+  "showIcons": true,
+  "showText": true,
+  "portraitTextFontHeightPx": 14,
   "unconsciousIconTexture": "Kenshi_UI.png",
   "unconsciousIconSizePx": 64,
   "unconsciousIconCoordLeft": 45,
@@ -93,10 +99,10 @@ Texture lookup accepts plain filenames and relative paths. If no coord crop is p
 - `mods/Vital-Read/`
 - `gui/gfx/`
 
-When Emkejs-Mod-Core is present, Mod Hub also exposes the main `enabled` switch plus the three debug logging flags so they can be toggled in-game.
+When Emkejs-Mod-Core is present, Mod Hub also exposes `enabled`, `showIcons`, `showText`, `portraitTextFontHeightPx`, and the three debug logging flags so they can be adjusted in-game.
 
 ## Current Runtime
-When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, or `playing_dead` squad portrait it can map with high confidence. By default unconscious uses the built-in atlas pip, recovery coma and dying use the same heart/death textures shipped with Vital Sense, and playing dead uses a distinct tinted pip unless you override it. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, and `playingDeadIconTexture` can override those per state. Portraits can also show a short top-right text badge: `RC` for `recovery_coma`, `CrA` for a conservative true crippled-arm read, and `CrL` for a conservative true crippled-leg read. Probe hotkeys remain available for verification.
+When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, or `playing_dead` squad portrait it can map with high confidence. `showIcons` controls the lower-left icon overlays, `showText` controls the top-right text badges, and `portraitTextFontHeightPx` controls the badge font height. By default unconscious uses the built-in atlas pip, recovery coma and dying use the same heart/death textures shipped with Vital Sense, and playing dead uses a distinct tinted pip unless you override it. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, and `playingDeadIconTexture` can override those per state. Text badges now use `ZZ` for unconscious, `RC` for `recovery_coma`, `DY` for dying, `ST` for starving, `CrA` for crippled arm, and `CrL` for crippled leg. Probe hotkeys remain available for verification.
 
 ## Probe Hotkeys
 Probe hotkeys are manual and quiet by default.

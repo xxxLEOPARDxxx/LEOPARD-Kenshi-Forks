@@ -74,7 +74,6 @@ const int kPortraitOverlayMaxSizePx = 20;
 const int kPortraitTextLabelInsetPx = 1;
 const int kPortraitTextLabelMinSizePx = 26;
 const int kPortraitTextLabelMaxSizePx = 32;
-const int kPortraitTextLabelFontHeightPx = 14;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
@@ -100,6 +99,9 @@ bool& g_enabled = g_config.enabled;
 bool& g_debugLogging = g_config.debugLogging;
 bool& g_debugSearchLogging = g_config.debugSearchLogging;
 bool& g_debugBindingLogging = g_config.debugBindingLogging;
+bool& g_showIcons = g_config.showIcons;
+bool& g_showText = g_config.showText;
+DWORD& g_portraitTextFontHeightPx = g_config.portraitTextFontHeightPx;
 std::string& g_unconsciousIconTexture = g_config.unconsciousIconTexture;
 DWORD& g_unconsciousIconSizePx = g_config.unconsciousIconSizePx;
 std::string& g_recoveryComaIconTexture = g_config.recoveryComaIconTexture;
@@ -253,6 +255,7 @@ struct MemberStateSnapshot
         , bloodlossTrauma(false)
         , sub50KO(false)
         , medicalIsCrippled(false)
+        , medicalIsReallyHungry(false)
         , leftArmOk(true)
         , rightArmOk(true)
         , canKick(true)
@@ -278,6 +281,7 @@ struct MemberStateSnapshot
     bool bloodlossTrauma;
     bool sub50KO;
     bool medicalIsCrippled;
+    bool medicalIsReallyHungry;
     bool leftArmOk;
     bool rightArmOk;
     bool canKick;
@@ -301,7 +305,10 @@ enum PortraitOverlayState
 enum PortraitTextLabelState
 {
     PORTRAIT_TEXT_LABEL_NONE = 0,
+    PORTRAIT_TEXT_LABEL_DYING,
     PORTRAIT_TEXT_LABEL_RECOVERY_COMA,
+    PORTRAIT_TEXT_LABEL_UNCONSCIOUS,
+    PORTRAIT_TEXT_LABEL_STARVING,
     PORTRAIT_TEXT_LABEL_CRIPPLED_ARM,
     PORTRAIT_TEXT_LABEL_CRIPPLED_LEG
 };
@@ -481,6 +488,9 @@ void LoadLoggingConfig()
              << " debugLogging=" << (g_debugLogging ? "true" : "false")
              << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
              << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
+             << " showIcons=" << (g_showIcons ? "true" : "false")
+             << " showText=" << (g_showText ? "true" : "false")
+             << " portraitTextFontHeightPx=" << g_portraitTextFontHeightPx
              << " unconsciousIconConfigured=" << (!g_unconsciousIconTexture.empty() ? "true" : "false")
              << " unconsciousIconSizePx=" << g_unconsciousIconSizePx
              << " recoveryComaIconConfigured=" << (!g_recoveryComaIconTexture.empty() ? "true" : "false")
@@ -815,6 +825,7 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
     snapshot.bloodlossTrauma = candidate->medical.isInBloodlossTrauma();
     snapshot.sub50KO = candidate->medical.sub50KO;
     snapshot.medicalIsCrippled = candidate->medical.isCrippled();
+    snapshot.medicalIsReallyHungry = candidate->medical.isReallyHungry();
     snapshot.leftArmOk = candidate->medical.isLeftArmOk();
     snapshot.rightArmOk = candidate->medical.isRightArmOk();
     snapshot.canKick = candidate->medical.canIkick();
@@ -825,10 +836,10 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
     snapshot.knockoutTimer = candidate->medical.knockoutTimer;
     snapshot.canGetUpWakeUp = candidate->medical.canGetUpWakeUp();
 
+    const bool hasActiveBleed = snapshot.currentBleedRate > 0.0f || snapshot.extraBloodLoss > 0.0f;
     const bool dyingByBloodThreshold = (snapshot.blood <= snapshot.pointOfNoReturn);
-    const bool dyingByActiveBleed =
-        snapshot.probablyDying
-        && (snapshot.currentBleedRate > 0.0f || snapshot.extraBloodLoss > 0.0f);
+    const bool dyingByTrauma = snapshot.bloodlossTrauma && (hasActiveBleed || dyingByBloodThreshold);
+    const bool dyingByProbablyBleeding = snapshot.probablyDying && (hasActiveBleed || dyingByBloodThreshold);
     snapshot.recoveryComa =
         !snapshot.canGetUpWakeUp
         && snapshot.sub50KO
@@ -836,14 +847,14 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
         && !snapshot.probablyDying
         && !dyingByBloodThreshold
         && !snapshot.bloodlossTrauma
-        && !dyingByActiveBleed;
+        && !hasActiveBleed;
 
     snapshot.dying =
         !snapshot.dead
         && snapshot.unconscious
         && !snapshot.playingDead
         && !snapshot.recoveryComa
-        && (dyingByBloodThreshold || snapshot.sub50KO);
+        && (dyingByBloodThreshold || dyingByTrauma || dyingByProbablyBleeding);
 
     if (snapshot.dead)
     {
@@ -886,8 +897,14 @@ const char* GetPortraitTextLabelCaption(const PortraitTextLabelState labelState)
 {
     switch (labelState)
     {
+    case PORTRAIT_TEXT_LABEL_DYING:
+        return "DY";
     case PORTRAIT_TEXT_LABEL_RECOVERY_COMA:
         return "RC";
+    case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
+        return "ZZ";
+    case PORTRAIT_TEXT_LABEL_STARVING:
+        return "ST";
     case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
         return "CrA";
     case PORTRAIT_TEXT_LABEL_CRIPPLED_LEG:
@@ -909,8 +926,14 @@ bool TryResolvePortraitTextLabelState(
 
     *outLabelState = PORTRAIT_TEXT_LABEL_NONE;
 
-    if (snapshot.dead || snapshot.playingDead || snapshot.dying)
+    if (snapshot.dead || snapshot.playingDead)
     {
+        return true;
+    }
+
+    if (snapshot.dying)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_DYING;
         return true;
     }
 
@@ -920,15 +943,27 @@ bool TryResolvePortraitTextLabelState(
         return true;
     }
 
-    if (!snapshot.leftArmOk || !snapshot.rightArmOk)
+    if (snapshot.unconscious)
     {
-        *outLabelState = PORTRAIT_TEXT_LABEL_CRIPPLED_ARM;
+        *outLabelState = PORTRAIT_TEXT_LABEL_UNCONSCIOUS;
         return true;
     }
 
     if (snapshot.medicalIsCrippled && !snapshot.canKick)
     {
         *outLabelState = PORTRAIT_TEXT_LABEL_CRIPPLED_LEG;
+        return true;
+    }
+
+    if (!snapshot.leftArmOk || !snapshot.rightArmOk)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_CRIPPLED_ARM;
+        return true;
+    }
+
+    if (snapshot.medicalIsReallyHungry)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_STARVING;
         return true;
     }
 
@@ -3168,7 +3203,7 @@ vr_marker_ui::OverlayStyle BuildPortraitTextLabelStyle(const PortraitTextLabelSt
     vr_marker_ui::OverlayStyle style;
     style.widgetNamePrefix = kPortraitTextLabelWidgetNamePrefix;
     style.text = GetPortraitTextLabelCaption(labelState);
-    style.textFontHeightPx = kPortraitTextLabelFontHeightPx;
+    style.textFontHeightPx = static_cast<int>(g_portraitTextFontHeightPx);
     style.anchor = vr_marker_ui::OVERLAY_ANCHOR_TOP_RIGHT;
     style.alpha = 0.98f;
     style.insetPx = kPortraitTextLabelInsetPx;
@@ -3177,8 +3212,17 @@ vr_marker_ui::OverlayStyle BuildPortraitTextLabelStyle(const PortraitTextLabelSt
 
     switch (labelState)
     {
+    case PORTRAIT_TEXT_LABEL_DYING:
+        style.colour = MyGUI::Colour(0.92f, 0.28f, 0.22f, 1.0f);
+        break;
     case PORTRAIT_TEXT_LABEL_RECOVERY_COMA:
         style.colour = MyGUI::Colour(0.20f, 0.95f, 0.70f, 1.0f);
+        break;
+    case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
+        style.colour = MyGUI::Colour(1.0f, 0.80f, 0.20f, 1.0f);
+        break;
+    case PORTRAIT_TEXT_LABEL_STARVING:
+        style.colour = MyGUI::Colour(0.95f, 0.83f, 0.24f, 1.0f);
         break;
     case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
         style.colour = MyGUI::Colour(1.0f, 0.82f, 0.24f, 1.0f);
@@ -3232,6 +3276,14 @@ void ResetStateOverlays()
     ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
+}
+
+void ResetPortraitIconOverlays()
+{
+    ResetPortraitOverlayRuntime(&g_unconsciousOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
 }
 
 void TickHoveredMarker()
@@ -3415,11 +3467,26 @@ void TickPortraitTextLabels()
 
 void TickStateOverlays()
 {
-    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
-    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
-    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
-    TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
-    TickPortraitTextLabels();
+    if (g_showIcons)
+    {
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
+    }
+    else
+    {
+        ResetPortraitIconOverlays();
+    }
+
+    if (g_showText)
+    {
+        TickPortraitTextLabels();
+    }
+    else
+    {
+        ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
+    }
 }
 
 bool ResolveHoveredPortraitTarget(MyGUI::Widget* hoveredWidget, PortraitCandidateRecord* outRecord)

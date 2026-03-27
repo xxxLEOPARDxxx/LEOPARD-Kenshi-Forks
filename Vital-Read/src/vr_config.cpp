@@ -13,8 +13,11 @@ const DWORD kDefaultUnconsciousIconSizePx = 64u;
 const DWORD kDefaultRecoveryComaIconSizePx = 64u;
 const DWORD kDefaultDyingIconSizePx = 64u;
 const DWORD kDefaultPlayingDeadIconSizePx = 64u;
+const DWORD kDefaultPortraitTextFontHeightPx = 14u;
 const DWORD kMinIconSizePx = 8u;
 const DWORD kMaxIconSizePx = 512u;
+const DWORD kMinPortraitTextFontHeightPx = 8u;
+const DWORD kMaxPortraitTextFontHeightPx = 48u;
 const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px.png";
 const char* kDefaultDyingIconTexture = "gui/gfx/death_64px.png";
 const char* kDefaultPlayingDeadIconTexture = "";
@@ -455,6 +458,9 @@ std::string BuildConfigText(const PluginConfig& config)
     out << "  \"debugLogging\": " << (config.debugLogging ? "true" : "false") << ",\n";
     out << "  \"debugSearchLogging\": " << (config.debugSearchLogging ? "true" : "false") << ",\n";
     out << "  \"debugBindingLogging\": " << (config.debugBindingLogging ? "true" : "false") << ",\n";
+    out << "  \"showIcons\": " << (config.showIcons ? "true" : "false") << ",\n";
+    out << "  \"showText\": " << (config.showText ? "true" : "false") << ",\n";
+    out << "  \"portraitTextFontHeightPx\": " << config.portraitTextFontHeightPx << ",\n";
     WriteStateIconConfig(
         out,
         "unconsciousIcon",
@@ -509,6 +515,9 @@ PluginConfig::PluginConfig()
     , debugLogging(false)
     , debugSearchLogging(false)
     , debugBindingLogging(false)
+    , showIcons(true)
+    , showText(true)
+    , portraitTextFontHeightPx(kDefaultPortraitTextFontHeightPx)
     , unconsciousIconTexture()
     , unconsciousIconSizePx(kDefaultUnconsciousIconSizePx)
     , unconsciousIconHasImageCoord(false)
@@ -569,6 +578,22 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
     if (TryParseJsonBoolByKey(content, "debugBindingLogging", &parsedBool))
     {
         outConfig->debugBindingLogging = parsedBool;
+    }
+    if (TryParseJsonBoolByKey(content, "showIcons", &parsedBool))
+    {
+        outConfig->showIcons = parsedBool;
+    }
+    if (TryParseJsonBoolByKey(content, "showText", &parsedBool))
+    {
+        outConfig->showText = parsedBool;
+    }
+    DWORD parsedUnsigned = 0u;
+    if (TryParseJsonUnsignedByKey(content, "portraitTextFontHeightPx", &parsedUnsigned))
+    {
+        outConfig->portraitTextFontHeightPx = ClampUnsigned(
+            parsedUnsigned,
+            kMinPortraitTextFontHeightPx,
+            kMaxPortraitTextFontHeightPx);
     }
 
     LoadStateIconConfig(

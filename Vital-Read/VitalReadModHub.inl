@@ -11,11 +11,24 @@ struct HubBoolSettingDescriptor
     bool* field;
 };
 
+struct HubIntSettingDescriptor
+{
+    const char* settingId;
+    const char* label;
+    const char* description;
+    DWORD* field;
+    int32_t minValue;
+    int32_t maxValue;
+    int32_t step;
+};
+
 emc::ModHubClient g_modHubClient;
 bool g_modHubRowsInitialized = false;
 
 HubBoolSettingDescriptor g_hubBoolSettingDescriptors[] = {
     { "enabled", "Enabled", "Enable Vital Read runtime probes and overlays", &g_enabled },
+    { "show_icons", "Show icons", "Show portrait state icon overlays", &g_showIcons },
+    { "show_text", "Show text", "Show portrait state text badges", &g_showText },
     { "debug_logging", "Debug logging", "Enable general Vital Read debug logs", &g_debugLogging },
     { "debug_search_logging", "Search debug logging", "Enable portrait search diagnostics (requires Debug logging)", &g_debugSearchLogging },
     { "debug_binding_logging", "Binding debug logging", "Enable portrait binding diagnostics (requires Debug logging)", &g_debugBindingLogging }
@@ -27,8 +40,20 @@ enum
         static_cast<int>(sizeof(g_hubBoolSettingDescriptors) / sizeof(g_hubBoolSettingDescriptors[0]))
 };
 
+HubIntSettingDescriptor g_hubIntSettingDescriptors[] = {
+    { "portrait_text_font_height_px", "Text size", "Set portrait state text badge font height", &g_portraitTextFontHeightPx, 8, 48, 1 }
+};
+
+enum
+{
+    kHubIntSettingCount =
+        static_cast<int>(sizeof(g_hubIntSettingDescriptors) / sizeof(g_hubIntSettingDescriptors[0])),
+    kHubSettingRowCount = kHubBoolSettingCount + kHubIntSettingCount
+};
+
 EMC_BoolSettingDefV1 g_hubBoolSettingDefs[kHubBoolSettingCount];
-emc::ModHubClientSettingRowV1 g_hubSettingRows[kHubBoolSettingCount];
+EMC_IntSettingDefV1 g_hubIntSettingDefs[kHubIntSettingCount];
+emc::ModHubClientSettingRowV1 g_hubSettingRows[kHubSettingRowCount];
 
 const EMC_ModDescriptorV1 kModHubDescriptor = {
     kHubNamespaceId,
@@ -91,12 +116,78 @@ EMC_Result __cdecl SetHubBoolSetting(void* user_data, int32_t value, char* err_b
         return EMC_ERR_INTERNAL;
     }
 
-    if (descriptor->field == &g_enabled && !g_enabled)
+    if (descriptor->field == &g_enabled)
     {
-        HideHoveredMarker();
+        ResetStateOverlays();
+        if (!g_enabled)
+        {
+            HideHoveredMarker();
+        }
+    }
+    else if (descriptor->field == &g_showIcons || descriptor->field == &g_showText)
+    {
         ResetStateOverlays();
     }
 
+    emc::consumer::WriteErrorMessage(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
+EMC_Result __cdecl GetHubIntSetting(void* user_data, int32_t* out_value)
+{
+    if (user_data == 0 || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const HubIntSettingDescriptor* descriptor = static_cast<const HubIntSettingDescriptor*>(user_data);
+    if (descriptor->field == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    *out_value = static_cast<int32_t>(*descriptor->field);
+    return EMC_OK;
+}
+
+EMC_Result __cdecl SetHubIntSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    if (user_data == 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_setting");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    HubIntSettingDescriptor* descriptor = static_cast<HubIntSettingDescriptor*>(user_data);
+    if (descriptor->field == 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_setting");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value < descriptor->minValue || value > descriptor->maxValue)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "out_of_range");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const int32_t offset = value - descriptor->minValue;
+    if (descriptor->step > 0 && (offset % descriptor->step) != 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_step");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const DWORD previousValue = *descriptor->field;
+    *descriptor->field = static_cast<DWORD>(value);
+    if (!SaveConfigState())
+    {
+        *descriptor->field = previousValue;
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    ResetStateOverlays();
     emc::consumer::WriteErrorMessage(err_buf, err_buf_size, 0);
     return EMC_OK;
 }
@@ -121,7 +212,24 @@ void InitializeModHubSettingRows()
         g_hubSettingRows[index].def = &g_hubBoolSettingDefs[index];
     }
 
-    g_modHubTableRegistration.row_count = static_cast<uint32_t>(kHubBoolSettingCount);
+    for (size_t index = 0u; index < static_cast<size_t>(kHubIntSettingCount); ++index)
+    {
+        const size_t rowIndex = static_cast<size_t>(kHubBoolSettingCount) + index;
+        g_hubIntSettingDefs[index].setting_id = g_hubIntSettingDescriptors[index].settingId;
+        g_hubIntSettingDefs[index].label = g_hubIntSettingDescriptors[index].label;
+        g_hubIntSettingDefs[index].description = g_hubIntSettingDescriptors[index].description;
+        g_hubIntSettingDefs[index].user_data = &g_hubIntSettingDescriptors[index];
+        g_hubIntSettingDefs[index].min_value = g_hubIntSettingDescriptors[index].minValue;
+        g_hubIntSettingDefs[index].max_value = g_hubIntSettingDescriptors[index].maxValue;
+        g_hubIntSettingDefs[index].step = g_hubIntSettingDescriptors[index].step;
+        g_hubIntSettingDefs[index].get_value = &GetHubIntSetting;
+        g_hubIntSettingDefs[index].set_value = &SetHubIntSetting;
+
+        g_hubSettingRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT;
+        g_hubSettingRows[rowIndex].def = &g_hubIntSettingDefs[index];
+    }
+
+    g_modHubTableRegistration.row_count = static_cast<uint32_t>(kHubSettingRowCount);
     g_modHubRowsInitialized = true;
 }
 
