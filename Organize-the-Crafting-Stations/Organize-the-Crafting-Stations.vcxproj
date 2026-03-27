@@ -88,33 +88,33 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Organize-the-Crafting-Stations.cpp" />
-    <ClCompile Include="CraftingCore.cpp" />
-    <ClCompile Include="CraftingDiagnostics.cpp" />
-    <ClCompile Include="CraftingInventoryBinding.cpp" />
-    <ClCompile Include="CraftingInventoryKeyset.cpp" />
-    <ClCompile Include="CraftingInventoryResolver.cpp" />
-    <ClCompile Include="CraftingInventorySources.cpp" />
-    <ClCompile Include="CraftingModHub.cpp" />
-    <ClCompile Include="CraftingSearchInputBehavior.cpp" />
-    <ClCompile Include="CraftingSearchPipeline.cpp" />
-    <ClCompile Include="CraftingSearchUi.cpp" />
-    <ClCompile Include="CraftingSearchText.cpp" />
-    <ClCompile Include="CraftingWindowDetection.cpp" />
+    <ClCompile Include="src\CraftingCore.cpp" />
+    <ClCompile Include="src\CraftingDiagnostics.cpp" />
+    <ClCompile Include="src\CraftingInventoryBinding.cpp" />
+    <ClCompile Include="src\CraftingInventoryKeyset.cpp" />
+    <ClCompile Include="src\CraftingInventoryResolver.cpp" />
+    <ClCompile Include="src\CraftingInventorySources.cpp" />
+    <ClCompile Include="src\CraftingModHub.cpp" />
+    <ClCompile Include="src\CraftingSearchInputBehavior.cpp" />
+    <ClCompile Include="src\CraftingSearchPipeline.cpp" />
+    <ClCompile Include="src\CraftingSearchUi.cpp" />
+    <ClCompile Include="src\CraftingSearchText.cpp" />
+    <ClCompile Include="src\CraftingWindowDetection.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />
-    <ClInclude Include="CraftingCore.h" />
-    <ClInclude Include="CraftingDiagnostics.h" />
-    <ClInclude Include="CraftingInventoryBinding.h" />
-    <ClInclude Include="CraftingModHub.h" />
-    <ClInclude Include="CraftingSearchInputBehavior.h" />
-    <ClInclude Include="CraftingSearchPipeline.h" />
-    <ClInclude Include="CraftingSearchUi.h" />
-    <ClInclude Include="CraftingSearchText.h" />
-    <ClInclude Include="CraftingWindowDetection.h" />
+    <ClInclude Include="src\CraftingCore.h" />
+    <ClInclude Include="src\CraftingDiagnostics.h" />
+    <ClInclude Include="src\CraftingInventoryBinding.h" />
+    <ClInclude Include="src\CraftingModHub.h" />
+    <ClInclude Include="src\CraftingSearchInputBehavior.h" />
+    <ClInclude Include="src\CraftingSearchPipeline.h" />
+    <ClInclude Include="src\CraftingSearchUi.h" />
+    <ClInclude Include="src\CraftingSearchText.h" />
+    <ClInclude Include="src\CraftingWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

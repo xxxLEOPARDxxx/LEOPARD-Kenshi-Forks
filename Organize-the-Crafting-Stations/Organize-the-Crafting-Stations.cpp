@@ -56,14 +56,14 @@ public:
     Ogre::vector<InventoryIcon*>::type _icons;
 };
 
-#include "CraftingCore.h"
-#include "CraftingDiagnostics.h"
-#include "CraftingInventoryBinding.h"
-#include "CraftingSearchPipeline.h"
-#include "CraftingSearchUi.h"
-#include "CraftingSearchText.h"
-#include "CraftingModHub.h"
-#include "CraftingWindowDetection.h"
+#include "src/CraftingCore.h"
+#include "src/CraftingDiagnostics.h"
+#include "src/CraftingInventoryBinding.h"
+#include "src/CraftingSearchPipeline.h"
+#include "src/CraftingSearchUi.h"
+#include "src/CraftingSearchText.h"
+#include "src/CraftingModHub.h"
+#include "src/CraftingWindowDetection.h"
 
 namespace
 {

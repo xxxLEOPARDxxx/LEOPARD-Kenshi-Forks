@@ -18,40 +18,40 @@
     <ClCompile Include="Organize-the-Crafting-Stations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingCore.cpp">
+    <ClCompile Include="src\CraftingCore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingDiagnostics.cpp">
+    <ClCompile Include="src\CraftingDiagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingInventoryBinding.cpp">
+    <ClCompile Include="src\CraftingInventoryBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingInventoryKeyset.cpp">
+    <ClCompile Include="src\CraftingInventoryKeyset.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingInventoryResolver.cpp">
+    <ClCompile Include="src\CraftingInventoryResolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingInventorySources.cpp">
+    <ClCompile Include="src\CraftingInventorySources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingModHub.cpp">
+    <ClCompile Include="src\CraftingModHub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingSearchInputBehavior.cpp">
+    <ClCompile Include="src\CraftingSearchInputBehavior.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingSearchPipeline.cpp">
+    <ClCompile Include="src\CraftingSearchPipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingSearchUi.cpp">
+    <ClCompile Include="src\CraftingSearchUi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingSearchText.cpp">
+    <ClCompile Include="src\CraftingSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CraftingWindowDetection.cpp">
+    <ClCompile Include="src\CraftingWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mod_hub_client.cpp">
@@ -68,31 +68,31 @@
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingCore.h">
+    <ClInclude Include="src\CraftingCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingDiagnostics.h">
+    <ClInclude Include="src\CraftingDiagnostics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingInventoryBinding.h">
+    <ClInclude Include="src\CraftingInventoryBinding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingModHub.h">
+    <ClInclude Include="src\CraftingModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingSearchInputBehavior.h">
+    <ClInclude Include="src\CraftingSearchInputBehavior.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingSearchPipeline.h">
+    <ClInclude Include="src\CraftingSearchPipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingSearchUi.h">
+    <ClInclude Include="src\CraftingSearchUi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingSearchText.h">
+    <ClInclude Include="src\CraftingSearchText.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CraftingWindowDetection.h">
+    <ClInclude Include="src\CraftingWindowDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
