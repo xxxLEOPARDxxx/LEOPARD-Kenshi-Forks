@@ -2,6 +2,11 @@
 
 All notable changes to Organize-the-Trader will be documented in this file.
 
+## [0.1.0-alpha.3] - 2026-03-27
+- Add a separate draggable sort panel to trader windows.
+- Add trader sorting by unit price, stack value, weight, and value/weight with an ascending or descending toggle.
+- Add persisted sort panel size and position settings alongside the existing search controls.
+
 ## [0.1.0-alpha.2] - 2026-03-12
 - Restrict supported Kenshi runtime builds to `1.0.65`.
 - Add a Mod Hub runtime smoke-test script for live attach/registration verification.

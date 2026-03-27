@@ -1,0 +1,20 @@
+{
+  "mod_name": "Organize the Trader",
+  "mod_id": "organize-the-trader",
+  "mod_nexus_url": "https://www.nexusmods.com/kenshi/mods/1886",
+  "mod_steam_url": "https://steamcommunity.com/sharedfiles/filedetails/?id=3683557203",
+  "mod_reddit_url": "https://www.reddit.com/r/Kenshi/comments/1rp6kcb/i_made_a_small_qol_mod_organize_the_trader_re/",
+  "release_notes_dir": "release-notes",
+  "include_in_other_mods": true,
+  "included_other_mod_ids": [
+    "wall-b-gone",
+    "emkejs-mod-core",
+    "job-b-gone",
+    "loot-scoot-execute",
+    "vital-sense",
+    "map-markers",
+    "auto-pause-on-load",
+    "organize-the-crafting-stations"
+  ],
+  "excluded_other_mod_ids": []
+}
