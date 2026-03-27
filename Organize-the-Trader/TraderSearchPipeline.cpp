@@ -22,6 +22,7 @@
 #define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
 #define g_sortMode (TraderState().search.g_sortMode)
 #define g_sortDirection (TraderState().search.g_sortDirection)
+#define g_sortPriceMode (TraderState().search.g_sortPriceMode)
 #define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
 #define g_lastObservedTraderEntriesStateSignature (TraderState().search.g_lastObservedTraderEntriesStateSignature)
 #define g_lastZeroMatchGuardSignature (TraderState().search.g_lastZeroMatchGuardSignature)
@@ -368,6 +369,20 @@ std::string FormatItemPosForInvestigation(const Item* item)
     std::stringstream line;
     line << "(" << item->inventoryPos.x << "," << item->inventoryPos.y << ")";
     return line.str();
+}
+
+int ResolveSortPriceValueForItem(Item* item, TraderSortPriceMode priceMode)
+{
+    if (item == 0)
+    {
+        return 0;
+    }
+
+    if (priceMode == TraderSortPriceMode_TotalStackValue)
+    {
+        return item->getValueAll(false);
+    }
+    return item->getValueSingle(false);
 }
 
 void LogInvestigateSortLine(const std::string& message)
@@ -1732,6 +1747,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         MyGUI::Widget* widget;
         std::string searchableText;
+        std::string sortItemName;
         bool occupied;
         int quantity;
         bool hasTradeValue;
@@ -1878,7 +1894,14 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             orderedEntryItem = orderedEntryItems[childIndex];
         }
         const bool hasTradeValue = orderedEntryItem != 0;
-        const int tradeValue = hasTradeValue ? orderedEntryItem->getValueAll(false) : 0;
+        const int tradeValue =
+            hasTradeValue
+                ? ResolveSortPriceValueForItem(orderedEntryItem, g_sortPriceMode)
+                : 0;
+        const std::string sortItemName =
+            hasTradeValue
+                ? NormalizeSearchText(ResolveCanonicalItemName(orderedEntryItem))
+                : "";
 
         std::string quantityAlignedNameHint;
         if (!inventoryQuantityNameKeys.empty())
@@ -1945,6 +1968,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         EntryFilterState state;
         state.widget = child;
         state.searchableText = searchableText;
+        state.sortItemName = sortItemName;
         state.occupied = occupied;
         state.quantity = ordered.quantity;
         state.hasTradeValue = hasTradeValue;
@@ -2114,14 +2138,17 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             TradeValueSorter(
                 const std::vector<EntryFilterState>* source,
-                TraderSortDirection direction)
+                TraderSortDirection direction,
+                TraderSortPriceMode priceMode)
                 : entries(source)
                 , sortDirection(direction)
+                , sortPriceMode(priceMode)
             {
             }
 
             const std::vector<EntryFilterState>* entries;
             TraderSortDirection sortDirection;
+            TraderSortPriceMode sortPriceMode;
 
             bool operator()(std::size_t leftIndex, std::size_t rightIndex) const
             {
@@ -2139,6 +2166,11 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                     }
                     return left.tradeValue < right.tradeValue;
                 }
+                if (sortPriceMode == TraderSortPriceMode_UnitPrice
+                    && left.sortItemName != right.sortItemName)
+                {
+                    return left.sortItemName < right.sortItemName;
+                }
                 return left.originalIndex < right.originalIndex;
             }
         };
@@ -2146,7 +2178,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         std::stable_sort(
             visibleEntryIndices.begin(),
             visibleEntryIndices.end(),
-            TradeValueSorter(&entries, g_sortDirection));
+            TradeValueSorter(&entries, g_sortDirection, g_sortPriceMode));
 
         displayOrder.insert(
             displayOrder.end(),
@@ -2241,7 +2273,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         std::stringstream line;
         line << "search sort inventory apply skipped"
-             << " mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection)
+             << " mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection, g_sortPriceMode)
              << " reason=" << inventoryLayoutFailureReason
              << " source=\"" << TruncateForLog(inventorySource, 160) << "\"";
         LogWarnLine(line.str());
@@ -2256,7 +2288,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         else
         {
             std::stringstream signature;
-            signature << TraderSortStateLabel(g_sortMode, g_sortDirection)
+            signature << TraderSortStateLabel(g_sortMode, g_sortDirection, g_sortPriceMode)
                       << "|" << query
                       << "|" << SafeWidgetName(entriesRoot)
                       << "|" << shouldApplySortLayout
@@ -2361,7 +2393,8 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 {
                     std::stringstream line;
                     line << "snapshot"
-                         << " mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection)
+                         << " mode="
+                         << TraderSortStateLabel(g_sortMode, g_sortDirection, g_sortPriceMode)
                          << " query=\"" << query << "\""
                          << " should_apply=" << (shouldApplySortLayout ? "true" : "false")
                          << " layout_applied=" << (sortedLayoutApplied ? "true" : "false")
@@ -2461,7 +2494,8 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         std::stringstream line;
         line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
              << "\" normalized=\"" << (forceShowAll ? "" : query)
-             << "\" sort_mode=\"" << TraderSortStateLabel(g_sortMode, g_sortDirection)
+             << "\" sort_mode=\""
+             << TraderSortStateLabel(g_sortMode, g_sortDirection, g_sortPriceMode)
              << "\" visible=" << visibleCount
              << " total=" << totalCount
              << " item_hints=" << itemNameHintCount

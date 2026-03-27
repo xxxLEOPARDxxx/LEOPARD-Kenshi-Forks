@@ -68,6 +68,12 @@ enum TraderSortDirection
     TraderSortDirection_Descending,
 };
 
+enum TraderSortPriceMode
+{
+    TraderSortPriceMode_UnitPrice = 0,
+    TraderSortPriceMode_TotalStackValue,
+};
+
 struct TraderConfigSnapshot
 {
     TraderConfigSnapshot()
@@ -242,6 +248,7 @@ struct SearchState
         , g_loggedNumericOnlyQueryIgnored(false)
         , g_sortMode(TraderSortMode_None)
         , g_sortDirection(TraderSortDirection_Descending)
+        , g_sortPriceMode(TraderSortPriceMode_UnitPrice)
         , g_lockedKeysetTraderParent(0)
         , g_sortedEntriesRoot(0)
         , g_sortedInventory(0)
@@ -257,6 +264,7 @@ struct SearchState
     bool g_loggedNumericOnlyQueryIgnored;
     TraderSortMode g_sortMode;
     TraderSortDirection g_sortDirection;
+    TraderSortPriceMode g_sortPriceMode;
     std::string g_searchQueryRaw;
     std::string g_searchQueryNormalized;
     std::string g_pendingSlashFocusBaseQuery;
@@ -455,7 +463,11 @@ int ClampSearchInputConfiguredHeight(int value);
 int ClampSortPanelConfiguredWidth(int value);
 int ClampSortPanelConfiguredHeight(int value);
 TraderSortDirection ToggleTraderSortDirection(TraderSortDirection direction);
-const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direction);
+const char* TraderSortPriceModeLabel(TraderSortPriceMode mode);
+const char* TraderSortStateLabel(
+    TraderSortMode mode,
+    TraderSortDirection direction,
+    TraderSortPriceMode priceMode);
 void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config);
 TraderConfigSnapshot CaptureTraderConfigSnapshot();
 void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config);

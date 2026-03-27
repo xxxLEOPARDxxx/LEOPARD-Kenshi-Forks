@@ -622,7 +622,8 @@ void LogSortHoverProbe(
            << " sort_mode="
            << TraderSortStateLabel(
                TraderState().search.g_sortMode,
-               TraderState().search.g_sortDirection)
+               TraderState().search.g_sortDirection,
+               TraderState().search.g_sortPriceMode)
            << " query=\"" << TraderState().search.g_searchQueryNormalized << "\""
            << " hovered=" << SafeWidgetName(hovered)
            << " hovered_chain=\"" << TruncateForLog(BuildParentChainForLog(hovered), 220) << "\""
