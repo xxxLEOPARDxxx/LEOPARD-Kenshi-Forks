@@ -198,6 +198,7 @@ bool TryGetTraderPanelInventoryBinding(
     std::size_t expectedEntryCount,
     TraderPanelInventoryBinding* outBinding);
 bool TryExtractSearchKeysFromInventory(Inventory* inventory, std::vector<std::string>* outKeys);
+bool TryExtractTradeValuesFromInventory(Inventory* inventory, std::vector<int>* outValues);
 bool TryExtractQuantityNameKeysFromInventory(
     Inventory* inventory,
     std::vector<QuantityNameKey>* outKeys);

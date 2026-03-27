@@ -32,6 +32,9 @@ const char* kSearchPlaceholderName = "OTT_SearchPlaceholder";
 const char* kSearchClearButtonName = "OTT_SearchClearButton";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kSearchCountTextName = "OTT_SearchCountText";
+const char* kSortPanelName = "OTT_SortPanel";
+const char* kSortPriceAscButtonName = "OTT_SortPriceAscButton";
+const char* kSortPriceDescButtonName = "OTT_SortPriceDescButton";
 const int kSearchCountGap = 2;
 
 struct PendingSearchEditShortcut
@@ -60,11 +63,14 @@ TraderSearchInputBehavior::Snapshot g_searchEditSnapshot;
 #define g_searchQueryRaw (TraderState().search.g_searchQueryRaw)
 #define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
 #define g_loggedNumericOnlyQueryIgnored (TraderState().search.g_loggedNumericOnlyQueryIgnored)
+#define g_sortMode (TraderState().search.g_sortMode)
 #define g_activeTraderTargetId (TraderState().search.g_activeTraderTargetId)
 #define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
 #define g_lastSearchSampleQueryLogged (TraderState().search.g_lastSearchSampleQueryLogged)
 #define g_lastSearchVisibleEntryCount (TraderState().search.g_lastSearchVisibleEntryCount)
 #define g_lastSearchTotalEntryCount (TraderState().search.g_lastSearchTotalEntryCount)
+#define g_sortedEntriesRoot (TraderState().search.g_sortedEntriesRoot)
+#define g_entryBaseCoords (TraderState().search.g_entryBaseCoords)
 
 #define g_controlsEnabled (TraderState().core.g_controlsEnabled)
 
@@ -667,6 +673,8 @@ bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
 
 void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character);
 void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode);
+void OnSortPriceAscButtonClicked(MyGUI::Widget* sender);
+void OnSortPriceDescButtonClicked(MyGUI::Widget* sender);
 
 MyGUI::Widget* FindControlsContainer()
 {
@@ -721,6 +729,32 @@ MyGUI::TextBox* FindSearchCountTextBox()
 
     MyGUI::Widget* found = FindNamedDescendantRecursive(controlsContainer, kSearchCountTextName, false);
     return found == 0 ? 0 : found->castType<MyGUI::TextBox>(false);
+}
+
+MyGUI::Button* FindSortPriceAscButton()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found =
+        FindNamedDescendantRecursive(controlsContainer, kSortPriceAscButtonName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::Button>(false);
+}
+
+MyGUI::Button* FindSortPriceDescButton()
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* found =
+        FindNamedDescendantRecursive(controlsContainer, kSortPriceDescButtonName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::Button>(false);
 }
 
 MyGUI::Widget* ResolveTraderParentFromControlsContainer()
@@ -788,6 +822,8 @@ void UpdateSearchUiState()
     MyGUI::Button* clearButton = FindSearchClearButton();
     MyGUI::TextBox* placeholder = FindSearchPlaceholderTextBox();
     MyGUI::TextBox* countText = FindSearchCountTextBox();
+    MyGUI::Button* priceAscButton = FindSortPriceAscButton();
+    MyGUI::Button* priceDescButton = FindSortPriceDescButton();
 
     const bool hasQuery = !g_searchQueryRaw.empty();
     const bool focused = IsSearchEditFocused(searchEdit);
@@ -905,6 +941,26 @@ void UpdateSearchUiState()
                 : MyGUI::Colour(0.83f, 0.83f, 0.83f, 1.0f));
         countText->setAlpha(focused ? 1.0f : 0.92f);
     }
+
+    if (priceAscButton != 0)
+    {
+        const bool active = g_sortMode == TraderSortMode_PriceAscending;
+        priceAscButton->setAlpha(active ? 1.0f : 0.84f);
+        priceAscButton->setColour(
+            active
+                ? MyGUI::Colour::White
+                : MyGUI::Colour(0.82f, 0.82f, 0.82f, 1.0f));
+    }
+
+    if (priceDescButton != 0)
+    {
+        const bool active = g_sortMode == TraderSortMode_PriceDescending;
+        priceDescButton->setAlpha(active ? 1.0f : 0.84f);
+        priceDescButton->setColour(
+            active
+                ? MyGUI::Colour::White
+                : MyGUI::Colour(0.82f, 0.82f, 0.82f, 1.0f));
+    }
 }
 
 void UpdateSearchCountText(
@@ -970,8 +1026,11 @@ bool BuildControlsScaffold(
 
     const int outerPadding = 8;
     const int rowHeight = g_searchInputConfiguredHeight;
+    const int rowGap = 4;
     const int handleWidth = 28;
     const int handleGap = 6;
+    const int searchRowTop = outerPadding;
+    const int sortRowTop = searchRowTop + rowHeight + rowGap;
     const int preferredCountWidth = ResolvePreferredSearchCountTextWidth();
     const int preferredCountGap = preferredCountWidth > 0 ? kSearchCountGap : 0;
     const int searchInputLeft = outerPadding + handleWidth + handleGap;
@@ -997,7 +1056,7 @@ bool BuildControlsScaffold(
         containerWidth = maxContainerWidth;
     }
 
-    const int containerHeight = rowHeight + (outerPadding * 2);
+    const int containerHeight = (rowHeight * 2) + rowGap + (outerPadding * 2);
 
     const int rightMargin = 16;
     int left = parent->getWidth() - containerWidth - rightMargin;
@@ -1036,7 +1095,7 @@ bool BuildControlsScaffold(
              << " container_coord=(" << containerCoord.left << "," << containerCoord.top << ","
              << containerCoord.width << "," << containerCoord.height << ")"
              << " customized_position=" << (g_searchContainerPositionCustomized ? "true" : "false")
-             << " search_only=true";
+             << " sort_panel=true";
         LogDebugLine(line.str());
     }
 
@@ -1067,11 +1126,11 @@ bool BuildControlsScaffold(
     {
         clearButtonWidth = 18;
     }
-    const int clearButtonTop = outerPadding + ((rowHeight - clearButtonWidth) / 2);
+    const int clearButtonTop = searchRowTop + ((rowHeight - clearButtonWidth) / 2);
 
     MyGUI::Button* dragHandle = container->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
-        MyGUI::IntCoord(outerPadding, outerPadding, handleWidth, rowHeight),
+        MyGUI::IntCoord(outerPadding, outerPadding, handleWidth, (rowHeight * 2) + rowGap),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchDragHandleName);
     if (dragHandle == 0)
@@ -1091,7 +1150,7 @@ bool BuildControlsScaffold(
     {
         MyGUI::TextBox* countText = container->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, outerPadding, countWidth, rowHeight),
+            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, searchRowTop, countWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSearchCountTextName);
         if (countText == 0)
@@ -1106,7 +1165,7 @@ bool BuildControlsScaffold(
 
     MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
-        MyGUI::IntCoord(searchInputLeft, outerPadding, searchAreaWidth, rowHeight),
+        MyGUI::IntCoord(searchInputLeft, searchRowTop, searchAreaWidth, rowHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchEditName);
     if (searchEdit == 0)
@@ -1124,7 +1183,7 @@ bool BuildControlsScaffold(
 
     MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(searchInputLeft + 10, outerPadding + 1, searchAreaWidth - 16, rowHeight),
+        MyGUI::IntCoord(searchInputLeft + 10, searchRowTop + 1, searchAreaWidth - 16, rowHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchPlaceholderName);
     if (placeholder == 0)
@@ -1155,6 +1214,74 @@ bool BuildControlsScaffold(
     }
     clearButton->setCaption("x");
     clearButton->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchClearButtonClicked);
+
+    const int sortPanelLeft = searchInputLeft;
+    const int sortPanelWidth = containerWidth - sortPanelLeft - outerPadding;
+    MyGUI::Widget* sortPanel = container->createWidget<MyGUI::Widget>(
+        "Kenshi_GenericTextBoxFlatSkin",
+        MyGUI::IntCoord(sortPanelLeft, sortRowTop, sortPanelWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSortPanelName);
+    if (sortPanel == 0)
+    {
+        LogErrorLine("failed to create sort panel");
+        DestroyWidgetDirect(container);
+        return false;
+    }
+
+    const int sortPanelInnerPadding = 6;
+    const int sortLabelWidth = 32;
+    const int sortButtonGap = 4;
+    const int sortButtonAreaWidth =
+        sortPanelWidth - (sortPanelInnerPadding * 2) - sortLabelWidth - sortButtonGap;
+    const int sortButtonWidth = (sortButtonAreaWidth - sortButtonGap) / 2;
+    const int sortButtonLeft = sortPanelInnerPadding + sortLabelWidth + sortButtonGap;
+
+    MyGUI::TextBox* sortLabel = sortPanel->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(sortPanelInnerPadding, 0, sortLabelWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        "OTT_SortLabel");
+    if (sortLabel == 0)
+    {
+        LogErrorLine("failed to create sort label");
+        DestroyWidgetDirect(container);
+        return false;
+    }
+    sortLabel->setCaption("Sort");
+    sortLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+
+    MyGUI::Button* sortPriceAscButton = sortPanel->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(sortButtonLeft, 0, sortButtonWidth, rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSortPriceAscButtonName);
+    if (sortPriceAscButton == 0)
+    {
+        LogErrorLine("failed to create sort price asc button");
+        DestroyWidgetDirect(container);
+        return false;
+    }
+    sortPriceAscButton->setCaption("Price Asc");
+    sortPriceAscButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortPriceAscButtonClicked);
+
+    MyGUI::Button* sortPriceDescButton = sortPanel->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(
+            sortButtonLeft + sortButtonWidth + sortButtonGap,
+            0,
+            sortButtonWidth,
+            rowHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kSortPriceDescButtonName);
+    if (sortPriceDescButton == 0)
+    {
+        LogErrorLine("failed to create sort price desc button");
+        DestroyWidgetDirect(container);
+        return false;
+    }
+    sortPriceDescButton->setCaption("Price Desc");
+    sortPriceDescButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortPriceDescButtonClicked);
 
     FocusSearchEditIfRequested(searchEdit, "controls_built");
     UpdateSearchUiState();
@@ -1207,6 +1334,8 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
 {
     const bool hadQuery = !g_searchQueryRaw.empty() || !g_searchQueryNormalized.empty();
 
+    RestoreSortedInventoryLayoutIfNeeded();
+
     g_searchQueryRaw.clear();
     g_searchQueryNormalized.clear();
     g_pendingSlashFocusBaseQuery.clear();
@@ -1215,6 +1344,9 @@ void ResetSearchQueryForTraderSwitch(const char* reason)
     g_loggedNumericOnlyQueryIgnored = false;
     g_lastSearchSampleQueryLogged.clear();
     g_lastZeroMatchQueryLogged.clear();
+    g_sortedEntriesRoot = 0;
+    g_entryBaseCoords.clear();
+    TraderState().search.g_lastSortInvestigationSignature.clear();
     ResetObservedTraderEntriesState();
 
     if (hadQuery)
@@ -1399,6 +1531,52 @@ void OnSearchClearButtonClicked(MyGUI::Widget*)
     SetSearchQueryAndRefresh(searchEdit, "", "clear_button", true);
 }
 
+const char* SortModeLabel(TraderSortMode mode)
+{
+    switch (mode)
+    {
+    case TraderSortMode_PriceAscending:
+        return "price_asc";
+    case TraderSortMode_PriceDescending:
+        return "price_desc";
+    default:
+        return "default";
+    }
+}
+
+void SetSortModeAndRefresh(TraderSortMode requestedMode, const char* reason)
+{
+    const TraderSortMode nextMode =
+        g_sortMode == requestedMode ? TraderSortMode_None : requestedMode;
+    if (g_sortMode == nextMode)
+    {
+        UpdateSearchUiState();
+        return;
+    }
+
+    g_sortMode = nextMode;
+
+    std::stringstream line;
+    line << "search ui action"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " sort_mode=" << SortModeLabel(g_sortMode);
+    LogSearchDebugLine(line.str());
+
+    MarkSearchFilterDirty(reason);
+    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    UpdateSearchUiState();
+}
+
+void OnSortPriceAscButtonClicked(MyGUI::Widget*)
+{
+    SetSortModeAndRefresh(TraderSortMode_PriceAscending, "sort_price_asc");
+}
+
+void OnSortPriceDescButtonClicked(MyGUI::Widget*)
+{
+    SetSortModeAndRefresh(TraderSortMode_PriceDescending, "sort_price_desc");
+}
+
 void OnSearchPlaceholderClicked(MyGUI::Widget*)
 {
     MyGUI::EditBox* searchEdit = FindSearchEditBox();
@@ -1509,6 +1687,7 @@ void DestroyControlsIfPresent()
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
+        RestoreSortedInventoryLayoutIfNeeded();
         ResetPendingSearchEditShortcut();
         ResetSearchEditSnapshot();
         g_searchContainerDragging = false;
@@ -1516,6 +1695,9 @@ void DestroyControlsIfPresent()
         g_searchContainerDragStartTop = 0;
         g_controlsWereInjected = false;
         g_searchFilterDirty = false;
+        g_sortedEntriesRoot = 0;
+        g_entryBaseCoords.clear();
+        TraderState().search.g_lastSortInvestigationSignature.clear();
         ResetObservedTraderEntriesState();
         g_pendingSlashFocusBaseQuery.clear();
         g_pendingSlashFocusTextSuppression = false;
@@ -1534,6 +1716,8 @@ void DestroyControlsIfPresent()
     g_searchContainerDragStartLeft = 0;
     g_searchContainerDragStartTop = 0;
 
+    RestoreSortedInventoryLayoutIfNeeded();
+
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui != 0)
     {
@@ -1545,6 +1729,9 @@ void DestroyControlsIfPresent()
     ResetPendingSearchEditShortcut();
     ResetSearchEditSnapshot();
     g_searchFilterDirty = false;
+    g_sortedEntriesRoot = 0;
+    g_entryBaseCoords.clear();
+    TraderState().search.g_lastSortInvestigationSignature.clear();
     ResetObservedTraderEntriesState();
     g_pendingSlashFocusBaseQuery.clear();
     g_pendingSlashFocusTextSuppression = false;
@@ -1843,6 +2030,7 @@ void TickPhase2ControlsScaffold()
 
     if (g_controlsWereInjected && FindControlsContainer() == 0)
     {
+        RestoreSortedInventoryLayoutIfNeeded();
         g_controlsWereInjected = false;
         g_cachedHoveredWidgetInventory = 0;
         g_cachedHoveredWidgetInventorySignature.clear();

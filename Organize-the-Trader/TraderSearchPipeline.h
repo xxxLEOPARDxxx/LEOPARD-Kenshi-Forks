@@ -12,5 +12,6 @@ void MarkSearchFilterDirty(const char* reason);
 void LogSearchSampleForQuery(MyGUI::Widget* entriesRoot, const std::string& normalizedQuery, std::size_t maxItems);
 void ResetObservedTraderEntriesState();
 void ObserveTraderEntriesStateForRefresh();
+void RestoreSortedInventoryLayoutIfNeeded();
 bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShowAll, bool logSummary);
 void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary);

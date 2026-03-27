@@ -42,6 +42,7 @@ std::string ResolveItemNameHintRecursive(MyGUI::Widget* widget, std::size_t dept
 std::string BuildItemSearchText(MyGUI::Widget* itemWidget);
 std::string BuildItemRawProbe(MyGUI::Widget* itemWidget);
 bool TryResolveItemQuantityFromWidget(MyGUI::Widget* itemWidget, int* outQuantity);
+Item* ResolveWidgetItemPointer(MyGUI::Widget* widget);
 MyGUI::Widget* FindNamedDescendantByTokenRecursive(
     MyGUI::Widget* root,
     const char* token,

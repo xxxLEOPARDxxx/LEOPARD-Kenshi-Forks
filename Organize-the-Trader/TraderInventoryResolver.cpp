@@ -440,6 +440,55 @@ bool TryExtractQuantityNameKeysFromInventorySection(
     return !outKeys->empty();
 }
 
+int ResolveTradeValueForItem(Item* item)
+{
+    if (item == 0)
+    {
+        return 0;
+    }
+
+    return item->getValueAll(false);
+}
+
+bool TryExtractTradeValuesFromInventorySection(
+    InventorySection* section,
+    std::vector<int>* outValues)
+{
+    if (section == 0 || outValues == 0)
+    {
+        return false;
+    }
+
+    const Ogre::vector<InventorySection::SectionItem>::type& sectionItems = section->getItems();
+    if (sectionItems.empty())
+    {
+        return false;
+    }
+
+    std::vector<InventorySection::SectionItem> sortedItems(sectionItems.begin(), sectionItems.end());
+    struct SectionItemTopLeftLess
+    {
+        bool operator()(const InventorySection::SectionItem& leftItem, const InventorySection::SectionItem& rightItem) const
+        {
+            if (leftItem.y != rightItem.y)
+            {
+                return leftItem.y < rightItem.y;
+            }
+            return leftItem.x < rightItem.x;
+        }
+    };
+    std::sort(sortedItems.begin(), sortedItems.end(), SectionItemTopLeftLess());
+
+    outValues->clear();
+    outValues->reserve(sortedItems.size());
+    for (std::size_t index = 0; index < sortedItems.size(); ++index)
+    {
+        outValues->push_back(ResolveTradeValueForItem(sortedItems[index].item));
+    }
+
+    return !outValues->empty();
+}
+
 } // namespace
 
 bool TryResolveTraderInventoryNameKeysFromTraderOwnership(
@@ -1074,6 +1123,56 @@ bool TryExtractQuantityNameKeysFromInventory(
     }
 
     return !outKeys->empty();
+}
+
+bool TryExtractTradeValuesFromInventory(Inventory* inventory, std::vector<int>* outValues)
+{
+    if (inventory == 0 || outValues == 0)
+    {
+        return false;
+    }
+
+    outValues->clear();
+
+    lektor<InventorySection*>& allSections = inventory->getAllSections();
+    if (allSections.valid() && allSections.size() > 0)
+    {
+        std::vector<int> mergedSectionValues;
+        for (uint32_t sectionIndex = 0; sectionIndex < allSections.size(); ++sectionIndex)
+        {
+            InventorySection* section = allSections[sectionIndex];
+            std::vector<int> sectionValues;
+            if (!TryExtractTradeValuesFromInventorySection(section, &sectionValues))
+            {
+                continue;
+            }
+
+            mergedSectionValues.insert(
+                mergedSectionValues.end(),
+                sectionValues.begin(),
+                sectionValues.end());
+        }
+
+        if (!mergedSectionValues.empty())
+        {
+            outValues->swap(mergedSectionValues);
+            return true;
+        }
+    }
+
+    const lektor<Item*>& allItems = inventory->getAllItems();
+    if (!allItems.valid() || allItems.size() == 0)
+    {
+        return false;
+    }
+
+    outValues->reserve(allItems.size());
+    for (uint32_t index = 0; index < allItems.size(); ++index)
+    {
+        outValues->push_back(ResolveTradeValueForItem(allItems[index]));
+    }
+
+    return !outValues->empty();
 }
 
 std::string ResolveUniqueQuantityNameHint(const std::vector<QuantityNameKey>& keys, int quantity)

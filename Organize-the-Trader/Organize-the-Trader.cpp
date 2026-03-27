@@ -74,12 +74,26 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_characterCreateInventoryLayoutOrig (TraderState().hook.g_characterCreateInventoryLayoutOrig)
 #define g_rootObjectCreateInventoryLayoutOrig (TraderState().hook.g_rootObjectCreateInventoryLayoutOrig)
 #define g_inventoryLayoutCreateGUIOrig (TraderState().hook.g_inventoryLayoutCreateGUIOrig)
+#define g_playerInterfacePickupItemOrig (TraderState().hook.g_playerInterfacePickupItemOrig)
+#define g_inventoryTransferMouseItemOrig (TraderState().hook.g_inventoryTransferMouseItemOrig)
+#define g_inventorySectionRemoveItemOrig (TraderState().hook.g_inventorySectionRemoveItemOrig)
+#define g_inventorySectionAddItemOrig (TraderState().hook.g_inventorySectionAddItemOrig)
+#define g_inventoryRemoveItemDontDestroyOrig (TraderState().hook.g_inventoryRemoveItemDontDestroyOrig)
+#define g_inventoryTakeItemEntireStackOrig (TraderState().hook.g_inventoryTakeItemEntireStackOrig)
+#define g_inventorySectionAddItemCallbackOrig (TraderState().hook.g_inventorySectionAddItemCallbackOrig)
+#define g_inventorySectionUpdateItemCallbackOrig (TraderState().hook.g_inventorySectionUpdateItemCallbackOrig)
+#define g_inventorySectionRemoveItemCallbackOrig (TraderState().hook.g_inventorySectionRemoveItemCallbackOrig)
+#define g_inventoryAddToListOrig (TraderState().hook.g_inventoryAddToListOrig)
+#define g_inventoryRemoveFromListOrig (TraderState().hook.g_inventoryRemoveFromListOrig)
+#define g_itemResetAfterCopyOrig (TraderState().hook.g_itemResetAfterCopyOrig)
+#define g_inventoryItemAddQuantityOrig (TraderState().hook.g_inventoryItemAddQuantityOrig)
 #define g_inventoryLayoutCreateGUIHookInstalled (TraderState().hook.g_inventoryLayoutCreateGUIHookInstalled)
 #define g_inventoryLayoutCreateGUIHookAttempted (TraderState().hook.g_inventoryLayoutCreateGUIHookAttempted)
 #define g_expectedInventoryLayoutCreateGUIAddress (TraderState().hook.g_expectedInventoryLayoutCreateGUIAddress)
 #define g_inventoryLayoutCreateGUIEarlyAttempted (TraderState().hook.g_inventoryLayoutCreateGUIEarlyAttempted)
 #define g_inventoryLayoutCreateGUIHookCallCount (TraderState().hook.g_inventoryLayoutCreateGUIHookCallCount)
 #define g_inventoryLayoutCreateInventoryLayoutLogCount (TraderState().hook.g_inventoryLayoutCreateInventoryLayoutLogCount)
+#define g_inventoryMoveProbeSequence (TraderState().hook.g_inventoryMoveProbeSequence)
 #define g_lastInventoryLayoutReturnSignature (TraderState().hook.g_lastInventoryLayoutReturnSignature)
 
 #define g_updateTickCounter (TraderState().core.g_updateTickCounter)
@@ -150,6 +164,641 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_lastPanelBindingRefusedSignature (TraderState().binding.g_lastPanelBindingRefusedSignature)
 #define g_lastPanelBindingProbeSignature (TraderState().binding.g_lastPanelBindingProbeSignature)
 #define g_recentRefreshedInventories (TraderState().binding.g_recentRefreshedInventories)
+
+bool ShouldLogInventoryMoveProbe()
+{
+    return ShouldLogSearchDebug() || ShouldLogBindingDebug();
+}
+
+void ClearTraderPanelInventoryBindingForProbe(TraderPanelInventoryBinding* binding)
+{
+    if (binding == 0)
+    {
+        return;
+    }
+
+    binding->traderParent = 0;
+    binding->entriesRoot = 0;
+    binding->inventory = 0;
+    binding->stage.clear();
+    binding->source.clear();
+    binding->expectedEntryCount = 0;
+    binding->nonEmptyKeyCount = 0;
+    binding->lastSeenTick = 0;
+}
+
+bool TryResolveCurrentTraderPanelBindingForMoveProbe(TraderPanelInventoryBinding* outBinding)
+{
+    ClearTraderPanelInventoryBindingForProbe(outBinding);
+
+    if (!ShouldLogInventoryMoveProbe())
+    {
+        return false;
+    }
+
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* traderParent = ResolveTraderParentFromControlsContainer();
+    if (traderParent == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false, false);
+    MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(backpackContent);
+    if (entriesRoot == 0)
+    {
+        return false;
+    }
+
+    const std::size_t expectedEntryCount = CountOccupiedEntriesInEntriesRoot(entriesRoot);
+    if (expectedEntryCount == 0)
+    {
+        return false;
+    }
+
+    return TryGetTraderPanelInventoryBinding(traderParent, entriesRoot, expectedEntryCount, outBinding);
+}
+
+bool ShouldLogInventoryMoveProbeForInventory(
+    Inventory* inventory,
+    TraderPanelInventoryBinding* outBinding)
+{
+    TraderPanelInventoryBinding binding;
+    if (inventory == 0
+        || !TryResolveCurrentTraderPanelBindingForMoveProbe(&binding)
+        || binding.inventory == 0
+        || binding.inventory != inventory)
+    {
+        return false;
+    }
+
+    if (outBinding != 0)
+    {
+        *outBinding = binding;
+    }
+    return true;
+}
+
+bool ShouldLogInventoryMoveProbeForSection(
+    InventorySection* section,
+    TraderPanelInventoryBinding* outBinding)
+{
+    if (section == 0)
+    {
+        return false;
+    }
+
+    return ShouldLogInventoryMoveProbeForInventory(section->getInventory(), outBinding);
+}
+
+bool ShouldLogInventoryMoveProbeForItem(
+    Item* item,
+    TraderPanelInventoryBinding* outBinding)
+{
+    if (item != 0 && ShouldLogInventoryMoveProbeForInventory(item->getInventory(), outBinding))
+    {
+        return true;
+    }
+
+    return TryResolveCurrentTraderPanelBindingForMoveProbe(outBinding);
+}
+
+bool ShouldLogInventoryMoveProbeForItemBase(
+    InventoryItemBase* itemBase,
+    Item* addedItem,
+    InventorySection* section,
+    TraderPanelInventoryBinding* outBinding)
+{
+    if (section != 0 && ShouldLogInventoryMoveProbeForSection(section, outBinding))
+    {
+        return true;
+    }
+
+    if (addedItem != 0 && ShouldLogInventoryMoveProbeForInventory(addedItem->getInventory(), outBinding))
+    {
+        return true;
+    }
+
+    if (itemBase != 0 && ShouldLogInventoryMoveProbeForInventory(itemBase->getInventory(), outBinding))
+    {
+        return true;
+    }
+
+    return TryResolveCurrentTraderPanelBindingForMoveProbe(outBinding);
+}
+
+std::size_t NextInventoryMoveProbeSequence()
+{
+    return ++g_inventoryMoveProbeSequence;
+}
+
+void AppendInventoryMoveProbeInventoryState(
+    std::stringstream& line,
+    Inventory* inventory,
+    const TraderPanelInventoryBinding& binding)
+{
+    RootObject* owner = 0;
+    RootObject* callbackObject = 0;
+    TryGetInventoryOwnerPointersSafe(inventory, &owner, &callbackObject);
+
+    line << " inventory=" << inventory
+         << " inv_items=" << InventoryItemCountForLog(inventory)
+         << " visible=" << (inventory != 0 && inventory->isVisible() ? "true" : "false")
+         << " owner=\"" << TruncateForLog(RootObjectDisplayNameForLog(owner), 72) << "\""
+         << " callback=\"" << TruncateForLog(RootObjectDisplayNameForLog(callbackObject), 72) << "\""
+         << " binding_stage=\"" << TruncateForLog(binding.stage, 48) << "\""
+         << " binding_entries=" << binding.expectedEntryCount;
+    if (!binding.source.empty())
+    {
+        line << " binding_source=\"" << TruncateForLog(binding.source, 120) << "\"";
+    }
+}
+
+void AppendInventoryMoveProbeSectionState(
+    std::stringstream& line,
+    InventorySection* section)
+{
+    line << " section=" << section;
+    if (section == 0)
+    {
+        return;
+    }
+
+    line << " section_name=\"" << TruncateForLog(section->name, 48) << "\""
+         << " section_items=" << section->getNumItems()
+         << " section_size=(" << section->width << "," << section->height << ")";
+}
+
+void AppendInventoryMoveProbeItemState(
+    std::stringstream& line,
+    Item* item)
+{
+    line << " item=" << item;
+    if (item == 0)
+    {
+        return;
+    }
+
+    line << " item_name=\"" << TruncateForLog(ResolveCanonicalItemName(item), 72) << "\""
+         << " qty=" << item->quantity
+         << " pos=(" << item->inventoryPos.x << "," << item->inventoryPos.y << ")"
+         << " size=(" << item->itemWidth << "," << item->itemHeight << ")"
+         << " item_section=\"" << TruncateForLog(item->inventorySection, 48) << "\"";
+}
+
+void AppendInventoryMoveProbePrefixedItemState(
+    std::stringstream& line,
+    const char* prefix,
+    Item* item)
+{
+    if (prefix == 0 || *prefix == '\0')
+    {
+        return;
+    }
+
+    line << " " << prefix << "=" << item;
+    if (item == 0)
+    {
+        return;
+    }
+
+    line << " " << prefix << "_name=\"" << TruncateForLog(ResolveCanonicalItemName(item), 72) << "\""
+         << " " << prefix << "_qty=" << item->quantity
+         << " " << prefix << "_pos=(" << item->inventoryPos.x << "," << item->inventoryPos.y << ")"
+         << " " << prefix << "_size=(" << item->itemWidth << "," << item->itemHeight << ")"
+         << " " << prefix << "_section=\"" << TruncateForLog(item->inventorySection, 48) << "\"";
+}
+
+void AppendInventoryMoveProbePrefixedItemBaseState(
+    std::stringstream& line,
+    const char* prefix,
+    InventoryItemBase* itemBase)
+{
+    if (prefix == 0 || *prefix == '\0')
+    {
+        return;
+    }
+
+    line << " " << prefix << "=" << itemBase;
+    if (itemBase == 0)
+    {
+        return;
+    }
+
+    line << " " << prefix << "_name=\"" << TruncateForLog(RootObjectDisplayNameForLog(itemBase), 72) << "\""
+         << " " << prefix << "_qty=" << itemBase->quantity
+         << " " << prefix << "_pos=(" << itemBase->inventoryPos.x << "," << itemBase->inventoryPos.y << ")"
+         << " " << prefix << "_size=(" << itemBase->itemWidth << "," << itemBase->itemHeight << ")"
+         << " " << prefix << "_section=\"" << TruncateForLog(itemBase->inventorySection, 48) << "\"";
+}
+
+void AppendInventoryMoveProbePlayerState(
+    std::stringstream& line,
+    PlayerInterface* player)
+{
+    line << " player=" << player;
+    if (player == 0)
+    {
+        return;
+    }
+
+    line << " selected_handle=\"" << TruncateForLog(player->selectedObject.toString(), 96) << "\""
+         << " mouse_target=" << player->mouseRightTarget
+         << " mouse_target_name=\""
+         << TruncateForLog(RootObjectDisplayNameForLog(player->mouseRightTarget), 72)
+         << "\"";
+
+    AppendInventoryMoveProbePrefixedItemState(line, "selected_item", player->selectedObject.getItem());
+}
+
+void LogInventoryMoveProbeLine(
+    const char* functionName,
+    const char* phase,
+    Inventory* inventory,
+    InventorySection* section,
+    Item* item,
+    const TraderPanelInventoryBinding& binding,
+    const std::string& extras)
+{
+    std::stringstream line;
+    line << "[investigate][inv-move]"
+         << " seq=" << NextInventoryMoveProbeSequence()
+         << " tick=" << g_updateTickCounter
+         << " func=" << functionName
+         << " phase=" << phase;
+    AppendInventoryMoveProbeInventoryState(line, inventory, binding);
+    AppendInventoryMoveProbeSectionState(line, section);
+    AppendInventoryMoveProbeItemState(line, item);
+    if (!extras.empty())
+    {
+        line << " " << extras;
+    }
+    LogInfoLine(line.str());
+}
+
+void LogPlayerInterfaceMoveProbeLine(
+    const char* functionName,
+    const char* phase,
+    PlayerInterface* player,
+    Item* item,
+    const TraderPanelInventoryBinding& binding,
+    const std::string& extras)
+{
+    std::stringstream line;
+    line << "[investigate][inv-move]"
+         << " seq=" << NextInventoryMoveProbeSequence()
+         << " tick=" << g_updateTickCounter
+         << " func=" << functionName
+         << " phase=" << phase;
+    AppendInventoryMoveProbePlayerState(line, player);
+    AppendInventoryMoveProbeInventoryState(line, binding.inventory, binding);
+    AppendInventoryMoveProbeSectionState(line, 0);
+    AppendInventoryMoveProbeItemState(line, item);
+    if (!extras.empty())
+    {
+        line << " " << extras;
+    }
+    LogInfoLine(line.str());
+}
+
+void PlayerInterface_pickupItem_hook(PlayerInterface* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForItem(item, &binding);
+    if (shouldLog)
+    {
+        LogPlayerInterfaceMoveProbeLine("PlayerInterface::pickupItem", "enter", self, item, binding, "");
+    }
+
+    if (g_playerInterfacePickupItemOrig != 0)
+    {
+        g_playerInterfacePickupItemOrig(self, item);
+    }
+
+    if (shouldLog)
+    {
+        LogPlayerInterfaceMoveProbeLine("PlayerInterface::pickupItem", "leave", self, item, binding, "");
+    }
+}
+
+bool Inventory_transferMouseItem_hook(Inventory* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::transferMouseItem", "enter", self, 0, item, binding, "");
+    }
+
+    const bool result =
+        g_inventoryTransferMouseItemOrig == 0 ? false : g_inventoryTransferMouseItemOrig(self, item);
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "result=" << (result ? "true" : "false");
+        LogInventoryMoveProbeLine("Inventory::transferMouseItem", "leave", self, 0, item, binding, extras.str());
+    }
+
+    return result;
+}
+
+bool InventorySection_removeItem_hook(InventorySection* self, Item* item)
+{
+    Inventory* inventory = self == 0 ? 0 : self->getInventory();
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForSection(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("InventorySection::removeItem", "enter", inventory, self, item, binding, "");
+    }
+
+    const bool result =
+        g_inventorySectionRemoveItemOrig == 0 ? false : g_inventorySectionRemoveItemOrig(self, item);
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "result=" << (result ? "true" : "false");
+        LogInventoryMoveProbeLine("InventorySection::removeItem", "leave", inventory, self, item, binding, extras.str());
+    }
+
+    return result;
+}
+
+void InventorySection_addItem_hook(InventorySection* self, Item* item, int x, int y)
+{
+    Inventory* inventory = self == 0 ? 0 : self->getInventory();
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForSection(self, &binding);
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "target=(" << x << "," << y << ")";
+        LogInventoryMoveProbeLine("InventorySection::_addItem", "enter", inventory, self, item, binding, extras.str());
+    }
+
+    if (g_inventorySectionAddItemOrig != 0)
+    {
+        g_inventorySectionAddItemOrig(self, item, x, y);
+    }
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "target=(" << x << "," << y << ")";
+        LogInventoryMoveProbeLine("InventorySection::_addItem", "leave", inventory, self, item, binding, extras.str());
+    }
+}
+
+Item* Inventory_removeItemDontDestroy_returnsItem_hook(
+    Inventory* self,
+    Item* item,
+    int howmany,
+    bool returnCopyIfSomeLeft)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "howmany=" << howmany
+               << " return_copy=" << (returnCopyIfSomeLeft ? "true" : "false");
+        LogInventoryMoveProbeLine(
+            "Inventory::removeItemDontDestroy_returnsItem",
+            "enter",
+            self,
+            0,
+            item,
+            binding,
+            extras.str());
+    }
+
+    Item* result =
+        g_inventoryRemoveItemDontDestroyOrig == 0
+            ? 0
+            : g_inventoryRemoveItemDontDestroyOrig(self, item, howmany, returnCopyIfSomeLeft);
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "howmany=" << howmany
+               << " return_copy=" << (returnCopyIfSomeLeft ? "true" : "false");
+        AppendInventoryMoveProbePrefixedItemState(extras, "returned_item", result);
+        LogInventoryMoveProbeLine(
+            "Inventory::removeItemDontDestroy_returnsItem",
+            "leave",
+            self,
+            0,
+            item,
+            binding,
+            extras.str());
+    }
+
+    return result;
+}
+
+bool Inventory_takeItem_EntireStack_hook(Inventory* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::takeItem_EntireStack", "enter", self, 0, item, binding, "");
+    }
+
+    const bool result =
+        g_inventoryTakeItemEntireStackOrig == 0 ? false : g_inventoryTakeItemEntireStackOrig(self, item);
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "result=" << (result ? "true" : "false");
+        LogInventoryMoveProbeLine("Inventory::takeItem_EntireStack", "leave", self, 0, item, binding, extras.str());
+    }
+
+    return result;
+}
+
+void Inventory_sectionAddItemCallback_hook(Inventory* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_sectionAddItemCallback", "enter", self, 0, item, binding, "");
+    }
+
+    if (g_inventorySectionAddItemCallbackOrig != 0)
+    {
+        g_inventorySectionAddItemCallbackOrig(self, item);
+    }
+
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_sectionAddItemCallback", "leave", self, 0, item, binding, "");
+    }
+}
+
+void Inventory_sectionUpdateItemCallback_hook(Inventory* self, Item* item, int updateArg)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "update_arg=" << updateArg;
+        LogInventoryMoveProbeLine("Inventory::_sectionUpdateItemCallback", "enter", self, 0, item, binding, extras.str());
+    }
+
+    if (g_inventorySectionUpdateItemCallbackOrig != 0)
+    {
+        g_inventorySectionUpdateItemCallbackOrig(self, item, updateArg);
+    }
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "update_arg=" << updateArg;
+        LogInventoryMoveProbeLine("Inventory::_sectionUpdateItemCallback", "leave", self, 0, item, binding, extras.str());
+    }
+}
+
+void Inventory_sectionRemoveItemCallback_hook(Inventory* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_sectionRemoveItemCallback", "enter", self, 0, item, binding, "");
+    }
+
+    if (g_inventorySectionRemoveItemCallbackOrig != 0)
+    {
+        g_inventorySectionRemoveItemCallbackOrig(self, item);
+    }
+
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_sectionRemoveItemCallback", "leave", self, 0, item, binding, "");
+    }
+}
+
+void Inventory_addToList_hook(Inventory* self, Item* item)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_addToList", "enter", self, 0, item, binding, "");
+    }
+
+    if (g_inventoryAddToListOrig != 0)
+    {
+        g_inventoryAddToListOrig(self, item);
+    }
+
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Inventory::_addToList", "leave", self, 0, item, binding, "");
+    }
+}
+
+void Inventory_removeFromList_hook(Inventory* self, Item* item, bool checkEverything)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForInventory(self, &binding);
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "check_everything=" << (checkEverything ? "true" : "false");
+        LogInventoryMoveProbeLine("Inventory::_removeFromList", "enter", self, 0, item, binding, extras.str());
+    }
+
+    if (g_inventoryRemoveFromListOrig != 0)
+    {
+        g_inventoryRemoveFromListOrig(self, item, checkEverything);
+    }
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "check_everything=" << (checkEverything ? "true" : "false");
+        LogInventoryMoveProbeLine("Inventory::_removeFromList", "leave", self, 0, item, binding, extras.str());
+    }
+}
+
+void Item_resetAfterCopy_hook(Item* self)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForItem(self, &binding);
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Item::resetAfterCopy", "enter", self == 0 ? 0 : self->getInventory(), 0, self, binding, "");
+    }
+
+    if (g_itemResetAfterCopyOrig != 0)
+    {
+        g_itemResetAfterCopyOrig(self);
+    }
+
+    if (shouldLog)
+    {
+        LogInventoryMoveProbeLine("Item::resetAfterCopy", "leave", self == 0 ? 0 : self->getInventory(), 0, self, binding, "");
+    }
+}
+
+void InventoryItemBase_addQuantity_hook(
+    InventoryItemBase* self,
+    int& amount,
+    Item* addedItem,
+    InventorySection* section)
+{
+    TraderPanelInventoryBinding binding;
+    const bool shouldLog = ShouldLogInventoryMoveProbeForItemBase(self, addedItem, section, &binding);
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "amount=" << amount;
+        AppendInventoryMoveProbePrefixedItemBaseState(extras, "base_item", self);
+        AppendInventoryMoveProbePrefixedItemState(extras, "added_item", addedItem);
+        LogInventoryMoveProbeLine(
+            "InventoryItemBase::addQuantity",
+            "enter",
+            section == 0 ? (self == 0 ? 0 : self->getInventory()) : section->getInventory(),
+            section,
+            addedItem,
+            binding,
+            extras.str());
+    }
+
+    if (g_inventoryItemAddQuantityOrig != 0)
+    {
+        g_inventoryItemAddQuantityOrig(self, amount, addedItem, section);
+    }
+
+    if (shouldLog)
+    {
+        std::stringstream extras;
+        extras << "amount=" << amount;
+        AppendInventoryMoveProbePrefixedItemBaseState(extras, "base_item", self);
+        AppendInventoryMoveProbePrefixedItemState(extras, "added_item", addedItem);
+        LogInventoryMoveProbeLine(
+            "InventoryItemBase::addQuantity",
+            "leave",
+            section == 0 ? (self == 0 ? 0 : self->getInventory()) : section->getInventory(),
+            section,
+            addedItem,
+            binding,
+            extras.str());
+    }
+}
+
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
     const unsigned int platform = versionInfo.GetPlatform();
@@ -817,6 +1466,20 @@ void PlayerInterface_updateUT_hook(PlayerInterface* self)
     }
 
     TickPhase2ControlsScaffold();
+}
+
+void LogInventoryMoveHookInstalled(const char* label, std::uintptr_t address)
+{
+    std::stringstream line;
+    line << "hooked " << label << " at " << FormatAbsoluteAddressForLog(address);
+    LogInfoLine(line.str());
+}
+
+void LogInventoryMoveHookInstallFailed(const char* label)
+{
+    std::stringstream line;
+    line << "could not hook " << label << " for inventory move probe";
+    LogWarnLine(line.str());
 }
 }
 
