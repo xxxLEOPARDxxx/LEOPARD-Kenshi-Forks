@@ -35,3 +35,7 @@ The authoritative developer role is:
 - Remove stale trader-only docs and planning residue.
 - Do not trust copied trader placement or binding assumptions for crafting.
 - Keep external build and deploy identity aligned to `Organize-the-Crafting-Stations`.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
