@@ -85,3 +85,7 @@ After launching Kenshi with `Emkejs-Mod-Core` and `Organize-the-Trader` enabled,
 - `.\scripts\phase22_mod_hub_runtime_smoke_test.ps1 -ExpectedMode attached`
 
 The script reads the latest `RE_Kenshi_log.txt` session and passes only when the latest Organize-the-Trader startup reaches `event=mod_hub_attached`, which proves Mod Hub lookup and setting registration succeeded for that run. If you see `event=mod_hub_attach_retry_pending`, the helper-owned retry path is still pending and that run is not a clean attached pass yet.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
