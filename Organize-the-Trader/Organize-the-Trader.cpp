@@ -56,14 +56,14 @@ public:
     Ogre::vector<InventoryIcon*>::type _icons;
 };
 
-#include "TraderCore.h"
-#include "TraderDiagnostics.h"
-#include "TraderInventoryBinding.h"
-#include "TraderSearchPipeline.h"
-#include "TraderSearchUi.h"
-#include "TraderSearchText.h"
-#include "TraderModHub.h"
-#include "TraderWindowDetection.h"
+#include "src/TraderCore.h"
+#include "src/TraderDiagnostics.h"
+#include "src/TraderInventoryBinding.h"
+#include "src/TraderSearchPipeline.h"
+#include "src/TraderSearchUi.h"
+#include "src/TraderSearchText.h"
+#include "src/TraderModHub.h"
+#include "src/TraderWindowDetection.h"
 
 namespace
 {

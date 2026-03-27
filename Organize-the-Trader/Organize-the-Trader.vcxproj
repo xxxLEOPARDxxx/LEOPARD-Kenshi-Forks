@@ -88,33 +88,33 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Organize-the-Trader.cpp" />
-    <ClCompile Include="TraderCore.cpp" />
-    <ClCompile Include="TraderDiagnostics.cpp" />
-    <ClCompile Include="TraderInventoryBinding.cpp" />
-    <ClCompile Include="TraderInventoryKeyset.cpp" />
-    <ClCompile Include="TraderInventoryResolver.cpp" />
-    <ClCompile Include="TraderInventorySources.cpp" />
-    <ClCompile Include="TraderModHub.cpp" />
-    <ClCompile Include="TraderSearchInputBehavior.cpp" />
-    <ClCompile Include="TraderSearchPipeline.cpp" />
-    <ClCompile Include="TraderSearchUi.cpp" />
-    <ClCompile Include="TraderSearchText.cpp" />
-    <ClCompile Include="TraderWindowDetection.cpp" />
+    <ClCompile Include="src\TraderCore.cpp" />
+    <ClCompile Include="src\TraderDiagnostics.cpp" />
+    <ClCompile Include="src\TraderInventoryBinding.cpp" />
+    <ClCompile Include="src\TraderInventoryKeyset.cpp" />
+    <ClCompile Include="src\TraderInventoryResolver.cpp" />
+    <ClCompile Include="src\TraderInventorySources.cpp" />
+    <ClCompile Include="src\TraderModHub.cpp" />
+    <ClCompile Include="src\TraderSearchInputBehavior.cpp" />
+    <ClCompile Include="src\TraderSearchPipeline.cpp" />
+    <ClCompile Include="src\TraderSearchUi.cpp" />
+    <ClCompile Include="src\TraderSearchText.cpp" />
+    <ClCompile Include="src\TraderWindowDetection.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />
-    <ClInclude Include="TraderCore.h" />
-    <ClInclude Include="TraderDiagnostics.h" />
-    <ClInclude Include="TraderInventoryBinding.h" />
-    <ClInclude Include="TraderModHub.h" />
-    <ClInclude Include="TraderSearchInputBehavior.h" />
-    <ClInclude Include="TraderSearchPipeline.h" />
-    <ClInclude Include="TraderSearchUi.h" />
-    <ClInclude Include="TraderSearchText.h" />
-    <ClInclude Include="TraderWindowDetection.h" />
+    <ClInclude Include="src\TraderCore.h" />
+    <ClInclude Include="src\TraderDiagnostics.h" />
+    <ClInclude Include="src\TraderInventoryBinding.h" />
+    <ClInclude Include="src\TraderModHub.h" />
+    <ClInclude Include="src\TraderSearchInputBehavior.h" />
+    <ClInclude Include="src\TraderSearchPipeline.h" />
+    <ClInclude Include="src\TraderSearchUi.h" />
+    <ClInclude Include="src\TraderSearchText.h" />
+    <ClInclude Include="src\TraderWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -18,40 +18,40 @@
     <ClCompile Include="Organize-the-Trader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderCore.cpp">
+    <ClCompile Include="src\TraderCore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderDiagnostics.cpp">
+    <ClCompile Include="src\TraderDiagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryBinding.cpp">
+    <ClCompile Include="src\TraderInventoryBinding.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryKeyset.cpp">
+    <ClCompile Include="src\TraderInventoryKeyset.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventoryResolver.cpp">
+    <ClCompile Include="src\TraderInventoryResolver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderInventorySources.cpp">
+    <ClCompile Include="src\TraderInventorySources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderModHub.cpp">
+    <ClCompile Include="src\TraderModHub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchInputBehavior.cpp">
+    <ClCompile Include="src\TraderSearchInputBehavior.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchPipeline.cpp">
+    <ClCompile Include="src\TraderSearchPipeline.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchUi.cpp">
+    <ClCompile Include="src\TraderSearchUi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderSearchText.cpp">
+    <ClCompile Include="src\TraderSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TraderWindowDetection.cpp">
+    <ClCompile Include="src\TraderWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mod_hub_client.cpp">
@@ -68,31 +68,31 @@
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderCore.h">
+    <ClInclude Include="src\TraderCore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderDiagnostics.h">
+    <ClInclude Include="src\TraderDiagnostics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderInventoryBinding.h">
+    <ClInclude Include="src\TraderInventoryBinding.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderModHub.h">
+    <ClInclude Include="src\TraderModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchInputBehavior.h">
+    <ClInclude Include="src\TraderSearchInputBehavior.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchPipeline.h">
+    <ClInclude Include="src\TraderSearchPipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchUi.h">
+    <ClInclude Include="src\TraderSearchUi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderSearchText.h">
+    <ClInclude Include="src\TraderSearchText.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TraderWindowDetection.h">
+    <ClInclude Include="src\TraderWindowDetection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
