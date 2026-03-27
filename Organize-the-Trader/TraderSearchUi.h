@@ -48,6 +48,7 @@ void UpdateSearchCountText(
     std::size_t visibleEntryCount,
     std::size_t totalEntryCount,
     std::size_t visibleQuantity);
+void ApplyRuntimeSearchUiConfig();
 void TickSearchContainerDrag();
 bool BuildControlsScaffold(
     MyGUI::Widget* parent,

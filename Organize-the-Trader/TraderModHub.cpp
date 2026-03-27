@@ -1,6 +1,7 @@
 #include "TraderModHub.h"
 
 #include "TraderCore.h"
+#include "TraderSearchUi.h"
 #include "emc/mod_hub_client.h"
 
 #include <sstream>
@@ -90,6 +91,7 @@ EMC_Result SetHubBoolSetting(
         return EMC_ERR_INTERNAL;
     }
 
+    ApplyRuntimeSearchUiConfig();
     WriteHubErrorText(err_buf, err_buf_size, 0);
     return EMC_OK;
 }
@@ -132,6 +134,7 @@ EMC_Result SetHubIntSetting(
         return EMC_ERR_INTERNAL;
     }
 
+    ApplyRuntimeSearchUiConfig();
     WriteHubErrorText(err_buf, err_buf_size, 0);
     return EMC_OK;
 }
@@ -246,6 +249,44 @@ EMC_Result __cdecl SetSearchInputHeightSetting(
         &TraderConfigSnapshot::searchInputHeight);
 }
 
+EMC_Result __cdecl GetSortPanelWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::sortPanelWidth);
+}
+
+EMC_Result __cdecl SetSortPanelWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::sortPanelWidth);
+}
+
+EMC_Result __cdecl GetSortPanelHeightSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::sortPanelHeight);
+}
+
+EMC_Result __cdecl SetSortPanelHeightSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::sortPanelHeight);
+}
+
 void LogModHubFallback(const char* reason)
 {
     std::stringstream line;
@@ -331,13 +372,37 @@ void EnsureModHubClientConfigured()
         &GetSearchInputHeightSetting,
         &SetSearchInputHeightSetting };
 
+    static const EMC_IntSettingDefV1 kSortPanelWidthSetting = {
+        "sort_panel_width",
+        "Sort panel width",
+        "Desired sort panel width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSortPanelConfiguredWidthMin),
+        static_cast<int32_t>(kSortPanelConfiguredWidthMax),
+        1,
+        &GetSortPanelWidthSetting,
+        &SetSortPanelWidthSetting };
+
+    static const EMC_IntSettingDefV1 kSortPanelHeightSetting = {
+        "sort_panel_height",
+        "Sort panel height",
+        "Desired sort panel height in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSortPanelConfiguredHeightMin),
+        static_cast<int32_t>(kSortPanelConfiguredHeightMax),
+        1,
+        &GetSortPanelHeightSetting,
+        &SetSortPanelHeightSetting };
+
     static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSortPanelWidthSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSortPanelHeightSetting }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {

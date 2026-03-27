@@ -49,6 +49,12 @@ static const int kSearchInputConfiguredHeightMin = 22;
 static const int kSearchInputConfiguredHeightMax = 48;
 static const int kDefaultSearchInputConfiguredWidth = 372;
 static const int kDefaultSearchInputConfiguredHeight = 26;
+static const int kSortPanelConfiguredWidthMin = 240;
+static const int kSortPanelConfiguredWidthMax = 720;
+static const int kSortPanelConfiguredHeightMin = 22;
+static const int kSortPanelConfiguredHeightMax = 48;
+static const int kDefaultSortPanelConfiguredWidth = 372;
+static const int kDefaultSortPanelConfiguredHeight = 26;
 
 enum TraderSortMode
 {
@@ -72,6 +78,11 @@ struct TraderConfigSnapshot
         , searchInputPositionCustomized(false)
         , searchInputLeft(0)
         , searchInputTop(0)
+        , sortPanelWidth(kDefaultSortPanelConfiguredWidth)
+        , sortPanelHeight(kDefaultSortPanelConfiguredHeight)
+        , sortPanelPositionCustomized(false)
+        , sortPanelLeft(0)
+        , sortPanelTop(0)
     {
     }
 
@@ -87,6 +98,11 @@ struct TraderConfigSnapshot
     bool searchInputPositionCustomized;
     int searchInputLeft;
     int searchInputTop;
+    int sortPanelWidth;
+    int sortPanelHeight;
+    bool sortPanelPositionCustomized;
+    int sortPanelLeft;
+    int sortPanelTop;
 };
 
 struct SectionWidgetInventoryLink
@@ -180,8 +196,10 @@ struct CoreState
         , g_debugLogging(false)
         , g_debugSearchLogging(false)
         , g_debugBindingLogging(false)
-        , g_searchInputConfiguredWidth(372)
-        , g_searchInputConfiguredHeight(26)
+        , g_searchInputConfiguredWidth(kDefaultSearchInputConfiguredWidth)
+        , g_searchInputConfiguredHeight(kDefaultSearchInputConfiguredHeight)
+        , g_sortPanelConfiguredWidth(kDefaultSortPanelConfiguredWidth)
+        , g_sortPanelConfiguredHeight(kDefaultSortPanelConfiguredHeight)
     {
     }
 
@@ -195,6 +213,8 @@ struct CoreState
     bool g_debugBindingLogging;
     int g_searchInputConfiguredWidth;
     int g_searchInputConfiguredHeight;
+    int g_sortPanelConfiguredWidth;
+    int g_sortPanelConfiguredHeight;
 };
 
 struct WindowDetectionState
@@ -275,6 +295,14 @@ struct SearchUiState
         , g_searchContainerDragStartTop(0)
         , g_searchContainerStoredLeft(0)
         , g_searchContainerStoredTop(0)
+        , g_sortContainerDragging(false)
+        , g_sortContainerPositionCustomized(false)
+        , g_sortContainerDragLastMouseX(0)
+        , g_sortContainerDragLastMouseY(0)
+        , g_sortContainerDragStartLeft(0)
+        , g_sortContainerDragStartTop(0)
+        , g_sortContainerStoredLeft(0)
+        , g_sortContainerStoredTop(0)
     {
     }
 
@@ -294,6 +322,14 @@ struct SearchUiState
     int g_searchContainerDragStartTop;
     int g_searchContainerStoredLeft;
     int g_searchContainerStoredTop;
+    bool g_sortContainerDragging;
+    bool g_sortContainerPositionCustomized;
+    int g_sortContainerDragLastMouseX;
+    int g_sortContainerDragLastMouseY;
+    int g_sortContainerDragStartLeft;
+    int g_sortContainerDragStartTop;
+    int g_sortContainerStoredLeft;
+    int g_sortContainerStoredTop;
 };
 
 struct BindingState
@@ -409,6 +445,8 @@ void LogSearchDebugLine(const std::string& message);
 void LogBindingDebugLine(const std::string& message);
 int ClampSearchInputConfiguredWidth(int value);
 int ClampSearchInputConfiguredHeight(int value);
+int ClampSortPanelConfiguredWidth(int value);
+int ClampSortPanelConfiguredHeight(int value);
 void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config);
 TraderConfigSnapshot CaptureTraderConfigSnapshot();
 void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config);
