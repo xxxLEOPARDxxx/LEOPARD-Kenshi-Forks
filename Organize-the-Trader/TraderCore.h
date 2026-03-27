@@ -59,19 +59,16 @@ static const int kDefaultSortPanelConfiguredHeight = 26;
 enum TraderSortMode
 {
     TraderSortMode_None = 0,
-    TraderSortMode_Price,
+    TraderSortMode_UnitPrice,
+    TraderSortMode_StackValue,
+    TraderSortMode_Weight,
+    TraderSortMode_ValuePerWeight,
 };
 
 enum TraderSortDirection
 {
     TraderSortDirection_Ascending = 0,
     TraderSortDirection_Descending,
-};
-
-enum TraderSortPriceMode
-{
-    TraderSortPriceMode_UnitPrice = 0,
-    TraderSortPriceMode_TotalStackValue,
 };
 
 struct TraderConfigSnapshot
@@ -248,7 +245,6 @@ struct SearchState
         , g_loggedNumericOnlyQueryIgnored(false)
         , g_sortMode(TraderSortMode_None)
         , g_sortDirection(TraderSortDirection_Descending)
-        , g_sortPriceMode(TraderSortPriceMode_UnitPrice)
         , g_lockedKeysetTraderParent(0)
         , g_sortedEntriesRoot(0)
         , g_sortedInventory(0)
@@ -264,7 +260,6 @@ struct SearchState
     bool g_loggedNumericOnlyQueryIgnored;
     TraderSortMode g_sortMode;
     TraderSortDirection g_sortDirection;
-    TraderSortPriceMode g_sortPriceMode;
     std::string g_searchQueryRaw;
     std::string g_searchQueryNormalized;
     std::string g_pendingSlashFocusBaseQuery;
@@ -277,6 +272,7 @@ struct SearchState
     std::string g_lastCoverageFallbackDecisionSignature;
     std::string g_lastSearchSampleQueryLogged;
     std::string g_lastSortInvestigationSignature;
+    std::string g_expectedSortedInventoryLayoutSignature;
     MyGUI::Widget* g_lockedKeysetTraderParent;
     MyGUI::Widget* g_sortedEntriesRoot;
     std::string g_lockedKeysetStage;
@@ -463,11 +459,7 @@ int ClampSearchInputConfiguredHeight(int value);
 int ClampSortPanelConfiguredWidth(int value);
 int ClampSortPanelConfiguredHeight(int value);
 TraderSortDirection ToggleTraderSortDirection(TraderSortDirection direction);
-const char* TraderSortPriceModeLabel(TraderSortPriceMode mode);
-const char* TraderSortStateLabel(
-    TraderSortMode mode,
-    TraderSortDirection direction,
-    TraderSortPriceMode priceMode);
+const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direction);
 void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config);
 TraderConfigSnapshot CaptureTraderConfigSnapshot();
 void ApplyTraderConfigSnapshot(const TraderConfigSnapshot& config);

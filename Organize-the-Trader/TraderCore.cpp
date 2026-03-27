@@ -402,34 +402,26 @@ TraderSortDirection ToggleTraderSortDirection(TraderSortDirection direction)
         : TraderSortDirection_Descending;
 }
 
-const char* TraderSortPriceModeLabel(TraderSortPriceMode mode)
+const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direction)
 {
     switch (mode)
     {
-    case TraderSortPriceMode_TotalStackValue:
-        return "total";
-    default:
-        return "unit";
-    }
-}
-
-const char* TraderSortStateLabel(
-    TraderSortMode mode,
-    TraderSortDirection direction,
-    TraderSortPriceMode priceMode)
-{
-    switch (mode)
-    {
-    case TraderSortMode_Price:
-        if (priceMode == TraderSortPriceMode_TotalStackValue)
-        {
-            return direction == TraderSortDirection_Descending
-                ? "price_total_desc"
-                : "price_total_asc";
-        }
+    case TraderSortMode_UnitPrice:
         return direction == TraderSortDirection_Descending
-            ? "price_unit_desc"
-            : "price_unit_asc";
+            ? "unit_price_desc"
+            : "unit_price_asc";
+    case TraderSortMode_StackValue:
+        return direction == TraderSortDirection_Descending
+            ? "stack_value_desc"
+            : "stack_value_asc";
+    case TraderSortMode_Weight:
+        return direction == TraderSortDirection_Descending
+            ? "weight_desc"
+            : "weight_asc";
+    case TraderSortMode_ValuePerWeight:
+        return direction == TraderSortDirection_Descending
+            ? "value_weight_desc"
+            : "value_weight_asc";
     default:
         return "default";
     }
