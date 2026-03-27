@@ -39,19 +39,6 @@ struct HoverProbeCandidate
     std::string label;
 };
 
-const char* SortModeLabelForDiagnostics(TraderSortMode mode)
-{
-    switch (mode)
-    {
-    case TraderSortMode_PriceAscending:
-        return "price_asc";
-    case TraderSortMode_PriceDescending:
-        return "price_desc";
-    default:
-        return "default";
-    }
-}
-
 bool TryFindDiagnosticBaseCoord(MyGUI::Widget* widget, MyGUI::IntCoord* outCoord)
 {
     if (widget == 0 || outCoord == 0)
@@ -632,7 +619,10 @@ void LogSortHoverProbe(
 
     std::stringstream header;
     header << "[investigate][sort-hover] snapshot"
-           << " sort_mode=" << SortModeLabelForDiagnostics(TraderState().search.g_sortMode)
+           << " sort_mode="
+           << TraderSortStateLabel(
+               TraderState().search.g_sortMode,
+               TraderState().search.g_sortDirection)
            << " query=\"" << TraderState().search.g_searchQueryNormalized << "\""
            << " hovered=" << SafeWidgetName(hovered)
            << " hovered_chain=\"" << TruncateForLog(BuildParentChainForLog(hovered), 220) << "\""

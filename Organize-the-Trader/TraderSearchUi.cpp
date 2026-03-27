@@ -12,6 +12,7 @@
 #include <kenshi/InputHandler.h>
 
 #include <mygui/MyGUI_Button.h>
+#include <mygui/MyGUI_ComboBox.h>
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
@@ -34,8 +35,8 @@ const char* kSearchClearButtonName = "OTT_SearchClearButton";
 const char* kSearchDragHandleName = "OTT_SearchDragHandle";
 const char* kSearchCountTextName = "OTT_SearchCountText";
 const char* kSortDragHandleName = "OTT_SortDragHandle";
-const char* kSortPriceAscButtonName = "OTT_SortPriceAscButton";
-const char* kSortPriceDescButtonName = "OTT_SortPriceDescButton";
+const char* kSortModeComboName = "OTT_SortModeCombo";
+const char* kSortDirectionButtonName = "OTT_SortDirectionButton";
 const int kSearchCountGap = 2;
 const int kPanelOuterPadding = 8;
 const int kPanelGap = 8;
@@ -71,6 +72,7 @@ TraderSearchInputBehavior::Snapshot g_searchEditSnapshot;
 #define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
 #define g_loggedNumericOnlyQueryIgnored (TraderState().search.g_loggedNumericOnlyQueryIgnored)
 #define g_sortMode (TraderState().search.g_sortMode)
+#define g_sortDirection (TraderState().search.g_sortDirection)
 #define g_activeTraderTargetId (TraderState().search.g_activeTraderTargetId)
 #define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
 #define g_lastSearchSampleQueryLogged (TraderState().search.g_lastSearchSampleQueryLogged)
@@ -842,8 +844,8 @@ bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
 
 void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character);
 void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode);
-void OnSortPriceAscButtonClicked(MyGUI::Widget* sender);
-void OnSortPriceDescButtonClicked(MyGUI::Widget* sender);
+void OnSortModeComboAccepted(MyGUI::ComboBox* sender, std::size_t index);
+void OnSortDirectionButtonClicked(MyGUI::Widget* sender);
 void EnsureControlsInjectedIfEnabled();
 
 MyGUI::Widget* FindControlsContainer()
@@ -901,7 +903,7 @@ MyGUI::TextBox* FindSearchCountTextBox()
     return found == 0 ? 0 : found->castType<MyGUI::TextBox>(false);
 }
 
-MyGUI::Button* FindSortPriceAscButton()
+MyGUI::ComboBox* FindSortModeComboBox()
 {
     MyGUI::Widget* sortContainer = FindSortControlsContainer();
     if (sortContainer == 0)
@@ -909,12 +911,11 @@ MyGUI::Button* FindSortPriceAscButton()
         return 0;
     }
 
-    MyGUI::Widget* found =
-        FindNamedDescendantRecursive(sortContainer, kSortPriceAscButtonName, false);
-    return found == 0 ? 0 : found->castType<MyGUI::Button>(false);
+    MyGUI::Widget* found = FindNamedDescendantRecursive(sortContainer, kSortModeComboName, false);
+    return found == 0 ? 0 : found->castType<MyGUI::ComboBox>(false);
 }
 
-MyGUI::Button* FindSortPriceDescButton()
+MyGUI::Button* FindSortDirectionButton()
 {
     MyGUI::Widget* sortContainer = FindSortControlsContainer();
     if (sortContainer == 0)
@@ -923,7 +924,7 @@ MyGUI::Button* FindSortPriceDescButton()
     }
 
     MyGUI::Widget* found =
-        FindNamedDescendantRecursive(sortContainer, kSortPriceDescButtonName, false);
+        FindNamedDescendantRecursive(sortContainer, kSortDirectionButtonName, false);
     return found == 0 ? 0 : found->castType<MyGUI::Button>(false);
 }
 
@@ -981,6 +982,17 @@ bool IsSearchEditFocused(MyGUI::EditBox* searchEdit)
     return input->getKeyFocusWidget() == searchEdit;
 }
 
+std::size_t ResolveSortModeComboIndex(TraderSortMode mode)
+{
+    switch (mode)
+    {
+    case TraderSortMode_Price:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 void UpdateSearchUiState()
 {
     MyGUI::EditBox* searchEdit = FindSearchEditBox();
@@ -992,12 +1004,13 @@ void UpdateSearchUiState()
     MyGUI::Button* clearButton = FindSearchClearButton();
     MyGUI::TextBox* placeholder = FindSearchPlaceholderTextBox();
     MyGUI::TextBox* countText = FindSearchCountTextBox();
-    MyGUI::Button* priceAscButton = FindSortPriceAscButton();
-    MyGUI::Button* priceDescButton = FindSortPriceDescButton();
+    MyGUI::ComboBox* sortModeCombo = FindSortModeComboBox();
+    MyGUI::Button* sortDirectionButton = FindSortDirectionButton();
 
     const bool hasQuery = !g_searchQueryRaw.empty();
     const bool focused = IsSearchEditFocused(searchEdit);
     const bool noVisibleResults = SearchHasNoVisibleResults();
+    const bool sortActive = g_sortMode != TraderSortMode_None;
 
     if (clearButton != 0)
     {
@@ -1112,22 +1125,27 @@ void UpdateSearchUiState()
         countText->setAlpha(focused ? 1.0f : 0.92f);
     }
 
-    if (priceAscButton != 0)
+    if (sortModeCombo != 0)
     {
-        const bool active = g_sortMode == TraderSortMode_PriceAscending;
-        priceAscButton->setAlpha(active ? 1.0f : 0.84f);
-        priceAscButton->setColour(
-            active
+        const std::size_t desiredIndex = ResolveSortModeComboIndex(g_sortMode);
+        if (sortModeCombo->getIndexSelected() != desiredIndex)
+        {
+            sortModeCombo->setIndexSelected(desiredIndex);
+        }
+        sortModeCombo->setAlpha(sortActive ? 1.0f : 0.92f);
+        sortModeCombo->setColour(
+            sortActive
                 ? MyGUI::Colour::White
-                : MyGUI::Colour(0.82f, 0.82f, 0.82f, 1.0f));
+                : MyGUI::Colour(0.88f, 0.88f, 0.88f, 1.0f));
     }
 
-    if (priceDescButton != 0)
+    if (sortDirectionButton != 0)
     {
-        const bool active = g_sortMode == TraderSortMode_PriceDescending;
-        priceDescButton->setAlpha(active ? 1.0f : 0.84f);
-        priceDescButton->setColour(
-            active
+        sortDirectionButton->setCaption(
+            g_sortDirection == TraderSortDirection_Descending ? "v" : "^");
+        sortDirectionButton->setAlpha(sortActive ? 1.0f : 0.84f);
+        sortDirectionButton->setColour(
+            sortActive
                 ? MyGUI::Colour::White
                 : MyGUI::Colour(0.82f, 0.82f, 0.82f, 1.0f));
     }
@@ -1485,11 +1503,28 @@ bool BuildControlsScaffold(
     const int sortPanelWidth = sortContainerWidth - sortPanelLeft - outerPadding;
     const int sortPanelInnerPadding = 6;
     const int sortLabelWidth = 32;
-    const int sortButtonGap = 4;
-    const int sortButtonAreaWidth =
-        sortPanelWidth - (sortPanelInnerPadding * 2) - sortLabelWidth - sortButtonGap;
-    const int sortButtonWidth = (sortButtonAreaWidth - sortButtonGap) / 2;
-    const int sortButtonLeft = sortPanelInnerPadding + sortLabelWidth + sortButtonGap;
+    const int sortControlGap = 4;
+    int sortDirectionButtonWidth = sortRowHeight;
+    if (sortDirectionButtonWidth > 32)
+    {
+        sortDirectionButtonWidth = 32;
+    }
+    if (sortDirectionButtonWidth < 22)
+    {
+        sortDirectionButtonWidth = 22;
+    }
+    int sortComboWidth =
+        sortPanelWidth
+        - (sortPanelInnerPadding * 2)
+        - sortLabelWidth
+        - (sortControlGap * 2)
+        - sortDirectionButtonWidth;
+    if (sortComboWidth < 80)
+    {
+        sortComboWidth = 80;
+    }
+    const int sortComboLeft = sortPanelInnerPadding + sortLabelWidth + sortControlGap;
+    const int sortDirectionButtonLeft = sortComboLeft + sortComboWidth + sortControlGap;
 
     MyGUI::TextBox* sortLabel = sortContainer->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -1506,39 +1541,45 @@ bool BuildControlsScaffold(
     sortLabel->setCaption("Sort");
     sortLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
 
-    MyGUI::Button* sortPriceAscButton = sortContainer->createWidget<MyGUI::Button>(
-        "Kenshi_Button1",
-        MyGUI::IntCoord(sortPanelLeft + sortButtonLeft, outerPadding, sortButtonWidth, sortRowHeight),
+    MyGUI::ComboBox* sortModeCombo = sortContainer->createWidget<MyGUI::ComboBox>(
+        "Kenshi_ComboBox",
+        MyGUI::IntCoord(sortPanelLeft + sortComboLeft, outerPadding, sortComboWidth, sortRowHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
-        kSortPriceAscButtonName);
-    if (sortPriceAscButton == 0)
+        kSortModeComboName);
+    if (sortModeCombo == 0)
     {
-        LogErrorLine("failed to create sort price asc button");
+        LogErrorLine("failed to create sort mode combo");
         DestroyWidgetDirect(sortContainer);
         DestroyWidgetDirect(container);
         return false;
     }
-    sortPriceAscButton->setCaption("Price Asc");
-    sortPriceAscButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortPriceAscButtonClicked);
+    sortModeCombo->setComboModeDrop(true);
+    sortModeCombo->setSmoothShow(false);
+    sortModeCombo->addItem("Default");
+    sortModeCombo->addItem("Price");
+    sortModeCombo->setIndexSelected(ResolveSortModeComboIndex(g_sortMode));
+    sortModeCombo->eventComboAccept += MyGUI::newDelegate(&OnSortModeComboAccepted);
 
-    MyGUI::Button* sortPriceDescButton = sortContainer->createWidget<MyGUI::Button>(
+    MyGUI::Button* sortDirectionButton = sortContainer->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
         MyGUI::IntCoord(
-            sortPanelLeft + sortButtonLeft + sortButtonWidth + sortButtonGap,
+            sortPanelLeft + sortDirectionButtonLeft,
             outerPadding,
-            sortButtonWidth,
+            sortDirectionButtonWidth,
             sortRowHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
-        kSortPriceDescButtonName);
-    if (sortPriceDescButton == 0)
+        kSortDirectionButtonName);
+    if (sortDirectionButton == 0)
     {
-        LogErrorLine("failed to create sort price desc button");
+        LogErrorLine("failed to create sort direction button");
         DestroyWidgetDirect(sortContainer);
         DestroyWidgetDirect(container);
         return false;
     }
-    sortPriceDescButton->setCaption("Price Desc");
-    sortPriceDescButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSortPriceDescButtonClicked);
+    sortDirectionButton->setCaption(
+        g_sortDirection == TraderSortDirection_Descending ? "v" : "^");
+    sortDirectionButton->eventMouseButtonClick +=
+        MyGUI::newDelegate(&OnSortDirectionButtonClicked);
 
     FocusSearchEditIfRequested(searchEdit, "controls_built");
     UpdateSearchUiState();
@@ -1788,50 +1829,59 @@ void OnSearchClearButtonClicked(MyGUI::Widget*)
     SetSearchQueryAndRefresh(searchEdit, "", "clear_button", true);
 }
 
-const char* SortModeLabel(TraderSortMode mode)
+TraderSortMode ResolveSortModeFromComboIndex(std::size_t index)
 {
-    switch (mode)
-    {
-    case TraderSortMode_PriceAscending:
-        return "price_asc";
-    case TraderSortMode_PriceDescending:
-        return "price_desc";
-    default:
-        return "default";
-    }
+    return index == 1 ? TraderSortMode_Price : TraderSortMode_None;
 }
 
-void SetSortModeAndRefresh(TraderSortMode requestedMode, const char* reason)
+void SetSortStateAndRefresh(
+    TraderSortMode requestedMode,
+    TraderSortDirection requestedDirection,
+    const char* reason)
 {
-    const TraderSortMode nextMode =
-        g_sortMode == requestedMode ? TraderSortMode_None : requestedMode;
-    if (g_sortMode == nextMode)
+    const TraderSortMode previousMode = g_sortMode;
+    const TraderSortDirection previousDirection = g_sortDirection;
+    if (previousMode == requestedMode && previousDirection == requestedDirection)
     {
         UpdateSearchUiState();
         return;
     }
 
-    g_sortMode = nextMode;
+    g_sortMode = requestedMode;
+    g_sortDirection = requestedDirection;
 
     std::stringstream line;
     line << "search ui action"
          << " reason=" << (reason == 0 ? "<unknown>" : reason)
-         << " sort_mode=" << SortModeLabel(g_sortMode);
+         << " sort_mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection);
     LogSearchDebugLine(line.str());
 
-    MarkSearchFilterDirty(reason);
-    ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    if (previousMode != TraderSortMode_None || requestedMode != TraderSortMode_None)
+    {
+        MarkSearchFilterDirty(reason);
+        ApplySearchFilterFromControls(false, ShouldLogSearchDebug());
+    }
     UpdateSearchUiState();
 }
 
-void OnSortPriceAscButtonClicked(MyGUI::Widget*)
+void OnSortModeComboAccepted(MyGUI::ComboBox*, std::size_t index)
 {
-    SetSortModeAndRefresh(TraderSortMode_PriceAscending, "sort_price_asc");
+    const TraderSortMode requestedMode = ResolveSortModeFromComboIndex(index);
+    SetSortStateAndRefresh(
+        requestedMode,
+        g_sortDirection,
+        requestedMode == TraderSortMode_None ? "sort_mode_default" : "sort_mode_price");
 }
 
-void OnSortPriceDescButtonClicked(MyGUI::Widget*)
+void OnSortDirectionButtonClicked(MyGUI::Widget*)
 {
-    SetSortModeAndRefresh(TraderSortMode_PriceDescending, "sort_price_desc");
+    const TraderSortDirection nextDirection = ToggleTraderSortDirection(g_sortDirection);
+    SetSortStateAndRefresh(
+        g_sortMode,
+        nextDirection,
+        nextDirection == TraderSortDirection_Descending
+            ? "sort_direction_desc"
+            : "sort_direction_asc");
 }
 
 void OnSearchPlaceholderClicked(MyGUI::Widget*)

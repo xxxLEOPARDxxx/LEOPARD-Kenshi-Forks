@@ -395,6 +395,24 @@ int ClampSortPanelConfiguredHeight(int value)
     return ClampIntValue(value, kSortPanelConfiguredHeightMin, kSortPanelConfiguredHeightMax);
 }
 
+TraderSortDirection ToggleTraderSortDirection(TraderSortDirection direction)
+{
+    return direction == TraderSortDirection_Descending
+        ? TraderSortDirection_Ascending
+        : TraderSortDirection_Descending;
+}
+
+const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direction)
+{
+    switch (mode)
+    {
+    case TraderSortMode_Price:
+        return direction == TraderSortDirection_Descending ? "price_desc" : "price_asc";
+    default:
+        return "default";
+    }
+}
+
 void NormalizeTraderConfigSnapshot(TraderConfigSnapshot* config)
 {
     if (config == 0)

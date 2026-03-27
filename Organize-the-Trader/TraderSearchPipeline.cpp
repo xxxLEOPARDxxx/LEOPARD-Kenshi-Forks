@@ -21,6 +21,7 @@
 #define g_searchQueryRaw (TraderState().search.g_searchQueryRaw)
 #define g_searchQueryNormalized (TraderState().search.g_searchQueryNormalized)
 #define g_sortMode (TraderState().search.g_sortMode)
+#define g_sortDirection (TraderState().search.g_sortDirection)
 #define g_lastZeroMatchQueryLogged (TraderState().search.g_lastZeroMatchQueryLogged)
 #define g_lastObservedTraderEntriesStateSignature (TraderState().search.g_lastObservedTraderEntriesStateSignature)
 #define g_lastZeroMatchGuardSignature (TraderState().search.g_lastZeroMatchGuardSignature)
@@ -346,19 +347,6 @@ int ResolveEntrySpanCells(int spanPixels, int explicitCells, int cellPixels)
     return (spanPixels + cellPixels - 1) / cellPixels;
 }
 
-const char* SortModeDebugLabel(TraderSortMode mode)
-{
-    switch (mode)
-    {
-    case TraderSortMode_PriceAscending:
-        return "price_asc";
-    case TraderSortMode_PriceDescending:
-        return "price_desc";
-    default:
-        return "default";
-    }
-}
-
 std::string FormatCoordForInvestigation(const MyGUI::IntCoord& coord)
 {
     std::stringstream line;
@@ -460,15 +448,13 @@ void FillEntryFootprint(
     }
 }
 
-bool TryBuildSortedTargetCoords(
+bool TryResolveSortedGridMetrics(
     MyGUI::Widget* entriesRoot,
     const std::vector<OrderedEntry>& orderedEntries,
-    const std::vector<std::size_t>& displayOrder,
-    std::vector<MyGUI::IntCoord>* outTargetCoords,
     SortedGridMetrics* outGridMetrics,
     std::string* outFailureReason)
 {
-    if (entriesRoot == 0 || outTargetCoords == 0)
+    if (entriesRoot == 0 || outGridMetrics == 0)
     {
         if (outFailureReason != 0)
         {
@@ -476,19 +462,11 @@ bool TryBuildSortedTargetCoords(
         }
         return false;
     }
-
-    outTargetCoords->clear();
-    outTargetCoords->reserve(orderedEntries.size());
-    for (std::size_t index = 0; index < orderedEntries.size(); ++index)
-    {
-        outTargetCoords->push_back(orderedEntries[index].coord);
-    }
-
-    if (orderedEntries.size() != displayOrder.size() || orderedEntries.empty())
+    if (orderedEntries.empty())
     {
         if (outFailureReason != 0)
         {
-            *outFailureReason = orderedEntries.empty() ? "empty_ordered_entries" : "display_order_mismatch";
+            *outFailureReason = "empty_ordered_entries";
         }
         return false;
     }
@@ -554,14 +532,66 @@ bool TryBuildSortedTargetCoords(
         return false;
     }
 
+    outGridMetrics->cellWidth = cellWidth;
+    outGridMetrics->cellHeight = cellHeight;
+    outGridMetrics->originLeft = originLeft;
+    outGridMetrics->originTop = originTop;
+    outGridMetrics->columns = columns;
+    outGridMetrics->rows = rows;
+    if (outFailureReason != 0)
+    {
+        outFailureReason->clear();
+    }
+    return true;
+}
+
+bool TryBuildSortedTargetCoords(
+    MyGUI::Widget* entriesRoot,
+    const std::vector<OrderedEntry>& orderedEntries,
+    const std::vector<std::size_t>& displayOrder,
+    std::vector<MyGUI::IntCoord>* outTargetCoords,
+    SortedGridMetrics* outGridMetrics,
+    std::string* outFailureReason)
+{
+    if (entriesRoot == 0 || outTargetCoords == 0)
+    {
+        if (outFailureReason != 0)
+        {
+            *outFailureReason = "missing_entries_root";
+        }
+        return false;
+    }
+
+    outTargetCoords->clear();
+    outTargetCoords->reserve(orderedEntries.size());
+    for (std::size_t index = 0; index < orderedEntries.size(); ++index)
+    {
+        outTargetCoords->push_back(orderedEntries[index].coord);
+    }
+
+    if (orderedEntries.size() != displayOrder.size() || orderedEntries.empty())
+    {
+        if (outFailureReason != 0)
+        {
+            *outFailureReason = orderedEntries.empty() ? "empty_ordered_entries" : "display_order_mismatch";
+        }
+        return false;
+    }
+
+    SortedGridMetrics gridMetrics;
+    if (!TryResolveSortedGridMetrics(entriesRoot, orderedEntries, &gridMetrics, outFailureReason))
+    {
+        return false;
+    }
+    const int cellWidth = gridMetrics.cellWidth;
+    const int cellHeight = gridMetrics.cellHeight;
+    const int originLeft = gridMetrics.originLeft;
+    const int originTop = gridMetrics.originTop;
+    const int columns = gridMetrics.columns;
+    const int rows = gridMetrics.rows;
     if (outGridMetrics != 0)
     {
-        outGridMetrics->cellWidth = cellWidth;
-        outGridMetrics->cellHeight = cellHeight;
-        outGridMetrics->originLeft = originLeft;
-        outGridMetrics->originTop = originTop;
-        outGridMetrics->columns = columns;
-        outGridMetrics->rows = rows;
+        *outGridMetrics = gridMetrics;
     }
 
     std::vector<char> occupancy(columns * rows, 0);
@@ -1556,25 +1586,34 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     }
 
     std::vector<std::string> inventoryNameKeys;
-    std::vector<int> inventoryTradeValues;
     std::vector<QuantityNameKey> inventoryQuantityNameKeys;
+    std::vector<Item*> orderedEntryItems;
     std::string inventorySource;
     bool hasInventoryNameKeys = false;
-    bool hasInventoryTradeValues = false;
+    bool hasOrderedEntryItems = false;
     if (hasPanelBinding && panelBinding.inventory != 0)
     {
         hasInventoryNameKeys =
             TryExtractSearchKeysFromInventory(panelBinding.inventory, &inventoryNameKeys);
-        hasInventoryTradeValues =
-            TryExtractTradeValuesFromInventory(panelBinding.inventory, &inventoryTradeValues);
         TryExtractQuantityNameKeysFromInventory(panelBinding.inventory, &inventoryQuantityNameKeys);
+        SortedGridMetrics orderedEntryGridMetrics;
+        std::string orderedEntryItemFailureReason;
+        if (TryResolveSortedGridMetrics(
+                entriesRoot,
+                orderedEntries,
+                &orderedEntryGridMetrics,
+                &orderedEntryItemFailureReason))
+        {
+            hasOrderedEntryItems = TryResolveOrderedEntryItemsFromInventory(
+                panelBinding.inventory,
+                orderedEntries,
+                orderedEntryGridMetrics,
+                &orderedEntryItems,
+                &orderedEntryItemFailureReason);
+        }
         if (expectedEntryCount > 0 && inventoryNameKeys.size() > expectedEntryCount)
         {
             inventoryNameKeys.resize(expectedEntryCount);
-        }
-        if (expectedEntryCount > 0 && inventoryTradeValues.size() > expectedEntryCount)
-        {
-            inventoryTradeValues.resize(expectedEntryCount);
         }
         if (expectedEntryCount > 0 && inventoryQuantityNameKeys.size() > expectedEntryCount)
         {
@@ -1833,11 +1872,13 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
              && occupiedOrdinal < alignedInventoryNameHints.size())
             ? alignedInventoryNameHints[occupiedOrdinal]
             : "";
-        const bool hasTradeValue =
-            hasInventoryTradeValues
-            && occupiedOrdinal != static_cast<std::size_t>(-1)
-            && occupiedOrdinal < inventoryTradeValues.size();
-        const int tradeValue = hasTradeValue ? inventoryTradeValues[occupiedOrdinal] : 0;
+        Item* orderedEntryItem = 0;
+        if (hasOrderedEntryItems && childIndex < orderedEntryItems.size())
+        {
+            orderedEntryItem = orderedEntryItems[childIndex];
+        }
+        const bool hasTradeValue = orderedEntryItem != 0;
+        const int tradeValue = hasTradeValue ? orderedEntryItem->getValueAll(false) : 0;
 
         std::string quantityAlignedNameHint;
         if (!inventoryQuantityNameKeys.empty())
@@ -2071,14 +2112,16 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
 
         struct TradeValueSorter
         {
-            TradeValueSorter(const std::vector<EntryFilterState>* source, TraderSortMode mode)
+            TradeValueSorter(
+                const std::vector<EntryFilterState>* source,
+                TraderSortDirection direction)
                 : entries(source)
-                , sortMode(mode)
+                , sortDirection(direction)
             {
             }
 
             const std::vector<EntryFilterState>* entries;
-            TraderSortMode sortMode;
+            TraderSortDirection sortDirection;
 
             bool operator()(std::size_t leftIndex, std::size_t rightIndex) const
             {
@@ -2090,7 +2133,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 }
                 if (left.hasTradeValue && right.hasTradeValue && left.tradeValue != right.tradeValue)
                 {
-                    if (sortMode == TraderSortMode_PriceDescending)
+                    if (sortDirection == TraderSortDirection_Descending)
                     {
                         return left.tradeValue > right.tradeValue;
                     }
@@ -2103,7 +2146,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         std::stable_sort(
             visibleEntryIndices.begin(),
             visibleEntryIndices.end(),
-            TradeValueSorter(&entries, g_sortMode));
+            TradeValueSorter(&entries, g_sortDirection));
 
         displayOrder.insert(
             displayOrder.end(),
@@ -2198,7 +2241,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         std::stringstream line;
         line << "search sort inventory apply skipped"
-             << " mode=" << SortModeDebugLabel(g_sortMode)
+             << " mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection)
              << " reason=" << inventoryLayoutFailureReason
              << " source=\"" << TruncateForLog(inventorySource, 160) << "\"";
         LogWarnLine(line.str());
@@ -2213,7 +2256,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         else
         {
             std::stringstream signature;
-            signature << SortModeDebugLabel(g_sortMode)
+            signature << TraderSortStateLabel(g_sortMode, g_sortDirection)
                       << "|" << query
                       << "|" << SafeWidgetName(entriesRoot)
                       << "|" << shouldApplySortLayout
@@ -2318,7 +2361,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 {
                     std::stringstream line;
                     line << "snapshot"
-                         << " mode=" << SortModeDebugLabel(g_sortMode)
+                         << " mode=" << TraderSortStateLabel(g_sortMode, g_sortDirection)
                          << " query=\"" << query << "\""
                          << " should_apply=" << (shouldApplySortLayout ? "true" : "false")
                          << " layout_applied=" << (sortedLayoutApplied ? "true" : "false")
@@ -2418,7 +2461,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         std::stringstream line;
         line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
              << "\" normalized=\"" << (forceShowAll ? "" : query)
-             << "\" sort_mode=" << static_cast<int>(g_sortMode)
+             << "\" sort_mode=\"" << TraderSortStateLabel(g_sortMode, g_sortDirection)
              << "\" visible=" << visibleCount
              << " total=" << totalCount
              << " item_hints=" << itemNameHintCount
