@@ -15,6 +15,7 @@ x64/
 build/
 .packaging/
 dist/
+.tmp
 
 # Files
 *.obj
@@ -24,3 +25,5 @@ dist/
 
 # Local env overrides
 .env
+#release-notes
+#.release-notes-builder.json
