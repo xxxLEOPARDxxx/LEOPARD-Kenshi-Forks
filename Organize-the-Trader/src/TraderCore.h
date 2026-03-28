@@ -29,20 +29,6 @@ typedef void (*InventoryLayoutCreateGUIFn)(
     InventoryGUI*,
     Ogre::map<std::string, InventorySectionGUI*>::type&,
     Inventory*);
-typedef void (*PlayerInterfacePickupItemFn)(PlayerInterface*, Item*);
-typedef bool (*InventoryTransferMouseItemFn)(Inventory*, Item*);
-typedef bool (*InventorySectionRemoveItemFn)(InventorySection*, Item*);
-typedef void (*InventorySectionAddItemFn)(InventorySection*, Item*, int, int);
-typedef Item* (*InventoryRemoveItemDontDestroyFn)(Inventory*, Item*, int, bool);
-typedef bool (*InventoryTakeItemEntireStackFn)(Inventory*, Item*);
-typedef void (*InventorySectionAddItemCallbackFn)(Inventory*, Item*);
-typedef void (*InventorySectionUpdateItemCallbackFn)(Inventory*, Item*, int);
-typedef void (*InventorySectionRemoveItemCallbackFn)(Inventory*, Item*);
-typedef void (*InventoryAddToListFn)(Inventory*, Item*);
-typedef void (*InventoryRemoveFromListFn)(Inventory*, Item*, bool);
-typedef void (*ItemResetAfterCopyFn)(Item*);
-typedef void (*InventoryItemAddQuantityFn)(InventoryItemBase*, int&, Item*, InventorySection*);
-
 static const int kSearchInputConfiguredWidthMin = 120;
 static const int kSearchInputConfiguredWidthMax = 720;
 static const int kSearchInputConfiguredHeightMin = 22;
@@ -380,26 +366,12 @@ struct HookState
         , g_characterCreateInventoryLayoutOrig(0)
         , g_rootObjectCreateInventoryLayoutOrig(0)
         , g_inventoryLayoutCreateGUIOrig(0)
-        , g_playerInterfacePickupItemOrig(0)
-        , g_inventoryTransferMouseItemOrig(0)
-        , g_inventorySectionRemoveItemOrig(0)
-        , g_inventorySectionAddItemOrig(0)
-        , g_inventoryRemoveItemDontDestroyOrig(0)
-        , g_inventoryTakeItemEntireStackOrig(0)
-        , g_inventorySectionAddItemCallbackOrig(0)
-        , g_inventorySectionUpdateItemCallbackOrig(0)
-        , g_inventorySectionRemoveItemCallbackOrig(0)
-        , g_inventoryAddToListOrig(0)
-        , g_inventoryRemoveFromListOrig(0)
-        , g_itemResetAfterCopyOrig(0)
-        , g_inventoryItemAddQuantityOrig(0)
         , g_inventoryLayoutCreateGUIHookInstalled(false)
         , g_inventoryLayoutCreateGUIHookAttempted(false)
         , g_expectedInventoryLayoutCreateGUIAddress(0)
         , g_inventoryLayoutCreateGUIEarlyAttempted(false)
         , g_inventoryLayoutCreateGUIHookCallCount(0)
         , g_inventoryLayoutCreateInventoryLayoutLogCount(0)
-        , g_inventoryMoveProbeSequence(0)
     {
     }
 
@@ -407,26 +379,12 @@ struct HookState
     CharacterCreateInventoryLayoutFn g_characterCreateInventoryLayoutOrig;
     RootObjectCreateInventoryLayoutFn g_rootObjectCreateInventoryLayoutOrig;
     InventoryLayoutCreateGUIFn g_inventoryLayoutCreateGUIOrig;
-    PlayerInterfacePickupItemFn g_playerInterfacePickupItemOrig;
-    InventoryTransferMouseItemFn g_inventoryTransferMouseItemOrig;
-    InventorySectionRemoveItemFn g_inventorySectionRemoveItemOrig;
-    InventorySectionAddItemFn g_inventorySectionAddItemOrig;
-    InventoryRemoveItemDontDestroyFn g_inventoryRemoveItemDontDestroyOrig;
-    InventoryTakeItemEntireStackFn g_inventoryTakeItemEntireStackOrig;
-    InventorySectionAddItemCallbackFn g_inventorySectionAddItemCallbackOrig;
-    InventorySectionUpdateItemCallbackFn g_inventorySectionUpdateItemCallbackOrig;
-    InventorySectionRemoveItemCallbackFn g_inventorySectionRemoveItemCallbackOrig;
-    InventoryAddToListFn g_inventoryAddToListOrig;
-    InventoryRemoveFromListFn g_inventoryRemoveFromListOrig;
-    ItemResetAfterCopyFn g_itemResetAfterCopyOrig;
-    InventoryItemAddQuantityFn g_inventoryItemAddQuantityOrig;
     bool g_inventoryLayoutCreateGUIHookInstalled;
     bool g_inventoryLayoutCreateGUIHookAttempted;
     std::uintptr_t g_expectedInventoryLayoutCreateGUIAddress;
     bool g_inventoryLayoutCreateGUIEarlyAttempted;
     std::size_t g_inventoryLayoutCreateGUIHookCallCount;
     std::size_t g_inventoryLayoutCreateInventoryLayoutLogCount;
-    std::size_t g_inventoryMoveProbeSequence;
     std::string g_lastInventoryLayoutReturnSignature;
 };
 

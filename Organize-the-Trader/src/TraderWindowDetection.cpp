@@ -544,16 +544,19 @@ bool TryResolveHoveredTarget(MyGUI::Widget** outAnchor, MyGUI::Widget** outParen
         *outParent = parent;
     }
 
-    std::stringstream line;
-    line << "resolved trader target via hover attach"
-         << " anchor=" << SafeWidgetName(anchor)
-         << " parent=" << SafeWidgetName(parent)
-         << " candidate_score=" << candidateScore
-         << " candidate_reason=\"" << TruncateForLog(candidateReason, 160) << "\""
-         << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
-         << parent->getCoord().width << "," << parent->getCoord().height << ")"
-         << " hovered_chain=" << BuildParentChainForLog(hovered);
-    LogInfoLine(line.str());
+    if (ShouldLogDebug())
+    {
+        std::stringstream line;
+        line << "resolved trader target via hover attach"
+             << " anchor=" << SafeWidgetName(anchor)
+             << " parent=" << SafeWidgetName(parent)
+             << " candidate_score=" << candidateScore
+             << " candidate_reason=\"" << TruncateForLog(candidateReason, 160) << "\""
+             << " parent_coord=(" << parent->getCoord().left << "," << parent->getCoord().top << ","
+             << parent->getCoord().width << "," << parent->getCoord().height << ")"
+             << " hovered_chain=" << BuildParentChainForLog(hovered);
+        LogDebugLine(line.str());
+    }
     return true;
 }
 

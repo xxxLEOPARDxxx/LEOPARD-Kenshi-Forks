@@ -982,6 +982,11 @@ void RegisterTraderPanelInventoryBinding(
         TraderState().binding.g_traderPanelInventoryBindings.push_back(updated);
     }
 
+    if (!ShouldLogBindingDebug())
+    {
+        return;
+    }
+
     std::stringstream signature;
     signature << traderParent
               << "|" << entriesRoot
