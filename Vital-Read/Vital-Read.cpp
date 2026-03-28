@@ -388,6 +388,7 @@ struct PortraitTextLabelMatch
 
 bool EnsureHoveredMarkerWidget();
 void HideHoveredMarker();
+void ClearPendingMedicalGuiProbe();
 void ResetStateOverlays();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
@@ -3793,7 +3794,7 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 
 void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
-    if (g_enabled && AreProbeModifiersPressed(thisptr))
+    if (g_enabled && g_debugLogging && AreProbeModifiersPressed(thisptr))
     {
         if (keyCode == kDumpHoveredStatePanelHotkey)
         {

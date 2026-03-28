@@ -134,11 +134,17 @@ EMC_Result __cdecl SetHubBoolSetting(void* user_data, int32_t value, char* err_b
         if (!g_enabled)
         {
             HideHoveredMarker();
+            ClearPendingMedicalGuiProbe();
         }
     }
     else if (descriptor->field == &g_showIcons || descriptor->field == &g_showText)
     {
         ResetStateOverlays();
+    }
+    else if (descriptor->field == &g_debugLogging && !g_debugLogging)
+    {
+        HideHoveredMarker();
+        ClearPendingMedicalGuiProbe();
     }
 
     emc::consumer::WriteErrorMessage(err_buf, err_buf_size, 0);
