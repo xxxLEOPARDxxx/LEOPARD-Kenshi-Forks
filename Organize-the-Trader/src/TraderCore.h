@@ -47,7 +47,8 @@ enum TraderSortMode
     TraderSortMode_None = 0,
     TraderSortMode_UnitPrice,
     TraderSortMode_StackValue,
-    TraderSortMode_Weight,
+    TraderSortMode_UnitWeight,
+    TraderSortMode_StackWeight,
     TraderSortMode_ValuePerWeight,
 };
 

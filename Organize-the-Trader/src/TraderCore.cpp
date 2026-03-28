@@ -414,10 +414,14 @@ const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direct
         return direction == TraderSortDirection_Descending
             ? "stack_value_desc"
             : "stack_value_asc";
-    case TraderSortMode_Weight:
+    case TraderSortMode_UnitWeight:
         return direction == TraderSortDirection_Descending
-            ? "weight_desc"
-            : "weight_asc";
+            ? "unit_weight_desc"
+            : "unit_weight_asc";
+    case TraderSortMode_StackWeight:
+        return direction == TraderSortDirection_Descending
+            ? "stack_weight_desc"
+            : "stack_weight_asc";
     case TraderSortMode_ValuePerWeight:
         return direction == TraderSortDirection_Descending
             ? "value_weight_desc"

@@ -464,7 +464,10 @@ bool TryResolveSortMetricForItem(Item* item, TraderSortMode mode, double* outMet
     case TraderSortMode_StackValue:
         *outMetric = item->getValueAll(false);
         return true;
-    case TraderSortMode_Weight:
+    case TraderSortMode_UnitWeight:
+        *outMetric = item->getItemWeightSingle();
+        return true;
+    case TraderSortMode_StackWeight:
         *outMetric = item->getItemWeight();
         return true;
     case TraderSortMode_ValuePerWeight:
