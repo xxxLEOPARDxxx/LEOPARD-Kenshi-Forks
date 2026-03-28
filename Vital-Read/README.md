@@ -132,3 +132,7 @@ Probe hotkeys are manual and quiet by default.
 - `Ctrl+Alt+F10`: place a temporary hovered-portrait debug marker when confidence is high enough
 - `Ctrl+Alt+F11`: dump the currently scoped squad members from the player/member side
 - `Ctrl+Alt+F12`: dump the currently scoped squad member states
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
