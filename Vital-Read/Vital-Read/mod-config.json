@@ -12,10 +12,16 @@
   "unconsciousIconCoordTop": 122,
   "unconsciousIconCoordWidth": 32,
   "unconsciousIconCoordHeight": 32,
-  "recoveryComaIconTexture": "gui/gfx/heart_64px.png",
+  "recoveryComaIconTexture": "gui/gfx/heart_64px_opt.png",
   "recoveryComaIconSizePx": 64,
-  "dyingIconTexture": "gui/gfx/death_64px.png",
+  "dyingIconTexture": "gui/gfx/death_64px_opt.png",
   "dyingIconSizePx": 64,
   "playingDeadIconTexture": "",
-  "playingDeadIconSizePx": 64
+  "playingDeadIconSizePx": 64,
+  "starvingIconTexture": "gui/gfx/starving_64px_opt.png",
+  "starvingIconSizePx": 64,
+  "crippledArmIconTexture": "gui/gfx/broken-arm_64px_opt.png",
+  "crippledArmIconSizePx": 64,
+  "crippledLegIconTexture": "gui/gfx/broken-leg_64px_opt.png",
+  "crippledLegIconSizePx": 64
 }

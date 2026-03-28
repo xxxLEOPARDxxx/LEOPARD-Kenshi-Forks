@@ -13,14 +13,20 @@ const DWORD kDefaultUnconsciousIconSizePx = 64u;
 const DWORD kDefaultRecoveryComaIconSizePx = 64u;
 const DWORD kDefaultDyingIconSizePx = 64u;
 const DWORD kDefaultPlayingDeadIconSizePx = 64u;
+const DWORD kDefaultStarvingIconSizePx = 64u;
+const DWORD kDefaultCrippledArmIconSizePx = 64u;
+const DWORD kDefaultCrippledLegIconSizePx = 64u;
 const DWORD kDefaultPortraitTextFontHeightPx = 14u;
 const DWORD kMinIconSizePx = 8u;
 const DWORD kMaxIconSizePx = 512u;
 const DWORD kMinPortraitTextFontHeightPx = 8u;
 const DWORD kMaxPortraitTextFontHeightPx = 48u;
-const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px.png";
-const char* kDefaultDyingIconTexture = "gui/gfx/death_64px.png";
+const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px_opt.png";
+const char* kDefaultDyingIconTexture = "gui/gfx/death_64px_opt.png";
 const char* kDefaultPlayingDeadIconTexture = "";
+const char* kDefaultStarvingIconTexture = "gui/gfx/starving_64px_opt.png";
+const char* kDefaultCrippledArmIconTexture = "gui/gfx/broken-arm_64px_opt.png";
+const char* kDefaultCrippledLegIconTexture = "gui/gfx/broken-leg_64px_opt.png";
 
 struct StateIconConfigBinding
 {
@@ -504,6 +510,39 @@ std::string BuildConfigText(const PluginConfig& config)
         config.playingDeadIconCoordTop,
         config.playingDeadIconCoordWidth,
         config.playingDeadIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "starvingIcon",
+        config.starvingIconTexture,
+        config.starvingIconSizePx,
+        config.starvingIconHasImageCoord,
+        config.starvingIconCoordLeft,
+        config.starvingIconCoordTop,
+        config.starvingIconCoordWidth,
+        config.starvingIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "crippledArmIcon",
+        config.crippledArmIconTexture,
+        config.crippledArmIconSizePx,
+        config.crippledArmIconHasImageCoord,
+        config.crippledArmIconCoordLeft,
+        config.crippledArmIconCoordTop,
+        config.crippledArmIconCoordWidth,
+        config.crippledArmIconCoordHeight,
+        true);
+    WriteStateIconConfig(
+        out,
+        "crippledLegIcon",
+        config.crippledLegIconTexture,
+        config.crippledLegIconSizePx,
+        config.crippledLegIconHasImageCoord,
+        config.crippledLegIconCoordLeft,
+        config.crippledLegIconCoordTop,
+        config.crippledLegIconCoordWidth,
+        config.crippledLegIconCoordHeight,
         false);
     out << "}\n";
     return out.str();
@@ -546,6 +585,27 @@ PluginConfig::PluginConfig()
     , playingDeadIconCoordTop(0)
     , playingDeadIconCoordWidth(0)
     , playingDeadIconCoordHeight(0)
+    , starvingIconTexture(kDefaultStarvingIconTexture)
+    , starvingIconSizePx(kDefaultStarvingIconSizePx)
+    , starvingIconHasImageCoord(false)
+    , starvingIconCoordLeft(0)
+    , starvingIconCoordTop(0)
+    , starvingIconCoordWidth(0)
+    , starvingIconCoordHeight(0)
+    , crippledArmIconTexture(kDefaultCrippledArmIconTexture)
+    , crippledArmIconSizePx(kDefaultCrippledArmIconSizePx)
+    , crippledArmIconHasImageCoord(false)
+    , crippledArmIconCoordLeft(0)
+    , crippledArmIconCoordTop(0)
+    , crippledArmIconCoordWidth(0)
+    , crippledArmIconCoordHeight(0)
+    , crippledLegIconTexture(kDefaultCrippledLegIconTexture)
+    , crippledLegIconSizePx(kDefaultCrippledLegIconSizePx)
+    , crippledLegIconHasImageCoord(false)
+    , crippledLegIconCoordLeft(0)
+    , crippledLegIconCoordTop(0)
+    , crippledLegIconCoordWidth(0)
+    , crippledLegIconCoordHeight(0)
 {
 }
 
@@ -640,6 +700,39 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
             &outConfig->playingDeadIconCoordTop,
             &outConfig->playingDeadIconCoordWidth,
             &outConfig->playingDeadIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "starvingIcon",
+            &outConfig->starvingIconTexture,
+            &outConfig->starvingIconSizePx,
+            &outConfig->starvingIconHasImageCoord,
+            &outConfig->starvingIconCoordLeft,
+            &outConfig->starvingIconCoordTop,
+            &outConfig->starvingIconCoordWidth,
+            &outConfig->starvingIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "crippledArmIcon",
+            &outConfig->crippledArmIconTexture,
+            &outConfig->crippledArmIconSizePx,
+            &outConfig->crippledArmIconHasImageCoord,
+            &outConfig->crippledArmIconCoordLeft,
+            &outConfig->crippledArmIconCoordTop,
+            &outConfig->crippledArmIconCoordWidth,
+            &outConfig->crippledArmIconCoordHeight));
+    LoadStateIconConfig(
+        content,
+        StateIconConfigBinding(
+            "crippledLegIcon",
+            &outConfig->crippledLegIconTexture,
+            &outConfig->crippledLegIconSizePx,
+            &outConfig->crippledLegIconHasImageCoord,
+            &outConfig->crippledLegIconCoordLeft,
+            &outConfig->crippledLegIconCoordTop,
+            &outConfig->crippledLegIconCoordWidth,
+            &outConfig->crippledLegIconCoordHeight));
 
     return LOAD_OK;
 }

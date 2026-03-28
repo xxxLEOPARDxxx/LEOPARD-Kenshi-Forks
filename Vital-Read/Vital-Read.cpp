@@ -48,6 +48,9 @@ const char* kUnconsciousOverlayWidgetNamePrefix = "VitalRead_UnconsciousOverlayM
 const char* kRecoveryComaOverlayWidgetNamePrefix = "VitalRead_RecoveryComaOverlayMarker_";
 const char* kDyingOverlayWidgetNamePrefix = "VitalRead_DyingOverlayMarker_";
 const char* kPlayingDeadOverlayWidgetNamePrefix = "VitalRead_PlayingDeadOverlayMarker_";
+const char* kStarvingOverlayWidgetNamePrefix = "VitalRead_StarvingOverlayMarker_";
+const char* kCrippledArmOverlayWidgetNamePrefix = "VitalRead_CrippledArmOverlayMarker_";
+const char* kCrippledLegOverlayWidgetNamePrefix = "VitalRead_CrippledLegOverlayMarker_";
 const char* kPortraitTextLabelWidgetNamePrefix = "VitalRead_PortraitTextLabel_";
 const char* kProbeMarkerSkin = "Kenshi_GenericTextBoxFlatSkin";
 const char* kUnconsciousOverlaySkin = "Kenshi_Button1";
@@ -110,6 +113,12 @@ std::string& g_dyingIconTexture = g_config.dyingIconTexture;
 DWORD& g_dyingIconSizePx = g_config.dyingIconSizePx;
 std::string& g_playingDeadIconTexture = g_config.playingDeadIconTexture;
 DWORD& g_playingDeadIconSizePx = g_config.playingDeadIconSizePx;
+std::string& g_starvingIconTexture = g_config.starvingIconTexture;
+DWORD& g_starvingIconSizePx = g_config.starvingIconSizePx;
+std::string& g_crippledArmIconTexture = g_config.crippledArmIconTexture;
+DWORD& g_crippledArmIconSizePx = g_config.crippledArmIconSizePx;
+std::string& g_crippledLegIconTexture = g_config.crippledLegIconTexture;
+DWORD& g_crippledLegIconSizePx = g_config.crippledLegIconSizePx;
 unsigned int g_probeLogScopeDepth = 0u;
 unsigned int g_nextProbeSessionId = 1u;
 unsigned int g_activeProbeSessionId = 0u;
@@ -135,6 +144,9 @@ PortraitOverlayRuntime g_unconsciousOverlayRuntime;
 PortraitOverlayRuntime g_recoveryComaOverlayRuntime;
 PortraitOverlayRuntime g_dyingOverlayRuntime;
 PortraitOverlayRuntime g_playingDeadOverlayRuntime;
+PortraitOverlayRuntime g_starvingOverlayRuntime;
+PortraitOverlayRuntime g_crippledArmOverlayRuntime;
+PortraitOverlayRuntime g_crippledLegOverlayRuntime;
 PortraitOverlayRuntime g_portraitTextLabelRuntime;
 
 struct HoverContext
@@ -299,7 +311,10 @@ enum PortraitOverlayState
     PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS = 0,
     PORTRAIT_OVERLAY_STATE_RECOVERY_COMA,
     PORTRAIT_OVERLAY_STATE_DYING,
-    PORTRAIT_OVERLAY_STATE_PLAYING_DEAD
+    PORTRAIT_OVERLAY_STATE_PLAYING_DEAD,
+    PORTRAIT_OVERLAY_STATE_STARVING,
+    PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM,
+    PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG
 };
 
 enum PortraitTextLabelState
@@ -499,6 +514,12 @@ void LoadLoggingConfig()
              << " dyingIconSizePx=" << g_dyingIconSizePx
              << " playingDeadIconConfigured=" << (!g_playingDeadIconTexture.empty() ? "true" : "false")
              << " playingDeadIconSizePx=" << g_playingDeadIconSizePx
+             << " starvingIconConfigured=" << (!g_starvingIconTexture.empty() ? "true" : "false")
+             << " starvingIconSizePx=" << g_starvingIconSizePx
+             << " crippledArmIconConfigured=" << (!g_crippledArmIconTexture.empty() ? "true" : "false")
+             << " crippledArmIconSizePx=" << g_crippledArmIconSizePx
+             << " crippledLegIconConfigured=" << (!g_crippledLegIconTexture.empty() ? "true" : "false")
+             << " crippledLegIconSizePx=" << g_crippledLegIconSizePx
              << " verboseDiagnostics=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
         LogDebugLine(line.str());
     }
@@ -881,6 +902,12 @@ const char* GetPortraitOverlayStateLabel(const PortraitOverlayState overlayState
 {
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG:
+        return "crippled_leg";
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM:
+        return "crippled_arm";
+    case PORTRAIT_OVERLAY_STATE_STARVING:
+        return "starving";
     case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
         return "playing_dead";
     case PORTRAIT_OVERLAY_STATE_DYING:
@@ -890,6 +917,41 @@ const char* GetPortraitOverlayStateLabel(const PortraitOverlayState overlayState
     case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
     default:
         return "unconscious";
+    }
+}
+
+bool TryMapPortraitTextLabelToOverlayState(
+    const PortraitTextLabelState labelState,
+    PortraitOverlayState* outOverlayState)
+{
+    if (outOverlayState == 0)
+    {
+        return false;
+    }
+
+    switch (labelState)
+    {
+    case PORTRAIT_TEXT_LABEL_DYING:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_DYING;
+        return true;
+    case PORTRAIT_TEXT_LABEL_RECOVERY_COMA:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_RECOVERY_COMA;
+        return true;
+    case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS;
+        return true;
+    case PORTRAIT_TEXT_LABEL_STARVING:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_STARVING;
+        return true;
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM;
+        return true;
+    case PORTRAIT_TEXT_LABEL_CRIPPLED_LEG:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG;
+        return true;
+    case PORTRAIT_TEXT_LABEL_NONE:
+    default:
+        return false;
     }
 }
 
@@ -981,18 +1043,23 @@ bool SnapshotMatchesPortraitOverlayState(
 
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG:
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM:
+    case PORTRAIT_OVERLAY_STATE_STARVING:
+    case PORTRAIT_OVERLAY_STATE_DYING:
+    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
+    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
+    {
+        PortraitTextLabelState labelState = PORTRAIT_TEXT_LABEL_NONE;
+        PortraitOverlayState resolvedOverlayState = PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS;
+        return TryResolvePortraitTextLabelState(snapshot, &labelState)
+            && TryMapPortraitTextLabelToOverlayState(labelState, &resolvedOverlayState)
+            && resolvedOverlayState == overlayState;
+    }
     case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
         return snapshot.playingDead;
-    case PORTRAIT_OVERLAY_STATE_DYING:
-        return snapshot.dying && !snapshot.playingDead;
-    case PORTRAIT_OVERLAY_STATE_RECOVERY_COMA:
-        return snapshot.recoveryComa && !snapshot.playingDead && !snapshot.dying;
-    case PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS:
     default:
-        return snapshot.unconscious
-            && !snapshot.recoveryComa
-            && !snapshot.dying
-            && !snapshot.playingDead;
+        return false;
     }
 }
 
@@ -3121,6 +3188,12 @@ PortraitOverlayRuntime* GetPortraitOverlayRuntime(const PortraitOverlayState ove
 {
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG:
+        return &g_crippledLegOverlayRuntime;
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM:
+        return &g_crippledArmOverlayRuntime;
+    case PORTRAIT_OVERLAY_STATE_STARVING:
+        return &g_starvingOverlayRuntime;
     case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
         return &g_playingDeadOverlayRuntime;
     case PORTRAIT_OVERLAY_STATE_DYING:
@@ -3144,6 +3217,42 @@ vr_marker_ui::OverlayStyle BuildPortraitOverlayStyle(const PortraitOverlayState 
 
     switch (overlayState)
     {
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG:
+        style.widgetNamePrefix = kCrippledLegOverlayWidgetNamePrefix;
+        style.iconTexture = g_crippledLegIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_crippledLegIconSizePx);
+        style.hasIconImageCoord = g_config.crippledLegIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.crippledLegIconCoordLeft,
+            g_config.crippledLegIconCoordTop,
+            g_config.crippledLegIconCoordWidth,
+            g_config.crippledLegIconCoordHeight);
+        style.colour = MyGUI::Colour(1.0f, 0.52f, 0.22f, 0.95f);
+        break;
+    case PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM:
+        style.widgetNamePrefix = kCrippledArmOverlayWidgetNamePrefix;
+        style.iconTexture = g_crippledArmIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_crippledArmIconSizePx);
+        style.hasIconImageCoord = g_config.crippledArmIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.crippledArmIconCoordLeft,
+            g_config.crippledArmIconCoordTop,
+            g_config.crippledArmIconCoordWidth,
+            g_config.crippledArmIconCoordHeight);
+        style.colour = MyGUI::Colour(1.0f, 0.82f, 0.24f, 0.95f);
+        break;
+    case PORTRAIT_OVERLAY_STATE_STARVING:
+        style.widgetNamePrefix = kStarvingOverlayWidgetNamePrefix;
+        style.iconTexture = g_starvingIconTexture;
+        style.iconTextureSizePx = static_cast<int>(g_starvingIconSizePx);
+        style.hasIconImageCoord = g_config.starvingIconHasImageCoord;
+        style.iconImageCoord = vr_marker_ui::Rect(
+            g_config.starvingIconCoordLeft,
+            g_config.starvingIconCoordTop,
+            g_config.starvingIconCoordWidth,
+            g_config.starvingIconCoordHeight);
+        style.colour = MyGUI::Colour(0.95f, 0.83f, 0.24f, 0.95f);
+        break;
     case PORTRAIT_OVERLAY_STATE_PLAYING_DEAD:
         style.widgetNamePrefix = kPlayingDeadOverlayWidgetNamePrefix;
         style.iconTexture = g_playingDeadIconTexture;
@@ -3275,6 +3384,9 @@ void ResetStateOverlays()
     ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_starvingOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_crippledArmOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_crippledLegOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
 }
 
@@ -3284,6 +3396,9 @@ void ResetPortraitIconOverlays()
     ResetPortraitOverlayRuntime(&g_recoveryComaOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_dyingOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_playingDeadOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_starvingOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_crippledArmOverlayRuntime);
+    ResetPortraitOverlayRuntime(&g_crippledLegOverlayRuntime);
 }
 
 void TickHoveredMarker()
@@ -3473,6 +3588,9 @@ void TickStateOverlays()
         TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
         TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
         TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STARVING);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM);
+        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG);
     }
     else
     {

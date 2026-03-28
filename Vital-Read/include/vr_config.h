@@ -49,6 +49,27 @@ struct PluginConfig
     int playingDeadIconCoordTop;
     int playingDeadIconCoordWidth;
     int playingDeadIconCoordHeight;
+    std::string starvingIconTexture;
+    DWORD starvingIconSizePx;
+    bool starvingIconHasImageCoord;
+    int starvingIconCoordLeft;
+    int starvingIconCoordTop;
+    int starvingIconCoordWidth;
+    int starvingIconCoordHeight;
+    std::string crippledArmIconTexture;
+    DWORD crippledArmIconSizePx;
+    bool crippledArmIconHasImageCoord;
+    int crippledArmIconCoordLeft;
+    int crippledArmIconCoordTop;
+    int crippledArmIconCoordWidth;
+    int crippledArmIconCoordHeight;
+    std::string crippledLegIconTexture;
+    DWORD crippledLegIconSizePx;
+    bool crippledLegIconHasImageCoord;
+    int crippledLegIconCoordLeft;
+    int crippledLegIconCoordTop;
+    int crippledLegIconCoordWidth;
+    int crippledLegIconCoordHeight;
 };
 
 enum LoadStatus
