@@ -479,7 +479,7 @@ void LoadLoggingConfig()
         return;
     }
 
-    LogInfoLine("mod config loaded");
+    LogDebugLine("mod config loaded");
 
     if (ShouldLogDebug())
     {
@@ -3720,7 +3720,7 @@ __declspec(dllexport) void startPlugin()
 
     std::stringstream versionLine;
     versionLine << "supported Kenshi version detected: " << versionInfo.GetVersion();
-    LogInfoLine(versionLine.str());
+    LogDebugLine(versionLine.str());
 
     LoadLoggingConfig();
 
@@ -3761,12 +3761,12 @@ __declspec(dllexport) void startPlugin()
 
     if (g_enabled)
     {
-        LogInfoLine(
+        LogDebugLine(
             "probe hotkeys ready: hovered state panel Ctrl+Alt+F3, full mapping chain Ctrl+Alt+F4, matched state marker Ctrl+Alt+F5, start session Ctrl+Alt+F6, hovered widget Ctrl+Alt+F7, portrait tree Ctrl+Alt+F8, portrait candidates Ctrl+Alt+F9, hovered marker Ctrl+Alt+F10, selected squad members Ctrl+Alt+F11, member states Ctrl+Alt+F12");
     }
     else
     {
-        LogInfoLine("plugin disabled via mod-config.json; Mod Hub remains available and runtime probes are inactive");
+        LogDebugLine("plugin disabled via mod-config.json; Mod Hub remains available and runtime probes are inactive");
     }
 }
 

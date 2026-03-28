@@ -258,7 +258,7 @@ void StartModHubClient()
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
-        LogInfoLine("event=mod_hub_attached use_hub_ui=1");
+        LogDebugLine("event=mod_hub_attached use_hub_ui=1");
         return;
     }
 
@@ -266,7 +266,7 @@ void StartModHubClient()
     {
         if (g_modHubClient.IsAttachRetryPending())
         {
-            LogInfoLine("event=mod_hub_attach_retry_pending use_hub_ui=0");
+            LogDebugLine("event=mod_hub_attach_retry_pending use_hub_ui=0");
             return;
         }
 
