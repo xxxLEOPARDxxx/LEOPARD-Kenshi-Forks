@@ -74,7 +74,7 @@ const int kHoveredMarkerMaxSizePx = 18;
 const int kPortraitOverlayInsetPx = 1;
 const int kPortraitOverlayMinSizePx = 14;
 const int kPortraitOverlayMaxSizePx = 20;
-const int kPortraitTextLabelInsetPx = 1;
+const int kPortraitTextLabelInsetPx = 0;
 const int kPortraitTextLabelMinSizePx = 26;
 const int kPortraitTextLabelMaxSizePx = 32;
 const size_t kHoveredChainDepthLimit = 8u;
@@ -104,7 +104,12 @@ bool& g_debugSearchLogging = g_config.debugSearchLogging;
 bool& g_debugBindingLogging = g_config.debugBindingLogging;
 bool& g_showIcons = g_config.showIcons;
 bool& g_showText = g_config.showText;
+DWORD& g_portraitIconDisplaySizePx = g_config.portraitIconDisplaySizePx;
 DWORD& g_portraitTextFontHeightPx = g_config.portraitTextFontHeightPx;
+int& g_portraitOverlayMarginXPx = g_config.portraitOverlayMarginXPx;
+int& g_portraitOverlayMarginYPx = g_config.portraitOverlayMarginYPx;
+std::string& g_portraitIconAnchor = g_config.portraitIconAnchor;
+std::string& g_portraitTextAnchor = g_config.portraitTextAnchor;
 std::string& g_unconsciousIconTexture = g_config.unconsciousIconTexture;
 DWORD& g_unconsciousIconSizePx = g_config.unconsciousIconSizePx;
 std::string& g_recoveryComaIconTexture = g_config.recoveryComaIconTexture;
@@ -505,7 +510,12 @@ void LoadLoggingConfig()
              << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
              << " showIcons=" << (g_showIcons ? "true" : "false")
              << " showText=" << (g_showText ? "true" : "false")
+             << " portraitIconDisplaySizePx=" << g_portraitIconDisplaySizePx
              << " portraitTextFontHeightPx=" << g_portraitTextFontHeightPx
+             << " portraitOverlayMarginXPx=" << g_portraitOverlayMarginXPx
+             << " portraitOverlayMarginYPx=" << g_portraitOverlayMarginYPx
+             << " portraitIconAnchor=" << g_portraitIconAnchor
+             << " portraitTextAnchor=" << g_portraitTextAnchor
              << " unconsciousIconConfigured=" << (!g_unconsciousIconTexture.empty() ? "true" : "false")
              << " unconsciousIconSizePx=" << g_unconsciousIconSizePx
              << " recoveryComaIconConfigured=" << (!g_recoveryComaIconTexture.empty() ? "true" : "false")
@@ -553,6 +563,30 @@ std::string ToLowerAscii(const std::string& value)
         lowered[index] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[index])));
     }
     return lowered;
+}
+
+vr_marker_ui::OverlayAnchor ResolveConfiguredOverlayAnchor(
+    const std::string& configuredValue,
+    const vr_marker_ui::OverlayAnchor fallback)
+{
+    const std::string lowered = ToLowerAscii(configuredValue);
+    if (lowered == "bottom_left")
+    {
+        return vr_marker_ui::OVERLAY_ANCHOR_BOTTOM_LEFT;
+    }
+    if (lowered == "bottom_right")
+    {
+        return vr_marker_ui::OVERLAY_ANCHOR_BOTTOM_RIGHT;
+    }
+    if (lowered == "top_left")
+    {
+        return vr_marker_ui::OVERLAY_ANCHOR_TOP_LEFT;
+    }
+    if (lowered == "top_right")
+    {
+        return vr_marker_ui::OVERLAY_ANCHOR_TOP_RIGHT;
+    }
+    return fallback;
 }
 
 bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
@@ -3210,8 +3244,14 @@ vr_marker_ui::OverlayStyle BuildPortraitOverlayStyle(const PortraitOverlayState 
 {
     vr_marker_ui::OverlayStyle style;
     style.fallbackSkin = kUnconsciousOverlaySkin;
+    style.fixedSizePx = static_cast<int>(g_portraitIconDisplaySizePx);
+    style.anchor = ResolveConfiguredOverlayAnchor(
+        g_portraitIconAnchor,
+        vr_marker_ui::OVERLAY_ANCHOR_BOTTOM_LEFT);
     style.alpha = 0.92f;
     style.insetPx = kPortraitOverlayInsetPx;
+    style.edgeMarginXPx = g_portraitOverlayMarginXPx;
+    style.edgeMarginYPx = g_portraitOverlayMarginYPx;
     style.minSizePx = kPortraitOverlayMinSizePx;
     style.maxSizePx = kPortraitOverlayMaxSizePx;
 
@@ -3313,9 +3353,13 @@ vr_marker_ui::OverlayStyle BuildPortraitTextLabelStyle(const PortraitTextLabelSt
     style.widgetNamePrefix = kPortraitTextLabelWidgetNamePrefix;
     style.text = GetPortraitTextLabelCaption(labelState);
     style.textFontHeightPx = static_cast<int>(g_portraitTextFontHeightPx);
-    style.anchor = vr_marker_ui::OVERLAY_ANCHOR_TOP_RIGHT;
+    style.anchor = ResolveConfiguredOverlayAnchor(
+        g_portraitTextAnchor,
+        vr_marker_ui::OVERLAY_ANCHOR_TOP_RIGHT);
     style.alpha = 0.98f;
     style.insetPx = kPortraitTextLabelInsetPx;
+    style.edgeMarginXPx = g_portraitOverlayMarginXPx;
+    style.edgeMarginYPx = g_portraitOverlayMarginYPx;
     style.minSizePx = kPortraitTextLabelMinSizePx;
     style.maxSizePx = kPortraitTextLabelMaxSizePx;
 

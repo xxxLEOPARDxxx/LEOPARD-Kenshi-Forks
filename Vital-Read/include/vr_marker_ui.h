@@ -15,6 +15,8 @@ namespace vr_marker_ui
 enum OverlayAnchor
 {
     OVERLAY_ANCHOR_BOTTOM_LEFT = 0,
+    OVERLAY_ANCHOR_BOTTOM_RIGHT,
+    OVERLAY_ANCHOR_TOP_LEFT,
     OVERLAY_ANCHOR_TOP_RIGHT
 };
 
@@ -50,10 +52,13 @@ struct OverlayStyle
     Rect iconImageCoord;
     std::string text;
     int textFontHeightPx;
+    int fixedSizePx;
     OverlayAnchor anchor;
     MyGUI::Colour colour;
     float alpha;
     int insetPx;
+    int edgeMarginXPx;
+    int edgeMarginYPx;
     int minSizePx;
     int maxSizePx;
 };

@@ -16,17 +16,26 @@ const DWORD kDefaultPlayingDeadIconSizePx = 64u;
 const DWORD kDefaultStarvingIconSizePx = 64u;
 const DWORD kDefaultCrippledArmIconSizePx = 64u;
 const DWORD kDefaultCrippledLegIconSizePx = 64u;
+const DWORD kDefaultPortraitIconDisplaySizePx = 0u;
 const DWORD kDefaultPortraitTextFontHeightPx = 14u;
+const int kDefaultPortraitOverlayMarginXPx = 0;
+const int kDefaultPortraitOverlayMarginYPx = 0;
+const DWORD kMinPortraitIconDisplaySizePx = 0u;
+const DWORD kMaxPortraitIconDisplaySizePx = 64u;
 const DWORD kMinIconSizePx = 8u;
 const DWORD kMaxIconSizePx = 512u;
 const DWORD kMinPortraitTextFontHeightPx = 8u;
 const DWORD kMaxPortraitTextFontHeightPx = 48u;
+const int kMinPortraitOverlayMarginPx = -16;
+const int kMaxPortraitOverlayMarginPx = 16;
 const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px_opt.png";
 const char* kDefaultDyingIconTexture = "gui/gfx/death_64px_opt.png";
 const char* kDefaultPlayingDeadIconTexture = "";
 const char* kDefaultStarvingIconTexture = "gui/gfx/starving_64px_opt.png";
 const char* kDefaultCrippledArmIconTexture = "gui/gfx/broken-arm_64px_opt.png";
 const char* kDefaultCrippledLegIconTexture = "gui/gfx/broken-leg_64px_opt.png";
+const char* kDefaultPortraitIconAnchor = "bottom_left";
+const char* kDefaultPortraitTextAnchor = "top_right";
 
 struct StateIconConfigBinding
 {
@@ -115,6 +124,19 @@ std::string TrimAscii(const std::string& value)
 }
 
 DWORD ClampUnsigned(DWORD value, DWORD minimum, DWORD maximum)
+{
+    if (value < minimum)
+    {
+        return minimum;
+    }
+    if (value > maximum)
+    {
+        return maximum;
+    }
+    return value;
+}
+
+int ClampSigned(int value, int minimum, int maximum)
 {
     if (value < minimum)
     {
@@ -217,6 +239,64 @@ bool TryParseJsonUnsignedByKey(const std::string& content, const char* key, DWOR
     }
 
     *outValue = value;
+    return true;
+}
+
+bool TryParseJsonIntByKey(const std::string& content, const char* key, int* outValue)
+{
+    if (key == 0 || outValue == 0)
+    {
+        return false;
+    }
+
+    const std::string needle = std::string("\"") + key + "\"";
+    const std::string::size_type keyPos = content.find(needle);
+    if (keyPos == std::string::npos)
+    {
+        return false;
+    }
+
+    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
+    if (valuePos == std::string::npos)
+    {
+        return false;
+    }
+
+    ++valuePos;
+    while (valuePos < content.size()
+        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
+    {
+        ++valuePos;
+    }
+
+    bool negative = false;
+    if (valuePos < content.size() && content[valuePos] == '-')
+    {
+        negative = true;
+        ++valuePos;
+    }
+
+    int value = 0;
+    bool parsedDigit = false;
+    while (valuePos < content.size())
+    {
+        const unsigned char ch = static_cast<unsigned char>(content[valuePos]);
+        if (!std::isdigit(ch))
+        {
+            break;
+        }
+
+        parsedDigit = true;
+        value = (value * 10) + static_cast<int>(ch - '0');
+        ++valuePos;
+    }
+
+    if (!parsedDigit)
+    {
+        return false;
+    }
+
+    *outValue = negative ? -value : value;
     return true;
 }
 
@@ -466,7 +546,16 @@ std::string BuildConfigText(const PluginConfig& config)
     out << "  \"debugBindingLogging\": " << (config.debugBindingLogging ? "true" : "false") << ",\n";
     out << "  \"showIcons\": " << (config.showIcons ? "true" : "false") << ",\n";
     out << "  \"showText\": " << (config.showText ? "true" : "false") << ",\n";
+    out << "  \"portraitIconDisplaySizePx\": " << config.portraitIconDisplaySizePx << ",\n";
     out << "  \"portraitTextFontHeightPx\": " << config.portraitTextFontHeightPx << ",\n";
+    out << "  \"portraitOverlayMarginXPx\": " << config.portraitOverlayMarginXPx << ",\n";
+    out << "  \"portraitOverlayMarginYPx\": " << config.portraitOverlayMarginYPx << ",\n";
+    out << "  \"portraitIconAnchor\": ";
+    WriteEscapedJsonString(out, config.portraitIconAnchor);
+    out << ",\n";
+    out << "  \"portraitTextAnchor\": ";
+    WriteEscapedJsonString(out, config.portraitTextAnchor);
+    out << ",\n";
     WriteStateIconConfig(
         out,
         "unconsciousIcon",
@@ -556,7 +645,12 @@ PluginConfig::PluginConfig()
     , debugBindingLogging(false)
     , showIcons(true)
     , showText(true)
+    , portraitIconDisplaySizePx(kDefaultPortraitIconDisplaySizePx)
     , portraitTextFontHeightPx(kDefaultPortraitTextFontHeightPx)
+    , portraitOverlayMarginXPx(kDefaultPortraitOverlayMarginXPx)
+    , portraitOverlayMarginYPx(kDefaultPortraitOverlayMarginYPx)
+    , portraitIconAnchor(kDefaultPortraitIconAnchor)
+    , portraitTextAnchor(kDefaultPortraitTextAnchor)
     , unconsciousIconTexture()
     , unconsciousIconSizePx(kDefaultUnconsciousIconSizePx)
     , unconsciousIconHasImageCoord(false)
@@ -648,12 +742,43 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
         outConfig->showText = parsedBool;
     }
     DWORD parsedUnsigned = 0u;
+    if (TryParseJsonUnsignedByKey(content, "portraitIconDisplaySizePx", &parsedUnsigned))
+    {
+        outConfig->portraitIconDisplaySizePx = ClampUnsigned(
+            parsedUnsigned,
+            kMinPortraitIconDisplaySizePx,
+            kMaxPortraitIconDisplaySizePx);
+    }
     if (TryParseJsonUnsignedByKey(content, "portraitTextFontHeightPx", &parsedUnsigned))
     {
         outConfig->portraitTextFontHeightPx = ClampUnsigned(
             parsedUnsigned,
             kMinPortraitTextFontHeightPx,
             kMaxPortraitTextFontHeightPx);
+    }
+    int parsedSigned = 0;
+    if (TryParseJsonIntByKey(content, "portraitOverlayMarginXPx", &parsedSigned))
+    {
+        outConfig->portraitOverlayMarginXPx = ClampSigned(
+            parsedSigned,
+            kMinPortraitOverlayMarginPx,
+            kMaxPortraitOverlayMarginPx);
+    }
+    if (TryParseJsonIntByKey(content, "portraitOverlayMarginYPx", &parsedSigned))
+    {
+        outConfig->portraitOverlayMarginYPx = ClampSigned(
+            parsedSigned,
+            kMinPortraitOverlayMarginPx,
+            kMaxPortraitOverlayMarginPx);
+    }
+    std::string parsedString;
+    if (TryParseJsonStringByKey(content, "portraitIconAnchor", &parsedString))
+    {
+        outConfig->portraitIconAnchor = TrimAscii(parsedString);
+    }
+    if (TryParseJsonStringByKey(content, "portraitTextAnchor", &parsedString))
+    {
+        outConfig->portraitTextAnchor = TrimAscii(parsedString);
     }
 
     LoadStateIconConfig(

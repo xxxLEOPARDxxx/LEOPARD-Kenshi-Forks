@@ -13,6 +13,9 @@ namespace vr_marker_ui
 {
 namespace
 {
+const int kTopTextAnchorBiasPx = 6;
+const int kHorizontalTextAnchorBiasPx = 2;
+
 bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
     for (size_t index = 0u; index < values.size(); ++index)
@@ -84,6 +87,21 @@ WidgetMode GetWidgetMode(MyGUI::Widget* widget)
     }
 
     return WIDGET_MODE_NONE;
+}
+
+MyGUI::Align GetTextAlignForAnchor(const OverlayAnchor anchor)
+{
+    if (anchor == OVERLAY_ANCHOR_BOTTOM_RIGHT || anchor == OVERLAY_ANCHOR_TOP_RIGHT)
+    {
+        return MyGUI::Align::Right;
+    }
+
+    if (anchor == OVERLAY_ANCHOR_BOTTOM_LEFT || anchor == OVERLAY_ANCHOR_TOP_LEFT)
+    {
+        return MyGUI::Align::Left;
+    }
+
+    return MyGUI::Align::Center;
 }
 
 bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, const std::string& textureName, int textureSizePx)
@@ -362,7 +380,7 @@ bool EnsureWidgetMode(
         }
 
         textBox->setCaption(style.text.c_str());
-        textBox->setTextAlign(MyGUI::Align::Center);
+        textBox->setTextAlign(GetTextAlignForAnchor(style.anchor));
         textBox->setTextColour(style.colour);
         textBox->setTextShadow(true);
         textBox->setTextShadowColour(MyGUI::Colour(0.0f, 0.0f, 0.0f, 0.95f));
@@ -381,8 +399,11 @@ bool TryPlaceOverlayWidget(
     const Rect& targetBounds,
     const ViewSize* viewSize,
     const int markerInsetPx,
+    const int edgeMarginXPx,
+    const int edgeMarginYPx,
     const int markerMinSizePx,
     const int markerMaxSizePx,
+    const int fixedSizePx,
     const OverlayAnchor anchor,
     Rect* outMarkerBounds)
 {
@@ -394,23 +415,82 @@ bool TryPlaceOverlayWidget(
     const int smallerSide = targetBounds.width < targetBounds.height
         ? targetBounds.width
         : targetBounds.height;
-    const int markerSize = ClampInt(
-        smallerSide / 4,
-        markerMinSizePx,
-        markerMaxSizePx);
+    int markerSize = 0;
+    if (fixedSizePx > 0)
+    {
+        markerSize = fixedSizePx;
+    }
+    else
+    {
+        markerSize = ClampInt(
+            smallerSide / 4,
+            markerMinSizePx,
+            markerMaxSizePx);
+    }
     int markerWidth = markerSize;
     int markerHeight = markerSize;
     if (GetWidgetMode(widget) == WIDGET_MODE_TEXT)
     {
-        markerWidth = markerSize + (markerSize / 2);
+        size_t textLength = 0u;
+        if (MyGUI::TextBox* textBox = widget->castType<MyGUI::TextBox>(false))
+        {
+            textLength = textBox->getCaption().size();
+        }
+
+        if (textLength >= 3u)
+        {
+            markerWidth = markerSize + ((markerSize * 2) / 3);
+        }
+        else if (textLength == 2u)
+        {
+            markerWidth = markerSize + (markerSize / 3);
+        }
     }
 
     int markerLeft = targetBounds.left + markerInsetPx;
     int markerTop = targetBounds.top + targetBounds.height - markerHeight - markerInsetPx;
-    if (anchor == OVERLAY_ANCHOR_TOP_RIGHT)
+    if (anchor == OVERLAY_ANCHOR_BOTTOM_RIGHT || anchor == OVERLAY_ANCHOR_TOP_RIGHT)
     {
         markerLeft = targetBounds.left + targetBounds.width - markerWidth - markerInsetPx;
+    }
+    if (anchor == OVERLAY_ANCHOR_TOP_LEFT || anchor == OVERLAY_ANCHOR_TOP_RIGHT)
+    {
         markerTop = targetBounds.top + markerInsetPx;
+    }
+
+    if (anchor == OVERLAY_ANCHOR_BOTTOM_LEFT || anchor == OVERLAY_ANCHOR_TOP_LEFT)
+    {
+        markerLeft += edgeMarginXPx;
+    }
+    else
+    {
+        markerLeft -= edgeMarginXPx;
+    }
+
+    if (anchor == OVERLAY_ANCHOR_TOP_LEFT || anchor == OVERLAY_ANCHOR_TOP_RIGHT)
+    {
+        markerTop += edgeMarginYPx;
+    }
+    else
+    {
+        markerTop -= edgeMarginYPx;
+    }
+
+    if (GetWidgetMode(widget) == WIDGET_MODE_TEXT
+        && (anchor == OVERLAY_ANCHOR_TOP_LEFT || anchor == OVERLAY_ANCHOR_TOP_RIGHT))
+    {
+        markerTop -= kTopTextAnchorBiasPx;
+    }
+    if (GetWidgetMode(widget) == WIDGET_MODE_TEXT)
+    {
+        if (anchor == OVERLAY_ANCHOR_BOTTOM_LEFT || anchor == OVERLAY_ANCHOR_TOP_LEFT)
+        {
+            markerLeft -= kHorizontalTextAnchorBiasPx;
+        }
+        else
+        {
+            markerLeft += kHorizontalTextAnchorBiasPx;
+        }
     }
 
     if (viewSize != 0)
@@ -471,10 +551,13 @@ OverlayStyle::OverlayStyle()
     , iconImageCoord()
     , text()
     , textFontHeightPx(0)
+    , fixedSizePx(0)
     , anchor(OVERLAY_ANCHOR_BOTTOM_LEFT)
     , colour(1.0f, 1.0f, 1.0f, 1.0f)
     , alpha(1.0f)
     , insetPx(0)
+    , edgeMarginXPx(0)
+    , edgeMarginYPx(0)
     , minSizePx(8)
     , maxSizePx(64)
 {
@@ -494,8 +577,11 @@ bool TryPlaceMarkerWidget(
         targetBounds,
         viewSize,
         markerInsetPx,
+        0,
+        0,
         markerMinSizePx,
         markerMaxSizePx,
+        0,
         OVERLAY_ANCHOR_BOTTOM_LEFT,
         outMarkerBounds);
 }
@@ -519,8 +605,11 @@ bool ShowOverlayMarker(
         targetBounds,
         viewSize,
         style.insetPx,
+        style.edgeMarginXPx,
+        style.edgeMarginYPx,
         style.minSizePx,
         style.maxSizePx,
+        style.fixedSizePx,
         style.anchor,
         0);
 }

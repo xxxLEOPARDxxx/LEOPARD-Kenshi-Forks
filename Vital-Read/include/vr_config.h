@@ -20,7 +20,12 @@ struct PluginConfig
     bool debugBindingLogging;
     bool showIcons;
     bool showText;
+    DWORD portraitIconDisplaySizePx;
     DWORD portraitTextFontHeightPx;
+    int portraitOverlayMarginXPx;
+    int portraitOverlayMarginYPx;
+    std::string portraitIconAnchor;
+    std::string portraitTextAnchor;
     std::string unconsciousIconTexture;
     DWORD unconsciousIconSizePx;
     bool unconsciousIconHasImageCoord;
