@@ -43,7 +43,6 @@ static const DWORD kQueuedExecuteAttackWindupMs = 180;
 static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
 static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
 static const DWORD kQueuedExecuteFacingGraceMs = 1500;
-static const DWORD kQueuedExecuteProbeLogIntervalMs = 100;
 static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
 static const int kQueuedExecuteDistanceMinMeters = 1;
 static const int kQueuedExecuteDistanceMaxMeters = 200;
@@ -231,7 +230,6 @@ static DWORD g_queuedExecuteLastApproachCommandMs = 0;
 static bool g_queuedExecuteAttackTriggered = false;
 static DWORD g_queuedExecuteAttackTriggeredMs = 0;
 static DWORD g_queuedExecuteInRangeSinceMs = 0;
-static DWORD g_queuedExecuteLastProbeLogMs = 0;
 static const char* g_queuedExecuteAnimationMode = "none";
 static bool g_queuedExecuteSlaveAnimPlaying = false;
 static bool g_nativeMenuExecuteDispatchArmed = false;
@@ -363,6 +361,7 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->foundIgnoreExecuteAllianceCheck = false;
     diagnostics->invalidIgnoreExecuteAllianceCheck = false;
     diagnostics->foundExecuteDistanceMeters = false;
+    diagnostics->usedLegacyExecuteDistanceMetersKey = false;
     diagnostics->invalidExecuteDistanceMeters = false;
     diagnostics->clampedExecuteDistanceMeters = false;
     diagnostics->foundExecuteButtonWidthPx = false;
@@ -463,7 +462,7 @@ static void LoadConfigState()
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << " debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
          << " ignore_execute_alliance_check=" << (g_config.ignoreExecuteAllianceCheck ? "true" : "false")
-         << " execute_distance_meters=" << g_config.executeDistanceMeters
+         << " execute_distance_units=" << g_config.executeDistanceMeters
          << " execute_button_width=" << g_config.executeButtonWidthPx
          << " execute_button_height=" << g_config.executeButtonHeightPx
          << " execute_button_x=" << g_config.executeButtonOffsetXPx
@@ -1310,10 +1309,10 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
         TryEndQueuedExecuteSlaveAnim(queuedActor);
     }
 
-    if (verboseLog && g_queuedExecuteActive)
+    if (verboseLog && g_queuedExecuteActive && ShouldLogExecuteDebug())
     {
         std::stringstream logline;
-        logline << "Loot-Scoot-Execute INFO: queued_execute_disarmed"
+        logline << "Loot-Scoot-Execute DEBUG: queued_execute_disarmed"
                 << " reason=" << (reason ? reason : "none")
                 << " actor=0x" << std::hex << g_queuedExecuteActorPtr
                 << " target=0x" << g_queuedExecuteTargetPtr;
@@ -1330,7 +1329,6 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
-    g_queuedExecuteLastProbeLogMs = 0;
     g_queuedExecuteAnimationMode = "none";
     g_queuedExecuteSlaveAnimPlaying = false;
 }
@@ -1585,74 +1583,6 @@ static void LogQueuedExecuteArmProbe(
     PluginLog(line.str().c_str());
 }
 
-static void LogQueuedExecuteTickProbe(
-    DWORD nowMs,
-    Character* actor,
-    RootObject* target,
-    const CanExecuteDiagnostics& diagnostics,
-    float executeDistance,
-    float distanceSq,
-    bool inRange,
-    bool inPostTriggerDispatchRange,
-    bool postTriggerAbortDistanceExceeded,
-    bool postTriggerTimedOut,
-    bool inRangeGraceElapsed,
-    bool inRangeConfirmed,
-    bool facingResolved,
-    float facingDot,
-    bool facingTargetStrict,
-    bool facingTargetGrace,
-    bool facingTargetFallback,
-    bool facingTarget,
-    bool queueReadyByRange)
-{
-    if (!ShouldLogExecuteDebug())
-    {
-        return;
-    }
-
-    if (g_queuedExecuteLastProbeLogMs != 0
-        && !DebounceWindowElapsed(nowMs, g_queuedExecuteLastProbeLogMs, kQueuedExecuteProbeLogIntervalMs))
-    {
-        return;
-    }
-    g_queuedExecuteLastProbeLogMs = nowMs;
-
-    const float distance = std::sqrt(distanceSq);
-    const DWORD ageMs = g_queuedExecuteArmedMs != 0 ? (nowMs - g_queuedExecuteArmedMs) : 0;
-    const DWORD inRangeMs = g_queuedExecuteInRangeSinceMs != 0 ? (nowMs - g_queuedExecuteInRangeSinceMs) : 0;
-    const DWORD attackTriggeredMs = g_queuedExecuteAttackTriggeredMs != 0 ? (nowMs - g_queuedExecuteAttackTriggeredMs) : 0;
-
-    std::stringstream line;
-    line << "[investigate][execute] queue_tick"
-         << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-         << " target=0x" << reinterpret_cast<uintptr_t>(target)
-         << std::dec
-         << " age_ms=" << ageMs
-         << " config_execute_distance=" << g_config.executeDistanceMeters
-         << " effective_execute_distance=" << executeDistance
-         << " distance=" << distance
-         << " in_range=" << (inRange ? "true" : "false")
-         << " post_dispatch_range=" << (inPostTriggerDispatchRange ? "true" : "false")
-         << " post_abort_exceeded=" << (postTriggerAbortDistanceExceeded ? "true" : "false")
-         << " post_timeout=" << (postTriggerTimedOut ? "true" : "false")
-         << " in_range_ms=" << inRangeMs
-         << " in_range_grace_elapsed=" << (inRangeGraceElapsed ? "true" : "false")
-         << " in_range_confirmed=" << (inRangeConfirmed ? "true" : "false")
-         << " facing_resolved=" << (facingResolved ? "true" : "false")
-         << " facing_dot=" << facingDot
-         << " facing_strict=" << (facingTargetStrict ? "true" : "false")
-         << " facing_grace=" << (facingTargetGrace ? "true" : "false")
-         << " facing_fallback=" << (facingTargetFallback ? "true" : "false")
-         << " facing_target=" << (facingTarget ? "true" : "false")
-         << " queue_ready=" << (queueReadyByRange ? "true" : "false")
-         << " attack_triggered=" << (g_queuedExecuteAttackTriggered ? "true" : "false")
-         << " attack_triggered_ms=" << attackTriggeredMs
-         << " animation_mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none")
-         << " predicate_reason=" << DescribeCanExecuteFailure(diagnostics);
-    PluginLog(line.str().c_str());
-}
-
 static void LogQueuedExecuteAnimationProbe(
     Character* actor,
     RootObject* target,
@@ -1732,7 +1662,10 @@ static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
     const float distance = distanceSq > 1.0e-6f ? std::sqrt(distanceSq) : 0.0f;
     if (distanceSq <= executeDistanceSq)
     {
-        LogQueuedExecuteApproachSkip(actor, target, executeDistance, distance);
+        if (g_queuedExecuteLastApproachCommandMs == 0)
+        {
+            LogQueuedExecuteApproachSkip(actor, target, executeDistance, distance);
+        }
         return false;
     }
 
@@ -1768,16 +1701,19 @@ static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
         moveIssued = false;
     }
 
-    LogQueuedExecuteApproach(
-        actor,
-        target,
-        executeDistance,
-        approachDistance,
-        distance,
-        moveIssued,
-        actorPos,
-        targetPos,
-        approachPos);
+    if (g_queuedExecuteLastApproachCommandMs == 0 || !moveIssued)
+    {
+        LogQueuedExecuteApproach(
+            actor,
+            target,
+            executeDistance,
+            approachDistance,
+            distance,
+            moveIssued,
+            actorPos,
+            targetPos,
+            approachPos);
+    }
     return moveIssued;
 }
 
@@ -1959,7 +1895,6 @@ static bool QueueExecuteTarget(
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
-    g_queuedExecuteLastProbeLogMs = 0;
     g_queuedExecuteAnimationMode = "none";
     g_queuedExecuteSlaveAnimPlaying = false;
 
@@ -1970,7 +1905,7 @@ static bool QueueExecuteTarget(
         g_queuedExecuteLastApproachCommandMs = nowMs;
     }
 
-    if (verboseLog)
+    if (verboseLog && ShouldLogExecuteDebug())
     {
         float executeDistance = -1.0f;
         float currentDistance = -1.0f;
@@ -1984,7 +1919,7 @@ static bool QueueExecuteTarget(
         }
 
         std::stringstream logline;
-        logline << "Loot-Scoot-Execute INFO: queued_execute_armed"
+        logline << "Loot-Scoot-Execute DEBUG: queued_execute_armed"
                 << " source=" << ExecutePredicateEntryPointToString(entryPoint)
                 << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
                 << " target=0x" << reinterpret_cast<uintptr_t>(target)
@@ -2124,27 +2059,6 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
     const bool facingTarget = facingTargetStrict || facingTargetGrace || facingTargetFallback;
     const bool queueReadyByRange = inRangeConfirmed || (g_queuedExecuteAttackTriggered && inPostTriggerDispatchRange);
 
-    LogQueuedExecuteTickProbe(
-        nowMs,
-        actor,
-        target,
-        diagnostics,
-        executeDistance,
-        distanceSq,
-        inRange,
-        inPostTriggerDispatchRange,
-        postTriggerAbortDistanceExceeded,
-        postTriggerTimedOut,
-        inRangeGraceElapsed,
-        inRangeConfirmed,
-        facingResolved,
-        facingDot,
-        facingTargetStrict,
-        facingTargetGrace,
-        facingTargetFallback,
-        facingTarget,
-        queueReadyByRange);
-
     if (!inRange)
     {
         const bool postTriggerCommitHold = g_queuedExecuteAttackTriggered;
@@ -2176,7 +2090,6 @@ static void TickQueuedExecuteAction(PlayerInterface* player)
     if (g_queuedExecuteAttackTriggeredMs != 0
         && !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecuteAttackWindupMs))
     {
-        LogQueuedExecuteSimpleProbe("queue_windup_wait", "attack_windup_not_elapsed", actor, target);
         return;
     }
 
@@ -2465,13 +2378,16 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
         g_customExecutePanelLastDispatchTargetPtr = targetPtr;
     }
 
-    std::stringstream logline;
-    logline << "Loot-Scoot-Execute INFO: custom_execute_panel_dispatch"
-            << " source=" << (sourceTag ? sourceTag : "unknown")
-            << " queued=" << (queued ? "true" : "false")
-            << " actor=0x" << std::hex << actorPtr
-            << " target=0x" << targetPtr;
-    PluginLog(logline.str().c_str());
+    if (ShouldLogExecuteDebug())
+    {
+        std::stringstream logline;
+        logline << "Loot-Scoot-Execute DEBUG: custom_execute_panel_dispatch"
+                << " source=" << (sourceTag ? sourceTag : "unknown")
+                << " queued=" << (queued ? "true" : "false")
+                << " actor=0x" << std::hex << actorPtr
+                << " target=0x" << targetPtr;
+        PluginLog(logline.str().c_str());
+    }
 
     HideCustomExecutePanelOverlay();
     DisarmNativeMenuExecuteDispatchContext();

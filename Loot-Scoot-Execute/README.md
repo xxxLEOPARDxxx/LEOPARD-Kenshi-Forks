@@ -86,7 +86,7 @@ Supported keys:
 - `enable_execute_kill_sound` (bool, default true; plays a short audio event when execute kill succeeds)
 - `debug_execute_logging` (bool, default `false`; enables focused execute investigation logs in `RE_Kenshi_log.txt` for target eligibility and dispatch failures)
 - `ignore_execute_alliance_check` (bool, default `false`; allows execute on incapacitated non-hostiles and allies, but still blocks player characters)
-- `execute_distance_meters` (int, default `2`; required distance before queued execute triggers, clamped to `1..200`)
+- `execute_distance_units` (int, default `2`; required distance before queued execute triggers, clamped to `1..200`; legacy `execute_distance_meters` is still accepted)
 - `execute_button_width` (int, default `310`; pixel width for the Execute button panel)
 - `execute_button_height` (int, default `56`; pixel height for the Execute button panel)
 - `execute_button_x` (int, default `0`; horizontal offset in pixels from the default anchored position)

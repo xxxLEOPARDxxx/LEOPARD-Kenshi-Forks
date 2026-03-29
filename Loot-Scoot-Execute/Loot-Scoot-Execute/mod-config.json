@@ -1,9 +1,9 @@
 {
   "enabled": true,
   "enable_execute_kill_sound": true,
-  "debug_execute_logging": true,
+  "debug_execute_logging": false,
   "ignore_execute_alliance_check": false,
-  "execute_distance_meters": 20,
+  "execute_distance_units": 2,
   "execute_button_width": 310,
   "execute_button_height": 56,
   "execute_button_x": 0,

@@ -30,6 +30,7 @@ struct ConfigParseDiagnostics
     bool foundIgnoreExecuteAllianceCheck;
     bool invalidIgnoreExecuteAllianceCheck;
     bool foundExecuteDistanceMeters;
+    bool usedLegacyExecuteDistanceMetersKey;
     bool invalidExecuteDistanceMeters;
     bool clampedExecuteDistanceMeters;
     bool foundExecuteButtonWidthPx;

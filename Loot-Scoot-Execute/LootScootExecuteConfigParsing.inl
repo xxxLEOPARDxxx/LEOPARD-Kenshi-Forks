@@ -525,7 +525,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "execute_distance_meters")
+        else if (key == "execute_distance_units" || key == "execute_distance_meters")
         {
             bool clamped = false;
             int parsedValue = 0;
@@ -539,6 +539,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                     &clamped))
             {
                 diagnostics->foundExecuteDistanceMeters = true;
+                diagnostics->usedLegacyExecuteDistanceMetersKey = (key == "execute_distance_meters");
                 diagnostics->clampedExecuteDistanceMeters = clamped;
                 configOut->executeDistanceMeters = parsedValue;
                 pos = valuePos;
@@ -711,7 +712,7 @@ static bool RunInternalSelfChecks()
             "\"enable_execute_kill_sound\":false,"
             "\"debug_execute_logging\":true,"
             "\"ignore_execute_alliance_check\":true,"
-            "\"execute_distance_meters\":3,"
+            "\"execute_distance_units\":3,"
             "\"execute_button_width\":320,"
             "\"execute_button_height\":44,"
             "\"execute_button_x\":15,"
@@ -739,7 +740,7 @@ static bool RunInternalSelfChecks()
           "\"enable_execute_kill_sound\":true,"
           "\"debug_execute_logging\":false,"
           "\"ignore_execute_alliance_check\":false,"
-          "\"execute_distance_meters\":2,"
+          "\"execute_distance_units\":2,"
           "\"execute_button_width\":0,"
           "\"execute_button_height\":0,"
           "\"execute_button_x\":0,"
@@ -806,7 +807,7 @@ static bool RunInternalSelfChecks()
 
     parsedConfig.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
     ResetConfigParseDiagnostics(&diagnostics);
-    if (!ParseConfigJson("{\"execute_distance_meters\":\"nope\"}", &parsedConfig, &diagnostics))
+    if (!ParseConfigJson("{\"execute_distance_units\":\"nope\"}", &parsedConfig, &diagnostics))
     {
         return false;
     }
@@ -817,12 +818,25 @@ static bool RunInternalSelfChecks()
 
     parsedConfig.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
     ResetConfigParseDiagnostics(&diagnostics);
-    if (!ParseConfigJson("{\"execute_distance_meters\":900000}", &parsedConfig, &diagnostics))
+    if (!ParseConfigJson("{\"execute_distance_units\":900000}", &parsedConfig, &diagnostics))
     {
         return false;
     }
     if (!diagnostics.clampedExecuteDistanceMeters
         || parsedConfig.executeDistanceMeters != kQueuedExecuteDistanceMaxMeters)
+    {
+        return false;
+    }
+
+    parsedConfig.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_distance_meters\":7}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.foundExecuteDistanceMeters
+        || !diagnostics.usedLegacyExecuteDistanceMetersKey
+        || parsedConfig.executeDistanceMeters != 7)
     {
         return false;
     }
@@ -916,7 +930,11 @@ static bool ReadConfigFromFile(
     if (!diagnostics.foundExecuteDistanceMeters || diagnostics.invalidExecuteDistanceMeters || diagnostics.clampedExecuteDistanceMeters)
     {
         needsWriteBack = true;
-        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_distance_meters\"; using normalized value");
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_distance_units\"; using normalized value");
+    }
+    if (diagnostics.usedLegacyExecuteDistanceMetersKey)
+    {
+        needsWriteBack = true;
     }
     if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
     {
@@ -958,7 +976,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << ",\n";
     out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
-    out << "  \"execute_distance_meters\": " << config.executeDistanceMeters << ",\n";
+    out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
     out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";
