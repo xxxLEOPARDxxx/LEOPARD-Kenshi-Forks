@@ -525,6 +525,33 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "execute_distance_meters")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kQueuedExecuteDistanceMinMeters,
+                    kQueuedExecuteDistanceMaxMeters,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteDistanceMeters = true;
+                diagnostics->clampedExecuteDistanceMeters = clamped;
+                configOut->executeDistanceMeters = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteDistanceMeters = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "execute_button_width")
         {
             bool clamped = false;
@@ -675,7 +702,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -684,6 +711,7 @@ static bool RunInternalSelfChecks()
             "\"enable_execute_kill_sound\":false,"
             "\"debug_execute_logging\":true,"
             "\"ignore_execute_alliance_check\":true,"
+            "\"execute_distance_meters\":3,"
             "\"execute_button_width\":320,"
             "\"execute_button_height\":44,"
             "\"execute_button_x\":15,"
@@ -697,6 +725,7 @@ static bool RunInternalSelfChecks()
         || parsedConfig.enableExecuteKillSound
         || !parsedConfig.debugExecuteLogging
         || !parsedConfig.ignoreExecuteAllianceCheck
+        || parsedConfig.executeDistanceMeters != 3
         || parsedConfig.executeButtonWidthPx != 320
         || parsedConfig.executeButtonHeightPx != 44
         || parsedConfig.executeButtonOffsetXPx != 15
@@ -710,6 +739,7 @@ static bool RunInternalSelfChecks()
           "\"enable_execute_kill_sound\":true,"
           "\"debug_execute_logging\":false,"
           "\"ignore_execute_alliance_check\":false,"
+          "\"execute_distance_meters\":2,"
           "\"execute_button_width\":0,"
           "\"execute_button_height\":0,"
           "\"execute_button_x\":0,"
@@ -718,6 +748,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.enableExecuteKillSound = false;
     parsedConfig.debugExecuteLogging = true;
     parsedConfig.ignoreExecuteAllianceCheck = true;
+    parsedConfig.executeDistanceMeters = 1;
     parsedConfig.executeButtonWidthPx = 1;
     parsedConfig.executeButtonHeightPx = 1;
     parsedConfig.executeButtonOffsetXPx = 1;
@@ -731,6 +762,7 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.enableExecuteKillSound
         || parsedConfig.debugExecuteLogging
         || parsedConfig.ignoreExecuteAllianceCheck
+        || parsedConfig.executeDistanceMeters != 2
         || parsedConfig.executeButtonWidthPx != 0
         || parsedConfig.executeButtonHeightPx != 0
         || parsedConfig.executeButtonOffsetXPx != 0
@@ -768,6 +800,29 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!diagnostics.invalidIgnoreExecuteAllianceCheck)
+    {
+        return false;
+    }
+
+    parsedConfig.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_distance_meters\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidExecuteDistanceMeters)
+    {
+        return false;
+    }
+
+    parsedConfig.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_distance_meters\":900000}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.clampedExecuteDistanceMeters
+        || parsedConfig.executeDistanceMeters != kQueuedExecuteDistanceMaxMeters)
     {
         return false;
     }
@@ -858,6 +913,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"ignore_execute_alliance_check\"; using default");
     }
+    if (!diagnostics.foundExecuteDistanceMeters || diagnostics.invalidExecuteDistanceMeters || diagnostics.clampedExecuteDistanceMeters)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_distance_meters\"; using normalized value");
+    }
     if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
     {
         needsWriteBack = true;
@@ -898,6 +958,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << ",\n";
     out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
+    out << "  \"execute_distance_meters\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
     out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";

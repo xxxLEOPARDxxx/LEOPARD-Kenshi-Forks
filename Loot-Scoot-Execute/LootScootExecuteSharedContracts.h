@@ -12,6 +12,7 @@ struct PluginConfig
     bool enableExecuteKillSound;
     bool debugExecuteLogging;
     bool ignoreExecuteAllianceCheck;
+    int executeDistanceMeters;
     int executeButtonWidthPx;
     int executeButtonHeightPx;
     int executeButtonOffsetXPx;
@@ -28,6 +29,9 @@ struct ConfigParseDiagnostics
     bool invalidDebugExecuteLogging;
     bool foundIgnoreExecuteAllianceCheck;
     bool invalidIgnoreExecuteAllianceCheck;
+    bool foundExecuteDistanceMeters;
+    bool invalidExecuteDistanceMeters;
+    bool clampedExecuteDistanceMeters;
     bool foundExecuteButtonWidthPx;
     bool invalidExecuteButtonWidthPx;
     bool clampedExecuteButtonWidthPx;

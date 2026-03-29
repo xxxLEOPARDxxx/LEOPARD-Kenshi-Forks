@@ -10,6 +10,7 @@ const char* kModHubSettingEnabledId = "enabled";
 const char* kModHubSettingExecuteKillSoundId = "enable_execute_kill_sound";
 const char* kModHubSettingDebugExecuteLoggingId = "debug_execute_logging";
 const char* kModHubSettingIgnoreExecuteAllianceCheckId = "ignore_execute_alliance_check";
+const char* kModHubSettingExecuteDistanceId = "execute_distance_meters";
 const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
 const char* kModHubSettingExecuteButtonHeightId = "execute_button_height";
 const char* kModHubSettingExecuteButtonXId = "execute_button_x";
@@ -236,6 +237,23 @@ static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out
     return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonWidthPx, out_value);
 }
 
+static EMC_Result __cdecl HubGetExecuteDistance(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeDistanceMeters, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteDistance(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kQueuedExecuteDistanceMinMeters,
+        kQueuedExecuteDistanceMaxMeters,
+        &g_modHubState.config->executeDistanceMeters,
+        err_buf,
+        err_buf_size);
+}
+
 static EMC_Result __cdecl HubSetExecuteButtonWidth(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
     return HubSetIntConfigValue(
@@ -378,6 +396,17 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetIgnoreExecuteAllianceCheck,
         &HubSetIgnoreExecuteAllianceCheck};
 
+    static const EMC_IntSettingDefV1 kExecuteDistanceSettingDef = {
+        kModHubSettingExecuteDistanceId,
+        "Execute distance",
+        "Required distance before queued execute triggers (default 2, max 200)",
+        &g_modHubState,
+        kQueuedExecuteDistanceMinMeters,
+        kQueuedExecuteDistanceMaxMeters,
+        1,
+        &HubGetExecuteDistance,
+        &HubSetExecuteDistance};
+
     static const EMC_IntSettingDefV1 kExecuteButtonWidthSettingDef = {
         kModHubSettingExecuteButtonWidthId,
         "Execute button width",
@@ -435,6 +464,7 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kIgnoreExecuteAllianceCheckSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteDistanceSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonWidthSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
