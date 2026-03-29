@@ -4,6 +4,7 @@
   "debug_execute_logging": false,
   "ignore_execute_alliance_check": false,
   "execute_distance_units": 2,
+  "execute_all_radius_units": 10,
   "execute_button_width": 310,
   "execute_button_height": 56,
   "execute_button_x": 0,

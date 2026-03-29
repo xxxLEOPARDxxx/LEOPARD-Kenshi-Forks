@@ -13,6 +13,7 @@ struct PluginConfig
     bool debugExecuteLogging;
     bool ignoreExecuteAllianceCheck;
     int executeDistanceMeters;
+    int executeAllRadiusUnits;
     int executeButtonWidthPx;
     int executeButtonHeightPx;
     int executeButtonOffsetXPx;
@@ -33,6 +34,9 @@ struct ConfigParseDiagnostics
     bool usedLegacyExecuteDistanceMetersKey;
     bool invalidExecuteDistanceMeters;
     bool clampedExecuteDistanceMeters;
+    bool foundExecuteAllRadiusUnits;
+    bool invalidExecuteAllRadiusUnits;
+    bool clampedExecuteAllRadiusUnits;
     bool foundExecuteButtonWidthPx;
     bool invalidExecuteButtonWidthPx;
     bool clampedExecuteButtonWidthPx;

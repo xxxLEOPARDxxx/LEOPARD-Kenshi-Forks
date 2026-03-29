@@ -67,15 +67,16 @@ static bool TryReadSimpleContextMenuSnapshot(
 
 static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, RootObject* what)
 {
+    const CustomExecutePanelAction hoveredAction = GetHoveredCustomExecutePanelAction();
     if (!on
         && IsCustomExecutePanelOverlayEnabled()
         && g_customExecutePanelVisible
-        && IsCustomExecutePanelButtonHovered())
+        && hoveredAction != CustomExecutePanelAction_NONE)
     {
         const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
         if (!rightDown)
         {
-            (void)DispatchCustomExecutePanelAction("show_close_right_release_hover");
+            (void)DispatchCustomExecutePanelAction(hoveredAction, "show_close_right_release_hover");
         }
     }
 
@@ -254,6 +255,7 @@ __declspec(dllexport) void startPlugin()
          << ", native_context_menu_integration=removed"
          << ", enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << ", debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
+         << ", execute_all_radius_units=" << g_config.executeAllRadiusUnits
          << ", execute_button_width=" << g_config.executeButtonWidthPx
          << ", execute_button_height=" << g_config.executeButtonHeightPx
          << ", execute_button_x=" << g_config.executeButtonOffsetXPx

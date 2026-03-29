@@ -47,6 +47,9 @@ static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
 static const int kQueuedExecuteDistanceMinMeters = 1;
 static const int kQueuedExecuteDistanceMaxMeters = 200;
 static const int kQueuedExecuteDefaultDistanceMeters = 2;
+static const int kExecuteAllRadiusMinUnits = 1;
+static const int kExecuteAllRadiusMaxUnits = 200;
+static const int kExecuteAllRadiusDefaultUnits = 10;
 static const float kQueuedExecuteApproachInsetMaxMeters = 1.0f;
 static const float kQueuedExecutePostTriggerDispatchExtraDistanceMeters = 1.5f;
 static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
@@ -69,10 +72,13 @@ static const char* kExecuteKillSoundEventCandidates[] =
 static const size_t kExecuteKillSoundEventCandidateCount =
     sizeof(kExecuteKillSoundEventCandidates) / sizeof(kExecuteKillSoundEventCandidates[0]);
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
+static const size_t kExecuteAllBatchMaxTargets = 64;
+static const int kExecuteAllWorldQueryMaxTargets = 128;
 static const bool kEnableCustomExecutePanelOverlay = true;
 static const int kCustomExecutePanelMinWidth = 280;
 static const int kCustomExecutePanelMinRowHeight = 24;
 static const int kCustomExecutePanelVerticalGap = 1;
+static const int kCustomExecutePanelActionRowCount = 2;
 static const int kCustomExecutePanelExtraWidth = 30;
 static const int kCustomExecutePanelExtraHeight = 8;
 static const int kCustomExecutePanelHorizontalOffset = 5;
@@ -120,6 +126,7 @@ static PluginConfig g_config = {
     false,
     false,
     kQueuedExecuteDefaultDistanceMeters,
+    kExecuteAllRadiusDefaultUnits,
     kExecuteButtonDefaultWidth,
     kExecuteButtonDefaultHeight,
     kExecuteButtonDefaultAbsoluteX,
@@ -201,6 +208,7 @@ static void PluginLog(const char* message)
 
 static MyGUI::Widget* g_customExecutePanelRoot = 0;
 static MyGUI::Button* g_customExecutePanelButton = 0;
+static MyGUI::Button* g_customExecuteAllPanelButton = 0;
 static MyGUI::TextBox* g_customExecutePanelValue = 0;
 static bool g_customExecutePanelVisible = false;
 static bool g_customExecutePanelArmed = false;
@@ -215,6 +223,7 @@ static DWORD g_customExecutePanelArmMs = 0;
 static DWORD g_customExecutePanelLastDispatchMs = 0;
 static uintptr_t g_customExecutePanelLastDispatchActorPtr = 0;
 static uintptr_t g_customExecutePanelLastDispatchTargetPtr = 0;
+static int g_customExecutePanelLastDispatchAction = 0;
 static int g_customExecutePanelAnchorSource = 0;
 static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
@@ -232,6 +241,13 @@ static DWORD g_queuedExecuteAttackTriggeredMs = 0;
 static DWORD g_queuedExecuteInRangeSinceMs = 0;
 static const char* g_queuedExecuteAnimationMode = "none";
 static bool g_queuedExecuteSlaveAnimPlaying = false;
+static bool g_executeAllBatchActive = false;
+static hand g_executeAllBatchActorHandle;
+static uintptr_t g_executeAllBatchActorPtr = 0;
+static hand g_executeAllBatchTargetHandles[kExecuteAllBatchMaxTargets];
+static uintptr_t g_executeAllBatchTargetPtrs[kExecuteAllBatchMaxTargets];
+static size_t g_executeAllBatchTargetCount = 0;
+static size_t g_executeAllBatchNextTargetIndex = 0;
 static bool g_nativeMenuExecuteDispatchArmed = false;
 static uintptr_t g_nativeMenuExecuteDispatchTargetPtr = 0;
 static DWORD g_nativeMenuExecuteDispatchArmMs = 0;
@@ -256,6 +272,13 @@ static __declspec(thread) bool g_nativeMenuLoopEntryInjectionInProgress = false;
 enum ExecutePredicateEntryPoint
 {
     ExecutePredicateEntryPoint_NATIVE_MENU = 1
+};
+
+enum CustomExecutePanelAction
+{
+    CustomExecutePanelAction_NONE = 0,
+    CustomExecutePanelAction_EXECUTE = 1,
+    CustomExecutePanelAction_EXECUTE_ALL = 2
 };
 
 struct CanExecuteDiagnostics
@@ -307,9 +330,12 @@ static bool CanExecuteFromNativeMenuSelection(Character* actor, RootObject* targ
 static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog);
 static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
+static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryResolvePlayerInterface(PlayerInterface** playerOut);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
+static bool TryGetRootObjectHandleSafe(RootObject* object, hand* handleOut);
+static RootObject* TryResolveRootObjectFromHandleSafe(const hand& rootObjectHandle);
 static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
 static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* target, bool targetIsCharacter);
 static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
@@ -364,6 +390,9 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->usedLegacyExecuteDistanceMetersKey = false;
     diagnostics->invalidExecuteDistanceMeters = false;
     diagnostics->clampedExecuteDistanceMeters = false;
+    diagnostics->foundExecuteAllRadiusUnits = false;
+    diagnostics->invalidExecuteAllRadiusUnits = false;
+    diagnostics->clampedExecuteAllRadiusUnits = false;
     diagnostics->foundExecuteButtonWidthPx = false;
     diagnostics->invalidExecuteButtonWidthPx = false;
     diagnostics->clampedExecuteButtonWidthPx = false;
@@ -407,6 +436,7 @@ static void LoadConfigState()
     g_config.debugExecuteLogging = false;
     g_config.ignoreExecuteAllianceCheck = false;
     g_config.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
+    g_config.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
     g_config.executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
@@ -463,6 +493,7 @@ static void LoadConfigState()
          << " debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
          << " ignore_execute_alliance_check=" << (g_config.ignoreExecuteAllianceCheck ? "true" : "false")
          << " execute_distance_units=" << g_config.executeDistanceMeters
+         << " execute_all_radius_units=" << g_config.executeAllRadiusUnits
          << " execute_button_width=" << g_config.executeButtonWidthPx
          << " execute_button_height=" << g_config.executeButtonHeightPx
          << " execute_button_x=" << g_config.executeButtonOffsetXPx
@@ -1175,6 +1206,75 @@ static bool TryResolveTargetHandleValidity(RootObject* target, bool* isValidOut)
     }
 }
 
+static bool TryGetRootObjectHandleSafe(RootObject* object, hand* handleOut)
+{
+    if (!object || !handleOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *handleOut = object->getHandle();
+        return handleOut->isValid();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        handleOut->setNull();
+        return false;
+    }
+}
+
+static RootObject* TryResolveRootObjectFromHandleSafe(const hand& rootObjectHandle)
+{
+    RootObject* resolved = 0;
+    __try
+    {
+        if (rootObjectHandle.isValid())
+        {
+            resolved = rootObjectHandle.getRootObject();
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        resolved = 0;
+    }
+    return resolved;
+}
+
+static bool TryGetCharactersWithinSphere(
+    lektor<RootObject*>* resultsOut,
+    const Ogre::Vector3& spherePos,
+    float radiusUnits,
+    RootObject* skip)
+{
+    if (!resultsOut || !ou)
+    {
+        return false;
+    }
+
+    resultsOut->clear();
+
+    __try
+    {
+        ou->getCharactersWithinSphere(
+            *resultsOut,
+            spherePos,
+            radiusUnits,
+            radiusUnits,
+            radiusUnits,
+            kExecuteAllWorldQueryMaxTargets,
+            kExecuteAllWorldQueryMaxTargets,
+            skip);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        resultsOut->clear();
+        return false;
+    }
+}
+
 static bool TryIsCharacterDead(Character* targetCharacter, bool* isDeadOut)
 {
     if (!targetCharacter || !isDeadOut)
@@ -1297,6 +1397,110 @@ static void TryEndQueuedExecuteSlaveAnim(Character* actor)
     }
 }
 
+static void ResetExecuteAllBatchState()
+{
+    g_executeAllBatchActive = false;
+    g_executeAllBatchActorHandle.setNull();
+    g_executeAllBatchActorPtr = 0;
+    for (size_t i = 0; i < kExecuteAllBatchMaxTargets; ++i)
+    {
+        g_executeAllBatchTargetHandles[i].setNull();
+        g_executeAllBatchTargetPtrs[i] = 0;
+    }
+    g_executeAllBatchTargetCount = 0;
+    g_executeAllBatchNextTargetIndex = 0;
+}
+
+static bool IsExecuteAllBatchContinuationReason(const char* reason)
+{
+    if (!reason || reason[0] == '\0')
+    {
+        return false;
+    }
+
+    return std::strcmp(reason, "queue_completed") == 0
+        || std::strcmp(reason, "queue_target_missing") == 0
+        || std::strcmp(reason, "target_not_executable") == 0;
+}
+
+static bool AddExecuteAllBatchTarget(RootObject* target)
+{
+    if (!target || g_executeAllBatchTargetCount >= kExecuteAllBatchMaxTargets)
+    {
+        return false;
+    }
+
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    for (size_t i = 0; i < g_executeAllBatchTargetCount; ++i)
+    {
+        if (g_executeAllBatchTargetPtrs[i] == targetPtr)
+        {
+            return true;
+        }
+    }
+
+    hand targetHandle;
+    if (!TryGetRootObjectHandleSafe(target, &targetHandle))
+    {
+        return false;
+    }
+
+    const size_t nextIndex = g_executeAllBatchTargetCount;
+    g_executeAllBatchTargetHandles[nextIndex] = targetHandle;
+    g_executeAllBatchTargetPtrs[nextIndex] = targetPtr;
+    g_executeAllBatchTargetCount = nextIndex + 1;
+    return true;
+}
+
+static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
+{
+    if (!g_executeAllBatchActive)
+    {
+        return false;
+    }
+
+    Character* actor = TryResolveCharacterFromHandleSafe(g_executeAllBatchActorHandle);
+    if (!actor && g_executeAllBatchActorPtr != 0)
+    {
+        actor = reinterpret_cast<Character*>(g_executeAllBatchActorPtr);
+    }
+    if (!actor)
+    {
+        ResetExecuteAllBatchState();
+        return false;
+    }
+
+    while (g_executeAllBatchNextTargetIndex < g_executeAllBatchTargetCount)
+    {
+        const size_t targetIndex = g_executeAllBatchNextTargetIndex;
+        ++g_executeAllBatchNextTargetIndex;
+
+        RootObject* target = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[targetIndex]);
+        if (!target)
+        {
+            continue;
+        }
+
+        if (QueueExecuteFromNativeMenuSelection(actor, target, verboseLog))
+        {
+            if (ShouldLogExecuteDebug())
+            {
+                std::stringstream line;
+                line << "Loot-Scoot-Execute DEBUG: execute_all_batch_queue_next"
+                     << " index=" << (targetIndex + 1)
+                     << " total=" << g_executeAllBatchTargetCount
+                     << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+                     << " target=0x" << reinterpret_cast<uintptr_t>(target);
+                PluginLog(line.str().c_str());
+            }
+            return true;
+        }
+    }
+
+    ResetExecuteAllBatchState();
+    return false;
+}
+
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
 {
     Character* queuedActor = TryResolveCharacterFromHandleSafe(g_queuedExecuteActorHandle);
@@ -1331,6 +1535,16 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteInRangeSinceMs = 0;
     g_queuedExecuteAnimationMode = "none";
     g_queuedExecuteSlaveAnimPlaying = false;
+
+    if (IsExecuteAllBatchContinuationReason(reason))
+    {
+        if (TryQueueNextExecuteAllBatchTarget(verboseLog))
+        {
+            return;
+        }
+    }
+
+    ResetExecuteAllBatchState();
 }
 
 static bool TryResolveQueuedExecuteParticipants(
@@ -1823,6 +2037,112 @@ static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* ta
     return static_cast<float>(g_config.executeDistanceMeters);
 }
 
+static float ComputeExecuteAllRadiusUnits()
+{
+    if (g_config.executeAllRadiusUnits < kExecuteAllRadiusMinUnits)
+    {
+        return static_cast<float>(kExecuteAllRadiusMinUnits);
+    }
+
+    if (g_config.executeAllRadiusUnits > kExecuteAllRadiusMaxUnits)
+    {
+        return static_cast<float>(kExecuteAllRadiusMaxUnits);
+    }
+
+    return static_cast<float>(g_config.executeAllRadiusUnits);
+}
+
+static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
+{
+    if (!g_effectiveEnableExecuteAction || !target)
+    {
+        return false;
+    }
+
+    if (!actor)
+    {
+        actor = ResolveExecuteActorForPredicateWithTarget(target, true);
+    }
+    if (!actor)
+    {
+        return false;
+    }
+
+    CanExecuteDiagnostics primaryDiagnostics = MakeCanExecuteDiagnostics();
+    if (!CanExecuteFromNativeMenuSelection(actor, target, &primaryDiagnostics, verboseLog))
+    {
+        return false;
+    }
+
+    if (g_queuedExecuteActive)
+    {
+        DisarmQueuedExecuteAction("queue_replaced", false);
+    }
+    ResetExecuteAllBatchState();
+
+    hand actorHandle;
+    if (!TryGetRootObjectHandleSafe(actor, &actorHandle))
+    {
+        return false;
+    }
+
+    g_executeAllBatchActive = true;
+    g_executeAllBatchActorHandle = actorHandle;
+    g_executeAllBatchActorPtr = reinterpret_cast<uintptr_t>(actor);
+
+    if (!AddExecuteAllBatchTarget(target))
+    {
+        ResetExecuteAllBatchState();
+        return false;
+    }
+
+    const float radiusUnits = ComputeExecuteAllRadiusUnits();
+    Ogre::Vector3 targetPos;
+    if (ou && TryReadRootObjectPosition(target, &targetPos))
+    {
+        lektor<RootObject*> nearbyTargets;
+        (void)TryGetCharactersWithinSphere(&nearbyTargets, targetPos, radiusUnits, target);
+
+        const uint32_t nearbyCount = nearbyTargets.size();
+        for (uint32_t i = 0; i < nearbyCount && g_executeAllBatchTargetCount < kExecuteAllBatchMaxTargets; ++i)
+        {
+            RootObject* nearbyTarget = nearbyTargets[i];
+            if (!nearbyTarget || nearbyTarget == target)
+            {
+                continue;
+            }
+
+            CanExecuteDiagnostics nearbyDiagnostics = MakeCanExecuteDiagnostics();
+            if (!CanExecuteFromNativeMenuSelection(actor, nearbyTarget, &nearbyDiagnostics, false))
+            {
+                continue;
+            }
+
+            (void)AddExecuteAllBatchTarget(nearbyTarget);
+        }
+    }
+
+    if (ShouldLogExecuteDebug())
+    {
+        std::stringstream line;
+        line << "Loot-Scoot-Execute DEBUG: execute_all_batch_armed"
+             << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
+             << " target=0x" << reinterpret_cast<uintptr_t>(target)
+             << std::dec
+             << " radius_units=" << radiusUnits
+             << " target_count=" << g_executeAllBatchTargetCount;
+        PluginLog(line.str().c_str());
+    }
+
+    if (!TryQueueNextExecuteAllBatchTarget(verboseLog))
+    {
+        ResetExecuteAllBatchState();
+        return false;
+    }
+
+    return true;
+}
+
 static bool QueueExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
     Character* actor,
@@ -2303,9 +2623,44 @@ static bool IsCustomExecutePanelOverlayEnabled()
         && g_effectiveEnableExecuteAction;
 }
 
-static bool IsCustomExecutePanelButtonHovered()
+static const char* CustomExecutePanelActionToString(CustomExecutePanelAction action)
 {
-    if (!g_customExecutePanelButton || !g_customExecutePanelVisible)
+    switch (action)
+    {
+    case CustomExecutePanelAction_EXECUTE:
+        return "execute";
+    case CustomExecutePanelAction_EXECUTE_ALL:
+        return "execute_all";
+    default:
+        return "none";
+    }
+}
+
+static bool TryGetCustomExecutePanelButtonRect(MyGUI::Button* button, MyGUI::IntCoord* buttonRectOut)
+{
+    if (!button || !buttonRectOut)
+    {
+        return false;
+    }
+
+    __try
+    {
+        if (!button->getInheritedVisible())
+        {
+            return false;
+        }
+        *buttonRectOut = button->getAbsoluteCoord();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+static bool IsCustomExecutePanelButtonHovered(MyGUI::Button* button)
+{
+    if (!button || !g_customExecutePanelVisible)
     {
         return false;
     }
@@ -2317,15 +2672,7 @@ static bool IsCustomExecutePanelButtonHovered()
     }
 
     MyGUI::IntCoord buttonRect(0, 0, 0, 0);
-    __try
-    {
-        if (!g_customExecutePanelButton->getInheritedVisible())
-        {
-            return false;
-        }
-        buttonRect = g_customExecutePanelButton->getAbsoluteCoord();
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
+    if (!TryGetCustomExecutePanelButtonRect(button, &buttonRect))
     {
         return false;
     }
@@ -2337,9 +2684,37 @@ static bool IsCustomExecutePanelButtonHovered()
         && mousePos.top < (buttonRect.top + buttonRect.height);
 }
 
-static bool DispatchCustomExecutePanelAction(const char* sourceTag)
+static CustomExecutePanelAction ResolveCustomExecutePanelActionForSender(MyGUI::Widget* sender)
 {
-    if (!IsCustomExecutePanelOverlayEnabled())
+    if (sender == g_customExecuteAllPanelButton)
+    {
+        return CustomExecutePanelAction_EXECUTE_ALL;
+    }
+    if (sender == g_customExecutePanelButton)
+    {
+        return CustomExecutePanelAction_EXECUTE;
+    }
+
+    return CustomExecutePanelAction_NONE;
+}
+
+static CustomExecutePanelAction GetHoveredCustomExecutePanelAction()
+{
+    if (IsCustomExecutePanelButtonHovered(g_customExecutePanelButton))
+    {
+        return CustomExecutePanelAction_EXECUTE;
+    }
+    if (IsCustomExecutePanelButtonHovered(g_customExecuteAllPanelButton))
+    {
+        return CustomExecutePanelAction_EXECUTE_ALL;
+    }
+
+    return CustomExecutePanelAction_NONE;
+}
+
+static bool DispatchCustomExecutePanelAction(CustomExecutePanelAction action, const char* sourceTag)
+{
+    if (!IsCustomExecutePanelOverlayEnabled() || action == CustomExecutePanelAction_NONE)
     {
         return false;
     }
@@ -2363,6 +2738,7 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
         && targetPtr != 0
         && g_customExecutePanelLastDispatchActorPtr == actorPtr
         && g_customExecutePanelLastDispatchTargetPtr == targetPtr
+        && g_customExecutePanelLastDispatchAction == static_cast<int>(action)
         && g_customExecutePanelLastDispatchMs != 0
         && !DebounceWindowElapsed(nowMs, g_customExecutePanelLastDispatchMs, kCustomExecutePanelDispatchDedupMs);
     if (dedupDispatch)
@@ -2370,18 +2746,22 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
         return false;
     }
 
-    const bool queued = QueueExecuteFromNativeMenuSelection(actor, target, true);
+    const bool queued = (action == CustomExecutePanelAction_EXECUTE_ALL)
+        ? QueueExecuteAllFromNativeMenuSelection(actor, target, true)
+        : QueueExecuteFromNativeMenuSelection(actor, target, true);
     if (queued)
     {
         g_customExecutePanelLastDispatchMs = nowMs;
         g_customExecutePanelLastDispatchActorPtr = actorPtr;
         g_customExecutePanelLastDispatchTargetPtr = targetPtr;
+        g_customExecutePanelLastDispatchAction = static_cast<int>(action);
     }
 
     if (ShouldLogExecuteDebug())
     {
         std::stringstream logline;
         logline << "Loot-Scoot-Execute DEBUG: custom_execute_panel_dispatch"
+                << " action=" << CustomExecutePanelActionToString(action)
                 << " source=" << (sourceTag ? sourceTag : "unknown")
                 << " queued=" << (queued ? "true" : "false")
                 << " actor=0x" << std::hex << actorPtr
@@ -2397,7 +2777,6 @@ static bool DispatchCustomExecutePanelAction(const char* sourceTag)
 
 static void OnCustomExecutePanelButtonPressed(MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
 {
-    (void)sender;
     (void)left;
     (void)top;
 
@@ -2406,13 +2785,20 @@ static void OnCustomExecutePanelButtonPressed(MyGUI::Widget* sender, int left, i
         return;
     }
 
-    (void)DispatchCustomExecutePanelAction("mouse_pressed");
+    const CustomExecutePanelAction action = ResolveCustomExecutePanelActionForSender(sender);
+    if (action != CustomExecutePanelAction_NONE)
+    {
+        (void)DispatchCustomExecutePanelAction(action, "mouse_pressed");
+    }
 }
 
 static void OnCustomExecutePanelButtonClick(MyGUI::Widget* sender)
 {
-    (void)sender;
-    (void)DispatchCustomExecutePanelAction("mouse_click");
+    const CustomExecutePanelAction action = ResolveCustomExecutePanelActionForSender(sender);
+    if (action != CustomExecutePanelAction_NONE)
+    {
+        (void)DispatchCustomExecutePanelAction(action, "mouse_click");
+    }
 }
 
 static void DestroyCustomExecutePanelOverlayWidgets()
@@ -2425,12 +2811,13 @@ static void DestroyCustomExecutePanelOverlayWidgets()
 
     g_customExecutePanelRoot = 0;
     g_customExecutePanelButton = 0;
+    g_customExecuteAllPanelButton = 0;
     g_customExecutePanelValue = 0;
 }
 
 static bool EnsureCustomExecutePanelOverlayWidgets()
 {
-    if (g_customExecutePanelRoot && g_customExecutePanelButton)
+    if (g_customExecutePanelRoot && g_customExecutePanelButton && g_customExecuteAllPanelButton)
     {
         return true;
     }
@@ -2445,9 +2832,12 @@ static bool EnsureCustomExecutePanelOverlayWidgets()
 
     try
     {
+        const int minPanelHeight =
+            (kCustomExecutePanelMinRowHeight * kCustomExecutePanelActionRowCount)
+            + (kCustomExecutePanelVerticalGap * (kCustomExecutePanelActionRowCount - 1));
         g_customExecutePanelRoot = gui->createWidget<MyGUI::Widget>(
             "PanelEmpty",
-            MyGUI::IntCoord(0, 0, kCustomExecutePanelMinWidth, kCustomExecutePanelMinRowHeight),
+            MyGUI::IntCoord(0, 0, kCustomExecutePanelMinWidth, minPanelHeight),
             MyGUI::Align::Default,
             "Popup",
             "LSE_CustomExecuteOverlayRoot");
@@ -2486,12 +2876,47 @@ static bool EnsureCustomExecutePanelOverlayWidgets()
             return false;
         }
 
+        const int executeAllTop = kCustomExecutePanelMinRowHeight + kCustomExecutePanelVerticalGap + 1;
+        g_customExecuteAllPanelButton = g_customExecutePanelRoot->createWidget<MyGUI::Button>(
+            "Kenshi_Button1",
+            MyGUI::IntCoord(
+                2,
+                executeAllTop,
+                kCustomExecutePanelMinWidth - 4,
+                kCustomExecutePanelMinRowHeight - 2),
+            MyGUI::Align::Default,
+            "LSE_CustomExecuteAllOverlayButton");
+        if (!g_customExecuteAllPanelButton)
+        {
+            g_customExecuteAllPanelButton = g_customExecutePanelRoot->createWidget<MyGUI::Button>(
+                "Button",
+                MyGUI::IntCoord(
+                    2,
+                    executeAllTop,
+                    kCustomExecutePanelMinWidth - 4,
+                    kCustomExecutePanelMinRowHeight - 2),
+                MyGUI::Align::Default,
+                "LSE_CustomExecuteAllOverlayButtonFallback");
+        }
+        if (!g_customExecuteAllPanelButton)
+        {
+            DestroyCustomExecutePanelOverlayWidgets();
+            return false;
+        }
+
         g_customExecutePanelButton->setCaption("Execute");
         g_customExecutePanelButton->setNeedMouseFocus(true);
         g_customExecutePanelButton->setNeedKeyFocus(true);
         g_customExecutePanelButton->setEnabled(true);
         g_customExecutePanelButton->eventMouseButtonPressed += MyGUI::newDelegate(&OnCustomExecutePanelButtonPressed);
         g_customExecutePanelButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCustomExecutePanelButtonClick);
+
+        g_customExecuteAllPanelButton->setCaption("Execute All");
+        g_customExecuteAllPanelButton->setNeedMouseFocus(true);
+        g_customExecuteAllPanelButton->setNeedKeyFocus(true);
+        g_customExecuteAllPanelButton->setEnabled(true);
+        g_customExecuteAllPanelButton->eventMouseButtonPressed += MyGUI::newDelegate(&OnCustomExecutePanelButtonPressed);
+        g_customExecuteAllPanelButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCustomExecutePanelButtonClick);
         g_customExecutePanelValue = 0;
 
         g_customExecutePanelRoot->setVisible(false);
@@ -2784,7 +3209,7 @@ static bool TryResolveCustomExecutePanelAnchorRect(ContextMenu* menu, MyGUI::Int
 
 static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
 {
-    if (!g_customExecutePanelRoot || !g_customExecutePanelButton)
+    if (!g_customExecutePanelRoot || !g_customExecutePanelButton || !g_customExecuteAllPanelButton)
     {
         return;
     }
@@ -2835,12 +3260,15 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
     const int basePanelLeft = anchor.left + kCustomExecutePanelHorizontalOffset;
     const int panelTop = basePanelTop + g_config.executeButtonOffsetYPx;
     const int panelLeft = basePanelLeft + g_config.executeButtonOffsetXPx;
+    const int panelHeight =
+        (rowHeight * kCustomExecutePanelActionRowCount)
+        + (kCustomExecutePanelVerticalGap * (kCustomExecutePanelActionRowCount - 1));
 
     g_customExecutePanelRoot->setCoord(
         panelLeft,
         panelTop,
         width,
-        rowHeight);
+        panelHeight);
 
     int buttonLeft = width / 48;           // 2.0833%
     if (buttonLeft < 2)
@@ -2867,6 +3295,8 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
     }
 
     g_customExecutePanelButton->setCoord(buttonLeft, innerTop, buttonWidth, innerHeight);
+    const int secondButtonTop = rowHeight + kCustomExecutePanelVerticalGap + innerTop;
+    g_customExecuteAllPanelButton->setCoord(buttonLeft, secondButtonTop, buttonWidth, innerHeight);
     if (g_customExecutePanelValue)
     {
         g_customExecutePanelValue->setVisible(false);
@@ -3001,9 +3431,10 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
     const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     const bool rightReleasedThisFrame = g_customExecutePanelRightMouseWasDown && !rightDown;
     g_customExecutePanelRightMouseWasDown = rightDown;
-    if (rightReleasedThisFrame && IsCustomExecutePanelButtonHovered())
+    const CustomExecutePanelAction hoveredAction = GetHoveredCustomExecutePanelAction();
+    if (rightReleasedThisFrame && hoveredAction != CustomExecutePanelAction_NONE)
     {
-        (void)DispatchCustomExecutePanelAction("right_release_hover");
+        (void)DispatchCustomExecutePanelAction(hoveredAction, "right_release_hover");
         return;
     }
 }

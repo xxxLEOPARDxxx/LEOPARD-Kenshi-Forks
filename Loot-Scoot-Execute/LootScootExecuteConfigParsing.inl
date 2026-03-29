@@ -553,6 +553,33 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "execute_all_radius_units")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteAllRadiusMinUnits,
+                    kExecuteAllRadiusMaxUnits,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteAllRadiusUnits = true;
+                diagnostics->clampedExecuteAllRadiusUnits = clamped;
+                configOut->executeAllRadiusUnits = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteAllRadiusUnits = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "execute_button_width")
         {
             bool clamped = false;
@@ -703,7 +730,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -713,6 +740,7 @@ static bool RunInternalSelfChecks()
             "\"debug_execute_logging\":true,"
             "\"ignore_execute_alliance_check\":true,"
             "\"execute_distance_units\":3,"
+            "\"execute_all_radius_units\":10,"
             "\"execute_button_width\":320,"
             "\"execute_button_height\":44,"
             "\"execute_button_x\":15,"
@@ -727,6 +755,7 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.debugExecuteLogging
         || !parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeDistanceMeters != 3
+        || parsedConfig.executeAllRadiusUnits != 10
         || parsedConfig.executeButtonWidthPx != 320
         || parsedConfig.executeButtonHeightPx != 44
         || parsedConfig.executeButtonOffsetXPx != 15
@@ -741,6 +770,7 @@ static bool RunInternalSelfChecks()
           "\"debug_execute_logging\":false,"
           "\"ignore_execute_alliance_check\":false,"
           "\"execute_distance_units\":2,"
+          "\"execute_all_radius_units\":10,"
           "\"execute_button_width\":0,"
           "\"execute_button_height\":0,"
           "\"execute_button_x\":0,"
@@ -750,6 +780,7 @@ static bool RunInternalSelfChecks()
     parsedConfig.debugExecuteLogging = true;
     parsedConfig.ignoreExecuteAllianceCheck = true;
     parsedConfig.executeDistanceMeters = 1;
+    parsedConfig.executeAllRadiusUnits = 1;
     parsedConfig.executeButtonWidthPx = 1;
     parsedConfig.executeButtonHeightPx = 1;
     parsedConfig.executeButtonOffsetXPx = 1;
@@ -764,6 +795,7 @@ static bool RunInternalSelfChecks()
         || parsedConfig.debugExecuteLogging
         || parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeDistanceMeters != 2
+        || parsedConfig.executeAllRadiusUnits != 10
         || parsedConfig.executeButtonWidthPx != 0
         || parsedConfig.executeButtonHeightPx != 0
         || parsedConfig.executeButtonOffsetXPx != 0
@@ -824,6 +856,29 @@ static bool RunInternalSelfChecks()
     }
     if (!diagnostics.clampedExecuteDistanceMeters
         || parsedConfig.executeDistanceMeters != kQueuedExecuteDistanceMaxMeters)
+    {
+        return false;
+    }
+
+    parsedConfig.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_all_radius_units\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidExecuteAllRadiusUnits)
+    {
+        return false;
+    }
+
+    parsedConfig.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_all_radius_units\":900000}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.clampedExecuteAllRadiusUnits
+        || parsedConfig.executeAllRadiusUnits != kExecuteAllRadiusMaxUnits)
     {
         return false;
     }
@@ -936,6 +991,11 @@ static bool ReadConfigFromFile(
     {
         needsWriteBack = true;
     }
+    if (!diagnostics.foundExecuteAllRadiusUnits || diagnostics.invalidExecuteAllRadiusUnits || diagnostics.clampedExecuteAllRadiusUnits)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_all_radius_units\"; using normalized value");
+    }
     if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
     {
         needsWriteBack = true;
@@ -977,6 +1037,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
     out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
+    out << "  \"execute_all_radius_units\": " << config.executeAllRadiusUnits << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
     out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";
