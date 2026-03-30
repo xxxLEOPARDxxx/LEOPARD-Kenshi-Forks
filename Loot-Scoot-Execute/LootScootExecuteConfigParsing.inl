@@ -506,6 +506,25 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "enable_execute_all")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                diagnostics->foundEnableExecuteAll = true;
+                configOut->enableExecuteAll = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidEnableExecuteAll = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "ignore_execute_alliance_check")
         {
             bool parsedBool = false;
@@ -634,6 +653,33 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "execute_button_gap")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteButtonGapMin,
+                    kExecuteButtonGapMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->foundExecuteButtonGapPx = true;
+                diagnostics->clampedExecuteButtonGapPx = clamped;
+                configOut->executeButtonGapPx = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteButtonGapPx = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "execute_button_x")
         {
             bool clamped = false;
@@ -730,7 +776,7 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, true, false, false, 0, 0, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = { true, true, false, true, false, 0, 0, 0, 0, 0, 0, 0 };
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -738,11 +784,13 @@ static bool RunInternalSelfChecks()
             "{\"enabled\":false,"
             "\"enable_execute_kill_sound\":false,"
             "\"debug_execute_logging\":true,"
+            "\"enable_execute_all\":false,"
             "\"ignore_execute_alliance_check\":true,"
             "\"execute_distance_units\":3,"
             "\"execute_all_radius_units\":10,"
             "\"execute_button_width\":320,"
             "\"execute_button_height\":44,"
+            "\"execute_button_gap\":-8,"
             "\"execute_button_x\":15,"
             "\"execute_button_y\":-6}",
             &parsedConfig,
@@ -753,11 +801,13 @@ static bool RunInternalSelfChecks()
     if (parsedConfig.enabled
         || parsedConfig.enableExecuteKillSound
         || !parsedConfig.debugExecuteLogging
+        || parsedConfig.enableExecuteAll
         || !parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeDistanceMeters != 3
         || parsedConfig.executeAllRadiusUnits != 10
         || parsedConfig.executeButtonWidthPx != 320
         || parsedConfig.executeButtonHeightPx != 44
+        || parsedConfig.executeButtonGapPx != -8
         || parsedConfig.executeButtonOffsetXPx != 15
         || parsedConfig.executeButtonOffsetYPx != -6)
     {
@@ -768,21 +818,25 @@ static bool RunInternalSelfChecks()
         + "{\"enabled\":true,"
           "\"enable_execute_kill_sound\":true,"
           "\"debug_execute_logging\":false,"
+          "\"enable_execute_all\":true,"
           "\"ignore_execute_alliance_check\":false,"
           "\"execute_distance_units\":2,"
           "\"execute_all_radius_units\":10,"
           "\"execute_button_width\":0,"
           "\"execute_button_height\":0,"
+          "\"execute_button_gap\":0,"
           "\"execute_button_x\":0,"
           "\"execute_button_y\":0}";
     parsedConfig.enabled = false;
     parsedConfig.enableExecuteKillSound = false;
     parsedConfig.debugExecuteLogging = true;
+    parsedConfig.enableExecuteAll = false;
     parsedConfig.ignoreExecuteAllianceCheck = true;
     parsedConfig.executeDistanceMeters = 1;
     parsedConfig.executeAllRadiusUnits = 1;
     parsedConfig.executeButtonWidthPx = 1;
     parsedConfig.executeButtonHeightPx = 1;
+    parsedConfig.executeButtonGapPx = 1;
     parsedConfig.executeButtonOffsetXPx = 1;
     parsedConfig.executeButtonOffsetYPx = 1;
     ResetConfigParseDiagnostics(&diagnostics);
@@ -793,11 +847,13 @@ static bool RunInternalSelfChecks()
     if (!parsedConfig.enabled
         || !parsedConfig.enableExecuteKillSound
         || parsedConfig.debugExecuteLogging
+        || !parsedConfig.enableExecuteAll
         || parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeDistanceMeters != 2
         || parsedConfig.executeAllRadiusUnits != 10
         || parsedConfig.executeButtonWidthPx != 0
         || parsedConfig.executeButtonHeightPx != 0
+        || parsedConfig.executeButtonGapPx != 0
         || parsedConfig.executeButtonOffsetXPx != 0
         || parsedConfig.executeButtonOffsetYPx != 0)
     {
@@ -822,6 +878,17 @@ static bool RunInternalSelfChecks()
         return false;
     }
     if (!diagnostics.invalidDebugExecuteLogging)
+    {
+        return false;
+    }
+
+    parsedConfig.enableExecuteAll = true;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"enable_execute_all\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidEnableExecuteAll)
     {
         return false;
     }
@@ -879,6 +946,29 @@ static bool RunInternalSelfChecks()
     }
     if (!diagnostics.clampedExecuteAllRadiusUnits
         || parsedConfig.executeAllRadiusUnits != kExecuteAllRadiusMaxUnits)
+    {
+        return false;
+    }
+
+    parsedConfig.executeButtonGapPx = kExecuteButtonDefaultGapPx;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_button_gap\":\"nope\"}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.invalidExecuteButtonGapPx)
+    {
+        return false;
+    }
+
+    parsedConfig.executeButtonGapPx = kExecuteButtonDefaultGapPx;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_button_gap\":900000}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!diagnostics.clampedExecuteButtonGapPx
+        || parsedConfig.executeButtonGapPx != kExecuteButtonGapMax)
     {
         return false;
     }
@@ -977,6 +1067,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"debug_execute_logging\"; using default");
     }
+    if (!diagnostics.foundEnableExecuteAll || diagnostics.invalidEnableExecuteAll)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"enable_execute_all\"; using default");
+    }
     if (!diagnostics.foundIgnoreExecuteAllianceCheck || diagnostics.invalidIgnoreExecuteAllianceCheck)
     {
         needsWriteBack = true;
@@ -1005,6 +1100,11 @@ static bool ReadConfigFromFile(
     {
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_height\"; using normalized value");
+    }
+    if (!diagnostics.foundExecuteButtonGapPx || diagnostics.invalidExecuteButtonGapPx || diagnostics.clampedExecuteButtonGapPx)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_button_gap\"; using normalized value");
     }
     if (!diagnostics.foundExecuteButtonOffsetXPx || diagnostics.invalidExecuteButtonOffsetXPx || diagnostics.clampedExecuteButtonOffsetXPx)
     {
@@ -1035,11 +1135,13 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
     out << "  \"enable_execute_kill_sound\": " << (config.enableExecuteKillSound ? "true" : "false") << ",\n";
     out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
+    out << "  \"enable_execute_all\": " << (config.enableExecuteAll ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
     out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_all_radius_units\": " << config.executeAllRadiusUnits << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
+    out << "  \"execute_button_gap\": " << config.executeButtonGapPx << ",\n";
     out << "  \"execute_button_x\": " << config.executeButtonOffsetXPx << ",\n";
     out << "  \"execute_button_y\": " << config.executeButtonOffsetYPx << "\n";
     out << "}\n";

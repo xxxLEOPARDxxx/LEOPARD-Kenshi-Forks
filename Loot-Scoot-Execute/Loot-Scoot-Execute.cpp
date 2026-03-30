@@ -21,6 +21,14 @@
 #include <Windows.h>
 #include <intrin.h>
 
+#include <ogre/OgreColourValue.h>
+#include <ogre/OgreEntity.h>
+#include <ogre/OgreGpuProgramParams.h>
+#include <ogre/OgreMaterial.h>
+#include <ogre/OgrePass.h>
+#include <ogre/OgreSubEntity.h>
+#include <ogre/OgreTechnique.h>
+
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -28,7 +36,9 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
+#include "LootScootExecuteAppearanceExtern.h"
 #include "LootScootExecuteSharedContracts.h"
 #include "emc/mod_hub_api.h"
 #include "emc/mod_hub_client.h"
@@ -50,11 +60,13 @@ static const int kQueuedExecuteDefaultDistanceMeters = 2;
 static const int kExecuteAllRadiusMinUnits = 1;
 static const int kExecuteAllRadiusMaxUnits = 200;
 static const int kExecuteAllRadiusDefaultUnits = 10;
+static const size_t kExecuteAllHoverTintMaxTargets = 12;
 static const float kQueuedExecuteApproachInsetMaxMeters = 1.0f;
 static const float kQueuedExecutePostTriggerDispatchExtraDistanceMeters = 1.5f;
 static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
 static const float kQueuedExecuteFacingDotMin = 0.90f;
 static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
+static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
 static const std::string kQueuedExecuteSlaveAnimName = "salute";
 static const char* kExecuteKillSoundEventCandidates[] =
 {
@@ -95,6 +107,9 @@ static const int kExecuteButtonRuntimeWidthMin = 20;
 static const int kExecuteButtonRuntimeHeightMin = 12;
 static const int kExecuteButtonDefaultWidth = 310;
 static const int kExecuteButtonDefaultHeight = 56;
+static const int kExecuteButtonGapMin = -64;
+static const int kExecuteButtonGapMax = 64;
+static const int kExecuteButtonDefaultGapPx = -8;
 static const int kExecuteButtonDefaultAbsoluteX = 0;
 static const int kExecuteButtonDefaultAbsoluteY = 0;
 static const std::string kContextMenuOptionsListWidgetName = "OptionsList";
@@ -119,18 +134,35 @@ static const uintptr_t kExpectedRvaContextMenuOrderFilterCallReturn_1_0_65 = 0x0
 static const uintptr_t kExpectedRvaContextMenuTaskProbabilityCallReturn_1_0_65 = 0x007A787D;
 static const uintptr_t kExpectedRvaContextMenuRowInsertCallReturn_1_0_65 = 0x007A7698;
 static const uintptr_t kExpectedRvaContextMenuLoopEntry_1_0_65 = 0x007A7570;
+static const Ogre::ColourValue kExecuteAllHoverTintColour(1.0f, 0.2f, 0.2f, 1.0f);
+static const Ogre::ColourValue kClearCharacterTintColour(1.0f, 1.0f, 1.0f, 0.0f);
 
 static PluginConfig g_config = {
     true,
     true,
     false,
+    true,
     false,
     kQueuedExecuteDefaultDistanceMeters,
     kExecuteAllRadiusDefaultUnits,
     kExecuteButtonDefaultWidth,
     kExecuteButtonDefaultHeight,
+    kExecuteButtonDefaultGapPx,
     kExecuteButtonDefaultAbsoluteX,
     kExecuteButtonDefaultAbsoluteY };
+
+struct AppearanceMaterialOffsetCacheEntry
+{
+    void* appearanceVtable;
+    std::vector<int> materialOffsets;
+};
+
+struct AnimalTintMaterialCloneEntry
+{
+    hand targetHandle;
+    std::vector<Ogre::MaterialPtr> originalMaterials;
+    std::vector<Ogre::MaterialPtr> cloneMaterials;
+};
 
 static std::string g_settingsPath;
 static bool g_configNeedsWriteBack = false;
@@ -224,6 +256,8 @@ static DWORD g_customExecutePanelLastDispatchMs = 0;
 static uintptr_t g_customExecutePanelLastDispatchActorPtr = 0;
 static uintptr_t g_customExecutePanelLastDispatchTargetPtr = 0;
 static int g_customExecutePanelLastDispatchAction = 0;
+static bool g_customExecutePanelAnchorRectCached = false;
+static MyGUI::IntCoord g_customExecutePanelAnchorRect(0, 0, 0, 0);
 static int g_customExecutePanelAnchorSource = 0;
 static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
@@ -248,6 +282,17 @@ static hand g_executeAllBatchTargetHandles[kExecuteAllBatchMaxTargets];
 static uintptr_t g_executeAllBatchTargetPtrs[kExecuteAllBatchMaxTargets];
 static size_t g_executeAllBatchTargetCount = 0;
 static size_t g_executeAllBatchNextTargetIndex = 0;
+static bool g_executeAllHoverTintActive = false;
+static hand g_executeAllHoverTintTargetHandles[kExecuteAllBatchMaxTargets];
+static size_t g_executeAllHoverTintTargetCount = 0;
+static uintptr_t g_executeAllHoverTintActorPtr = 0;
+static uintptr_t g_executeAllHoverTintTargetPtr = 0;
+static int g_executeAllHoverTintRadiusUnits = 0;
+static int g_characterTintAppearanceEntityOffsetBytes = -1;
+static int g_characterTintAppearanceBodyMaterialOffsetBytes = -1;
+static std::vector<AppearanceMaterialOffsetCacheEntry> g_characterTintAppearanceMaterialOffsetCache;
+static std::vector<AnimalTintMaterialCloneEntry> g_characterTintAnimalMaterialCloneEntries;
+static unsigned int g_characterTintAnimalMaterialCloneSerial = 0;
 static bool g_nativeMenuExecuteDispatchArmed = false;
 static uintptr_t g_nativeMenuExecuteDispatchTargetPtr = 0;
 static DWORD g_nativeMenuExecuteDispatchArmMs = 0;
@@ -384,6 +429,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableExecuteKillSound = false;
     diagnostics->foundDebugExecuteLogging = false;
     diagnostics->invalidDebugExecuteLogging = false;
+    diagnostics->foundEnableExecuteAll = false;
+    diagnostics->invalidEnableExecuteAll = false;
     diagnostics->foundIgnoreExecuteAllianceCheck = false;
     diagnostics->invalidIgnoreExecuteAllianceCheck = false;
     diagnostics->foundExecuteDistanceMeters = false;
@@ -399,6 +446,9 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->foundExecuteButtonHeightPx = false;
     diagnostics->invalidExecuteButtonHeightPx = false;
     diagnostics->clampedExecuteButtonHeightPx = false;
+    diagnostics->foundExecuteButtonGapPx = false;
+    diagnostics->invalidExecuteButtonGapPx = false;
+    diagnostics->clampedExecuteButtonGapPx = false;
     diagnostics->foundExecuteButtonOffsetXPx = false;
     diagnostics->invalidExecuteButtonOffsetXPx = false;
     diagnostics->clampedExecuteButtonOffsetXPx = false;
@@ -434,6 +484,7 @@ static void LoadConfigState()
     g_config.enabled = true;
     g_config.enableExecuteKillSound = true;
     g_config.debugExecuteLogging = false;
+    g_config.enableExecuteAll = true;
     g_config.ignoreExecuteAllianceCheck = false;
     g_config.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
     g_config.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
@@ -491,11 +542,13 @@ static void LoadConfigState()
          << " settings_path=\"" << g_settingsPath << "\""
          << " enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << " debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
+         << " enable_execute_all=" << (g_config.enableExecuteAll ? "true" : "false")
          << " ignore_execute_alliance_check=" << (g_config.ignoreExecuteAllianceCheck ? "true" : "false")
          << " execute_distance_units=" << g_config.executeDistanceMeters
          << " execute_all_radius_units=" << g_config.executeAllRadiusUnits
          << " execute_button_width=" << g_config.executeButtonWidthPx
          << " execute_button_height=" << g_config.executeButtonHeightPx
+         << " execute_button_gap=" << g_config.executeButtonGapPx
          << " execute_button_x=" << g_config.executeButtonOffsetXPx
          << " execute_button_y=" << g_config.executeButtonOffsetYPx;
     PluginLog(info.str().c_str());
@@ -1423,35 +1476,6 @@ static bool IsExecuteAllBatchContinuationReason(const char* reason)
         || std::strcmp(reason, "target_not_executable") == 0;
 }
 
-static bool AddExecuteAllBatchTarget(RootObject* target)
-{
-    if (!target || g_executeAllBatchTargetCount >= kExecuteAllBatchMaxTargets)
-    {
-        return false;
-    }
-
-    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
-    for (size_t i = 0; i < g_executeAllBatchTargetCount; ++i)
-    {
-        if (g_executeAllBatchTargetPtrs[i] == targetPtr)
-        {
-            return true;
-        }
-    }
-
-    hand targetHandle;
-    if (!TryGetRootObjectHandleSafe(target, &targetHandle))
-    {
-        return false;
-    }
-
-    const size_t nextIndex = g_executeAllBatchTargetCount;
-    g_executeAllBatchTargetHandles[nextIndex] = targetHandle;
-    g_executeAllBatchTargetPtrs[nextIndex] = targetPtr;
-    g_executeAllBatchTargetCount = nextIndex + 1;
-    return true;
-}
-
 static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
 {
     if (!g_executeAllBatchActive)
@@ -2052,8 +2076,1672 @@ static float ComputeExecuteAllRadiusUnits()
     return static_cast<float>(g_config.executeAllRadiusUnits);
 }
 
+static bool IsExecuteAllEnabled()
+{
+    return g_config.enableExecuteAll;
+}
+
+static int ComputeCustomExecutePanelButtonGapPx(int rowHeight)
+{
+    if (rowHeight <= 0)
+    {
+        return 0;
+    }
+
+    int gapPx = g_config.executeButtonGapPx;
+    if (gapPx < kExecuteButtonGapMin)
+    {
+        gapPx = kExecuteButtonGapMin;
+    }
+    else if (gapPx > kExecuteButtonGapMax)
+    {
+        gapPx = kExecuteButtonGapMax;
+    }
+
+    const int minGapPx = -(rowHeight - 1);
+    if (gapPx < minGapPx)
+    {
+        gapPx = minGapPx;
+    }
+
+    return gapPx;
+}
+
+#include "LootScootExecuteHoverTint.inl"
+
+static bool HandlesEqualByKey(const hand& a, const hand& b)
+{
+    return a.type == b.type
+        && a.index == b.index
+        && a.serial == b.serial;
+}
+
+static void ResetExecuteAllHoverTintState()
+{
+    g_executeAllHoverTintActive = false;
+    for (size_t i = 0; i < kExecuteAllBatchMaxTargets; ++i)
+    {
+        g_executeAllHoverTintTargetHandles[i].setNull();
+    }
+    g_executeAllHoverTintTargetCount = 0;
+    g_executeAllHoverTintActorPtr = 0;
+    g_executeAllHoverTintTargetPtr = 0;
+    g_executeAllHoverTintRadiusUnits = 0;
+}
+
+static bool ApplyTintConstantsToPass(
+    Ogre::Pass* pass,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!pass)
+    {
+        return false;
+    }
+
+    bool appliedAnyConstant = false;
+    if (pass->hasFragmentProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
+            if (!fragmentParams.isNull())
+            {
+                const char* colourParamNames[] = {
+                    "coloroverride",
+                    "colouroverride",
+                    "colorOverride",
+                    "colourOverride"
+                };
+                for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
+                {
+                    try
+                    {
+                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
+                        appliedAnyConstant = true;
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    if (pass->hasVertexProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
+            if (!vertexParams.isNull())
+            {
+                const char* depthParamNames[] = {
+                    "overrideDepth",
+                    "overridedepth"
+                };
+                for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
+                {
+                    try
+                    {
+                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
+                        appliedAnyConstant = true;
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    return appliedAnyConstant;
+}
+
+static bool ApplyTintConstantsToPassColourRequired(
+    Ogre::Pass* pass,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!pass)
+    {
+        return false;
+    }
+
+    bool appliedColourConstant = false;
+    if (pass->hasFragmentProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
+            if (!fragmentParams.isNull())
+            {
+                const char* colourParamNames[] = {
+                    "coloroverride",
+                    "colouroverride",
+                    "colorOverride",
+                    "colourOverride"
+                };
+                for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
+                {
+                    try
+                    {
+                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
+                        appliedColourConstant = true;
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    if (pass->hasVertexProgram())
+    {
+        try
+        {
+            Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
+            if (!vertexParams.isNull())
+            {
+                const char* depthParamNames[] = {
+                    "overrideDepth",
+                    "overridedepth"
+                };
+                for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
+                {
+                    try
+                    {
+                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+
+    return appliedColourConstant;
+}
+
+static bool ApplyTintToMaterial(
+    Ogre::Material* material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!material)
+    {
+        return false;
+    }
+
+    bool appliedAnyConstant = false;
+    unsigned short techniqueCount = 0;
+    try
+    {
+        techniqueCount = material->getNumTechniques();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    for (unsigned short techniqueIndex = 0; techniqueIndex < techniqueCount; ++techniqueIndex)
+    {
+        Ogre::Technique* technique = 0;
+        try
+        {
+            technique = material->getTechnique(techniqueIndex);
+        }
+        catch (...)
+        {
+            technique = 0;
+        }
+        if (!technique)
+        {
+            continue;
+        }
+
+        unsigned short passCount = 0;
+        try
+        {
+            passCount = technique->getNumPasses();
+        }
+        catch (...)
+        {
+            passCount = 0;
+        }
+
+        for (unsigned short passIndex = 0; passIndex < passCount; ++passIndex)
+        {
+            Ogre::Pass* pass = 0;
+            try
+            {
+                pass = technique->getPass(passIndex);
+            }
+            catch (...)
+            {
+                pass = 0;
+            }
+
+            if (ApplyTintConstantsToPass(pass, colour, depthOverride))
+            {
+                appliedAnyConstant = true;
+            }
+        }
+    }
+
+    return appliedAnyConstant;
+}
+
+static bool ApplyTintToMaterialColourRequired(
+    Ogre::Material* material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!material)
+    {
+        return false;
+    }
+
+    bool appliedAnyColourConstant = false;
+    unsigned short techniqueCount = 0;
+    try
+    {
+        techniqueCount = material->getNumTechniques();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    for (unsigned short techniqueIndex = 0; techniqueIndex < techniqueCount; ++techniqueIndex)
+    {
+        Ogre::Technique* technique = 0;
+        try
+        {
+            technique = material->getTechnique(techniqueIndex);
+        }
+        catch (...)
+        {
+            technique = 0;
+        }
+        if (!technique)
+        {
+            continue;
+        }
+
+        unsigned short passCount = 0;
+        try
+        {
+            passCount = technique->getNumPasses();
+        }
+        catch (...)
+        {
+            passCount = 0;
+        }
+
+        for (unsigned short passIndex = 0; passIndex < passCount; ++passIndex)
+        {
+            Ogre::Pass* pass = 0;
+            try
+            {
+                pass = technique->getPass(passIndex);
+            }
+            catch (...)
+            {
+                pass = 0;
+            }
+
+            if (ApplyTintConstantsToPassColourRequired(pass, colour, depthOverride))
+            {
+                appliedAnyColourConstant = true;
+            }
+        }
+    }
+
+    return appliedAnyColourConstant;
+}
+
+static bool ApplyTintToMaterialPrimaryPassLikeExample(
+    const Ogre::MaterialPtr& material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (material.isNull())
+    {
+        return false;
+    }
+
+    try
+    {
+        Ogre::Technique* technique = material->getTechnique(0);
+        if (!technique)
+        {
+            return false;
+        }
+
+        Ogre::Pass* pass = technique->getPass(0);
+        if (!pass)
+        {
+            return false;
+        }
+
+        return ApplyTintConstantsToPass(pass, colour, depthOverride);
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+static bool ApplyTintToMaterialPrimaryPassLikeExampleColourRequired(
+    const Ogre::MaterialPtr& material,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (material.isNull())
+    {
+        return false;
+    }
+
+    try
+    {
+        Ogre::Technique* technique = material->getTechnique(0);
+        if (!technique)
+        {
+            return false;
+        }
+
+        Ogre::Pass* pass = technique->getPass(0);
+        if (!pass)
+        {
+            return false;
+        }
+
+        return ApplyTintConstantsToPassColourRequired(pass, colour, depthOverride);
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+static bool ApplyTintToMaterialFieldLikeExample(
+    Ogre::MaterialPtr* materialField,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!materialField)
+    {
+        return false;
+    }
+
+    bool applied = false;
+    __try
+    {
+        if (!materialField->isNull())
+        {
+            applied = ApplyTintToMaterialPrimaryPassLikeExample(*materialField, colour, depthOverride);
+            if (!applied)
+            {
+                applied = ApplyTintToMaterial(materialField->getPointer(), colour, depthOverride);
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        applied = false;
+    }
+
+    return applied;
+}
+
+static bool MaterialPtrsReferSameObject(const Ogre::MaterialPtr& a, const Ogre::MaterialPtr& b)
+{
+    if (a.isNull() || b.isNull())
+    {
+        return false;
+    }
+
+    bool sameObject = false;
+    __try
+    {
+        sameObject = (a.getPointer() == b.getPointer());
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        sameObject = false;
+    }
+    return sameObject;
+}
+
+static int FindAnimalTintCloneEntryByHandle(const hand& targetHandle)
+{
+    for (size_t i = 0; i < g_characterTintAnimalMaterialCloneEntries.size(); ++i)
+    {
+        if (HandlesEqualByKey(g_characterTintAnimalMaterialCloneEntries[i].targetHandle, targetHandle))
+        {
+            return static_cast<int>(i);
+        }
+    }
+
+    return -1;
+}
+
+static std::string BuildAnimalTintCloneName(const hand& targetHandle, size_t subEntityIndex)
+{
+    std::stringstream ss;
+    ss << "LootScootExecuteTint_"
+       << targetHandle.type << "_"
+       << targetHandle.index << "_"
+       << targetHandle.serial << "_"
+       << subEntityIndex << "_"
+       << g_characterTintAnimalMaterialCloneSerial++;
+    return ss.str();
+}
+
+static bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::Entity* characterEntity)
+{
+    const int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
+    if (entryIndex < 0 || !characterEntity)
+    {
+        return false;
+    }
+
+    AnimalTintMaterialCloneEntry& entry =
+        g_characterTintAnimalMaterialCloneEntries[static_cast<size_t>(entryIndex)];
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    if (subEntityCount < entry.originalMaterials.size())
+    {
+        return false;
+    }
+
+    bool restoredAny = false;
+    bool restoredAll = true;
+    for (size_t i = 0; i < entry.originalMaterials.size(); ++i)
+    {
+        if (entry.originalMaterials[i].isNull())
+        {
+            continue;
+        }
+
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            restoredAll = false;
+            continue;
+        }
+
+        bool setOk = false;
+        try
+        {
+            subEntity->setMaterial(entry.originalMaterials[i]);
+            setOk = true;
+        }
+        catch (...)
+        {
+            setOk = false;
+        }
+        if (setOk)
+        {
+            restoredAny = true;
+        }
+        else
+        {
+            restoredAll = false;
+        }
+    }
+
+    if (restoredAll)
+    {
+        g_characterTintAnimalMaterialCloneEntries.erase(
+            g_characterTintAnimalMaterialCloneEntries.begin() + entryIndex);
+    }
+
+    return restoredAny;
+}
+
+static bool ApplyTintToEntityUsingAnimalMaterialClones(
+    const hand& targetHandle,
+    Ogre::Entity* characterEntity,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!characterEntity)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
+    if (entryIndex < 0)
+    {
+        AnimalTintMaterialCloneEntry created;
+        created.targetHandle = targetHandle;
+        created.originalMaterials.reserve(subEntityCount);
+        created.cloneMaterials.reserve(subEntityCount);
+        g_characterTintAnimalMaterialCloneEntries.push_back(created);
+        entryIndex = static_cast<int>(g_characterTintAnimalMaterialCloneEntries.size() - 1);
+    }
+
+    AnimalTintMaterialCloneEntry& entry =
+        g_characterTintAnimalMaterialCloneEntries[static_cast<size_t>(entryIndex)];
+    if (entry.originalMaterials.size() != subEntityCount || entry.cloneMaterials.size() != subEntityCount)
+    {
+        entry.originalMaterials.clear();
+        entry.cloneMaterials.clear();
+        entry.originalMaterials.resize(subEntityCount);
+        entry.cloneMaterials.resize(subEntityCount);
+    }
+
+    bool appliedAny = false;
+    for (size_t i = 0; i < subEntityCount; ++i)
+    {
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr currentMaterial;
+        try
+        {
+            currentMaterial = subEntity->getMaterial();
+        }
+        catch (...)
+        {
+            continue;
+        }
+        if (currentMaterial.isNull())
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr& cloneMaterial = entry.cloneMaterials[i];
+        const bool currentIsClone =
+            (!cloneMaterial.isNull() && MaterialPtrsReferSameObject(currentMaterial, cloneMaterial));
+        if (!currentIsClone)
+        {
+            entry.originalMaterials[i] = currentMaterial;
+            cloneMaterial.setNull();
+        }
+        if (entry.originalMaterials[i].isNull())
+        {
+            entry.originalMaterials[i] = currentMaterial;
+        }
+
+        if (cloneMaterial.isNull())
+        {
+            try
+            {
+                cloneMaterial = entry.originalMaterials[i]->clone(BuildAnimalTintCloneName(targetHandle, i));
+            }
+            catch (...)
+            {
+                cloneMaterial.setNull();
+            }
+        }
+        if (cloneMaterial.isNull())
+        {
+            continue;
+        }
+
+        bool appliedTint = ApplyTintToMaterialPrimaryPassLikeExampleColourRequired(
+            cloneMaterial,
+            colour,
+            depthOverride);
+        if (!appliedTint)
+        {
+            appliedTint = ApplyTintToMaterialColourRequired(
+                cloneMaterial.getPointer(),
+                colour,
+                depthOverride);
+        }
+        if (!appliedTint)
+        {
+            continue;
+        }
+
+        bool setOk = false;
+        try
+        {
+            subEntity->setMaterial(cloneMaterial);
+            setOk = true;
+        }
+        catch (...)
+        {
+            setOk = false;
+        }
+        if (setOk)
+        {
+            appliedAny = true;
+        }
+    }
+
+    return appliedAny;
+}
+
+static bool ApplyTintToEntity(
+    Ogre::Entity* characterEntity,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!characterEntity)
+    {
+        return false;
+    }
+
+    bool appliedAnyConstant = false;
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < subEntityCount; ++i)
+    {
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr material;
+        try
+        {
+            material = subEntity->getMaterial();
+        }
+        catch (...)
+        {
+            continue;
+        }
+        if (material.isNull())
+        {
+            continue;
+        }
+
+        if (ApplyTintToMaterial(material.getPointer(), colour, depthOverride))
+        {
+            appliedAnyConstant = true;
+        }
+    }
+
+    return appliedAnyConstant;
+}
+
+static bool TryReadAppearancePointerField(
+    AppearanceBase* appearance,
+    int offsetBytes,
+    Ogre::Entity** entityOut)
+{
+    if (!appearance || !entityOut || offsetBytes < 0)
+    {
+        return false;
+    }
+
+    Ogre::Entity* candidate = 0;
+    __try
+    {
+        candidate = *reinterpret_cast<Ogre::Entity**>(
+            reinterpret_cast<unsigned char*>(appearance) + offsetBytes);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    *entityOut = candidate;
+    return true;
+}
+
+static bool IsLikelyCharacterEntity(Ogre::Entity* candidateEntity)
+{
+    if (!candidateEntity)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = candidateEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    return subEntityCount > 0 && subEntityCount <= 64;
+}
+
+static bool TryReadAppearanceMaterialField(
+    AppearanceBase* appearance,
+    int offsetBytes,
+    Ogre::MaterialPtr** materialFieldOut)
+{
+    if (!appearance || !materialFieldOut || offsetBytes < 0)
+    {
+        return false;
+    }
+
+    Ogre::MaterialPtr* candidate = 0;
+    __try
+    {
+        candidate = reinterpret_cast<Ogre::MaterialPtr*>(
+            reinterpret_cast<unsigned char*>(appearance) + offsetBytes);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    *materialFieldOut = candidate;
+    return candidate != 0;
+}
+
+static bool TryReadPointerValue(const void* address, void** valueOut)
+{
+    if (!address || !valueOut)
+    {
+        return false;
+    }
+
+    void* value = 0;
+    __try
+    {
+        value = *reinterpret_cast<void* const*>(address);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    *valueOut = value;
+    return true;
+}
+
+static bool TryReadAppearanceVtable(AppearanceBase* appearance, void** vtableOut)
+{
+    return TryReadPointerValue(appearance, vtableOut);
+}
+
+static int FindAppearanceMaterialOffsetCacheEntry(void* appearanceVtable)
+{
+    if (!appearanceVtable)
+    {
+        return -1;
+    }
+
+    for (size_t i = 0; i < g_characterTintAppearanceMaterialOffsetCache.size(); ++i)
+    {
+        if (g_characterTintAppearanceMaterialOffsetCache[i].appearanceVtable == appearanceVtable)
+        {
+            return static_cast<int>(i);
+        }
+    }
+
+    return -1;
+}
+
+static bool TryReadAppearanceMaterialFieldSignature(
+    AppearanceBase* appearance,
+    int offsetBytes,
+    void** materialPtrOut,
+    void** materialVtableOut,
+    void** infoPtrOut,
+    void** infoVtableOut)
+{
+    if (!appearance || !materialPtrOut || !materialVtableOut || !infoPtrOut || !infoVtableOut)
+    {
+        return false;
+    }
+
+    const unsigned char* appearanceBytes = reinterpret_cast<const unsigned char*>(appearance);
+    void* materialPtr = 0;
+    void* infoPtr = 0;
+    void* materialVtable = 0;
+    void* infoVtable = 0;
+    if (!TryReadPointerValue(appearanceBytes + offsetBytes, &materialPtr)
+        || !TryReadPointerValue(appearanceBytes + offsetBytes + sizeof(void*), &infoPtr))
+    {
+        return false;
+    }
+
+    if (!materialPtr || !infoPtr)
+    {
+        return false;
+    }
+
+    if (!TryReadPointerValue(materialPtr, &materialVtable)
+        || !TryReadPointerValue(infoPtr, &infoVtable))
+    {
+        return false;
+    }
+
+    if (!materialVtable || !infoVtable)
+    {
+        return false;
+    }
+
+    *materialPtrOut = materialPtr;
+    *materialVtableOut = materialVtable;
+    *infoPtrOut = infoPtr;
+    *infoVtableOut = infoVtable;
+    return true;
+}
+
+static bool TryExtractReferenceMaterialSignatures(
+    Ogre::Entity* characterEntity,
+    void** materialVtableOut,
+    void** infoVtableOut)
+{
+    if (!characterEntity || !materialVtableOut || !infoVtableOut)
+    {
+        return false;
+    }
+
+    size_t subEntityCount = 0;
+    try
+    {
+        subEntityCount = characterEntity->getNumSubEntities();
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < subEntityCount; ++i)
+    {
+        Ogre::SubEntity* subEntity = 0;
+        try
+        {
+            subEntity = characterEntity->getSubEntity(i);
+        }
+        catch (...)
+        {
+            subEntity = 0;
+        }
+        if (!subEntity)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr material;
+        try
+        {
+            material = subEntity->getMaterial();
+        }
+        catch (...)
+        {
+            continue;
+        }
+        if (material.isNull() || !material.getPointer())
+        {
+            continue;
+        }
+
+        void* materialVtable = 0;
+        if (!TryReadPointerValue(material.getPointer(), &materialVtable) || !materialVtable)
+        {
+            continue;
+        }
+
+        const void* const* rawMaterialPtr = reinterpret_cast<const void* const*>(&material);
+        void* infoPtr = const_cast<void*>(rawMaterialPtr[1]);
+        if (!infoPtr)
+        {
+            continue;
+        }
+
+        void* infoVtable = 0;
+        if (!TryReadPointerValue(infoPtr, &infoVtable) || !infoVtable)
+        {
+            continue;
+        }
+
+        *materialVtableOut = materialVtable;
+        *infoVtableOut = infoVtable;
+        return true;
+    }
+
+    return false;
+}
+
+static bool ResolveTintMaterialOffsetsFromAppearance(
+    AppearanceBase* appearance,
+    Ogre::Entity* characterEntity,
+    std::vector<int>& resolvedOffsetsOut)
+{
+    resolvedOffsetsOut.clear();
+    if (!appearance || !characterEntity)
+    {
+        return false;
+    }
+
+    void* referenceMaterialVtable = 0;
+    void* referenceInfoVtable = 0;
+    if (!TryExtractReferenceMaterialSignatures(
+            characterEntity,
+            &referenceMaterialVtable,
+            &referenceInfoVtable))
+    {
+        return false;
+    }
+
+    const int firstOffset = 0x20;
+    const int lastOffset = 0x800;
+    std::vector<int> resolvedOffsets;
+    resolvedOffsets.reserve(8);
+    for (int offset = firstOffset; offset <= lastOffset; offset += 8)
+    {
+        void* candidateMaterialPtr = 0;
+        void* candidateMaterialVtable = 0;
+        void* candidateInfoPtr = 0;
+        void* candidateInfoVtable = 0;
+        if (!TryReadAppearanceMaterialFieldSignature(
+                appearance,
+                offset,
+                &candidateMaterialPtr,
+                &candidateMaterialVtable,
+                &candidateInfoPtr,
+                &candidateInfoVtable))
+        {
+            continue;
+        }
+        if (candidateMaterialVtable != referenceMaterialVtable
+            || candidateInfoVtable != referenceInfoVtable)
+        {
+            continue;
+        }
+
+        Ogre::MaterialPtr* materialField = 0;
+        if (!TryReadAppearanceMaterialField(appearance, offset, &materialField))
+        {
+            continue;
+        }
+        if (!ApplyTintToMaterialFieldLikeExample(materialField, kClearCharacterTintColour, false))
+        {
+            continue;
+        }
+
+        bool alreadyRecorded = false;
+        for (size_t i = 0; i < resolvedOffsets.size(); ++i)
+        {
+            if (resolvedOffsets[i] == offset)
+            {
+                alreadyRecorded = true;
+                break;
+            }
+        }
+        if (!alreadyRecorded)
+        {
+            resolvedOffsets.push_back(offset);
+        }
+
+        if (resolvedOffsets.size() >= 8)
+        {
+            break;
+        }
+    }
+
+    if (resolvedOffsets.empty())
+    {
+        return false;
+    }
+
+    resolvedOffsetsOut.swap(resolvedOffsets);
+    g_characterTintAppearanceBodyMaterialOffsetBytes = resolvedOffsetsOut[0];
+    return true;
+}
+
+static bool ApplyTintToAppearanceMaterialOffsets(
+    AppearanceBase* appearance,
+    const std::vector<int>& materialOffsets,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!appearance || materialOffsets.empty())
+    {
+        return false;
+    }
+
+    bool applied = false;
+    for (size_t i = 0; i < materialOffsets.size(); ++i)
+    {
+        Ogre::MaterialPtr* materialField = 0;
+        if (!TryReadAppearanceMaterialField(appearance, materialOffsets[i], &materialField))
+        {
+            continue;
+        }
+        if (ApplyTintToMaterialFieldLikeExample(materialField, colour, depthOverride))
+        {
+            applied = true;
+        }
+    }
+
+    return applied;
+}
+
+static bool ApplyTintToAppearanceMaterials(
+    AppearanceBase* appearance,
+    Ogre::Entity* characterEntity,
+    const Ogre::ColourValue& colour,
+    bool depthOverride)
+{
+    if (!appearance)
+    {
+        return false;
+    }
+
+    void* appearanceVtable = 0;
+    const bool hasAppearanceVtable = TryReadAppearanceVtable(appearance, &appearanceVtable);
+    if (hasAppearanceVtable)
+    {
+        const int cacheIndex = FindAppearanceMaterialOffsetCacheEntry(appearanceVtable);
+        if (cacheIndex >= 0)
+        {
+            const std::vector<int>& cachedOffsets =
+                g_characterTintAppearanceMaterialOffsetCache[static_cast<size_t>(cacheIndex)].materialOffsets;
+            if (!cachedOffsets.empty())
+            {
+                g_characterTintAppearanceBodyMaterialOffsetBytes = cachedOffsets[0];
+            }
+            if (ApplyTintToAppearanceMaterialOffsets(appearance, cachedOffsets, colour, depthOverride))
+            {
+                return true;
+            }
+
+            g_characterTintAppearanceMaterialOffsetCache.erase(
+                g_characterTintAppearanceMaterialOffsetCache.begin() + cacheIndex);
+            g_characterTintAppearanceBodyMaterialOffsetBytes = -1;
+        }
+    }
+
+    std::vector<int> resolvedOffsets;
+    if (!ResolveTintMaterialOffsetsFromAppearance(appearance, characterEntity, resolvedOffsets))
+    {
+        return false;
+    }
+
+    if (hasAppearanceVtable)
+    {
+        const int cacheIndex = FindAppearanceMaterialOffsetCacheEntry(appearanceVtable);
+        if (cacheIndex >= 0)
+        {
+            g_characterTintAppearanceMaterialOffsetCache[static_cast<size_t>(cacheIndex)].materialOffsets =
+                resolvedOffsets;
+        }
+        else
+        {
+            AppearanceMaterialOffsetCacheEntry cacheEntry = {
+                appearanceVtable,
+                resolvedOffsets
+            };
+            g_characterTintAppearanceMaterialOffsetCache.push_back(cacheEntry);
+        }
+    }
+
+    return ApplyTintToAppearanceMaterialOffsets(appearance, resolvedOffsets, colour, depthOverride);
+}
+
+static Ogre::Entity* ResolveCharacterEntityFromAppearance(AppearanceBase* appearance)
+{
+    if (!appearance)
+    {
+        return 0;
+    }
+
+    if (g_characterTintAppearanceEntityOffsetBytes >= 0)
+    {
+        Ogre::Entity* cachedEntity = 0;
+        if (TryReadAppearancePointerField(
+                appearance,
+                g_characterTintAppearanceEntityOffsetBytes,
+                &cachedEntity)
+            && IsLikelyCharacterEntity(cachedEntity))
+        {
+            return cachedEntity;
+        }
+
+        g_characterTintAppearanceEntityOffsetBytes = -1;
+    }
+
+    const int candidateOffsets[] = {
+        0xD8, 0xE0,
+        0xD0, 0xE8, 0xF0, 0xF8,
+        0x100, 0x108, 0x110, 0x118,
+        0x120, 0x128, 0x130, 0x138, 0x140, 0x148
+    };
+
+    for (size_t i = 0; i < (sizeof(candidateOffsets) / sizeof(candidateOffsets[0])); ++i)
+    {
+        Ogre::Entity* probedEntity = 0;
+        if (!TryReadAppearancePointerField(appearance, candidateOffsets[i], &probedEntity))
+        {
+            continue;
+        }
+        if (!IsLikelyCharacterEntity(probedEntity))
+        {
+            continue;
+        }
+
+        g_characterTintAppearanceEntityOffsetBytes = candidateOffsets[i];
+        return probedEntity;
+    }
+
+    return 0;
+}
+
+static AppearanceBase* GetCharacterAppearanceSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return 0;
+    }
+
+    AppearanceBase* appearance = 0;
+    __try
+    {
+        appearance = candidate->getAppearance();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        appearance = 0;
+    }
+
+    return appearance;
+}
+
+static bool IsAnimalCharacterSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+
+    bool isAnimalCharacter = false;
+    __try
+    {
+        isAnimalCharacter = (candidate->isAnimal() != 0);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        isAnimalCharacter = false;
+    }
+
+    return isAnimalCharacter;
+}
+
+static bool ApplyTintToCharacter(
+    Character* candidate,
+    const Ogre::ColourValue& colour,
+    bool depthOverride,
+    HoverTintApplyDiagnostics* diagnosticsOut)
+{
+    HoverTintApplyDiagnostics diagnostics = MakeHoverTintApplyDiagnostics();
+    diagnostics.candidatePtr = reinterpret_cast<uintptr_t>(candidate);
+    diagnostics.wantsBodyHighlight = colour.a > 0.0f;
+
+    if (!candidate)
+    {
+        diagnostics.reason = "candidate_null";
+        if (diagnosticsOut)
+        {
+            *diagnosticsOut = diagnostics;
+        }
+        return false;
+    }
+
+    AppearanceBase* appearance = GetCharacterAppearanceSafe(candidate);
+    diagnostics.appearancePtr = reinterpret_cast<uintptr_t>(appearance);
+    diagnostics.hasAppearance = appearance != 0;
+    if (!appearance)
+    {
+        diagnostics.reason = "appearance_null";
+        if (diagnosticsOut)
+        {
+            *diagnosticsOut = diagnostics;
+        }
+        return false;
+    }
+
+    Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance);
+    diagnostics.entityPtr = reinterpret_cast<uintptr_t>(characterEntity);
+    diagnostics.hasEntity = characterEntity != 0;
+    const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
+    diagnostics.isAnimalCharacter = isAnimalCharacter;
+    hand targetHandle;
+    const bool hasTargetHandle = TryGetRootObjectHandleSafe(candidate, &targetHandle);
+    diagnostics.hadTargetHandle = hasTargetHandle;
+    const bool wantsBodyHighlight = diagnostics.wantsBodyHighlight;
+
+    if (!wantsBodyHighlight)
+    {
+        bool restoredClone = false;
+        if (isAnimalCharacter && hasTargetHandle)
+        {
+            restoredClone = RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
+        }
+        diagnostics.restoredAnimalClone = restoredClone;
+
+        diagnostics.appliedAppearanceMaterials =
+            ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride);
+        diagnostics.appliedEntityMaterials = !diagnostics.appliedAppearanceMaterials
+            && ApplyTintToEntity(characterEntity, colour, depthOverride);
+        diagnostics.reason = (restoredClone
+                || diagnostics.appliedAppearanceMaterials
+                || diagnostics.appliedEntityMaterials)
+            ? "cleared"
+            : "clear_no_tint_path";
+        if (diagnosticsOut)
+        {
+            *diagnosticsOut = diagnostics;
+        }
+        return restoredClone || diagnostics.appliedAppearanceMaterials || diagnostics.appliedEntityMaterials;
+    }
+
+    if (isAnimalCharacter)
+    {
+        diagnostics.appliedAnimalClone = hasTargetHandle
+            && ApplyTintToEntityUsingAnimalMaterialClones(
+                targetHandle,
+                characterEntity,
+                colour,
+                depthOverride);
+        diagnostics.reason = diagnostics.appliedAnimalClone
+            ? "animal_clone_applied"
+            : (hasTargetHandle ? "animal_clone_failed" : "animal_handle_missing");
+        if (diagnosticsOut)
+        {
+            *diagnosticsOut = diagnostics;
+        }
+        return diagnostics.appliedAnimalClone;
+    }
+
+    diagnostics.appliedAppearanceMaterials =
+        ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride);
+    if (diagnostics.appliedAppearanceMaterials)
+    {
+        diagnostics.reason = "appearance_materials_applied";
+        if (diagnosticsOut)
+        {
+            *diagnosticsOut = diagnostics;
+        }
+        return true;
+    }
+
+    diagnostics.appliedEntityMaterials = ApplyTintToEntity(characterEntity, colour, depthOverride);
+    diagnostics.reason = diagnostics.appliedEntityMaterials
+        ? "entity_materials_applied"
+        : (characterEntity ? "entity_materials_failed" : "entity_null");
+    if (diagnosticsOut)
+    {
+        *diagnosticsOut = diagnostics;
+    }
+    return diagnostics.appliedEntityMaterials;
+}
+
+static bool TryApplyTintToCharacterSeh(
+    Character* candidate,
+    const Ogre::ColourValue* colour,
+    bool depthOverride,
+    HoverTintApplyDiagnostics* diagnosticsOut,
+    bool* hadExceptionOut)
+{
+    if (hadExceptionOut)
+    {
+        *hadExceptionOut = false;
+    }
+    if (!colour)
+    {
+        if (diagnosticsOut)
+        {
+            HoverTintApplyDiagnostics diagnostics = MakeHoverTintApplyDiagnostics();
+            diagnostics.candidatePtr = reinterpret_cast<uintptr_t>(candidate);
+            diagnostics.reason = "colour_null";
+            *diagnosticsOut = diagnostics;
+        }
+        return false;
+    }
+
+    bool tinted = false;
+    __try
+    {
+        tinted = ApplyTintToCharacter(candidate, *colour, depthOverride, diagnosticsOut);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        tinted = false;
+        if (hadExceptionOut)
+        {
+            *hadExceptionOut = true;
+        }
+        if (diagnosticsOut)
+        {
+            HoverTintApplyDiagnostics diagnostics = MakeHoverTintApplyDiagnostics();
+            diagnostics.candidatePtr = reinterpret_cast<uintptr_t>(candidate);
+            diagnostics.reason = "seh_exception";
+            *diagnosticsOut = diagnostics;
+        }
+    }
+
+    return tinted;
+}
+
+static bool TryResolveCharacterFromRootObjectHandleSafe(
+    const hand& targetHandle,
+    Character** characterOut)
+{
+    if (!characterOut)
+    {
+        return false;
+    }
+
+    *characterOut = 0;
+    RootObject* target = TryResolveRootObjectFromHandleSafe(targetHandle);
+    if (!target)
+    {
+        return false;
+    }
+
+    itemType targetType = NULL_ITEM;
+    if (!TryGetRootObjectTypeForExecutePredicate(target, &targetType)
+        || !IsCharacterDataType(targetType))
+    {
+        return false;
+    }
+
+    *characterOut = static_cast<Character*>(target);
+    return true;
+}
+
+static bool TryAddExecuteAllTargetToCollection(
+    RootObject* target,
+    hand* targetHandlesOut,
+    uintptr_t* targetPtrsOut,
+    size_t* targetCountInOut,
+    size_t maxTargets)
+{
+    if (!target || !targetHandlesOut || !targetPtrsOut || !targetCountInOut)
+    {
+        return false;
+    }
+
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    for (size_t i = 0; i < *targetCountInOut; ++i)
+    {
+        if (targetPtrsOut[i] == targetPtr)
+        {
+            return true;
+        }
+    }
+
+    if (*targetCountInOut >= maxTargets)
+    {
+        return false;
+    }
+
+    hand targetHandle;
+    if (!TryGetRootObjectHandleSafe(target, &targetHandle))
+    {
+        return false;
+    }
+
+    const size_t nextIndex = *targetCountInOut;
+    targetHandlesOut[nextIndex] = targetHandle;
+    targetPtrsOut[nextIndex] = targetPtr;
+    *targetCountInOut = nextIndex + 1;
+    return true;
+}
+
+static size_t CollectExecuteAllTargets(
+    Character* actor,
+    RootObject* target,
+    bool verboseLog,
+    hand* targetHandlesOut,
+    uintptr_t* targetPtrsOut,
+    size_t maxTargets)
+{
+    if (!g_effectiveEnableExecuteAction
+        || !actor
+        || !target
+        || !targetHandlesOut
+        || !targetPtrsOut
+        || maxTargets == 0)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; i < maxTargets; ++i)
+    {
+        targetHandlesOut[i].setNull();
+        targetPtrsOut[i] = 0;
+    }
+
+    CanExecuteDiagnostics primaryDiagnostics = MakeCanExecuteDiagnostics();
+    if (!CanExecuteFromNativeMenuSelection(actor, target, &primaryDiagnostics, verboseLog))
+    {
+        return 0;
+    }
+
+    size_t targetCount = 0;
+    if (!TryAddExecuteAllTargetToCollection(
+            target,
+            targetHandlesOut,
+            targetPtrsOut,
+            &targetCount,
+            maxTargets))
+    {
+        return 0;
+    }
+
+    const float radiusUnits = ComputeExecuteAllRadiusUnits();
+    Ogre::Vector3 targetPos;
+    if (ou && TryReadRootObjectPosition(target, &targetPos))
+    {
+        lektor<RootObject*> nearbyTargets;
+        (void)TryGetCharactersWithinSphere(&nearbyTargets, targetPos, radiusUnits, target);
+
+        const uint32_t nearbyCount = nearbyTargets.size();
+        for (uint32_t i = 0; i < nearbyCount && targetCount < maxTargets; ++i)
+        {
+            RootObject* nearbyTarget = nearbyTargets[i];
+            if (!nearbyTarget || nearbyTarget == target)
+            {
+                continue;
+            }
+
+            CanExecuteDiagnostics nearbyDiagnostics = MakeCanExecuteDiagnostics();
+            if (!CanExecuteFromNativeMenuSelection(actor, nearbyTarget, &nearbyDiagnostics, false))
+            {
+                continue;
+            }
+
+            (void)TryAddExecuteAllTargetToCollection(
+                nearbyTarget,
+                targetHandlesOut,
+                targetPtrsOut,
+                &targetCount,
+                maxTargets);
+        }
+    }
+
+    return targetCount;
+}
+
+static void ClearExecuteAllHoverTint()
+{
+    if (!g_executeAllHoverTintActive)
+    {
+        ResetExecuteAllHoverTintState();
+        return;
+    }
+
+    for (size_t i = 0; i < g_executeAllHoverTintTargetCount; ++i)
+    {
+        Character* targetCharacter = 0;
+        if (!TryResolveCharacterFromRootObjectHandleSafe(
+                g_executeAllHoverTintTargetHandles[i],
+                &targetCharacter))
+        {
+            continue;
+        }
+
+        (void)TryApplyTintToCharacterSeh(
+            targetCharacter,
+            &kClearCharacterTintColour,
+            false,
+            0,
+            0);
+    }
+
+    ResetExecuteAllHoverTintState();
+}
+
+static bool SyncExecuteAllHoverTint(Character* actor, RootObject* target, DWORD nowMs)
+{
+    if (!IsExecuteAllEnabled())
+    {
+        ClearExecuteAllHoverTint();
+        return false;
+    }
+
+    if (!actor || !target)
+    {
+        ClearExecuteAllHoverTint();
+        return false;
+    }
+
+    const int radiusUnits = static_cast<int>(ComputeExecuteAllRadiusUnits());
+    const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    if (g_executeAllHoverTintActive
+        && g_executeAllHoverTintActorPtr == actorPtr
+        && g_executeAllHoverTintTargetPtr == targetPtr
+        && g_executeAllHoverTintRadiusUnits == radiusUnits)
+    {
+        return true;
+    }
+
+    if (g_customExecutePanelArmMs != 0
+        && !DebounceWindowElapsed(nowMs, g_customExecutePanelArmMs, kCustomExecutePanelHoverActionMinDwellMs))
+    {
+        return false;
+    }
+
+    ClearExecuteAllHoverTint();
+
+    hand targetHandles[kExecuteAllHoverTintMaxTargets];
+    uintptr_t targetPtrs[kExecuteAllHoverTintMaxTargets];
+    const size_t targetCount = CollectExecuteAllTargets(
+        actor,
+        target,
+        false,
+        targetHandles,
+        targetPtrs,
+        kExecuteAllHoverTintMaxTargets);
+    if (targetCount == 0)
+    {
+        return false;
+    }
+
+    bool appliedAny = false;
+    for (size_t i = 0; i < targetCount; ++i)
+    {
+        g_executeAllHoverTintTargetHandles[i] = targetHandles[i];
+
+        Character* targetCharacter = 0;
+        if (!TryResolveCharacterFromRootObjectHandleSafe(targetHandles[i], &targetCharacter))
+        {
+            continue;
+        }
+
+        const bool applied = TryApplyTintToCharacterSeh(
+            targetCharacter,
+            &kExecuteAllHoverTintColour,
+            true,
+            0,
+            0);
+        if (applied)
+        {
+            appliedAny = true;
+        }
+    }
+
+    g_executeAllHoverTintActive = true;
+    g_executeAllHoverTintTargetCount = targetCount;
+    g_executeAllHoverTintActorPtr = actorPtr;
+    g_executeAllHoverTintTargetPtr = targetPtr;
+    g_executeAllHoverTintRadiusUnits = radiusUnits;
+    return appliedAny;
+}
+
 static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog)
 {
+    if (!IsExecuteAllEnabled())
+    {
+        return false;
+    }
+
     if (!g_effectiveEnableExecuteAction || !target)
     {
         return false;
@@ -2064,12 +3752,6 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
         actor = ResolveExecuteActorForPredicateWithTarget(target, true);
     }
     if (!actor)
-    {
-        return false;
-    }
-
-    CanExecuteDiagnostics primaryDiagnostics = MakeCanExecuteDiagnostics();
-    if (!CanExecuteFromNativeMenuSelection(actor, target, &primaryDiagnostics, verboseLog))
     {
         return false;
     }
@@ -2089,37 +3771,17 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
     g_executeAllBatchActive = true;
     g_executeAllBatchActorHandle = actorHandle;
     g_executeAllBatchActorPtr = reinterpret_cast<uintptr_t>(actor);
-
-    if (!AddExecuteAllBatchTarget(target))
+    g_executeAllBatchTargetCount = CollectExecuteAllTargets(
+        actor,
+        target,
+        verboseLog,
+        g_executeAllBatchTargetHandles,
+        g_executeAllBatchTargetPtrs,
+        kExecuteAllBatchMaxTargets);
+    if (g_executeAllBatchTargetCount == 0)
     {
         ResetExecuteAllBatchState();
         return false;
-    }
-
-    const float radiusUnits = ComputeExecuteAllRadiusUnits();
-    Ogre::Vector3 targetPos;
-    if (ou && TryReadRootObjectPosition(target, &targetPos))
-    {
-        lektor<RootObject*> nearbyTargets;
-        (void)TryGetCharactersWithinSphere(&nearbyTargets, targetPos, radiusUnits, target);
-
-        const uint32_t nearbyCount = nearbyTargets.size();
-        for (uint32_t i = 0; i < nearbyCount && g_executeAllBatchTargetCount < kExecuteAllBatchMaxTargets; ++i)
-        {
-            RootObject* nearbyTarget = nearbyTargets[i];
-            if (!nearbyTarget || nearbyTarget == target)
-            {
-                continue;
-            }
-
-            CanExecuteDiagnostics nearbyDiagnostics = MakeCanExecuteDiagnostics();
-            if (!CanExecuteFromNativeMenuSelection(actor, nearbyTarget, &nearbyDiagnostics, false))
-            {
-                continue;
-            }
-
-            (void)AddExecuteAllBatchTarget(nearbyTarget);
-        }
     }
 
     if (ShouldLogExecuteDebug())
@@ -2129,7 +3791,7 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
              << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
              << " target=0x" << reinterpret_cast<uintptr_t>(target)
              << std::dec
-             << " radius_units=" << radiusUnits
+             << " radius_units=" << ComputeExecuteAllRadiusUnits()
              << " target_count=" << g_executeAllBatchTargetCount;
         PluginLog(line.str().c_str());
     }
@@ -2686,7 +4348,7 @@ static bool IsCustomExecutePanelButtonHovered(MyGUI::Button* button)
 
 static CustomExecutePanelAction ResolveCustomExecutePanelActionForSender(MyGUI::Widget* sender)
 {
-    if (sender == g_customExecuteAllPanelButton)
+    if (sender == g_customExecuteAllPanelButton && IsExecuteAllEnabled())
     {
         return CustomExecutePanelAction_EXECUTE_ALL;
     }
@@ -2704,7 +4366,7 @@ static CustomExecutePanelAction GetHoveredCustomExecutePanelAction()
     {
         return CustomExecutePanelAction_EXECUTE;
     }
-    if (IsCustomExecutePanelButtonHovered(g_customExecuteAllPanelButton))
+    if (IsExecuteAllEnabled() && IsCustomExecutePanelButtonHovered(g_customExecuteAllPanelButton))
     {
         return CustomExecutePanelAction_EXECUTE_ALL;
     }
@@ -2712,9 +4374,13 @@ static CustomExecutePanelAction GetHoveredCustomExecutePanelAction()
     return CustomExecutePanelAction_NONE;
 }
 
-static bool DispatchCustomExecutePanelAction(CustomExecutePanelAction action, const char* sourceTag)
+static bool DispatchCustomExecutePanelAction(CustomExecutePanelAction action)
 {
     if (!IsCustomExecutePanelOverlayEnabled() || action == CustomExecutePanelAction_NONE)
+    {
+        return false;
+    }
+    if (action == CustomExecutePanelAction_EXECUTE_ALL && !IsExecuteAllEnabled())
     {
         return false;
     }
@@ -2762,7 +4428,6 @@ static bool DispatchCustomExecutePanelAction(CustomExecutePanelAction action, co
         std::stringstream logline;
         logline << "Loot-Scoot-Execute DEBUG: custom_execute_panel_dispatch"
                 << " action=" << CustomExecutePanelActionToString(action)
-                << " source=" << (sourceTag ? sourceTag : "unknown")
                 << " queued=" << (queued ? "true" : "false")
                 << " actor=0x" << std::hex << actorPtr
                 << " target=0x" << targetPtr;
@@ -2788,7 +4453,7 @@ static void OnCustomExecutePanelButtonPressed(MyGUI::Widget* sender, int left, i
     const CustomExecutePanelAction action = ResolveCustomExecutePanelActionForSender(sender);
     if (action != CustomExecutePanelAction_NONE)
     {
-        (void)DispatchCustomExecutePanelAction(action, "mouse_pressed");
+        (void)DispatchCustomExecutePanelAction(action);
     }
 }
 
@@ -2797,12 +4462,14 @@ static void OnCustomExecutePanelButtonClick(MyGUI::Widget* sender)
     const CustomExecutePanelAction action = ResolveCustomExecutePanelActionForSender(sender);
     if (action != CustomExecutePanelAction_NONE)
     {
-        (void)DispatchCustomExecutePanelAction(action, "mouse_click");
+        (void)DispatchCustomExecutePanelAction(action);
     }
 }
 
 static void DestroyCustomExecutePanelOverlayWidgets()
 {
+    ClearExecuteAllHoverTint();
+
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui && g_customExecutePanelRoot)
     {
@@ -2832,9 +4499,10 @@ static bool EnsureCustomExecutePanelOverlayWidgets()
 
     try
     {
+        const int minRowGapPx = ComputeCustomExecutePanelButtonGapPx(kCustomExecutePanelMinRowHeight);
         const int minPanelHeight =
             (kCustomExecutePanelMinRowHeight * kCustomExecutePanelActionRowCount)
-            + (kCustomExecutePanelVerticalGap * (kCustomExecutePanelActionRowCount - 1));
+            + (minRowGapPx * (kCustomExecutePanelActionRowCount - 1));
         g_customExecutePanelRoot = gui->createWidget<MyGUI::Widget>(
             "PanelEmpty",
             MyGUI::IntCoord(0, 0, kCustomExecutePanelMinWidth, minPanelHeight),
@@ -2876,7 +4544,7 @@ static bool EnsureCustomExecutePanelOverlayWidgets()
             return false;
         }
 
-        const int executeAllTop = kCustomExecutePanelMinRowHeight + kCustomExecutePanelVerticalGap + 1;
+        const int executeAllTop = kCustomExecutePanelMinRowHeight + minRowGapPx;
         g_customExecuteAllPanelButton = g_customExecutePanelRoot->createWidget<MyGUI::Button>(
             "Kenshi_Button1",
             MyGUI::IntCoord(
@@ -3207,6 +4875,31 @@ static bool TryResolveCustomExecutePanelAnchorRect(ContextMenu* menu, MyGUI::Int
     return false;
 }
 
+static bool TryGetStableCustomExecutePanelAnchorRect(ContextMenu* menu, MyGUI::IntCoord* anchorOut)
+{
+    if (!anchorOut)
+    {
+        return false;
+    }
+
+    if (g_customExecutePanelAnchorRectCached)
+    {
+        *anchorOut = g_customExecutePanelAnchorRect;
+        return true;
+    }
+
+    MyGUI::IntCoord resolvedAnchor;
+    if (!TryResolveCustomExecutePanelAnchorRect(menu, &resolvedAnchor))
+    {
+        return false;
+    }
+
+    g_customExecutePanelAnchorRect = resolvedAnchor;
+    g_customExecutePanelAnchorRectCached = true;
+    *anchorOut = resolvedAnchor;
+    return true;
+}
+
 static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
 {
     if (!g_customExecutePanelRoot || !g_customExecutePanelButton || !g_customExecuteAllPanelButton)
@@ -3215,7 +4908,7 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
     }
 
     MyGUI::IntCoord anchor;
-    if (!TryResolveCustomExecutePanelAnchorRect(menu, &anchor))
+    if (!TryGetStableCustomExecutePanelAnchorRect(menu, &anchor))
     {
         return;
     }
@@ -3260,9 +4953,13 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
     const int basePanelLeft = anchor.left + kCustomExecutePanelHorizontalOffset;
     const int panelTop = basePanelTop + g_config.executeButtonOffsetYPx;
     const int panelLeft = basePanelLeft + g_config.executeButtonOffsetXPx;
+    const int actionRowCount = IsExecuteAllEnabled() ? kCustomExecutePanelActionRowCount : 1;
+    const int rowGapPx = (actionRowCount > 1)
+        ? ComputeCustomExecutePanelButtonGapPx(rowHeight)
+        : 0;
     const int panelHeight =
-        (rowHeight * kCustomExecutePanelActionRowCount)
-        + (kCustomExecutePanelVerticalGap * (kCustomExecutePanelActionRowCount - 1));
+        (rowHeight * actionRowCount)
+        + (rowGapPx * (actionRowCount - 1));
 
     g_customExecutePanelRoot->setCoord(
         panelLeft,
@@ -3276,27 +4973,20 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
         buttonLeft = 2;
     }
 
-    int innerTop = rowHeight / 20;         // ~5%
-    if (innerTop < 1)
-    {
-        innerTop = 1;
-    }
-    int innerHeight = rowHeight - (innerTop * 2);
-    if (innerHeight < 1)
-    {
-        innerTop = 0;
-        innerHeight = rowHeight;
-    }
-
     int buttonWidth = width - (buttonLeft * 2);
     if (buttonWidth < 20)
     {
         buttonWidth = 20;
     }
 
-    g_customExecutePanelButton->setCoord(buttonLeft, innerTop, buttonWidth, innerHeight);
-    const int secondButtonTop = rowHeight + kCustomExecutePanelVerticalGap + innerTop;
-    g_customExecuteAllPanelButton->setCoord(buttonLeft, secondButtonTop, buttonWidth, innerHeight);
+    g_customExecutePanelButton->setCoord(buttonLeft, 0, buttonWidth, rowHeight);
+    const int secondButtonTop = rowHeight + rowGapPx;
+    g_customExecuteAllPanelButton->setVisible(IsExecuteAllEnabled());
+    g_customExecuteAllPanelButton->setEnabled(IsExecuteAllEnabled());
+    if (IsExecuteAllEnabled())
+    {
+        g_customExecuteAllPanelButton->setCoord(buttonLeft, secondButtonTop, buttonWidth, rowHeight);
+    }
     if (g_customExecutePanelValue)
     {
         g_customExecutePanelValue->setVisible(false);
@@ -3305,6 +4995,8 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
 
 static void HideCustomExecutePanelOverlay()
 {
+    ClearExecuteAllHoverTint();
+
     if (g_customExecutePanelRoot)
     {
         g_customExecutePanelRoot->setVisible(false);
@@ -3320,6 +5012,8 @@ static void HideCustomExecutePanelOverlay()
     g_customExecutePanelOrdersCount = 0;
     g_customExecutePanelShowSeq = 0;
     g_customExecutePanelArmMs = 0;
+    g_customExecutePanelAnchorRectCached = false;
+    g_customExecutePanelAnchorRect = MyGUI::IntCoord(0, 0, 0, 0);
     g_customExecutePanelAnchorSource = 0;
 }
 
@@ -3358,6 +5052,9 @@ static void ArmCustomExecutePanelOverlay(
     g_customExecutePanelShowSeq = showSeq;
     g_customExecutePanelArmMs = nowMs;
     g_customExecutePanelRightMouseWasDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+    g_customExecutePanelAnchorRectCached = false;
+    g_customExecutePanelAnchorRect = MyGUI::IntCoord(0, 0, 0, 0);
+    g_customExecutePanelAnchorSource = 0;
 
     LayoutCustomExecutePanelOverlay(menu);
     g_customExecutePanelRoot->setVisible(true);
@@ -3366,7 +5063,6 @@ static void ArmCustomExecutePanelOverlay(
 
 static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
 {
-    (void)nowMs;
     if (!IsCustomExecutePanelOverlayEnabled() || !menu)
     {
         HideCustomExecutePanelOverlay();
@@ -3382,8 +5078,7 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
         return;
     }
 
-    bool menuVisible = false;
-    menuVisible = menu->isVisible();
+    const bool menuVisible = menu->isVisible();
     if (!menuVisible)
     {
         HideCustomExecutePanelOverlay();
@@ -3432,9 +5127,20 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
     const bool rightReleasedThisFrame = g_customExecutePanelRightMouseWasDown && !rightDown;
     g_customExecutePanelRightMouseWasDown = rightDown;
     const CustomExecutePanelAction hoveredAction = GetHoveredCustomExecutePanelAction();
-    if (rightReleasedThisFrame && hoveredAction != CustomExecutePanelAction_NONE)
+    const bool hoverActionDwellElapsed = g_customExecutePanelArmMs != 0
+        && DebounceWindowElapsed(nowMs, g_customExecutePanelArmMs, kCustomExecutePanelHoverActionMinDwellMs);
+    if (hoveredAction == CustomExecutePanelAction_EXECUTE_ALL)
     {
-        (void)DispatchCustomExecutePanelAction(hoveredAction, "right_release_hover");
+        (void)SyncExecuteAllHoverTint(actor, target, nowMs);
+    }
+    else
+    {
+        ClearExecuteAllHoverTint();
+    }
+
+    if (rightReleasedThisFrame && hoveredAction != CustomExecutePanelAction_NONE && hoverActionDwellElapsed)
+    {
+        (void)DispatchCustomExecutePanelAction(hoveredAction);
         return;
     }
 }

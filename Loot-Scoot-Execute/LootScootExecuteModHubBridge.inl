@@ -9,11 +9,13 @@ const char* kModHubModDisplayName = "Loot-Scoot-Execute";
 const char* kModHubSettingEnabledId = "enabled";
 const char* kModHubSettingExecuteKillSoundId = "enable_execute_kill_sound";
 const char* kModHubSettingDebugExecuteLoggingId = "debug_execute_logging";
+const char* kModHubSettingEnableExecuteAllId = "enable_execute_all";
 const char* kModHubSettingIgnoreExecuteAllianceCheckId = "ignore_execute_alliance_check";
 const char* kModHubSettingExecuteDistanceId = "execute_distance_units";
 const char* kModHubSettingExecuteAllRadiusId = "execute_all_radius_units";
 const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
 const char* kModHubSettingExecuteButtonHeightId = "execute_button_height";
+const char* kModHubSettingExecuteButtonGapId = "execute_button_gap";
 const char* kModHubSettingExecuteButtonXId = "execute_button_x";
 const char* kModHubSettingExecuteButtonYId = "execute_button_y";
 const char* kModHubActionResetExecuteButtonDefaultsId = "reset_execute_button_defaults";
@@ -218,6 +220,54 @@ static EMC_Result __cdecl HubSetDebugExecuteLogging(void* user_data, int32_t val
         err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetEnableExecuteAll(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->enableExecuteAll, out_value);
+}
+
+static EMC_Result __cdecl HubSetEnableExecuteAll(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    if (!IsHubStateValid(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const bool next_value = value != 0;
+    const bool previous_value = g_modHubState.config->enableExecuteAll;
+    if (previous_value == next_value)
+    {
+        return EMC_OK;
+    }
+
+    g_modHubState.config->enableExecuteAll = next_value;
+    if (!next_value)
+    {
+        ClearExecuteAllHoverTint();
+    }
+    if (g_customExecutePanelArmed && g_customExecutePanelMenuPtr != 0)
+    {
+        LayoutCustomExecutePanelOverlay(reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr));
+    }
+
+    if (!SaveConfigState())
+    {
+        g_modHubState.config->enableExecuteAll = previous_value;
+        if (!previous_value)
+        {
+            ClearExecuteAllHoverTint();
+        }
+        if (g_customExecutePanelArmed && g_customExecutePanelMenuPtr != 0)
+        {
+            LayoutCustomExecutePanelOverlay(reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr));
+        }
+        WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
 static EMC_Result __cdecl HubGetIgnoreExecuteAllianceCheck(void* user_data, int32_t* out_value)
 {
     return HubGetBoolConfigValue(user_data, &g_modHubState.config->ignoreExecuteAllianceCheck, out_value);
@@ -301,6 +351,28 @@ static EMC_Result __cdecl HubSetExecuteButtonHeight(void* user_data, int32_t val
         err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetExecuteButtonGap(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonGapPx, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteButtonGap(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    const EMC_Result result = HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteButtonGapMin,
+        kExecuteButtonGapMax,
+        &g_modHubState.config->executeButtonGapPx,
+        err_buf,
+        err_buf_size);
+    if (result == EMC_OK && g_customExecutePanelArmed && g_customExecutePanelMenuPtr != 0)
+    {
+        LayoutCustomExecutePanelOverlay(reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr));
+    }
+    return result;
+}
+
 static EMC_Result __cdecl HubGetExecuteButtonX(void* user_data, int32_t* out_value)
 {
     return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonOffsetXPx, out_value);
@@ -345,10 +417,12 @@ static EMC_Result __cdecl HubResetExecuteButtonDefaults(void* user_data, char* e
 
     const int previous_width = g_modHubState.config->executeButtonWidthPx;
     const int previous_height = g_modHubState.config->executeButtonHeightPx;
+    const int previous_gap = g_modHubState.config->executeButtonGapPx;
     const int previous_x = g_modHubState.config->executeButtonOffsetXPx;
     const int previous_y = g_modHubState.config->executeButtonOffsetYPx;
     if (previous_width == kExecuteButtonDefaultWidth
         && previous_height == kExecuteButtonDefaultHeight
+        && previous_gap == kExecuteButtonDefaultGapPx
         && previous_x == kExecuteButtonDefaultAbsoluteX
         && previous_y == kExecuteButtonDefaultAbsoluteY)
     {
@@ -357,6 +431,7 @@ static EMC_Result __cdecl HubResetExecuteButtonDefaults(void* user_data, char* e
 
     g_modHubState.config->executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_modHubState.config->executeButtonHeightPx = kExecuteButtonDefaultHeight;
+    g_modHubState.config->executeButtonGapPx = kExecuteButtonDefaultGapPx;
     g_modHubState.config->executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
     g_modHubState.config->executeButtonOffsetYPx = kExecuteButtonDefaultAbsoluteY;
 
@@ -364,10 +439,16 @@ static EMC_Result __cdecl HubResetExecuteButtonDefaults(void* user_data, char* e
     {
         g_modHubState.config->executeButtonWidthPx = previous_width;
         g_modHubState.config->executeButtonHeightPx = previous_height;
+        g_modHubState.config->executeButtonGapPx = previous_gap;
         g_modHubState.config->executeButtonOffsetXPx = previous_x;
         g_modHubState.config->executeButtonOffsetYPx = previous_y;
         WriteHubErrorText(err_buf, err_buf_size, "save_config_failed");
         return EMC_ERR_INTERNAL;
+    }
+
+    if (g_customExecutePanelArmed && g_customExecutePanelMenuPtr != 0)
+    {
+        LayoutCustomExecutePanelOverlay(reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr));
     }
 
     return EMC_OK;
@@ -405,6 +486,14 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &g_modHubState,
         &HubGetDebugExecuteLogging,
         &HubSetDebugExecuteLogging};
+
+    static const EMC_BoolSettingDefV1 kEnableExecuteAllSettingDef = {
+        kModHubSettingEnableExecuteAllId,
+        "Enable Execute All",
+        "Show the Execute All button and allow batch execute behavior",
+        &g_modHubState,
+        &HubGetEnableExecuteAll,
+        &HubSetEnableExecuteAll};
 
     static const EMC_BoolSettingDefV1 kIgnoreExecuteAllianceCheckSettingDef = {
         kModHubSettingIgnoreExecuteAllianceCheckId,
@@ -458,6 +547,17 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetExecuteButtonHeight,
         &HubSetExecuteButtonHeight};
 
+    static const EMC_IntSettingDefV1 kExecuteButtonGapSettingDef = {
+        kModHubSettingExecuteButtonGapId,
+        "Execute button gap",
+        "Vertical gap in pixels between Execute rows; use negative values to overlap (default -8)",
+        &g_modHubState,
+        kExecuteButtonGapMin,
+        kExecuteButtonGapMax,
+        1,
+        &HubGetExecuteButtonGap,
+        &HubSetExecuteButtonGap};
+
     static const EMC_IntSettingDefV1 kExecuteButtonXSettingDef = {
         kModHubSettingExecuteButtonXId,
         "Execute button X",
@@ -483,7 +583,7 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_ActionRowDefV1 kResetExecuteButtonDefaultsActionDef = {
         kModHubActionResetExecuteButtonDefaultsId,
         "Reset Execute button defaults",
-        "Restore Execute button defaults to 310 width, 56 height, X 0, and Y 0",
+        "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0",
         &g_modHubState,
         EMC_ACTION_FORCE_REFRESH,
         &HubResetExecuteButtonDefaults};
@@ -492,11 +592,13 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnableExecuteAllSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kIgnoreExecuteAllianceCheckSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteDistanceSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonWidthSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonGapSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonYSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetExecuteButtonDefaultsActionDef }

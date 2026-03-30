@@ -76,7 +76,7 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
         const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
         if (!rightDown)
         {
-            (void)DispatchCustomExecutePanelAction(hoveredAction, "show_close_right_release_hover");
+            (void)DispatchCustomExecutePanelAction(hoveredAction);
         }
     }
 
@@ -169,6 +169,12 @@ static void ContextMenu_update_hook(ContextMenu* thisptr)
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
+    if (g_customExecutePanelMenuPtr != 0)
+    {
+        TickCustomExecutePanelOverlay(
+            reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr),
+            GetTickCount());
+    }
     TickQueuedExecuteAction(thisptr);
 }
 
@@ -255,9 +261,11 @@ __declspec(dllexport) void startPlugin()
          << ", native_context_menu_integration=removed"
          << ", enable_execute_kill_sound=" << (g_config.enableExecuteKillSound ? "true" : "false")
          << ", debug_execute_logging=" << (g_config.debugExecuteLogging ? "true" : "false")
+         << ", enable_execute_all=" << (g_config.enableExecuteAll ? "true" : "false")
          << ", execute_all_radius_units=" << g_config.executeAllRadiusUnits
          << ", execute_button_width=" << g_config.executeButtonWidthPx
          << ", execute_button_height=" << g_config.executeButtonHeightPx
+         << ", execute_button_gap=" << g_config.executeButtonGapPx
          << ", execute_button_x=" << g_config.executeButtonOffsetXPx
          << ", execute_button_y=" << g_config.executeButtonOffsetYPx
          << ", effective_context_menu_injection=" << (g_effectiveEnableContextMenuInjection ? "true" : "false")
