@@ -71,6 +71,8 @@ const int kMarkerHoverLabelMaximumWidth = 320;
 const int kMarkerLabelMaxLength = 48;
 const char* kMarkerEditorHintCaption = "MMB add | LMB move | Enter save | Del | RMB deselect";
 const char* kModConfigFileName = "mod-config.json";
+const char* kHoverLabelTextColorConfigKey = "hover_label_text_color_hex";
+const char* kHoverLabelBackgroundColorConfigKey = "hover_label_background_color_hex";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
 const char* kMarkerEditorPanelName = "MapMarkers_EditorPanel";
@@ -83,6 +85,8 @@ const char* kMarkerEditorHintName = "MapMarkers_EditorHint";
 const char* kMarkerToggleButtonName = "MapMarkers_ToggleButton";
 const char* kMarkerHoverLabelName = "MapMarkers_HoverLabel";
 const char* kMarkerHoverLabelTextName = "MapMarkers_HoverLabelText";
+const MyGUI::Colour kDefaultHoverLabelBackgroundColour = MyGUI::Colour(0.10f, 0.10f, 0.10f, 0.95f);
+const MyGUI::Colour kDefaultHoverLabelTextColour = MyGUI::Colour(0.96f, 0.96f, 0.96f, 1.0f);
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
@@ -165,6 +169,8 @@ bool g_mapWasVisible = false;
 bool g_pendingSaveTransitionActive = false;
 bool g_focusMarkerLabelEditOnShow = false;
 MarkerType g_defaultMarkerType = MarkerType_Note;
+MyGUI::Colour g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
+MyGUI::Colour g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
 DWORD g_pendingSaveTransitionStartedTick = 0;
 int g_markerEditorDragLastMouseX = 0;
 int g_markerEditorDragLastMouseY = 0;
@@ -1279,6 +1285,146 @@ bool TryParseMarkersArray(const std::string& contents, std::vector<MarkerState>&
     return true;
 }
 
+std::string TrimAscii(const std::string& value)
+{
+    std::string::size_type start = 0;
+    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])))
+    {
+        ++start;
+    }
+
+    std::string::size_type end = value.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])))
+    {
+        --end;
+    }
+
+    return value.substr(start, end - start);
+}
+
+bool TryParseHexNibble(char value, unsigned int* nibbleOut)
+{
+    if (nibbleOut == 0)
+    {
+        return false;
+    }
+
+    if (value >= '0' && value <= '9')
+    {
+        *nibbleOut = static_cast<unsigned int>(value - '0');
+        return true;
+    }
+    if (value >= 'a' && value <= 'f')
+    {
+        *nibbleOut = static_cast<unsigned int>(10 + (value - 'a'));
+        return true;
+    }
+    if (value >= 'A' && value <= 'F')
+    {
+        *nibbleOut = static_cast<unsigned int>(10 + (value - 'A'));
+        return true;
+    }
+
+    return false;
+}
+
+bool TryParseHexByte(const std::string& value, std::string::size_type pos, unsigned int* byteOut)
+{
+    if (byteOut == 0 || pos + 1 >= value.size())
+    {
+        return false;
+    }
+
+    unsigned int highNibble = 0;
+    unsigned int lowNibble = 0;
+    if (!TryParseHexNibble(value[pos], &highNibble) || !TryParseHexNibble(value[pos + 1], &lowNibble))
+    {
+        return false;
+    }
+
+    *byteOut = (highNibble << 4) | lowNibble;
+    return true;
+}
+
+bool TryParseColourHex(const std::string& rawValue, MyGUI::Colour& colourOut)
+{
+    std::string value = TrimAscii(rawValue);
+    if (value.empty())
+    {
+        return false;
+    }
+
+    if (value[0] == '#')
+    {
+        value.erase(0, 1);
+    }
+
+    if (value.size() != 6 && value.size() != 8)
+    {
+        return false;
+    }
+
+    unsigned int red = 0;
+    unsigned int green = 0;
+    unsigned int blue = 0;
+    unsigned int alpha = 255;
+    if (!TryParseHexByte(value, 0, &red)
+        || !TryParseHexByte(value, 2, &green)
+        || !TryParseHexByte(value, 4, &blue))
+    {
+        return false;
+    }
+
+    if (value.size() == 8 && !TryParseHexByte(value, 6, &alpha))
+    {
+        return false;
+    }
+
+    colourOut = MyGUI::Colour(
+        static_cast<float>(red) / 255.0f,
+        static_cast<float>(green) / 255.0f,
+        static_cast<float>(blue) / 255.0f,
+        static_cast<float>(alpha) / 255.0f);
+    return true;
+}
+
+std::string BuildColourHexString(const MyGUI::Colour& colour)
+{
+    const char* kHexDigits = "0123456789ABCDEF";
+    const auto toByte = [](float channel) -> unsigned int
+    {
+        if (channel < 0.0f)
+        {
+            channel = 0.0f;
+        }
+        if (channel > 1.0f)
+        {
+            channel = 1.0f;
+        }
+        return static_cast<unsigned int>(channel * 255.0f + 0.5f);
+    };
+
+    const unsigned int red = toByte(colour.red);
+    const unsigned int green = toByte(colour.green);
+    const unsigned int blue = toByte(colour.blue);
+    const unsigned int alpha = toByte(colour.alpha);
+
+    std::string value("#");
+    value.push_back(kHexDigits[(red >> 4) & 0xFu]);
+    value.push_back(kHexDigits[red & 0xFu]);
+    value.push_back(kHexDigits[(green >> 4) & 0xFu]);
+    value.push_back(kHexDigits[green & 0xFu]);
+    value.push_back(kHexDigits[(blue >> 4) & 0xFu]);
+    value.push_back(kHexDigits[blue & 0xFu]);
+    if (alpha < 255u)
+    {
+        value.push_back(kHexDigits[(alpha >> 4) & 0xFu]);
+        value.push_back(kHexDigits[alpha & 0xFu]);
+    }
+
+    return value;
+}
+
 void ResetMarkersForActiveSave()
 {
     g_markers.clear();
@@ -1366,6 +1512,8 @@ bool SaveModConfig(bool logSuccess = true)
            << "  \"markers_visible\": " << (g_markersVisible ? "true" : "false") << ",\n"
            << "  \"close_editor_on_map_close\": " << (g_closeEditorOnMapClose ? "true" : "false") << ",\n"
            << "  \"show_hover_labels\": " << (g_showHoverLabels ? "true" : "false") << ",\n"
+           << "  \"" << kHoverLabelTextColorConfigKey << "\": \"" << BuildColourHexString(g_hoverLabelTextColour) << "\",\n"
+           << "  \"" << kHoverLabelBackgroundColorConfigKey << "\": \"" << BuildColourHexString(g_hoverLabelBackgroundColour) << "\",\n"
            << "  \"default_marker_type\": \"" << MarkerTypeToJsonValue(g_defaultMarkerType) << "\",\n"
            << "  \"editor_position_customized\": " << (g_markerEditorPositionCustomized ? "true" : "false") << ",\n"
            << "  \"editor_left\": " << g_markerEditorCustomLeft << ",\n"
@@ -1389,6 +1537,8 @@ bool SaveModConfig(bool logSuccess = true)
              << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
              << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
              << " show_hover_labels=" << (g_showHoverLabels ? "true" : "false")
+             << " hover_label_text_color_hex=" << BuildColourHexString(g_hoverLabelTextColour)
+             << " hover_label_background_color_hex=" << BuildColourHexString(g_hoverLabelBackgroundColour)
              << " default_marker_type=" << MarkerTypeToJsonValue(g_defaultMarkerType)
              << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
              << " editor_left=" << g_markerEditorCustomLeft
@@ -1410,6 +1560,8 @@ void LoadModConfig()
     defaults.editorLeft = 0;
     defaults.editorTop = 0;
     defaults.defaultMarkerType = MarkerTypeToIndex(MarkerType_Note);
+    g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
+    g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
 
     g_markerEditorPositionDirty = false;
     ApplyModConfigSnapshotInternal(defaults);
@@ -1460,6 +1612,22 @@ void LoadModConfig()
     {
         defaults.defaultMarkerType = MarkerTypeToIndex(MarkerTypeFromString(stringValue));
     }
+    if (ExtractJsonStringField(contents, kHoverLabelTextColorConfigKey, stringValue))
+    {
+        if (!TryParseColourHex(stringValue, g_hoverLabelTextColour))
+        {
+            g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
+            ErrorLog("Map-markers WARN: hover_label_text_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
+    if (ExtractJsonStringField(contents, kHoverLabelBackgroundColorConfigKey, stringValue))
+    {
+        if (!TryParseColourHex(stringValue, g_hoverLabelBackgroundColour))
+        {
+            g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
+            ErrorLog("Map-markers WARN: hover_label_background_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
+        }
+    }
 
     int intValue = 0;
     if (ExtractJsonIntField(contents, "editor_left", intValue))
@@ -1482,6 +1650,8 @@ void LoadModConfig()
          << "\" markers_visible=" << (g_markersVisible ? "true" : "false")
          << " close_editor_on_map_close=" << (g_closeEditorOnMapClose ? "true" : "false")
          << " show_hover_labels=" << (g_showHoverLabels ? "true" : "false")
+         << " hover_label_text_color_hex=" << BuildColourHexString(g_hoverLabelTextColour)
+         << " hover_label_background_color_hex=" << BuildColourHexString(g_hoverLabelBackgroundColour)
          << " default_marker_type=" << MarkerTypeToJsonValue(g_defaultMarkerType)
          << " editor_position_customized=" << (g_markerEditorPositionCustomized ? "true" : "false")
          << " editor_left=" << g_markerEditorCustomLeft
@@ -1923,6 +2093,11 @@ void LogWidgetChildrenForDiagnostics(const char* prefix, MyGUI::Widget* parent)
 
 void LogMapOverlayDiagnostics(MyGUI::ImageBox* mapImage, const char* reason, bool force)
 {
+    if (!ShouldEmitProbeLogs())
+    {
+        return;
+    }
+
     if (mapImage == 0)
     {
         return;
@@ -2668,6 +2843,11 @@ void CollectLikelyMapFooterControlCandidates(
 
 void LogMapFooterDiagnostics(MyGUI::Window* mapWindow, const char* reason)
 {
+    if (!ShouldEmitProbeLogs())
+    {
+        return;
+    }
+
     if (mapWindow == 0)
     {
         return;
@@ -4007,7 +4187,7 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
 
         hoverLabel->setAlpha(0.88f);
         hoverLabel->setNeedMouseFocus(false);
-        hoverLabel->setColour(MyGUI::Colour(0.10f, 0.10f, 0.10f, 0.95f));
+        hoverLabel->setColour(g_hoverLabelBackgroundColour);
 
         MyGUI::TextBox* text = hoverLabel->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
@@ -4026,7 +4206,7 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
 
         text->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         text->setNeedMouseFocus(false);
-        text->setColour(MyGUI::Colour(0.96f, 0.96f, 0.96f, 1.0f));
+        text->setTextColour(g_hoverLabelTextColour);
     }
 
     MyGUI::Widget* hoverLabelTextWidget = FindDirectChildByName(hoverLabel, kMarkerHoverLabelTextName);
@@ -4070,12 +4250,14 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         maxTop);
 
     hoverLabel->setVisible(true);
+    hoverLabel->setColour(g_hoverLabelBackgroundColour);
     hoverLabel->setCoord(labelLeft, labelTop, labelWidth, kMarkerHoverLabelHeight);
     hoverLabelText->setCoord(
         kMarkerHoverLabelHorizontalPadding,
         3,
         labelWidth - (kMarkerHoverLabelHorizontalPadding * 2),
         kMarkerHoverLabelHeight - 6);
+    hoverLabelText->setTextColour(g_hoverLabelTextColour);
     hoverLabelText->setCaption(hoverDisplayText);
 
     std::stringstream hoverSignature;
@@ -4257,6 +4439,11 @@ std::string BuildVisibleRootsSignature()
 
 void LogVisibleRootsSnapshot(const char* reason)
 {
+    if (!ShouldEmitProbeLogs())
+    {
+        return;
+    }
+
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
     {
@@ -4724,7 +4911,7 @@ void TickUiDiagnostics()
     EnsureMarkerEditorUi();
 
     const DWORD now = GetTickCount();
-    if (now - g_lastVisibleRootsScanTick >= 500)
+    if (ShouldEmitProbeLogs() && now - g_lastVisibleRootsScanTick >= 500)
     {
         g_lastVisibleRootsScanTick = now;
         const std::string signature = BuildVisibleRootsSignature();
@@ -4748,8 +4935,6 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     {
         PlayerInterface_updateUT_orig(thisptr);
     }
-
-    MapMarkersModHub_TickAttachRetry();
 
     if (!g_modEnabled)
     {

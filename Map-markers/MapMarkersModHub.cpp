@@ -1,3 +1,5 @@
+#include <Debug.h>
+
 #include "MapMarkersModHub.h"
 
 #include "emc/mod_hub_client.h"
@@ -13,17 +15,11 @@ const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "map_markers";
 const char* kHubModDisplayName = "Map-markers";
 
-const DWORD kModHubAttachRetryIntervalMs = 5000u;
-const unsigned int kModHubAttachRetryMaxAttempts = 3u;
-
 typedef bool MapMarkersModConfigSnapshot::*HubBoolField;
 typedef int MapMarkersModConfigSnapshot::*HubIntField;
 
 emc::ModHubClient g_modHubClient;
 bool g_modHubClientConfigured = false;
-bool g_modHubAttachRetryActive = false;
-unsigned int g_modHubAttachRetryAttempts = 0u;
-DWORD g_modHubAttachRetryLastAttemptMs = 0u;
 
 void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
 {
@@ -236,9 +232,19 @@ void LogModHubMessage(const char* event, const char* reason)
     MapMarkers_LogProbeMessage(line.str().c_str());
 }
 
-bool RetryWindowElapsed(DWORD nowMs, DWORD lastAttemptMs, DWORD minGapMs)
+void LogModHubStartupMessage(bool warn, const char* message)
 {
-    return (nowMs - lastAttemptMs) >= minGapMs;
+    std::stringstream line;
+    line << "Map-markers " << (warn ? "WARN: " : "INFO: ")
+         << (message != 0 ? message : "Mod Hub startup state changed")
+         << " result=" << g_modHubClient.LastAttemptFailureResult();
+    if (warn)
+    {
+        ErrorLog(line.str().c_str());
+        return;
+    }
+
+    DebugLog(line.str().c_str());
 }
 
 void EnsureModHubClientConfigured()
@@ -315,10 +321,6 @@ void MapMarkersModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
-    g_modHubAttachRetryActive = false;
-    g_modHubAttachRetryAttempts = 0u;
-    g_modHubAttachRetryLastAttemptMs = GetTickCount();
-
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -328,64 +330,18 @@ void MapMarkersModHub_OnStartup()
 
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
+        LogModHubStartupMessage(false, "Mod Hub unavailable or inactive; continuing with file-only settings");
         LogModHubMessage("fallback", "get_api_failed");
-        g_modHubAttachRetryActive = true;
         return;
     }
 
     if (result == emc::ModHubClient::REGISTRATION_FAILED)
     {
+        LogModHubStartupMessage(true, "Mod Hub registration failed; continuing with file-only settings");
         LogModHubMessage("fallback", "register_mod_or_setting_failed");
         return;
     }
 
+    LogModHubStartupMessage(true, "Mod Hub client configuration invalid; continuing with file-only settings");
     LogModHubMessage("fallback", "invalid_client_configuration");
-}
-
-void MapMarkersModHub_TickAttachRetry()
-{
-    if (!g_modHubAttachRetryActive || g_modHubClient.UseHubUi())
-    {
-        return;
-    }
-
-    if (g_modHubAttachRetryAttempts >= kModHubAttachRetryMaxAttempts)
-    {
-        g_modHubAttachRetryActive = false;
-        if (g_modHubClient.LastAttemptFailureResult() != EMC_ERR_NOT_FOUND)
-        {
-            LogModHubMessage("retry_stopped", "max_attempts_reached");
-        }
-        return;
-    }
-
-    const DWORD nowMs = GetTickCount();
-    if (!RetryWindowElapsed(nowMs, g_modHubAttachRetryLastAttemptMs, kModHubAttachRetryIntervalMs))
-    {
-        return;
-    }
-
-    ++g_modHubAttachRetryAttempts;
-    g_modHubAttachRetryLastAttemptMs = nowMs;
-
-    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
-    if (result == emc::ModHubClient::ATTACH_SUCCESS)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubMessage("retry_success", 0);
-        return;
-    }
-
-    if (result == emc::ModHubClient::REGISTRATION_FAILED)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubMessage("fallback", "register_mod_or_setting_failed");
-        return;
-    }
-
-    if (result == emc::ModHubClient::INVALID_CONFIGURATION)
-    {
-        g_modHubAttachRetryActive = false;
-        LogModHubMessage("fallback", "invalid_client_configuration");
-    }
 }

@@ -18,4 +18,3 @@ bool MapMarkers_PersistCurrentModConfig(bool logSuccess);
 void MapMarkers_LogProbeMessage(const char* message);
 
 void MapMarkersModHub_OnStartup();
-void MapMarkersModHub_TickAttachRetry();

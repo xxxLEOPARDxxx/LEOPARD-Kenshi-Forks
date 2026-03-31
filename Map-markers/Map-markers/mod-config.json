@@ -3,6 +3,8 @@
   "markers_visible": true,
   "close_editor_on_map_close": true,
   "show_hover_labels": true,
+  "hover_label_text_color_hex": "#F5F5F5",
+  "hover_label_background_color_hex": "#1A1A1AF2",
   "default_marker_type": "note",
   "editor_position_customized": false,
   "editor_left": 0,
