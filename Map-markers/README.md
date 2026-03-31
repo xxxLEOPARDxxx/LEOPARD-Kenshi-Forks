@@ -126,3 +126,7 @@ After deploy, expected files are:
 - Drag-to-move markers is not implemented yet.
 - Marker visuals still use the current square MyGUI button skin.
 - Compatible Mod Hub builds currently expose hover label, map-close, default-type, and master enable settings.
+
+## License
+This project is licensed under the GNU General Public License v3.0.
+It uses KenshiLib, which is released under GPLv3.
