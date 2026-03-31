@@ -1,6 +1,7 @@
 #include <Debug.h>
 
-#include "MapMarkersModHub.h"
+#include "src/MapMarkersInternal.h"
+#include "src/MapMarkersModHub.h"
 
 #ifndef BOOST_ALL_NO_LIB
 #define BOOST_ALL_NO_LIB
@@ -68,11 +69,8 @@ const int kMarkerHoverLabelHorizontalPadding = 8;
 const int kMarkerHoverLabelVerticalOffset = 1;
 const int kMarkerHoverLabelMinimumWidth = 40;
 const int kMarkerHoverLabelMaximumWidth = 320;
-const int kMarkerLabelMaxLength = 48;
 const char* kMarkerEditorHintCaption = "MMB add | LMB move | Enter save | Del | RMB deselect";
 const char* kModConfigFileName = "mod-config.json";
-const char* kHoverLabelTextColorConfigKey = "hover_label_text_color_hex";
-const char* kHoverLabelBackgroundColorConfigKey = "hover_label_background_color_hex";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
 const char* kMarkerEditorPanelName = "MapMarkers_EditorPanel";
@@ -95,29 +93,6 @@ void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
 void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
 void (*SaveManager_newGame_orig)(SaveManager*, const std::string&) = 0;
 void (*SaveManager_import_orig)(SaveManager*, const SaveInfo&, int) = 0;
-
-enum MarkerType
-{
-    MarkerType_Note = 0,
-    MarkerType_Danger = 1,
-    MarkerType_Stash = 2,
-    MarkerType_Ruin = 3,
-    MarkerType_Mine = 4,
-    MarkerType_Base = 5,
-    MarkerType_Trader = 6,
-    MarkerType_SafeSpot = 7,
-    MarkerType_Quest = 8,
-    MarkerType_Todo = 9
-};
-
-struct MarkerState
-{
-    int id;
-    float normalizedX;
-    float normalizedY;
-    MarkerType type;
-    std::string label;
-};
 
 struct PendingMarkerLabelShortcut
 {
@@ -196,10 +171,6 @@ void ClearSelectedMarker(const char* reason);
 void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
 void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
-std::string NormalizePathForComparison(const std::string& path);
-bool PathsEqualIgnoreCase(const std::string& left, const std::string& right);
-std::string GetParentDirectoryPath(const std::string& path);
-std::string GetPathLeafName(const std::string& path);
 std::string GetActiveSaveDirectory();
 std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName);
 void ClearPendingSaveTransition(const char* reason);
@@ -234,181 +205,6 @@ private:
     ScopedProbeLogging(const ScopedProbeLogging&);
     ScopedProbeLogging& operator=(const ScopedProbeLogging&);
 };
-
-std::string ToLowerAscii(const std::string& value)
-{
-    std::string lowered(value);
-    for (std::string::size_type index = 0; index < lowered.size(); ++index)
-    {
-        lowered[index] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[index])));
-    }
-    return lowered;
-}
-
-bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
-{
-    if (needle == 0 || *needle == '\0')
-    {
-        return false;
-    }
-
-    const std::string needleLower = ToLowerAscii(needle);
-    return ToLowerAscii(haystack).find(needleLower) != std::string::npos;
-}
-
-int ClampInt(int value, int minimum, int maximum)
-{
-    if (value < minimum)
-    {
-        return minimum;
-    }
-
-    if (value > maximum)
-    {
-        return maximum;
-    }
-
-    return value;
-}
-
-float ClampFloat(float value, float minimum, float maximum)
-{
-    if (value < minimum)
-    {
-        return minimum;
-    }
-
-    if (value > maximum)
-    {
-        return maximum;
-    }
-
-    return value;
-}
-
-std::string SanitizeMarkerLabel(const std::string& value, bool trimTrailingSpaces = true)
-{
-    std::string sanitized;
-    sanitized.reserve(value.size());
-
-    bool previousWasSpace = false;
-    for (std::string::size_type index = 0; index < value.size(); ++index)
-    {
-        unsigned char ch = static_cast<unsigned char>(value[index]);
-        char out = static_cast<char>(ch);
-
-        if (ch == '\r' || ch == '\n' || ch == '\t')
-        {
-            out = ' ';
-        }
-        else if (out == '[' || out == '{')
-        {
-            out = '(';
-        }
-        else if (out == ']' || out == '}')
-        {
-            out = ')';
-        }
-        else if (ch < 32)
-        {
-            continue;
-        }
-
-        if (out == ' ')
-        {
-            if (sanitized.empty() || previousWasSpace)
-            {
-                continue;
-            }
-            previousWasSpace = true;
-        }
-        else
-        {
-            previousWasSpace = false;
-        }
-
-        sanitized.push_back(out);
-        if (static_cast<int>(sanitized.size()) >= kMarkerLabelMaxLength)
-        {
-            break;
-        }
-    }
-
-    while (trimTrailingSpaces && !sanitized.empty() && sanitized[sanitized.size() - 1] == ' ')
-    {
-        sanitized.erase(sanitized.size() - 1);
-    }
-
-    return sanitized;
-}
-
-bool IsMarkerLabelTokenSeparator(MyGUI::UString::unicode_char value)
-{
-    if (value < 0x80u)
-    {
-        const unsigned char byte = static_cast<unsigned char>(value);
-        return byte == ':' || std::isspace(byte) != 0 || std::isalnum(byte) == 0;
-    }
-
-    return false;
-}
-
-std::size_t FindPreviousMarkerLabelTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
-{
-    const std::size_t length = text.size();
-    if (cursor > length)
-    {
-        cursor = length;
-    }
-
-    std::size_t position = cursor;
-    while (position > 0u && IsMarkerLabelTokenSeparator(text[position - 1u]))
-    {
-        --position;
-    }
-
-    while (position > 0u && !IsMarkerLabelTokenSeparator(text[position - 1u]))
-    {
-        --position;
-    }
-
-    return position;
-}
-
-std::size_t FindNextMarkerLabelTokenBoundary(const MyGUI::UString& text, std::size_t cursor)
-{
-    const std::size_t length = text.size();
-    if (cursor > length)
-    {
-        cursor = length;
-    }
-
-    std::size_t position = cursor;
-    while (position < length && !IsMarkerLabelTokenSeparator(text[position]))
-    {
-        ++position;
-    }
-
-    while (position < length && IsMarkerLabelTokenSeparator(text[position]))
-    {
-        ++position;
-    }
-
-    return position;
-}
-
-bool IsInterestingMarkerLabelShortcutKey(MyGUI::KeyCode keyCode)
-{
-    return keyCode.getValue() == MyGUI::KeyCode::ArrowLeft
-        || keyCode.getValue() == MyGUI::KeyCode::ArrowRight
-        || keyCode.getValue() == MyGUI::KeyCode::Backspace;
-}
-
-bool IsMarkerLabelConfirmKey(MyGUI::KeyCode keyCode)
-{
-    return keyCode.getValue() == MyGUI::KeyCode::Return
-        || keyCode.getValue() == MyGUI::KeyCode::NumpadEnter;
-}
 
 void ResetMarkerLabelSnapshot()
 {
@@ -457,391 +253,9 @@ void ResetPendingMarkerLabelShortcut()
     g_pendingMarkerLabelShortcut.label.clear();
 }
 
-const char* MarkerTypeToJsonValue(MarkerType type)
-{
-    switch (type)
-    {
-    case MarkerType_Danger:
-        return "danger";
-    case MarkerType_Stash:
-        return "stash";
-    case MarkerType_Ruin:
-        return "ruin";
-    case MarkerType_Mine:
-        return "mine";
-    case MarkerType_Base:
-        return "base";
-    case MarkerType_Trader:
-        return "trader";
-    case MarkerType_SafeSpot:
-        return "safe_spot";
-    case MarkerType_Quest:
-        return "quest";
-    case MarkerType_Todo:
-        return "todo";
-    case MarkerType_Note:
-    default:
-        return "note";
-    }
-}
-
-const char* MarkerTypeToDisplayName(MarkerType type)
-{
-    switch (type)
-    {
-    case MarkerType_Danger:
-        return "Danger";
-    case MarkerType_Stash:
-        return "Stash";
-    case MarkerType_Ruin:
-        return "Ruin";
-    case MarkerType_Mine:
-        return "Mine / Resource";
-    case MarkerType_Base:
-        return "Base / Outpost";
-    case MarkerType_Trader:
-        return "Trader / Shop";
-    case MarkerType_SafeSpot:
-        return "Safe Spot / Bed / Recovery";
-    case MarkerType_Quest:
-        return "Quest";
-    case MarkerType_Todo:
-        return "Todo";
-    case MarkerType_Note:
-    default:
-        return "Note";
-    }
-}
-
-const char* MarkerTypeToGlyph(MarkerType type)
-{
-    switch (type)
-    {
-    case MarkerType_Danger:
-        return "!";
-    case MarkerType_Stash:
-        return "s";
-    case MarkerType_Ruin:
-        return "r";
-    case MarkerType_Mine:
-        return "m";
-    case MarkerType_Base:
-        return "b";
-    case MarkerType_Trader:
-        return "$";
-    case MarkerType_SafeSpot:
-        return "+";
-    case MarkerType_Quest:
-        return "q";
-    case MarkerType_Todo:
-        return "t";
-    case MarkerType_Note:
-    default:
-        return "n";
-    }
-}
-
-MarkerType MarkerTypeFromString(const std::string& value)
-{
-    const std::string lowered = ToLowerAscii(value);
-    if (lowered == "danger")
-    {
-        return MarkerType_Danger;
-    }
-    if (lowered == "stash")
-    {
-        return MarkerType_Stash;
-    }
-    if (lowered == "ruin")
-    {
-        return MarkerType_Ruin;
-    }
-    if (lowered == "mine" || lowered == "resource" || lowered == "mine_resource")
-    {
-        return MarkerType_Mine;
-    }
-    if (lowered == "base" || lowered == "outpost" || lowered == "base_outpost")
-    {
-        return MarkerType_Base;
-    }
-    if (lowered == "trader" || lowered == "shop" || lowered == "trader_shop")
-    {
-        return MarkerType_Trader;
-    }
-    if (lowered == "safe_spot" || lowered == "safe" || lowered == "recovery")
-    {
-        return MarkerType_SafeSpot;
-    }
-    if (lowered == "quest")
-    {
-        return MarkerType_Quest;
-    }
-    if (lowered == "todo")
-    {
-        return MarkerType_Todo;
-    }
-    return MarkerType_Note;
-}
-
-int MarkerTypeToIndex(MarkerType type)
-{
-    return static_cast<int>(type);
-}
-
-MarkerType MarkerTypeFromIndex(int value)
-{
-    if (value < static_cast<int>(MarkerType_Note)
-        || value > static_cast<int>(MarkerType_Todo))
-    {
-        return MarkerType_Note;
-    }
-
-    return static_cast<MarkerType>(value);
-}
-
-MarkerType GetNextMarkerType(MarkerType type)
-{
-    switch (type)
-    {
-    case MarkerType_Note:
-        return MarkerType_Danger;
-    case MarkerType_Danger:
-        return MarkerType_Stash;
-    case MarkerType_Stash:
-        return MarkerType_Ruin;
-    case MarkerType_Ruin:
-        return MarkerType_Mine;
-    case MarkerType_Mine:
-        return MarkerType_Base;
-    case MarkerType_Base:
-        return MarkerType_Trader;
-    case MarkerType_Trader:
-        return MarkerType_SafeSpot;
-    case MarkerType_SafeSpot:
-        return MarkerType_Quest;
-    case MarkerType_Quest:
-        return MarkerType_Todo;
-    case MarkerType_Todo:
-    default:
-        return MarkerType_Note;
-    }
-}
-
-MyGUI::Colour BuildMarkerColour(MarkerType type, bool selected)
-{
-    switch (type)
-    {
-    case MarkerType_Danger:
-        return selected
-            ? MyGUI::Colour(1.0f, 0.45f, 0.40f, 1.0f)
-            : MyGUI::Colour(0.88f, 0.18f, 0.18f, 1.0f);
-    case MarkerType_Stash:
-        return selected
-            ? MyGUI::Colour(0.44f, 0.70f, 1.0f, 1.0f)
-            : MyGUI::Colour(0.18f, 0.42f, 0.95f, 1.0f);
-    case MarkerType_Ruin:
-        return selected
-            ? MyGUI::Colour(1.0f, 0.96f, 0.38f, 1.0f)
-            : MyGUI::Colour(0.92f, 0.82f, 0.18f, 1.0f);
-    case MarkerType_Mine:
-        return selected
-            ? MyGUI::Colour(1.0f, 0.72f, 0.30f, 1.0f)
-            : MyGUI::Colour(0.95f, 0.54f, 0.16f, 1.0f);
-    case MarkerType_Base:
-        return selected
-            ? MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f)
-            : MyGUI::Colour(0.84f, 0.84f, 0.84f, 1.0f);
-    case MarkerType_Trader:
-        return selected
-            ? MyGUI::Colour(0.48f, 1.0f, 1.0f, 1.0f)
-            : MyGUI::Colour(0.18f, 0.84f, 0.84f, 1.0f);
-    case MarkerType_SafeSpot:
-        return selected
-            ? MyGUI::Colour(0.78f, 1.0f, 0.68f, 1.0f)
-            : MyGUI::Colour(0.52f, 0.90f, 0.40f, 1.0f);
-    case MarkerType_Quest:
-        return selected
-            ? MyGUI::Colour(0.82f, 0.52f, 1.0f, 1.0f)
-            : MyGUI::Colour(0.60f, 0.30f, 0.88f, 1.0f);
-    case MarkerType_Todo:
-        return selected
-            ? MyGUI::Colour(0.78f, 0.78f, 0.78f, 1.0f)
-            : MyGUI::Colour(0.54f, 0.54f, 0.54f, 1.0f);
-    case MarkerType_Note:
-    default:
-        return selected
-            ? MyGUI::Colour(0.58f, 1.0f, 0.58f, 1.0f)
-            : MyGUI::Colour(0.18f, 0.78f, 0.20f, 1.0f);
-    }
-}
-
-std::string BuildMarkerEditorHeader(const MarkerState& marker)
-{
-    std::stringstream caption;
-    caption << "Marker " << marker.id;
-    if (!marker.label.empty())
-    {
-        caption << ": " << marker.label;
-    }
-    return caption.str();
-}
-
-int BuildMarkerLabelDisplayWidth(const std::string& label)
-{
-    int width = kMarkerHoverLabelMinimumWidth;
-    if (!label.empty())
-    {
-        int textWidth = 0;
-        for (std::string::size_type index = 0; index < label.size(); ++index)
-        {
-            const unsigned char ch = static_cast<unsigned char>(label[index]);
-            if (ch == ' ')
-            {
-                textWidth += 4;
-            }
-            else if (std::islower(ch))
-            {
-                textWidth += 6;
-            }
-            else if (std::isupper(ch) || std::isdigit(ch) || ch == '!' || ch == '+' || ch == '$')
-            {
-                textWidth += 7;
-            }
-            else
-            {
-                textWidth += 5;
-            }
-        }
-
-        width = textWidth + (kMarkerHoverLabelHorizontalPadding * 2) + 4;
-    }
-
-    return ClampInt(width, kMarkerHoverLabelMinimumWidth, kMarkerHoverLabelMaximumWidth);
-}
-
-std::string BuildMarkerHoverDisplayText(const std::string& caption)
-{
-    return caption;
-}
-
-std::string BuildMarkerHoverCaption(const MarkerState& marker)
-{
-    std::stringstream caption;
-    caption << MarkerTypeToDisplayName(marker.type);
-    if (!marker.label.empty())
-    {
-        caption << ": " << marker.label;
-    }
-    return caption.str();
-}
-
 const char* BuildMarkerToggleButtonCaption()
 {
     return g_markersVisible ? "Markers: On" : "Markers: Off";
-}
-
-std::string JsonEscapeString(const std::string& value)
-{
-    std::string escaped;
-    escaped.reserve(value.size() + 8);
-
-    for (std::string::size_type index = 0; index < value.size(); ++index)
-    {
-        const char ch = value[index];
-        switch (ch)
-        {
-        case '\\':
-            escaped += "\\\\";
-            break;
-        case '"':
-            escaped += "\\\"";
-            break;
-        case '\n':
-            escaped += "\\n";
-            break;
-        case '\r':
-            escaped += "\\r";
-            break;
-        case '\t':
-            escaped += "\\t";
-            break;
-        default:
-            escaped.push_back(ch);
-            break;
-        }
-    }
-
-    return escaped;
-}
-
-std::string JoinWindowsPath(const std::string& directory, const char* fileName)
-{
-    if (directory.empty() || fileName == 0 || *fileName == '\0')
-    {
-        return "";
-    }
-
-    if (directory[directory.size() - 1] == '\\' || directory[directory.size() - 1] == '/')
-    {
-        return directory + fileName;
-    }
-
-    return directory + "\\" + fileName;
-}
-
-std::string NormalizePathForComparison(const std::string& path)
-{
-    std::string normalized(path);
-    for (std::string::size_type index = 0; index < normalized.size(); ++index)
-    {
-        char ch = normalized[index];
-        if (ch == '/')
-        {
-            normalized[index] = '\\';
-        }
-        else
-        {
-            normalized[index] = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        }
-    }
-    return normalized;
-}
-
-bool PathsEqualIgnoreCase(const std::string& left, const std::string& right)
-{
-    return NormalizePathForComparison(left) == NormalizePathForComparison(right);
-}
-
-std::string GetParentDirectoryPath(const std::string& path)
-{
-    if (path.empty())
-    {
-        return "";
-    }
-
-    const std::string::size_type separator = path.find_last_of("\\/");
-    if (separator == std::string::npos)
-    {
-        return "";
-    }
-
-    return path.substr(0, separator);
-}
-
-std::string GetPathLeafName(const std::string& path)
-{
-    if (path.empty())
-    {
-        return "";
-    }
-
-    const std::string::size_type separator = path.find_last_of("\\/");
-    if (separator == std::string::npos)
-    {
-        return path;
-    }
-
-    return path.substr(separator + 1);
 }
 
 std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName)
@@ -964,467 +378,6 @@ std::string GetModConfigPath()
     return JoinWindowsPath(GetPluginDirectory(), kModConfigFileName);
 }
 
-bool ExtractJsonFloatField(const std::string& contents, const char* key, float& valueOut)
-{
-    if (key == 0 || *key == '\0')
-    {
-        return false;
-    }
-
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = contents.find(quotedKey);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = colonPos + 1;
-    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
-    {
-        ++valuePos;
-    }
-
-    char* parseEnd = 0;
-    const double parsedValue = std::strtod(contents.c_str() + valuePos, &parseEnd);
-    if (parseEnd == contents.c_str() + valuePos)
-    {
-        return false;
-    }
-
-    valueOut = ClampFloat(static_cast<float>(parsedValue), 0.0f, 1.0f);
-    return true;
-}
-
-bool ExtractJsonIntField(const std::string& contents, const char* key, int& valueOut)
-{
-    if (key == 0 || *key == '\0')
-    {
-        return false;
-    }
-
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = contents.find(quotedKey);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = colonPos + 1;
-    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
-    {
-        ++valuePos;
-    }
-
-    char* parseEnd = 0;
-    const long parsedValue = std::strtol(contents.c_str() + valuePos, &parseEnd, 10);
-    if (parseEnd == contents.c_str() + valuePos)
-    {
-        return false;
-    }
-
-    valueOut = static_cast<int>(parsedValue);
-    return true;
-}
-
-bool ExtractJsonBoolField(const std::string& contents, const char* key, bool& valueOut)
-{
-    if (key == 0 || *key == '\0')
-    {
-        return false;
-    }
-
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = contents.find(quotedKey);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = colonPos + 1;
-    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
-    {
-        ++valuePos;
-    }
-
-    if (contents.compare(valuePos, 4, "true") == 0)
-    {
-        valueOut = true;
-        return true;
-    }
-
-    if (contents.compare(valuePos, 5, "false") == 0)
-    {
-        valueOut = false;
-        return true;
-    }
-
-    return false;
-}
-
-bool ExtractJsonStringField(const std::string& contents, const char* key, std::string& valueOut)
-{
-    if (key == 0 || *key == '\0')
-    {
-        return false;
-    }
-
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = contents.find(quotedKey);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = colonPos + 1;
-    while (valuePos < contents.size() && std::isspace(static_cast<unsigned char>(contents[valuePos])))
-    {
-        ++valuePos;
-    }
-
-    if (valuePos >= contents.size() || contents[valuePos] != '"')
-    {
-        return false;
-    }
-
-    std::string parsed;
-    bool escaping = false;
-    for (std::string::size_type index = valuePos + 1; index < contents.size(); ++index)
-    {
-        const char ch = contents[index];
-        if (escaping)
-        {
-            switch (ch)
-            {
-            case 'n':
-                parsed.push_back('\n');
-                break;
-            case 'r':
-                parsed.push_back('\r');
-                break;
-            case 't':
-                parsed.push_back('\t');
-                break;
-            case '\\':
-            case '"':
-                parsed.push_back(ch);
-                break;
-            default:
-                parsed.push_back(ch);
-                break;
-            }
-            escaping = false;
-            continue;
-        }
-
-        if (ch == '\\')
-        {
-            escaping = true;
-            continue;
-        }
-
-        if (ch == '"')
-        {
-            valueOut = parsed;
-            return true;
-        }
-
-        parsed.push_back(ch);
-    }
-
-    return false;
-}
-
-bool TryExtractJsonArrayContents(const std::string& contents, const char* key, std::string& arrayContentsOut)
-{
-    if (key == 0 || *key == '\0')
-    {
-        return false;
-    }
-
-    const std::string quotedKey = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = contents.find(quotedKey);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    const std::string::size_type colonPos = contents.find(':', keyPos + quotedKey.size());
-    if (colonPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type arrayStart = colonPos + 1;
-    while (arrayStart < contents.size() && std::isspace(static_cast<unsigned char>(contents[arrayStart])))
-    {
-        ++arrayStart;
-    }
-
-    if (arrayStart >= contents.size() || contents[arrayStart] != '[')
-    {
-        return false;
-    }
-
-    int depth = 0;
-    for (std::string::size_type index = arrayStart; index < contents.size(); ++index)
-    {
-        if (contents[index] == '[')
-        {
-            ++depth;
-        }
-        else if (contents[index] == ']')
-        {
-            --depth;
-            if (depth == 0)
-            {
-                arrayContentsOut = contents.substr(arrayStart + 1, index - arrayStart - 1);
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-bool TryParseMarkersArray(const std::string& contents, std::vector<MarkerState>& markersOut)
-{
-    std::string arrayContents;
-    if (!TryExtractJsonArrayContents(contents, "markers", arrayContents))
-    {
-        return false;
-    }
-
-    markersOut.clear();
-    std::string::size_type searchPos = 0;
-    while (true)
-    {
-        const std::string::size_type objectStart = arrayContents.find('{', searchPos);
-        if (objectStart == std::string::npos)
-        {
-            break;
-        }
-
-        int depth = 0;
-        std::string::size_type objectEnd = std::string::npos;
-        for (std::string::size_type index = objectStart; index < arrayContents.size(); ++index)
-        {
-            if (arrayContents[index] == '{')
-            {
-                ++depth;
-            }
-            else if (arrayContents[index] == '}')
-            {
-                --depth;
-                if (depth == 0)
-                {
-                    objectEnd = index;
-                    break;
-                }
-            }
-        }
-
-        if (objectEnd == std::string::npos)
-        {
-            return false;
-        }
-
-        const std::string objectText = arrayContents.substr(objectStart, objectEnd - objectStart + 1);
-        MarkerState marker;
-        marker.id = 0;
-        marker.normalizedX = 0.0f;
-        marker.normalizedY = 0.0f;
-        marker.type = MarkerType_Note;
-        marker.label.clear();
-        if (!ExtractJsonIntField(objectText, "id", marker.id)
-            || !ExtractJsonFloatField(objectText, "x", marker.normalizedX)
-            || !ExtractJsonFloatField(objectText, "y", marker.normalizedY))
-        {
-            return false;
-        }
-
-        std::string typeValue;
-        if (ExtractJsonStringField(objectText, "type", typeValue))
-        {
-            marker.type = MarkerTypeFromString(typeValue);
-        }
-
-        std::string labelValue;
-        if (ExtractJsonStringField(objectText, "label", labelValue))
-        {
-            marker.label = SanitizeMarkerLabel(labelValue);
-        }
-
-        markersOut.push_back(marker);
-        searchPos = objectEnd + 1;
-    }
-
-    return true;
-}
-
-std::string TrimAscii(const std::string& value)
-{
-    std::string::size_type start = 0;
-    while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start])))
-    {
-        ++start;
-    }
-
-    std::string::size_type end = value.size();
-    while (end > start && std::isspace(static_cast<unsigned char>(value[end - 1])))
-    {
-        --end;
-    }
-
-    return value.substr(start, end - start);
-}
-
-bool TryParseHexNibble(char value, unsigned int* nibbleOut)
-{
-    if (nibbleOut == 0)
-    {
-        return false;
-    }
-
-    if (value >= '0' && value <= '9')
-    {
-        *nibbleOut = static_cast<unsigned int>(value - '0');
-        return true;
-    }
-    if (value >= 'a' && value <= 'f')
-    {
-        *nibbleOut = static_cast<unsigned int>(10 + (value - 'a'));
-        return true;
-    }
-    if (value >= 'A' && value <= 'F')
-    {
-        *nibbleOut = static_cast<unsigned int>(10 + (value - 'A'));
-        return true;
-    }
-
-    return false;
-}
-
-bool TryParseHexByte(const std::string& value, std::string::size_type pos, unsigned int* byteOut)
-{
-    if (byteOut == 0 || pos + 1 >= value.size())
-    {
-        return false;
-    }
-
-    unsigned int highNibble = 0;
-    unsigned int lowNibble = 0;
-    if (!TryParseHexNibble(value[pos], &highNibble) || !TryParseHexNibble(value[pos + 1], &lowNibble))
-    {
-        return false;
-    }
-
-    *byteOut = (highNibble << 4) | lowNibble;
-    return true;
-}
-
-bool TryParseColourHex(const std::string& rawValue, MyGUI::Colour& colourOut)
-{
-    std::string value = TrimAscii(rawValue);
-    if (value.empty())
-    {
-        return false;
-    }
-
-    if (value[0] == '#')
-    {
-        value.erase(0, 1);
-    }
-
-    if (value.size() != 6 && value.size() != 8)
-    {
-        return false;
-    }
-
-    unsigned int red = 0;
-    unsigned int green = 0;
-    unsigned int blue = 0;
-    unsigned int alpha = 255;
-    if (!TryParseHexByte(value, 0, &red)
-        || !TryParseHexByte(value, 2, &green)
-        || !TryParseHexByte(value, 4, &blue))
-    {
-        return false;
-    }
-
-    if (value.size() == 8 && !TryParseHexByte(value, 6, &alpha))
-    {
-        return false;
-    }
-
-    colourOut = MyGUI::Colour(
-        static_cast<float>(red) / 255.0f,
-        static_cast<float>(green) / 255.0f,
-        static_cast<float>(blue) / 255.0f,
-        static_cast<float>(alpha) / 255.0f);
-    return true;
-}
-
-std::string BuildColourHexString(const MyGUI::Colour& colour)
-{
-    const char* kHexDigits = "0123456789ABCDEF";
-    const auto toByte = [](float channel) -> unsigned int
-    {
-        if (channel < 0.0f)
-        {
-            channel = 0.0f;
-        }
-        if (channel > 1.0f)
-        {
-            channel = 1.0f;
-        }
-        return static_cast<unsigned int>(channel * 255.0f + 0.5f);
-    };
-
-    const unsigned int red = toByte(colour.red);
-    const unsigned int green = toByte(colour.green);
-    const unsigned int blue = toByte(colour.blue);
-    const unsigned int alpha = toByte(colour.alpha);
-
-    std::string value("#");
-    value.push_back(kHexDigits[(red >> 4) & 0xFu]);
-    value.push_back(kHexDigits[red & 0xFu]);
-    value.push_back(kHexDigits[(green >> 4) & 0xFu]);
-    value.push_back(kHexDigits[green & 0xFu]);
-    value.push_back(kHexDigits[(blue >> 4) & 0xFu]);
-    value.push_back(kHexDigits[blue & 0xFu]);
-    if (alpha < 255u)
-    {
-        value.push_back(kHexDigits[(alpha >> 4) & 0xFu]);
-        value.push_back(kHexDigits[alpha & 0xFu]);
-    }
-
-    return value;
-}
-
 void ResetMarkersForActiveSave()
 {
     g_markers.clear();
@@ -1498,32 +451,22 @@ bool SaveModConfig(bool logSuccess = true)
         return false;
     }
 
-    std::ofstream output(configPath.c_str(), std::ios::out | std::ios::trunc);
-    if (!output)
+    MapMarkersConfigFileData configData;
+    configData.snapshot.enabled = g_modEnabled;
+    configData.snapshot.markersVisible = g_markersVisible;
+    configData.snapshot.closeEditorOnMapClose = g_closeEditorOnMapClose;
+    configData.snapshot.showHoverLabels = g_showHoverLabels;
+    configData.snapshot.defaultMarkerType = MarkerTypeToIndex(g_defaultMarkerType);
+    configData.snapshot.editorPositionCustomized = g_markerEditorPositionCustomized;
+    configData.snapshot.editorLeft = g_markerEditorCustomLeft;
+    configData.snapshot.editorTop = g_markerEditorCustomTop;
+    configData.hoverLabelTextColorHex = BuildColourHexString(g_hoverLabelTextColour);
+    configData.hoverLabelBackgroundColorHex = BuildColourHexString(g_hoverLabelBackgroundColour);
+
+    if (!SaveConfigFileData(configPath, configData))
     {
         std::stringstream line;
         line << "config persist failed path=\"" << configPath << "\"";
-        LogProbeLine(line.str());
-        return false;
-    }
-
-    output << "{\n"
-           << "  \"enabled\": " << (g_modEnabled ? "true" : "false") << ",\n"
-           << "  \"markers_visible\": " << (g_markersVisible ? "true" : "false") << ",\n"
-           << "  \"close_editor_on_map_close\": " << (g_closeEditorOnMapClose ? "true" : "false") << ",\n"
-           << "  \"show_hover_labels\": " << (g_showHoverLabels ? "true" : "false") << ",\n"
-           << "  \"" << kHoverLabelTextColorConfigKey << "\": \"" << BuildColourHexString(g_hoverLabelTextColour) << "\",\n"
-           << "  \"" << kHoverLabelBackgroundColorConfigKey << "\": \"" << BuildColourHexString(g_hoverLabelBackgroundColour) << "\",\n"
-           << "  \"default_marker_type\": \"" << MarkerTypeToJsonValue(g_defaultMarkerType) << "\",\n"
-           << "  \"editor_position_customized\": " << (g_markerEditorPositionCustomized ? "true" : "false") << ",\n"
-           << "  \"editor_left\": " << g_markerEditorCustomLeft << ",\n"
-           << "  \"editor_top\": " << g_markerEditorCustomTop << "\n"
-           << "}\n";
-
-    if (!output.good())
-    {
-        std::stringstream line;
-        line << "config persist failed_write path=\"" << configPath << "\"";
         LogProbeLine(line.str());
         return false;
     }
@@ -1551,20 +494,22 @@ bool SaveModConfig(bool logSuccess = true)
 
 void LoadModConfig()
 {
-    MapMarkersModConfigSnapshot defaults;
-    defaults.enabled = true;
-    defaults.markersVisible = true;
-    defaults.closeEditorOnMapClose = true;
-    defaults.showHoverLabels = true;
-    defaults.editorPositionCustomized = false;
-    defaults.editorLeft = 0;
-    defaults.editorTop = 0;
-    defaults.defaultMarkerType = MarkerTypeToIndex(MarkerType_Note);
+    MapMarkersConfigFileData defaults;
+    defaults.snapshot.enabled = true;
+    defaults.snapshot.markersVisible = true;
+    defaults.snapshot.closeEditorOnMapClose = true;
+    defaults.snapshot.showHoverLabels = true;
+    defaults.snapshot.editorPositionCustomized = false;
+    defaults.snapshot.editorLeft = 0;
+    defaults.snapshot.editorTop = 0;
+    defaults.snapshot.defaultMarkerType = MarkerTypeToIndex(MarkerType_Note);
+    defaults.hoverLabelTextColorHex = BuildColourHexString(kDefaultHoverLabelTextColour);
+    defaults.hoverLabelBackgroundColorHex = BuildColourHexString(kDefaultHoverLabelBackgroundColour);
     g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
     g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
 
     g_markerEditorPositionDirty = false;
-    ApplyModConfigSnapshotInternal(defaults);
+    ApplyModConfigSnapshotInternal(defaults.snapshot);
 
     const std::string configPath = GetModConfigPath();
     if (configPath.empty())
@@ -1572,8 +517,8 @@ void LoadModConfig()
         return;
     }
 
-    std::ifstream input(configPath.c_str(), std::ios::in);
-    if (!input)
+    MapMarkersConfigFileData loadedConfig = defaults;
+    if (!LoadConfigFileData(configPath, defaults, loadedConfig))
     {
         std::stringstream line;
         line << "config missing path=\"" << configPath << "\" using_defaults=true";
@@ -1581,69 +526,21 @@ void LoadModConfig()
         return;
     }
 
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    const std::string contents = buffer.str();
+    ApplyModConfigSnapshotInternal(loadedConfig.snapshot);
 
-    bool boolValue = false;
-    if (ExtractJsonBoolField(contents, "enabled", boolValue))
+    g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
+    if (!TryParseColourHex(loadedConfig.hoverLabelTextColorHex, g_hoverLabelTextColour))
     {
-        defaults.enabled = boolValue;
-    }
-    if (ExtractJsonBoolField(contents, "markers_visible", boolValue))
-    {
-        defaults.markersVisible = boolValue;
-    }
-    if (ExtractJsonBoolField(contents, "close_editor_on_map_close", boolValue))
-    {
-        defaults.closeEditorOnMapClose = boolValue;
-    }
-    if (ExtractJsonBoolField(contents, "show_hover_labels", boolValue))
-    {
-        defaults.showHoverLabels = boolValue;
-    }
-    if (ExtractJsonBoolField(contents, "editor_position_customized", boolValue))
-    {
-        defaults.editorPositionCustomized = boolValue;
+        g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
+        ErrorLog("Map-markers WARN: hover_label_text_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
     }
 
-    std::string stringValue;
-    if (ExtractJsonStringField(contents, "default_marker_type", stringValue))
+    g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
+    if (!TryParseColourHex(loadedConfig.hoverLabelBackgroundColorHex, g_hoverLabelBackgroundColour))
     {
-        defaults.defaultMarkerType = MarkerTypeToIndex(MarkerTypeFromString(stringValue));
+        g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
+        ErrorLog("Map-markers WARN: hover_label_background_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
     }
-    if (ExtractJsonStringField(contents, kHoverLabelTextColorConfigKey, stringValue))
-    {
-        if (!TryParseColourHex(stringValue, g_hoverLabelTextColour))
-        {
-            g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
-            ErrorLog("Map-markers WARN: hover_label_text_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
-        }
-    }
-    if (ExtractJsonStringField(contents, kHoverLabelBackgroundColorConfigKey, stringValue))
-    {
-        if (!TryParseColourHex(stringValue, g_hoverLabelBackgroundColour))
-        {
-            g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
-            ErrorLog("Map-markers WARN: hover_label_background_color_hex invalid; expected #RRGGBB or #RRGGBBAA; using default");
-        }
-    }
-
-    int intValue = 0;
-    if (ExtractJsonIntField(contents, "editor_left", intValue))
-    {
-        defaults.editorLeft = intValue;
-    }
-    if (ExtractJsonIntField(contents, "editor_top", intValue))
-    {
-        defaults.editorTop = intValue;
-    }
-    if (ExtractJsonIntField(contents, "default_marker_type", intValue))
-    {
-        defaults.defaultMarkerType = intValue;
-    }
-
-    ApplyModConfigSnapshotInternal(defaults);
 
     std::stringstream line;
     line << "config loaded path=\"" << configPath
@@ -1696,21 +593,6 @@ void RefreshNextMarkerId()
     g_nextMarkerId = nextMarkerId;
 }
 
-enum MarkerPersistenceLoadResult
-{
-    MarkerPersistenceLoadResult_PathUnavailable = 0,
-    MarkerPersistenceLoadResult_MissingFile = 1,
-    MarkerPersistenceLoadResult_LoadedArray = 2,
-    MarkerPersistenceLoadResult_LoadedLegacySingle = 3,
-    MarkerPersistenceLoadResult_InvalidFile = 4
-};
-
-struct MarkerPersistenceLoadAttempt
-{
-    MarkerPersistenceLoadResult result;
-    std::vector<MarkerState> markers;
-};
-
 bool SaveMarkersToPath(const std::string& persistencePath, const std::vector<MarkerState>& markers, bool logSuccess)
 {
     if (persistencePath.empty())
@@ -1719,41 +601,10 @@ bool SaveMarkersToPath(const std::string& persistencePath, const std::vector<Mar
         return false;
     }
 
-    std::ofstream output(persistencePath.c_str(), std::ios::out | std::ios::trunc);
-    if (!output)
+    if (!SaveMarkersFile(persistencePath, markers))
     {
         std::stringstream line;
         line << "markers persist failed path=\"" << persistencePath << "\"";
-        LogProbeLine(line.str());
-        return false;
-    }
-
-    output << "{\n"
-           << "  \"version\": 3,\n"
-           << "  \"markers\": [\n";
-    for (std::size_t index = 0; index < markers.size(); ++index)
-    {
-        const MarkerState& marker = markers[index];
-        output << "    {\n"
-               << "      \"id\": " << marker.id << ",\n"
-               << "      \"x\": " << marker.normalizedX << ",\n"
-               << "      \"y\": " << marker.normalizedY << ",\n"
-               << "      \"type\": \"" << MarkerTypeToJsonValue(marker.type) << "\",\n"
-               << "      \"label\": \"" << JsonEscapeString(marker.label) << "\"\n"
-               << "    }";
-        if (index + 1 != markers.size())
-        {
-            output << ",";
-        }
-        output << "\n";
-    }
-    output << "  ]\n"
-           << "}\n";
-
-    if (!output.good())
-    {
-        std::stringstream line;
-        line << "markers persist failed_write path=\"" << persistencePath << "\"";
         LogProbeLine(line.str());
         return false;
     }
@@ -1774,20 +625,6 @@ void SaveMarkersForActiveSave(bool logSuccess = true)
     SaveMarkersToPath(GetMarkerPersistencePath(), g_markers, logSuccess);
 }
 
-void NormalizeLoadedMarkers(std::vector<MarkerState>& markers)
-{
-    for (std::size_t index = 0; index < markers.size(); ++index)
-    {
-        if (markers[index].id <= 0)
-        {
-            markers[index].id = static_cast<int>(index) + 1;
-        }
-
-        markers[index].normalizedX = ClampFloat(markers[index].normalizedX, 0.0f, 1.0f);
-        markers[index].normalizedY = ClampFloat(markers[index].normalizedY, 0.0f, 1.0f);
-    }
-}
-
 void ApplyMarkerStateForLoadedSave(const std::vector<MarkerState>& markers)
 {
     g_markers = markers;
@@ -1804,50 +641,7 @@ void ClearMarkerStateForLoadedSave()
 
 MarkerPersistenceLoadAttempt LoadMarkersFromPersistencePath(const std::string& persistencePath)
 {
-    MarkerPersistenceLoadAttempt attempt;
-    attempt.result = MarkerPersistenceLoadResult_PathUnavailable;
-
-    if (persistencePath.empty())
-    {
-        return attempt;
-    }
-
-    std::ifstream input(persistencePath.c_str(), std::ios::in);
-    if (!input)
-    {
-        attempt.result = MarkerPersistenceLoadResult_MissingFile;
-        return attempt;
-    }
-
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    const std::string contents = buffer.str();
-
-    if (TryParseMarkersArray(contents, attempt.markers))
-    {
-        NormalizeLoadedMarkers(attempt.markers);
-        attempt.result = MarkerPersistenceLoadResult_LoadedArray;
-        return attempt;
-    }
-
-    float loadedX = 0.0f;
-    float loadedY = 0.0f;
-    if (ExtractJsonFloatField(contents, "x", loadedX)
-        && ExtractJsonFloatField(contents, "y", loadedY))
-    {
-        MarkerState marker;
-        marker.id = 1;
-        marker.normalizedX = ClampFloat(loadedX, 0.0f, 1.0f);
-        marker.normalizedY = ClampFloat(loadedY, 0.0f, 1.0f);
-        marker.type = MarkerType_Note;
-        marker.label.clear();
-        attempt.markers.push_back(marker);
-        attempt.result = MarkerPersistenceLoadResult_LoadedLegacySingle;
-        return attempt;
-    }
-
-    attempt.result = MarkerPersistenceLoadResult_InvalidFile;
-    return attempt;
+    return LoadMarkersFile(persistencePath);
 }
 
 void LoadMarkersForActiveSave()
@@ -3263,7 +2057,7 @@ void ApplyMarkerLabelTextAndCursor(
         return;
     }
 
-    const std::string sanitized = SanitizeMarkerLabel(text, false);
+    const std::string sanitized = SanitizeMarkerLabel(text, false, kMapMarkersLabelMaxLength);
     const std::size_t textLength = MyGUI::UString(sanitized).size();
     if (cursorPosition > textLength)
     {
@@ -3457,7 +2251,7 @@ void CommitMarkerLabelEdit(MyGUI::EditBox* labelEdit, bool deselectAfterCommit, 
     }
 
     const std::string currentText = labelEdit->getOnlyText().asUTF8();
-    const std::string committedText = SanitizeMarkerLabel(currentText, true);
+    const std::string committedText = SanitizeMarkerLabel(currentText, true, kMapMarkersLabelMaxLength);
     if (committedText != currentText)
     {
         g_suppressNextMarkerLabelChangeEvent = true;
@@ -3564,7 +2358,7 @@ void OnMarkerLabelChanged(MyGUI::EditBox* sender)
     }
 
     const std::string currentText = sender->getOnlyText().asUTF8();
-    const std::string sanitized = SanitizeMarkerLabel(currentText, false);
+    const std::string sanitized = SanitizeMarkerLabel(currentText, false, kMapMarkersLabelMaxLength);
     if (sanitized != currentText)
     {
         g_suppressNextMarkerLabelChangeEvent = true;
@@ -4237,7 +3031,11 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         markerTop,
         markerSize);
 
-    const int labelWidth = BuildMarkerLabelDisplayWidth(hoverDisplayText);
+    const int labelWidth = BuildMarkerLabelDisplayWidth(
+        hoverDisplayText,
+        kMarkerHoverLabelMinimumWidth,
+        kMarkerHoverLabelMaximumWidth,
+        kMarkerHoverLabelHorizontalPadding);
     const int maxLeft = imageCoord.width > labelWidth ? imageCoord.width - labelWidth : 0;
     const int maxTop = imageCoord.height > kMarkerHoverLabelHeight ? imageCoord.height - kMarkerHoverLabelHeight : 0;
     const int labelLeft = ClampInt(

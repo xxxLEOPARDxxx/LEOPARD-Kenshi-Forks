@@ -88,11 +88,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Map-markers.cpp" />
-    <ClCompile Include="MapMarkersModHub.cpp" />
+    <ClCompile Include="src\MapMarkersConfigIO.cpp" />
+    <ClCompile Include="src\MapMarkersData.cpp" />
+    <ClCompile Include="src\MapMarkersModHub.cpp" />
+    <ClCompile Include="src\MapMarkersPersistence.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MapMarkersModHub.h" />
+    <ClInclude Include="src\MapMarkersInternal.h" />
+    <ClInclude Include="src\MapMarkersModHub.h" />
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
   </ItemGroup>

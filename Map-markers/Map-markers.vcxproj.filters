@@ -18,7 +18,16 @@
     <ClCompile Include="Map-markers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MapMarkersModHub.cpp">
+    <ClCompile Include="src\MapMarkersConfigIO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MapMarkersData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MapMarkersModHub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MapMarkersPersistence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mod_hub_client.cpp">
@@ -26,7 +35,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MapMarkersModHub.h">
+    <ClInclude Include="src\MapMarkersInternal.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MapMarkersModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\emc\mod_hub_api.h">
