@@ -69,7 +69,7 @@ const int kMarkerHoverLabelVerticalOffset = 1;
 const int kMarkerHoverLabelMinimumWidth = 40;
 const int kMarkerHoverLabelMaximumWidth = 320;
 const int kMarkerLabelMaxLength = 48;
-const char* kMarkerEditorHintCaption = "Middle add | Left move | Del remove | Right deselect";
+const char* kMarkerEditorHintCaption = "MMB add | LMB move | Enter save | Del | RMB deselect";
 const char* kModConfigFileName = "mod-config.json";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
@@ -144,10 +144,7 @@ std::string g_lastHoverLabelSignature;
 std::string g_lastToggleDiagnosticsSignature;
 std::string g_lastOverlayDiagnosticsSignature;
 std::string g_lastMarkerOcclusionSignature;
-std::string g_lastInvestigateMapAttachmentSignature;
 std::string g_pendingSaveTransitionDestinationPath;
-std::string g_pendingSaveTransitionSourcePath;
-std::string g_pendingSaveTransitionSaveName;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -166,7 +163,7 @@ bool g_showHoverLabels = true;
 bool g_disabledUiStateApplied = false;
 bool g_mapWasVisible = false;
 bool g_pendingSaveTransitionActive = false;
-bool g_pendingSaveTransitionAutosave = false;
+bool g_focusMarkerLabelEditOnShow = false;
 MarkerType g_defaultMarkerType = MarkerType_Note;
 DWORD g_pendingSaveTransitionStartedTick = 0;
 int g_markerEditorDragLastMouseX = 0;
@@ -189,6 +186,7 @@ MyGUI::Widget* FindAnyWidgetByName(const std::string& name);
 bool TryParseMarkerWidgetId(const std::string& widgetName, int& markerIdOut);
 void StopMarkerEditorDrag();
 void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible);
+void ClearSelectedMarker(const char* reason);
 void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
 void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
@@ -199,7 +197,7 @@ std::string GetPathLeafName(const std::string& path);
 std::string GetActiveSaveDirectory();
 std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName);
 void ClearPendingSaveTransition(const char* reason);
-void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName, bool autosave);
+void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName);
 void TickPendingSaveTransition();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
@@ -398,6 +396,12 @@ bool IsInterestingMarkerLabelShortcutKey(MyGUI::KeyCode keyCode)
     return keyCode.getValue() == MyGUI::KeyCode::ArrowLeft
         || keyCode.getValue() == MyGUI::KeyCode::ArrowRight
         || keyCode.getValue() == MyGUI::KeyCode::Backspace;
+}
+
+bool IsMarkerLabelConfirmKey(MyGUI::KeyCode keyCode)
+{
+    return keyCode.getValue() == MyGUI::KeyCode::Return
+        || keyCode.getValue() == MyGUI::KeyCode::NumpadEnter;
 }
 
 void ResetMarkerLabelSnapshot()
@@ -834,23 +838,6 @@ std::string GetPathLeafName(const std::string& path)
     return path.substr(separator + 1);
 }
 
-void SplitSaveIdentity(
-    const std::string& identity,
-    std::string& currentGameOut,
-    std::string& activeSaveOut)
-{
-    const std::string::size_type separator = identity.find('\n');
-    if (separator == std::string::npos)
-    {
-        currentGameOut = identity;
-        activeSaveOut.clear();
-        return;
-    }
-
-    currentGameOut = identity.substr(0, separator);
-    activeSaveOut = identity.substr(separator + 1);
-}
-
 std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName)
 {
     if (saveName.empty())
@@ -887,29 +874,14 @@ std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::stri
     return JoinWindowsPath(rootDirectory, saveName.c_str());
 }
 
-void ClearPendingSaveTransition(const char* reason)
+void ClearPendingSaveTransition(const char*)
 {
-    if (g_pendingSaveTransitionActive)
-    {
-        std::stringstream line;
-        line << "[investigate][save-transition] cleared"
-             << " reason=" << (reason == 0 ? "<unknown>" : reason)
-             << " save_name=\"" << g_pendingSaveTransitionSaveName << "\""
-             << " source=\"" << g_pendingSaveTransitionSourcePath << "\""
-             << " destination=\"" << g_pendingSaveTransitionDestinationPath << "\""
-             << " autosave=" << (g_pendingSaveTransitionAutosave ? "true" : "false");
-        LogProbeLine(line.str());
-    }
-
     g_pendingSaveTransitionActive = false;
-    g_pendingSaveTransitionAutosave = false;
     g_pendingSaveTransitionStartedTick = 0;
     g_pendingSaveTransitionDestinationPath.clear();
-    g_pendingSaveTransitionSourcePath.clear();
-    g_pendingSaveTransitionSaveName.clear();
 }
 
-void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName, bool autosave)
+void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName)
 {
     ClearPendingSaveTransition("rearmed");
 
@@ -917,43 +889,17 @@ void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveN
     const std::string destinationPath = ResolveSaveDestinationPath(saveManager, saveName);
     if (destinationPath.empty())
     {
-        std::stringstream line;
-        line << "[investigate][save-transition] not_armed"
-             << " reason=destination_unresolved"
-             << " save_name=\"" << saveName << "\""
-             << " source=\"" << sourcePath << "\""
-             << " autosave=" << (autosave ? "true" : "false");
-        LogProbeLine(line.str());
         return;
     }
 
     if (!sourcePath.empty() && PathsEqualIgnoreCase(sourcePath, destinationPath))
     {
-        std::stringstream line;
-        line << "[investigate][save-transition] not_armed"
-             << " reason=same_destination"
-             << " save_name=\"" << saveName << "\""
-             << " source=\"" << sourcePath << "\""
-             << " destination=\"" << destinationPath << "\""
-             << " autosave=" << (autosave ? "true" : "false");
-        LogProbeLine(line.str());
         return;
     }
 
     g_pendingSaveTransitionActive = true;
-    g_pendingSaveTransitionAutosave = autosave;
     g_pendingSaveTransitionStartedTick = GetTickCount();
     g_pendingSaveTransitionDestinationPath = destinationPath;
-    g_pendingSaveTransitionSourcePath = sourcePath;
-    g_pendingSaveTransitionSaveName = saveName;
-
-    std::stringstream line;
-    line << "[investigate][save-transition] armed"
-         << " save_name=\"" << saveName << "\""
-         << " source=\"" << sourcePath << "\""
-         << " destination=\"" << destinationPath << "\""
-         << " autosave=" << (autosave ? "true" : "false");
-    LogProbeLine(line.str());
 }
 
 void TickPendingSaveTransition()
@@ -1349,7 +1295,6 @@ void ResetMapMarkersUiSignatures()
     g_lastToggleDiagnosticsSignature.clear();
     g_lastOverlayDiagnosticsSignature.clear();
     g_lastMarkerOcclusionSignature.clear();
-    g_lastInvestigateMapAttachmentSignature.clear();
 }
 
 void HideMapMarkersUi()
@@ -1593,7 +1538,6 @@ enum MarkerPersistenceLoadResult
 struct MarkerPersistenceLoadAttempt
 {
     MarkerPersistenceLoadResult result;
-    std::string path;
     std::vector<MarkerState> markers;
 };
 
@@ -1692,7 +1636,6 @@ MarkerPersistenceLoadAttempt LoadMarkersFromPersistencePath(const std::string& p
 {
     MarkerPersistenceLoadAttempt attempt;
     attempt.result = MarkerPersistenceLoadResult_PathUnavailable;
-    attempt.path = persistencePath;
 
     if (persistencePath.empty())
     {
@@ -1739,8 +1682,6 @@ MarkerPersistenceLoadAttempt LoadMarkersFromPersistencePath(const std::string& p
 
 void LoadMarkersForActiveSave()
 {
-    const std::size_t previousMarkerCount = g_markers.size();
-    const int previousSelectedMarkerId = g_selectedMarkerId;
     const std::string activeSavePath = GetActiveSaveDirectory();
     const std::string persistencePath = JoinWindowsPath(activeSavePath, kMarkerPersistenceFileName);
     const MarkerPersistenceLoadAttempt loadAttempt = LoadMarkersFromPersistencePath(persistencePath);
@@ -1751,17 +1692,7 @@ void LoadMarkersForActiveSave()
         && PathsEqualIgnoreCase(activeSavePath, g_pendingSaveTransitionDestinationPath);
     if (pendingSaveMatches)
     {
-        const bool persisted = SaveMarkersToPath(persistencePath, g_markers, false);
-
-        std::stringstream investigateLine;
-        investigateLine << "[investigate][save-reload] inherited_to_new_save"
-                        << " path=\"" << persistencePath << "\""
-                        << " prev_count=" << previousMarkerCount
-                        << " prev_selected=" << previousSelectedMarkerId
-                        << " persisted=" << (persisted ? "true" : "false")
-                        << " autosave=" << (g_pendingSaveTransitionAutosave ? "true" : "false");
-        LogProbeLine(investigateLine.str());
-
+        SaveMarkersToPath(persistencePath, g_markers, false);
         ClearPendingSaveTransition("matched_identity_change");
         g_lastMarkerRenderSignature.clear();
         return;
@@ -1776,14 +1707,6 @@ void LoadMarkersForActiveSave()
     {
     case MarkerPersistenceLoadResult_PathUnavailable:
         ClearMarkerStateForLoadedSave();
-        {
-            std::stringstream investigateLine;
-            investigateLine << "[investigate][save-reload] skipped reason=path_unavailable"
-                            << " prev_count=" << previousMarkerCount
-                            << " prev_selected=" << previousSelectedMarkerId
-                            << " new_count=0";
-            LogProbeLine(investigateLine.str());
-        }
         return;
 
     case MarkerPersistenceLoadResult_MissingFile:
@@ -1792,13 +1715,6 @@ void LoadMarkersForActiveSave()
             std::stringstream line;
             line << "markers persistence missing path=\"" << persistencePath << "\" count=0";
             LogProbeLine(line.str());
-
-            std::stringstream investigateLine;
-            investigateLine << "[investigate][save-reload] missing_file path=\"" << persistencePath
-                            << "\" prev_count=" << previousMarkerCount
-                            << " prev_selected=" << previousSelectedMarkerId
-                            << " new_count=0";
-            LogProbeLine(investigateLine.str());
         }
         return;
 
@@ -1810,14 +1726,6 @@ void LoadMarkersForActiveSave()
                  << "\" count=" << g_markers.size()
                  << " format=array";
             LogProbeLine(line.str());
-
-            std::stringstream investigateLine;
-            investigateLine << "[investigate][save-reload] loaded path=\"" << persistencePath
-                            << "\" format=array"
-                            << " prev_count=" << previousMarkerCount
-                            << " prev_selected=" << previousSelectedMarkerId
-                            << " new_count=" << g_markers.size();
-            LogProbeLine(investigateLine.str());
         }
         return;
 
@@ -1828,14 +1736,6 @@ void LoadMarkersForActiveSave()
             line << "markers loaded path=\"" << persistencePath
                  << "\" count=1 format=legacy_single";
             LogProbeLine(line.str());
-
-            std::stringstream investigateLine;
-            investigateLine << "[investigate][save-reload] loaded path=\"" << persistencePath
-                            << "\" format=legacy_single"
-                            << " prev_count=" << previousMarkerCount
-                            << " prev_selected=" << previousSelectedMarkerId
-                            << " new_count=" << g_markers.size();
-            LogProbeLine(investigateLine.str());
         }
         return;
 
@@ -1846,13 +1746,6 @@ void LoadMarkersForActiveSave()
             std::stringstream line;
             line << "markers persistence invalid path=\"" << persistencePath << "\" count=0";
             LogProbeLine(line.str());
-
-            std::stringstream investigateLine;
-            investigateLine << "[investigate][save-reload] invalid_file path=\"" << persistencePath
-                            << "\" prev_count=" << previousMarkerCount
-                            << " prev_selected=" << previousSelectedMarkerId
-                            << " new_count=0";
-            LogProbeLine(investigateLine.str());
         }
         return;
     }
@@ -3370,14 +3263,84 @@ void ApplyPendingMarkerLabelShortcut(MyGUI::EditBox* labelEdit, MyGUI::KeyCode k
     LogProbeLine(line.str());
 }
 
-void OnMarkerLabelKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char)
+void CommitMarkerLabelEdit(MyGUI::EditBox* labelEdit, bool deselectAfterCommit, const char* reason)
 {
-    if (sender == 0 || !IsInterestingMarkerLabelShortcutKey(keyCode))
+    if (labelEdit == 0)
     {
         return;
     }
 
-    ScheduleMarkerLabelShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
+    if (selectedMarker == 0)
+    {
+        return;
+    }
+
+    const std::string currentText = labelEdit->getOnlyText().asUTF8();
+    const std::string committedText = SanitizeMarkerLabel(currentText, true);
+    if (committedText != currentText)
+    {
+        g_suppressNextMarkerLabelChangeEvent = true;
+        labelEdit->setOnlyText(committedText);
+    }
+
+    if (selectedMarker->label != committedText || deselectAfterCommit)
+    {
+        selectedMarker->label = committedText;
+        SaveMarkersForActiveSave(false);
+    }
+
+    RememberMarkerLabelSnapshotValue(committedText, labelEdit->getTextCursor());
+
+    std::stringstream line;
+    line << "marker label_committed marker_id=" << selectedMarker->id
+         << " length=" << selectedMarker->label.size();
+    if (reason != 0 && *reason != '\0')
+    {
+        line << " reason=" << reason;
+    }
+    LogProbeLine(line.str());
+
+    if (!deselectAfterCommit)
+    {
+        return;
+    }
+
+    ClearSelectedMarker(reason);
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager != 0 && inputManager->getKeyFocusWidget() == labelEdit)
+    {
+        inputManager->resetKeyFocusWidget(labelEdit);
+    }
+}
+
+void OnMarkerLabelKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char)
+{
+    if (sender == 0)
+    {
+        return;
+    }
+
+    MyGUI::EditBox* labelEdit = sender->castType<MyGUI::EditBox>(false);
+    if (labelEdit == 0)
+    {
+        return;
+    }
+
+    if (IsMarkerLabelConfirmKey(keyCode))
+    {
+        ResetPendingMarkerLabelShortcut();
+        CommitMarkerLabelEdit(labelEdit, true, "enter_confirm");
+        return;
+    }
+
+    if (!IsInterestingMarkerLabelShortcutKey(keyCode))
+    {
+        return;
+    }
+
+    ScheduleMarkerLabelShortcut(labelEdit, keyCode);
 }
 
 void OnMarkerLabelKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
@@ -3398,32 +3361,7 @@ void OnMarkerLabelFocusChanged(MyGUI::Widget* sender, MyGUI::Widget*)
         return;
     }
 
-    MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
-    if (selectedMarker == 0)
-    {
-        return;
-    }
-
-    const std::string currentText = labelEdit->getOnlyText().asUTF8();
-    const std::string committedText = SanitizeMarkerLabel(currentText, true);
-    if (committedText != currentText)
-    {
-        g_suppressNextMarkerLabelChangeEvent = true;
-        labelEdit->setOnlyText(committedText);
-    }
-
-    if (selectedMarker->label != committedText)
-    {
-        selectedMarker->label = committedText;
-        SaveMarkersForActiveSave(false);
-    }
-
-    RememberMarkerLabelSnapshotValue(committedText, labelEdit->getTextCursor());
-
-    std::stringstream line;
-    line << "marker label_committed marker_id=" << selectedMarker->id
-         << " length=" << selectedMarker->label.size();
-    LogProbeLine(line.str());
+    CommitMarkerLabelEdit(labelEdit, false, "focus_lost");
 }
 
 void OnMarkerLabelChanged(MyGUI::EditBox* sender)
@@ -3752,6 +3690,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         gui->destroyWidget(panel);
         return false;
     }
+    labelEdit->setNeedKeyFocus(true);
     labelEdit->eventEditTextChange += MyGUI::newDelegate(&OnMarkerLabelChanged);
     labelEdit->eventKeySetFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
     labelEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
@@ -3917,6 +3856,26 @@ void EnsureMarkerEditorUi()
             labelEdit->setOnlyText(selectedMarker->label);
         }
         RememberMarkerLabelSnapshot(labelEdit);
+    }
+
+    if (labelEdit != 0
+        && g_focusMarkerLabelEditOnShow
+        && (GetAsyncKeyState(VK_MBUTTON) & 0x8000) == 0)
+    {
+        MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+        if (inputManager != 0)
+        {
+            labelEdit->setNeedKeyFocus(true);
+            const std::size_t cursorPosition = labelEdit->getTextLength();
+            labelEdit->setTextCursor(cursorPosition);
+            labelEdit->setTextSelection(cursorPosition, cursorPosition);
+            inputManager->setKeyFocusWidget(labelEdit);
+            if (inputManager->getKeyFocusWidget() == labelEdit)
+            {
+                RememberMarkerLabelSnapshot(labelEdit);
+                g_focusMarkerLabelEditOnShow = false;
+            }
+        }
     }
 
     if (hint != 0)
@@ -4143,38 +4102,10 @@ void EnsureMarkerWidgetsAttached()
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
-        if (ShouldEmitProbeLogs() && !g_lastInvestigateMapAttachmentSignature.empty())
-        {
-            LogProbeLine("[investigate][map-attach] no_active_map_image");
-            g_lastInvestigateMapAttachmentSignature.clear();
-        }
         g_lastMarkerRenderSignature.clear();
         g_lastMarkerOcclusionSignature.clear();
         g_lastOverlayDiagnosticsSignature.clear();
         return;
-    }
-
-    if (ShouldEmitProbeLogs())
-    {
-        std::stringstream investigateSignature;
-        investigateSignature << BuildWidgetDescriptor(mapImage)
-                             << "|" << BuildWidgetChainForLog(mapImage);
-        const std::string investigateSignatureString = investigateSignature.str();
-        if (investigateSignatureString != g_lastInvestigateMapAttachmentSignature)
-        {
-            g_lastInvestigateMapAttachmentSignature = investigateSignatureString;
-
-            std::stringstream line;
-            line << "[investigate][map-attach] active_map_image_changed"
-                 << " widget=" << BuildWidgetDescriptor(mapImage)
-                 << " abs=(" << mapImage->getAbsoluteCoord().left
-                 << "," << mapImage->getAbsoluteCoord().top
-                 << "," << mapImage->getAbsoluteCoord().width
-                 << "," << mapImage->getAbsoluteCoord().height << ")"
-                 << " child_count=" << mapImage->getChildCount()
-                 << " chain=" << BuildWidgetChainForLog(mapImage);
-            LogProbeLine(line.str());
-        }
     }
 
     const MyGUI::IntCoord imageCoord = mapImage->getCoord();
@@ -4380,30 +4311,8 @@ void LogSaveIdentityIfChanged(bool force)
 
     if (identityChanged)
     {
-        std::string previousGame;
-        std::string previousActiveSave;
-        SplitSaveIdentity(g_lastSaveIdentity, previousGame, previousActiveSave);
-
-        std::stringstream investigateLine;
-        investigateLine << "[investigate][save-reload] save_identity_changed"
-                        << " prev_game=\"" << previousGame << "\""
-                        << " prev_active_save=\"" << previousActiveSave << "\""
-                        << " next_game=\"" << currentGame << "\""
-                        << " next_active_save=\"" << activeSave << "\""
-                        << " marker_count_before=" << g_markers.size()
-                        << " selected_before=" << g_selectedMarkerId;
-        LogProbeLine(investigateLine.str());
-
         g_lastSaveIdentity = identityString;
         LoadMarkersForActiveSave();
-
-        std::stringstream appliedLine;
-        appliedLine << "[investigate][save-reload] save_identity_applied"
-                    << " next_game=\"" << currentGame << "\""
-                    << " next_active_save=\"" << activeSave << "\""
-                    << " marker_count_after=" << g_markers.size()
-                    << " selected_after=" << g_selectedMarkerId;
-        LogProbeLine(appliedLine.str());
     }
 
     if (!force && currentGame.empty() && activeSave.empty())
@@ -4558,6 +4467,7 @@ void ClearSelectedMarker(const char* reason)
          << " marker_id=" << g_selectedMarkerId;
 
     g_selectedMarkerId = 0;
+    g_focusMarkerLabelEditOnShow = false;
     g_lastMarkerRenderSignature.clear();
     LogProbeLine(line.str());
 }
@@ -4604,6 +4514,7 @@ void TryAddMarkerFromMiddleClick()
     marker.label.clear();
     g_markers.push_back(marker);
     g_selectedMarkerId = marker.id;
+    g_focusMarkerLabelEditOnShow = true;
     g_lastMarkerRenderSignature.clear();
     SaveMarkersForActiveSave();
 
@@ -4745,7 +4656,7 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
 
 void SaveManager_save_hook(SaveManager* thisptr, const std::string& saveName, bool autosave)
 {
-    ArmPendingSaveTransition(thisptr, saveName, autosave);
+    ArmPendingSaveTransition(thisptr, saveName);
     if (SaveManager_save_orig)
     {
         SaveManager_save_orig(thisptr, saveName, autosave);
