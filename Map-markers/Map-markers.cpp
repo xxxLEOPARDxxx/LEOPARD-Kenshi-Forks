@@ -42,6 +42,7 @@ namespace
 const char* kPluginName = "Map-markers";
 const OIS::KeyCode kProbeSnapshotHotkey = OIS::KC_F7;
 const OIS::KeyCode kProbeLiveHotkey = OIS::KC_F8;
+const DWORD kPendingSaveTransitionTimeoutMs = 15000u;
 const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
@@ -85,6 +86,11 @@ const char* kMarkerHoverLabelTextName = "MapMarkers_HoverLabelText";
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
+void (*SaveManager_save_orig)(SaveManager*, const std::string&, bool) = 0;
+void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
+void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
+void (*SaveManager_newGame_orig)(SaveManager*, const std::string&) = 0;
+void (*SaveManager_import_orig)(SaveManager*, const SaveInfo&, int) = 0;
 
 enum MarkerType
 {
@@ -138,6 +144,10 @@ std::string g_lastHoverLabelSignature;
 std::string g_lastToggleDiagnosticsSignature;
 std::string g_lastOverlayDiagnosticsSignature;
 std::string g_lastMarkerOcclusionSignature;
+std::string g_lastInvestigateMapAttachmentSignature;
+std::string g_pendingSaveTransitionDestinationPath;
+std::string g_pendingSaveTransitionSourcePath;
+std::string g_pendingSaveTransitionSaveName;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -155,7 +165,10 @@ bool g_modEnabled = true;
 bool g_showHoverLabels = true;
 bool g_disabledUiStateApplied = false;
 bool g_mapWasVisible = false;
+bool g_pendingSaveTransitionActive = false;
+bool g_pendingSaveTransitionAutosave = false;
 MarkerType g_defaultMarkerType = MarkerType_Note;
+DWORD g_pendingSaveTransitionStartedTick = 0;
 int g_markerEditorDragLastMouseX = 0;
 int g_markerEditorDragLastMouseY = 0;
 int g_markerEditorCustomLeft = 0;
@@ -179,6 +192,15 @@ void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible);
 void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
 void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
+std::string NormalizePathForComparison(const std::string& path);
+bool PathsEqualIgnoreCase(const std::string& left, const std::string& right);
+std::string GetParentDirectoryPath(const std::string& path);
+std::string GetPathLeafName(const std::string& path);
+std::string GetActiveSaveDirectory();
+std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName);
+void ClearPendingSaveTransition(const char* reason);
+void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName, bool autosave);
+void TickPendingSaveTransition();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -757,6 +779,199 @@ std::string JoinWindowsPath(const std::string& directory, const char* fileName)
     return directory + "\\" + fileName;
 }
 
+std::string NormalizePathForComparison(const std::string& path)
+{
+    std::string normalized(path);
+    for (std::string::size_type index = 0; index < normalized.size(); ++index)
+    {
+        char ch = normalized[index];
+        if (ch == '/')
+        {
+            normalized[index] = '\\';
+        }
+        else
+        {
+            normalized[index] = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        }
+    }
+    return normalized;
+}
+
+bool PathsEqualIgnoreCase(const std::string& left, const std::string& right)
+{
+    return NormalizePathForComparison(left) == NormalizePathForComparison(right);
+}
+
+std::string GetParentDirectoryPath(const std::string& path)
+{
+    if (path.empty())
+    {
+        return "";
+    }
+
+    const std::string::size_type separator = path.find_last_of("\\/");
+    if (separator == std::string::npos)
+    {
+        return "";
+    }
+
+    return path.substr(0, separator);
+}
+
+std::string GetPathLeafName(const std::string& path)
+{
+    if (path.empty())
+    {
+        return "";
+    }
+
+    const std::string::size_type separator = path.find_last_of("\\/");
+    if (separator == std::string::npos)
+    {
+        return path;
+    }
+
+    return path.substr(separator + 1);
+}
+
+void SplitSaveIdentity(
+    const std::string& identity,
+    std::string& currentGameOut,
+    std::string& activeSaveOut)
+{
+    const std::string::size_type separator = identity.find('\n');
+    if (separator == std::string::npos)
+    {
+        currentGameOut = identity;
+        activeSaveOut.clear();
+        return;
+    }
+
+    currentGameOut = identity.substr(0, separator);
+    activeSaveOut = identity.substr(separator + 1);
+}
+
+std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName)
+{
+    if (saveName.empty())
+    {
+        return "";
+    }
+
+    const bool looksAbsolute =
+        saveName.find(':') != std::string::npos
+        || (!saveName.empty() && (saveName[0] == '\\' || saveName[0] == '/'));
+    if (looksAbsolute)
+    {
+        return saveName;
+    }
+
+    std::string rootDirectory = GetParentDirectoryPath(GetActiveSaveDirectory());
+    if (rootDirectory.empty() && saveManager != 0)
+    {
+        std::string savePath = saveManager->getSavePath();
+        const std::string currentGame = saveManager->getCurrentGame();
+        if (!savePath.empty())
+        {
+            if (!currentGame.empty() && PathsEqualIgnoreCase(GetPathLeafName(savePath), currentGame))
+            {
+                rootDirectory = GetParentDirectoryPath(savePath);
+            }
+            else
+            {
+                rootDirectory = savePath;
+            }
+        }
+    }
+
+    return JoinWindowsPath(rootDirectory, saveName.c_str());
+}
+
+void ClearPendingSaveTransition(const char* reason)
+{
+    if (g_pendingSaveTransitionActive)
+    {
+        std::stringstream line;
+        line << "[investigate][save-transition] cleared"
+             << " reason=" << (reason == 0 ? "<unknown>" : reason)
+             << " save_name=\"" << g_pendingSaveTransitionSaveName << "\""
+             << " source=\"" << g_pendingSaveTransitionSourcePath << "\""
+             << " destination=\"" << g_pendingSaveTransitionDestinationPath << "\""
+             << " autosave=" << (g_pendingSaveTransitionAutosave ? "true" : "false");
+        LogProbeLine(line.str());
+    }
+
+    g_pendingSaveTransitionActive = false;
+    g_pendingSaveTransitionAutosave = false;
+    g_pendingSaveTransitionStartedTick = 0;
+    g_pendingSaveTransitionDestinationPath.clear();
+    g_pendingSaveTransitionSourcePath.clear();
+    g_pendingSaveTransitionSaveName.clear();
+}
+
+void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName, bool autosave)
+{
+    ClearPendingSaveTransition("rearmed");
+
+    const std::string sourcePath = GetActiveSaveDirectory();
+    const std::string destinationPath = ResolveSaveDestinationPath(saveManager, saveName);
+    if (destinationPath.empty())
+    {
+        std::stringstream line;
+        line << "[investigate][save-transition] not_armed"
+             << " reason=destination_unresolved"
+             << " save_name=\"" << saveName << "\""
+             << " source=\"" << sourcePath << "\""
+             << " autosave=" << (autosave ? "true" : "false");
+        LogProbeLine(line.str());
+        return;
+    }
+
+    if (!sourcePath.empty() && PathsEqualIgnoreCase(sourcePath, destinationPath))
+    {
+        std::stringstream line;
+        line << "[investigate][save-transition] not_armed"
+             << " reason=same_destination"
+             << " save_name=\"" << saveName << "\""
+             << " source=\"" << sourcePath << "\""
+             << " destination=\"" << destinationPath << "\""
+             << " autosave=" << (autosave ? "true" : "false");
+        LogProbeLine(line.str());
+        return;
+    }
+
+    g_pendingSaveTransitionActive = true;
+    g_pendingSaveTransitionAutosave = autosave;
+    g_pendingSaveTransitionStartedTick = GetTickCount();
+    g_pendingSaveTransitionDestinationPath = destinationPath;
+    g_pendingSaveTransitionSourcePath = sourcePath;
+    g_pendingSaveTransitionSaveName = saveName;
+
+    std::stringstream line;
+    line << "[investigate][save-transition] armed"
+         << " save_name=\"" << saveName << "\""
+         << " source=\"" << sourcePath << "\""
+         << " destination=\"" << destinationPath << "\""
+         << " autosave=" << (autosave ? "true" : "false");
+    LogProbeLine(line.str());
+}
+
+void TickPendingSaveTransition()
+{
+    if (!g_pendingSaveTransitionActive)
+    {
+        return;
+    }
+
+    const DWORD now = GetTickCount();
+    if (now - g_pendingSaveTransitionStartedTick < kPendingSaveTransitionTimeoutMs)
+    {
+        return;
+    }
+
+    ClearPendingSaveTransition("timeout");
+}
+
 std::string GetActiveSaveDirectory()
 {
     SaveFileSystem* saveFileSystem = SaveFileSystem::getSingleton();
@@ -1134,6 +1349,7 @@ void ResetMapMarkersUiSignatures()
     g_lastToggleDiagnosticsSignature.clear();
     g_lastOverlayDiagnosticsSignature.clear();
     g_lastMarkerOcclusionSignature.clear();
+    g_lastInvestigateMapAttachmentSignature.clear();
 }
 
 void HideMapMarkersUi()
@@ -1365,13 +1581,28 @@ void RefreshNextMarkerId()
     g_nextMarkerId = nextMarkerId;
 }
 
-void SaveMarkersForActiveSave(bool logSuccess = true)
+enum MarkerPersistenceLoadResult
 {
-    const std::string persistencePath = GetMarkerPersistencePath();
+    MarkerPersistenceLoadResult_PathUnavailable = 0,
+    MarkerPersistenceLoadResult_MissingFile = 1,
+    MarkerPersistenceLoadResult_LoadedArray = 2,
+    MarkerPersistenceLoadResult_LoadedLegacySingle = 3,
+    MarkerPersistenceLoadResult_InvalidFile = 4
+};
+
+struct MarkerPersistenceLoadAttempt
+{
+    MarkerPersistenceLoadResult result;
+    std::string path;
+    std::vector<MarkerState> markers;
+};
+
+bool SaveMarkersToPath(const std::string& persistencePath, const std::vector<MarkerState>& markers, bool logSuccess)
+{
     if (persistencePath.empty())
     {
         LogProbeLine("markers persist skipped: active save path unavailable");
-        return;
+        return false;
     }
 
     std::ofstream output(persistencePath.c_str(), std::ios::out | std::ios::trunc);
@@ -1380,15 +1611,15 @@ void SaveMarkersForActiveSave(bool logSuccess = true)
         std::stringstream line;
         line << "markers persist failed path=\"" << persistencePath << "\"";
         LogProbeLine(line.str());
-        return;
+        return false;
     }
 
     output << "{\n"
            << "  \"version\": 3,\n"
            << "  \"markers\": [\n";
-    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    for (std::size_t index = 0; index < markers.size(); ++index)
     {
-        const MarkerState& marker = g_markers[index];
+        const MarkerState& marker = markers[index];
         output << "    {\n"
                << "      \"id\": " << marker.id << ",\n"
                << "      \"x\": " << marker.normalizedX << ",\n"
@@ -1396,7 +1627,7 @@ void SaveMarkersForActiveSave(bool logSuccess = true)
                << "      \"type\": \"" << MarkerTypeToJsonValue(marker.type) << "\",\n"
                << "      \"label\": \"" << JsonEscapeString(marker.label) << "\"\n"
                << "    }";
-        if (index + 1 != g_markers.size())
+        if (index + 1 != markers.size())
         {
             output << ",";
         }
@@ -1410,65 +1641,80 @@ void SaveMarkersForActiveSave(bool logSuccess = true)
         std::stringstream line;
         line << "markers persist failed_write path=\"" << persistencePath << "\"";
         LogProbeLine(line.str());
-        return;
+        return false;
     }
 
     if (logSuccess)
     {
         std::stringstream line;
         line << "markers persisted path=\"" << persistencePath
-             << "\" count=" << g_markers.size();
+             << "\" count=" << markers.size();
         LogProbeLine(line.str());
+    }
+
+    return true;
+}
+
+void SaveMarkersForActiveSave(bool logSuccess = true)
+{
+    SaveMarkersToPath(GetMarkerPersistencePath(), g_markers, logSuccess);
+}
+
+void NormalizeLoadedMarkers(std::vector<MarkerState>& markers)
+{
+    for (std::size_t index = 0; index < markers.size(); ++index)
+    {
+        if (markers[index].id <= 0)
+        {
+            markers[index].id = static_cast<int>(index) + 1;
+        }
+
+        markers[index].normalizedX = ClampFloat(markers[index].normalizedX, 0.0f, 1.0f);
+        markers[index].normalizedY = ClampFloat(markers[index].normalizedY, 0.0f, 1.0f);
     }
 }
 
-void LoadMarkersForActiveSave()
+void ApplyMarkerStateForLoadedSave(const std::vector<MarkerState>& markers)
+{
+    g_markers = markers;
+    g_selectedMarkerId = 0;
+    RefreshNextMarkerId();
+    g_lastMarkerRenderSignature.clear();
+}
+
+void ClearMarkerStateForLoadedSave()
 {
     ResetMarkersForActiveSave();
+    g_lastMarkerRenderSignature.clear();
+}
 
-    const std::string persistencePath = GetMarkerPersistencePath();
+MarkerPersistenceLoadAttempt LoadMarkersFromPersistencePath(const std::string& persistencePath)
+{
+    MarkerPersistenceLoadAttempt attempt;
+    attempt.result = MarkerPersistenceLoadResult_PathUnavailable;
+    attempt.path = persistencePath;
+
     if (persistencePath.empty())
     {
-        return;
+        return attempt;
     }
 
     std::ifstream input(persistencePath.c_str(), std::ios::in);
     if (!input)
     {
-        std::stringstream line;
-        line << "markers persistence missing path=\"" << persistencePath << "\" count=0";
-        LogProbeLine(line.str());
-        return;
+        attempt.result = MarkerPersistenceLoadResult_MissingFile;
+        return attempt;
     }
 
     std::stringstream buffer;
     buffer << input.rdbuf();
     const std::string contents = buffer.str();
 
-    std::vector<MarkerState> loadedMarkers;
-    if (TryParseMarkersArray(contents, loadedMarkers))
+    if (TryParseMarkersArray(contents, attempt.markers))
     {
-        for (std::size_t index = 0; index < loadedMarkers.size(); ++index)
-        {
-            if (loadedMarkers[index].id <= 0)
-            {
-                loadedMarkers[index].id = static_cast<int>(index) + 1;
-            }
-
-            loadedMarkers[index].normalizedX = ClampFloat(loadedMarkers[index].normalizedX, 0.0f, 1.0f);
-            loadedMarkers[index].normalizedY = ClampFloat(loadedMarkers[index].normalizedY, 0.0f, 1.0f);
-        }
-
-        g_markers = loadedMarkers;
-        RefreshNextMarkerId();
-        g_lastMarkerRenderSignature.clear();
-
-        std::stringstream line;
-        line << "markers loaded path=\"" << persistencePath
-             << "\" count=" << g_markers.size()
-             << " format=array";
-        LogProbeLine(line.str());
-        return;
+        NormalizeLoadedMarkers(attempt.markers);
+        attempt.result = MarkerPersistenceLoadResult_LoadedArray;
+        return attempt;
     }
 
     float loadedX = 0.0f;
@@ -1478,24 +1724,138 @@ void LoadMarkersForActiveSave()
     {
         MarkerState marker;
         marker.id = 1;
-        marker.normalizedX = loadedX;
-        marker.normalizedY = loadedY;
+        marker.normalizedX = ClampFloat(loadedX, 0.0f, 1.0f);
+        marker.normalizedY = ClampFloat(loadedY, 0.0f, 1.0f);
         marker.type = MarkerType_Note;
         marker.label.clear();
-        g_markers.push_back(marker);
-        RefreshNextMarkerId();
-        g_lastMarkerRenderSignature.clear();
+        attempt.markers.push_back(marker);
+        attempt.result = MarkerPersistenceLoadResult_LoadedLegacySingle;
+        return attempt;
+    }
 
-        std::stringstream line;
-        line << "markers loaded path=\"" << persistencePath
-             << "\" count=1 format=legacy_single";
-        LogProbeLine(line.str());
+    attempt.result = MarkerPersistenceLoadResult_InvalidFile;
+    return attempt;
+}
+
+void LoadMarkersForActiveSave()
+{
+    const std::size_t previousMarkerCount = g_markers.size();
+    const int previousSelectedMarkerId = g_selectedMarkerId;
+    const std::string activeSavePath = GetActiveSaveDirectory();
+    const std::string persistencePath = JoinWindowsPath(activeSavePath, kMarkerPersistenceFileName);
+    const MarkerPersistenceLoadAttempt loadAttempt = LoadMarkersFromPersistencePath(persistencePath);
+
+    const bool pendingSaveMatches =
+        g_pendingSaveTransitionActive
+        && !activeSavePath.empty()
+        && PathsEqualIgnoreCase(activeSavePath, g_pendingSaveTransitionDestinationPath);
+    if (pendingSaveMatches)
+    {
+        const bool persisted = SaveMarkersToPath(persistencePath, g_markers, false);
+
+        std::stringstream investigateLine;
+        investigateLine << "[investigate][save-reload] inherited_to_new_save"
+                        << " path=\"" << persistencePath << "\""
+                        << " prev_count=" << previousMarkerCount
+                        << " prev_selected=" << previousSelectedMarkerId
+                        << " persisted=" << (persisted ? "true" : "false")
+                        << " autosave=" << (g_pendingSaveTransitionAutosave ? "true" : "false");
+        LogProbeLine(investigateLine.str());
+
+        ClearPendingSaveTransition("matched_identity_change");
+        g_lastMarkerRenderSignature.clear();
         return;
     }
 
-    std::stringstream line;
-    line << "markers persistence invalid path=\"" << persistencePath << "\" count=0";
-    LogProbeLine(line.str());
+    if (g_pendingSaveTransitionActive)
+    {
+        ClearPendingSaveTransition("non_matching_identity_change");
+    }
+
+    switch (loadAttempt.result)
+    {
+    case MarkerPersistenceLoadResult_PathUnavailable:
+        ClearMarkerStateForLoadedSave();
+        {
+            std::stringstream investigateLine;
+            investigateLine << "[investigate][save-reload] skipped reason=path_unavailable"
+                            << " prev_count=" << previousMarkerCount
+                            << " prev_selected=" << previousSelectedMarkerId
+                            << " new_count=0";
+            LogProbeLine(investigateLine.str());
+        }
+        return;
+
+    case MarkerPersistenceLoadResult_MissingFile:
+        ClearMarkerStateForLoadedSave();
+        {
+            std::stringstream line;
+            line << "markers persistence missing path=\"" << persistencePath << "\" count=0";
+            LogProbeLine(line.str());
+
+            std::stringstream investigateLine;
+            investigateLine << "[investigate][save-reload] missing_file path=\"" << persistencePath
+                            << "\" prev_count=" << previousMarkerCount
+                            << " prev_selected=" << previousSelectedMarkerId
+                            << " new_count=0";
+            LogProbeLine(investigateLine.str());
+        }
+        return;
+
+    case MarkerPersistenceLoadResult_LoadedArray:
+        ApplyMarkerStateForLoadedSave(loadAttempt.markers);
+        {
+            std::stringstream line;
+            line << "markers loaded path=\"" << persistencePath
+                 << "\" count=" << g_markers.size()
+                 << " format=array";
+            LogProbeLine(line.str());
+
+            std::stringstream investigateLine;
+            investigateLine << "[investigate][save-reload] loaded path=\"" << persistencePath
+                            << "\" format=array"
+                            << " prev_count=" << previousMarkerCount
+                            << " prev_selected=" << previousSelectedMarkerId
+                            << " new_count=" << g_markers.size();
+            LogProbeLine(investigateLine.str());
+        }
+        return;
+
+    case MarkerPersistenceLoadResult_LoadedLegacySingle:
+        ApplyMarkerStateForLoadedSave(loadAttempt.markers);
+        {
+            std::stringstream line;
+            line << "markers loaded path=\"" << persistencePath
+                 << "\" count=1 format=legacy_single";
+            LogProbeLine(line.str());
+
+            std::stringstream investigateLine;
+            investigateLine << "[investigate][save-reload] loaded path=\"" << persistencePath
+                            << "\" format=legacy_single"
+                            << " prev_count=" << previousMarkerCount
+                            << " prev_selected=" << previousSelectedMarkerId
+                            << " new_count=" << g_markers.size();
+            LogProbeLine(investigateLine.str());
+        }
+        return;
+
+    case MarkerPersistenceLoadResult_InvalidFile:
+    default:
+        ClearMarkerStateForLoadedSave();
+        {
+            std::stringstream line;
+            line << "markers persistence invalid path=\"" << persistencePath << "\" count=0";
+            LogProbeLine(line.str());
+
+            std::stringstream investigateLine;
+            investigateLine << "[investigate][save-reload] invalid_file path=\"" << persistencePath
+                            << "\" prev_count=" << previousMarkerCount
+                            << " prev_selected=" << previousSelectedMarkerId
+                            << " new_count=0";
+            LogProbeLine(investigateLine.str());
+        }
+        return;
+    }
 }
 
 void LogProbeLine(const std::string& message)
@@ -3783,10 +4143,38 @@ void EnsureMarkerWidgetsAttached()
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
+        if (ShouldEmitProbeLogs() && !g_lastInvestigateMapAttachmentSignature.empty())
+        {
+            LogProbeLine("[investigate][map-attach] no_active_map_image");
+            g_lastInvestigateMapAttachmentSignature.clear();
+        }
         g_lastMarkerRenderSignature.clear();
         g_lastMarkerOcclusionSignature.clear();
         g_lastOverlayDiagnosticsSignature.clear();
         return;
+    }
+
+    if (ShouldEmitProbeLogs())
+    {
+        std::stringstream investigateSignature;
+        investigateSignature << BuildWidgetDescriptor(mapImage)
+                             << "|" << BuildWidgetChainForLog(mapImage);
+        const std::string investigateSignatureString = investigateSignature.str();
+        if (investigateSignatureString != g_lastInvestigateMapAttachmentSignature)
+        {
+            g_lastInvestigateMapAttachmentSignature = investigateSignatureString;
+
+            std::stringstream line;
+            line << "[investigate][map-attach] active_map_image_changed"
+                 << " widget=" << BuildWidgetDescriptor(mapImage)
+                 << " abs=(" << mapImage->getAbsoluteCoord().left
+                 << "," << mapImage->getAbsoluteCoord().top
+                 << "," << mapImage->getAbsoluteCoord().width
+                 << "," << mapImage->getAbsoluteCoord().height << ")"
+                 << " child_count=" << mapImage->getChildCount()
+                 << " chain=" << BuildWidgetChainForLog(mapImage);
+            LogProbeLine(line.str());
+        }
     }
 
     const MyGUI::IntCoord imageCoord = mapImage->getCoord();
@@ -3992,8 +4380,30 @@ void LogSaveIdentityIfChanged(bool force)
 
     if (identityChanged)
     {
+        std::string previousGame;
+        std::string previousActiveSave;
+        SplitSaveIdentity(g_lastSaveIdentity, previousGame, previousActiveSave);
+
+        std::stringstream investigateLine;
+        investigateLine << "[investigate][save-reload] save_identity_changed"
+                        << " prev_game=\"" << previousGame << "\""
+                        << " prev_active_save=\"" << previousActiveSave << "\""
+                        << " next_game=\"" << currentGame << "\""
+                        << " next_active_save=\"" << activeSave << "\""
+                        << " marker_count_before=" << g_markers.size()
+                        << " selected_before=" << g_selectedMarkerId;
+        LogProbeLine(investigateLine.str());
+
         g_lastSaveIdentity = identityString;
         LoadMarkersForActiveSave();
+
+        std::stringstream appliedLine;
+        appliedLine << "[investigate][save-reload] save_identity_applied"
+                    << " next_game=\"" << currentGame << "\""
+                    << " next_active_save=\"" << activeSave << "\""
+                    << " marker_count_after=" << g_markers.size()
+                    << " selected_after=" << g_selectedMarkerId;
+        LogProbeLine(appliedLine.str());
     }
 
     if (!force && currentGame.empty() && activeSave.empty())
@@ -4333,6 +4743,51 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
     return true;
 }
 
+void SaveManager_save_hook(SaveManager* thisptr, const std::string& saveName, bool autosave)
+{
+    ArmPendingSaveTransition(thisptr, saveName, autosave);
+    if (SaveManager_save_orig)
+    {
+        SaveManager_save_orig(thisptr, saveName, autosave);
+    }
+}
+
+void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
+{
+    ClearPendingSaveTransition("load_by_info");
+    if (SaveManager_loadByInfo_orig)
+    {
+        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
+    }
+}
+
+void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
+{
+    ClearPendingSaveTransition("load_by_name");
+    if (SaveManager_loadByName_orig)
+    {
+        SaveManager_loadByName_orig(thisptr, saveName);
+    }
+}
+
+void SaveManager_newGame_hook(SaveManager* thisptr, const std::string& startId)
+{
+    ClearPendingSaveTransition("new_game");
+    if (SaveManager_newGame_orig)
+    {
+        SaveManager_newGame_orig(thisptr, startId);
+    }
+}
+
+void SaveManager_import_hook(SaveManager* thisptr, const SaveInfo& saveInfo, int flags)
+{
+    ClearPendingSaveTransition("import");
+    if (SaveManager_import_orig)
+    {
+        SaveManager_import_orig(thisptr, saveInfo, flags);
+    }
+}
+
 void TickUiDiagnostics()
 {
     if (g_markerEditorDragging && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0)
@@ -4340,6 +4795,7 @@ void TickUiDiagnostics()
         StopMarkerEditorDrag();
     }
 
+    TickPendingSaveTransition();
     LogSaveIdentityIfChanged(false);
     const MyGUI::ImageBox* activeMapImage = FindActiveMapImage();
     const bool mapVisibleNow = activeMapImage != 0 && activeMapImage->getInheritedVisible();
@@ -4498,6 +4954,46 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Map-markers: could not hook InputHandler::keyDownEvent");
         return;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&, bool)>(&SaveManager::save)),
+        SaveManager_save_hook,
+        &SaveManager_save_orig))
+    {
+        ErrorLog("Map-markers WARN: could not hook SaveManager::save(std::string,bool)");
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
+        SaveManager_loadByInfo_hook,
+        &SaveManager_loadByInfo_orig))
+    {
+        ErrorLog("Map-markers WARN: could not hook SaveManager::load(SaveInfo,bool)");
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
+        SaveManager_loadByName_hook,
+        &SaveManager_loadByName_orig))
+    {
+        ErrorLog("Map-markers WARN: could not hook SaveManager::load(std::string)");
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::newGame)),
+        SaveManager_newGame_hook,
+        &SaveManager_newGame_orig))
+    {
+        ErrorLog("Map-markers WARN: could not hook SaveManager::newGame(std::string)");
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, int)>(&SaveManager::import)),
+        SaveManager_import_hook,
+        &SaveManager_import_orig))
+    {
+        ErrorLog("Map-markers WARN: could not hook SaveManager::import(SaveInfo,int)");
     }
 
     MapMarkersModHub_OnStartup();
