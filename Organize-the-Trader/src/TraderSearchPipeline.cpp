@@ -12,6 +12,7 @@
 #include <mygui/MyGUI_Widget.h>
 
 #include <algorithm>
+#include <cctype>
 #include <limits>
 #include <sstream>
 #include <vector>
@@ -1482,6 +1483,60 @@ bool SearchTextMatchesQuery(const std::string& searchableTextNormalized, const s
     return searchableTextNormalized.find(normalizedQuery) != std::string::npos;
 }
 
+struct ParsedSearchQuery
+{
+    ParsedSearchQuery()
+        : blueprintOnly(false)
+    {
+    }
+
+    bool blueprintOnly;
+    std::string normalizedQuery;
+};
+
+std::string TrimLeadingAsciiWhitespace(const std::string& value)
+{
+    std::size_t index = 0;
+    while (index < value.size() && std::isspace(static_cast<unsigned char>(value[index])) != 0)
+    {
+        ++index;
+    }
+
+    return value.substr(index);
+}
+
+ParsedSearchQuery ParseSearchQuery(const std::string& rawQuery)
+{
+    ParsedSearchQuery parsed;
+    const std::string trimmedQuery = TrimLeadingAsciiWhitespace(rawQuery);
+    if (trimmedQuery.size() >= 2
+        && (trimmedQuery[0] == 'b' || trimmedQuery[0] == 'B')
+        && trimmedQuery[1] == ':')
+    {
+        parsed.blueprintOnly = true;
+        parsed.normalizedQuery = NormalizeSearchText(trimmedQuery.substr(2));
+        return parsed;
+    }
+
+    parsed.normalizedQuery = NormalizeSearchText(trimmedQuery);
+    return parsed;
+}
+
+std::string BuildSearchQueryLogKey(const ParsedSearchQuery& query)
+{
+    if (query.blueprintOnly)
+    {
+        return std::string("b:") + query.normalizedQuery;
+    }
+
+    return query.normalizedQuery;
+}
+
+bool SearchTextMatchesBlueprintFilter(const std::string& searchableTextNormalized)
+{
+    return searchableTextNormalized.find("blueprint") != std::string::npos;
+}
+
 void LogSearchSampleForQuery(MyGUI::Widget* entriesRoot, const std::string& normalizedQuery, std::size_t maxItems)
 {
 #if !defined(OTT_ENABLE_VERBOSE_DIAGNOSTICS)
@@ -1577,7 +1632,13 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         return false;
     }
 
-    const std::string query = forceShowAll ? std::string() : g_searchQueryNormalized;
+    const ParsedSearchQuery parsedQuery = forceShowAll
+        ? ParsedSearchQuery()
+        : ParseSearchQuery(g_searchQueryRaw);
+    const std::string query = parsedQuery.normalizedQuery;
+    const bool blueprintOnly = parsedQuery.blueprintOnly;
+    const bool hasActiveFilter = blueprintOnly || !query.empty();
+    const std::string queryLogKey = BuildSearchQueryLogKey(parsedQuery);
     std::size_t totalCount = 0;
     std::size_t visibleCount = 0;
     std::size_t missingSearchableTextCount = 0;
@@ -1643,7 +1704,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
     }
     std::size_t widgetSearchableEntryCount = 0;
-    if (!query.empty())
+    if (hasActiveFilter)
     {
         for (std::size_t index = 0; index < orderedEntryCount; ++index)
         {
@@ -1656,7 +1717,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
     }
     const bool preferCoverageFallbackWhenWidgetOpaque =
-        !query.empty() && expectedEntryCount >= 8 && widgetSearchableEntryCount == 0;
+        hasActiveFilter && expectedEntryCount >= 8 && widgetSearchableEntryCount == 0;
 
     TraderPanelInventoryBinding panelBinding;
     std::string panelBindingStatus;
@@ -1677,7 +1738,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             hasPanelBinding ? &panelBinding : 0);
     }
 
-    if (!query.empty() && !hasPanelBinding)
+    if (hasActiveFilter && !hasPanelBinding)
     {
         totalCount = orderedEntryCount;
         visibleCount = orderedEntryCount;
@@ -1691,7 +1752,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
 
         std::stringstream signature;
-        signature << query
+        signature << queryLogKey
                   << "|" << panelBindingStatus
                   << "|" << expectedEntryCount
                   << "|" << SafeWidgetName(traderParent);
@@ -1699,7 +1760,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             std::stringstream line;
             line << "search refused: missing high-confidence panel inventory binding"
-                 << " query=\"" << query << "\""
+                 << " query=\"" << queryLogKey << "\""
                  << " reason=" << panelBindingStatus
                  << " expected_entries=" << expectedEntryCount
                  << " parent=" << SafeWidgetName(traderParent);
@@ -1715,10 +1776,10 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             LogInventoryBindingDiagnostics(expectedEntryCount);
             g_loggedInventoryBindingDiagnostics = true;
         }
-        if (g_lastSearchSampleQueryLogged != query)
+        if (g_lastSearchSampleQueryLogged != queryLogKey)
         {
             LogSearchSampleForQuery(entriesRoot, query, 12);
-            g_lastSearchSampleQueryLogged = query;
+            g_lastSearchSampleQueryLogged = queryLogKey;
         }
         g_loggedInventoryBindingFailure = true;
 
@@ -1798,7 +1859,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         && expectedEntryCount >= 8
         && panelBindingNonEmptyKeyCount * 2 < expectedEntryCount;
 
-    if (!query.empty() && (!hasInventoryNameKeys || panelBindingLowCoverage))
+    if (hasActiveFilter && (!hasInventoryNameKeys || panelBindingLowCoverage))
     {
         totalCount = orderedEntryCount;
         visibleCount = orderedEntryCount;
@@ -1814,7 +1875,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         const std::string refusalReason =
             !hasInventoryNameKeys ? "panel_binding_keys_missing" : "panel_binding_low_coverage";
         std::stringstream signature;
-        signature << query
+        signature << queryLogKey
                   << "|" << refusalReason
                   << "|" << panelBindingNonEmptyKeyCount
                   << "|" << expectedEntryCount
@@ -1823,7 +1884,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             std::stringstream line;
             line << "search refused: panel binding confidence too low"
-                 << " query=\"" << query << "\""
+                 << " query=\"" << queryLogKey << "\""
                  << " reason=" << refusalReason
                  << " non_empty_keys=" << panelBindingNonEmptyKeyCount
                  << " expected_entries=" << expectedEntryCount
@@ -1862,7 +1923,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         return true;
     }
 
-    if (!hasInventoryNameKeys && !query.empty() && !g_loggedInventoryBindingFailure)
+    if (!hasInventoryNameKeys && hasActiveFilter && !g_loggedInventoryBindingFailure)
     {
         LogWarnLine("could not resolve trader inventory-backed name keys; search is using widget-only metadata");
         g_loggedInventoryBindingFailure = true;
@@ -1871,7 +1932,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         g_loggedInventoryBindingFailure = false;
     }
-    if (!hasInventoryNameKeys && !query.empty() && ShouldLogBindingDebug() && !g_loggedInventoryBindingDiagnostics)
+    if (!hasInventoryNameKeys && hasActiveFilter && ShouldLogBindingDebug() && !g_loggedInventoryBindingDiagnostics)
     {
         LogInventoryBindingDiagnostics(expectedEntryCount);
         g_loggedInventoryBindingDiagnostics = true;
@@ -1880,7 +1941,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     {
         g_loggedInventoryBindingFailure = false;
     }
-    if (query.empty())
+    if (!hasActiveFilter)
     {
         g_loggedInventoryBindingDiagnostics = false;
     }
@@ -1890,6 +1951,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         MyGUI::Widget* widget;
         std::string searchableText;
         std::string sortItemName;
+        bool blueprint;
         bool occupied;
         int quantity;
         bool hasSortMetric;
@@ -2043,6 +2105,10 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             orderedEntryItem != 0
                 ? NormalizeSearchText(ResolveCanonicalItemName(orderedEntryItem))
                 : "";
+        const std::string resolvedItemSearchText =
+            orderedEntryItem != 0
+                ? NormalizeSearchText(BuildItemSearchSourceText(orderedEntryItem))
+                : "";
 
         std::string quantityAlignedNameHint;
         if (!inventoryQuantityNameKeys.empty())
@@ -2065,7 +2131,11 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 4);
         }
 
-        if (!sequenceAlignedNameHint.empty())
+        if (!resolvedItemSearchText.empty())
+        {
+            itemNameHint = resolvedItemSearchText;
+        }
+        else if (!sequenceAlignedNameHint.empty())
         {
             itemNameHint = sequenceAlignedNameHint;
             ++sequenceAlignedNameHintCount;
@@ -2110,6 +2180,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         state.widget = child;
         state.searchableText = searchableText;
         state.sortItemName = sortItemName;
+        state.blueprint = SearchTextMatchesBlueprintFilter(searchableText);
         state.occupied = occupied;
         state.quantity = ordered.quantity;
         state.hasSortMetric = hasSortMetric;
@@ -2141,9 +2212,17 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         const EntryFilterState& entry = entries[index];
         bool shouldBeVisible = true;
 
-        if (!query.empty())
+        if (hasActiveFilter)
         {
-            if (lowCoverageQuantityAssistActive)
+            if (blueprintOnly && !entry.blueprint)
+            {
+                shouldBeVisible = false;
+                if (entry.searchableText.empty() && entry.occupied)
+                {
+                    ++missingSearchableTextCount;
+                }
+            }
+            else if (lowCoverageQuantityAssistActive)
             {
                 if (!entry.searchableText.empty())
                 {
@@ -2231,7 +2310,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         if (zeroMatchGuardRestoredCount > 0)
         {
             std::stringstream signature;
-            signature << query
+            signature << queryLogKey
                       << "|" << inventorySource
                       << "|" << (inventoryKeyCoverageLow ? "1" : "0")
                       << "|" << (lowAlignmentConfidence ? "1" : "0")
@@ -2241,7 +2320,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 std::stringstream line;
                 line << "search zero-match guard restored occupied entries="
                      << zeroMatchGuardRestoredCount
-                     << " query=\"" << query << "\""
+                     << " query=\"" << queryLogKey << "\""
                      << " inventory_low_coverage=" << (inventoryKeyCoverageLow ? "true" : "false")
                      << " low_alignment_confidence=" << (lowAlignmentConfidence ? "true" : "false")
                      << " source=\"" << TruncateForLog(inventorySource, 120) << "\"";
@@ -2252,11 +2331,13 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     }
 
     std::vector<std::size_t> displayOrder;
+    const bool shouldApplySearchLayout = hasActiveFilter && !entries.empty();
     const bool shouldApplySortLayout =
         g_sortMode != TraderSortMode_None
         && !entries.empty()
         && sortMetricEntryCount > 0;
-    if (shouldApplySortLayout)
+    const bool shouldBuildPackedLayout = shouldApplySearchLayout || shouldApplySortLayout;
+    if (shouldBuildPackedLayout)
     {
         displayOrder.reserve(entries.size());
         std::vector<std::size_t> visibleEntryIndices;
@@ -2312,10 +2393,13 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             }
         };
 
-        std::stable_sort(
-            visibleEntryIndices.begin(),
-            visibleEntryIndices.end(),
-            SortMetricSorter(&entries, g_sortDirection));
+        if (shouldApplySortLayout)
+        {
+            std::stable_sort(
+                visibleEntryIndices.begin(),
+                visibleEntryIndices.end(),
+                SortMetricSorter(&entries, g_sortDirection));
+        }
 
         displayOrder.insert(
             displayOrder.end(),
@@ -2331,7 +2415,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     bool sortedLayoutApplied = false;
     SortedGridMetrics sortedGridMetrics;
     std::string sortLayoutFailureReason;
-    if (shouldApplySortLayout)
+    if (shouldBuildPackedLayout)
     {
         sortedLayoutApplied = TryBuildSortedTargetCoords(
             entriesRoot,
@@ -2357,6 +2441,11 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             targetCoords.push_back(orderedEntries[index].coord);
         }
+    }
+
+    if (shouldApplySearchLayout || g_sortMode == TraderSortMode_None)
+    {
+        ApplyEntryTargetCoords(orderedEntries, targetCoords);
     }
 
     std::string inventoryLayoutFailureReason;
@@ -2543,7 +2632,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                     line << "snapshot"
                          << " mode="
                          << TraderSortStateLabel(g_sortMode, g_sortDirection)
-                         << " query=\"" << query << "\""
+                         << " query=\"" << queryLogKey << "\""
                          << " should_apply=" << (shouldApplySortLayout ? "true" : "false")
                          << " layout_applied=" << (sortedLayoutApplied ? "true" : "false")
                          << " failure=\"" << (sortLayoutFailureReason.empty() ? "<none>" : sortLayoutFailureReason) << "\""
@@ -2618,7 +2707,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
     }
 
-    if (!query.empty() && fallbackKeptVisibleCount > 0 && !g_loggedMissingSearchableItemText)
+    if (hasActiveFilter && fallbackKeptVisibleCount > 0 && !g_loggedMissingSearchableItemText)
     {
         std::stringstream line;
         line << "search fallback: kept " << fallbackKeptVisibleCount
@@ -2626,7 +2715,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         LogWarnLine(line.str());
         g_loggedMissingSearchableItemText = true;
     }
-    if (query.empty())
+    if (!hasActiveFilter)
     {
         g_loggedMissingSearchableItemText = false;
         g_lastZeroMatchQueryLogged.clear();
@@ -2642,7 +2731,8 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         std::stringstream line;
         line << "search filter applied query=\"" << (forceShowAll ? "" : g_searchQueryRaw)
              << "\" normalized=\"" << (forceShowAll ? "" : query)
-             << "\" sort_mode=\""
+             << "\" blueprint_only=" << (blueprintOnly ? "true" : "false")
+             << " sort_mode=\""
              << TraderSortStateLabel(g_sortMode, g_sortDirection)
              << "\" visible=" << visibleCount
              << " total=" << totalCount
@@ -2677,35 +2767,35 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         LogInfoLine(line.str());
     }
 
-    if (!query.empty() && g_lastSearchSampleQueryLogged != query)
+    if (hasActiveFilter && g_lastSearchSampleQueryLogged != queryLogKey)
     {
         LogSearchSampleForQuery(entriesRoot, query, 12);
-        g_lastSearchSampleQueryLogged = query;
+        g_lastSearchSampleQueryLogged = queryLogKey;
     }
 
-    if (!query.empty() && !hasAnySearchableText && g_lastZeroMatchQueryLogged != query)
+    if (hasActiveFilter && !hasAnySearchableText && g_lastZeroMatchQueryLogged != queryLogKey)
     {
         if (ShouldLogVerboseSearchDiagnostics() && hasInventoryNameKeys)
         {
             std::stringstream previewLine;
-            previewLine << "search zero-match key preview query=\"" << query << "\" "
+            previewLine << "search zero-match key preview query=\"" << queryLogKey << "\" "
                         << BuildKeyPreviewForLog(inventoryNameKeys, 16);
             LogWarnLine(previewLine.str());
         }
         LogSearchSampleForQuery(entriesRoot, query, 12);
-        g_lastZeroMatchQueryLogged = query;
+        g_lastZeroMatchQueryLogged = queryLogKey;
     }
-    if (!query.empty() && visibleCount == 0 && g_lastZeroMatchQueryLogged != query)
+    if (hasActiveFilter && visibleCount == 0 && g_lastZeroMatchQueryLogged != queryLogKey)
     {
         if (ShouldLogVerboseSearchDiagnostics() && hasInventoryNameKeys)
         {
             std::stringstream previewLine;
-            previewLine << "search zero-match key preview query=\"" << query << "\" "
+            previewLine << "search zero-match key preview query=\"" << queryLogKey << "\" "
                         << BuildKeyPreviewForLog(inventoryNameKeys, 16);
             LogWarnLine(previewLine.str());
         }
         LogSearchSampleForQuery(entriesRoot, query, 12);
-        g_lastZeroMatchQueryLogged = query;
+        g_lastZeroMatchQueryLogged = queryLogKey;
     }
 
     UpdateSearchCountText(visibleOccupiedCount, expectedEntryCount, visibleQuantity);

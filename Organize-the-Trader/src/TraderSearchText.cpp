@@ -493,6 +493,71 @@ std::string ResolveCanonicalItemName(Item* item)
     return "";
 }
 
+void AppendUniqueNormalizedSearchToken(
+    const std::string& token,
+    std::vector<std::string>* seenNormalizedTokens,
+    std::string* searchText)
+{
+    if (seenNormalizedTokens == 0 || searchText == 0 || token.empty())
+    {
+        return;
+    }
+
+    const std::string normalizedToken = NormalizeSearchText(token);
+    if (normalizedToken.empty())
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < seenNormalizedTokens->size(); ++index)
+    {
+        if ((*seenNormalizedTokens)[index] == normalizedToken)
+        {
+            return;
+        }
+    }
+
+    seenNormalizedTokens->push_back(normalizedToken);
+    AppendSearchToken(searchText, token);
+}
+
+std::string BuildItemSearchSourceText(Item* item)
+{
+    if (item == 0)
+    {
+        return "";
+    }
+
+    std::string searchText;
+    std::vector<std::string> seenNormalizedTokens;
+    seenNormalizedTokens.reserve(8);
+
+    AppendUniqueNormalizedSearchToken(ResolveCanonicalItemName(item), &seenNormalizedTokens, &searchText);
+    AppendUniqueNormalizedSearchToken(item->displayName, &seenNormalizedTokens, &searchText);
+    AppendUniqueNormalizedSearchToken(item->getName(), &seenNormalizedTokens, &searchText);
+    if (item->data != 0)
+    {
+        AppendUniqueNormalizedSearchToken(item->data->name, &seenNormalizedTokens, &searchText);
+        AppendUniqueNormalizedSearchToken(item->data->stringID, &seenNormalizedTokens, &searchText);
+    }
+
+    Ogre::vector<StringPair>::type tooltipLines;
+    item->getTooltipData1(tooltipLines);
+    if (tooltipLines.empty())
+    {
+        item->getTooltipData2(tooltipLines);
+    }
+
+    for (std::size_t index = 0; index < tooltipLines.size(); ++index)
+    {
+        const StringPair& line = tooltipLines[index];
+        AppendUniqueNormalizedSearchToken(line.s1, &seenNormalizedTokens, &searchText);
+        AppendUniqueNormalizedSearchToken(line.s2, &seenNormalizedTokens, &searchText);
+    }
+
+    return searchText;
+}
+
 std::string CanonicalizeSearchToken(const std::string& token)
 {
     if (token.empty())
@@ -1284,7 +1349,7 @@ void AppendWidgetObjectDataTokens(MyGUI::Widget* widget, std::string* searchText
     Item* item = ResolveWidgetItemPointer(widget);
     if (item != 0)
     {
-        AppendRootObjectSearchTokens(item, searchText);
+        AppendSearchToken(searchText, BuildItemSearchSourceText(item));
         return;
     }
 

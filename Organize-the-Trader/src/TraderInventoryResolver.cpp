@@ -379,7 +379,7 @@ bool TryExtractSearchKeysFromInventorySection(InventorySection* section, std::ve
     for (std::size_t index = 0; index < sortedItems.size(); ++index)
     {
         Item* item = sortedItems[index].item;
-        const std::string key = NormalizeSearchText(ResolveCanonicalItemName(item));
+        const std::string key = NormalizeSearchText(BuildItemSearchSourceText(item));
         outKeys->push_back(key);
     }
 
@@ -425,7 +425,7 @@ bool TryExtractQuantityNameKeysFromInventorySection(
             continue;
         }
 
-        const std::string key = NormalizeSearchText(ResolveCanonicalItemName(item));
+        const std::string key = NormalizeSearchText(BuildItemSearchSourceText(item));
         if (key.empty())
         {
             continue;
@@ -1048,7 +1048,7 @@ bool TryExtractSearchKeysFromInventory(Inventory* inventory, std::vector<std::st
     outKeys->reserve(allItems.size());
     for (uint32_t index = 0; index < allItems.size(); ++index)
     {
-        const std::string key = NormalizeSearchText(ResolveCanonicalItemName(allItems[index]));
+        const std::string key = NormalizeSearchText(BuildItemSearchSourceText(allItems[index]));
         outKeys->push_back(key);
     }
 
@@ -1110,7 +1110,7 @@ bool TryExtractQuantityNameKeysFromInventory(
             continue;
         }
 
-        const std::string key = NormalizeSearchText(ResolveCanonicalItemName(item));
+        const std::string key = NormalizeSearchText(BuildItemSearchSourceText(item));
         if (key.empty())
         {
             continue;

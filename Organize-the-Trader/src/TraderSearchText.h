@@ -26,6 +26,7 @@ bool TryExtractTaggedFraction(
     int* outDenominator);
 std::string NormalizeSearchText(const std::string& text);
 std::string ResolveCanonicalItemName(Item* item);
+std::string BuildItemSearchSourceText(Item* item);
 bool IsLikelyRuntimeWidgetToken(const std::string& token);
 std::string CanonicalizeSearchToken(const std::string& token);
 bool ContainsAsciiLetter(const std::string& value);
