@@ -14,7 +14,8 @@
     "vital-sense",
     "map-markers",
     "auto-pause-on-load",
-    "organize-the-crafting-stations"
+    "organize-the-crafting-stations",
+    "vital-read"
   ],
   "excluded_other_mod_ids": []
 }
