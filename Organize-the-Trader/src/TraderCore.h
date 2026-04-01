@@ -45,6 +45,7 @@ static const int kDefaultSortPanelConfiguredHeight = 26;
 enum TraderSortMode
 {
     TraderSortMode_None = 0,
+    TraderSortMode_Name,
     TraderSortMode_UnitPrice,
     TraderSortMode_StackValue,
     TraderSortMode_UnitWeight,

@@ -986,16 +986,18 @@ std::size_t ResolveSortModeComboIndex(TraderSortMode mode)
 {
     switch (mode)
     {
-    case TraderSortMode_UnitPrice:
+    case TraderSortMode_Name:
         return 1;
-    case TraderSortMode_StackValue:
+    case TraderSortMode_UnitPrice:
         return 2;
-    case TraderSortMode_UnitWeight:
+    case TraderSortMode_StackValue:
         return 3;
-    case TraderSortMode_StackWeight:
+    case TraderSortMode_UnitWeight:
         return 4;
-    case TraderSortMode_ValuePerWeight:
+    case TraderSortMode_StackWeight:
         return 5;
+    case TraderSortMode_ValuePerWeight:
+        return 6;
     default:
         return 0;
     }
@@ -1577,6 +1579,7 @@ bool BuildControlsScaffold(
     sortModeCombo->setComboModeDrop(true);
     sortModeCombo->setSmoothShow(false);
     sortModeCombo->addItem("Default");
+    sortModeCombo->addItem("Name");
     sortModeCombo->addItem("Unit price");
     sortModeCombo->addItem("Stack value");
     sortModeCombo->addItem("Unit weight");
@@ -1859,14 +1862,16 @@ TraderSortMode ResolveSortModeFromComboIndex(std::size_t index)
     switch (index)
     {
     case 1:
-        return TraderSortMode_UnitPrice;
+        return TraderSortMode_Name;
     case 2:
-        return TraderSortMode_StackValue;
+        return TraderSortMode_UnitPrice;
     case 3:
-        return TraderSortMode_UnitWeight;
+        return TraderSortMode_StackValue;
     case 4:
-        return TraderSortMode_StackWeight;
+        return TraderSortMode_UnitWeight;
     case 5:
+        return TraderSortMode_StackWeight;
+    case 6:
         return TraderSortMode_ValuePerWeight;
     default:
         return TraderSortMode_None;
@@ -1912,6 +1917,9 @@ void OnSortModeComboAccepted(MyGUI::ComboBox*, std::size_t index)
     const char* reason = "sort_mode_default";
     switch (requestedMode)
     {
+    case TraderSortMode_Name:
+        reason = "sort_mode_name";
+        break;
     case TraderSortMode_UnitPrice:
         reason = "sort_mode_unit_price";
         break;

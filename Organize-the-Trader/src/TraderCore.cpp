@@ -406,6 +406,10 @@ const char* TraderSortStateLabel(TraderSortMode mode, TraderSortDirection direct
 {
     switch (mode)
     {
+    case TraderSortMode_Name:
+        return direction == TraderSortDirection_Descending
+            ? "name_desc"
+            : "name_asc";
     case TraderSortMode_UnitPrice:
         return direction == TraderSortDirection_Descending
             ? "unit_price_desc"

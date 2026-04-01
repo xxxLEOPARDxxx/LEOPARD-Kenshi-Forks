@@ -485,6 +485,11 @@ bool TryResolveSortMetricForItem(Item* item, TraderSortMode mode, double* outMet
     }
 }
 
+bool SortModeUsesItemNamePrimary(TraderSortMode mode)
+{
+    return mode == TraderSortMode_Name;
+}
+
 std::string FormatSortMetricForLog(double value)
 {
     if (value == std::numeric_limits<double>::max())
@@ -2097,18 +2102,30 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             orderedEntryItem = orderedEntryItems[childIndex];
         }
-        double sortMetric = 0.0;
-        const bool hasSortMetric =
-            orderedEntryItem != 0
-            && TryResolveSortMetricForItem(orderedEntryItem, g_sortMode, &sortMetric);
-        const std::string sortItemName =
-            orderedEntryItem != 0
-                ? NormalizeSearchText(ResolveCanonicalItemName(orderedEntryItem))
-                : "";
         const std::string resolvedItemSearchText =
             orderedEntryItem != 0
                 ? NormalizeSearchText(BuildItemSearchSourceText(orderedEntryItem))
                 : "";
+        const std::string sortItemName =
+            orderedEntryItem != 0
+                ? NormalizeSearchText(
+                    SortModeUsesItemNamePrimary(g_sortMode)
+                        ? BuildItemSearchSourceText(orderedEntryItem)
+                        : ResolveCanonicalItemName(orderedEntryItem))
+                : "";
+        double sortMetric = 0.0;
+        bool hasSortMetric = false;
+        if (orderedEntryItem != 0)
+        {
+            if (SortModeUsesItemNamePrimary(g_sortMode))
+            {
+                hasSortMetric = !sortItemName.empty();
+            }
+            else
+            {
+                hasSortMetric = TryResolveSortMetricForItem(orderedEntryItem, g_sortMode, &sortMetric);
+            }
+        }
 
         std::string quantityAlignedNameHint;
         if (!inventoryQuantityNameKeys.empty())
@@ -2360,13 +2377,16 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         {
             SortMetricSorter(
                 const std::vector<EntryFilterState>* source,
+                TraderSortMode mode,
                 TraderSortDirection direction)
                 : entries(source)
+                , sortMode(mode)
                 , sortDirection(direction)
             {
             }
 
             const std::vector<EntryFilterState>* entries;
+            TraderSortMode sortMode;
             TraderSortDirection sortDirection;
 
             bool operator()(std::size_t leftIndex, std::size_t rightIndex) const
@@ -2376,6 +2396,18 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 if (left.hasSortMetric != right.hasSortMetric)
                 {
                     return left.hasSortMetric;
+                }
+                if (sortMode == TraderSortMode_Name)
+                {
+                    if (left.sortItemName != right.sortItemName)
+                    {
+                        if (sortDirection == TraderSortDirection_Descending)
+                        {
+                            return left.sortItemName > right.sortItemName;
+                        }
+                        return left.sortItemName < right.sortItemName;
+                    }
+                    return left.originalIndex < right.originalIndex;
                 }
                 if (left.hasSortMetric && right.hasSortMetric && left.sortMetric != right.sortMetric)
                 {
@@ -2398,7 +2430,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             std::stable_sort(
                 visibleEntryIndices.begin(),
                 visibleEntryIndices.end(),
-                SortMetricSorter(&entries, g_sortDirection));
+                SortMetricSorter(&entries, g_sortMode, g_sortDirection));
         }
 
         displayOrder.insert(
