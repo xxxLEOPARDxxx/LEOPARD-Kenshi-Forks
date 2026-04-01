@@ -191,6 +191,19 @@ function Resolve-KenshiBoundValue {
     return $DefaultValue
 }
 
+function Find-KenshiDefaultProjectFileName {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoDir
+    )
+
+    $projectFiles = @(Get-ChildItem -LiteralPath $RepoDir -Filter "*.vcxproj" -File -ErrorAction SilentlyContinue)
+    if ($projectFiles.Count -ne 1) {
+        return ""
+    }
+
+    return $projectFiles[0].Name
+}
+
 function Resolve-KenshiBuildContext {
     param(
         [Parameter(Mandatory = $true)][hashtable]$BoundParameters,
@@ -210,15 +223,20 @@ function Resolve-KenshiBuildContext {
     $resolvedConfiguration = Resolve-KenshiBoundValue -BoundParameters $BoundParameters -ParameterName "Configuration" -CurrentValue $Configuration -EnvVar "KENSHI_CONFIGURATION" -DefaultValue "Release"
     $resolvedPlatform = Resolve-KenshiBoundValue -BoundParameters $BoundParameters -ParameterName "Platform" -CurrentValue $Platform -EnvVar "KENSHI_PLATFORM" -DefaultValue "x64"
     $resolvedPlatformToolset = Resolve-KenshiBoundValue -BoundParameters $BoundParameters -ParameterName "PlatformToolset" -CurrentValue $PlatformToolset -EnvVar "KENSHI_PLATFORM_TOOLSET" -DefaultValue "v100"
+    $defaultProjectFileName = Find-KenshiDefaultProjectFileName -RepoDir $RepoDir
 
     $resolvedModName = Resolve-KenshiValue -CurrentValue $ModName -EnvVar "KENSHI_MOD_NAME"
     if (-not $resolvedModName) {
         $resolvedModName = Resolve-KenshiValue -EnvVar "MOD_NAME"
     }
     if (-not $resolvedModName) {
-        $resolvedModName = Split-Path -Leaf $RepoDir
+        if ($defaultProjectFileName) {
+            $resolvedModName = [IO.Path]::GetFileNameWithoutExtension($defaultProjectFileName)
+        } else {
+            $resolvedModName = Split-Path -Leaf $RepoDir
+        }
     }
-    $resolvedProjectFileName = Resolve-KenshiValue -CurrentValue $ProjectFileName -EnvVar "KENSHI_PROJECT_FILE" -DefaultValue "$resolvedModName.vcxproj"
+    $resolvedProjectFileName = Resolve-KenshiValue -CurrentValue $ProjectFileName -EnvVar "KENSHI_PROJECT_FILE" -DefaultValue $(if ($defaultProjectFileName) { $defaultProjectFileName } else { "$resolvedModName.vcxproj" })
     $resolvedOutputSubdir = Resolve-KenshiValue -CurrentValue $OutputSubdir -EnvVar "KENSHI_OUTPUT_SUBDIR" -DefaultValue "$resolvedPlatform\$resolvedConfiguration"
     $resolvedDllName = Resolve-KenshiValue -CurrentValue $DllName -EnvVar "KENSHI_DLL_NAME" -DefaultValue "$resolvedModName.dll"
     $resolvedModFileName = Resolve-KenshiValue -CurrentValue $ModFileName -EnvVar "KENSHI_MOD_FILE_NAME" -DefaultValue "$resolvedModName.mod"

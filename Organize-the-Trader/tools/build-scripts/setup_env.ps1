@@ -12,15 +12,46 @@ if (-not (Test-Path $CommonScript)) {
 
 $ctx = Initialize-KenshiScriptContext -InvocationPath $MyInvocation.MyCommand.Path
 
+function Find-KenshiDepsDirFromRepo {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoDir
+    )
+
+    $current = [IO.Path]::GetFullPath($RepoDir)
+    while ($current) {
+        $candidate = Join-Path $current "_deps\KenshiLib_Examples_deps"
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+
+        $parent = Split-Path -Parent $current
+        if (-not $parent -or $parent -eq $current) {
+            break
+        }
+        $current = $parent
+    }
+
+    return ""
+}
+
 # Prefer explicit env override; otherwise use repo-relative defaults.
 if ($env:KENSHI_DEFAULT_DEPS_DIR) {
     $defaultDepsDir = $env:KENSHI_DEFAULT_DEPS_DIR
 } else {
-    $workspaceRoot = Split-Path -Parent $ctx.RepoDir
-    $defaultDepsDir = Join-Path $workspaceRoot "_deps\KenshiLib_Examples_deps"
+    $defaultDepsDir = Find-KenshiDepsDirFromRepo -RepoDir $ctx.RepoDir
+    if (-not $defaultDepsDir) {
+        $workspaceRoot = Split-Path -Parent $ctx.RepoDir
+        $defaultDepsDir = Join-Path $workspaceRoot "_deps\KenshiLib_Examples_deps"
+    }
 }
 
-$expectedRoot = if ($env:KENSHI_DEPS_ROOT) { $env:KENSHI_DEPS_ROOT } else { Join-Path (Split-Path -Parent $ctx.RepoDir) "_deps" }
+$expectedRoot = if ($env:KENSHI_DEPS_ROOT) {
+    $env:KENSHI_DEPS_ROOT
+} elseif ($defaultDepsDir) {
+    Split-Path -Parent $defaultDepsDir
+} else {
+    Join-Path (Split-Path -Parent $ctx.RepoDir) "_deps"
+}
 $needsDepsReset = -not $env:KENSHILIB_DEPS_DIR
 if (-not $needsDepsReset) {
     $depsRoot = [IO.Path]::GetFullPath($env:KENSHILIB_DEPS_DIR)
