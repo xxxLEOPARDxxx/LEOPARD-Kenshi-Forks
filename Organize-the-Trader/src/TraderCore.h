@@ -66,6 +66,7 @@ struct TraderConfigSnapshot
         , showSearchEntryCount(true)
         , showSearchQuantityCount(true)
         , showSearchClearButton(true)
+        , autoFocusSearchInput(true)
         , debugLogging(false)
         , debugSearchLogging(false)
         , debugBindingLogging(false)
@@ -86,6 +87,7 @@ struct TraderConfigSnapshot
     bool showSearchEntryCount;
     bool showSearchQuantityCount;
     bool showSearchClearButton;
+    bool autoFocusSearchInput;
     bool debugLogging;
     bool debugSearchLogging;
     bool debugBindingLogging;
@@ -189,6 +191,7 @@ struct CoreState
         , g_showSearchEntryCount(true)
         , g_showSearchQuantityCount(true)
         , g_showSearchClearButton(true)
+        , g_autoFocusSearchInput(true)
         , g_debugLogging(false)
         , g_debugSearchLogging(false)
         , g_debugBindingLogging(false)
@@ -204,6 +207,7 @@ struct CoreState
     bool g_showSearchEntryCount;
     bool g_showSearchQuantityCount;
     bool g_showSearchClearButton;
+    bool g_autoFocusSearchInput;
     bool g_debugLogging;
     bool g_debugSearchLogging;
     bool g_debugBindingLogging;

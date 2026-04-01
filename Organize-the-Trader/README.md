@@ -43,6 +43,7 @@ After deploy, expected files:
 - `showSearchEntryCount` (bool): show visible/total item entries in the search bar.
 - `showSearchQuantityCount` (bool): show visible stack quantity in the search bar.
 - `showSearchClearButton` (bool): show the clear button in the search bar.
+- `autoFocusSearchInput` (bool): auto-focus the search input when trader controls are injected.
 - `debugLogging` (bool): master runtime debug switch for support diagnostics.
 - `debugSearchLogging` (bool): enables search-path diagnostics when `debugLogging` is enabled.
 - `debugBindingLogging` (bool): enables inventory-binding diagnostics when `debugLogging` is enabled.
@@ -60,6 +61,7 @@ Default:
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
   "showSearchClearButton": true,
+  "autoFocusSearchInput": true,
   "debugLogging": false,
   "debugSearchLogging": false,
   "debugBindingLogging": false,
@@ -72,7 +74,7 @@ Default:
 ```
 
 ## Mod Hub (Optional)
-If `Emkejs-Mod-Core` is loaded, Organize-the-Trader registers its user-facing settings in Mod Hub (`enabled`, search counts, clear button, search width, search height) and writes committed changes back to `mod-config.json`.
+If `Emkejs-Mod-Core` is loaded, Organize-the-Trader registers its user-facing settings in Mod Hub (`enabled`, search counts, clear button, auto-focus search, search width, search height) and writes committed changes back to `mod-config.json`.
 
 Recommended load order:
 - `Emkejs-Mod-Core`

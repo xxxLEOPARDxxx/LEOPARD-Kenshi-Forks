@@ -3,6 +3,7 @@
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
   "showSearchClearButton": true,
+  "autoFocusSearchInput": true,
   "debugLogging": false,
   "debugSearchLogging": false,
   "debugBindingLogging": false,
