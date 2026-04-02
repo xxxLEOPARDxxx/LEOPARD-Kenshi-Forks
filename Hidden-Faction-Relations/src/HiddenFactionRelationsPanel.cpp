@@ -1,6 +1,7 @@
 #include "HiddenFactionRelationsPanel.h"
 
 #include "HiddenFactionRelations.h"
+#include "HiddenFactionRelationsUiModel.h"
 
 #include <Debug.h>
 
@@ -193,18 +194,6 @@ void ClearActiveUiState()
     g_activePanelWidget = 0;
 }
 
-std::string FormatRelationValue(const HiddenFactionRelationEntry& entry)
-{
-    if (!entry.hasPlayerRelation)
-    {
-        return "n/a";
-    }
-
-    std::stringstream value;
-    value << entry.playerRelation;
-    return value.str();
-}
-
 void BuildUnavailableState(const std::string& message)
 {
     if (g_activePanelWidget == 0)
@@ -226,7 +215,59 @@ void BuildUnavailableState(const std::string& message)
     }
 }
 
-void BuildRows(const HiddenFactionRelationsSnapshot& snapshot)
+void BuildSummaryCard(
+    MyGUI::Widget* parent,
+    int left,
+    int top,
+    int width,
+    const char* label,
+    int value)
+{
+    std::stringstream valueText;
+    valueText << value;
+
+    MyGUI::TextBox* countText = CreateTrackedTextBox(parent, MyGUI::IntCoord(left, top, width, 28));
+    if (countText != 0)
+    {
+        countText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
+        countText->setCaption(valueText.str());
+        countText->setNeedMouseFocus(false);
+    }
+
+    MyGUI::TextBox* labelText = CreateTrackedTextBox(parent, MyGUI::IntCoord(left, top + 24, width, 18));
+    if (labelText != 0)
+    {
+        labelText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
+        labelText->setCaption(label);
+        labelText->setNeedMouseFocus(false);
+    }
+}
+
+void BuildEmptyResultsState(
+    MyGUI::Widget* parent,
+    int contentWidth,
+    int& rowY,
+    const HiddenFactionRelationsUiView& view)
+{
+    const char* message = "No hidden factions match the current view.";
+    if (view.summary.scannedHiddenFactions == 0)
+    {
+        message = "No hidden factions were available in the current world.";
+    }
+
+    MyGUI::TextBox* emptyText = CreateInlineTextBox(
+        parent,
+        MyGUI::IntCoord(0, 0, contentWidth, 24));
+    if (emptyText != 0)
+    {
+        emptyText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
+        emptyText->setCaption(message);
+        emptyText->setNeedMouseFocus(false);
+    }
+    rowY = 28;
+}
+
+void BuildRows(const HiddenFactionRelationsUiView& view)
 {
     if (g_activePanelWidget == 0)
     {
@@ -236,34 +277,81 @@ void BuildRows(const HiddenFactionRelationsSnapshot& snapshot)
     const MyGUI::IntCoord panelCoord = g_activePanelWidget->getCoord();
     const int panelWidth = panelCoord.width > 0 ? panelCoord.width : 720;
     const int panelHeight = panelCoord.height > 0 ? panelCoord.height : 520;
+    const int contentLeft = 12;
+    const int contentWidth = panelWidth - 24;
+    const int rowValueWidth = 96;
+    const int rowRightPadding = 16;
 
-    MyGUI::TextBox* headerText = CreateTrackedTextBox(
+    MyGUI::TextBox* titleText = CreateTrackedTextBox(
         g_activePanelWidget,
-        MyGUI::IntCoord(12, 10, panelWidth - 24, 24));
-    if (headerText != 0)
+        MyGUI::IntCoord(contentLeft, 10, contentWidth, 24));
+    if (titleText != 0)
     {
-        headerText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        headerText->setCaption("Hidden factions and player relations");
-        headerText->setNeedMouseFocus(false);
+        titleText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        titleText->setCaption("HIDDEN FACTION RELATIONS");
+        titleText->setNeedMouseFocus(false);
     }
 
-    std::stringstream summary;
-    summary << "Player faction: " << snapshot.playerFactionName << " [" << snapshot.playerFactionId << "]\n"
-            << "Hidden factions: " << snapshot.hiddenFactions << " / " << snapshot.totalFactions
-            << " | Missing relation entries: " << snapshot.missingRelationEntries;
-    MyGUI::TextBox* summaryText = CreateTrackedTextBox(
+    std::stringstream subtitleText;
+    subtitleText << "Showing " << view.summary.shownHiddenFactions
+                 << " / " << view.summary.scannedHiddenFactions
+                 << " hidden factions";
+    MyGUI::TextBox* subtitle = CreateTrackedTextBox(
         g_activePanelWidget,
-        MyGUI::IntCoord(12, 36, panelWidth - 24, 38));
-    if (summaryText != 0)
+        MyGUI::IntCoord(contentLeft, 34, contentWidth, 20));
+    if (subtitle != 0)
     {
-        summaryText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::Top);
-        summaryText->setCaption(summary.str());
-        summaryText->setNeedMouseFocus(false);
+        subtitle->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        subtitle->setCaption(subtitleText.str());
+        subtitle->setNeedMouseFocus(false);
     }
+
+    std::stringstream playerText;
+    playerText << "Player faction: " << view.playerFactionName;
+    if (!view.playerFactionId.empty())
+    {
+        playerText << " [" << view.playerFactionId << "]";
+    }
+
+    MyGUI::TextBox* playerContextText = CreateTrackedTextBox(
+        g_activePanelWidget,
+        MyGUI::IntCoord(contentLeft, 52, contentWidth, 20));
+    if (playerContextText != 0)
+    {
+        playerContextText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        playerContextText->setCaption(playerText.str());
+        playerContextText->setNeedMouseFocus(false);
+    }
+
+    const int summaryGap = 6;
+    const int summaryTop = 76;
+    const int summaryWidth = (contentWidth - (summaryGap * 3)) / 4;
+    BuildSummaryCard(g_activePanelWidget, contentLeft, summaryTop, summaryWidth, "TOTAL HIDDEN", view.summary.shownHiddenFactions);
+    BuildSummaryCard(
+        g_activePanelWidget,
+        contentLeft + (summaryWidth + summaryGap),
+        summaryTop,
+        summaryWidth,
+        "HOSTILE",
+        view.summary.hostileCount);
+    BuildSummaryCard(
+        g_activePanelWidget,
+        contentLeft + ((summaryWidth + summaryGap) * 2),
+        summaryTop,
+        summaryWidth,
+        "FRIENDLY",
+        view.summary.friendlyCount);
+    BuildSummaryCard(
+        g_activePanelWidget,
+        contentLeft + ((summaryWidth + summaryGap) * 3),
+        summaryTop,
+        summaryWidth,
+        "NEUTRAL",
+        view.summary.neutralCount);
 
     MyGUI::ScrollView* scrollView = CreateTrackedScrollView(
         g_activePanelWidget,
-        MyGUI::IntCoord(12, 80, panelWidth - 24, panelHeight - 92));
+        MyGUI::IntCoord(contentLeft, 124, contentWidth, panelHeight - 136));
     if (scrollView == 0)
     {
         BuildUnavailableState("Failed to create the hidden faction scroll view.");
@@ -278,67 +366,60 @@ void BuildRows(const HiddenFactionRelationsSnapshot& snapshot)
     }
 
     const MyGUI::IntCoord clientCoord = scrollView->getClientCoord();
-    int contentWidth = clientCoord.width > 0 ? clientCoord.width : panelWidth - 48;
-    if (contentWidth < 240)
+    int clientWidth = clientCoord.width > 0 ? clientCoord.width : panelWidth - 48;
+    if (clientWidth < 240)
     {
-        contentWidth = panelWidth - 48;
+        clientWidth = panelWidth - 48;
     }
 
     int rowY = 0;
-    int renderedRows = 0;
-    for (size_t i = 0; i < snapshot.factions.size(); ++i)
+    for (size_t i = 0; i < view.rows.size(); ++i)
     {
-        const HiddenFactionRelationEntry& entry = snapshot.factions[i];
-        if (entry.isNullEntry || !entry.isHidden)
-        {
-            continue;
-        }
+        const HiddenFactionRelationsUiRow& row = view.rows[i];
 
         MyGUI::TextBox* nameText = CreateInlineTextBox(
             contentParent,
-            MyGUI::IntCoord(0, rowY, contentWidth, 22));
+            MyGUI::IntCoord(0, rowY, clientWidth - rowValueWidth - rowRightPadding, 22));
         if (nameText != 0)
         {
             nameText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-            nameText->setCaption(entry.factionName);
+            nameText->setCaption(row.factionName);
             nameText->setNeedMouseFocus(false);
         }
 
-        std::stringstream detail;
-        detail << "id: " << entry.factionId << " | relation: " << FormatRelationValue(entry);
-        MyGUI::TextBox* detailText = CreateInlineTextBox(
+        MyGUI::TextBox* relationText = CreateInlineTextBox(
             contentParent,
-            MyGUI::IntCoord(12, rowY + 20, contentWidth - 12, 18));
-        if (detailText != 0)
+            MyGUI::IntCoord(clientWidth - rowValueWidth - rowRightPadding, rowY, rowValueWidth, 22));
+        if (relationText != 0)
         {
-            detailText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-            detailText->setCaption(detail.str());
-            detailText->setNeedMouseFocus(false);
+            relationText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
+            relationText->setCaption(row.relationValueText);
+            relationText->setNeedMouseFocus(false);
         }
 
-        rowY += 44;
-        ++renderedRows;
+        MyGUI::TextBox* badgeText = CreateInlineTextBox(
+            contentParent,
+            MyGUI::IntCoord(12, rowY + 20, clientWidth - 12, 18));
+        if (badgeText != 0)
+        {
+            badgeText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+            badgeText->setCaption(row.relationBadgeText);
+            badgeText->setNeedMouseFocus(false);
+        }
+
+        rowY += 42;
     }
 
-    if (renderedRows == 0)
+    if (view.rows.empty())
     {
-        MyGUI::TextBox* emptyText = CreateInlineTextBox(
-            contentParent,
-            MyGUI::IntCoord(0, 0, contentWidth, 24));
-        if (emptyText != 0)
-        {
-            emptyText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-            emptyText->setCaption("No hidden factions were available in the current world.");
-            emptyText->setNeedMouseFocus(false);
-        }
-        rowY = 28;
+        BuildEmptyResultsState(contentParent, clientWidth, rowY, view);
     }
 
     if (rowY < scrollView->getClientCoord().height)
     {
         rowY = scrollView->getClientCoord().height;
     }
-    scrollView->setCanvasSize(contentWidth, rowY);
+    scrollView->setCanvasSize(clientWidth, rowY);
 }
 
 void RefreshPanelContentsUnsafe()
@@ -357,7 +438,14 @@ void RefreshPanelContentsUnsafe()
         return;
     }
 
-    BuildRows(snapshot);
+    HiddenFactionRelationsUiView view;
+    if (!HiddenFactionRelationsUiModel_BuildDefaultView(snapshot, &view))
+    {
+        BuildUnavailableState("Hidden faction relations could not be prepared for display.");
+        return;
+    }
+
+    BuildRows(view);
 }
 
 void RefreshPanelContents()
