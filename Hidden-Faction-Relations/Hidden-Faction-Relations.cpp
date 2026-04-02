@@ -1,6 +1,10 @@
+#include "src/HiddenFactionRelations.h"
+#include "src/HiddenFactionRelationsPanel.h"
+
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include <kenshi/GameWorld.h>
 #include <kenshi/Kenshi.h>
 
 #include <Windows.h>
@@ -17,6 +21,10 @@ std::string g_configPath;
 bool g_debugLogging = false;
 bool g_debugSearchLogging = false;
 bool g_debugBindingLogging = false;
+bool g_dumpHiddenFactionRelations = false;
+bool g_hiddenFactionDumpCompleted = false;
+bool g_hiddenFactionDumpHookInstalled = false;
+void (*g_gameWorldMainLoopOrig)(GameWorld* thisptr, float time) = 0;
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
 {
@@ -75,22 +83,6 @@ bool ShouldLogBindingDebug()
 void LogDebugLine(const std::string& message)
 {
     if (ShouldLogDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogSearchDebugLine(const std::string& message)
-{
-    if (ShouldLogSearchDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogBindingDebugLine(const std::string& message)
-{
-    if (ShouldLogBindingDebug())
     {
         LogInfoLine(message);
     }
@@ -173,11 +165,107 @@ bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* ou
     return false;
 }
 
+const char* BoolToString(bool value)
+{
+    return value ? "true" : "false";
+}
+
+void LogHiddenFactionRelationsDump(const HiddenFactionRelationsSnapshot& snapshot)
+{
+    std::stringstream startLine;
+    startLine << "hidden faction relations dump begin totalFactions=" << snapshot.totalFactions
+              << " playerFactionId=" << snapshot.playerFactionId
+              << " playerFactionName=" << snapshot.playerFactionName;
+    LogInfoLine(startLine.str());
+
+    for (size_t i = 0; i < snapshot.factions.size(); ++i)
+    {
+        const HiddenFactionRelationEntry& entry = snapshot.factions[i];
+        std::stringstream line;
+        line << "faction_dump index=" << entry.index;
+
+        if (entry.isNullEntry)
+        {
+            line << " entry=null";
+            LogWarnLine(line.str());
+            continue;
+        }
+
+        line << " id=" << entry.factionId
+             << " name=" << entry.factionName
+             << " hidden=" << BoolToString(entry.isHidden)
+             << " isPlayer=" << BoolToString(entry.isPlayerFaction);
+
+        if (entry.hasPlayerRelation)
+        {
+            line << " playerRelation=" << entry.playerRelation;
+        }
+        else
+        {
+            line << " playerRelation=n/a relationState=missing";
+        }
+
+        LogInfoLine(line.str());
+    }
+
+    std::stringstream summaryLine;
+    summaryLine << "hidden faction relations dump end"
+                << " totalFactions=" << snapshot.totalFactions
+                << " hiddenFactions=" << snapshot.hiddenFactions
+                << " visibleFactions=" << snapshot.visibleFactions
+                << " nullEntries=" << snapshot.nullEntries
+                << " missingRelationEntries=" << snapshot.missingRelationEntries;
+    LogInfoLine(summaryLine.str());
+}
+
+void TryRunHiddenFactionDump(GameWorld* gameWorld)
+{
+    HiddenFactionRelationsSnapshot snapshot;
+    if (!HiddenFactionRelations_TryCollectSnapshot(gameWorld, &snapshot))
+    {
+        return;
+    }
+
+    LogHiddenFactionRelationsDump(snapshot);
+    g_hiddenFactionDumpCompleted = true;
+}
+
+void GameWorldMainLoopHook(GameWorld* thisptr, float time)
+{
+    if (!g_hiddenFactionDumpCompleted && g_dumpHiddenFactionRelations)
+    {
+        TryRunHiddenFactionDump(thisptr);
+    }
+
+    g_gameWorldMainLoopOrig(thisptr, time);
+}
+
+void InstallHiddenFactionDumpHook()
+{
+    if (!g_dumpHiddenFactionRelations || g_hiddenFactionDumpHookInstalled)
+    {
+        return;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff),
+            &GameWorldMainLoopHook,
+            &g_gameWorldMainLoopOrig))
+    {
+        LogErrorLine("failed to install hidden faction relations dump hook");
+        return;
+    }
+
+    g_hiddenFactionDumpHookInstalled = true;
+    LogInfoLine("hidden faction relations dump hook installed");
+}
+
 void LoadLoggingConfig()
 {
     g_debugLogging = false;
     g_debugSearchLogging = false;
     g_debugBindingLogging = false;
+    g_dumpHiddenFactionRelations = false;
 
     std::string configPath;
     if (!TryResolveModConfigPath(&configPath))
@@ -209,16 +297,21 @@ void LoadLoggingConfig()
     {
         g_debugBindingLogging = parsedValue;
     }
+    if (TryParseJsonBoolByKey(configText, "dumpHiddenFactionRelations", &parsedValue))
+    {
+        g_dumpHiddenFactionRelations = parsedValue;
+    }
 
     LogInfoLine("mod config loaded");
 
     if (ShouldLogDebug())
     {
         std::stringstream line;
-        line << "logging flags debugLogging=" << (g_debugLogging ? "true" : "false")
-             << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
-             << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
-             << " verboseDiagnostics=" << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
+        line << "logging flags debugLogging=" << BoolToString(g_debugLogging)
+             << " debugSearchLogging=" << BoolToString(g_debugSearchLogging)
+             << " debugBindingLogging=" << BoolToString(g_debugBindingLogging)
+             << " dumpHiddenFactionRelations=" << BoolToString(g_dumpHiddenFactionRelations)
+             << " verboseDiagnostics=" << BoolToString(ShouldCompileVerboseDiagnostics());
         LogDebugLine(line.str());
     }
 }
@@ -244,6 +337,13 @@ __declspec(dllexport) void startPlugin()
     LogInfoLine(versionLine.str());
 
     LoadLoggingConfig();
+    InstallHiddenFactionDumpHook();
+
+    const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));
+    if (!HiddenFactionRelationsPanel_Initialize(versionInfo.GetPlatform(), versionInfo.GetVersion(), baseAddress))
+    {
+        LogWarnLine("hidden faction panel initialization failed");
+    }
 
     LogDebugLine("runtime debug logging is enabled");
     LogInfoLine("base plugin initialized");

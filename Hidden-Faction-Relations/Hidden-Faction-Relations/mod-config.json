@@ -1,4 +1,7 @@
 {
   "enabled": true,
-  "debugLogging": true
+  "debugLogging": false,
+  "debugSearchLogging": false,
+  "debugBindingLogging": false,
+  "dumpHiddenFactionRelations": false
 }

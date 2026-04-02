@@ -54,6 +54,10 @@ mod-config.json starts with the shared logging baseline:
 - debugLogging
 - debugSearchLogging
 - debugBindingLogging
+- dumpHiddenFactionRelations
+
+## Usage
+Open Kenshi's Options window and switch to the `Hidden Factions` tab to read the current hidden-faction list and the player's relation to each hidden faction. The list refreshes when that tab is selected.
 
 ## License
 This project is licensed under the GNU General Public License v3.0.

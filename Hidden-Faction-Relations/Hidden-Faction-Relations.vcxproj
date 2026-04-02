@@ -87,7 +87,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\HiddenFactionRelations.cpp" />
+    <ClCompile Include="src\HiddenFactionRelationsPanel.cpp" />
     <ClCompile Include="Hidden-Faction-Relations.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\HiddenFactionRelations.h" />
+    <ClInclude Include="src\HiddenFactionRelationsPanel.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
