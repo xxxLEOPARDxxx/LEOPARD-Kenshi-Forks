@@ -24,3 +24,7 @@ dist/
 
 # Local env overrides
 .env
+
+# Generated local caches
+.boost-link-override/
+Linkednpm-cache/
