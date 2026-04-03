@@ -70,6 +70,21 @@ int GetSummaryBucket(float value)
     return 0;
 }
 
+HiddenFactionRelationsUiTone GetRelationTone(float value)
+{
+    if (value < 0.0f)
+    {
+        return HiddenFactionRelationsUiTone_Hostile;
+    }
+
+    if (value > 0.0f)
+    {
+        return HiddenFactionRelationsUiTone_Friendly;
+    }
+
+    return HiddenFactionRelationsUiTone_Neutral;
+}
+
 struct RelationAscendingComparator
 {
     bool operator()(
@@ -196,6 +211,7 @@ bool HiddenFactionRelationsUiModel_BuildView(
         row.relationBadgeText = GetRelationBadgeText(entry.playerRelation);
         row.relationValue = entry.playerRelation;
         row.hasPlayerRelation = entry.hasPlayerRelation;
+        row.relationTone = GetRelationTone(entry.playerRelation);
         outView->rows.push_back(row);
 
         const int bucket = GetSummaryBucket(entry.playerRelation);

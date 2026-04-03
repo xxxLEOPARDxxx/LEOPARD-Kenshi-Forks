@@ -590,7 +590,8 @@ void BuildSummaryCard(
     int top,
     int width,
     const char* label,
-    int value)
+    int value,
+    HiddenFactionRelationsUiTone tone)
 {
     std::stringstream valueText;
     valueText << value;
@@ -600,6 +601,22 @@ void BuildSummaryCard(
     {
         countText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
         countText->setCaption(valueText.str());
+        switch (tone)
+        {
+        case HiddenFactionRelationsUiTone_Hostile:
+            countText->setTextColour(MyGUI::Colour(0.95f, 0.33f, 0.28f, 1.0f));
+            break;
+        case HiddenFactionRelationsUiTone_Friendly:
+            countText->setTextColour(MyGUI::Colour(0.33f, 0.86f, 0.55f, 1.0f));
+            break;
+        case HiddenFactionRelationsUiTone_Neutral:
+            countText->setTextColour(MyGUI::Colour(0.90f, 0.78f, 0.38f, 1.0f));
+            break;
+        case HiddenFactionRelationsUiTone_Default:
+        default:
+            countText->setTextColour(MyGUI::Colour(0.92f, 0.92f, 0.92f, 1.0f));
+            break;
+        }
         countText->setNeedMouseFocus(false);
     }
 
@@ -608,7 +625,24 @@ void BuildSummaryCard(
     {
         labelText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
         labelText->setCaption(label);
+        labelText->setTextColour(MyGUI::Colour(0.72f, 0.72f, 0.72f, 1.0f));
         labelText->setNeedMouseFocus(false);
+    }
+}
+
+MyGUI::Colour ResolveRelationToneColour(HiddenFactionRelationsUiTone tone)
+{
+    switch (tone)
+    {
+    case HiddenFactionRelationsUiTone_Hostile:
+        return MyGUI::Colour(0.95f, 0.33f, 0.28f, 1.0f);
+    case HiddenFactionRelationsUiTone_Friendly:
+        return MyGUI::Colour(0.33f, 0.86f, 0.55f, 1.0f);
+    case HiddenFactionRelationsUiTone_Neutral:
+        return MyGUI::Colour(0.90f, 0.78f, 0.38f, 1.0f);
+    case HiddenFactionRelationsUiTone_Default:
+    default:
+        return MyGUI::Colour(0.92f, 0.92f, 0.92f, 1.0f);
     }
 }
 
@@ -780,28 +814,38 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     const int summaryGap = 6;
     const int summaryTop = 76;
     const int summaryWidth = (contentWidth - (summaryGap * 3)) / 4;
-    BuildSummaryCard(g_activePanelWidget, contentLeft, summaryTop, summaryWidth, "TOTAL HIDDEN", view.summary.shownHiddenFactions);
+    BuildSummaryCard(
+        g_activePanelWidget,
+        contentLeft,
+        summaryTop,
+        summaryWidth,
+        "TOTAL HIDDEN",
+        view.summary.shownHiddenFactions,
+        HiddenFactionRelationsUiTone_Default);
     BuildSummaryCard(
         g_activePanelWidget,
         contentLeft + (summaryWidth + summaryGap),
         summaryTop,
         summaryWidth,
         "HOSTILE",
-        view.summary.hostileCount);
+        view.summary.hostileCount,
+        HiddenFactionRelationsUiTone_Hostile);
     BuildSummaryCard(
         g_activePanelWidget,
         contentLeft + ((summaryWidth + summaryGap) * 2),
         summaryTop,
         summaryWidth,
         "FRIENDLY",
-        view.summary.friendlyCount);
+        view.summary.friendlyCount,
+        HiddenFactionRelationsUiTone_Friendly);
     BuildSummaryCard(
         g_activePanelWidget,
         contentLeft + ((summaryWidth + summaryGap) * 3),
         summaryTop,
         summaryWidth,
         "NEUTRAL",
-        view.summary.neutralCount);
+        view.summary.neutralCount,
+        HiddenFactionRelationsUiTone_Neutral);
 
     const int controlsTop = 124;
     const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
@@ -860,6 +904,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         {
             relationText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
             relationText->setCaption(row.relationValueText);
+            relationText->setTextColour(ResolveRelationToneColour(row.relationTone));
             relationText->setNeedMouseFocus(false);
         }
 
@@ -870,6 +915,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         {
             badgeText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
             badgeText->setCaption(row.relationBadgeText);
+            badgeText->setTextColour(ResolveRelationToneColour(row.relationTone));
             badgeText->setNeedMouseFocus(false);
         }
 

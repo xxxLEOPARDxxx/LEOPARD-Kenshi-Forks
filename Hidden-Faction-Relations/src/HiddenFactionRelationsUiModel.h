@@ -5,6 +5,14 @@
 #include <string>
 #include <vector>
 
+enum HiddenFactionRelationsUiTone
+{
+    HiddenFactionRelationsUiTone_Default = 0,
+    HiddenFactionRelationsUiTone_Hostile,
+    HiddenFactionRelationsUiTone_Friendly,
+    HiddenFactionRelationsUiTone_Neutral
+};
+
 struct HiddenFactionRelationsUiRow
 {
     std::string factionName;
@@ -12,6 +20,7 @@ struct HiddenFactionRelationsUiRow
     std::string relationBadgeText;
     float relationValue;
     bool hasPlayerRelation;
+    HiddenFactionRelationsUiTone relationTone;
 };
 
 struct HiddenFactionRelationsUiSummary
