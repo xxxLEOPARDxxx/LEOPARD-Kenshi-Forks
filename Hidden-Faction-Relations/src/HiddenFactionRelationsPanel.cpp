@@ -823,6 +823,8 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         return;
     }
 
+    scrollView->setCanvasAlign(MyGUI::Align::Left | MyGUI::Align::Top);
+
     MyGUI::Widget* contentParent = scrollView->getClientWidget();
     if (contentParent == 0)
     {
