@@ -154,6 +154,35 @@ bool MatchesSearch(const std::string& query, const std::string& value)
 
     return ToAsciiLower(value).find(query) != std::string::npos;
 }
+
+std::string DeriveOriginText(const HiddenFactionRelationEntry& entry)
+{
+    const std::string& sourceId = entry.factionId;
+    if (sourceId.empty())
+    {
+        return "Unknown origin";
+    }
+
+    const std::string::size_type dash = sourceId.find('-');
+    if (dash == std::string::npos || dash + 1 >= sourceId.size())
+    {
+        return sourceId;
+    }
+
+    return sourceId.substr(dash + 1);
+}
+
+bool MatchesRowSearch(const std::string& query, const HiddenFactionRelationEntry& entry)
+{
+    if (query.empty())
+    {
+        return true;
+    }
+
+    return MatchesSearch(query, entry.factionName)
+        || MatchesSearch(query, DeriveOriginText(entry));
+}
+
 }
 
 HiddenFactionRelationsUiSummary::HiddenFactionRelationsUiSummary()
@@ -200,7 +229,7 @@ bool HiddenFactionRelationsUiModel_BuildView(
             continue;
         }
 
-        if (!MatchesSearch(searchQuery, entry.factionName))
+        if (!MatchesRowSearch(searchQuery, entry))
         {
             continue;
         }
@@ -209,6 +238,7 @@ bool HiddenFactionRelationsUiModel_BuildView(
         row.factionName = entry.factionName;
         row.relationValueText = FormatRelationValue(entry.playerRelation);
         row.relationBadgeText = GetRelationBadgeText(entry.playerRelation);
+        row.originText = DeriveOriginText(entry);
         row.relationValue = entry.playerRelation;
         row.hasPlayerRelation = entry.hasPlayerRelation;
         row.relationTone = GetRelationTone(entry.playerRelation);

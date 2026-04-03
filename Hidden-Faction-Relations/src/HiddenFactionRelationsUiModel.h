@@ -18,6 +18,7 @@ struct HiddenFactionRelationsUiRow
     std::string factionName;
     std::string relationValueText;
     std::string relationBadgeText;
+    std::string originText;
     float relationValue;
     bool hasPlayerRelation;
     HiddenFactionRelationsUiTone relationTone;

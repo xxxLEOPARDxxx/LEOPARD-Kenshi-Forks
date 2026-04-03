@@ -910,13 +910,24 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
 
         MyGUI::TextBox* badgeText = CreateInlineTextBox(
             contentParent,
-            MyGUI::IntCoord(12, rowY + 20, clientWidth - 12, 18));
+            MyGUI::IntCoord(12, rowY + 20, 96, 18));
         if (badgeText != 0)
         {
             badgeText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
             badgeText->setCaption(row.relationBadgeText);
             badgeText->setTextColour(ResolveRelationToneColour(row.relationTone));
             badgeText->setNeedMouseFocus(false);
+        }
+
+        MyGUI::TextBox* originText = CreateInlineTextBox(
+            contentParent,
+            MyGUI::IntCoord(104, rowY + 20, clientWidth - 104 - rowRightPadding, 18));
+        if (originText != 0)
+        {
+            originText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+            originText->setCaption(row.originText);
+            originText->setTextColour(MyGUI::Colour(0.62f, 0.62f, 0.62f, 1.0f));
+            originText->setNeedMouseFocus(false);
         }
 
         rowY += 42;
