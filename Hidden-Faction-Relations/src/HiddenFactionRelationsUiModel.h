@@ -26,8 +26,9 @@ struct HiddenFactionRelationsUiRow
 
 struct HiddenFactionRelationsUiSummary
 {
-    int shownHiddenFactions;
-    int scannedHiddenFactions;
+    int shownFactionCount;
+    int scannedFactionCount;
+    int shownHiddenFactionCount;
     int hostileCount;
     int friendlyCount;
     int neutralCount;
@@ -43,10 +44,17 @@ enum HiddenFactionRelationsUiSortMode
     HiddenFactionRelationsUiSort_NameDescending
 };
 
+enum HiddenFactionRelationsUiScopeMode
+{
+    HiddenFactionRelationsUiScope_HiddenOnly = 0,
+    HiddenFactionRelationsUiScope_AllFactions
+};
+
 struct HiddenFactionRelationsUiOptions
 {
     std::string searchText;
     HiddenFactionRelationsUiSortMode sortMode;
+    HiddenFactionRelationsUiScopeMode scopeMode;
     bool nonZeroOnly;
 
     HiddenFactionRelationsUiOptions();
@@ -56,6 +64,7 @@ struct HiddenFactionRelationsUiView
 {
     std::string playerFactionName;
     std::string playerFactionId;
+    bool showingAllFactions;
     HiddenFactionRelationsUiSummary summary;
     std::vector<HiddenFactionRelationsUiRow> rows;
 };

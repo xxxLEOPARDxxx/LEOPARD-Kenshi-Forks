@@ -76,6 +76,7 @@ const char* kPluginName = "Hidden-Faction-Relations";
 const char* kHiddenFactionsTabName = "Hidden Factions";
 const char* kHiddenFactionsPanelName = "hidden_faction_relations_panel";
 const int kHiddenFactionsPanelLineId = 0x4846;
+const OIS::KeyCode kManualProbeHotkey = OIS::KC_F10;
 
 typedef DatapanelGUI* (*FnCreateDatapanel)(ForgottenGUI*, const std::string&, MyGUI::Widget*, bool);
 typedef void (*FnOptionsInit)(OptionsWindow*);
@@ -518,6 +519,18 @@ const char* GetSortLabel(HiddenFactionRelationsUiSortMode sortMode)
     }
 }
 
+const char* GetScopeLabel(HiddenFactionRelationsUiScopeMode scopeMode)
+{
+    switch (scopeMode)
+    {
+    case HiddenFactionRelationsUiScope_AllFactions:
+        return "Scope: all";
+    case HiddenFactionRelationsUiScope_HiddenOnly:
+    default:
+        return "Scope: hidden";
+    }
+}
+
 void OnSearchTextChanged(MyGUI::EditBox* sender)
 {
     if (sender == 0)
@@ -580,6 +593,27 @@ void OnNonZeroToggleClick(MyGUI::Widget* sender)
 
     g_uiOptions.nonZeroOnly = !g_uiOptions.nonZeroOnly;
     button->setStateSelected(g_uiOptions.nonZeroOnly);
+    RequestPanelRefresh();
+}
+
+void OnScopeToggleClick(MyGUI::Widget* sender)
+{
+    MyGUI::Button* button = sender != 0 ? sender->castType<MyGUI::Button>(false) : 0;
+    if (button == 0)
+    {
+        return;
+    }
+
+    if (g_uiOptions.scopeMode == HiddenFactionRelationsUiScope_HiddenOnly)
+    {
+        g_uiOptions.scopeMode = HiddenFactionRelationsUiScope_AllFactions;
+    }
+    else
+    {
+        g_uiOptions.scopeMode = HiddenFactionRelationsUiScope_HiddenOnly;
+    }
+
+    button->setCaption(GetScopeLabel(g_uiOptions.scopeMode));
     RequestPanelRefresh();
 }
 
@@ -670,13 +704,14 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
 {
     int searchWidth = HiddenFactionRelationsConfig_GetSearchInputWidth();
     const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
-    const int sortWidth = width > 640 ? 190 : 170;
-    const int toggleWidth = 150;
+    const int sortWidth = width > 700 ? 180 : 160;
+    const int toggleWidth = 138;
+    const int scopeWidth = 112;
     const int minSearchWidth = 120;
     const int gap = 8;
     const int labelTop = top;
     const int controlTop = top + 16;
-    const int maxSearchWidth = width - sortWidth - toggleWidth - (gap * 2);
+    const int maxSearchWidth = width - sortWidth - toggleWidth - scopeWidth - (gap * 3);
     if (maxSearchWidth > 0 && searchWidth > maxSearchWidth)
     {
         searchWidth = maxSearchWidth;
@@ -749,6 +784,23 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
         toggleButton->setNeedMouseFocus(true);
         toggleButton->eventMouseButtonClick += MyGUI::newDelegate(&OnNonZeroToggleClick);
     }
+
+    const int scopeLeft = toggleLeft + toggleWidth + gap;
+    MyGUI::TextBox* scopeLabel = CreateTrackedTextBox(parent, MyGUI::IntCoord(scopeLeft, labelTop, scopeWidth, 14));
+    if (scopeLabel != 0)
+    {
+        scopeLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        scopeLabel->setCaption("Scope");
+        scopeLabel->setNeedMouseFocus(false);
+    }
+
+    MyGUI::Button* scopeButton = CreateTrackedButton(parent, MyGUI::IntCoord(scopeLeft, controlTop, scopeWidth, searchHeight));
+    if (scopeButton != 0)
+    {
+        scopeButton->setCaption(GetScopeLabel(g_uiOptions.scopeMode));
+        scopeButton->setNeedMouseFocus(true);
+        scopeButton->eventMouseButtonClick += MyGUI::newDelegate(&OnScopeToggleClick);
+    }
 }
 
 void BuildEmptyResultsState(
@@ -757,10 +809,14 @@ void BuildEmptyResultsState(
     int& rowY,
     const HiddenFactionRelationsUiView& view)
 {
-    const char* message = "No hidden factions match the current view.";
-    if (view.summary.scannedHiddenFactions == 0)
+    const char* message = view.showingAllFactions
+        ? "No factions match the current view."
+        : "No hidden factions match the current view.";
+    if (view.summary.scannedFactionCount == 0)
     {
-        message = "No hidden factions were available in the current world.";
+        message = view.showingAllFactions
+            ? "No factions with relation data were available in the current world."
+            : "No hidden factions were available in the current world.";
     }
 
     MyGUI::TextBox* emptyText = CreateInlineTextBox(
@@ -801,9 +857,9 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     }
 
     std::stringstream subtitleText;
-    subtitleText << "Showing " << view.summary.shownHiddenFactions
-                 << " / " << view.summary.scannedHiddenFactions
-                 << " hidden factions";
+    subtitleText << "Showing " << view.summary.shownFactionCount
+                 << " / " << view.summary.scannedFactionCount
+                 << (view.showingAllFactions ? " factions" : " hidden factions");
     MyGUI::TextBox* subtitle = CreateTrackedTextBox(
         g_activePanelWidget,
         MyGUI::IntCoord(contentLeft, 34, contentWidth, 20));
@@ -839,8 +895,8 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         contentLeft,
         summaryTop,
         summaryWidth,
-        "TOTAL HIDDEN",
-        view.summary.shownHiddenFactions,
+        view.showingAllFactions ? "TOTAL SHOWN" : "TOTAL HIDDEN",
+        view.summary.shownFactionCount,
         HiddenFactionRelationsUiTone_Default);
     BuildSummaryCard(
         g_activePanelWidget,
@@ -1167,6 +1223,29 @@ bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode k
     return false;
 }
 
+bool HandleManualProbeShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
+{
+    if (inputHandler == 0
+        || keyCode != kManualProbeHotkey
+        || !inputHandler->ctrl
+        || !inputHandler->alt
+        || !inputHandler->shift)
+    {
+        return false;
+    }
+
+    if (HiddenFactionRelations_TryLogAllFactionProbe(ou))
+    {
+        LogInfoLine("manual all-factions probe dumped via Ctrl+Alt+Shift+F10");
+    }
+    else
+    {
+        LogErrorLine("manual all-factions probe failed; no initialized world/faction state");
+    }
+
+    return true;
+}
+
 void BindGuiFrameStartBestEffort()
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
@@ -1283,6 +1362,11 @@ void OptionsWindowSaveHook(OptionsWindow* self)
 void InputHandlerKeyDownHook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
     if (HandleOpenHiddenFactionsShortcut(thisptr, keyCode))
+    {
+        return;
+    }
+
+    if (HandleManualProbeShortcut(thisptr, keyCode))
     {
         return;
     }

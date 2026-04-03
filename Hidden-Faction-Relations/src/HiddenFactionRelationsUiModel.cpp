@@ -186,8 +186,9 @@ bool MatchesRowSearch(const std::string& query, const HiddenFactionRelationEntry
 }
 
 HiddenFactionRelationsUiSummary::HiddenFactionRelationsUiSummary()
-    : shownHiddenFactions(0)
-    , scannedHiddenFactions(0)
+    : shownFactionCount(0)
+    , scannedFactionCount(0)
+    , shownHiddenFactionCount(0)
     , hostileCount(0)
     , friendlyCount(0)
     , neutralCount(0)
@@ -196,6 +197,7 @@ HiddenFactionRelationsUiSummary::HiddenFactionRelationsUiSummary()
 
 HiddenFactionRelationsUiOptions::HiddenFactionRelationsUiOptions()
     : sortMode(HiddenFactionRelationsUiSort_RelationAscending)
+    , scopeMode(HiddenFactionRelationsUiScope_HiddenOnly)
     , nonZeroOnly(true)
 {
 }
@@ -213,16 +215,23 @@ bool HiddenFactionRelationsUiModel_BuildView(
     *outView = HiddenFactionRelationsUiView();
     outView->playerFactionName = snapshot.playerFactionName;
     outView->playerFactionId = snapshot.playerFactionId;
-    outView->summary.scannedHiddenFactions = snapshot.hiddenFactions;
+    outView->showingAllFactions = (options.scopeMode == HiddenFactionRelationsUiScope_AllFactions);
     const std::string searchQuery = ToAsciiLower(options.searchText);
 
     for (size_t i = 0; i < snapshot.factions.size(); ++i)
     {
         const HiddenFactionRelationEntry& entry = snapshot.factions[i];
-        if (entry.isNullEntry || !entry.isHidden || !entry.hasPlayerRelation)
+        if (entry.isNullEntry || !entry.hasPlayerRelation)
         {
             continue;
         }
+
+        if (!outView->showingAllFactions && !entry.isHidden)
+        {
+            continue;
+        }
+
+        ++outView->summary.scannedFactionCount;
 
         if (options.nonZeroOnly && IsEffectivelyZero(entry.playerRelation))
         {
@@ -243,6 +252,10 @@ bool HiddenFactionRelationsUiModel_BuildView(
         row.hasPlayerRelation = entry.hasPlayerRelation;
         row.relationTone = GetRelationTone(entry.playerRelation);
         outView->rows.push_back(row);
+        if (entry.isHidden)
+        {
+            ++outView->summary.shownHiddenFactionCount;
+        }
 
         const int bucket = GetSummaryBucket(entry.playerRelation);
         if (bucket < 0)
@@ -275,6 +288,6 @@ bool HiddenFactionRelationsUiModel_BuildView(
         std::stable_sort(outView->rows.begin(), outView->rows.end(), RelationAscendingComparator());
         break;
     }
-    outView->summary.shownHiddenFactions = static_cast<int>(outView->rows.size());
+    outView->summary.shownFactionCount = static_cast<int>(outView->rows.size());
     return true;
 }

@@ -34,3 +34,5 @@ struct HiddenFactionRelationsSnapshot
 bool HiddenFactionRelations_TryCollectSnapshot(
     GameWorld* gameWorld,
     HiddenFactionRelationsSnapshot* outSnapshot);
+
+bool HiddenFactionRelations_TryLogAllFactionProbe(GameWorld* gameWorld);
