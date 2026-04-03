@@ -25,6 +25,23 @@ struct HiddenFactionRelationsUiSummary
     HiddenFactionRelationsUiSummary();
 };
 
+enum HiddenFactionRelationsUiSortMode
+{
+    HiddenFactionRelationsUiSort_RelationAscending = 0,
+    HiddenFactionRelationsUiSort_RelationDescending,
+    HiddenFactionRelationsUiSort_NameAscending,
+    HiddenFactionRelationsUiSort_NameDescending
+};
+
+struct HiddenFactionRelationsUiOptions
+{
+    std::string searchText;
+    HiddenFactionRelationsUiSortMode sortMode;
+    bool nonZeroOnly;
+
+    HiddenFactionRelationsUiOptions();
+};
+
 struct HiddenFactionRelationsUiView
 {
     std::string playerFactionName;
@@ -33,6 +50,7 @@ struct HiddenFactionRelationsUiView
     std::vector<HiddenFactionRelationsUiRow> rows;
 };
 
-bool HiddenFactionRelationsUiModel_BuildDefaultView(
+bool HiddenFactionRelationsUiModel_BuildView(
     const HiddenFactionRelationsSnapshot& snapshot,
+    const HiddenFactionRelationsUiOptions& options,
     HiddenFactionRelationsUiView* outView);

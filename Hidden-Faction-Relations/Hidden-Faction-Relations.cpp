@@ -1,4 +1,6 @@
 #include "src/HiddenFactionRelations.h"
+#include "src/HiddenFactionRelationsConfig.h"
+#include "src/HiddenFactionRelationsModHub.h"
 #include "src/HiddenFactionRelationsPanel.h"
 
 #include <Debug.h>
@@ -9,19 +11,12 @@
 
 #include <Windows.h>
 
-#include <cctype>
-#include <fstream>
 #include <sstream>
 #include <string>
 
 namespace
 {
 const char* kPluginName = "Hidden-Faction-Relations";
-std::string g_configPath;
-bool g_debugLogging = false;
-bool g_debugSearchLogging = false;
-bool g_debugBindingLogging = false;
-bool g_dumpHiddenFactionRelations = false;
 bool g_hiddenFactionDumpCompleted = false;
 bool g_hiddenFactionDumpHookInstalled = false;
 void (*g_gameWorldMainLoopOrig)(GameWorld* thisptr, float time) = 0;
@@ -67,17 +62,17 @@ bool ShouldCompileVerboseDiagnostics()
 
 bool ShouldLogDebug()
 {
-    return g_debugLogging;
+    return HiddenFactionRelationsConfig_IsDebugLoggingEnabled();
 }
 
 bool ShouldLogSearchDebug()
 {
-    return g_debugLogging && g_debugSearchLogging;
+    return HiddenFactionRelationsConfig_IsDebugSearchLoggingEnabled();
 }
 
 bool ShouldLogBindingDebug()
 {
-    return g_debugLogging && g_debugBindingLogging;
+    return HiddenFactionRelationsConfig_IsDebugBindingLoggingEnabled();
 }
 
 void LogDebugLine(const std::string& message)
@@ -86,88 +81,6 @@ void LogDebugLine(const std::string& message)
     {
         LogInfoLine(message);
     }
-}
-
-bool TryResolveModConfigPath(std::string* outPath)
-{
-    if (outPath == 0 || g_configPath.empty())
-    {
-        return false;
-    }
-
-    *outPath = g_configPath;
-    return true;
-}
-
-bool TryReadTextFile(const std::string& path, std::string* outContent)
-{
-    if (outContent == 0)
-    {
-        return false;
-    }
-
-    std::ifstream input(path.c_str(), std::ios::in | std::ios::binary);
-    if (!input)
-    {
-        return false;
-    }
-
-    std::stringstream buffer;
-    buffer << input.rdbuf();
-    if (!input.good() && !input.eof())
-    {
-        return false;
-    }
-
-    *outContent = buffer.str();
-    return true;
-}
-
-bool TryParseJsonBoolByKey(const std::string& content, const char* key, bool* outValue)
-{
-    if (key == 0 || outValue == 0)
-    {
-        return false;
-    }
-
-    const std::string needle = std::string("\"") + key + "\"";
-    const std::string::size_type keyPos = content.find(needle);
-    if (keyPos == std::string::npos)
-    {
-        return false;
-    }
-
-    std::string::size_type valuePos = content.find(':', keyPos + needle.size());
-    if (valuePos == std::string::npos)
-    {
-        return false;
-    }
-
-    ++valuePos;
-    while (valuePos < content.size()
-        && std::isspace(static_cast<unsigned char>(content[valuePos])) != 0)
-    {
-        ++valuePos;
-    }
-
-    if (content.compare(valuePos, 4, "true") == 0)
-    {
-        *outValue = true;
-        return true;
-    }
-
-    if (content.compare(valuePos, 5, "false") == 0)
-    {
-        *outValue = false;
-        return true;
-    }
-
-    return false;
-}
-
-const char* BoolToString(bool value)
-{
-    return value ? "true" : "false";
 }
 
 void LogHiddenFactionRelationsDump(const HiddenFactionRelationsSnapshot& snapshot)
@@ -193,8 +106,8 @@ void LogHiddenFactionRelationsDump(const HiddenFactionRelationsSnapshot& snapsho
 
         line << " id=" << entry.factionId
              << " name=" << entry.factionName
-             << " hidden=" << BoolToString(entry.isHidden)
-             << " isPlayer=" << BoolToString(entry.isPlayerFaction);
+             << " hidden=" << HiddenFactionRelationsConfig_BoolToString(entry.isHidden)
+             << " isPlayer=" << HiddenFactionRelationsConfig_BoolToString(entry.isPlayerFaction);
 
         if (entry.hasPlayerRelation)
         {
@@ -232,7 +145,7 @@ void TryRunHiddenFactionDump(GameWorld* gameWorld)
 
 void GameWorldMainLoopHook(GameWorld* thisptr, float time)
 {
-    if (!g_hiddenFactionDumpCompleted && g_dumpHiddenFactionRelations)
+    if (!g_hiddenFactionDumpCompleted && HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations())
     {
         TryRunHiddenFactionDump(thisptr);
     }
@@ -242,7 +155,7 @@ void GameWorldMainLoopHook(GameWorld* thisptr, float time)
 
 void InstallHiddenFactionDumpHook()
 {
-    if (!g_dumpHiddenFactionRelations || g_hiddenFactionDumpHookInstalled)
+    if (!HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations() || g_hiddenFactionDumpHookInstalled)
     {
         return;
     }
@@ -262,56 +175,28 @@ void InstallHiddenFactionDumpHook()
 
 void LoadLoggingConfig()
 {
-    g_debugLogging = false;
-    g_debugSearchLogging = false;
-    g_debugBindingLogging = false;
-    g_dumpHiddenFactionRelations = false;
-
-    std::string configPath;
-    if (!TryResolveModConfigPath(&configPath))
-    {
-        LogWarnLine("mod config load skipped: could not resolve plugin directory (using quiet logging defaults)");
-        return;
-    }
-
-    std::string configText;
-    if (!TryReadTextFile(configPath, &configText))
+    std::string loadError;
+    if (!HiddenFactionRelationsConfig_Load(&loadError))
     {
         std::stringstream line;
-        line << "mod config load skipped: could not read " << configPath
+        line << "mod config load skipped: " << loadError
              << " (using quiet logging defaults)";
         LogWarnLine(line.str());
         return;
-    }
-
-    bool parsedValue = false;
-    if (TryParseJsonBoolByKey(configText, "debugLogging", &parsedValue))
-    {
-        g_debugLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugSearchLogging", &parsedValue))
-    {
-        g_debugSearchLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "debugBindingLogging", &parsedValue))
-    {
-        g_debugBindingLogging = parsedValue;
-    }
-    if (TryParseJsonBoolByKey(configText, "dumpHiddenFactionRelations", &parsedValue))
-    {
-        g_dumpHiddenFactionRelations = parsedValue;
     }
 
     LogInfoLine("mod config loaded");
 
     if (ShouldLogDebug())
     {
+        const HiddenFactionRelationsConfigSnapshot config = HiddenFactionRelationsConfig_Capture();
         std::stringstream line;
-        line << "logging flags debugLogging=" << BoolToString(g_debugLogging)
-             << " debugSearchLogging=" << BoolToString(g_debugSearchLogging)
-             << " debugBindingLogging=" << BoolToString(g_debugBindingLogging)
-             << " dumpHiddenFactionRelations=" << BoolToString(g_dumpHiddenFactionRelations)
-             << " verboseDiagnostics=" << BoolToString(ShouldCompileVerboseDiagnostics());
+        line << "logging flags debugLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugLogging)
+             << " debugSearchLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugSearchLogging)
+             << " debugBindingLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugBindingLogging)
+             << " dumpHiddenFactionRelations=" << HiddenFactionRelationsConfig_BoolToString(config.dumpHiddenFactionRelations)
+             << " autoFocusSearchOnOpen=" << HiddenFactionRelationsConfig_BoolToString(config.autoFocusSearchOnOpen)
+             << " verboseDiagnostics=" << HiddenFactionRelationsConfig_BoolToString(ShouldCompileVerboseDiagnostics());
         LogDebugLine(line.str());
     }
 }
@@ -338,6 +223,7 @@ __declspec(dllexport) void startPlugin()
 
     LoadLoggingConfig();
     InstallHiddenFactionDumpHook();
+    HiddenFactionRelationsModHub_OnStartup();
 
     const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));
     if (!HiddenFactionRelationsPanel_Initialize(versionInfo.GetPlatform(), versionInfo.GetVersion(), baseAddress))
@@ -360,7 +246,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
             const std::string::size_type sep = fullPath.find_last_of("\\/");
             if (sep != std::string::npos)
             {
-                g_configPath = fullPath.substr(0, sep) + "\\mod-config.json";
+                HiddenFactionRelationsConfig_SetConfigPath(fullPath.substr(0, sep) + "\\mod-config.json");
             }
         }
     }

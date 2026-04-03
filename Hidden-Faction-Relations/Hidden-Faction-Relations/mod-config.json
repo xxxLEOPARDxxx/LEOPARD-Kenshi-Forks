@@ -3,5 +3,12 @@
   "debugLogging": false,
   "debugSearchLogging": false,
   "debugBindingLogging": false,
-  "dumpHiddenFactionRelations": false
+  "dumpHiddenFactionRelations": false,
+  "autoFocusSearchOnOpen": true,
+  "openMenuRequireCtrl": true,
+  "openMenuRequireShift": false,
+  "openMenuRequireAlt": true,
+  "searchInputWidth": 270,
+  "searchInputHeight": 34,
+  "openMenuKeycode": 34
 }

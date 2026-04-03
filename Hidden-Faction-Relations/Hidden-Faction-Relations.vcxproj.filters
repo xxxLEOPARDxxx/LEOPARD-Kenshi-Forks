@@ -15,6 +15,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\HiddenFactionRelationsConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HiddenFactionRelationsModHub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\HiddenFactionRelations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -24,12 +30,21 @@
     <ClCompile Include="src\HiddenFactionRelationsUiModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Hidden-Faction-Relations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\HiddenFactionRelationsConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\HiddenFactionRelations.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\HiddenFactionRelationsModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\HiddenFactionRelationsPanel.h">

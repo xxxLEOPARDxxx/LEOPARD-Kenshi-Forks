@@ -46,12 +46,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)include;$(ProjectDir)tools\mod-hub-sdk\include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
     <LibraryPath>$(BOOST_LINK_OVERRIDE_PATH);$(KENSHILIB_DIR)\Libraries;$(BOOST_INCLUDE_PATH)\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(ProjectDir)include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
+    <IncludePath>$(ProjectDir)include;$(ProjectDir)tools\mod-hub-sdk\include;$(KENSHILIB_DIR)\Include;$(KENSHILIB_DIR)\Include\ogre;$(BOOST_INCLUDE_PATH);$(IncludePath)</IncludePath>
     <LibraryPath>$(BOOST_LINK_OVERRIDE_PATH);$(KENSHILIB_DIR)\Libraries;$(BOOST_INCLUDE_PATH)\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -87,13 +87,18 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\HiddenFactionRelationsConfig.cpp" />
+    <ClCompile Include="src\HiddenFactionRelationsModHub.cpp" />
     <ClCompile Include="src\HiddenFactionRelations.cpp" />
     <ClCompile Include="src\HiddenFactionRelationsPanel.cpp" />
     <ClCompile Include="src\HiddenFactionRelationsUiModel.cpp" />
+    <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
     <ClCompile Include="Hidden-Faction-Relations.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\HiddenFactionRelationsConfig.h" />
     <ClInclude Include="src\HiddenFactionRelations.h" />
+    <ClInclude Include="src\HiddenFactionRelationsModHub.h" />
     <ClInclude Include="src\HiddenFactionRelationsPanel.h" />
     <ClInclude Include="src\HiddenFactionRelationsUiModel.h" />
   </ItemGroup>

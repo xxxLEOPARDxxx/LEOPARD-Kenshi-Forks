@@ -1,16 +1,22 @@
 #include "HiddenFactionRelationsPanel.h"
 
 #include "HiddenFactionRelations.h"
+#include "HiddenFactionRelationsConfig.h"
 #include "HiddenFactionRelationsUiModel.h"
 
 #include <Debug.h>
 
 #include <core/Functions.h>
 #include <kenshi/Globals.h>
+#include <kenshi/InputHandler.h>
 #include <kenshi/TitleScreen.h>
 #include <kenshi/util/lektor.h>
 
+#include <mygui/MyGUI_Button.h>
+#include <mygui/MyGUI_ComboBox.h>
+#include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_InputManager.h>
 #include <mygui/MyGUI_ScrollView.h>
 #include <mygui/MyGUI_TabControl.h>
 #include <mygui/MyGUI_TabItem.h>
@@ -19,6 +25,7 @@
 
 #include <Windows.h>
 
+#include <cctype>
 #include <sstream>
 #include <vector>
 
@@ -73,19 +80,52 @@ const int kHiddenFactionsPanelLineId = 0x4846;
 typedef DatapanelGUI* (*FnCreateDatapanel)(ForgottenGUI*, const std::string&, MyGUI::Widget*, bool);
 typedef void (*FnOptionsInit)(OptionsWindow*);
 typedef void (*FnOptionsSave)(OptionsWindow*);
+typedef void (*FnInputHandlerKeyDown)(InputHandler*, OIS::KeyCode);
+typedef OptionsWindow* (*FnGetOptionsWindow)();
+typedef void (*FnOpenOptionsWindow)(OptionsWindow*);
 
 FnCreateDatapanel g_fnCreateDatapanel = 0;
 FnOptionsInit g_fnOptionsInit = 0;
 FnOptionsSave g_fnOptionsSave = 0;
 FnOptionsInit g_fnOptionsInitOrig = 0;
 FnOptionsSave g_fnOptionsSaveOrig = 0;
+FnInputHandlerKeyDown g_fnInputHandlerKeyDownOrig = 0;
+FnGetOptionsWindow g_fnGetOptionsWindow = 0;
+FnOpenOptionsWindow g_fnOpenOptionsWindow = 0;
 ForgottenGUI* g_ptrKenshiGUI = 0;
 
 OptionsWindow* g_activeOptionsWindow = 0;
 DatapanelGUI* g_activePanel = 0;
 MyGUI::Widget* g_activePanelWidget = 0;
 MyGUI::TabControl* g_boundOptionsTab = 0;
+MyGUI::EditBox* g_activeSearchEdit = 0;
+MyGUI::Gui* g_boundGui = 0;
 std::vector<MyGUI::Widget*> g_dynamicWidgets;
+HiddenFactionRelationsUiOptions g_uiOptions;
+bool g_focusSearchOnNextRefresh = false;
+bool g_refreshPending = false;
+bool g_selectHiddenFactionsOnNextOptionsInit = false;
+bool g_restoreSearchCursorOnNextRefresh = false;
+size_t g_searchCursorPosition = 0;
+
+struct PendingSearchEditShortcut
+{
+    bool active;
+    int keyValue;
+    bool rewriteText;
+    MyGUI::UString text;
+    size_t cursorPosition;
+
+    PendingSearchEditShortcut()
+        : active(false)
+        , keyValue(0)
+        , rewriteText(false)
+        , cursorPosition(0)
+    {
+    }
+};
+
+PendingSearchEditShortcut g_pendingSearchEditShortcut;
 
 void LogInfoLine(const std::string& message)
 {
@@ -154,6 +194,34 @@ MyGUI::TextBox* CreateInlineTextBox(MyGUI::Widget* parent, const MyGUI::IntCoord
     return CreateWidgetWithFallback<MyGUI::TextBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, false);
 }
 
+MyGUI::EditBox* CreateTrackedEditBox(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
+{
+    const char* skins[] = {
+        "Kenshi_EditBox",
+        "EditBox"
+    };
+    return CreateWidgetWithFallback<MyGUI::EditBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, true);
+}
+
+MyGUI::ComboBox* CreateTrackedComboBox(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
+{
+    const char* skins[] = {
+        "Kenshi_ComboBox",
+        "ComboBox"
+    };
+    return CreateWidgetWithFallback<MyGUI::ComboBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, true);
+}
+
+MyGUI::Button* CreateTrackedButton(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
+{
+    const char* skins[] = {
+        "Kenshi_Button1",
+        "Kenshi_Button",
+        "Button"
+    };
+    return CreateWidgetWithFallback<MyGUI::Button>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, true);
+}
+
 MyGUI::ScrollView* CreateTrackedScrollView(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
 {
     const char* skins[] = {
@@ -167,6 +235,7 @@ MyGUI::ScrollView* CreateTrackedScrollView(MyGUI::Widget* parent, const MyGUI::I
 
 void DestroyDynamicWidgets()
 {
+    g_activeSearchEdit = 0;
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
     {
@@ -192,6 +261,306 @@ void ClearActiveUiState()
     g_activeOptionsWindow = 0;
     g_activePanel = 0;
     g_activePanelWidget = 0;
+    g_focusSearchOnNextRefresh = false;
+    g_refreshPending = false;
+    g_restoreSearchCursorOnNextRefresh = false;
+    g_searchCursorPosition = 0;
+    g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+}
+
+void RefreshPanelContents();
+bool IsHiddenFactionsTabCurrentlySelected(OptionsWindow* self);
+
+void RequestPanelRefresh()
+{
+    g_refreshPending = true;
+}
+
+void RequestSearchFocusOnNextRefresh()
+{
+    g_focusSearchOnNextRefresh = true;
+}
+
+void RequestSearchCursorRestoreOnNextRefresh(size_t cursorPosition)
+{
+    g_restoreSearchCursorOnNextRefresh = true;
+    g_searchCursorPosition = cursorPosition;
+}
+
+bool IsSearchTokenSeparator(MyGUI::UString::unicode_char value)
+{
+    if (value < 0x80u)
+    {
+        const unsigned char byte = static_cast<unsigned char>(value);
+        return std::isspace(byte) != 0 || !std::isalnum(byte);
+    }
+
+    return false;
+}
+
+size_t ClampCursor(size_t cursor, size_t length)
+{
+    return cursor > length ? length : cursor;
+}
+
+size_t FindPreviousSearchTokenBoundary(const MyGUI::UString& text, size_t cursor)
+{
+    const size_t length = text.size();
+    size_t position = ClampCursor(cursor, length);
+
+    while (position > 0 && IsSearchTokenSeparator(text[position - 1]))
+    {
+        --position;
+    }
+
+    while (position > 0 && !IsSearchTokenSeparator(text[position - 1]))
+    {
+        --position;
+    }
+
+    return position;
+}
+
+size_t FindNextSearchTokenBoundary(const MyGUI::UString& text, size_t cursor)
+{
+    const size_t length = text.size();
+    size_t position = ClampCursor(cursor, length);
+
+    while (position < length && !IsSearchTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    while (position < length && IsSearchTokenSeparator(text[position]))
+    {
+        ++position;
+    }
+
+    return position;
+}
+
+void FocusSearchEditBestEffort()
+{
+    if (g_activeSearchEdit == 0)
+    {
+        return;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0)
+    {
+        return;
+    }
+
+    inputManager->setKeyFocusWidget(g_activeSearchEdit);
+}
+
+void FocusSearchEditIfRequested()
+{
+    if (!g_focusSearchOnNextRefresh)
+    {
+        return;
+    }
+
+    g_focusSearchOnNextRefresh = false;
+    FocusSearchEditBestEffort();
+}
+
+bool IsInterestingSearchEditShortcutKey(MyGUI::KeyCode keyCode)
+{
+    const int value = keyCode.getValue();
+    return value == MyGUI::KeyCode::ArrowLeft
+        || value == MyGUI::KeyCode::ArrowRight
+        || value == MyGUI::KeyCode::Delete;
+}
+
+void ApplySearchEditCursor(MyGUI::EditBox* searchEdit, size_t cursorPosition)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    const size_t clampedCursor = ClampCursor(cursorPosition, searchEdit->getTextLength());
+    searchEdit->setTextCursor(clampedCursor);
+    searchEdit->setTextSelection(clampedCursor, clampedCursor);
+}
+
+bool ScheduleSearchEditShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (searchEdit == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0 || !inputManager->isControlPressed())
+    {
+        return false;
+    }
+
+    const MyGUI::UString text = searchEdit->getOnlyText();
+    const size_t textLength = text.size();
+    const size_t cursor = ClampCursor(searchEdit->getTextCursor(), textLength);
+
+    g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+    g_pendingSearchEditShortcut.active = true;
+    g_pendingSearchEditShortcut.keyValue = keyCode.getValue();
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowLeft)
+    {
+        g_pendingSearchEditShortcut.cursorPosition = FindPreviousSearchTokenBoundary(text, cursor);
+        return true;
+    }
+
+    if (keyCode.getValue() == MyGUI::KeyCode::ArrowRight)
+    {
+        g_pendingSearchEditShortcut.cursorPosition = FindNextSearchTokenBoundary(text, cursor);
+        return true;
+    }
+
+    if (keyCode.getValue() != MyGUI::KeyCode::Delete)
+    {
+        g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+        return false;
+    }
+
+    g_pendingSearchEditShortcut.rewriteText = true;
+    MyGUI::UString updated = text;
+
+    if (searchEdit->isTextSelection())
+    {
+        size_t selectionStart = searchEdit->getTextSelectionStart();
+        size_t selectionLength = searchEdit->getTextSelectionLength();
+        if (selectionStart != MyGUI::ITEM_NONE && selectionLength != 0)
+        {
+            selectionStart = ClampCursor(selectionStart, textLength);
+            if (selectionStart + selectionLength > textLength)
+            {
+                selectionLength = textLength - selectionStart;
+            }
+
+            updated.erase(selectionStart, selectionLength);
+            g_pendingSearchEditShortcut.cursorPosition = selectionStart;
+            g_pendingSearchEditShortcut.text = updated;
+            return true;
+        }
+    }
+
+    const size_t deleteEnd = FindNextSearchTokenBoundary(text, cursor);
+    if (deleteEnd != cursor)
+    {
+        updated.erase(cursor, deleteEnd - cursor);
+    }
+
+    g_pendingSearchEditShortcut.cursorPosition = cursor;
+    g_pendingSearchEditShortcut.text = updated;
+    return true;
+}
+
+void ApplyPendingSearchEditShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (!g_pendingSearchEditShortcut.active
+        || g_pendingSearchEditShortcut.keyValue != keyCode.getValue())
+    {
+        return;
+    }
+
+    const PendingSearchEditShortcut pending = g_pendingSearchEditShortcut;
+    g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    if (pending.rewriteText)
+    {
+        searchEdit->setOnlyText(pending.text);
+    }
+
+    ApplySearchEditCursor(searchEdit, pending.cursorPosition);
+}
+
+const char* GetSortLabel(HiddenFactionRelationsUiSortMode sortMode)
+{
+    switch (sortMode)
+    {
+    case HiddenFactionRelationsUiSort_RelationDescending:
+        return "Relation descending";
+    case HiddenFactionRelationsUiSort_NameAscending:
+        return "Name A-Z";
+    case HiddenFactionRelationsUiSort_NameDescending:
+        return "Name Z-A";
+    case HiddenFactionRelationsUiSort_RelationAscending:
+    default:
+        return "Relation ascending";
+    }
+}
+
+void OnSearchTextChanged(MyGUI::EditBox* sender)
+{
+    if (sender == 0)
+    {
+        return;
+    }
+
+    g_uiOptions.searchText = sender->getOnlyText();
+    RequestSearchFocusOnNextRefresh();
+    RequestSearchCursorRestoreOnNextRefresh(sender->getTextCursor());
+    RequestPanelRefresh();
+}
+
+void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character)
+{
+    (void)character;
+
+    if (sender == 0 || !IsInterestingSearchEditShortcutKey(keyCode))
+    {
+        return;
+    }
+
+    ScheduleSearchEditShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+}
+
+void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
+{
+    if (sender == 0 || !IsInterestingSearchEditShortcutKey(keyCode))
+    {
+        g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+        return;
+    }
+
+    ApplyPendingSearchEditShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+}
+
+void OnSortChanged(MyGUI::ComboBox* sender, size_t index)
+{
+    if (sender == 0 || index == MyGUI::ITEM_NONE)
+    {
+        return;
+    }
+
+    if (index > static_cast<size_t>(HiddenFactionRelationsUiSort_NameDescending))
+    {
+        return;
+    }
+
+    g_uiOptions.sortMode = static_cast<HiddenFactionRelationsUiSortMode>(index);
+    RequestPanelRefresh();
+}
+
+void OnNonZeroToggleClick(MyGUI::Widget* sender)
+{
+    MyGUI::Button* button = sender != 0 ? sender->castType<MyGUI::Button>(false) : 0;
+    if (button == 0)
+    {
+        return;
+    }
+
+    g_uiOptions.nonZeroOnly = !g_uiOptions.nonZeroOnly;
+    button->setStateSelected(g_uiOptions.nonZeroOnly);
+    RequestPanelRefresh();
 }
 
 void BuildUnavailableState(const std::string& message)
@@ -240,6 +609,91 @@ void BuildSummaryCard(
         labelText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
         labelText->setCaption(label);
         labelText->setNeedMouseFocus(false);
+    }
+}
+
+void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
+{
+    int searchWidth = HiddenFactionRelationsConfig_GetSearchInputWidth();
+    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
+    const int sortWidth = width > 640 ? 190 : 170;
+    const int toggleWidth = 150;
+    const int minSearchWidth = 120;
+    const int gap = 8;
+    const int labelTop = top;
+    const int controlTop = top + 16;
+    const int maxSearchWidth = width - sortWidth - toggleWidth - (gap * 2);
+    if (maxSearchWidth > 0 && searchWidth > maxSearchWidth)
+    {
+        searchWidth = maxSearchWidth;
+    }
+    if (searchWidth < minSearchWidth)
+    {
+        searchWidth = minSearchWidth;
+    }
+
+    MyGUI::TextBox* searchLabel = CreateTrackedTextBox(parent, MyGUI::IntCoord(left, labelTop, searchWidth, 14));
+    if (searchLabel != 0)
+    {
+        searchLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        searchLabel->setCaption("Search");
+        searchLabel->setNeedMouseFocus(false);
+    }
+
+    MyGUI::EditBox* searchBox = CreateTrackedEditBox(parent, MyGUI::IntCoord(left, controlTop, searchWidth, searchHeight));
+    if (searchBox != 0)
+    {
+        searchBox->setEditMultiLine(false);
+        searchBox->setOnlyText(g_uiOptions.searchText);
+        searchBox->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
+        searchBox->eventKeyButtonPressed += MyGUI::newDelegate(&OnSearchEditKeyPressed);
+        searchBox->eventKeyButtonReleased += MyGUI::newDelegate(&OnSearchEditKeyReleased);
+        if (g_restoreSearchCursorOnNextRefresh)
+        {
+            ApplySearchEditCursor(searchBox, g_searchCursorPosition);
+            g_restoreSearchCursorOnNextRefresh = false;
+        }
+        g_activeSearchEdit = searchBox;
+    }
+
+    const int sortLeft = left + searchWidth + gap;
+    MyGUI::TextBox* sortLabel = CreateTrackedTextBox(parent, MyGUI::IntCoord(sortLeft, labelTop, sortWidth, 14));
+    if (sortLabel != 0)
+    {
+        sortLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        sortLabel->setCaption("Sort");
+        sortLabel->setNeedMouseFocus(false);
+    }
+
+    MyGUI::ComboBox* sortCombo = CreateTrackedComboBox(parent, MyGUI::IntCoord(sortLeft, controlTop, sortWidth, searchHeight));
+    if (sortCombo != 0)
+    {
+        sortCombo->setComboModeDrop(true);
+        sortCombo->addItem("Relation ascending");
+        sortCombo->addItem("Relation descending");
+        sortCombo->addItem("Name A-Z");
+        sortCombo->addItem("Name Z-A");
+        sortCombo->setIndexSelected(static_cast<size_t>(g_uiOptions.sortMode));
+        sortCombo->setOnlyText(GetSortLabel(g_uiOptions.sortMode));
+        sortCombo->eventComboChangePosition += MyGUI::newDelegate(&OnSortChanged);
+    }
+
+    const int toggleLeft = sortLeft + sortWidth + gap;
+    MyGUI::TextBox* toggleLabel = CreateTrackedTextBox(parent, MyGUI::IntCoord(toggleLeft, labelTop, toggleWidth, 14));
+    if (toggleLabel != 0)
+    {
+        toggleLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        toggleLabel->setCaption("Filter");
+        toggleLabel->setNeedMouseFocus(false);
+    }
+
+    MyGUI::Button* toggleButton = CreateTrackedButton(parent, MyGUI::IntCoord(toggleLeft, controlTop, toggleWidth, searchHeight));
+    if (toggleButton != 0)
+    {
+        toggleButton->setStateSelected(g_uiOptions.nonZeroOnly);
+        toggleButton->setCaption(g_uiOptions.nonZeroOnly ? "Non-zero only: on" : "Non-zero only: off");
+        toggleButton->setNeedMouseFocus(true);
+        toggleButton->eventMouseButtonClick += MyGUI::newDelegate(&OnNonZeroToggleClick);
     }
 }
 
@@ -349,9 +803,19 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         "NEUTRAL",
         view.summary.neutralCount);
 
+    const int controlsTop = 124;
+    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
+    const int scrollTop = controlsTop + 16 + searchHeight + 16;
+    int scrollHeight = panelHeight - (scrollTop + 12);
+    if (scrollHeight < 120)
+    {
+        scrollHeight = 120;
+    }
+    BuildControlsRow(g_activePanelWidget, contentLeft, controlsTop, contentWidth);
+
     MyGUI::ScrollView* scrollView = CreateTrackedScrollView(
         g_activePanelWidget,
-        MyGUI::IntCoord(contentLeft, 124, contentWidth, panelHeight - 136));
+        MyGUI::IntCoord(contentLeft, scrollTop, contentWidth, scrollHeight));
     if (scrollView == 0)
     {
         BuildUnavailableState("Failed to create the hidden faction scroll view.");
@@ -420,6 +884,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         rowY = scrollView->getClientCoord().height;
     }
     scrollView->setCanvasSize(clientWidth, rowY);
+    scrollView->setViewOffset(MyGUI::IntPoint(0, 0));
 }
 
 void RefreshPanelContentsUnsafe()
@@ -439,18 +904,35 @@ void RefreshPanelContentsUnsafe()
     }
 
     HiddenFactionRelationsUiView view;
-    if (!HiddenFactionRelationsUiModel_BuildDefaultView(snapshot, &view))
+    if (!HiddenFactionRelationsUiModel_BuildView(snapshot, g_uiOptions, &view))
     {
         BuildUnavailableState("Hidden faction relations could not be prepared for display.");
         return;
     }
 
     BuildRows(view);
+    FocusSearchEditIfRequested();
 }
 
 void RefreshPanelContents()
 {
     RefreshPanelContentsUnsafe();
+}
+
+void OnGuiFrameStart(float)
+{
+    if (!g_refreshPending)
+    {
+        return;
+    }
+
+    g_refreshPending = false;
+    if (g_activePanelWidget == 0 || !IsHiddenFactionsTabCurrentlySelected(g_activeOptionsWindow))
+    {
+        return;
+    }
+
+    RefreshPanelContents();
 }
 
 bool IsHiddenFactionsTabCurrentlySelected(OptionsWindow* self)
@@ -478,7 +960,138 @@ void OnOptionsTabChangeSelect(MyGUI::TabControl* sender, size_t index)
         return;
     }
 
-    RefreshPanelContents();
+    if (HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen())
+    {
+        RequestSearchFocusOnNextRefresh();
+    }
+    RequestPanelRefresh();
+}
+
+bool HandleSearchFocusShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
+{
+    if (inputHandler == 0
+        || keyCode != OIS::KC_F
+        || !inputHandler->ctrl
+        || !IsHiddenFactionsTabCurrentlySelected(g_activeOptionsWindow))
+    {
+        return false;
+    }
+
+    if (g_activeSearchEdit != 0)
+    {
+        FocusSearchEditBestEffort();
+        return true;
+    }
+
+    RequestSearchFocusOnNextRefresh();
+    RequestPanelRefresh();
+    return true;
+}
+
+bool AreOpenMenuShortcutModifiersSatisfied(InputHandler* inputHandler)
+{
+    if (inputHandler == 0)
+    {
+        return false;
+    }
+
+    if (HiddenFactionRelationsConfig_ShouldRequireCtrlForOpenMenu() && !inputHandler->ctrl)
+    {
+        return false;
+    }
+
+    if (HiddenFactionRelationsConfig_ShouldRequireShiftForOpenMenu() && !inputHandler->shift)
+    {
+        return false;
+    }
+
+    if (HiddenFactionRelationsConfig_ShouldRequireAltForOpenMenu() && !inputHandler->alt)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool SelectHiddenFactionsTabUnsafe(MyGUI::TabControl* optionsTab)
+{
+    if (optionsTab == 0)
+    {
+        return false;
+    }
+
+    const size_t tabIndex = optionsTab->findItemIndexWith(kHiddenFactionsTabName);
+    if (tabIndex == MyGUI::ITEM_NONE)
+    {
+        return false;
+    }
+
+    optionsTab->setIndexSelected(tabIndex);
+    return true;
+}
+
+bool TrySelectHiddenFactionsTabBestEffort()
+{
+    if (g_activeOptionsWindow == 0 || g_activeOptionsWindow->optionsTab == 0)
+    {
+        return false;
+    }
+
+    return SelectHiddenFactionsTabUnsafe(g_activeOptionsWindow->optionsTab);
+}
+
+bool OpenOptionsWindowForHiddenFactionsUnsafe()
+{
+    if (g_fnGetOptionsWindow == 0 || g_fnOpenOptionsWindow == 0)
+    {
+        return false;
+    }
+
+    OptionsWindow* optionsWindow = g_fnGetOptionsWindow();
+    if (optionsWindow == 0)
+    {
+        return false;
+    }
+
+    g_fnOpenOptionsWindow(optionsWindow);
+    return true;
+}
+
+bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
+{
+    if (inputHandler == 0
+        || HiddenFactionRelationsConfig_GetOpenMenuKeycode() < 0
+        || static_cast<int>(keyCode) != HiddenFactionRelationsConfig_GetOpenMenuKeycode()
+        || !AreOpenMenuShortcutModifiersSatisfied(inputHandler))
+    {
+        return false;
+    }
+
+    if (g_activeOptionsWindow != 0)
+    {
+        return TrySelectHiddenFactionsTabBestEffort();
+    }
+
+    g_selectHiddenFactionsOnNextOptionsInit = true;
+    if (OpenOptionsWindowForHiddenFactionsUnsafe())
+    {
+        return true;
+    }
+
+    g_selectHiddenFactionsOnNextOptionsInit = false;
+    return false;
+}
+
+void BindGuiFrameStartBestEffort()
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0 || g_boundGui == gui)
+    {
+        return;
+    }
+
+    gui->eventFrameStart += MyGUI::newDelegate(&OnGuiFrameStart);
+    g_boundGui = gui;
 }
 
 void BindTabSelectDelegateBestEffort(MyGUI::TabControl* optionsTab)
@@ -549,15 +1162,26 @@ void OptionsWindowInitHook(OptionsWindow* self)
         g_fnOptionsInitOrig(self);
     }
 
+    BindGuiFrameStartBestEffort();
+
     if (!EnsurePanel(self))
     {
         return;
     }
 
     BindTabSelectDelegateBestEffort(self->optionsTab);
+    if (g_selectHiddenFactionsOnNextOptionsInit)
+    {
+        g_selectHiddenFactionsOnNextOptionsInit = false;
+        SelectHiddenFactionsTabUnsafe(self->optionsTab);
+    }
     if (IsHiddenFactionsTabCurrentlySelected(self))
     {
-        RefreshPanelContents();
+        if (HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen())
+        {
+            RequestSearchFocusOnNextRefresh();
+        }
+        RequestPanelRefresh();
     }
 }
 
@@ -571,6 +1195,24 @@ void OptionsWindowSaveHook(OptionsWindow* self)
     ClearActiveUiState();
 }
 
+void InputHandlerKeyDownHook(InputHandler* thisptr, OIS::KeyCode keyCode)
+{
+    if (HandleOpenHiddenFactionsShortcut(thisptr, keyCode))
+    {
+        return;
+    }
+
+    if (HandleSearchFocusShortcut(thisptr, keyCode))
+    {
+        return;
+    }
+
+    if (g_fnInputHandlerKeyDownOrig != 0)
+    {
+        g_fnInputHandlerKeyDownOrig(thisptr, keyCode);
+    }
+}
+
 bool ResolveUiFunctions(unsigned int platform, const std::string& version, uintptr_t baseAddress)
 {
     if (platform == 1u)
@@ -579,6 +1221,8 @@ bool ResolveUiFunctions(unsigned int platform, const std::string& version, uintp
         {
             g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddress + 0x003F0120);
             g_fnOptionsSave = reinterpret_cast<FnOptionsSave>(baseAddress + 0x003EC950);
+            g_fnGetOptionsWindow = reinterpret_cast<FnGetOptionsWindow>(baseAddress + 0x00406B90);
+            g_fnOpenOptionsWindow = reinterpret_cast<FnOpenOptionsWindow>(baseAddress + 0x003FB250);
             g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddress + 0x0073F4B0);
             g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddress + 0x02132750);
             return true;
@@ -587,6 +1231,8 @@ bool ResolveUiFunctions(unsigned int platform, const std::string& version, uintp
         {
             g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddress + 0x003F0260);
             g_fnOptionsSave = reinterpret_cast<FnOptionsSave>(baseAddress + 0x003ECA90);
+            g_fnGetOptionsWindow = reinterpret_cast<FnGetOptionsWindow>(baseAddress + 0x00406F30);
+            g_fnOpenOptionsWindow = reinterpret_cast<FnOpenOptionsWindow>(baseAddress + 0x003FB570);
             g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddress + 0x0073FFE0);
             g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddress + 0x021337B0);
             return true;
@@ -598,6 +1244,8 @@ bool ResolveUiFunctions(unsigned int platform, const std::string& version, uintp
         {
             g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddress + 0x003EFD40);
             g_fnOptionsSave = reinterpret_cast<FnOptionsSave>(baseAddress + 0x003EC570);
+            g_fnGetOptionsWindow = reinterpret_cast<FnGetOptionsWindow>(baseAddress + 0x004067B0);
+            g_fnOpenOptionsWindow = reinterpret_cast<FnOpenOptionsWindow>(baseAddress + 0x003FAE70);
             g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddress + 0x0073EE10);
             g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddress + 0x021306C0);
             return true;
@@ -606,6 +1254,8 @@ bool ResolveUiFunctions(unsigned int platform, const std::string& version, uintp
         {
             g_fnOptionsInit = reinterpret_cast<FnOptionsInit>(baseAddress + 0x003EFC00);
             g_fnOptionsSave = reinterpret_cast<FnOptionsSave>(baseAddress + 0x003EC430);
+            g_fnGetOptionsWindow = reinterpret_cast<FnGetOptionsWindow>(baseAddress + 0x004068D0);
+            g_fnOpenOptionsWindow = reinterpret_cast<FnOpenOptionsWindow>(baseAddress + 0x003FAF10);
             g_fnCreateDatapanel = reinterpret_cast<FnCreateDatapanel>(baseAddress + 0x0073F980);
             g_ptrKenshiGUI = reinterpret_cast<ForgottenGUI*>(baseAddress + 0x021326E0);
             return true;
@@ -636,6 +1286,15 @@ bool HiddenFactionRelationsPanel_Initialize(
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(g_fnOptionsSave, OptionsWindowSaveHook, &g_fnOptionsSaveOrig))
     {
         LogErrorLine("could not hook OptionsWindow save for hidden faction panel");
+        return false;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&InputHandler::keyDownEvent),
+            InputHandlerKeyDownHook,
+            &g_fnInputHandlerKeyDownOrig))
+    {
+        LogErrorLine("could not hook InputHandler::keyDownEvent for hidden faction panel");
         return false;
     }
 
