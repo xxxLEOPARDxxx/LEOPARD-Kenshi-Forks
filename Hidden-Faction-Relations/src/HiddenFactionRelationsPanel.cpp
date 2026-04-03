@@ -194,6 +194,26 @@ MyGUI::TextBox* CreateInlineTextBox(MyGUI::Widget* parent, const MyGUI::IntCoord
     return CreateWidgetWithFallback<MyGUI::TextBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, false);
 }
 
+MyGUI::TextBox* CreateInlinePrimaryTextBox(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
+{
+    const char* skins[] = {
+        "Kenshi_TextboxPaintedText_Large",
+        "Kenshi_TextboxPaintedText",
+        "Kenshi_TextboxStandardText",
+        "TextBox"
+    };
+    return CreateWidgetWithFallback<MyGUI::TextBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, false);
+}
+
+MyGUI::TextBox* CreateInlineSecondaryTextBox(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
+{
+    const char* skins[] = {
+        "Kenshi_TextboxStandardText",
+        "TextBox"
+    };
+    return CreateWidgetWithFallback<MyGUI::TextBox>(parent, skins, sizeof(skins) / sizeof(skins[0]), coord, false);
+}
+
 MyGUI::EditBox* CreateTrackedEditBox(MyGUI::Widget* parent, const MyGUI::IntCoord& coord)
 {
     const char* skins[] = {
@@ -767,7 +787,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     const int panelHeight = panelCoord.height > 0 ? panelCoord.height : 520;
     const int contentLeft = 12;
     const int contentWidth = panelWidth - 24;
-    const int rowValueWidth = 96;
+    const int rowValueWidth = 112;
     const int rowRightPadding = 16;
 
     MyGUI::TextBox* titleText = CreateTrackedTextBox(
@@ -886,10 +906,16 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     for (size_t i = 0; i < view.rows.size(); ++i)
     {
         const HiddenFactionRelationsUiRow& row = view.rows[i];
+        const int relationLeft = clientWidth - rowValueWidth - rowRightPadding;
+        const int originWidth = relationLeft > 220 ? 150 : 120;
+        const int badgeWidth = 64;
+        const int originLeft = relationLeft - originWidth;
+        const int badgeLeft = originLeft - 8 - badgeWidth;
+        const int nameWidth = badgeLeft > 96 ? badgeLeft - 8 : 96;
 
-        MyGUI::TextBox* nameText = CreateInlineTextBox(
+        MyGUI::TextBox* nameText = CreateInlinePrimaryTextBox(
             contentParent,
-            MyGUI::IntCoord(0, rowY, clientWidth - rowValueWidth - rowRightPadding, 22));
+            MyGUI::IntCoord(0, rowY, nameWidth, 24));
         if (nameText != 0)
         {
             nameText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
@@ -897,9 +923,9 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
             nameText->setNeedMouseFocus(false);
         }
 
-        MyGUI::TextBox* relationText = CreateInlineTextBox(
+        MyGUI::TextBox* relationText = CreateInlinePrimaryTextBox(
             contentParent,
-            MyGUI::IntCoord(clientWidth - rowValueWidth - rowRightPadding, rowY, rowValueWidth, 22));
+            MyGUI::IntCoord(relationLeft, rowY, rowValueWidth, 24));
         if (relationText != 0)
         {
             relationText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
@@ -908,29 +934,29 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
             relationText->setNeedMouseFocus(false);
         }
 
-        MyGUI::TextBox* badgeText = CreateInlineTextBox(
+        MyGUI::TextBox* badgeText = CreateInlineSecondaryTextBox(
             contentParent,
-            MyGUI::IntCoord(12, rowY + 20, 96, 18));
+            MyGUI::IntCoord(badgeLeft, rowY + 4, badgeWidth, 16));
         if (badgeText != 0)
         {
-            badgeText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+            badgeText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
             badgeText->setCaption(row.relationBadgeText);
             badgeText->setTextColour(ResolveRelationToneColour(row.relationTone));
             badgeText->setNeedMouseFocus(false);
         }
 
-        MyGUI::TextBox* originText = CreateInlineTextBox(
+        MyGUI::TextBox* originText = CreateInlineSecondaryTextBox(
             contentParent,
-            MyGUI::IntCoord(104, rowY + 20, clientWidth - 104 - rowRightPadding, 18));
+            MyGUI::IntCoord(originLeft, rowY + 4, originWidth, 16));
         if (originText != 0)
         {
             originText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
             originText->setCaption(row.originText);
-            originText->setTextColour(MyGUI::Colour(0.62f, 0.62f, 0.62f, 1.0f));
+            originText->setTextColour(MyGUI::Colour(0.48f, 0.48f, 0.48f, 1.0f));
             originText->setNeedMouseFocus(false);
         }
 
-        rowY += 42;
+        rowY += 28;
     }
 
     if (view.rows.empty())
