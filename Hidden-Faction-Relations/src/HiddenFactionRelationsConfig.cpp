@@ -160,7 +160,6 @@ HiddenFactionRelationsConfigSnapshot::HiddenFactionRelationsConfigSnapshot()
     , debugLogging(false)
     , debugSearchLogging(false)
     , debugBindingLogging(false)
-    , dumpHiddenFactionRelations(false)
     , autoFocusSearchOnOpen(true)
     , openMenuRequireCtrl(true)
     , openMenuRequireShift(false)
@@ -217,10 +216,6 @@ bool HiddenFactionRelationsConfig_Load(std::string* outError)
     if (TryParseJsonBoolByKey(content, "debugBindingLogging", &parsedBool))
     {
         g_config.debugBindingLogging = parsedBool;
-    }
-    if (TryParseJsonBoolByKey(content, "dumpHiddenFactionRelations", &parsedBool))
-    {
-        g_config.dumpHiddenFactionRelations = parsedBool;
     }
     if (TryParseJsonBoolByKey(content, "autoFocusSearchOnOpen", &parsedBool))
     {
@@ -282,7 +277,6 @@ bool HiddenFactionRelationsConfig_Save(
             << "  \"debugLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugLogging) << ",\n"
             << "  \"debugSearchLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugSearchLogging) << ",\n"
             << "  \"debugBindingLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugBindingLogging) << ",\n"
-            << "  \"dumpHiddenFactionRelations\": " << HiddenFactionRelationsConfig_BoolToString(normalized.dumpHiddenFactionRelations) << ",\n"
             << "  \"autoFocusSearchOnOpen\": " << HiddenFactionRelationsConfig_BoolToString(normalized.autoFocusSearchOnOpen) << ",\n"
             << "  \"openMenuRequireCtrl\": " << HiddenFactionRelationsConfig_BoolToString(normalized.openMenuRequireCtrl) << ",\n"
             << "  \"openMenuRequireShift\": " << HiddenFactionRelationsConfig_BoolToString(normalized.openMenuRequireShift) << ",\n"
@@ -352,11 +346,6 @@ bool HiddenFactionRelationsConfig_IsDebugSearchLoggingEnabled()
 bool HiddenFactionRelationsConfig_IsDebugBindingLoggingEnabled()
 {
     return g_config.debugLogging && g_config.debugBindingLogging;
-}
-
-bool HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations()
-{
-    return g_config.dumpHiddenFactionRelations;
 }
 
 bool HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen()

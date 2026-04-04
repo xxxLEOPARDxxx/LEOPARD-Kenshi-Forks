@@ -17,9 +17,6 @@
 namespace
 {
 const char* kPluginName = "Hidden-Faction-Relations";
-bool g_hiddenFactionDumpCompleted = false;
-bool g_hiddenFactionDumpHookInstalled = false;
-void (*g_gameWorldMainLoopOrig)(GameWorld* thisptr, float time) = 0;
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
 {
@@ -83,96 +80,6 @@ void LogDebugLine(const std::string& message)
     }
 }
 
-void LogHiddenFactionRelationsDump(const HiddenFactionRelationsSnapshot& snapshot)
-{
-    std::stringstream startLine;
-    startLine << "hidden faction relations dump begin totalFactions=" << snapshot.totalFactions
-              << " playerFactionId=" << snapshot.playerFactionId
-              << " playerFactionName=" << snapshot.playerFactionName;
-    LogInfoLine(startLine.str());
-
-    for (size_t i = 0; i < snapshot.factions.size(); ++i)
-    {
-        const HiddenFactionRelationEntry& entry = snapshot.factions[i];
-        std::stringstream line;
-        line << "faction_dump index=" << entry.index;
-
-        if (entry.isNullEntry)
-        {
-            line << " entry=null";
-            LogWarnLine(line.str());
-            continue;
-        }
-
-        line << " id=" << entry.factionId
-             << " name=" << entry.factionName
-             << " hidden=" << HiddenFactionRelationsConfig_BoolToString(entry.isHidden)
-             << " isPlayer=" << HiddenFactionRelationsConfig_BoolToString(entry.isPlayerFaction);
-
-        if (entry.hasPlayerRelation)
-        {
-            line << " playerRelation=" << entry.playerRelation;
-        }
-        else
-        {
-            line << " playerRelation=n/a relationState=missing";
-        }
-
-        LogInfoLine(line.str());
-    }
-
-    std::stringstream summaryLine;
-    summaryLine << "hidden faction relations dump end"
-                << " totalFactions=" << snapshot.totalFactions
-                << " hiddenFactions=" << snapshot.hiddenFactions
-                << " visibleFactions=" << snapshot.visibleFactions
-                << " nullEntries=" << snapshot.nullEntries
-                << " missingRelationEntries=" << snapshot.missingRelationEntries;
-    LogInfoLine(summaryLine.str());
-}
-
-void TryRunHiddenFactionDump(GameWorld* gameWorld)
-{
-    HiddenFactionRelationsSnapshot snapshot;
-    if (!HiddenFactionRelations_TryCollectSnapshot(gameWorld, &snapshot))
-    {
-        return;
-    }
-
-    LogHiddenFactionRelationsDump(snapshot);
-    g_hiddenFactionDumpCompleted = true;
-}
-
-void GameWorldMainLoopHook(GameWorld* thisptr, float time)
-{
-    if (!g_hiddenFactionDumpCompleted && HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations())
-    {
-        TryRunHiddenFactionDump(thisptr);
-    }
-
-    g_gameWorldMainLoopOrig(thisptr, time);
-}
-
-void InstallHiddenFactionDumpHook()
-{
-    if (!HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations() || g_hiddenFactionDumpHookInstalled)
-    {
-        return;
-    }
-
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff),
-            &GameWorldMainLoopHook,
-            &g_gameWorldMainLoopOrig))
-    {
-        LogErrorLine("failed to install hidden faction relations dump hook");
-        return;
-    }
-
-    g_hiddenFactionDumpHookInstalled = true;
-    LogInfoLine("hidden faction relations dump hook installed");
-}
-
 void LoadLoggingConfig()
 {
     std::string loadError;
@@ -194,7 +101,6 @@ void LoadLoggingConfig()
         line << "logging flags debugLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugLogging)
              << " debugSearchLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugSearchLogging)
              << " debugBindingLogging=" << HiddenFactionRelationsConfig_BoolToString(config.debugBindingLogging)
-             << " dumpHiddenFactionRelations=" << HiddenFactionRelationsConfig_BoolToString(config.dumpHiddenFactionRelations)
              << " autoFocusSearchOnOpen=" << HiddenFactionRelationsConfig_BoolToString(config.autoFocusSearchOnOpen)
              << " verboseDiagnostics=" << HiddenFactionRelationsConfig_BoolToString(ShouldCompileVerboseDiagnostics());
         LogDebugLine(line.str());
@@ -222,7 +128,6 @@ __declspec(dllexport) void startPlugin()
     LogInfoLine(versionLine.str());
 
     LoadLoggingConfig();
-    InstallHiddenFactionDumpHook();
     HiddenFactionRelationsModHub_OnStartup();
 
     const uintptr_t baseAddress = reinterpret_cast<uintptr_t>(GetModuleHandleA(0));

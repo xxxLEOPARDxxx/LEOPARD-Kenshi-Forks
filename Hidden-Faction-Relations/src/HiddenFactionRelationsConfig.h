@@ -8,7 +8,6 @@ struct HiddenFactionRelationsConfigSnapshot
     bool debugLogging;
     bool debugSearchLogging;
     bool debugBindingLogging;
-    bool dumpHiddenFactionRelations;
     bool autoFocusSearchOnOpen;
     bool openMenuRequireCtrl;
     bool openMenuRequireShift;
@@ -34,7 +33,6 @@ void HiddenFactionRelationsConfig_Normalize(HiddenFactionRelationsConfigSnapshot
 bool HiddenFactionRelationsConfig_IsDebugLoggingEnabled();
 bool HiddenFactionRelationsConfig_IsDebugSearchLoggingEnabled();
 bool HiddenFactionRelationsConfig_IsDebugBindingLoggingEnabled();
-bool HiddenFactionRelationsConfig_ShouldDumpHiddenFactionRelations();
 bool HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen();
 bool HiddenFactionRelationsConfig_ShouldRequireCtrlForOpenMenu();
 bool HiddenFactionRelationsConfig_ShouldRequireShiftForOpenMenu();

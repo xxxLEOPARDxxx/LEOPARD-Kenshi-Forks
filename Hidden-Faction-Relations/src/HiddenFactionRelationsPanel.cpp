@@ -76,7 +76,6 @@ const char* kPluginName = "Hidden-Faction-Relations";
 const char* kHiddenFactionsTabName = "Hidden Factions";
 const char* kHiddenFactionsPanelName = "hidden_faction_relations_panel";
 const int kHiddenFactionsPanelLineId = 0x4846;
-const OIS::KeyCode kManualProbeHotkey = OIS::KC_F10;
 
 typedef DatapanelGUI* (*FnCreateDatapanel)(ForgottenGUI*, const std::string&, MyGUI::Widget*, bool);
 typedef void (*FnOptionsInit)(OptionsWindow*);
@@ -1223,28 +1222,7 @@ bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode k
     return false;
 }
 
-bool HandleManualProbeShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
-{
-    if (inputHandler == 0
-        || keyCode != kManualProbeHotkey
-        || !inputHandler->ctrl
-        || !inputHandler->alt
-        || !inputHandler->shift)
-    {
-        return false;
-    }
 
-    if (HiddenFactionRelations_TryLogAllFactionProbe(ou))
-    {
-        LogInfoLine("manual all-factions probe dumped via Ctrl+Alt+Shift+F10");
-    }
-    else
-    {
-        LogErrorLine("manual all-factions probe failed; no initialized world/faction state");
-    }
-
-    return true;
-}
 
 void BindGuiFrameStartBestEffort()
 {
@@ -1362,11 +1340,6 @@ void OptionsWindowSaveHook(OptionsWindow* self)
 void InputHandlerKeyDownHook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
     if (HandleOpenHiddenFactionsShortcut(thisptr, keyCode))
-    {
-        return;
-    }
-
-    if (HandleManualProbeShortcut(thisptr, keyCode))
     {
         return;
     }
