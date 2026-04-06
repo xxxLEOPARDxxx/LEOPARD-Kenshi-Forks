@@ -1,45 +1,10 @@
 #include "HiddenFactionRelations.h"
+#include "HiddenFactionRelationsKenshiShim.h"
 
 #include <Debug.h>
 
-#include <kenshi/Faction.h>
-#include <kenshi/GameData.h>
-#include <kenshi/GameWorld.h>
-#include <kenshi/PlayerInterface.h>
-
-#include <kenshi/util/lektor.h>
-
 #include <cctype>
 #include <sstream>
-
-class FactionRelations
-{
-public:
-    class RelationData
-    {
-    public:
-        bool own;
-        bool _0x1;
-        bool _0x2;
-        bool isCoexistence;
-        float relation;
-        float trust;
-        float trustNeg;
-        int _0x10;
-    };
-
-    virtual void saveState(GameData* state);
-    virtual void loadState(GameData* state, bool isImport);
-    virtual void setOwnFactionRelation();
-    virtual void vfunc0x18(Faction*);
-    virtual void addRelation(Faction* target, float amount, float mult);
-    virtual void vfunc0x28(Faction* target, unsigned int type, float amount);
-    virtual void addTrust(Faction* target, float amount, float mult);
-    virtual void endWar(Faction* target);
-    virtual void declareWar(Faction* target);
-    virtual void addReputation(Faction* target, float amount);
-    virtual RelationData* getRelationData(Faction* target);
-};
 
 namespace
 {
@@ -204,5 +169,4 @@ bool HiddenFactionRelations_TryCollectSnapshot(
 
     return true;
 }
-
 
