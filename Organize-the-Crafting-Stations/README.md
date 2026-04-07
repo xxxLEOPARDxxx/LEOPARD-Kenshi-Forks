@@ -8,18 +8,20 @@ RE_Kenshi plugin that adds a reusable search bar to Kenshi crafting and research
 - Filters visible recipe and blueprint rows by substring match.
 - Compacts visible matches upward so filtering does not leave empty scroll gaps.
 - Shows visible and total entry counts.
-- Supports a clear button, configurable width and height, and persisted custom position.
+- Supports a clear button, configurable autofocus, configurable width and height, and persisted custom position.
 - Applies Mod Hub setting changes live.
 - Coexists with `Organize-the-Trader` without taking over trader windows.
 
 ## Configuration
 
 Settings live in [Organize-the-Crafting-Stations/mod-config.json](/mnt/i/Kenshi_modding/mods/Organize-the-Crafting-Stations/Organize-the-Crafting-Stations/mod-config.json).
+The same enabled, count, clear button, autofocus, and size settings are exposed in Mod Hub when `Emkejs-Mod-Core` is loaded.
 
 Shipped defaults:
 - `enabled`: `true`
 - `showSearchEntryCount`: `true`
 - `showSearchClearButton`: `true`
+- `autoFocusSearchInput`: `true`
 - `searchInputWidth`: `220`
 - `searchInputHeight`: `26`
 

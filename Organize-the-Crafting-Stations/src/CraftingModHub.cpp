@@ -192,6 +192,25 @@ EMC_Result __cdecl SetShowSearchClearButtonSetting(
         &TraderConfigSnapshot::showSearchClearButton);
 }
 
+EMC_Result __cdecl GetAutoFocusSearchInputSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::autoFocusSearchInput);
+}
+
+EMC_Result __cdecl SetAutoFocusSearchInputSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::autoFocusSearchInput);
+}
+
 EMC_Result __cdecl GetSearchInputWidthSetting(void* user_data, int32_t* out_value)
 {
     return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputWidth);
@@ -285,6 +304,14 @@ void EnsureModHubClientConfigured()
         &GetShowSearchClearButtonSetting,
         &SetShowSearchClearButtonSetting };
 
+    static const EMC_BoolSettingDefV1 kAutoFocusSearchInputSetting = {
+        "auto_focus_search_input",
+        "Auto-focus search",
+        "Focus the crafting search input automatically when controls are injected",
+        &g_modHubClient,
+        &GetAutoFocusSearchInputSetting,
+        &SetAutoFocusSearchInputSetting };
+
     static const EMC_IntSettingDefV1 kSearchInputWidthSetting = {
         "search_input_width",
         "Search input width",
@@ -311,6 +338,7 @@ void EnsureModHubClientConfigured()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
     };

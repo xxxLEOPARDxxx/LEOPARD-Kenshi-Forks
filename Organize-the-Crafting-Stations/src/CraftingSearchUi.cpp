@@ -53,6 +53,7 @@ TraderSearchInputBehavior::Snapshot g_searchEditSnapshot;
 
 #define g_showSearchEntryCount (TraderState().core.g_showSearchEntryCount)
 #define g_showSearchClearButton (TraderState().core.g_showSearchClearButton)
+#define g_autoFocusSearchInput (TraderState().core.g_autoFocusSearchInput)
 #define g_searchInputConfiguredWidth (TraderState().core.g_searchInputConfiguredWidth)
 #define g_searchInputConfiguredHeight (TraderState().core.g_searchInputConfiguredHeight)
 
@@ -99,7 +100,8 @@ bool IsInterestingSearchEditMyGuiKey(MyGUI::KeyCode keyCode)
         || value == MyGUI::KeyCode::RightControl
         || value == MyGUI::KeyCode::ArrowLeft
         || value == MyGUI::KeyCode::ArrowRight
-        || value == MyGUI::KeyCode::Backspace;
+        || value == MyGUI::KeyCode::Backspace
+        || value == MyGUI::KeyCode::Tab;
 }
 
 void ResetPendingSearchEditShortcut()
@@ -861,6 +863,33 @@ void FocusSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
     LogDebugLine(line.str());
 }
 
+void BlurSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input == 0)
+    {
+        LogWarnLine("search blur skipped: MyGUI InputManager unavailable");
+        return;
+    }
+
+    if (input->getKeyFocusWidget() != searchEdit)
+    {
+        return;
+    }
+
+    input->setKeyFocusWidget(0);
+
+    std::stringstream line;
+    line << "search edit blurred"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason);
+    LogDebugLine(line.str());
+}
+
 void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
 {
     if (!g_focusSearchEditOnNextInjection || searchEdit == 0)
@@ -869,7 +898,10 @@ void FocusSearchEditIfRequested(MyGUI::EditBox* searchEdit, const char* reason)
     }
 
     g_focusSearchEditOnNextInjection = false;
-    FocusSearchEdit(searchEdit, reason);
+    if (g_autoFocusSearchInput)
+    {
+        FocusSearchEdit(searchEdit, reason);
+    }
 }
 
 bool IsSearchEditFocused(MyGUI::EditBox* searchEdit)
@@ -1545,7 +1577,22 @@ void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI
         return;
     }
 
-    ScheduleSearchEditMyGuiShortcut(sender->castType<MyGUI::EditBox>(false), keyCode);
+    MyGUI::EditBox* searchEdit = sender->castType<MyGUI::EditBox>(false);
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    if (keyCode.getValue() == MyGUI::KeyCode::Tab)
+    {
+        BlurSearchEdit(searchEdit, "tab_key");
+        ResetPendingSearchEditShortcut();
+        RememberSearchEditSnapshot(searchEdit);
+        UpdateSearchUiState();
+        return;
+    }
+
+    ScheduleSearchEditMyGuiShortcut(searchEdit, keyCode);
 }
 
 void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
@@ -1706,7 +1753,7 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
         ResetSearchQueryForTraderSwitch("target_changed");
     }
     g_activeTraderTargetId = nextTraderTargetId;
-    g_focusSearchEditOnNextInjection = true;
+    g_focusSearchEditOnNextInjection = g_autoFocusSearchInput;
 
     MyGUI::Widget* controlsParent = ResolveCraftingControlsParent(parent);
     if (controlsParent == 0)

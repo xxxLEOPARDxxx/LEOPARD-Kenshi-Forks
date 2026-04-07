@@ -51,6 +51,9 @@
     <ClCompile Include="src\CraftingSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\CraftingTextUnicode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\CraftingWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -90,6 +93,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\CraftingSearchText.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CraftingTextUnicode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\CraftingWindowDetection.h">

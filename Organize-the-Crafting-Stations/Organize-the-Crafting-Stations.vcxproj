@@ -99,6 +99,7 @@
     <ClCompile Include="src\CraftingSearchPipeline.cpp" />
     <ClCompile Include="src\CraftingSearchUi.cpp" />
     <ClCompile Include="src\CraftingSearchText.cpp" />
+    <ClCompile Include="src\CraftingTextUnicode.cpp" />
     <ClCompile Include="src\CraftingWindowDetection.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
@@ -114,6 +115,7 @@
     <ClInclude Include="src\CraftingSearchPipeline.h" />
     <ClInclude Include="src\CraftingSearchUi.h" />
     <ClInclude Include="src\CraftingSearchText.h" />
+    <ClInclude Include="src\CraftingTextUnicode.h" />
     <ClInclude Include="src\CraftingWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
