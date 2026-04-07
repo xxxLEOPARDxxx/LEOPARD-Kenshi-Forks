@@ -51,6 +51,9 @@
     <ClCompile Include="src\TraderSearchText.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\TraderTextUnicode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\TraderWindowDetection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -90,6 +93,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\TraderSearchText.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\TraderTextUnicode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\TraderWindowDetection.h">

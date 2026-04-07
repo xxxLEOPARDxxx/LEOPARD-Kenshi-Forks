@@ -2,7 +2,10 @@
 
 All notable changes to Organize-the-Trader will be documented in this file.
 
-## [0.1.0-alpha.2] - TBD
+## [0.1.0-alpha.3] - 2026-04-07
+- Add Cyrillic search support for Russian and other Cyrillic item names and queries.
+
+## [0.1.0-alpha.2] - 2026-04-01
 - Add a separate draggable sort panel to trader windows.
 - Add trader sorting by name, unit price, stack value, weight, and value/weight with an ascending or descending toggle.
 - Sorting now respects mixed item sizes, keeps matching search results packed at the top, and stays usable after Kenshi's Arrange action.

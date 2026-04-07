@@ -99,6 +99,7 @@
     <ClCompile Include="src\TraderSearchPipeline.cpp" />
     <ClCompile Include="src\TraderSearchUi.cpp" />
     <ClCompile Include="src\TraderSearchText.cpp" />
+    <ClCompile Include="src\TraderTextUnicode.cpp" />
     <ClCompile Include="src\TraderWindowDetection.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
@@ -114,6 +115,7 @@
     <ClInclude Include="src\TraderSearchPipeline.h" />
     <ClInclude Include="src\TraderSearchUi.h" />
     <ClInclude Include="src\TraderSearchText.h" />
+    <ClInclude Include="src\TraderTextUnicode.h" />
     <ClInclude Include="src\TraderWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

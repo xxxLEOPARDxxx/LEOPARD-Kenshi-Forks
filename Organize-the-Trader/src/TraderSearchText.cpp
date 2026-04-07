@@ -1,6 +1,7 @@
 #include "TraderSearchText.h"
 
 #include "TraderCore.h"
+#include "TraderTextUnicode.h"
 
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>
@@ -290,13 +291,7 @@ bool NameMatchesToken(const std::string& name, const char* token)
 
 std::string UpperAsciiCopy(const std::string& value)
 {
-    std::string upper = value;
-    for (std::size_t index = 0; index < upper.size(); ++index)
-    {
-        const unsigned char ch = static_cast<unsigned char>(upper[index]);
-        upper[index] = static_cast<char>(std::toupper(ch));
-    }
-    return upper;
+    return TraderTextUnicode::UppercaseUtf8OrAscii(value);
 }
 
 bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
@@ -410,33 +405,7 @@ bool TryExtractTaggedFraction(
 
 std::string NormalizeSearchText(const std::string& text)
 {
-    std::string normalized;
-    normalized.reserve(text.size());
-
-    bool previousWasSpace = true;
-    for (std::size_t index = 0; index < text.size(); ++index)
-    {
-        const unsigned char ch = static_cast<unsigned char>(text[index]);
-        if (std::isalnum(ch) == 0)
-        {
-            if (!normalized.empty() && !previousWasSpace)
-            {
-                normalized.push_back(' ');
-                previousWasSpace = true;
-            }
-            continue;
-        }
-
-        normalized.push_back(static_cast<char>(std::tolower(ch)));
-        previousWasSpace = false;
-    }
-
-    if (!normalized.empty() && normalized[normalized.size() - 1] == ' ')
-    {
-        normalized.resize(normalized.size() - 1);
-    }
-
-    return normalized;
+    return TraderTextUnicode::NormalizeSearchTextUtf8OrAscii(text);
 }
 
 std::string ResolveCanonicalItemName(Item* item)
@@ -581,30 +550,12 @@ std::string CanonicalizeSearchToken(const std::string& token)
 
 bool ContainsAsciiLetter(const std::string& value)
 {
-    for (std::size_t index = 0; index < value.size(); ++index)
-    {
-        const unsigned char ch = static_cast<unsigned char>(value[index]);
-        if (std::isalpha(ch) != 0)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return TraderTextUnicode::ContainsLetterUtf8OrAscii(value);
 }
 
 bool ContainsAsciiDigit(const std::string& value)
 {
-    for (std::size_t index = 0; index < value.size(); ++index)
-    {
-        const unsigned char ch = static_cast<unsigned char>(value[index]);
-        if (std::isdigit(ch) != 0)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return TraderTextUnicode::ContainsDigitUtf8OrAscii(value);
 }
 
 int ComputeCaptionNameMatchBias(const std::string& captionNormalized, const std::string& nameNormalized)
