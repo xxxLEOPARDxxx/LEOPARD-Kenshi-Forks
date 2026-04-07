@@ -17,6 +17,9 @@ build/
 dist/
 .tmp
 
+# Generated files
+Linkednpm-cache
+
 # Files
 *.obj
 *.pdb
