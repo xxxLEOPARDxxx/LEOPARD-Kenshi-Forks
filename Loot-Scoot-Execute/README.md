@@ -86,11 +86,13 @@ Supported keys:
 - `enabled` (bool)
 - `enable_execute_kill_sound` (bool, default true; plays a short audio event when execute kill succeeds)
 - `debug_execute_logging` (bool, default `false`; enables focused execute investigation logs in `RE_Kenshi_log.txt` for target eligibility and dispatch failures)
+- `enable_execute_all` (bool, default `true`; shows the `Execute All` button and allows batch execute behavior)
 - `ignore_execute_alliance_check` (bool, default `false`; allows execute on incapacitated non-hostiles and allies, but still blocks player characters)
 - `execute_distance_units` (int, default `2`; required distance before queued execute triggers, clamped to `1..200`; legacy `execute_distance_meters` is still accepted)
 - `execute_all_radius_units` (int, default `10`; search radius used by `Execute All` around the selected target, clamped to `1..200`)
 - `execute_button_width` (int, default `310`; pixel width for the Execute button panel)
 - `execute_button_height` (int, default `56`; pixel height for the Execute button panel)
+- `execute_button_gap` (int, default `-8`; vertical gap in pixels between `Execute` and `Execute All`; use negative values to overlap the rows, clamped to `-64..64`)
 - `execute_button_x` (int, default `0`; horizontal offset in pixels from the default anchored position)
 - `execute_button_y` (int, default `0`; vertical offset in pixels from the default anchored position)
 
