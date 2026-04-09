@@ -31,6 +31,7 @@ struct HubBoolSettingDescriptor
     const char* settingId;
     const char* label;
     const char* description;
+    const char* hoverHint;
     bool PluginConfig::*field;
 };
 
@@ -50,6 +51,7 @@ struct HubKeybindSettingDescriptor
     const char* settingId;
     const char* label;
     const char* description;
+    const char* hoverHint;
     int32_t PluginConfig::*field;
 };
 
@@ -68,6 +70,7 @@ struct HubSelectSettingDescriptor
     const char* settingId;
     const char* label;
     const char* description;
+    const char* hoverHint;
     bool PluginConfig::*field;
     const EMC_SelectOptionV1* options;
     uint32_t optionCount;
@@ -78,8 +81,10 @@ struct HubTextSettingDescriptor
     const char* settingId;
     const char* label;
     const char* description;
+    const char* hoverHint;
     std::string PluginConfig::*field;
     uint32_t maxLength;
+    bool allowEmpty;
 };
 
 EMC_Result __cdecl GetBoolSettingValue(void* user_data, int32_t* out_value);
@@ -100,28 +105,35 @@ bool g_modHubClientConfigured = false;
 bool g_modHubRowsInitialized = false;
 
 HubBoolSettingDescriptor g_boolSettingDescriptors[] = {
-    { "enabled", "Enabled", "Enable all Vital Sense overlays and tint behavior", &PluginConfig::enabled },
-    { "highlight_key_require_ctrl", "Require Ctrl", "Require Ctrl to be held with the highlight key", &PluginConfig::highlightKeyRequireCtrl },
-    { "highlight_key_require_shift", "Require Shift", "Require Shift to be held with the highlight key", &PluginConfig::highlightKeyRequireShift },
-    { "highlight_key_require_alt", "Require Alt", "Require Alt to be held with the highlight key", &PluginConfig::highlightKeyRequireAlt },
-    { "enable_unconscious", "Show unconscious", "Show markers for unconscious targets", &PluginConfig::enableUnconsciousState },
-    { "enable_recovery_coma", "Show recovery coma", "Show markers for recovery coma targets", &PluginConfig::enableRecoveryComaState },
-    { "enable_dying", "Show dying", "Show markers for dying targets", &PluginConfig::enableDyingState },
-    { "enable_playing_dead", "Show playing dead", "Show markers for playing dead targets", &PluginConfig::enablePlayingDeadState },
-    { "enable_dead", "Show dead", "Show markers for dead targets", &PluginConfig::enableDeadState },
-    { "show_icons", "Show icons", "Render icon widgets for KO states", &PluginConfig::showMarkerIcons },
-    { "show_text", "Show text", "Render short state labels such as ZZ and DY", &PluginConfig::showMarkerText },
-    { "show_bounty_glow", "Show bounty glow", "Render bounty glow behind eligible targets", &PluginConfig::showBountyGlow },
-    { "show_bounty_symbol", "Show bounty symbol", "Render bounty symbol text using tier colors", &PluginConfig::showBountySymbol },
-    { "enable_character_tint", "Enable character tint", "Tint resolved characters in addition to marker overlays", &PluginConfig::enableCharacterTint },
-    { "show_bounty_symbol_on_all_characters", "Show live bounty symbol", "Render bounty symbols for non-downed on-screen bounty targets", &PluginConfig::showBountySymbolOnAllCharacters }
+    { "enabled", "Enabled", "Enable all Vital Sense overlays and tint behavior", "Turn all Vital Sense overlays and tint effects on or off.", &PluginConfig::enabled },
+    { "highlight_key_require_ctrl", "Require Ctrl", "Require Ctrl to be held with the highlight key", 0, &PluginConfig::highlightKeyRequireCtrl },
+    { "highlight_key_require_shift", "Require Shift", "Require Shift to be held with the highlight key", 0, &PluginConfig::highlightKeyRequireShift },
+    { "highlight_key_require_alt", "Require Alt", "Require Alt to be held with the highlight key", 0, &PluginConfig::highlightKeyRequireAlt },
+    { "enable_unconscious", "Show unconscious", "Show markers for unconscious targets", 0, &PluginConfig::enableUnconsciousState },
+    { "enable_recovery_coma", "Show recovery coma", "Show markers for recovery coma targets", 0, &PluginConfig::enableRecoveryComaState },
+    { "enable_dying", "Show dying", "Show markers for dying targets", 0, &PluginConfig::enableDyingState },
+    { "enable_playing_dead", "Show playing dead", "Show markers for playing dead targets", 0, &PluginConfig::enablePlayingDeadState },
+    { "enable_dead", "Show dead", "Show markers for dead targets", 0, &PluginConfig::enableDeadState },
+    { "show_icons", "Show icons", "Render icon widgets for KO states", 0, &PluginConfig::showMarkerIcons },
+    { "show_text", "Show text", "Render short state labels such as ZZ and DY", 0, &PluginConfig::showMarkerText },
+    { "show_bounty_glow", "Show bounty glow", "Render bounty glow behind eligible targets", 0, &PluginConfig::showBountyGlow },
+    { "show_bounty_symbol", "Show bounty symbol", "Render bounty symbol text using tier colors", "Show or hide the bounty tier symbol next to qualifying targets.", &PluginConfig::showBountySymbol },
+    { "enable_character_tint", "Enable character tint", "Tint resolved characters in addition to marker overlays", "Apply Vital Sense relation colors directly to resolved characters.", &PluginConfig::enableCharacterTint },
+    { "show_bounty_symbol_on_all_characters", "Show live bounty symbol", "Render bounty symbols for non-downed on-screen bounty targets", "Extend bounty symbols to awake on-screen characters, not just downed targets.", &PluginConfig::showBountySymbolOnAllCharacters }
 };
 
 HubKeybindSettingDescriptor g_keybindSettingDescriptors[] = {
-    { "highlight_key", "Highlight key", "Primary key that gates KO highlights. Clear to Unbound for always-on highlights.", &PluginConfig::highlightKeyCode }
+    {
+        "highlight_key",
+        "Highlight key",
+        "Primary key that gates KO highlights. Clear to Unbound for always-on highlights.",
+        "Capture the primary key for KO highlighting. Modifier requirements stay on the toggle rows below.",
+        &PluginConfig::highlightKeyCode
+    }
 };
 
 HubIntSettingDescriptor g_intSettingDescriptors[] = {
+    { "update_interval_ms", "Update interval", "KO target refresh interval in milliseconds", &PluginConfig::updateIntervalMs, 50, 2000, 1 },
     { "max_highlight_distance_m", "Max highlight distance", "Maximum horizontal distance from camera center for highlights", &PluginConfig::maxHighlightDistanceMeters, 5, 20000, 100 },
     { "bounty_symbol_size_px", "Bounty symbol size", "Base font height for the bounty symbol", &PluginConfig::bountySymbolTextSizePx, 8, 128, 1 },
     { "unconscious_text_size_px", "Unconscious text size", "Font height for the unconscious label", &PluginConfig::unconsciousTextSizePx, 8, 128, 1 },
@@ -129,6 +141,17 @@ HubIntSettingDescriptor g_intSettingDescriptors[] = {
     { "dying_text_size_px", "Dying text size", "Font height for the dying label", &PluginConfig::dyingTextSizePx, 8, 128, 1 },
     { "playing_dead_text_size_px", "Playing dead text size", "Font height for the playing dead label", &PluginConfig::playingDeadTextSizePx, 8, 128, 1 },
     { "dead_text_size_px", "Dead text size", "Font height for the dead label", &PluginConfig::deadTextSizePx, 8, 128, 1 }
+};
+
+HubBoolSettingDescriptor g_advancedBoolSettingDescriptors[] = {
+    { "debug_log_diagnostics", "Debug diagnostics", "Enable extra runtime diagnostics", "Write additional runtime diagnostics to the log.", &PluginConfig::debugLogDiagnostics },
+    { "debug_log_texture_info", "Debug texture info", "Log custom icon texture resolution details", "Write extra icon texture lookup details to the log.", &PluginConfig::debugLogTextureInfo }
+};
+
+HubBoolSettingDescriptor g_tintBoolSettingDescriptors[] = {
+    { "character_tint_include_squad", "Tint squad", "Tint conscious squadmates when character tint is enabled", "Include conscious squadmates in the tint pass when character tint is enabled.", &PluginConfig::characterTintIncludeSquad },
+    { "character_tint_include_bounty_only", "Tint bounty-only", "Tint non-downed bounty-only targets when character tint is enabled", "Also tint awake bounty-only targets when character tint is enabled.", &PluginConfig::characterTintIncludeBountyOnly },
+    { "character_tint_force_depth_override", "Force depth override", "Force tint to render through depth when supported by the shader", "Keep tint visible through world depth when the active shader path supports it.", &PluginConfig::characterTintForceDepthOverride }
 };
 
 HubColorSettingDescriptor g_colorSettingDescriptors[] = {
@@ -144,9 +167,38 @@ HubColorSettingDescriptor g_colorSettingDescriptors[] = {
     { "bounty_color_legendary_hex", "Bounty legendary color", "Bounty symbol text color for the legendary tier; Mod Hub edits RGB only", &PluginConfig::bountyTierLegendaryColour, EMC_COLOR_PREVIEW_KIND_TEXT, true }
 };
 
+HubIntSettingDescriptor g_stateIconSizeSettingDescriptors[] = {
+    { "unconscious_icon_size_px", "Unconscious icon size", "Pixel size for the unconscious icon", &PluginConfig::customUnconsciousIconSizePx, 8, 512, 1 },
+    { "recovery_coma_icon_size_px", "Recovery coma icon size", "Pixel size for the recovery coma icon", &PluginConfig::customRecoveryComaIconSizePx, 8, 512, 1 },
+    { "dying_icon_size_px", "Dying icon size", "Pixel size for the dying icon", &PluginConfig::customDyingIconSizePx, 8, 512, 1 },
+    { "playing_dead_icon_size_px", "Playing dead icon size", "Pixel size for the playing dead icon", &PluginConfig::customPlayingDeadIconSizePx, 8, 512, 1 },
+    { "dead_icon_size_px", "Dead icon size", "Pixel size for the dead icon", &PluginConfig::customDeadIconSizePx, 8, 512, 1 }
+};
+
+HubIntSettingDescriptor g_bountyIntSettingDescriptors[] = {
+    { "bounty_symbol_live_anchor_y_offset_cm", "Live symbol anchor offset", "Vertical world-anchor offset for live bounty symbols", &PluginConfig::bountySymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
+    { "bounty_tier_trivial_max", "Bounty trivial max", "Upper bound for the trivial bounty tier", &PluginConfig::bountyTierTrivialMax, 0, 1000000, 1 },
+    { "bounty_tier_low_max", "Bounty low max", "Upper bound for the low bounty tier", &PluginConfig::bountyTierLowMax, 0, 1000000, 1 },
+    { "bounty_tier_modest_max", "Bounty modest max", "Upper bound for the modest bounty tier", &PluginConfig::bountyTierModestMax, 0, 1000000, 1 },
+    { "bounty_tier_notable_max", "Bounty notable max", "Upper bound for the notable bounty tier", &PluginConfig::bountyTierNotableMax, 0, 1000000, 1 },
+    { "bounty_tier_high_value_max", "Bounty high value max", "Upper bound for the high-value bounty tier", &PluginConfig::bountyTierHighValueMax, 0, 1000000, 1 },
+    { "bounty_tier_elite_max", "Bounty elite max", "Upper bound for the elite bounty tier", &PluginConfig::bountyTierEliteMax, 0, 1000000, 1 }
+};
+
 const int32_t kBountySymbolPositionBeforeStateIcon = 0;
 const int32_t kBountySymbolPositionBeforeStateText = 1;
-const uint32_t kHubTextMaxLength = 32u;
+const uint32_t kHubShortTextMaxLength = 32u;
+const uint32_t kHubPathTextMaxLength = 128u;
+const char* kHubSectionCoreId = "core";
+const char* kHubSectionCoreLabel = "Core";
+const char* kHubSectionStatesId = "states";
+const char* kHubSectionStatesLabel = "States";
+const char* kHubSectionBountyId = "bounty";
+const char* kHubSectionBountyLabel = "Bounty";
+const char* kHubSectionTintId = "tint_relation_colors";
+const char* kHubSectionTintLabel = "Tint & relation colors";
+const char* kHubSectionAdvancedId = "advanced";
+const char* kHubSectionAdvancedLabel = "Advanced";
 
 const EMC_SelectOptionV1 g_bountySymbolPositionOptions[] = {
     { kBountySymbolPositionBeforeStateIcon, "Before state icon" },
@@ -158,6 +210,7 @@ HubSelectSettingDescriptor g_selectSettingDescriptors[] = {
         "bounty_symbol_position",
         "Bounty symbol position",
         "Choose whether the bounty symbol renders before the state icon or before the state text",
+        "Choose whether the bounty symbol is placed before the icon or before the text label.",
         &PluginConfig::placeBountySymbolBeforeStateIcon,
         g_bountySymbolPositionOptions,
         static_cast<uint32_t>(VS_ARRAY_COUNT(g_bountySymbolPositionOptions))
@@ -169,43 +222,103 @@ HubTextSettingDescriptor g_textSettingDescriptors[] = {
         "bounty_symbol",
         "Bounty symbol",
         "Short bounty symbol text such as $ or B",
+        "Edit the short symbol shown for bounty targets, such as $ or B.",
         &PluginConfig::bountySymbolText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
     },
     {
         "unconscious_text",
         "Unconscious text",
         "Short label for the unconscious marker",
+        "Edit the short marker label shown for unconscious targets.",
         &PluginConfig::unconsciousText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
     },
     {
         "recovery_coma_text",
         "Recovery coma text",
         "Short label for the recovery coma marker",
+        "Edit the short marker label shown for recovery coma targets.",
         &PluginConfig::recoveryComaText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
     },
     {
         "dying_text",
         "Dying text",
         "Short label for the dying marker",
+        "Edit the short marker label shown for dying targets.",
         &PluginConfig::dyingText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
     },
     {
         "playing_dead_text",
         "Playing dead text",
         "Short label for the playing dead marker",
+        "Edit the short marker label shown for playing dead targets.",
         &PluginConfig::playingDeadText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
     },
     {
         "dead_text",
         "Dead text",
         "Short label for the dead marker",
+        "Edit the short marker label shown for dead targets.",
         &PluginConfig::deadText,
-        kHubTextMaxLength
+        kHubShortTextMaxLength,
+        false
+    }
+};
+
+HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
+    {
+        "unconscious_icon_texture",
+        "Unconscious icon texture",
+        "Short path for the unconscious icon texture",
+        "Edit the icon texture used for unconscious targets.",
+        &PluginConfig::customUnconsciousIconTexture,
+        kHubPathTextMaxLength,
+        true
+    },
+    {
+        "recovery_coma_icon_texture",
+        "Recovery coma icon texture",
+        "Short path for the recovery coma icon texture",
+        "Edit the icon texture used for recovery coma targets.",
+        &PluginConfig::customRecoveryComaIconTexture,
+        kHubPathTextMaxLength,
+        true
+    },
+    {
+        "dying_icon_texture",
+        "Dying icon texture",
+        "Short path for the dying icon texture",
+        "Edit the icon texture used for dying targets.",
+        &PluginConfig::customDyingIconTexture,
+        kHubPathTextMaxLength,
+        true
+    },
+    {
+        "playing_dead_icon_texture",
+        "Playing dead icon texture",
+        "Short path for the playing dead icon texture",
+        "Edit the icon texture used for playing dead targets.",
+        &PluginConfig::customPlayingDeadIconTexture,
+        kHubPathTextMaxLength,
+        true
+    },
+    {
+        "dead_icon_texture",
+        "Dead icon texture",
+        "Short path for the dead icon texture",
+        "Edit the icon texture used for dead targets.",
+        &PluginConfig::customDeadIconTexture,
+        kHubPathTextMaxLength,
+        true
     }
 };
 
@@ -214,18 +327,30 @@ enum
     kHubBoolSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_boolSettingDescriptors)),
     kHubKeybindSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_keybindSettingDescriptors)),
     kHubIntSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_intSettingDescriptors)),
+    kHubAdvancedBoolSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_advancedBoolSettingDescriptors)),
+    kHubTintBoolSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_tintBoolSettingDescriptors)),
     kHubSelectSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_selectSettingDescriptors)),
     kHubTextSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_textSettingDescriptors)),
+    kHubStateIconTextureSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_stateIconTextureSettingDescriptors)),
+    kHubStateIconSizeSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_stateIconSizeSettingDescriptors)),
+    kHubBountyIntSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_bountyIntSettingDescriptors)),
     kHubColorSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_colorSettingDescriptors)),
     kHubRowCount = kHubBoolSettingCount + kHubKeybindSettingCount + kHubIntSettingCount
-        + kHubSelectSettingCount + kHubTextSettingCount + kHubColorSettingCount
+        + kHubAdvancedBoolSettingCount + kHubTintBoolSettingCount + kHubSelectSettingCount
+        + kHubTextSettingCount + kHubStateIconTextureSettingCount + kHubStateIconSizeSettingCount
+        + kHubBountyIntSettingCount + kHubColorSettingCount
 };
 
 EMC_BoolSettingDefV1 g_boolSettingDefs[kHubBoolSettingCount];
 EMC_KeybindSettingDefV1 g_keybindSettingDefs[kHubKeybindSettingCount];
 EMC_IntSettingDefV1 g_intSettingDefs[kHubIntSettingCount];
+EMC_BoolSettingDefV1 g_advancedBoolSettingDefs[kHubAdvancedBoolSettingCount];
+EMC_BoolSettingDefV1 g_tintBoolSettingDefs[kHubTintBoolSettingCount];
 EMC_SelectSettingDefV1 g_selectSettingDefs[kHubSelectSettingCount];
 EMC_TextSettingDefV1 g_textSettingDefs[kHubTextSettingCount];
+EMC_TextSettingDefV1 g_stateIconTextureSettingDefs[kHubStateIconTextureSettingCount];
+EMC_IntSettingDefV1 g_stateIconSizeSettingDefs[kHubStateIconSizeSettingCount];
+EMC_IntSettingDefV1 g_bountyIntSettingDefs[kHubBountyIntSettingCount];
 EMC_ColorSettingDefV1 g_colorSettingDefs[kHubColorSettingCount];
 emc::ModHubClientSettingRowV1 g_modHubRows[kHubRowCount];
 
@@ -242,6 +367,37 @@ emc::ModHubClientTableRegistrationV1 g_modHubRegistration = {
     g_modHubRows,
     0u
 };
+
+void SetHubRow(
+    size_t row_index,
+    int32_t kind,
+    const char* setting_id,
+    const void* def,
+    const char* section_id,
+    const char* section_display_name)
+{
+    g_modHubRows[row_index].kind = kind;
+    g_modHubRows[row_index].setting_id = setting_id;
+    g_modHubRows[row_index].def = def;
+    g_modHubRows[row_index].section_id = section_id;
+    g_modHubRows[row_index].section_display_name = section_display_name;
+}
+
+bool IsBountyTierOrderValid(const PluginConfig& config)
+{
+    return config.bountyTierTrivialMax < config.bountyTierLowMax
+        && config.bountyTierLowMax < config.bountyTierModestMax
+        && config.bountyTierModestMax < config.bountyTierNotableMax
+        && config.bountyTierNotableMax < config.bountyTierHighValueMax
+        && config.bountyTierHighValueMax < config.bountyTierEliteMax;
+}
+
+bool IsBountyTierSetting(const HubIntSettingDescriptor* descriptor)
+{
+    return descriptor != 0
+        && descriptor->settingId != 0
+        && std::strncmp(descriptor->settingId, "bounty_tier_", 12u) == 0;
+}
 
 void InitializeSettingDefinitions()
 {
@@ -283,6 +439,26 @@ void InitializeSettingDefinitions()
         g_intSettingDefs[i].set_value = &SetIntSettingValue;
     }
 
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_advancedBoolSettingDescriptors); ++i)
+    {
+        g_advancedBoolSettingDefs[i].setting_id = g_advancedBoolSettingDescriptors[i].settingId;
+        g_advancedBoolSettingDefs[i].label = g_advancedBoolSettingDescriptors[i].label;
+        g_advancedBoolSettingDefs[i].description = g_advancedBoolSettingDescriptors[i].description;
+        g_advancedBoolSettingDefs[i].user_data = &g_advancedBoolSettingDescriptors[i];
+        g_advancedBoolSettingDefs[i].get_value = &GetBoolSettingValue;
+        g_advancedBoolSettingDefs[i].set_value = &SetBoolSettingValue;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_tintBoolSettingDescriptors); ++i)
+    {
+        g_tintBoolSettingDefs[i].setting_id = g_tintBoolSettingDescriptors[i].settingId;
+        g_tintBoolSettingDefs[i].label = g_tintBoolSettingDescriptors[i].label;
+        g_tintBoolSettingDefs[i].description = g_tintBoolSettingDescriptors[i].description;
+        g_tintBoolSettingDefs[i].user_data = &g_tintBoolSettingDescriptors[i];
+        g_tintBoolSettingDefs[i].get_value = &GetBoolSettingValue;
+        g_tintBoolSettingDefs[i].set_value = &SetBoolSettingValue;
+    }
+
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_colorSettingDescriptors); ++i)
     {
         g_colorSettingDefs[i].setting_id = g_colorSettingDescriptors[i].settingId;
@@ -319,51 +495,109 @@ void InitializeSettingDefinitions()
         g_textSettingDefs[i].set_value = &SetTextSettingValue;
     }
 
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconTextureSettingDescriptors); ++i)
+    {
+        g_stateIconTextureSettingDefs[i].setting_id = g_stateIconTextureSettingDescriptors[i].settingId;
+        g_stateIconTextureSettingDefs[i].label = g_stateIconTextureSettingDescriptors[i].label;
+        g_stateIconTextureSettingDefs[i].description = g_stateIconTextureSettingDescriptors[i].description;
+        g_stateIconTextureSettingDefs[i].user_data = &g_stateIconTextureSettingDescriptors[i];
+        g_stateIconTextureSettingDefs[i].max_length = g_stateIconTextureSettingDescriptors[i].maxLength;
+        g_stateIconTextureSettingDefs[i].get_value = &GetTextSettingValue;
+        g_stateIconTextureSettingDefs[i].set_value = &SetTextSettingValue;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconSizeSettingDescriptors); ++i)
+    {
+        g_stateIconSizeSettingDefs[i].setting_id = g_stateIconSizeSettingDescriptors[i].settingId;
+        g_stateIconSizeSettingDefs[i].label = g_stateIconSizeSettingDescriptors[i].label;
+        g_stateIconSizeSettingDefs[i].description = g_stateIconSizeSettingDescriptors[i].description;
+        g_stateIconSizeSettingDefs[i].user_data = &g_stateIconSizeSettingDescriptors[i];
+        g_stateIconSizeSettingDefs[i].min_value = g_stateIconSizeSettingDescriptors[i].minValue;
+        g_stateIconSizeSettingDefs[i].max_value = g_stateIconSizeSettingDescriptors[i].maxValue;
+        g_stateIconSizeSettingDefs[i].step = g_stateIconSizeSettingDescriptors[i].step;
+        g_stateIconSizeSettingDefs[i].get_value = &GetIntSettingValue;
+        g_stateIconSizeSettingDefs[i].set_value = &SetIntSettingValue;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_bountyIntSettingDescriptors); ++i)
+    {
+        g_bountyIntSettingDefs[i].setting_id = g_bountyIntSettingDescriptors[i].settingId;
+        g_bountyIntSettingDefs[i].label = g_bountyIntSettingDescriptors[i].label;
+        g_bountyIntSettingDefs[i].description = g_bountyIntSettingDescriptors[i].description;
+        g_bountyIntSettingDefs[i].user_data = &g_bountyIntSettingDescriptors[i];
+        g_bountyIntSettingDefs[i].min_value = g_bountyIntSettingDescriptors[i].minValue;
+        g_bountyIntSettingDefs[i].max_value = g_bountyIntSettingDescriptors[i].maxValue;
+        g_bountyIntSettingDefs[i].step = g_bountyIntSettingDescriptors[i].step;
+        g_bountyIntSettingDefs[i].get_value = &GetIntSettingValue;
+        g_bountyIntSettingDefs[i].set_value = &SetIntSettingValue;
+    }
+
     size_t rowIndex = 0u;
-    g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL;
-    g_modHubRows[rowIndex].def = &g_boolSettingDefs[0];
-    ++rowIndex;
 
-    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_keybindSettingDescriptors); ++i)
+    // Core section.
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[0].setting_id, &g_boolSettingDefs[0], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, g_keybindSettingDefs[0].setting_id, &g_keybindSettingDefs[0], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[1].setting_id, &g_boolSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[2].setting_id, &g_boolSettingDefs[2], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[3].setting_id, &g_boolSettingDefs[3], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[1].setting_id, &g_intSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[9].setting_id, &g_boolSettingDefs[9], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[10].setting_id, &g_boolSettingDefs[10], kHubSectionCoreId, kHubSectionCoreLabel);
+
+    // States section.
+    for (size_t i = 4u; i <= 8u; ++i)
     {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND;
-        g_modHubRows[rowIndex].def = &g_keybindSettingDefs[i];
-        ++rowIndex;
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[i].setting_id, &g_boolSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+    }
+    for (size_t i = 1u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[i].setting_id, &g_textSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+    }
+    for (size_t i = 3u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[i].setting_id, &g_intSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+    }
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconTextureSettingDescriptors); ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_stateIconTextureSettingDefs[i].setting_id, &g_stateIconTextureSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+    }
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconSizeSettingDefs); ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_stateIconSizeSettingDefs[i].setting_id, &g_stateIconSizeSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
 
-    for (size_t i = 1u; i < VS_ARRAY_COUNT(g_boolSettingDescriptors); ++i)
+    // Bounty section.
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[11].setting_id, &g_boolSettingDefs[11], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[12].setting_id, &g_boolSettingDefs[12], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[14].setting_id, &g_boolSettingDefs[14], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[0].setting_id, &g_textSettingDefs[0], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[2].setting_id, &g_intSettingDefs[2], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT, g_selectSettingDefs[0].setting_id, &g_selectSettingDefs[0], kHubSectionBountyId, kHubSectionBountyLabel);
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_bountyIntSettingDefs); ++i)
     {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL;
-        g_modHubRows[rowIndex].def = &g_boolSettingDefs[i];
-        ++rowIndex;
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_bountyIntSettingDefs[i].setting_id, &g_bountyIntSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
+    }
+    for (size_t i = 3u; i < VS_ARRAY_COUNT(g_colorSettingDefs); ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
     }
 
-    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
+    // Tint & relation colors section.
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[13].setting_id, &g_boolSettingDefs[13], kHubSectionTintId, kHubSectionTintLabel);
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_tintBoolSettingDefs); ++i)
     {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT;
-        g_modHubRows[rowIndex].def = &g_intSettingDefs[i];
-        ++rowIndex;
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_tintBoolSettingDefs[i].setting_id, &g_tintBoolSettingDefs[i], kHubSectionTintId, kHubSectionTintLabel);
+    }
+    for (size_t i = 0u; i < 3u; ++i)
+    {
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], kHubSectionTintId, kHubSectionTintLabel);
     }
 
-    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
+    // Advanced section.
+    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[0].setting_id, &g_intSettingDefs[0], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_advancedBoolSettingDefs); ++i)
     {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT;
-        g_modHubRows[rowIndex].def = &g_textSettingDefs[i];
-        ++rowIndex;
-    }
-
-    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_selectSettingDescriptors); ++i)
-    {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT;
-        g_modHubRows[rowIndex].def = &g_selectSettingDefs[i];
-        ++rowIndex;
-    }
-
-    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_colorSettingDescriptors); ++i)
-    {
-        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR;
-        g_modHubRows[rowIndex].def = &g_colorSettingDefs[i];
-        ++rowIndex;
+        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_advancedBoolSettingDefs[i].setting_id, &g_advancedBoolSettingDefs[i], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
     }
 
     g_modHubRegistration.row_count = static_cast<uint32_t>(rowIndex);
@@ -497,6 +731,12 @@ EMC_Result __cdecl SetIntSettingValue(void* user_data, int32_t value, char* err_
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     PluginConfig updated = state.config;
     updated.*(descriptor->field) = static_cast<DWORD>(value);
+
+    if (IsBountyTierSetting(descriptor) && !IsBountyTierOrderValid(updated))
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_bounty_tier_order");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
 
     return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
 }
@@ -662,7 +902,7 @@ EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char*
 
     const HubTextSettingDescriptor* descriptor = static_cast<const HubTextSettingDescriptor*>(user_data);
     const std::string trimmed = vs_parse::TrimAscii(value);
-    if (trimmed.empty())
+    if (trimmed.empty() && !descriptor->allowEmpty)
     {
         emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "text_required");
         return EMC_ERR_INVALID_ARGUMENT;
