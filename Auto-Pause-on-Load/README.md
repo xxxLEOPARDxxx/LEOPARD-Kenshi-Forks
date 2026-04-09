@@ -58,7 +58,7 @@ At runtime, the plugin reads:
 Supported keys:
 - `enabled` (bool)
 - `pause_debounce_ms` (number, 0..600000)
-- `debug_log_transitions` (bool)
+- `debug_logging` (bool; `debug_log_transitions` is still accepted as a legacy alias)
 - `pause_on_trade` (bool)
 - `resume_after_trade` (bool, only applies when `pause_on_trade=true`)
 - `pause_on_inventory_open` (bool)

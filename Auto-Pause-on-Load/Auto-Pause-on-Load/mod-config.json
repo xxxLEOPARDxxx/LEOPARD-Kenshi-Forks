@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "pause_debounce_ms": 2000,
-  "debug_log_transitions": false,
+  "debug_logging": false,
   "pause_on_trade": true,
   "resume_after_trade": true,
   "pause_on_inventory_open": true,

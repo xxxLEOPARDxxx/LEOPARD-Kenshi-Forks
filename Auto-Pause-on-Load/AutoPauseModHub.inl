@@ -7,10 +7,10 @@ static const char* kHubModId = "auto_pause_on_load";
 static const char* kHubModDisplayName = "Auto Pause on Load";
 
 static emc::ModHubClient g_modHubClient;
+typedef bool PluginConfig::*PluginConfigBoolField;
 
 static bool PersistHubConfig(const PluginConfig& next_config)
 {
-    (void)next_config;
     if (!SaveConfigState())
     {
         return false;
@@ -25,8 +25,6 @@ static bool PersistHubConfig(const PluginConfig& next_config)
 
     return true;
 }
-
-typedef bool PluginConfig::*PluginConfigBoolField;
 
 template <typename UpdateFn>
 static EMC_Result ApplyHubConfigUpdate(
@@ -153,12 +151,12 @@ static EMC_Result __cdecl SetPauseDebounceMsSetting(
         });
 }
 
-static EMC_Result __cdecl GetDebugLogTransitionsSetting(void* user_data, int32_t* out_value)
+static EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
 {
     return GetBoolHubSettingValue(user_data, out_value, &PluginConfig::debugLogTransitions);
 }
 
-static EMC_Result __cdecl SetDebugLogTransitionsSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+static EMC_Result __cdecl SetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
     return SetBoolHubSettingValue(
         user_data,
@@ -260,13 +258,13 @@ static const EMC_IntSettingDefV1 kHubPauseDebounceMsSetting = {
     &GetPauseDebounceMsSetting,
     &SetPauseDebounceMsSetting };
 
-static const EMC_BoolSettingDefV1 kHubDebugLogTransitionsSetting = {
-    "debug_log_transitions",
-    "Debug log transitions",
+static const EMC_BoolSettingDefV1 kHubDebugLoggingSetting = {
+    "debug_logging",
+    "Debug logging",
     "Emit verbose transition logs for load and UI pause flows",
     &g_config,
-    &GetDebugLogTransitionsSetting,
-    &SetDebugLogTransitionsSetting };
+    &GetDebugLoggingSetting,
+    &SetDebugLoggingSetting };
 
 static const EMC_BoolSettingDefV1 kHubPauseOnTradeSetting = {
     "pause_on_trade",
@@ -303,7 +301,7 @@ static const EMC_BoolSettingDefV1 kHubResumeAfterInventoryCloseSetting = {
 static const emc::ModHubClientSettingRowV1 kModHubSettingRows[] = {
     { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubEnabledSetting },
     { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kHubPauseDebounceMsSetting },
-    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubDebugLogTransitionsSetting },
+    { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubDebugLoggingSetting },
     { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnTradeSetting },
     { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubResumeAfterTradeSetting },
     { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHubPauseOnInventoryOpenSetting },

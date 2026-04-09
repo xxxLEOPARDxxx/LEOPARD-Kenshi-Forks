@@ -1,6 +1,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include "TradeWindowProbe.h"
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -106,6 +107,8 @@ struct ConfigParseDiagnostics
     bool foundPauseDebounceMs;
     bool invalidPauseDebounceMs;
     bool clampedPauseDebounceMs;
+    bool foundDebugLogging;
+    bool foundLegacyDebugLogTransitions;
     bool foundDebugLogTransitions;
     bool invalidDebugLogTransitions;
     bool foundPauseOnTrade;
@@ -132,6 +135,8 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->foundPauseDebounceMs = false;
     diagnostics->invalidPauseDebounceMs = false;
     diagnostics->clampedPauseDebounceMs = false;
+    diagnostics->foundDebugLogging = false;
+    diagnostics->foundLegacyDebugLogTransitions = false;
     diagnostics->foundDebugLogTransitions = false;
     diagnostics->invalidDebugLogTransitions = false;
     diagnostics->foundPauseOnTrade = false;
@@ -709,14 +714,26 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
-        else if (key == "debug_log_transitions")
+        else if (key == "debug_logging" || key == "debug_log_transitions")
         {
+            const bool isLegacyKey = (key == "debug_log_transitions");
             bool parsedBool = false;
             size_t valuePos = pos;
             if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
             {
+                if (isLegacyKey)
+                {
+                    diagnostics->foundLegacyDebugLogTransitions = true;
+                }
+                else
+                {
+                    diagnostics->foundDebugLogging = true;
+                }
                 diagnostics->foundDebugLogTransitions = true;
-                configOut->debugLogTransitions = parsedBool;
+                if (!isLegacyKey || !diagnostics->foundDebugLogging)
+                {
+                    configOut->debugLogTransitions = parsedBool;
+                }
                 pos = valuePos;
             }
             else
@@ -851,7 +868,7 @@ static bool RunInternalSelfChecks()
     ResetConfigParseDiagnostics(&diagnostics);
 
     if (!ParseConfigJson(
-            "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_log_transitions\":true,\"pause_on_trade\":true,\"resume_after_trade\":true,\"pause_on_inventory_open\":true,\"resume_after_inventory_close\":true}",
+            "{\"enabled\":false,\"pause_debounce_ms\":1234,\"debug_logging\":true,\"pause_on_trade\":true,\"resume_after_trade\":true,\"pause_on_inventory_open\":true,\"resume_after_inventory_close\":true}",
             &parsedConfig,
             &diagnostics))
     {
@@ -868,7 +885,7 @@ static bool RunInternalSelfChecks()
         return false;
     }
 
-    const std::string bomJson = std::string("\xEF\xBB\xBF") + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_log_transitions\":false,\"pause_on_trade\":false,\"resume_after_trade\":false,\"pause_on_inventory_open\":false,\"resume_after_inventory_close\":false}";
+    const std::string bomJson = std::string("\xEF\xBB\xBF") + "{\"enabled\":true,\"pause_debounce_ms\":2000,\"debug_logging\":false,\"pause_on_trade\":false,\"resume_after_trade\":false,\"pause_on_inventory_open\":false,\"resume_after_inventory_close\":false}";
     parsedConfig.enabled = false;
     parsedConfig.pauseDebounceMs = 1;
     parsedConfig.debugLogTransitions = true;
@@ -888,6 +905,19 @@ static bool RunInternalSelfChecks()
         || parsedConfig.resumeAfterTrade
         || parsedConfig.pauseOnInventoryOpen
         || parsedConfig.resumeAfterInventoryClose)
+    {
+        return false;
+    }
+
+    parsedConfig.debugLogTransitions = false;
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"debug_log_transitions\":true}", &parsedConfig, &diagnostics))
+    {
+        return false;
+    }
+    if (!parsedConfig.debugLogTransitions
+        || diagnostics.foundDebugLogging
+        || !diagnostics.foundLegacyDebugLogTransitions)
     {
         return false;
     }
@@ -991,10 +1021,15 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Auto-Pause-on-Load WARN: \"pause_debounce_ms\" exceeded max; clamped to 600000");
     }
-    if (!diagnostics.foundDebugLogTransitions || diagnostics.invalidDebugLogTransitions)
+    if (diagnostics.invalidDebugLogTransitions
+        || (!diagnostics.foundDebugLogging && !diagnostics.foundLegacyDebugLogTransitions))
     {
         needsWriteBack = true;
-        ErrorLog("Auto-Pause-on-Load WARN: invalid/missing key \"debug_log_transitions\"; using default");
+        ErrorLog("Auto-Pause-on-Load WARN: invalid/missing key \"debug_logging\"; using default");
+    }
+    else if (!diagnostics.foundDebugLogging && diagnostics.foundLegacyDebugLogTransitions)
+    {
+        needsWriteBack = true;
     }
     if (!diagnostics.foundPauseOnTrade || diagnostics.invalidPauseOnTrade)
     {
@@ -1034,7 +1069,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
     out << "  \"pause_debounce_ms\": " << config.pauseDebounceMs << ",\n";
-    out << "  \"debug_log_transitions\": " << (config.debugLogTransitions ? "true" : "false") << ",\n";
+    out << "  \"debug_logging\": " << (config.debugLogTransitions ? "true" : "false") << ",\n";
     out << "  \"pause_on_trade\": " << (config.pauseOnTrade ? "true" : "false") << ",\n";
     out << "  \"resume_after_trade\": " << (config.resumeAfterTrade ? "true" : "false") << ",\n";
     out << "  \"pause_on_inventory_open\": " << (config.pauseOnInventoryOpen ? "true" : "false") << ",\n";
@@ -1297,6 +1332,94 @@ static bool TryResolveCharacterInventoryVisible(Character* character, bool* visi
     }
 }
 
+static bool TryResolveActiveTraderFallback(
+    Character* speaker,
+    Character** targetOut,
+    bool* targetInventoryVisibleOut,
+    bool* targetEngagedOut)
+{
+    if (!targetOut || !targetInventoryVisibleOut || !targetEngagedOut)
+    {
+        return false;
+    }
+
+    *targetOut = 0;
+    *targetInventoryVisibleOut = false;
+    *targetEngagedOut = false;
+    if (!ou)
+    {
+        return true;
+    }
+
+    __try
+    {
+        Character* bestTarget = 0;
+        bool bestVisible = false;
+        bool bestEngaged = false;
+        int bestScore = -1;
+
+        const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
+        for (ogre_unordered_set<Character*>::type::const_iterator it = activeCharacters.begin();
+             it != activeCharacters.end();
+             ++it)
+        {
+            Character* candidate = *it;
+            if (!candidate || candidate == speaker || !candidate->inventory || !candidate->isATrader())
+            {
+                continue;
+            }
+
+            bool inventoryVisible = false;
+            if (!TryResolveCharacterInventoryVisible(candidate, &inventoryVisible))
+            {
+                inventoryVisible = false;
+            }
+
+            const bool engaged = candidate->_isEngagedWithAPlayer;
+            if (!inventoryVisible && !engaged)
+            {
+                continue;
+            }
+
+            int score = 0;
+            if (engaged)
+            {
+                score += 400;
+            }
+            if (inventoryVisible)
+            {
+                score += 800;
+            }
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestTarget = candidate;
+                bestVisible = inventoryVisible;
+                bestEngaged = engaged;
+            }
+        }
+
+        if (!bestTarget)
+        {
+            return true;
+        }
+
+        *targetOut = bestTarget;
+        *targetInventoryVisibleOut = bestVisible;
+        *targetEngagedOut = bestEngaged;
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        if (g_config.debugLogTransitions)
+        {
+            ErrorLog("Auto-Pause-on-Load WARN: exception while resolving active trader fallback");
+        }
+        return false;
+    }
+}
+
 static void AccumulateCharacterUiSignals(
     Character* character,
     bool* anyTradeActiveOut,
@@ -1321,9 +1444,30 @@ static void AccumulateCharacterUiSignals(
             return;
         }
 
+        const bool dialogActive = !dialog->conversationHasEndedPrettyMuch();
+        const bool playerEngaged = character->_isEngagedWithAPlayer;
         Character* target = dialog->getConversationTarget().getCharacter();
         if (!target)
         {
+            Character* fallbackTarget = 0;
+            bool fallbackTargetInventoryVisible = false;
+            bool fallbackTargetEngaged = false;
+            if (TryResolveActiveTraderFallback(
+                    character,
+                    &fallbackTarget,
+                    &fallbackTargetInventoryVisible,
+                    &fallbackTargetEngaged)
+                && fallbackTarget)
+            {
+                if (fallbackTargetInventoryVisible)
+                {
+                    *anyInventoryVisibleOut = true;
+                }
+
+                *anyTradeActiveOut = true;
+                return;
+            }
+
             return;
         }
 
@@ -1333,15 +1477,23 @@ static void AccumulateCharacterUiSignals(
             targetInventoryVisible = false;
         }
 
-        const bool dialogActive = !dialog->conversationHasEndedPrettyMuch();
-        const bool playerEngaged = character->_isEngagedWithAPlayer;
         const bool targetEngaged = target->_isEngagedWithAPlayer;
-        if (dialogActive
-            && (playerEngaged || targetEngaged)
-            && (characterInventoryVisible || targetInventoryVisible))
+        const bool engaged = playerEngaged || targetEngaged;
+        const bool targetIsTrader = target->isATrader();
+        if (!dialogActive && !targetIsTrader)
         {
-            *anyTradeActiveOut = true;
+            return;
         }
+
+        if (!engaged
+            && !targetIsTrader
+            && !characterInventoryVisible
+            && !targetInventoryVisible)
+        {
+            return;
+        }
+
+        *anyTradeActiveOut = true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -1376,6 +1528,15 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
     }
 
     AccumulateSelectedCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
+
+    if (!anyTradeActive)
+    {
+        bool traderWindowVisible = false;
+        if (QueryVisibleTraderWindow(&traderWindowVisible, 0) && traderWindowVisible)
+        {
+            anyTradeActive = true;
+        }
+    }
 
     *tradeActiveOut = anyTradeActive;
     *inventoryActiveOut = anyInventoryVisible;
@@ -2026,7 +2187,7 @@ __declspec(dllexport) void startPlugin()
 
     std::stringstream info;
     info << "Auto-Pause-on-Load INFO: initialized enabled=" << (g_config.enabled ? "true" : "false")
-         << " debug_log_transitions=" << (g_config.debugLogTransitions ? "true" : "false")
+         << " debug_logging=" << (g_config.debugLogTransitions ? "true" : "false")
          << " hooks_installed=" << (g_hooksInstalled ? "true" : "false")
          << " hub_ui=" << (g_modHubClient.UseHubUi() ? "true" : "false")
          << " config_needs_writeback=" << (g_configNeedsWriteBack ? "true" : "false");

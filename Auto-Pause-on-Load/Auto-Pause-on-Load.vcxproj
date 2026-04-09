@@ -88,9 +88,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Auto-Pause-on-Load.cpp" />
+    <ClCompile Include="TradeWindowProbe.cpp" />
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="TradeWindowProbe.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_api.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_client.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_consumer_helpers.h" />
