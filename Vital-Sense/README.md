@@ -89,11 +89,12 @@ Vital Sense now registers supported settings with the `Emkejs-Mod-Core` Mod Hub 
 - Mod ID: `vital_sense`
 
 Behavior:
-- If Mod Hub is available, supported bool/int/keybind settings can be changed in the hub and are persisted back to `mod-config.json`.
+- If Mod Hub is available, supported bool/int/keybind/select/text/color settings can be changed in the hub and are persisted back to `mod-config.json`.
 - `highlight_key` is exposed as a keybind row, and the modifier requirements are exposed as separate bool rows so combos like `CTRL+SHIFT+C` can be built from the current menu surface.
+- `bounty_symbol` and the per-state status labels (`unconscious_text`, `recovery_coma_text`, `dying_text`, `playing_dead_text`, `dead_text`) are exposed as bounded text rows, and `bounty_symbol_position` is exposed as a select row.
 - Relation colors and bounty-symbol tier colors are exposed as color rows. Bounty tier rows edit RGB only; any existing alpha stays file-only.
 - If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
-- The Mod Hub menu intentionally exposes only a supported subset. File-only settings still include `update_interval_ms`, debug flags, advanced tint options, bounty live-anchor/tier maxima, `bounty_symbol`, `bounty_symbol_position`, `*_text`, `*_icon_texture`, and `*_icon_size_px`.
+- The Mod Hub menu intentionally exposes only a supported subset. File-only settings still include `update_interval_ms`, debug flags, advanced tint options, bounty live-anchor/tier maxima, `*_icon_texture`, and `*_icon_size_px`.
 
 ## License
 This project is licensed under the GNU General Public License v3.0.

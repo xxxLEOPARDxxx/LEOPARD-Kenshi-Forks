@@ -63,6 +63,25 @@ struct HubColorSettingDescriptor
     bool preserveAlpha;
 };
 
+struct HubSelectSettingDescriptor
+{
+    const char* settingId;
+    const char* label;
+    const char* description;
+    bool PluginConfig::*field;
+    const EMC_SelectOptionV1* options;
+    uint32_t optionCount;
+};
+
+struct HubTextSettingDescriptor
+{
+    const char* settingId;
+    const char* label;
+    const char* description;
+    std::string PluginConfig::*field;
+    uint32_t maxLength;
+};
+
 EMC_Result __cdecl GetBoolSettingValue(void* user_data, int32_t* out_value);
 EMC_Result __cdecl SetBoolSettingValue(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size);
 EMC_Result __cdecl GetIntSettingValue(void* user_data, int32_t* out_value);
@@ -71,6 +90,10 @@ EMC_Result __cdecl GetKeybindSettingValue(void* user_data, EMC_KeybindValueV1* o
 EMC_Result __cdecl SetKeybindSettingValue(void* user_data, EMC_KeybindValueV1 value, char* err_buf, uint32_t err_buf_size);
 EMC_Result __cdecl GetColorSettingValue(void* user_data, char* out_value, uint32_t out_value_size);
 EMC_Result __cdecl SetColorSettingValue(void* user_data, const char* value, char* err_buf, uint32_t err_buf_size);
+EMC_Result __cdecl GetSelectSettingValue(void* user_data, int32_t* out_value);
+EMC_Result __cdecl SetSelectSettingValue(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size);
+EMC_Result __cdecl GetTextSettingValue(void* user_data, char* out_value, uint32_t out_value_size);
+EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char* err_buf, uint32_t err_buf_size);
 
 emc::ModHubClient g_modHubClient;
 bool g_modHubClientConfigured = false;
@@ -121,18 +144,88 @@ HubColorSettingDescriptor g_colorSettingDescriptors[] = {
     { "bounty_color_legendary_hex", "Bounty legendary color", "Bounty symbol text color for the legendary tier; Mod Hub edits RGB only", &PluginConfig::bountyTierLegendaryColour, EMC_COLOR_PREVIEW_KIND_TEXT, true }
 };
 
+const int32_t kBountySymbolPositionBeforeStateIcon = 0;
+const int32_t kBountySymbolPositionBeforeStateText = 1;
+const uint32_t kHubTextMaxLength = 32u;
+
+const EMC_SelectOptionV1 g_bountySymbolPositionOptions[] = {
+    { kBountySymbolPositionBeforeStateIcon, "Before state icon" },
+    { kBountySymbolPositionBeforeStateText, "Before state text" }
+};
+
+HubSelectSettingDescriptor g_selectSettingDescriptors[] = {
+    {
+        "bounty_symbol_position",
+        "Bounty symbol position",
+        "Choose whether the bounty symbol renders before the state icon or before the state text",
+        &PluginConfig::placeBountySymbolBeforeStateIcon,
+        g_bountySymbolPositionOptions,
+        static_cast<uint32_t>(VS_ARRAY_COUNT(g_bountySymbolPositionOptions))
+    }
+};
+
+HubTextSettingDescriptor g_textSettingDescriptors[] = {
+    {
+        "bounty_symbol",
+        "Bounty symbol",
+        "Short bounty symbol text such as $ or B",
+        &PluginConfig::bountySymbolText,
+        kHubTextMaxLength
+    },
+    {
+        "unconscious_text",
+        "Unconscious text",
+        "Short label for the unconscious marker",
+        &PluginConfig::unconsciousText,
+        kHubTextMaxLength
+    },
+    {
+        "recovery_coma_text",
+        "Recovery coma text",
+        "Short label for the recovery coma marker",
+        &PluginConfig::recoveryComaText,
+        kHubTextMaxLength
+    },
+    {
+        "dying_text",
+        "Dying text",
+        "Short label for the dying marker",
+        &PluginConfig::dyingText,
+        kHubTextMaxLength
+    },
+    {
+        "playing_dead_text",
+        "Playing dead text",
+        "Short label for the playing dead marker",
+        &PluginConfig::playingDeadText,
+        kHubTextMaxLength
+    },
+    {
+        "dead_text",
+        "Dead text",
+        "Short label for the dead marker",
+        &PluginConfig::deadText,
+        kHubTextMaxLength
+    }
+};
+
 enum
 {
     kHubBoolSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_boolSettingDescriptors)),
     kHubKeybindSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_keybindSettingDescriptors)),
     kHubIntSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_intSettingDescriptors)),
+    kHubSelectSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_selectSettingDescriptors)),
+    kHubTextSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_textSettingDescriptors)),
     kHubColorSettingCount = static_cast<int>(VS_ARRAY_COUNT(g_colorSettingDescriptors)),
-    kHubRowCount = kHubBoolSettingCount + kHubKeybindSettingCount + kHubIntSettingCount + kHubColorSettingCount
+    kHubRowCount = kHubBoolSettingCount + kHubKeybindSettingCount + kHubIntSettingCount
+        + kHubSelectSettingCount + kHubTextSettingCount + kHubColorSettingCount
 };
 
 EMC_BoolSettingDefV1 g_boolSettingDefs[kHubBoolSettingCount];
 EMC_KeybindSettingDefV1 g_keybindSettingDefs[kHubKeybindSettingCount];
 EMC_IntSettingDefV1 g_intSettingDefs[kHubIntSettingCount];
+EMC_SelectSettingDefV1 g_selectSettingDefs[kHubSelectSettingCount];
+EMC_TextSettingDefV1 g_textSettingDefs[kHubTextSettingCount];
 EMC_ColorSettingDefV1 g_colorSettingDefs[kHubColorSettingCount];
 emc::ModHubClientSettingRowV1 g_modHubRows[kHubRowCount];
 
@@ -203,6 +296,29 @@ void InitializeSettingDefinitions()
         g_colorSettingDefs[i].set_value = &SetColorSettingValue;
     }
 
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_selectSettingDescriptors); ++i)
+    {
+        g_selectSettingDefs[i].setting_id = g_selectSettingDescriptors[i].settingId;
+        g_selectSettingDefs[i].label = g_selectSettingDescriptors[i].label;
+        g_selectSettingDefs[i].description = g_selectSettingDescriptors[i].description;
+        g_selectSettingDefs[i].user_data = &g_selectSettingDescriptors[i];
+        g_selectSettingDefs[i].options = g_selectSettingDescriptors[i].options;
+        g_selectSettingDefs[i].option_count = g_selectSettingDescriptors[i].optionCount;
+        g_selectSettingDefs[i].get_value = &GetSelectSettingValue;
+        g_selectSettingDefs[i].set_value = &SetSelectSettingValue;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
+    {
+        g_textSettingDefs[i].setting_id = g_textSettingDescriptors[i].settingId;
+        g_textSettingDefs[i].label = g_textSettingDescriptors[i].label;
+        g_textSettingDefs[i].description = g_textSettingDescriptors[i].description;
+        g_textSettingDefs[i].user_data = &g_textSettingDescriptors[i];
+        g_textSettingDefs[i].max_length = g_textSettingDescriptors[i].maxLength;
+        g_textSettingDefs[i].get_value = &GetTextSettingValue;
+        g_textSettingDefs[i].set_value = &SetTextSettingValue;
+    }
+
     size_t rowIndex = 0u;
     g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL;
     g_modHubRows[rowIndex].def = &g_boolSettingDefs[0];
@@ -226,6 +342,20 @@ void InitializeSettingDefinitions()
     {
         g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT;
         g_modHubRows[rowIndex].def = &g_intSettingDefs[i];
+        ++rowIndex;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
+    {
+        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT;
+        g_modHubRows[rowIndex].def = &g_textSettingDefs[i];
+        ++rowIndex;
+    }
+
+    for (size_t i = 0u; i < VS_ARRAY_COUNT(g_selectSettingDescriptors); ++i)
+    {
+        g_modHubRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT;
+        g_modHubRows[rowIndex].def = &g_selectSettingDefs[i];
         ++rowIndex;
     }
 
@@ -459,6 +589,94 @@ EMC_Result __cdecl SetColorSettingValue(void* user_data, const char* value, char
     PluginConfig updated = state.config;
     const float alpha = descriptor->preserveAlpha ? (state.config.*(descriptor->field)).alpha : 1.0f;
     updated.*(descriptor->field) = MyGUI::Colour(parsed.red, parsed.green, parsed.blue, alpha);
+    return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl GetSelectSettingValue(void* user_data, int32_t* out_value)
+{
+    if (user_data == 0 || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const HubSelectSettingDescriptor* descriptor = static_cast<const HubSelectSettingDescriptor*>(user_data);
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    *out_value = (state.config.*(descriptor->field))
+        ? kBountySymbolPositionBeforeStateIcon
+        : kBountySymbolPositionBeforeStateText;
+    return EMC_OK;
+}
+
+EMC_Result __cdecl SetSelectSettingValue(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    if (user_data == 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_setting_context");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    bool placeBeforeStateIcon = false;
+    if (value == kBountySymbolPositionBeforeStateIcon)
+    {
+        placeBeforeStateIcon = true;
+    }
+    else if (value != kBountySymbolPositionBeforeStateText)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_select_option");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const HubSelectSettingDescriptor* descriptor = static_cast<const HubSelectSettingDescriptor*>(user_data);
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    PluginConfig updated = state.config;
+    updated.*(descriptor->field) = placeBeforeStateIcon;
+    return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl GetTextSettingValue(void* user_data, char* out_value, uint32_t out_value_size)
+{
+    if (user_data == 0 || out_value == 0 || out_value_size == 0u)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const HubTextSettingDescriptor* descriptor = static_cast<const HubTextSettingDescriptor*>(user_data);
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    const std::string& value = state.config.*(descriptor->field);
+    if (value.size() + 1u > out_value_size)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    std::memcpy(out_value, value.c_str(), value.size() + 1u);
+    return EMC_OK;
+}
+
+EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char* err_buf, uint32_t err_buf_size)
+{
+    if (user_data == 0 || value == 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_setting_context");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const HubTextSettingDescriptor* descriptor = static_cast<const HubTextSettingDescriptor*>(user_data);
+    const std::string trimmed = vs_parse::TrimAscii(value);
+    if (trimmed.empty())
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "text_required");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (trimmed.size() > descriptor->maxLength)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "text_too_long");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    PluginConfig updated = state.config;
+    updated.*(descriptor->field) = trimmed;
     return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
 }
 
