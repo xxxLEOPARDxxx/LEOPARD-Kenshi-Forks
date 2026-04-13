@@ -297,6 +297,45 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     return &kRegistration;
 }
 
+static EMC_Result RegisterHubSettingRow(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
+    EMC_ModHandle mod_handle,
+    const emc::ModHubClientSettingRowV1& row)
+{
+    if (api == 0 || mod_handle == 0 || row.def == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    switch (row.kind)
+    {
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL:
+        if (api->register_bool_setting == 0)
+        {
+            return EMC_ERR_INTERNAL;
+        }
+        return api->register_bool_setting(mod_handle, static_cast<const EMC_BoolSettingDefV1*>(row.def));
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2:
+        if (api_size < EMC_HUB_API_V1_KEYBIND_SETTING_V2_MIN_SIZE || api->register_keybind_setting_v2 == 0)
+        {
+            return EMC_ERR_API_SIZE_MISMATCH;
+        }
+        return api->register_keybind_setting_v2(mod_handle, static_cast<const EMC_KeybindSettingDefV2*>(row.def));
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2:
+        if (api_size < EMC_HUB_API_V1_ACTION_ROW_V2_MIN_SIZE || api->register_action_row_v2 == 0)
+        {
+            return EMC_ERR_API_SIZE_MISMATCH;
+        }
+        return api->register_action_row_v2(mod_handle, static_cast<const EMC_ActionRowDefV2*>(row.def));
+
+    default:
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+}
+
 static bool ShouldForceHubAttachFailure(bool is_retry)
 {
     if (g_modHubAttachFailureMode == kHubAttachFailureModeAlways)
@@ -331,7 +370,72 @@ static EMC_Result __cdecl RegisterHubSettingsForClient(const EMC_HubApiV1* api, 
         return EMC_ERR_INTERNAL;
     }
 
-    return emc::RegisterSettingsTableV1(api, GetModHubTableRegistration());
+    const emc::ModHubClientTableRegistrationV1* registration = GetModHubTableRegistration();
+    if (api == 0 || registration == 0 || registration->mod_desc == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (api->register_mod == 0)
+    {
+        return EMC_ERR_INTERNAL;
+    }
+
+    if (registration->row_count > 0u && registration->rows == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    EMC_ModHandle mod_handle = 0;
+    EMC_Result result = api->register_mod(registration->mod_desc, &mod_handle);
+    if (result != EMC_OK)
+    {
+        return result;
+    }
+
+    if (mod_handle == 0)
+    {
+        return EMC_ERR_INTERNAL;
+    }
+
+    const uint32_t api_size = api->api_size;
+    for (uint32_t row_index = 0u; row_index < registration->row_count; ++row_index)
+    {
+        result = RegisterHubSettingRow(api, api_size, mod_handle, registration->rows[row_index]);
+        if (result != EMC_OK)
+        {
+            return result;
+        }
+    }
+
+    static const EMC_BoolConditionRuleDefV1 kHiddenWhenDisabledRules[] = {
+        {
+            kHubSettingSleepingBagEnabledId,
+            kHubSettingEnabledId,
+            EMC_BOOL_CONDITION_EFFECT_HIDE,
+            0 },
+        {
+            kHubSettingHotkeyId,
+            kHubSettingEnabledId,
+            EMC_BOOL_CONDITION_EFFECT_HIDE,
+            0 },
+        {
+            kHubActionResetHotkeyId,
+            kHubSettingEnabledId,
+            EMC_BOOL_CONDITION_EFFECT_HIDE,
+            0 }
+    };
+
+    for (size_t rule_index = 0u; rule_index < sizeof(kHiddenWhenDisabledRules) / sizeof(kHiddenWhenDisabledRules[0]); ++rule_index)
+    {
+        result = emc::RegisterBoolConditionRuleV1(api, mod_handle, &kHiddenWhenDisabledRules[rule_index]);
+        if (result != EMC_OK)
+        {
+            return result;
+        }
+    }
+
+    return EMC_OK;
 }
 
 static void ConfigureModHubClient()
