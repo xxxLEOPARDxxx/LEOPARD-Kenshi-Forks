@@ -113,6 +113,99 @@ static bool TryParseKeyCode(const std::string& keyName, OIS::KeyCode* outKey)
     return false;
 }
 
+static bool TryParseHotkeyBinding(
+    const std::string& bindingText,
+    OIS::KeyCode* outKey,
+    bool* outRequireCtrl,
+    bool* outRequireShift,
+    bool* outRequireAlt)
+{
+    if (!outKey)
+    {
+        return false;
+    }
+
+    const std::string normalized = TrimAscii(bindingText);
+    if (normalized.empty())
+    {
+        return false;
+    }
+
+    bool requireCtrl = false;
+    bool requireShift = false;
+    bool requireAlt = false;
+    bool foundKey = false;
+    OIS::KeyCode parsedKey = OIS::KC_UNASSIGNED;
+
+    size_t tokenStart = 0;
+    while (tokenStart <= normalized.size())
+    {
+        const size_t tokenEnd = normalized.find('+', tokenStart);
+        const std::string token = ToUpperAscii(TrimAscii(
+            normalized.substr(tokenStart, tokenEnd == std::string::npos ? std::string::npos : tokenEnd - tokenStart)));
+
+        if (token.empty())
+        {
+            return false;
+        }
+
+        if (token == "CTRL" || token == "CONTROL" || token == "LCONTROL" || token == "RCONTROL")
+        {
+            requireCtrl = true;
+        }
+        else if (token == "SHIFT" || token == "LSHIFT" || token == "RSHIFT")
+        {
+            requireShift = true;
+        }
+        else if (token == "ALT" || token == "LMENU" || token == "RMENU" || token == "MENU")
+        {
+            requireAlt = true;
+        }
+        else
+        {
+            if (foundKey)
+            {
+                return false;
+            }
+
+            if (!TryParseKeyCode(token, &parsedKey))
+            {
+                return false;
+            }
+
+            foundKey = true;
+        }
+
+        if (tokenEnd == std::string::npos)
+        {
+            break;
+        }
+
+        tokenStart = tokenEnd + 1u;
+    }
+
+    if (!foundKey)
+    {
+        return false;
+    }
+
+    *outKey = parsedKey;
+    if (outRequireCtrl)
+    {
+        *outRequireCtrl = requireCtrl;
+    }
+    if (outRequireShift)
+    {
+        *outRequireShift = requireShift;
+    }
+    if (outRequireAlt)
+    {
+        *outRequireAlt = requireAlt;
+    }
+
+    return true;
+}
+
 static const char* KeyCodeToName(OIS::KeyCode keyCode)
 {
     for (size_t i = 0; i < kHotkeyNameMapCount; ++i)
@@ -222,7 +315,11 @@ static bool IsSupportedKeyCode(OIS::KeyCode keyCode)
 
 static void SyncNativeBindingFromHotkey()
 {
-    g_hotkeyNativeBinding = KeyCodeToName(g_hotkeyPrimary);
+    g_hotkeyNativeBinding = FormatHotkeyBinding(
+        g_hotkeyPrimary,
+        g_hotkeyRequireCtrl,
+        g_hotkeyRequireShift,
+        g_hotkeyRequireAlt);
 }
 
 static HotkeyValidationResult ValidateHotkey(OIS::KeyCode keyCode, std::string* reason)
@@ -428,7 +525,7 @@ static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
     }
 
     OIS::KeyCode parsedKey = OIS::KC_UNASSIGNED;
-    if (!TryParseKeyCode(hotkeyText, &parsedKey))
+    if (!TryParseHotkeyBinding(hotkeyText, &parsedKey, 0, 0, 0))
     {
         std::stringstream warning;
         warning << "Wall-B-Gone WARN: failed to parse hotkey '" << hotkeyText << "' from config; using default '"

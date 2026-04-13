@@ -117,6 +117,24 @@ static EMC_Result __cdecl HubSetHotkeyRequireAltSetting(void* user_data, int32_t
     return result;
 }
 
+static uint32_t GetCurrentHotkeyModifierBits()
+{
+    uint32_t modifiers = 0u;
+    if (g_hotkeyRequireCtrl)
+    {
+        modifiers |= kHotkeyModifierCtrlMask;
+    }
+    if (g_hotkeyRequireShift)
+    {
+        modifiers |= kHotkeyModifierShiftMask;
+    }
+    if (g_hotkeyRequireAlt)
+    {
+        modifiers |= kHotkeyModifierAltMask;
+    }
+    return modifiers;
+}
+
 static EMC_Result __cdecl HubGetDismantleHotkeySetting(void* user_data, EMC_KeybindValueV1* out_value)
 {
     if (!IsHubUserDataValid(user_data) || out_value == 0)
@@ -126,7 +144,7 @@ static EMC_Result __cdecl HubGetDismantleHotkeySetting(void* user_data, EMC_Keyb
 
     EnsureRuntimeHotkeyValid();
     out_value->keycode = static_cast<int32_t>(g_hotkeyPrimary);
-    out_value->modifiers = 0u;
+    out_value->modifiers = GetCurrentHotkeyModifierBits();
     return EMC_OK;
 }
 
@@ -142,9 +160,10 @@ static EMC_Result __cdecl HubSetDismantleHotkeySetting(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
-    if (value.modifiers != 0u)
+    const uint32_t supportedModifierMask = kHotkeyModifierCtrlMask | kHotkeyModifierShiftMask | kHotkeyModifierAltMask;
+    if ((value.modifiers & ~supportedModifierMask) != 0u)
     {
-        WriteRuntimeApiError(err_buf, err_buf_size, "use_modifier_toggles");
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_modifiers");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
@@ -157,8 +176,14 @@ static EMC_Result __cdecl HubSetDismantleHotkeySetting(
     }
 
     const OIS::KeyCode previous_hotkey = g_hotkeyPrimary;
+    const bool previous_hotkey_require_ctrl = g_hotkeyRequireCtrl;
+    const bool previous_hotkey_require_shift = g_hotkeyRequireShift;
+    const bool previous_hotkey_require_alt = g_hotkeyRequireAlt;
     g_hotkeyPrimary = requestedHotkey;
     g_pendingHotkeyPrimary = requestedHotkey;
+    g_hotkeyRequireCtrl = (value.modifiers & kHotkeyModifierCtrlMask) != 0u;
+    g_hotkeyRequireShift = (value.modifiers & kHotkeyModifierShiftMask) != 0u;
+    g_hotkeyRequireAlt = (value.modifiers & kHotkeyModifierAltMask) != 0u;
     SyncNativeBindingFromHotkey();
     RefreshHotkeyUiWidgets();
 
@@ -166,6 +191,9 @@ static EMC_Result __cdecl HubSetDismantleHotkeySetting(
     {
         g_hotkeyPrimary = previous_hotkey;
         g_pendingHotkeyPrimary = previous_hotkey;
+        g_hotkeyRequireCtrl = previous_hotkey_require_ctrl;
+        g_hotkeyRequireShift = previous_hotkey_require_shift;
+        g_hotkeyRequireAlt = previous_hotkey_require_alt;
         SyncNativeBindingFromHotkey();
         RefreshHotkeyUiWidgets();
         WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
@@ -236,54 +264,29 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetSleepingBagEnabledSetting,
         &HubSetSleepingBagEnabledSetting };
 
-    static const EMC_KeybindSettingDefV1 kHotkeySettingDef = {
+    static const EMC_KeybindSettingDefV2 kHotkeySettingDef = {
         kHubSettingHotkeyId,
         "Dismantle hotkey",
-        "Primary key used to dismantle the selected wall or sleeping bag. Use the modifier toggles below for combos.",
+        "Primary key used to dismantle the selected wall or sleeping bag. Hold Ctrl, Shift, or Alt while capturing to store a combo.",
         &g_modHubClient,
         &HubGetDismantleHotkeySetting,
-        &HubSetDismantleHotkeySetting };
+        &HubSetDismantleHotkeySetting,
+        "Capture the dismantle shortcut with optional Ctrl/Shift/Alt modifiers." };
 
-    static const EMC_BoolSettingDefV1 kHotkeyRequireCtrlSettingDef = {
-        kHubSettingHotkeyRequireCtrlId,
-        "Require Ctrl",
-        "Require Ctrl to be held with the dismantle hotkey",
-        &g_modHubClient,
-        &HubGetHotkeyRequireCtrlSetting,
-        &HubSetHotkeyRequireCtrlSetting };
-
-    static const EMC_BoolSettingDefV1 kHotkeyRequireShiftSettingDef = {
-        kHubSettingHotkeyRequireShiftId,
-        "Require Shift",
-        "Require Shift to be held with the dismantle hotkey",
-        &g_modHubClient,
-        &HubGetHotkeyRequireShiftSetting,
-        &HubSetHotkeyRequireShiftSetting };
-
-    static const EMC_BoolSettingDefV1 kHotkeyRequireAltSettingDef = {
-        kHubSettingHotkeyRequireAltId,
-        "Require Alt",
-        "Require Alt to be held with the dismantle hotkey",
-        &g_modHubClient,
-        &HubGetHotkeyRequireAltSetting,
-        &HubSetHotkeyRequireAltSetting };
-
-    static const EMC_ActionRowDefV1 kResetHotkeyActionDef = {
+    static const EMC_ActionRowDefV2 kResetHotkeyActionDef = {
         kHubActionResetHotkeyId,
         "Reset hotkey default",
         "Reset dismantle hotkey and modifier requirements to defaults",
         &g_modHubClient,
         EMC_ACTION_FORCE_REFRESH,
-        &HubResetHotkeyDefaultAction };
+        &HubResetHotkeyDefaultAction,
+        "Restore the dismantle shortcut and modifier toggles to Wall-B-Gone defaults." };
 
     static const emc::ModHubClientSettingRowV1 kRows[] = {
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kSleepingBagEnabledSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, &kHotkeySettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireCtrlSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireShiftSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kHotkeyRequireAltSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetHotkeyActionDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingSleepingBagEnabledId, &kSleepingBagEnabledSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2, kHubSettingHotkeyId, &kHotkeySettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2, kHubActionResetHotkeyId, &kResetHotkeyActionDef, 0, 0 }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {

@@ -186,13 +186,19 @@ static void OptionsWindowSaveHook(OptionsWindow* self)
     if (g_nativeHotkeyBindingActive)
     {
         OIS::KeyCode parsedKey = OIS::KC_UNASSIGNED;
-        if (TryParseKeyCode(g_hotkeyNativeBinding, &parsedKey))
+        bool parsedCtrl = false;
+        bool parsedShift = false;
+        bool parsedAlt = false;
+        if (TryParseHotkeyBinding(g_hotkeyNativeBinding, &parsedKey, &parsedCtrl, &parsedShift, &parsedAlt))
         {
             std::string reason;
             if (ValidateHotkey(parsedKey, &reason) == HotkeyValidation_Ok)
             {
                 g_hotkeyPrimary = parsedKey;
                 g_pendingHotkeyPrimary = parsedKey;
+                g_hotkeyRequireCtrl = parsedCtrl;
+                g_hotkeyRequireShift = parsedShift;
+                g_hotkeyRequireAlt = parsedAlt;
                 SyncNativeBindingFromHotkey();
             }
             else

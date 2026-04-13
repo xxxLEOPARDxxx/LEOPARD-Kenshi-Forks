@@ -59,6 +59,7 @@ This mod stores its runtime settings in `mod-config.json`:
 - `hotkey`
 
 If `Emkejs-Mod-Core` is installed, these same settings can also appear in Emkejs Mod Hub. If Mod Hub is unavailable, Wall-B-Gone falls back to its native plugin settings tab.
+Both the Mod Hub row and the native plugin hotkey row now preserve Ctrl/Shift/Alt modifier bits directly, so combo bindings stay in sync across both UIs.
 
 Wall-B-Gone consumes the current public Mod Hub helper from `tools/mod-hub-sdk`, matching the documented `Emkejs-Mod-Core` consumer SDK flow rather than a vendored local copy.
 
