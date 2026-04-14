@@ -129,6 +129,10 @@ static EMC_Result __cdecl HubSetHotkeyRequireAltSetting(void* user_data, int32_t
 
 static const char* kHubSectionAdvancedId = "advanced";
 static const char* kHubSectionAdvancedLabel = "Advanced";
+static const EMC_SettingSectionDefV1 kDebugLoggingSectionDef = {
+    "debug_logging",
+    kHubSectionAdvancedId,
+    kHubSectionAdvancedLabel };
 
 static uint32_t GetCurrentHotkeyModifierBits()
 {
@@ -424,6 +428,15 @@ static EMC_Result __cdecl RegisterHubSettingsForClient(const EMC_HubApiV1* api, 
     for (uint32_t row_index = 0u; row_index < registration->row_count; ++row_index)
     {
         result = RegisterHubSettingRow(api, api_size, mod_handle, registration->rows[row_index]);
+        if (result != EMC_OK)
+        {
+            return result;
+        }
+    }
+
+    if (api_size >= EMC_HUB_API_V1_SETTING_SECTION_MIN_SIZE && api->register_setting_section != 0)
+    {
+        result = api->register_setting_section(mod_handle, &kDebugLoggingSectionDef);
         if (result != EMC_OK)
         {
             return result;
