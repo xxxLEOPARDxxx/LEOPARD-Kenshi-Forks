@@ -69,6 +69,7 @@ enum HotkeyValidationResult
 // Runtime toggle persisted to JSON and exposed in Plugins menu.
 static bool g_modEnabled = true;
 static bool g_sleepingBagDismantleEnabled = true;
+static bool g_debugLogging = false;
 static std::string g_settingsPath;
 static const char* kWallBGoneTabName = "Wall-B-Gone";
 static const char* kWallBGonePanelName = "wall_b_gone_options";
@@ -95,6 +96,14 @@ static bool g_nativeHotkeyBindingActive = false;
 static emc::ModHubClient g_modHubClient;
 static int32_t g_modHubAttachFailureMode = kHubAttachFailureModeNone;
 static int32_t g_modHubRegisterMode = kHubRegisterModeNormal;
+
+static void WallBGoneDebugLog(const char* message)
+{
+    if (g_debugLogging)
+    {
+        DebugLog(message);
+    }
+}
 
 struct WallBGoneRuntimeStateV1
 {

@@ -1,5 +1,5 @@
 ## Wall-B-Gone (RE_Kenshi plugin)
-Safely dismantles selected walls and sleeping bags (only when not occupied) with Hotkey X and returns materials.
+Safely dismantles selected walls, beds, and common furniture (beds only when not occupied) with Hotkey X and returns materials.
 
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
@@ -53,6 +53,7 @@ This mod stores its runtime settings in `mod-config.json`:
 
 - `enabled`
 - `sleepingBagDismantleEnabled`
+- `debugLogging`
 - `hotkeyRequireCtrl`
 - `hotkeyRequireShift`
 - `hotkeyRequireAlt`
@@ -60,7 +61,8 @@ This mod stores its runtime settings in `mod-config.json`:
 
 If `Emkejs-Mod-Core` is installed, these same settings can also appear in Emkejs Mod Hub. If Mod Hub is unavailable, Wall-B-Gone falls back to its native plugin settings tab.
 Both the Mod Hub row and the native plugin hotkey row now preserve Ctrl/Shift/Alt modifier bits directly, so combo bindings stay in sync across both UIs.
-When `enabled` is off, the dependent Mod Hub rows for sleeping bags, the dismantle hotkey, and the hotkey reset action are hidden so the panel stays focused on the master toggle.
+When `enabled` is off, the dependent Mod Hub rows for beds and common furniture, the dismantle hotkey, and the hotkey reset action are hidden so the panel stays focused on the master toggle.
+The `debugLogging` toggle lives under an `Advanced` Mod Hub section and starts collapsed by default. It gates extra runtime diagnostics in the log.
 
 Wall-B-Gone consumes the current public Mod Hub helper from `tools/mod-hub-sdk`, matching the documented `Emkejs-Mod-Core` consumer SDK flow rather than a vendored local copy.
 

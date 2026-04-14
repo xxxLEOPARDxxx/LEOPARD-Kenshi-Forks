@@ -125,13 +125,13 @@ static void OptionsWindowInitHook(OptionsWindow* self)
 
     DataPanelLine_CheckBox* sleepingBagToggleLine = g_fnCreateCheckboxLine(
         pluginOptionPanel,
-        "   Enable sleeping bag dismantle",
+        "   Enable bed and furniture dismantle",
         g_sleepingBagDismantleEnabled,
         tabID);
     if (sleepingBagToggleLine && self->tooltip)
     {
         sleepingBagToggleLine->setTooltip(
-            "Allow hotkey dismantle for sleeping bags and compatible medical variants. Occupied bags are always protected.",
+            "Allow hotkey dismantle for beds and common furniture. Beds are always protected while occupied.",
             self->tooltip);
     }
 
@@ -237,7 +237,7 @@ static bool CheckInternalBuildingsSafely(Building* b)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog("Hotkey action: CRASH AVERTED in CheckInternalBuildingsSafely");
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED in CheckInternalBuildingsSafely");
         hasInternal = true;
     }
     return hasInternal;
@@ -262,7 +262,7 @@ static bool CheckMountedBuildingsSafely(Building* b)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog("Hotkey action: CRASH AVERTED in CheckMountedBuildingsSafely");
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED in CheckMountedBuildingsSafely");
         hasMounted = true;
     }
     return hasMounted;
@@ -311,101 +311,115 @@ static bool ContainsAsciiInsensitive(const std::string& haystack, const char* ne
     return false;
 }
 
-static bool IsBaseSleepingBagText(const std::string& value)
+static bool IsAsciiCompactSeparator(char value)
 {
-    return ContainsAsciiInsensitive(value, "sleeping bag")
-        || ContainsAsciiInsensitive(value, "sleeping-bag")
-        || ContainsAsciiInsensitive(value, "sleeping_bag")
-        || ContainsAsciiInsensitive(value, "sleepingbag")
-        || ContainsAsciiInsensitive(value, "camp bed")
-        || ContainsAsciiInsensitive(value, "camp_bed")
-        || ContainsAsciiInsensitive(value, "campbed")
-        || ContainsAsciiInsensitive(value, "bedroll");
+    return value == ' ' || value == '-' || value == '_' || value == '\t';
 }
 
-static bool IsMedicalSleepingBagText(const std::string& value)
+static bool EqualsAsciiInsensitiveCompact(const std::string& value, const char* needle)
 {
-    const bool hasMedical = ContainsAsciiInsensitive(value, "medical");
-    const bool hasSleepBagHint = ContainsAsciiInsensitive(value, "sleep")
-        || ContainsAsciiInsensitive(value, "bag")
-        || ContainsAsciiInsensitive(value, "bedroll")
-        || ContainsAsciiInsensitive(value, "camp");
-
-    if (hasMedical && hasSleepBagHint)
-    {
-        return true;
-    }
-
-    // Compatibility IDs used by some sleeping-bag mods.
-    return ContainsAsciiInsensitive(value, "medicalbed")
-        || ContainsAsciiInsensitive(value, "medical_bed")
-        || ContainsAsciiInsensitive(value, "advancedmedicalbed")
-        || ContainsAsciiInsensitive(value, "advanced_medical_bed");
-}
-
-static bool IsSleepingBagGameData(const GameData* data)
-{
-    if (!data)
+    if (!needle || needle[0] == '\0')
     {
         return false;
     }
 
-    const std::string& name = data->name;
-    const std::string& stringId = data->stringID;
+    size_t valueIndex = 0;
+    size_t needleIndex = 0;
 
-    return IsBaseSleepingBagText(name) || IsBaseSleepingBagText(stringId);
+    while (valueIndex < value.size() && IsAsciiCompactSeparator(value[valueIndex]))
+    {
+        ++valueIndex;
+    }
+
+    while (needle[needleIndex] != '\0' && IsAsciiCompactSeparator(needle[needleIndex]))
+    {
+        ++needleIndex;
+    }
+
+    while (valueIndex < value.size() && needle[needleIndex] != '\0')
+    {
+        if (IsAsciiCompactSeparator(value[valueIndex]))
+        {
+            ++valueIndex;
+            continue;
+        }
+
+        if (IsAsciiCompactSeparator(needle[needleIndex]))
+        {
+            ++needleIndex;
+            continue;
+        }
+
+        if (ToLowerAsciiChar(value[valueIndex]) != ToLowerAsciiChar(needle[needleIndex]))
+        {
+            return false;
+        }
+
+        ++valueIndex;
+        ++needleIndex;
+    }
+
+    while (valueIndex < value.size() && IsAsciiCompactSeparator(value[valueIndex]))
+    {
+        ++valueIndex;
+    }
+
+    while (needle[needleIndex] != '\0' && IsAsciiCompactSeparator(needle[needleIndex]))
+    {
+        ++needleIndex;
+    }
+
+    return valueIndex == value.size() && needle[needleIndex] == '\0';
 }
 
-static bool IsOutsideFurnitureSafely(Building* b)
+static bool IsFurnitureText(const std::string& value)
 {
-    bool isOutsideFurniture = false;
-    __try
-    {
-        isOutsideFurniture = b->getIsOutsideFurniture();
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        DebugLog("Hotkey action: CRASH AVERTED in IsOutsideFurnitureSafely");
-        isOutsideFurniture = false;
-    }
-
-    return isOutsideFurniture;
+    return EqualsAsciiInsensitiveCompact(value, "bench")
+        || EqualsAsciiInsensitiveCompact(value, "chair")
+        || EqualsAsciiInsensitiveCompact(value, "stool")
+        || EqualsAsciiInsensitiveCompact(value, "table")
+        || EqualsAsciiInsensitiveCompact(value, "throne")
+        || EqualsAsciiInsensitiveCompact(value, "sittingbox")
+        || EqualsAsciiInsensitiveCompact(value, "sittingpillow")
+        || EqualsAsciiInsensitiveCompact(value, "smalltable")
+        || EqualsAsciiInsensitiveCompact(value, "metaltable")
+        || EqualsAsciiInsensitiveCompact(value, "roundtable")
+        || EqualsAsciiInsensitiveCompact(value, "roundbartable");
 }
 
-static bool IsSleepingBagBuilding(Building* b)
+static bool IsBedBuilding(Building* b)
 {
     if (!b)
     {
         return false;
     }
 
-    if (b->getSpecialFunction() != BF_BED)
+    return b->getSpecialFunction() == BF_BED;
+}
+
+static bool IsSupportedBedOrFurnitureBuilding(Building* b)
+{
+    if (!b)
     {
         return false;
     }
 
-    const GameData* data = b->getGameData();
-    if (IsSleepingBagGameData(data))
+    const int specialFunction = b->getSpecialFunction();
+    if (specialFunction == BF_BED || specialFunction == BF_CHAIR || specialFunction == BF_THRONE)
     {
         return true;
     }
 
+    const GameData* data = b->getGameData();
     if (!data)
     {
         return false;
     }
 
-    const bool isMedicalSleepingBag = IsMedicalSleepingBagText(data->name) || IsMedicalSleepingBagText(data->stringID);
-    if (!isMedicalSleepingBag)
-    {
-        return false;
-    }
-
-    // Keep medical-bed matching scoped to camp-style (outside) furniture.
-    return IsOutsideFurnitureSafely(b);
+    return IsFurnitureText(data->name) || IsFurnitureText(data->stringID);
 }
 
-static bool CheckSleepingBagOccupiedSafely(const hand& sleepingBagHandle)
+static bool CheckBedOccupiedSafely(const hand& bedHandle)
 {
     bool occupied = false;
     __try
@@ -430,7 +444,7 @@ static bool CheckSleepingBagOccupiedSafely(const hand& sleepingBagHandle)
                     continue;
                 }
 
-                if (character->inWhat == sleepingBagHandle)
+                if (character->inWhat == bedHandle)
                 {
                     occupied = true;
                     break;
@@ -440,7 +454,7 @@ static bool CheckSleepingBagOccupiedSafely(const hand& sleepingBagHandle)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog("Hotkey action: CRASH AVERTED in CheckSleepingBagOccupiedSafely");
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED in CheckBedOccupiedSafely");
         occupied = true;
     }
 
@@ -463,7 +477,7 @@ static bool SafelyDismantleTarget(Building* b, const hand& sel)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog("Hotkey action: CRASH AVERTED during dismantle!");
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED during dismantle!");
         success = false;
     }
     return success;
@@ -514,8 +528,8 @@ static bool TryGetSelectedDismantleTarget(const hand& sel, Building** buildingOu
     }
 
     const bool isWallTarget = (b->isAWall() != 0);
-    const bool isSleepingBagTarget = (g_sleepingBagDismantleEnabled && IsSleepingBagBuilding(b));
-    if (!isWallTarget && !isSleepingBagTarget)
+    const bool isSupportedTarget = (g_sleepingBagDismantleEnabled && IsSupportedBedOrFurnitureBuilding(b));
+    if (!isWallTarget && !isSupportedTarget)
     {
         return false;
     }
@@ -532,7 +546,12 @@ static bool IsDismantleBlockedForTarget(Building* b, bool isWallTarget)
         return CheckInternalBuildingsSafely(b) || CheckMountedBuildingsSafely(b);
     }
 
-    return CheckSleepingBagOccupiedSafely(b->getHandle());
+    if (IsBedBuilding(b))
+    {
+        return CheckBedOccupiedSafely(b->getHandle());
+    }
+
+    return false;
 }
 
 static bool IsFailedDismantleCooldownActive()
@@ -574,9 +593,9 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
         const bool dismantleResult = SafelyDismantleTarget(b, sel);
         if (!dismantleResult)
         {
-            DebugLog(isWallTarget
-                ? "Hotkey action: Dismantle failed - wall may be connected to problematic structures"
-                : "Hotkey action: Dismantle failed - sleeping bag may be in an invalid state");
+            WallBGoneDebugLog(isWallTarget
+            ? "Hotkey action: Dismantle failed - wall may be connected to problematic structures"
+            : "Hotkey action: Dismantle failed - bed or furniture may be in an invalid state");
             g_lastFailedDismantleTime = GetTickCount();
             return;
         }
@@ -585,9 +604,9 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        DebugLog(isWallTarget
+        WallBGoneDebugLog(isWallTarget
             ? "Hotkey action: CRASH AVERTED in outer dismantle wrapper!"
-            : "Hotkey action: CRASH AVERTED while dismantling sleeping bag");
+            : "Hotkey action: CRASH AVERTED while dismantling bed or furniture");
         g_lastFailedDismantleTime = GetTickCount();
     }
 }

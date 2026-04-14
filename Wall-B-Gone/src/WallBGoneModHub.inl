@@ -72,6 +72,16 @@ static EMC_Result __cdecl HubSetSleepingBagEnabledSetting(void* user_data, int32
     return HubSetBoolSetting(user_data, value, &g_sleepingBagDismantleEnabled, err_buf, err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetDebugLoggingSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_debugLogging, out_value);
+}
+
+static EMC_Result __cdecl HubSetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_debugLogging, err_buf, err_buf_size);
+}
+
 static EMC_Result __cdecl HubGetHotkeyRequireCtrlSetting(void* user_data, int32_t* out_value)
 {
     return HubGetBoolSetting(user_data, g_hotkeyRequireCtrl, out_value);
@@ -116,6 +126,9 @@ static EMC_Result __cdecl HubSetHotkeyRequireAltSetting(void* user_data, int32_t
     }
     return result;
 }
+
+static const char* kHubSectionAdvancedId = "advanced";
+static const char* kHubSectionAdvancedLabel = "Advanced";
 
 static uint32_t GetCurrentHotkeyModifierBits()
 {
@@ -258,16 +271,24 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
 
     static const EMC_BoolSettingDefV1 kSleepingBagEnabledSettingDef = {
         kHubSettingSleepingBagEnabledId,
-        "Allow sleeping bag dismantle",
-        "Allow dismantle behavior for sleeping bags",
+        "Allow bed and furniture dismantle",
+        "Allow dismantle behavior for beds and common furniture",
         &g_modHubClient,
         &HubGetSleepingBagEnabledSetting,
         &HubSetSleepingBagEnabledSetting };
 
+    static const EMC_BoolSettingDefV1 kDebugLoggingSettingDef = {
+        "debug_logging",
+        "Debug logging",
+        "Write extra runtime diagnostics to the RE_Kenshi log",
+        &g_modHubClient,
+        &HubGetDebugLoggingSetting,
+        &HubSetDebugLoggingSetting };
+
     static const EMC_KeybindSettingDefV2 kHotkeySettingDef = {
         kHubSettingHotkeyId,
         "Dismantle hotkey",
-        "Primary key used to dismantle the selected wall or sleeping bag. Hold Ctrl, Shift, or Alt while capturing to store a combo.",
+        "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo.",
         &g_modHubClient,
         &HubGetDismantleHotkeySetting,
         &HubSetDismantleHotkeySetting,
@@ -286,7 +307,8 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingSleepingBagEnabledId, &kSleepingBagEnabledSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2, kHubSettingHotkeyId, &kHotkeySettingDef, 0, 0 },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2, kHubActionResetHotkeyId, &kResetHotkeyActionDef, 0, 0 }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2, kHubActionResetHotkeyId, &kResetHotkeyActionDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kDebugLoggingSettingDef.setting_id, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {
@@ -453,7 +475,7 @@ static void StartModHubClient()
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
-        DebugLog("Wall-B-Gone INFO: event=mod_hub_attached use_hub_ui=1");
+        WallBGoneDebugLog("Wall-B-Gone INFO: event=mod_hub_attached use_hub_ui=1");
         return;
     }
 

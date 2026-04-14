@@ -45,6 +45,7 @@ if (-not (Test-Path $modConfigPath)) {
     $modConfig = @{
         enabled = $true
         pause_debounce_ms = 2000
+        debugLogging = $false
         debug_log_transitions = $false
     }
     $modConfig | ConvertTo-Json -Depth 4 | Set-Content -Path $modConfigPath

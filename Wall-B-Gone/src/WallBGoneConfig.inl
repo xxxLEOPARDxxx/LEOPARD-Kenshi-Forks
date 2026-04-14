@@ -530,7 +530,7 @@ static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
         std::stringstream warning;
         warning << "Wall-B-Gone WARN: failed to parse hotkey '" << hotkeyText << "' from config; using default '"
             << KeyCodeToName(kDefaultHotkey) << "'";
-        DebugLog(warning.str().c_str());
+        WallBGoneDebugLog(warning.str().c_str());
         *hotkeyOut = kDefaultHotkey;
         return true;
     }
@@ -542,7 +542,7 @@ static bool ReadHotkeyFromBody(const std::string& body, OIS::KeyCode* hotkeyOut)
         std::stringstream warning;
         warning << "Wall-B-Gone WARN: config hotkey '" << KeyCodeToName(parsedKey) << "' is blocked (" << validationReason
             << "); using default '" << KeyCodeToName(kDefaultHotkey) << "'";
-        DebugLog(warning.str().c_str());
+        WallBGoneDebugLog(warning.str().c_str());
         *hotkeyOut = kDefaultHotkey;
         return true;
     }
@@ -555,6 +555,7 @@ static bool ReadConfigFromFile(
     const std::string& configPath,
     bool* enabledOut,
     bool* sleepingBagDismantleEnabledOut,
+    bool* debugLoggingOut,
     bool* hotkeyRequireCtrlOut,
     bool* hotkeyRequireShiftOut,
     bool* hotkeyRequireAltOut,
@@ -562,6 +563,7 @@ static bool ReadConfigFromFile(
 {
     if (!enabledOut
         || !sleepingBagDismantleEnabledOut
+        || !debugLoggingOut
         || !hotkeyRequireCtrlOut
         || !hotkeyRequireShiftOut
         || !hotkeyRequireAltOut
@@ -582,6 +584,7 @@ static bool ReadConfigFromFile(
     *enabledOut = ReadEnabledFromBody(body, &foundEnabled);
     bool foundSleepingBagDismantleEnabled = false;
     *sleepingBagDismantleEnabledOut = ReadSleepingBagDismantleEnabledFromBody(body, &foundSleepingBagDismantleEnabled);
+    *debugLoggingOut = ReadBoolKeyFromBody(body, "debugLogging", false);
     *hotkeyRequireCtrlOut = ReadHotkeyRequireCtrlFromBody(body);
     *hotkeyRequireShiftOut = ReadHotkeyRequireShiftFromBody(body);
     *hotkeyRequireAltOut = ReadHotkeyRequireAltFromBody(body);
@@ -592,6 +595,7 @@ static bool SaveConfigToFile(
     const std::string& configPath,
     bool enabled,
     bool sleepingBagDismantleEnabled,
+    bool debugLogging,
     bool hotkeyRequireCtrl,
     bool hotkeyRequireShift,
     bool hotkeyRequireAlt,
@@ -617,6 +621,7 @@ static bool SaveConfigToFile(
     out << "{\n";
     out << "  \"enabled\": " << (enabled ? "true" : "false") << ",\n";
     out << "  \"sleepingBagDismantleEnabled\": " << (sleepingBagDismantleEnabled ? "true" : "false") << ",\n";
+    out << "  \"debugLogging\": " << (debugLogging ? "true" : "false") << ",\n";
     out << "  \"hotkeyRequireCtrl\": " << (hotkeyRequireCtrl ? "true" : "false") << ",\n";
     out << "  \"hotkeyRequireShift\": " << (hotkeyRequireShift ? "true" : "false") << ",\n";
     out << "  \"hotkeyRequireAlt\": " << (hotkeyRequireAlt ? "true" : "false") << ",\n";
@@ -630,6 +635,7 @@ static void LoadConfigState()
 {
     g_modEnabled = true;
     g_sleepingBagDismantleEnabled = true;
+    g_debugLogging = false;
     g_hotkeyPrimary = kDefaultHotkey;
     g_pendingHotkeyPrimary = kDefaultHotkey;
     g_hotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
@@ -643,6 +649,7 @@ static void LoadConfigState()
 
     bool loadedEnabled = true;
     bool loadedSleepingBagDismantleEnabled = true;
+    bool loadedDebugLogging = false;
     bool loadedHotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
     bool loadedHotkeyRequireShift = kDefaultHotkeyRequireShift;
     bool loadedHotkeyRequireAlt = kDefaultHotkeyRequireAlt;
@@ -651,6 +658,7 @@ static void LoadConfigState()
         g_settingsPath,
         &loadedEnabled,
         &loadedSleepingBagDismantleEnabled,
+        &loadedDebugLogging,
         &loadedHotkeyRequireCtrl,
         &loadedHotkeyRequireShift,
         &loadedHotkeyRequireAlt,
@@ -662,6 +670,7 @@ static void LoadConfigState()
 
     g_modEnabled = loadedEnabled;
     g_sleepingBagDismantleEnabled = loadedSleepingBagDismantleEnabled;
+    g_debugLogging = loadedDebugLogging;
     g_hotkeyPrimary = loadedHotkey;
     g_pendingHotkeyPrimary = loadedHotkey;
     g_hotkeyRequireCtrl = loadedHotkeyRequireCtrl;
@@ -683,6 +692,7 @@ static bool SaveConfigState()
         g_settingsPath,
         g_modEnabled,
         g_sleepingBagDismantleEnabled,
+        g_debugLogging,
         g_hotkeyRequireCtrl,
         g_hotkeyRequireShift,
         g_hotkeyRequireAlt,
@@ -709,7 +719,7 @@ static void EnsureRuntimeHotkeyValid()
 
     if (!g_loggedRuntimeHotkeyFallback)
     {
-        ErrorLog("Wall-B-Gone WARN: runtime hotkey unsupported; falling back to default");
+        WallBGoneDebugLog("Wall-B-Gone WARN: runtime hotkey unsupported; falling back to default");
         g_loggedRuntimeHotkeyFallback = true;
     }
 }
