@@ -11,7 +11,6 @@ This repository is the starter scaffolding for the Organize the Inventory native
 This sets:
 - KENSHILIB_DEPS_DIR
 - KENSHILIB_DIR
-- BOOST_INCLUDE_PATH
 
 ## Build
 You can build in Visual Studio, or via the scripted wrapper:

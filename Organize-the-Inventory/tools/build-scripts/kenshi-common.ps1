@@ -266,9 +266,7 @@ function Ensure-KenshiBuildEnvironment {
     $setupEnvPath = Join-Path $ScriptDir "setup_env.ps1"
 
     $envValid = $true
-    if (-not $env:KENSHILIB_DEPS_DIR -or -not $env:KENSHILIB_DIR -or -not $env:BOOST_INCLUDE_PATH) {
-        $envValid = $false
-    } elseif (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0"))) {
+    if (-not $env:KENSHILIB_DEPS_DIR -or -not $env:KENSHILIB_DIR) {
         $envValid = $false
     } elseif (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"))) {
         $envValid = $false
@@ -281,7 +279,7 @@ function Ensure-KenshiBuildEnvironment {
             throw "setup_env.ps1 not found and required env vars are missing or invalid. Expected at: $setupEnvPath"
         }
 
-        if (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0")) -or -not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"))) {
+        if (-not (Test-Path (Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"))) {
             throw "KENSHILIB_DEPS_DIR is invalid: $env:KENSHILIB_DEPS_DIR"
         }
     }

@@ -38,10 +38,5 @@ if (-not $env:KENSHILIB_DIR -or ($env:KENSHILIB_DIR -ne $expectedKenshiLib)) {
     $env:KENSHILIB_DIR = $expectedKenshiLib
 }
 
-$expectedBoost = Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0"
-if (-not $env:BOOST_INCLUDE_PATH -or ($env:BOOST_INCLUDE_PATH -ne $expectedBoost)) {
-    $env:BOOST_INCLUDE_PATH = $expectedBoost
-}
-
 Write-Host "Environment variables set for this session:"
 Write-Host "KENSHILIB_DEPS_DIR = $env:KENSHILIB_DEPS_DIR"
