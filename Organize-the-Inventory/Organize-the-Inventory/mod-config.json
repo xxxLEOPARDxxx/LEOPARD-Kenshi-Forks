@@ -1,4 +1,17 @@
 {
   "enabled": true,
-  "debugLogging": true
+  "showSearchEntryCount": true,
+  "showSearchQuantityCount": true,
+  "showSearchClearButton": true,
+  "autoFocusSearchInput": false,
+  "followActiveInventory": true,
+  "debugLogging": true,
+  "debugSearchLogging": true,
+  "debugBindingLogging": true,
+  "enableDebugProbes": true,
+  "searchInputWidth": 372,
+  "searchInputHeight": 26,
+  "searchInputPositionCustomized": false,
+  "searchInputLeft": 0,
+  "searchInputTop": 0
 }

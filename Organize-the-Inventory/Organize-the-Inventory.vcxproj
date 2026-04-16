@@ -58,7 +58,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;PLUGIN_ENABLE_VERBOSE_DIAGNOSTICS=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;PLUGIN_ENABLE_VERBOSE_DIAGNOSTICS=1;BOOST_SYSTEM_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;BOOST_THREAD_NO_LIB;BOOST_CHRONO_NO_LIB;BOOST_DATE_TIME_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ForcedIncludeFiles>$(KENSHILIB_DIR)\Include\kenshi\util\OgreUnordered.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
     </ClCompile>
@@ -74,7 +74,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;BOOST_SYSTEM_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;BOOST_THREAD_NO_LIB;BOOST_CHRONO_NO_LIB;BOOST_DATE_TIME_NO_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ForcedIncludeFiles>$(KENSHILIB_DIR)\Include\kenshi\util\OgreUnordered.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
     </ClCompile>
@@ -88,6 +88,26 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Organize-the-Inventory.cpp" />
+    <ClCompile Include="src\InventoryConfig.cpp" />
+    <ClCompile Include="src\InventoryCore.cpp" />
+    <ClCompile Include="src\InventoryDiagnostics.cpp" />
+    <ClCompile Include="src\InventoryHooks.cpp" />
+    <ClCompile Include="src\InventoryModHub.cpp" />
+    <ClCompile Include="src\InventorySearchUi.cpp" />
+    <ClCompile Include="src\InventoryWindowDetection.cpp" />
+    <ClCompile Include="src\mod_hub_client.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\emc\mod_hub_api.h" />
+    <ClInclude Include="include\emc\mod_hub_client.h" />
+    <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />
+    <ClInclude Include="src\InventoryConfig.h" />
+    <ClInclude Include="src\InventoryCore.h" />
+    <ClInclude Include="src\InventoryDiagnostics.h" />
+    <ClInclude Include="src\InventoryHooks.h" />
+    <ClInclude Include="src\InventoryModHub.h" />
+    <ClInclude Include="src\InventorySearchUi.h" />
+    <ClInclude Include="src\InventoryWindowDetection.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
