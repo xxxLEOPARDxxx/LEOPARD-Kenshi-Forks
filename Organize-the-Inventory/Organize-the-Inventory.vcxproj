@@ -88,16 +88,20 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Organize-the-Inventory.cpp" />
+    <ClCompile Include="src\InventoryBinding.cpp" />
     <ClCompile Include="src\InventoryConfig.cpp" />
     <ClCompile Include="src\InventoryCore.cpp" />
     <ClCompile Include="src\InventoryDiagnostics.cpp" />
     <ClCompile Include="src\InventoryHooks.cpp" />
     <ClCompile Include="src\InventoryModHub.cpp" />
+    <ClCompile Include="src\InventorySearchPipeline.cpp" />
+    <ClCompile Include="src\InventorySearchText.cpp" />
     <ClCompile Include="src\InventorySearchUi.cpp" />
     <ClCompile Include="src\InventoryWindowDetection.cpp" />
     <ClCompile Include="src\mod_hub_client.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\InventoryBinding.h" />
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />
@@ -106,6 +110,8 @@
     <ClInclude Include="src\InventoryDiagnostics.h" />
     <ClInclude Include="src\InventoryHooks.h" />
     <ClInclude Include="src\InventoryModHub.h" />
+    <ClInclude Include="src\InventorySearchPipeline.h" />
+    <ClInclude Include="src\InventorySearchText.h" />
     <ClInclude Include="src\InventorySearchUi.h" />
     <ClInclude Include="src\InventoryWindowDetection.h" />
   </ItemGroup>

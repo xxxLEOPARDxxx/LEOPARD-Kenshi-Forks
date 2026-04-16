@@ -3,6 +3,7 @@
 #include "InventoryConfig.h"
 #include "InventoryCore.h"
 #include "InventoryDiagnostics.h"
+#include "InventorySearchPipeline.h"
 #include "InventoryWindowDetection.h"
 
 #include <kenshi/Globals.h>
@@ -410,7 +411,6 @@ void UpdateSearchUiState()
     MyGUI::EditBox* searchEdit = FindSearchEditBox();
     MyGUI::TextBox* placeholder = FindSearchPlaceholderTextBox();
     MyGUI::Button* clearButton = FindSearchClearButton();
-    MyGUI::TextBox* countText = FindSearchCountTextBox();
 
     const bool hasQuery = !InventoryState().g_searchQueryRaw.empty();
     const bool searchFocused = IsSearchEditFocused(searchEdit);
@@ -421,10 +421,6 @@ void UpdateSearchUiState()
     if (clearButton != 0)
     {
         clearButton->setVisible(InventoryState().g_showSearchClearButton && hasQuery);
-    }
-    if (countText != 0)
-    {
-        countText->setVisible(false);
     }
 }
 
@@ -476,6 +472,8 @@ void DestroyControlsIfPresent(bool clearQuery)
     g_searchContainerDragging = false;
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
+    ClearInventorySearchFilterState();
+
     if (controlsContainer != 0)
     {
         DestroyWidgetDirect(controlsContainer);
@@ -724,50 +722,87 @@ void TickInventorySearchUi()
         if (TryResolveHoveredInventoryTarget(&targetAnchor, &targetParent, false))
         {
             g_loggedNoVisibleInventoryTarget = false;
-            TryInjectControlsToTarget(targetParent, "hover_auto");
+            if (!TryInjectControlsToTarget(targetParent, "hover_auto"))
+            {
+                return;
+            }
+            controlsContainer = FindControlsContainer();
+        }
+        else
+        {
+            if (controlsContainer != 0)
+            {
+                DestroyControlsIfPresent(true);
+                LogDebugLine("inventory controls scaffold removed after inventory window closed");
+            }
+            else if (!g_loggedNoVisibleInventoryTarget)
+            {
+                LogDebugLine("inventory search scaffold waiting for a visible inventory target");
+                if (ShouldLogDebug())
+                {
+                    DumpInventoryTargetProbe();
+                    DumpVisibleInventoryWindowCandidateDiagnostics();
+                }
+            }
+
+            g_loggedNoVisibleInventoryTarget = true;
             return;
         }
-
-        if (controlsContainer != 0)
-        {
-            DestroyControlsIfPresent(true);
-            LogDebugLine("inventory controls scaffold removed after inventory window closed");
-        }
-        else if (!g_loggedNoVisibleInventoryTarget)
-        {
-            LogDebugLine("inventory search scaffold waiting for a visible inventory target");
-            if (ShouldLogDebug())
-            {
-                DumpInventoryTargetProbe();
-                DumpVisibleInventoryWindowCandidateDiagnostics();
-            }
-        }
-
-        g_loggedNoVisibleInventoryTarget = true;
-        return;
     }
 
     g_loggedNoVisibleInventoryTarget = false;
+    MyGUI::Widget* filterRoot = targetAnchor != 0 ? targetAnchor : targetParent;
 
     if (controlsContainer == 0)
     {
-        TryInjectControlsToTarget(targetParent, "auto");
-        return;
+        if (!TryInjectControlsToTarget(targetParent, "auto"))
+        {
+            return;
+        }
+        controlsContainer = FindControlsContainer();
     }
 
     MyGUI::Widget* currentParent = controlsContainer->getParent();
     if (currentParent == 0 || !currentParent->getInheritedVisible())
     {
-        TryInjectControlsToTarget(targetParent, "reattach_missing_parent");
-        return;
+        if (!TryInjectControlsToTarget(targetParent, "reattach_missing_parent"))
+        {
+            return;
+        }
+        controlsContainer = FindControlsContainer();
+        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
     }
 
-    if (currentParent != targetParent && InventoryState().g_followActiveInventory)
+    if (currentParent != targetParent
+        && InventoryState().g_followActiveInventory)
     {
-        TryInjectControlsToTarget(targetParent, "follow_active_inventory");
+        if (!TryInjectControlsToTarget(targetParent, "follow_active_inventory"))
+        {
+            return;
+        }
+        controlsContainer = FindControlsContainer();
+        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
+    }
+
+    if (currentParent == 0)
+    {
+        ClearInventorySearchFilterState();
         return;
     }
 
     RefreshAttachedControlsPositionIfNeeded(currentParent);
     UpdateSearchUiState();
+    ApplyInventorySearchFilterToParent(filterRoot, false);
+}
+
+void SetInventorySearchCountDisplay(const std::string& caption, bool visible)
+{
+    MyGUI::TextBox* countText = FindSearchCountTextBox();
+    if (countText == 0)
+    {
+        return;
+    }
+
+    countText->setCaption(caption);
+    countText->setVisible(visible && !caption.empty());
 }
