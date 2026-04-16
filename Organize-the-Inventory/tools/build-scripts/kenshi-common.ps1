@@ -321,6 +321,7 @@ function Invoke-KenshiBuild {
         [Parameter(Mandatory = $true)][string]$Configuration,
         [Parameter(Mandatory = $true)][string]$Platform,
         [Parameter(Mandatory = $true)][string]$PlatformToolset,
+        [string]$OutputDir = "",
         [switch]$Clean
     )
 
@@ -342,6 +343,19 @@ function Invoke-KenshiBuild {
         "/nologo",
         "/v:minimal"
     )
+
+    if ($OutputDir) {
+        if (-not (Test-Path $OutputDir)) {
+            New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+        }
+
+        $resolvedOutputDir = [IO.Path]::GetFullPath($OutputDir)
+        if (-not $resolvedOutputDir.EndsWith("\")) {
+            $resolvedOutputDir += "\"
+        }
+
+        $buildArgs += "/p:OutDir=$resolvedOutputDir"
+    }
 
     $buildOutput = & $msBuildPath $buildArgs 2>&1
     if ($LASTEXITCODE -ne 0) {
