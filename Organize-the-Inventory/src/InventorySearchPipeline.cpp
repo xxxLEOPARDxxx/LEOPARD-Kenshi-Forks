@@ -42,12 +42,106 @@ struct InventorySearchEntry
     int quantity;
 };
 
+struct TrackedEntryVisualState
+{
+    TrackedEntryVisualState()
+        : widget(0)
+        , alpha(1.0f)
+    {
+    }
+
+    MyGUI::Widget* widget;
+    float alpha;
+};
+
+const float kNonMatchingEntryAlphaScale = 0.35f;
+const float kMinimumDimmedEntryAlpha = 0.18f;
+const int kMatchedEntryHighlightBorderThickness = 2;
+const float kMatchedEntryHighlightFillAlpha = 0.22f;
+const float kMatchedEntryHighlightBorderAlpha = 0.92f;
+const MyGUI::Colour kMatchedEntryHighlightColour(1.0f, 0.92f, 0.45f, 1.0f);
+const char* kMatchedEntryHighlightFillName = "OTI_SearchMatchHighlightFill";
+const char* kMatchedEntryHighlightTopName = "OTI_SearchMatchHighlightTop";
+const char* kMatchedEntryHighlightBottomName = "OTI_SearchMatchHighlightBottom";
+const char* kMatchedEntryHighlightLeftName = "OTI_SearchMatchHighlightLeft";
+const char* kMatchedEntryHighlightRightName = "OTI_SearchMatchHighlightRight";
+
 MyGUI::Widget* g_lastFilteredParent = 0;
-std::vector<MyGUI::Widget*> g_lastFilteredEntryWidgets;
+std::vector<TrackedEntryVisualState> g_lastFilteredEntryVisualStates;
 std::string g_lastFilterSummarySignature;
 std::string g_lastInvestigateEnterSignature;
 std::string g_lastInvestigateEmptyScanSignature;
 std::string g_lastInvestigateBoundScanSignature;
+
+bool TryGetWidgetAlphaSafe(MyGUI::Widget* widget, float* alphaOut)
+{
+    if (widget == 0 || alphaOut == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        *alphaOut = widget->getAlpha();
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool TrySetWidgetAlphaSafe(MyGUI::Widget* widget, float alpha)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        widget->setAlpha(alpha);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+float ResolveDimmedEntryAlpha(float originalAlpha)
+{
+    float dimmedAlpha = originalAlpha * kNonMatchingEntryAlphaScale;
+    if (dimmedAlpha < kMinimumDimmedEntryAlpha)
+    {
+        dimmedAlpha = kMinimumDimmedEntryAlpha;
+    }
+
+    if (dimmedAlpha > originalAlpha)
+    {
+        dimmedAlpha = originalAlpha;
+    }
+
+    return dimmedAlpha;
+}
+
+bool TrySetWidgetColourSafe(MyGUI::Widget* widget, const MyGUI::Colour& colour)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        widget->setColour(colour);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
 
 bool TrySetWidgetVisibleSafe(MyGUI::Widget* widget, bool visible)
 {
@@ -67,14 +161,142 @@ bool TrySetWidgetVisibleSafe(MyGUI::Widget* widget, bool visible)
     }
 }
 
-void RestoreTrackedEntryVisibility()
+MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const char* name)
 {
-    for (std::size_t index = 0; index < g_lastFilteredEntryWidgets.size(); ++index)
+    if (parent == 0 || name == 0)
     {
-        TrySetWidgetVisibleSafe(g_lastFilteredEntryWidgets[index], true);
+        return 0;
     }
 
-    g_lastFilteredEntryWidgets.clear();
+    const std::size_t childCount = parent->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        MyGUI::Widget* child = parent->getChildAt(childIndex);
+        if (child != 0 && child->getName() == name)
+        {
+            return child;
+        }
+    }
+
+    return 0;
+}
+
+MyGUI::Widget* EnsureHighlightPart(
+    MyGUI::Widget* entryWidget,
+    const char* widgetName,
+    const MyGUI::IntCoord& coord,
+    float alpha)
+{
+    if (entryWidget == 0 || widgetName == 0 || coord.width <= 0 || coord.height <= 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* part = FindDirectChildByName(entryWidget, widgetName);
+    if (part == 0)
+    {
+        part = entryWidget->createWidget<MyGUI::Widget>(
+            "Kenshi_GenericTextBoxFlatSkin",
+            coord,
+            MyGUI::Align::Left | MyGUI::Align::Top,
+            widgetName);
+        if (part == 0)
+        {
+            return 0;
+        }
+
+        part->setNeedMouseFocus(false);
+    }
+    else
+    {
+        part->setCoord(coord);
+    }
+
+    part->setColour(kMatchedEntryHighlightColour);
+    part->setAlpha(alpha);
+    part->setVisible(true);
+    return part;
+}
+
+void UpdateMatchedEntryHighlight(MyGUI::Widget* entryWidget, bool visible)
+{
+    if (entryWidget == 0)
+    {
+        return;
+    }
+
+    __try
+    {
+        const char* partNames[5] = {
+            kMatchedEntryHighlightFillName,
+            kMatchedEntryHighlightTopName,
+            kMatchedEntryHighlightBottomName,
+            kMatchedEntryHighlightLeftName,
+            kMatchedEntryHighlightRightName
+        };
+
+        if (!visible)
+        {
+            for (int partIndex = 0; partIndex < 5; ++partIndex)
+            {
+                TrySetWidgetVisibleSafe(
+                    FindDirectChildByName(entryWidget, partNames[partIndex]),
+                    false);
+            }
+            return;
+        }
+
+        const MyGUI::IntCoord coord = entryWidget->getCoord();
+        const int width = coord.width;
+        const int height = coord.height;
+        const int thickness = kMatchedEntryHighlightBorderThickness;
+        if (width <= thickness * 2 || height <= thickness * 2)
+        {
+            return;
+        }
+
+        EnsureHighlightPart(
+            entryWidget,
+            kMatchedEntryHighlightFillName,
+            MyGUI::IntCoord(0, 0, width, height),
+            kMatchedEntryHighlightFillAlpha);
+        EnsureHighlightPart(
+            entryWidget,
+            kMatchedEntryHighlightTopName,
+            MyGUI::IntCoord(0, 0, width, thickness),
+            kMatchedEntryHighlightBorderAlpha);
+        EnsureHighlightPart(
+            entryWidget,
+            kMatchedEntryHighlightBottomName,
+            MyGUI::IntCoord(0, height - thickness, width, thickness),
+            kMatchedEntryHighlightBorderAlpha);
+        EnsureHighlightPart(
+            entryWidget,
+            kMatchedEntryHighlightLeftName,
+            MyGUI::IntCoord(0, 0, thickness, height),
+            kMatchedEntryHighlightBorderAlpha);
+        EnsureHighlightPart(
+            entryWidget,
+            kMatchedEntryHighlightRightName,
+            MyGUI::IntCoord(width - thickness, 0, thickness, height),
+            kMatchedEntryHighlightBorderAlpha);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return;
+    }
+}
+
+void RestoreTrackedEntryVisuals()
+{
+    for (std::size_t index = 0; index < g_lastFilteredEntryVisualStates.size(); ++index)
+    {
+        const TrackedEntryVisualState& visualState = g_lastFilteredEntryVisualStates[index];
+        UpdateMatchedEntryHighlight(visualState.widget, false);
+        TrySetWidgetAlphaSafe(visualState.widget, visualState.alpha);
+    }
+
+    g_lastFilteredEntryVisualStates.clear();
     g_lastFilteredParent = 0;
 }
 
@@ -527,7 +749,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
         : ParseSearchQuery(InventoryState().g_searchQueryRaw);
     LogInvestigateEntryIfNeeded(inventoryParent, forceShowAll, parsedQuery);
 
-    RestoreTrackedEntryVisibility();
+    RestoreTrackedEntryVisuals();
 
     std::vector<InventorySearchEntry> entries;
     CollectSearchEntriesFromItemWidgets(inventoryParent, &entries);
@@ -569,8 +791,8 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
     std::size_t totalEntryCount = 0;
     std::size_t visibleEntryCount = 0;
     std::size_t visibleQuantity = 0;
-    g_lastFilteredEntryWidgets.clear();
-    g_lastFilteredEntryWidgets.reserve(entries.size());
+    g_lastFilteredEntryVisualStates.clear();
+    g_lastFilteredEntryVisualStates.reserve(entries.size());
 
     for (std::size_t index = 0; index < entries.size(); ++index)
     {
@@ -583,25 +805,37 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 
         ++totalEntryCount;
 
-        bool visible = true;
+        bool matches = true;
         if (hasActiveFilter)
         {
             const std::string normalizedSearchText =
                 NormalizeInventorySearchText(
                     BuildInventoryItemSearchTextFromResolvedItem(entryWidget, entry.item));
-            visible = InventorySearchTextMatchesQuery(
+            matches = InventorySearchTextMatchesQuery(
                 normalizedSearchText,
                 parsedQuery.normalizedQuery);
-            if (visible && parsedQuery.blueprintOnly)
+            if (matches && parsedQuery.blueprintOnly)
             {
-                visible = SearchTextMatchesBlueprintFilter(normalizedSearchText);
+                matches = SearchTextMatchesBlueprintFilter(normalizedSearchText);
             }
         }
 
-        TrySetWidgetVisibleSafe(entryWidget, visible);
-        g_lastFilteredEntryWidgets.push_back(entryWidget);
+        float originalAlpha = 1.0f;
+        TryGetWidgetAlphaSafe(entryWidget, &originalAlpha);
 
-        if (visible)
+        TrackedEntryVisualState visualState;
+        visualState.widget = entryWidget;
+        visualState.alpha = originalAlpha;
+        g_lastFilteredEntryVisualStates.push_back(visualState);
+
+        const float targetAlpha =
+            (hasActiveFilter && !matches)
+                ? ResolveDimmedEntryAlpha(originalAlpha)
+                : originalAlpha;
+        TrySetWidgetAlphaSafe(entryWidget, targetAlpha);
+        UpdateMatchedEntryHighlight(entryWidget, hasActiveFilter && matches);
+
+        if (matches)
         {
             ++visibleEntryCount;
             if (entry.quantity > 0)
@@ -635,7 +869,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 
 void ClearInventorySearchFilterState()
 {
-    RestoreTrackedEntryVisibility();
+    RestoreTrackedEntryVisuals();
     g_lastFilterSummarySignature.clear();
     g_lastInvestigateEnterSignature.clear();
     g_lastInvestigateEmptyScanSignature.clear();
