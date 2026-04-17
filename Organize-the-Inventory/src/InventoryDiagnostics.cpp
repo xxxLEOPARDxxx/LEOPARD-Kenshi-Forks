@@ -1,15 +1,22 @@
 #include "InventoryDiagnostics.h"
 
+#include "InventoryBinding.h"
 #include "InventoryCore.h"
+#include "InventorySearchText.h"
 #include "InventoryWindowDetection.h"
+
+#include <kenshi/Item.h>
 
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 
 #include <sstream>
+#include <vector>
 
 namespace
 {
+std::string g_lastBackpackDiagnosticsSignature;
+
 void LogWidgetSummary(const char* label, MyGUI::Widget* widget)
 {
     std::stringstream line;
@@ -55,6 +62,163 @@ void LogResolvedTargetSummary(
 
     LogInfoLine(line.str());
 }
+
+void AddWidgetUnique(std::vector<MyGUI::Widget*>* widgets, MyGUI::Widget* candidate)
+{
+    if (widgets == 0 || candidate == 0)
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < widgets->size(); ++index)
+    {
+        if ((*widgets)[index] == candidate)
+        {
+            return;
+        }
+    }
+
+    widgets->push_back(candidate);
+}
+
+void AppendTokenMatches(
+    MyGUI::Widget* root,
+    const char* token,
+    std::vector<MyGUI::Widget*>* outWidgets)
+{
+    if (root == 0 || token == 0 || outWidgets == 0)
+    {
+        return;
+    }
+
+    std::vector<MyGUI::Widget*> matches;
+    CollectNamedDescendantsByToken(root, token, true, &matches);
+    for (std::size_t index = 0; index < matches.size(); ++index)
+    {
+        AddWidgetUnique(outWidgets, matches[index]);
+    }
+}
+
+void LogBackpackCandidateDetails(const char* label, MyGUI::Widget* candidate)
+{
+    std::vector<MyGUI::Widget*> likelyEntries;
+    MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(candidate);
+    if (entriesRoot == 0)
+    {
+        entriesRoot = candidate;
+    }
+    CollectLikelyInventoryEntryWidgets(entriesRoot, &likelyEntries);
+
+    const MyGUI::IntCoord coord = candidate->getAbsoluteCoord();
+    const std::size_t entriesRootChildCount =
+        entriesRoot == 0 ? 0 : entriesRoot->getChildCount();
+
+    std::stringstream line;
+    line << label
+         << " name=" << SafeWidgetName(candidate)
+         << " visible=" << (candidate->getInheritedVisible() ? "true" : "false")
+         << " child_count=" << candidate->getChildCount()
+         << " entries_root=" << SafeWidgetName(entriesRoot)
+         << " entries_root_child_count=" << entriesRootChildCount
+         << " likely_entry_widgets=" << likelyEntries.size()
+         << " abs_coord=(" << coord.left << "," << coord.top << "," << coord.width << ","
+         << coord.height << ")";
+    LogInfoLine(line.str());
+}
+
+Item* ResolveDiagnosticItemPointerRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth)
+{
+    if (widget == 0 || depth > maxDepth)
+    {
+        return 0;
+    }
+
+    Item* item = ResolveInventoryWidgetItemPointer(widget);
+    if (item != 0)
+    {
+        return item;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        item = ResolveDiagnosticItemPointerRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth);
+        if (item != 0)
+        {
+            return item;
+        }
+    }
+
+    return 0;
+}
+
+std::string TruncateForLog(const std::string& value, std::size_t maxLen)
+{
+    if (value.size() <= maxLen)
+    {
+        return value;
+    }
+
+    if (maxLen <= 3)
+    {
+        return value.substr(0, maxLen);
+    }
+
+    return value.substr(0, maxLen - 3) + "...";
+}
+
+void LogBackpackEntriesRootSample(const char* label, MyGUI::Widget* entriesRoot)
+{
+    std::stringstream summary;
+    summary << label
+            << " entries_root=" << SafeWidgetName(entriesRoot)
+            << " child_count=" << (entriesRoot == 0 ? 0 : entriesRoot->getChildCount());
+    LogInfoLine(summary.str());
+
+    if (entriesRoot == 0)
+    {
+        return;
+    }
+
+    const std::size_t childCount = entriesRoot->getChildCount();
+    const std::size_t maxLoggedChildren = childCount < 12 ? childCount : 12;
+    for (std::size_t childIndex = 0; childIndex < maxLoggedChildren; ++childIndex)
+    {
+        MyGUI::Widget* child = entriesRoot->getChildAt(childIndex);
+        if (child == 0)
+        {
+            continue;
+        }
+
+        Item* directItem = ResolveInventoryWidgetItemPointer(child);
+        Item* recursiveItem = ResolveDiagnosticItemPointerRecursive(child, 0, 5);
+        int quantity = 0;
+        const bool hasQuantity = TryResolveInventoryItemQuantityFromWidget(child, &quantity);
+        const std::string normalizedSearchText = NormalizeInventorySearchText(
+            BuildInventoryItemSearchTextFromResolvedItem(child, recursiveItem));
+        const MyGUI::IntCoord coord = child->getCoord();
+
+        std::stringstream line;
+        line << label
+             << " child[" << childIndex << "]"
+             << " name=" << SafeWidgetName(child)
+             << " visible=" << (child->getInheritedVisible() ? "true" : "false")
+             << " direct_item=" << (directItem != 0 ? "true" : "false")
+             << " recursive_item=" << (recursiveItem != 0 ? "true" : "false")
+             << " quantity=" << (hasQuantity ? quantity : 0)
+             << " child_count=" << child->getChildCount()
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")"
+             << " text_len=" << normalizedSearchText.size()
+             << " text=\"" << TruncateForLog(normalizedSearchText, 96) << "\"";
+        LogInfoLine(line.str());
+    }
+}
 }
 
 void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
@@ -82,6 +246,7 @@ void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
     if (TryResolveVisibleInventoryTarget(&visibleAnchor, &visibleParent))
     {
         LogResolvedTargetSummary("manual diagnostics: visible_target", visibleAnchor, visibleParent);
+        DumpInventoryBackpackCandidateDiagnosticsIfChanged(visibleParent);
     }
     else
     {
@@ -100,4 +265,89 @@ void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
     }
 
     LogWarnLine("manual inventory diagnostics end");
+}
+
+void DumpInventoryBackpackCandidateDiagnosticsIfChanged(MyGUI::Widget* inventoryParent)
+{
+    if (!ShouldEnableDebugProbes() || inventoryParent == 0 || !inventoryParent->getInheritedVisible())
+    {
+        g_lastBackpackDiagnosticsSignature.clear();
+        return;
+    }
+
+    std::vector<MyGUI::Widget*> candidates;
+    AppendTokenMatches(inventoryParent, "backpack_content", &candidates);
+    AppendTokenMatches(inventoryParent, "scrollview_backpack_content", &candidates);
+    AppendTokenMatches(inventoryParent, "backpack", &candidates);
+    AppendTokenMatches(inventoryParent, "pack", &candidates);
+
+    std::vector<MyGUI::Widget*> globalBackpackContents;
+    CollectVisibleWidgetsByToken("backpack_content", &globalBackpackContents);
+
+    std::stringstream signature;
+    signature << inventoryParent
+              << "|local=" << candidates.size()
+              << "|global_backpack_content=" << globalBackpackContents.size();
+    for (std::size_t index = 0; index < candidates.size() && index < 8; ++index)
+    {
+        MyGUI::Widget* candidate = candidates[index];
+        const MyGUI::IntCoord coord = candidate->getAbsoluteCoord();
+        signature << "|" << SafeWidgetName(candidate)
+                  << "@" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height;
+    }
+    for (std::size_t index = 0; index < globalBackpackContents.size() && index < 4; ++index)
+    {
+        MyGUI::Widget* candidate = globalBackpackContents[index];
+        const MyGUI::IntCoord coord = candidate->getAbsoluteCoord();
+        signature << "|global:" << SafeWidgetName(candidate)
+                  << "@" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height;
+    }
+
+    if (signature.str() == g_lastBackpackDiagnosticsSignature)
+    {
+        return;
+    }
+    g_lastBackpackDiagnosticsSignature = signature.str();
+
+    MyGUI::Window* owningWindow = FindOwningWindow(inventoryParent);
+    std::stringstream summary;
+    summary << "inventory backpack probe parent=" << SafeWidgetName(inventoryParent)
+            << " caption=\"" << (owningWindow == 0 ? "" : owningWindow->getCaption().asUTF8()) << "\""
+            << " local_candidates=" << candidates.size()
+            << " global_backpack_content=" << globalBackpackContents.size();
+    LogInfoLine(summary.str());
+
+    if (candidates.empty())
+    {
+        LogInfoLine("inventory backpack probe found no visible backpack-like widgets under active inventory target");
+        return;
+    }
+
+    const std::size_t maxLoggedCandidates = candidates.size() < 12 ? candidates.size() : 12;
+    for (std::size_t index = 0; index < maxLoggedCandidates; ++index)
+    {
+        std::stringstream label;
+        label << "inventory backpack probe candidate[" << index << "]";
+        LogBackpackCandidateDetails(label.str().c_str(), candidates[index]);
+    }
+
+    const std::size_t maxLoggedGlobalCandidates =
+        globalBackpackContents.size() < 4 ? globalBackpackContents.size() : 4;
+    for (std::size_t index = 0; index < maxLoggedGlobalCandidates; ++index)
+    {
+        std::stringstream label;
+        label << "inventory backpack probe global_content[" << index << "]";
+        MyGUI::Widget* globalContent = globalBackpackContents[index];
+        LogBackpackCandidateDetails(label.str().c_str(), globalContent);
+
+        MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(globalContent);
+        if (entriesRoot == 0)
+        {
+            entriesRoot = globalContent;
+        }
+
+        std::stringstream childLabel;
+        childLabel << "inventory backpack probe global_entries[" << index << "]";
+        LogBackpackEntriesRootSample(childLabel.str().c_str(), entriesRoot);
+    }
 }

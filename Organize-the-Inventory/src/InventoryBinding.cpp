@@ -381,7 +381,8 @@ void CollectLikelySectionEntryWidgets(
             MyGUI::Widget* nested = wrapper->getChildAt(nestedIndex);
             if (LooksLikeInventoryEntryWidget(nested))
             {
-                AddWidgetUnique(outWidgets, nested);
+                AddWidgetUnique(outWidgets, wrapper);
+                break;
             }
         }
     }
@@ -583,6 +584,13 @@ void RegisterInventorySectionWidgetLink(
     link.itemCount = itemCount;
     link.lastSeenTick = now;
     g_sectionWidgetInventoryLinks.push_back(link);
+}
+
+void CollectLikelyInventoryEntryWidgets(
+    MyGUI::Widget* rootWidget,
+    std::vector<MyGUI::Widget*>* outWidgets)
+{
+    CollectLikelySectionEntryWidgets(rootWidget, outWidgets);
 }
 
 bool CollectBoundInventoryEntriesForRoot(

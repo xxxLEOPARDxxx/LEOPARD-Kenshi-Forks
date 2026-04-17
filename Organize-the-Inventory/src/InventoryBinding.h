@@ -31,6 +31,10 @@ void RegisterInventorySectionWidgetLink(
     Inventory* inventory,
     const std::string& sectionName);
 
+void CollectLikelyInventoryEntryWidgets(
+    MyGUI::Widget* rootWidget,
+    std::vector<MyGUI::Widget*>* outWidgets);
+
 bool CollectBoundInventoryEntriesForRoot(
     MyGUI::Widget* inventoryRoot,
     std::vector<InventoryBoundEntry>* outEntries,

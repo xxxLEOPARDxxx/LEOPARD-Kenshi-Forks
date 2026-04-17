@@ -17,6 +17,7 @@
 
 #include <cctype>
 #include <sstream>
+#include <vector>
 
 namespace
 {
@@ -942,6 +943,42 @@ MyGUI::Widget* FindNamedDescendantByTokenRecursive(
     return 0;
 }
 
+void CollectNamedDescendantsByTokenRecursive(
+    MyGUI::Widget* root,
+    const char* token,
+    bool requireVisible,
+    std::vector<MyGUI::Widget*>* outWidgets)
+{
+    if (root == 0 || token == 0 || outWidgets == 0)
+    {
+        return;
+    }
+
+    if ((!requireVisible || root->getInheritedVisible())
+        && ContainsAsciiCaseInsensitive(root->getName(), token))
+    {
+        for (std::size_t index = 0; index < outWidgets->size(); ++index)
+        {
+            if ((*outWidgets)[index] == root)
+            {
+                return;
+            }
+        }
+
+        outWidgets->push_back(root);
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        CollectNamedDescendantsByTokenRecursive(
+            root->getChildAt(childIndex),
+            token,
+            requireVisible,
+            outWidgets);
+    }
+}
+
 MyGUI::Widget* FindWidgetInParentByToken(MyGUI::Widget* parent, const char* token)
 {
     if (parent == 0 || token == 0)
@@ -950,6 +987,43 @@ MyGUI::Widget* FindWidgetInParentByToken(MyGUI::Widget* parent, const char* toke
     }
 
     return FindNamedDescendantByTokenRecursive(parent, token, false);
+}
+
+void CollectVisibleWidgetsByToken(const char* token, std::vector<MyGUI::Widget*>* outWidgets)
+{
+    if (token == 0 || outWidgets == 0)
+    {
+        return;
+    }
+
+    outWidgets->clear();
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        CollectNamedDescendantsByTokenRecursive(root, token, true, outWidgets);
+    }
+}
+
+void CollectNamedDescendantsByToken(
+    MyGUI::Widget* root,
+    const char* token,
+    bool requireVisible,
+    std::vector<MyGUI::Widget*>* outWidgets)
+{
+    CollectNamedDescendantsByTokenRecursive(root, token, requireVisible, outWidgets);
 }
 
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget)
@@ -985,6 +1059,33 @@ MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor)
     }
 
     return anchor;
+}
+
+MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* inventoryContentRoot)
+{
+    if (inventoryContentRoot == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* current = inventoryContentRoot;
+    for (std::size_t unwrapDepth = 0; unwrapDepth < 8; ++unwrapDepth)
+    {
+        if (current->getChildCount() != 1)
+        {
+            break;
+        }
+
+        MyGUI::Widget* onlyChild = current->getChildAt(0);
+        if (onlyChild == 0)
+        {
+            break;
+        }
+
+        current = onlyChild;
+    }
+
+    return current;
 }
 
 bool IsLikelyInventoryWindow(MyGUI::Widget* parent)

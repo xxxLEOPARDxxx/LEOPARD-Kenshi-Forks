@@ -1,9 +1,11 @@
 #include "InventorySearchPipeline.h"
 
+#include "InventoryBackpackBinding.h"
 #include "InventoryBinding.h"
 #include "InventoryCore.h"
 #include "InventorySearchText.h"
 #include "InventorySearchUi.h"
+#include "InventoryWindowDetection.h"
 
 #include <kenshi/Item.h>
 
@@ -198,6 +200,56 @@ MyGUI::Widget* ResolveTopmostItemEntryWidget(
     return entryWidget;
 }
 
+MyGUI::Widget* ResolveFilterVisibilityWidget(
+    MyGUI::Widget* widget,
+    MyGUI::Widget* scopeRoot)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    MyGUI::Widget* resolved = ResolveTopmostItemEntryWidget(widget, scopeRoot);
+    return resolved != 0 ? resolved : widget;
+}
+
+Item* ResolveSearchEntryItemPointerRecursive(
+    MyGUI::Widget* widget,
+    std::size_t depth,
+    std::size_t maxDepth)
+{
+    if (widget == 0 || depth > maxDepth)
+    {
+        return 0;
+    }
+
+    Item* item = ResolveInventoryWidgetItemPointer(widget);
+    if (item != 0)
+    {
+        return item;
+    }
+
+    const std::size_t childCount = widget->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        item = ResolveSearchEntryItemPointerRecursive(
+            widget->getChildAt(childIndex),
+            depth + 1,
+            maxDepth);
+        if (item != 0)
+        {
+            return item;
+        }
+    }
+
+    return 0;
+}
+
+Item* ResolveSearchEntryItemPointer(MyGUI::Widget* widget)
+{
+    return ResolveSearchEntryItemPointerRecursive(widget, 0, 5);
+}
+
 void CollectVisibleEntryWidgetsRecursive(
     MyGUI::Widget* widget,
     MyGUI::Widget* scopeRoot,
@@ -263,7 +315,22 @@ void AddSearchEntryUnique(
 
     for (std::size_t index = 0; index < entries->size(); ++index)
     {
-        if ((*entries)[index].widget == widget)
+        const InventorySearchEntry& existingEntry = (*entries)[index];
+        if (existingEntry.widget == widget)
+        {
+            InventorySearchEntry& existingMutable = (*entries)[index];
+            if (existingMutable.item == 0 && item != 0)
+            {
+                existingMutable.item = item;
+            }
+            if (quantity > existingMutable.quantity)
+            {
+                existingMutable.quantity = quantity;
+            }
+            return;
+        }
+
+        if (item != 0 && existingEntry.item == item)
         {
             return;
         }
@@ -295,12 +362,150 @@ void CollectSearchEntriesFromItemWidgets(
             continue;
         }
 
-        Item* item = ResolveInventoryWidgetItemPointer(entryWidget);
+        Item* item = ResolveSearchEntryItemPointer(entryWidget);
         AddSearchEntryUnique(
             outEntries,
             entryWidget,
             item,
             ResolveEntryQuantity(entryWidget, item));
+    }
+}
+
+void CollectSearchEntriesFromEntriesRootChildren(
+    MyGUI::Widget* entriesRoot,
+    std::vector<InventorySearchEntry>* outEntries)
+{
+    if (entriesRoot == 0 || outEntries == 0)
+    {
+        return;
+    }
+
+    const std::size_t childCount = entriesRoot->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        MyGUI::Widget* child = entriesRoot->getChildAt(childIndex);
+        if (child == 0 || !child->getInheritedVisible())
+        {
+            continue;
+        }
+
+        Item* item = ResolveSearchEntryItemPointer(child);
+        AddSearchEntryUnique(
+            outEntries,
+            child,
+            item,
+            ResolveEntryQuantity(child, item));
+    }
+}
+
+void MergeBoundSearchEntriesForRoot(
+    MyGUI::Widget* inventoryRoot,
+    std::vector<InventorySearchEntry>* outEntries)
+{
+    if (inventoryRoot == 0 || outEntries == 0)
+    {
+        return;
+    }
+
+    std::vector<InventoryBoundEntry> boundEntries;
+    std::string ignoredReason;
+    if (!CollectBoundInventoryEntriesForRoot(inventoryRoot, &boundEntries, &ignoredReason))
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < boundEntries.size(); ++index)
+    {
+        const InventoryBoundEntry& boundEntry = boundEntries[index];
+        MyGUI::Widget* visibilityWidget =
+            ResolveFilterVisibilityWidget(boundEntry.widget, inventoryRoot);
+        Item* item = boundEntry.item != 0
+            ? boundEntry.item
+            : ResolveSearchEntryItemPointer(visibilityWidget);
+        AddSearchEntryUnique(
+            outEntries,
+            visibilityWidget,
+            item,
+            ResolveEntryQuantity(visibilityWidget, item));
+    }
+}
+
+void CollectSearchEntriesFromBackpackPanels(
+    MyGUI::Widget* inventoryParent,
+    std::vector<InventorySearchEntry>* outEntries)
+{
+    if (inventoryParent == 0 || outEntries == 0)
+    {
+        return;
+    }
+
+    std::vector<MyGUI::Widget*> backpackContents;
+    CollectVisibleWidgetsByToken("backpack_content", &backpackContents);
+    for (std::size_t index = 0; index < backpackContents.size(); ++index)
+    {
+        MyGUI::Widget* backpackContent = backpackContents[index];
+        if (backpackContent == 0 || !backpackContent->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* entriesRoot = ResolveInventoryEntriesRoot(backpackContent);
+        if (entriesRoot == 0)
+        {
+            entriesRoot = backpackContent;
+        }
+
+        std::vector<InventoryBoundEntry> backpackBoundEntries;
+        std::string ignoredBackpackReason;
+        if (CollectBoundBackpackEntriesForContent(
+                backpackContent,
+                &backpackBoundEntries,
+                &ignoredBackpackReason))
+        {
+            for (std::size_t boundIndex = 0; boundIndex < backpackBoundEntries.size(); ++boundIndex)
+            {
+                const InventoryBoundEntry& boundEntry = backpackBoundEntries[boundIndex];
+                AddSearchEntryUnique(
+                    outEntries,
+                    boundEntry.widget,
+                    boundEntry.item,
+                    boundEntry.quantity);
+            }
+        }
+        else
+        {
+            const std::size_t entryCountBeforeChildren = outEntries->size();
+            CollectSearchEntriesFromEntriesRootChildren(entriesRoot, outEntries);
+
+            if (outEntries->size() == entryCountBeforeChildren)
+            {
+                std::vector<MyGUI::Widget*> entryWidgets;
+                CollectLikelyInventoryEntryWidgets(entriesRoot, &entryWidgets);
+                for (std::size_t entryIndex = 0; entryIndex < entryWidgets.size(); ++entryIndex)
+                {
+                    // Backpack probes often find inner visuals first; hide the outer item widget instead.
+                    MyGUI::Widget* entryWidget =
+                        ResolveFilterVisibilityWidget(entryWidgets[entryIndex], entriesRoot);
+                    if (entryWidget == 0)
+                    {
+                        continue;
+                    }
+
+                    Item* item = ResolveSearchEntryItemPointer(entryWidget);
+                    AddSearchEntryUnique(
+                        outEntries,
+                        entryWidget,
+                        item,
+                        ResolveEntryQuantity(entryWidget, item));
+                }
+            }
+        }
+
+        MergeBoundSearchEntriesForRoot(backpackContent, outEntries);
+        if (entriesRoot != backpackContent)
+        {
+            MergeBoundSearchEntriesForRoot(entriesRoot, outEntries);
+        }
     }
 }
 
@@ -531,22 +736,29 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 
     std::vector<InventorySearchEntry> entries;
     CollectSearchEntriesFromItemWidgets(inventoryParent, &entries);
-    if (entries.empty())
-    {
-        std::vector<InventoryBoundEntry> boundEntries;
-        std::string boundReason;
-        if (CollectBoundInventoryEntriesForRoot(inventoryParent, &boundEntries, &boundReason))
-        {
-            for (std::size_t index = 0; index < boundEntries.size(); ++index)
-            {
-                const InventoryBoundEntry& boundEntry = boundEntries[index];
-                AddSearchEntryUnique(
-                    &entries,
-                    boundEntry.widget,
-                    boundEntry.item,
-                    ResolveEntryQuantity(boundEntry.widget, boundEntry.item));
-            }
 
+    std::vector<InventoryBoundEntry> boundEntries;
+    std::string boundReason;
+    if (CollectBoundInventoryEntriesForRoot(inventoryParent, &boundEntries, &boundReason))
+    {
+        const std::size_t entryCountBeforeBoundMerge = entries.size();
+        for (std::size_t index = 0; index < boundEntries.size(); ++index)
+        {
+            const InventoryBoundEntry& boundEntry = boundEntries[index];
+            MyGUI::Widget* visibilityWidget =
+                ResolveFilterVisibilityWidget(boundEntry.widget, inventoryParent);
+            Item* item = boundEntry.item != 0
+                ? boundEntry.item
+                : ResolveSearchEntryItemPointer(visibilityWidget);
+            AddSearchEntryUnique(
+                &entries,
+                visibilityWidget,
+                item,
+                ResolveEntryQuantity(visibilityWidget, item));
+        }
+
+        if (entries.size() != entryCountBeforeBoundMerge || entryCountBeforeBoundMerge == 0)
+        {
             LogInvestigateBoundScanIfNeeded(
                 inventoryParent,
                 parsedQuery,
@@ -554,6 +766,8 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
                 entries.size());
         }
     }
+
+    CollectSearchEntriesFromBackpackPanels(inventoryParent, &entries);
 
     if (entries.empty())
     {

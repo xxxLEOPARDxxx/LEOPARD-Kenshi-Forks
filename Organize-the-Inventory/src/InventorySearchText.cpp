@@ -4,6 +4,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Inventory.h>
 #include <kenshi/Item.h>
+#include <kenshi/RootObject.h>
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_TextBox.h>
@@ -764,4 +765,46 @@ Item* ResolveInventoryWidgetItemPointer(MyGUI::Widget* widget)
     }
 
     return dynamic_cast<Item*>(itemBase);
+}
+
+Inventory* ResolveInventoryWidgetInventoryPointer(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    Inventory* inventory = ReadWidgetAnyDataPointer<Inventory>(widget);
+    if (inventory != 0)
+    {
+        return inventory;
+    }
+
+    Item* item = ResolveInventoryWidgetItemPointer(widget);
+    if (item != 0)
+    {
+        inventory = item->getInventory();
+        if (inventory != 0)
+        {
+            return inventory;
+        }
+    }
+
+    InventorySection* section = ReadWidgetAnyDataPointer<InventorySection>(widget);
+    if (section != 0)
+    {
+        Inventory* sectionInventory = section->getInventory();
+        if (sectionInventory != 0)
+        {
+            return sectionInventory;
+        }
+    }
+
+    RootObject* object = ReadWidgetAnyDataPointer<RootObject>(widget);
+    if (object != 0)
+    {
+        return object->getInventory();
+    }
+
+    return 0;
 }

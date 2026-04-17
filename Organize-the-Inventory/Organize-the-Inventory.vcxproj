@@ -89,6 +89,7 @@
   <ItemGroup>
     <ClCompile Include="Organize-the-Inventory.cpp" />
     <ClCompile Include="src\InventoryBinding.cpp" />
+    <ClCompile Include="src\InventoryBackpackBinding.cpp" />
     <ClCompile Include="src\InventoryConfig.cpp" />
     <ClCompile Include="src\InventoryCore.cpp" />
     <ClCompile Include="src\InventoryDiagnostics.cpp" />
@@ -102,6 +103,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\InventoryBinding.h" />
+    <ClInclude Include="src\InventoryBackpackBinding.h" />
     <ClInclude Include="include\emc\mod_hub_api.h" />
     <ClInclude Include="include\emc\mod_hub_client.h" />
     <ClInclude Include="include\emc\mod_hub_consumer_helpers.h" />

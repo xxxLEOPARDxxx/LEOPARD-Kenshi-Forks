@@ -32,7 +32,7 @@ const char* kSearchDragHandleName = "OTI_SearchDragHandle";
 const char* kSearchCountTextName = "OTI_SearchCountText";
 const int kPanelOuterPadding = 8;
 const int kSearchCountGap = 2;
-const int kSearchCountWidth = 72;
+const int kSearchCountWidth = 140;
 const int kPanelHandleWidth = 28;
 const int kPanelHandleGap = 6;
 const int kRightMargin = 16;
@@ -790,6 +790,7 @@ void TickInventorySearchUi()
         return;
     }
 
+    DumpInventoryBackpackCandidateDiagnosticsIfChanged(targetParent);
     RefreshAttachedControlsPositionIfNeeded(currentParent);
     UpdateSearchUiState();
     ApplyInventorySearchFilterToParent(filterRoot, false);

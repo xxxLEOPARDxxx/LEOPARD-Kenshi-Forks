@@ -1,5 +1,6 @@
 #include "InventoryHooks.h"
 
+#include "InventoryBackpackBinding.h"
 #include "InventoryBinding.h"
 #include "InventoryCore.h"
 #include "InventorySearchUi.h"
@@ -190,6 +191,8 @@ void InventoryLayoutCreateGUI_hook(
     {
         return;
     }
+
+    RegisterInventoryGuiInventoryLink(invGui, inventory);
 
     std::size_t boundSections = 0;
     std::stringstream preview;

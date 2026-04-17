@@ -7,6 +7,7 @@ namespace MyGUI
 class Widget;
 }
 
+class Inventory;
 class Item;
 
 std::string NormalizeInventorySearchText(const std::string& text);
@@ -16,4 +17,5 @@ bool InventorySearchTextMatchesQuery(
     const std::string& searchableTextNormalized,
     const std::string& normalizedQuery);
 bool TryResolveInventoryItemQuantityFromWidget(MyGUI::Widget* itemWidget, int* outQuantity);
+Inventory* ResolveInventoryWidgetInventoryPointer(MyGUI::Widget* widget);
 Item* ResolveInventoryWidgetItemPointer(MyGUI::Widget* widget);

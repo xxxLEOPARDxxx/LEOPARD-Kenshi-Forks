@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include <vector>
+
 namespace MyGUI
 {
 class Widget;
@@ -18,9 +20,16 @@ MyGUI::Widget* FindNamedDescendantByTokenRecursive(
     MyGUI::Widget* root,
     const char* token,
     bool requireVisible);
+void CollectNamedDescendantsByToken(
+    MyGUI::Widget* root,
+    const char* token,
+    bool requireVisible,
+    std::vector<MyGUI::Widget*>* outWidgets);
+void CollectVisibleWidgetsByToken(const char* token, std::vector<MyGUI::Widget*>* outWidgets);
 MyGUI::Widget* FindWidgetInParentByToken(MyGUI::Widget* parent, const char* token);
 MyGUI::Window* FindOwningWindow(MyGUI::Widget* widget);
 MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* anchor);
+MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* inventoryContentRoot);
 bool IsLikelyInventoryWindow(MyGUI::Widget* parent);
 void DumpInventoryTargetProbe();
 void DumpVisibleInventoryWindowCandidateDiagnostics();
