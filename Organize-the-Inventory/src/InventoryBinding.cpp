@@ -17,6 +17,8 @@
 
 namespace
 {
+const std::size_t kMaxTrackedSectionWidgetRoots = 2;
+
 struct SectionWidgetInventoryLink
 {
     SectionWidgetInventoryLink()
@@ -39,6 +41,17 @@ struct SectionWidgetInventoryLink
 std::vector<SectionWidgetInventoryLink> g_sectionWidgetInventoryLinks;
 std::string g_lastCollectedBindingSignature;
 std::string g_lastSectionCollectionMismatchSignature;
+
+struct RootBindingSummary
+{
+    RootBindingSummary()
+        : lastSeenTick(0)
+    {
+    }
+
+    std::string widgetRootKey;
+    DWORD lastSeenTick;
+};
 
 DWORD CurrentBindingTick()
 {
@@ -153,6 +166,82 @@ void PruneSectionWidgetInventoryLinks()
         }
 
         kept.push_back(link);
+    }
+
+    std::vector<RootBindingSummary> rootSummaries;
+    for (std::size_t index = 0; index < kept.size(); ++index)
+    {
+        const SectionWidgetInventoryLink& link = kept[index];
+        if (link.widgetRootKey.empty())
+        {
+            continue;
+        }
+
+        RootBindingSummary* summary = 0;
+        for (std::size_t rootIndex = 0; rootIndex < rootSummaries.size(); ++rootIndex)
+        {
+            if (rootSummaries[rootIndex].widgetRootKey == link.widgetRootKey)
+            {
+                summary = &rootSummaries[rootIndex];
+                break;
+            }
+        }
+
+        if (summary == 0)
+        {
+            RootBindingSummary newSummary;
+            newSummary.widgetRootKey = link.widgetRootKey;
+            newSummary.lastSeenTick = link.lastSeenTick;
+            rootSummaries.push_back(newSummary);
+            continue;
+        }
+
+        if (link.lastSeenTick > summary->lastSeenTick)
+        {
+            summary->lastSeenTick = link.lastSeenTick;
+        }
+    }
+
+    if (rootSummaries.size() > kMaxTrackedSectionWidgetRoots)
+    {
+        std::sort(
+            rootSummaries.begin(),
+            rootSummaries.end(),
+            [](const RootBindingSummary& left, const RootBindingSummary& right)
+            {
+                return left.lastSeenTick > right.lastSeenTick;
+            });
+
+        std::vector<SectionWidgetInventoryLink> limited;
+        limited.reserve(kept.size());
+        for (std::size_t index = 0; index < kept.size(); ++index)
+        {
+            const SectionWidgetInventoryLink& link = kept[index];
+            if (link.widgetRootKey.empty())
+            {
+                limited.push_back(link);
+                continue;
+            }
+
+            bool keepRoot = false;
+            for (std::size_t rootIndex = 0;
+                 rootIndex < kMaxTrackedSectionWidgetRoots && rootIndex < rootSummaries.size();
+                 ++rootIndex)
+            {
+                if (rootSummaries[rootIndex].widgetRootKey == link.widgetRootKey)
+                {
+                    keepRoot = true;
+                    break;
+                }
+            }
+
+            if (keepRoot)
+            {
+                limited.push_back(link);
+            }
+        }
+
+        kept.swap(limited);
     }
 
     g_sectionWidgetInventoryLinks.swap(kept);
