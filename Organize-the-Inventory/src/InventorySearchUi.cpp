@@ -38,13 +38,25 @@ const int kPanelHandleGap = 6;
 const int kRightMargin = 16;
 const int kTopMargin = 8;
 
+enum SearchFocusHotkeyKind
+{
+    SearchFocusHotkeyKind_None,
+    SearchFocusHotkeyKind_Slash,
+    SearchFocusHotkeyKind_CtrlF,
+};
+
 bool g_loggedNoVisibleInventoryTarget = false;
 bool g_prevDiagnosticsHotkeyDown = false;
+bool g_prevSearchSlashHotkeyDown = false;
+bool g_prevSearchCtrlFHotkeyDown = false;
 bool g_searchContainerDragging = false;
+bool g_pendingSlashFocusTextSuppression = false;
+bool g_suppressNextSearchEditChangeEvent = false;
 int g_searchContainerDragLastMouseX = 0;
 int g_searchContainerDragLastMouseY = 0;
 int g_searchContainerDragStartLeft = 0;
 int g_searchContainerDragStartTop = 0;
+std::string g_pendingSlashFocusBaseQuery;
 
 MyGUI::Widget* FindControlsContainer()
 {
@@ -123,6 +135,37 @@ void DestroyWidgetDirect(MyGUI::Widget* widget)
     }
 }
 
+bool IsVirtualKeyDown(int virtualKey)
+{
+    return virtualKey > 0 && (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+}
+
+bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
+{
+    const HKL keyboardLayout = GetKeyboardLayout(0);
+    const SHORT slashMapping = VkKeyScanExA('/', keyboardLayout);
+    if (slashMapping != -1)
+    {
+        const int virtualKey = LOBYTE(static_cast<WORD>(slashMapping));
+        const BYTE modifierMask = HIBYTE(static_cast<WORD>(slashMapping));
+        const bool shiftRequired = (modifierMask & 1U) != 0;
+        const bool ctrlRequired = (modifierMask & 2U) != 0;
+        const bool altRequired = (modifierMask & 4U) != 0;
+
+        if (shiftDown == shiftRequired
+            && ctrlDown == ctrlRequired
+            && altDown == altRequired
+            && IsVirtualKeyDown(virtualKey))
+        {
+            return true;
+        }
+    }
+
+    const bool oemSlashDown = IsVirtualKeyDown(VK_OEM_2);
+    const bool numpadSlashDown = IsVirtualKeyDown(VK_DIVIDE);
+    return !ctrlDown && !altDown && ((!shiftDown && oemSlashDown) || numpadSlashDown);
+}
+
 bool IsSearchEditFocused(MyGUI::EditBox* searchEdit)
 {
     if (searchEdit == 0)
@@ -154,6 +197,123 @@ void FocusSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
     line << "inventory search edit focused"
          << " reason=" << (reason == 0 ? "<unknown>" : reason);
     LogDebugLine(line.str());
+}
+
+void BlurSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input == 0)
+    {
+        LogWarnLine("inventory search blur skipped: MyGUI InputManager unavailable");
+        return;
+    }
+
+    if (input->getKeyFocusWidget() != searchEdit)
+    {
+        return;
+    }
+
+    input->setKeyFocusWidget(0);
+
+    std::stringstream line;
+    line << "inventory search edit blurred"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason);
+    LogDebugLine(line.str());
+}
+
+bool TryStripSingleSlashShortcutInsertion(
+    const std::string& currentText,
+    const std::string& baseText,
+    std::string* outRestoredText)
+{
+    if (outRestoredText == 0 || currentText.size() != baseText.size() + 1)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < currentText.size(); ++index)
+    {
+        if (currentText[index] != '/')
+        {
+            continue;
+        }
+
+        const std::string restored =
+            currentText.substr(0, index) + currentText.substr(index + 1);
+        if (restored == baseText)
+        {
+            *outRestoredText = restored;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void UpdateSearchUiState();
+
+void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character)
+{
+    (void)character;
+
+    MyGUI::EditBox* searchEdit = sender == 0 ? 0 : sender->castType<MyGUI::EditBox>(false);
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    if (keyCode.getValue() != MyGUI::KeyCode::Tab)
+    {
+        return;
+    }
+
+    BlurSearchEdit(searchEdit, "tab_key");
+    UpdateSearchUiState();
+}
+
+SearchFocusHotkeyKind DetectSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0 || key == 0 || key->keyboard == 0)
+    {
+        g_prevSearchSlashHotkeyDown = false;
+        g_prevSearchCtrlFHotkeyDown = false;
+        return SearchFocusHotkeyKind_None;
+    }
+
+    const bool searchFocused = IsSearchEditFocused(searchEdit);
+    const bool ctrlDown = key->keyboard->isKeyDown(OIS::KC_LCONTROL)
+        || key->keyboard->isKeyDown(OIS::KC_RCONTROL);
+    const bool altDown = key->keyboard->isKeyDown(OIS::KC_LMENU)
+        || key->keyboard->isKeyDown(OIS::KC_RMENU);
+    const bool shiftDown = key->keyboard->isKeyDown(OIS::KC_LSHIFT)
+        || key->keyboard->isKeyDown(OIS::KC_RSHIFT);
+    const bool fDown = key->keyboard->isKeyDown(OIS::KC_F);
+
+    const bool slashChordDown =
+        !searchFocused && IsSlashCharacterChordDown(shiftDown, ctrlDown, altDown);
+    const bool ctrlFChordDown = !searchFocused && ctrlDown && fDown;
+
+    const bool slashPressedEdge = slashChordDown && !g_prevSearchSlashHotkeyDown;
+    const bool ctrlFPressedEdge = ctrlFChordDown && !g_prevSearchCtrlFHotkeyDown;
+
+    g_prevSearchSlashHotkeyDown = slashChordDown;
+    g_prevSearchCtrlFHotkeyDown = ctrlFChordDown;
+
+    if (slashPressedEdge)
+    {
+        return SearchFocusHotkeyKind_Slash;
+    }
+    if (ctrlFPressedEdge)
+    {
+        return SearchFocusHotkeyKind_CtrlF;
+    }
+
+    return SearchFocusHotkeyKind_None;
 }
 
 bool TryGetCurrentMousePosition(int* xOut, int* yOut)
@@ -456,7 +616,33 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
         return;
     }
 
-    InventoryState().g_searchQueryRaw = sender->getOnlyText().asUTF8();
+    const std::string onlyText = sender->getOnlyText().asUTF8();
+    if (g_suppressNextSearchEditChangeEvent && onlyText == InventoryState().g_searchQueryRaw)
+    {
+        g_suppressNextSearchEditChangeEvent = false;
+        return;
+    }
+    g_suppressNextSearchEditChangeEvent = false;
+
+    if (g_pendingSlashFocusTextSuppression)
+    {
+        std::string restoredText;
+        if (TryStripSingleSlashShortcutInsertion(
+                onlyText,
+                g_pendingSlashFocusBaseQuery,
+                &restoredText))
+        {
+            g_pendingSlashFocusTextSuppression = false;
+            g_suppressNextSearchEditChangeEvent = true;
+            InventoryState().g_searchQueryRaw = restoredText;
+            sender->setOnlyText(restoredText);
+            return;
+        }
+
+        g_pendingSlashFocusTextSuppression = false;
+    }
+
+    InventoryState().g_searchQueryRaw = onlyText;
 
     std::stringstream line;
     line << "inventory search input changed"
@@ -470,6 +656,11 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
 void DestroyControlsIfPresent(bool clearQuery)
 {
     g_searchContainerDragging = false;
+    g_prevSearchSlashHotkeyDown = false;
+    g_prevSearchCtrlFHotkeyDown = false;
+    g_pendingSlashFocusTextSuppression = false;
+    g_suppressNextSearchEditChangeEvent = false;
+    g_pendingSlashFocusBaseQuery.clear();
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     ClearInventorySearchFilterState();
@@ -614,6 +805,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     searchEdit->eventEditTextChange += MyGUI::newDelegate(&OnSearchTextChanged);
     searchEdit->eventKeySetFocus += MyGUI::newDelegate(&OnSearchEditFocusChanged);
     searchEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnSearchEditFocusChanged);
+    searchEdit->eventKeyButtonPressed += MyGUI::newDelegate(&OnSearchEditKeyPressed);
 
     MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -793,6 +985,36 @@ void TickInventorySearchUi()
     DumpInventoryBackpackCandidateDiagnosticsIfChanged(targetParent);
     RefreshAttachedControlsPositionIfNeeded(currentParent);
     UpdateSearchUiState();
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit != 0)
+    {
+        const SearchFocusHotkeyKind hotkeyKind =
+            DetectSearchFocusHotkeyPressedEdge(searchEdit);
+        if (hotkeyKind != SearchFocusHotkeyKind_None)
+        {
+            if (hotkeyKind == SearchFocusHotkeyKind_Slash)
+            {
+                g_pendingSlashFocusBaseQuery = InventoryState().g_searchQueryRaw;
+                g_pendingSlashFocusTextSuppression = true;
+            }
+            else
+            {
+                g_pendingSlashFocusBaseQuery.clear();
+                g_pendingSlashFocusTextSuppression = false;
+            }
+
+            FocusSearchEdit(searchEdit, "focus_hotkey");
+            UpdateSearchUiState();
+        }
+    }
+    else
+    {
+        g_prevSearchSlashHotkeyDown = false;
+        g_prevSearchCtrlFHotkeyDown = false;
+        g_pendingSlashFocusTextSuppression = false;
+        g_suppressNextSearchEditChangeEvent = false;
+        g_pendingSlashFocusBaseQuery.clear();
+    }
     ApplyInventorySearchFilterToParent(filterRoot, false);
 }
 
