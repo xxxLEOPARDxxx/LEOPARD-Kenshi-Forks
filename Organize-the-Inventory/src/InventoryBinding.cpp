@@ -31,6 +31,7 @@ struct SectionWidgetInventoryLink
     Inventory* inventory;
     std::string sectionName;
     std::string widgetName;
+    std::string widgetRootKey;
     std::size_t itemCount;
     DWORD lastSeenTick;
 };
@@ -86,15 +87,44 @@ bool IsDescendantOf(MyGUI::Widget* child, MyGUI::Widget* ancestor)
         return false;
     }
 
-    for (MyGUI::Widget* current = child; current != 0; current = current->getParent())
+    MyGUI::Widget* current = child;
+    int depth = 0;
+    while (current != 0 && depth < 96)
     {
         if (current == ancestor)
         {
             return true;
         }
+
+        __try
+        {
+            current = current->getParent();
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+
+        ++depth;
     }
 
     return false;
+}
+
+std::string ExtractWidgetRootKey(const std::string& widgetName)
+{
+    if (widgetName.empty())
+    {
+        return std::string();
+    }
+
+    const std::string::size_type separator = widgetName.rfind('_');
+    if (separator == std::string::npos || separator == 0)
+    {
+        return widgetName;
+    }
+
+    return widgetName.substr(0, separator);
 }
 
 void PruneSectionWidgetInventoryLinks()
@@ -430,11 +460,17 @@ void RegisterInventorySectionWidgetLink(
 
     const DWORD now = CurrentBindingTick();
     const std::string widgetName = SafeWidgetName(sectionWidget);
+    const std::string widgetRootKey = ExtractWidgetRootKey(widgetName);
     const std::size_t itemCount = InventoryItemCountForLog(inventory);
     for (std::size_t index = 0; index < g_sectionWidgetInventoryLinks.size(); ++index)
     {
         SectionWidgetInventoryLink& link = g_sectionWidgetInventoryLinks[index];
-        if (link.sectionWidget != sectionWidget)
+        const bool sameWidget = link.sectionWidget == sectionWidget;
+        const bool sameRootSection =
+            !widgetRootKey.empty()
+            && link.widgetRootKey == widgetRootKey
+            && link.sectionName == sectionName;
+        if (!sameWidget && !sameRootSection)
         {
             continue;
         }
@@ -442,8 +478,10 @@ void RegisterInventorySectionWidgetLink(
         link.inventory = inventory;
         link.sectionName = sectionName;
         link.widgetName = widgetName;
+        link.widgetRootKey = widgetRootKey;
         link.itemCount = itemCount;
         link.lastSeenTick = now;
+        link.sectionWidget = sectionWidget;
         return;
     }
 
@@ -452,6 +490,7 @@ void RegisterInventorySectionWidgetLink(
     link.inventory = inventory;
     link.sectionName = sectionName;
     link.widgetName = widgetName;
+    link.widgetRootKey = widgetRootKey;
     link.itemCount = itemCount;
     link.lastSeenTick = now;
     g_sectionWidgetInventoryLinks.push_back(link);
@@ -488,10 +527,18 @@ bool CollectBoundInventoryEntriesForRoot(
         return false;
     }
 
+    const std::string inventoryRootKey = ExtractWidgetRootKey(SafeWidgetName(inventoryRoot));
     std::size_t matchedSections = 0;
     for (std::size_t index = 0; index < g_sectionWidgetInventoryLinks.size(); ++index)
     {
         const SectionWidgetInventoryLink& link = g_sectionWidgetInventoryLinks[index];
+        if (!inventoryRootKey.empty()
+            && !link.widgetRootKey.empty()
+            && link.widgetRootKey != inventoryRootKey)
+        {
+            continue;
+        }
+
         if (!IsDescendantOf(link.sectionWidget, inventoryRoot))
         {
             continue;
