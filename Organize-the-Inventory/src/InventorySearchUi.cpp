@@ -3,6 +3,7 @@
 #include "InventoryConfig.h"
 #include "InventoryCore.h"
 #include "InventoryDiagnostics.h"
+#include "InventorySearchInputBehavior.h"
 #include "InventorySearchPipeline.h"
 #include "InventoryWindowDetection.h"
 
@@ -45,6 +46,19 @@ enum SearchFocusHotkeyKind
     SearchFocusHotkeyKind_CtrlF,
 };
 
+struct PendingSearchEditShortcut
+{
+    PendingSearchEditShortcut()
+        : active(false)
+        , keyValue(0)
+    {
+    }
+
+    bool active;
+    int keyValue;
+    InventorySearchInputBehavior::EditResult editResult;
+};
+
 bool g_loggedNoVisibleInventoryTarget = false;
 bool g_prevDiagnosticsHotkeyDown = false;
 bool g_prevSearchSlashHotkeyDown = false;
@@ -52,10 +66,13 @@ bool g_prevSearchCtrlFHotkeyDown = false;
 bool g_searchContainerDragging = false;
 bool g_pendingSlashFocusTextSuppression = false;
 bool g_suppressNextSearchEditChangeEvent = false;
+bool g_haveSearchEditSnapshot = false;
 int g_searchContainerDragLastMouseX = 0;
 int g_searchContainerDragLastMouseY = 0;
 int g_searchContainerDragStartLeft = 0;
 int g_searchContainerDragStartTop = 0;
+PendingSearchEditShortcut g_pendingSearchEditShortcut;
+InventorySearchInputBehavior::Snapshot g_searchEditSnapshot;
 std::string g_pendingSlashFocusBaseQuery;
 
 MyGUI::Widget* FindControlsContainer()
@@ -255,25 +272,352 @@ bool TryStripSingleSlashShortcutInsertion(
     return false;
 }
 
+bool IsInterestingSearchEditMyGuiKey(MyGUI::KeyCode keyCode)
+{
+    const int value = keyCode.getValue();
+    return value == MyGUI::KeyCode::LeftControl
+        || value == MyGUI::KeyCode::RightControl
+        || value == MyGUI::KeyCode::ArrowLeft
+        || value == MyGUI::KeyCode::ArrowRight
+        || value == MyGUI::KeyCode::Backspace
+        || value == MyGUI::KeyCode::Tab;
+}
+
+void ResetPendingSearchEditShortcut()
+{
+    g_pendingSearchEditShortcut = PendingSearchEditShortcut();
+}
+
+void ResetSearchEditSnapshot()
+{
+    g_haveSearchEditSnapshot = false;
+    g_searchEditSnapshot = InventorySearchInputBehavior::Snapshot();
+}
+
+InventorySearchInputBehavior::Text ToSearchInputText(const MyGUI::UString& text)
+{
+    InventorySearchInputBehavior::Text result;
+    const std::size_t length = text.size();
+    result.reserve(length);
+    for (std::size_t index = 0; index < length; ++index)
+    {
+        result.push_back(static_cast<InventorySearchInputBehavior::Codepoint>(text[index]));
+    }
+
+    return result;
+}
+
+MyGUI::UString ToMyGuiText(const InventorySearchInputBehavior::Text& text)
+{
+    MyGUI::UString result;
+    const std::size_t length = text.size();
+    for (std::size_t index = 0; index < length; ++index)
+    {
+        result.push_back(static_cast<MyGUI::UString::unicode_char>(text[index]));
+    }
+
+    return result;
+}
+
+InventorySearchInputBehavior::Selection CaptureSearchEditSelection(
+    MyGUI::EditBox* searchEdit,
+    std::size_t textLength)
+{
+    if (searchEdit == 0 || !searchEdit->isTextSelection())
+    {
+        return InventorySearchInputBehavior::Selection();
+    }
+
+    const std::size_t selectionStart = searchEdit->getTextSelectionStart();
+    if (selectionStart == MyGUI::ITEM_NONE)
+    {
+        return InventorySearchInputBehavior::Selection();
+    }
+
+    const std::size_t selectionLength = searchEdit->getTextSelectionLength();
+    return InventorySearchInputBehavior::NormalizeSelection(
+        InventorySearchInputBehavior::Selection(true, selectionStart, selectionLength),
+        textLength);
+}
+
+InventorySearchInputBehavior::Snapshot BuildSearchInputSnapshot(
+    const MyGUI::UString& text,
+    std::size_t cursorPosition,
+    const InventorySearchInputBehavior::Selection& selection)
+{
+    return InventorySearchInputBehavior::Snapshot(
+        ToSearchInputText(text),
+        cursorPosition,
+        InventorySearchInputBehavior::NormalizeSelection(selection, text.size()));
+}
+
+InventorySearchInputBehavior::Snapshot CaptureSearchEditSnapshot(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0)
+    {
+        return InventorySearchInputBehavior::Snapshot();
+    }
+
+    const MyGUI::UString text = searchEdit->getOnlyText();
+    const std::size_t textLength = text.size();
+    const std::size_t cursorPosition = InventorySearchInputBehavior::ClampCursor(
+        searchEdit->getTextCursor(),
+        textLength);
+    return BuildSearchInputSnapshot(
+        text,
+        cursorPosition,
+        CaptureSearchEditSelection(searchEdit, textLength));
+}
+
+InventorySearchInputBehavior::ShortcutKind ClassifySearchEditShortcut(MyGUI::KeyCode keyCode)
+{
+    const int keyValue = keyCode.getValue();
+    if (keyValue == MyGUI::KeyCode::ArrowLeft)
+    {
+        return InventorySearchInputBehavior::ShortcutKind_CtrlLeft;
+    }
+
+    if (keyValue == MyGUI::KeyCode::ArrowRight)
+    {
+        return InventorySearchInputBehavior::ShortcutKind_CtrlRight;
+    }
+
+    if (keyValue == MyGUI::KeyCode::Backspace)
+    {
+        return InventorySearchInputBehavior::ShortcutKind_CtrlBackspace;
+    }
+
+    return InventorySearchInputBehavior::ShortcutKind_None;
+}
+
+void ApplySearchEditSelection(
+    MyGUI::EditBox* searchEdit,
+    std::size_t cursorPosition,
+    const InventorySearchInputBehavior::Selection& selection)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    const std::size_t textLength = searchEdit->getTextLength();
+    const std::size_t clampedCursor =
+        InventorySearchInputBehavior::ClampCursor(cursorPosition, textLength);
+    const InventorySearchInputBehavior::Selection normalizedSelection =
+        InventorySearchInputBehavior::NormalizeSelection(selection, textLength);
+    if (normalizedSelection.active)
+    {
+        searchEdit->setTextSelection(
+            normalizedSelection.start,
+            normalizedSelection.start + normalizedSelection.length);
+        return;
+    }
+
+    searchEdit->setTextCursor(clampedCursor);
+    searchEdit->setTextSelection(clampedCursor, clampedCursor);
+}
+
+InventorySearchInputBehavior::Snapshot BuildScheduledSearchShortcutSnapshot(
+    MyGUI::EditBox* searchEdit,
+    InventorySearchInputBehavior::ShortcutKind shortcut)
+{
+    InventorySearchInputBehavior::Snapshot snapshot = CaptureSearchEditSnapshot(searchEdit);
+    if (shortcut == InventorySearchInputBehavior::ShortcutKind_CtrlBackspace
+        && g_haveSearchEditSnapshot)
+    {
+        snapshot.text = g_searchEditSnapshot.text;
+        snapshot.cursor = InventorySearchInputBehavior::ClampCursor(
+            g_searchEditSnapshot.cursor,
+            snapshot.text.size());
+        snapshot.selection = InventorySearchInputBehavior::NormalizeSelection(
+            snapshot.selection,
+            snapshot.text.size());
+    }
+
+    return snapshot;
+}
+
 void UpdateSearchUiState();
+
+void RememberSearchEditSnapshotValue(
+    const std::string& query,
+    std::size_t cursorPosition,
+    const InventorySearchInputBehavior::Selection& selection)
+{
+    g_haveSearchEditSnapshot = true;
+    g_searchEditSnapshot = BuildSearchInputSnapshot(MyGUI::UString(query), cursorPosition, selection);
+}
+
+void RememberSearchEditSnapshot(MyGUI::EditBox* searchEdit)
+{
+    if (searchEdit == 0)
+    {
+        ResetSearchEditSnapshot();
+        return;
+    }
+
+    g_haveSearchEditSnapshot = true;
+    g_searchEditSnapshot = CaptureSearchEditSnapshot(searchEdit);
+}
+
+void SetSearchQueryAndRefresh(
+    MyGUI::EditBox* searchEdit,
+    const std::string& rawText,
+    const char* reason,
+    bool focusAfterSet)
+{
+    if (searchEdit == 0)
+    {
+        return;
+    }
+
+    InventoryState().g_searchQueryRaw = rawText;
+    g_pendingSlashFocusBaseQuery.clear();
+    g_pendingSlashFocusTextSuppression = false;
+
+    const std::string currentOnlyText = searchEdit->getOnlyText().asUTF8();
+    if (currentOnlyText != rawText)
+    {
+        g_suppressNextSearchEditChangeEvent = true;
+        searchEdit->setOnlyText(rawText);
+    }
+
+    if (focusAfterSet)
+    {
+        FocusSearchEdit(searchEdit, reason);
+    }
+
+    std::stringstream line;
+    line << "inventory search ui action"
+         << " reason=" << (reason == 0 ? "<unknown>" : reason)
+         << " raw=\"" << InventoryState().g_searchQueryRaw << "\"";
+    LogSearchDebugLine(line.str());
+
+    UpdateSearchUiState();
+    RememberSearchEditSnapshot(searchEdit);
+}
+
+void ApplySearchShortcutQueryAndCursor(
+    MyGUI::EditBox* searchEdit,
+    const InventorySearchInputBehavior::EditResult& editResult,
+    const char* reason)
+{
+    if (searchEdit == 0 || !editResult.handled || !editResult.rewriteText)
+    {
+        return;
+    }
+
+    const std::string rawText = ToMyGuiText(editResult.text).asUTF8();
+    SetSearchQueryAndRefresh(searchEdit, rawText, reason, false);
+    ApplySearchEditSelection(searchEdit, editResult.cursor, editResult.selection);
+    RememberSearchEditSnapshotValue(rawText, editResult.cursor, editResult.selection);
+}
+
+bool ScheduleSearchEditMyGuiShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (searchEdit == 0)
+    {
+        return false;
+    }
+
+    MyGUI::InputManager* inputManager = MyGUI::InputManager::getInstancePtr();
+    if (inputManager == 0 || !inputManager->isControlPressed())
+    {
+        return false;
+    }
+
+    const InventorySearchInputBehavior::ShortcutKind shortcut =
+        ClassifySearchEditShortcut(keyCode);
+    if (shortcut == InventorySearchInputBehavior::ShortcutKind_None)
+    {
+        return false;
+    }
+
+    ResetPendingSearchEditShortcut();
+    g_pendingSearchEditShortcut.active = true;
+    g_pendingSearchEditShortcut.keyValue = keyCode.getValue();
+    g_pendingSearchEditShortcut.editResult = InventorySearchInputBehavior::ApplyShortcut(
+        shortcut,
+        BuildScheduledSearchShortcutSnapshot(searchEdit, shortcut));
+    if (!g_pendingSearchEditShortcut.editResult.handled)
+    {
+        ResetPendingSearchEditShortcut();
+        return false;
+    }
+
+    return true;
+}
+
+void ApplyPendingSearchEditShortcut(MyGUI::EditBox* searchEdit, MyGUI::KeyCode keyCode)
+{
+    if (!g_pendingSearchEditShortcut.active
+        || g_pendingSearchEditShortcut.keyValue != keyCode.getValue())
+    {
+        return;
+    }
+
+    const PendingSearchEditShortcut pending = g_pendingSearchEditShortcut;
+    ResetPendingSearchEditShortcut();
+
+    if (searchEdit == 0 || !pending.editResult.handled)
+    {
+        return;
+    }
+
+    if (pending.editResult.rewriteText)
+    {
+        ApplySearchShortcutQueryAndCursor(searchEdit, pending.editResult, "ctrl_shortcut");
+        return;
+    }
+
+    ApplySearchEditSelection(searchEdit, pending.editResult.cursor, pending.editResult.selection);
+    RememberSearchEditSnapshot(searchEdit);
+}
 
 void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character)
 {
     (void)character;
 
     MyGUI::EditBox* searchEdit = sender == 0 ? 0 : sender->castType<MyGUI::EditBox>(false);
-    if (searchEdit == 0)
+    if (searchEdit == 0 || !IsInterestingSearchEditMyGuiKey(keyCode))
     {
         return;
     }
 
     if (keyCode.getValue() != MyGUI::KeyCode::Tab)
     {
+        ScheduleSearchEditMyGuiShortcut(searchEdit, keyCode);
         return;
     }
 
     BlurSearchEdit(searchEdit, "tab_key");
+    ResetPendingSearchEditShortcut();
+    RememberSearchEditSnapshot(searchEdit);
     UpdateSearchUiState();
+}
+
+void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode)
+{
+    if (sender == 0)
+    {
+        ResetPendingSearchEditShortcut();
+        ResetSearchEditSnapshot();
+        return;
+    }
+
+    MyGUI::EditBox* searchEdit = sender->castType<MyGUI::EditBox>(false);
+    if (searchEdit == 0)
+    {
+        ResetPendingSearchEditShortcut();
+        return;
+    }
+
+    if (IsInterestingSearchEditMyGuiKey(keyCode))
+    {
+        ApplyPendingSearchEditShortcut(searchEdit, keyCode);
+    }
+
+    RememberSearchEditSnapshot(searchEdit);
 }
 
 SearchFocusHotkeyKind DetectSearchFocusHotkeyPressedEdge(MyGUI::EditBox* searchEdit)
@@ -598,14 +942,19 @@ void OnSearchClearButtonClicked(MyGUI::Widget*)
         return;
     }
 
-    InventoryState().g_searchQueryRaw.clear();
-    searchEdit->setOnlyText("");
-    FocusSearchEdit(searchEdit, "clear_button");
-    UpdateSearchUiState();
+    if (InventoryState().g_searchQueryRaw.empty())
+    {
+        FocusSearchEdit(searchEdit, "clear_button_empty");
+        RememberSearchEditSnapshot(searchEdit);
+        return;
+    }
+
+    SetSearchQueryAndRefresh(searchEdit, "", "clear_button", true);
 }
 
 void OnSearchEditFocusChanged(MyGUI::Widget*, MyGUI::Widget*)
 {
+    ResetPendingSearchEditShortcut();
     UpdateSearchUiState();
 }
 
@@ -651,6 +1000,7 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
     LogSearchDebugLine(line.str());
 
     UpdateSearchUiState();
+    RememberSearchEditSnapshot(sender);
 }
 
 void DestroyControlsIfPresent(bool clearQuery)
@@ -661,6 +1011,8 @@ void DestroyControlsIfPresent(bool clearQuery)
     g_pendingSlashFocusTextSuppression = false;
     g_suppressNextSearchEditChangeEvent = false;
     g_pendingSlashFocusBaseQuery.clear();
+    ResetPendingSearchEditShortcut();
+    ResetSearchEditSnapshot();
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     ClearInventorySearchFilterState();
@@ -806,6 +1158,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     searchEdit->eventKeySetFocus += MyGUI::newDelegate(&OnSearchEditFocusChanged);
     searchEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnSearchEditFocusChanged);
     searchEdit->eventKeyButtonPressed += MyGUI::newDelegate(&OnSearchEditKeyPressed);
+    searchEdit->eventKeyButtonReleased += MyGUI::newDelegate(&OnSearchEditKeyReleased);
 
     MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -847,9 +1200,11 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     clearButton->eventMouseButtonClick += MyGUI::newDelegate(&OnSearchClearButtonClicked);
 
     UpdateSearchUiState();
+    RememberSearchEditSnapshot(searchEdit);
     if (InventoryState().g_autoFocusSearchInput)
     {
         FocusSearchEdit(searchEdit, "auto_focus");
+        RememberSearchEditSnapshot(searchEdit);
     }
     return true;
 }

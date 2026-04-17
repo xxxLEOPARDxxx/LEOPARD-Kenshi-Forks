@@ -95,6 +95,7 @@
     <ClCompile Include="src\InventoryDiagnostics.cpp" />
     <ClCompile Include="src\InventoryHooks.cpp" />
     <ClCompile Include="src\InventoryModHub.cpp" />
+    <ClCompile Include="src\InventorySearchInputBehavior.cpp" />
     <ClCompile Include="src\InventorySearchPipeline.cpp" />
     <ClCompile Include="src\InventorySearchText.cpp" />
     <ClCompile Include="src\InventorySearchUi.cpp" />
@@ -112,6 +113,7 @@
     <ClInclude Include="src\InventoryDiagnostics.h" />
     <ClInclude Include="src\InventoryHooks.h" />
     <ClInclude Include="src\InventoryModHub.h" />
+    <ClInclude Include="src\InventorySearchInputBehavior.h" />
     <ClInclude Include="src\InventorySearchPipeline.h" />
     <ClInclude Include="src\InventorySearchText.h" />
     <ClInclude Include="src\InventorySearchUi.h" />
