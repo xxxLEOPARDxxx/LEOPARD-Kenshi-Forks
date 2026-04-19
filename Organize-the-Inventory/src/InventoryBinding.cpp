@@ -676,3 +676,73 @@ bool CollectBoundInventoryEntriesForRoot(
 
     return !outEntries->empty();
 }
+
+Inventory* ResolveBoundInventoryForRoot(MyGUI::Widget* inventoryRoot)
+{
+    if (inventoryRoot == 0)
+    {
+        return 0;
+    }
+
+    PruneSectionWidgetInventoryLinks();
+    if (g_sectionWidgetInventoryLinks.empty())
+    {
+        return 0;
+    }
+
+    const std::string inventoryRootKey = ExtractWidgetRootKey(SafeWidgetName(inventoryRoot));
+    Inventory* bestInventory = 0;
+    std::size_t bestMatchCount = 0;
+    for (std::size_t index = 0; index < g_sectionWidgetInventoryLinks.size(); ++index)
+    {
+        const SectionWidgetInventoryLink& seedLink = g_sectionWidgetInventoryLinks[index];
+        if (seedLink.inventory == 0 || !IsInventoryPointerValidSafe(seedLink.inventory))
+        {
+            continue;
+        }
+
+        if (!inventoryRootKey.empty()
+            && !seedLink.widgetRootKey.empty()
+            && seedLink.widgetRootKey != inventoryRootKey)
+        {
+            continue;
+        }
+
+        if (!IsDescendantOf(seedLink.sectionWidget, inventoryRoot))
+        {
+            continue;
+        }
+
+        std::size_t matchCount = 0;
+        for (std::size_t compareIndex = 0; compareIndex < g_sectionWidgetInventoryLinks.size(); ++compareIndex)
+        {
+            const SectionWidgetInventoryLink& compareLink = g_sectionWidgetInventoryLinks[compareIndex];
+            if (compareLink.inventory != seedLink.inventory)
+            {
+                continue;
+            }
+
+            if (!inventoryRootKey.empty()
+                && !compareLink.widgetRootKey.empty()
+                && compareLink.widgetRootKey != inventoryRootKey)
+            {
+                continue;
+            }
+
+            if (!IsDescendantOf(compareLink.sectionWidget, inventoryRoot))
+            {
+                continue;
+            }
+
+            ++matchCount;
+        }
+
+        if (bestInventory == 0 || matchCount > bestMatchCount)
+        {
+            bestInventory = seedLink.inventory;
+            bestMatchCount = matchCount;
+        }
+    }
+
+    return bestInventory;
+}

@@ -100,6 +100,43 @@ bool ContainsWidgetPointer(
     return false;
 }
 
+bool IsWidgetWithinParentChain(MyGUI::Widget* widget, MyGUI::Widget* expectedAncestor)
+{
+    if (widget == 0 || expectedAncestor == 0)
+    {
+        return false;
+    }
+
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        if (current == expectedAncestor)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+Inventory* ResolveInventoryContextInventory(MyGUI::Widget* widget)
+{
+    if (widget == 0)
+    {
+        return 0;
+    }
+
+    for (MyGUI::Widget* current = widget; current != 0; current = current->getParent())
+    {
+        Inventory* inventory = ResolveInventoryWidgetInventoryPointer(current);
+        if (inventory != 0)
+        {
+            return inventory;
+        }
+    }
+
+    return 0;
+}
+
 std::string TrimLeadingAsciiWhitespace(const std::string& value)
 {
     std::size_t index = 0;
@@ -432,6 +469,7 @@ void MergeBoundSearchEntriesForRoot(
 
 void CollectSearchEntriesFromBackpackPanels(
     MyGUI::Widget* inventoryParent,
+    Inventory* inventoryContext,
     std::vector<InventorySearchEntry>* outEntries)
 {
     if (inventoryParent == 0 || outEntries == 0)
@@ -456,11 +494,25 @@ void CollectSearchEntriesFromBackpackPanels(
         }
 
         std::vector<InventoryBoundEntry> backpackBoundEntries;
+        Inventory* boundBackpackInventory = 0;
         std::string ignoredBackpackReason;
-        if (CollectBoundBackpackEntriesForContent(
+        const bool hasBoundBackpackEntries = CollectBoundBackpackEntriesForContent(
                 backpackContent,
                 &backpackBoundEntries,
-                &ignoredBackpackReason))
+                &ignoredBackpackReason,
+                &boundBackpackInventory);
+        const bool isLocalBackpackContent =
+            IsWidgetWithinParentChain(backpackContent, inventoryParent);
+        const bool isInventoryContextBackpack =
+            boundBackpackInventory != 0
+            && IsInventoryOwnedByInventoryContext(boundBackpackInventory, inventoryContext);
+        if (!isLocalBackpackContent
+            && !isInventoryContextBackpack)
+        {
+            continue;
+        }
+
+        if (hasBoundBackpackEntries)
         {
             for (std::size_t boundIndex = 0; boundIndex < backpackBoundEntries.size(); ++boundIndex)
             {
@@ -767,7 +819,12 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
         }
     }
 
-    CollectSearchEntriesFromBackpackPanels(inventoryParent, &entries);
+    Inventory* inventoryContext = ResolveBoundInventoryForRoot(inventoryParent);
+    if (inventoryContext == 0)
+    {
+        inventoryContext = ResolveInventoryContextInventory(inventoryParent);
+    }
+    CollectSearchEntriesFromBackpackPanels(inventoryParent, inventoryContext, &entries);
 
     if (entries.empty())
     {

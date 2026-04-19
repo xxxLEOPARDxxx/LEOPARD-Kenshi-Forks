@@ -39,3 +39,5 @@ bool CollectBoundInventoryEntriesForRoot(
     MyGUI::Widget* inventoryRoot,
     std::vector<InventoryBoundEntry>* outEntries,
     std::string* outReason);
+
+Inventory* ResolveBoundInventoryForRoot(MyGUI::Widget* inventoryRoot);

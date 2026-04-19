@@ -1563,7 +1563,8 @@ void RegisterInventoryGuiInventoryLink(InventoryGUI* inventoryGui, Inventory* in
 bool CollectBoundBackpackEntriesForContent(
     MyGUI::Widget* backpackContent,
     std::vector<InventoryBoundEntry>* outEntries,
-    std::string* outReason)
+    std::string* outReason,
+    Inventory** outInventory)
 {
     if (outEntries == 0)
     {
@@ -1574,6 +1575,10 @@ bool CollectBoundBackpackEntriesForContent(
     if (outReason != 0)
     {
         outReason->clear();
+    }
+    if (outInventory != 0)
+    {
+        *outInventory = 0;
     }
 
     if (backpackContent == 0)
@@ -1642,6 +1647,10 @@ bool CollectBoundBackpackEntriesForContent(
             finalCandidateRows,
             0);
         return false;
+    }
+    if (outInventory != 0)
+    {
+        *outInventory = inventory;
     }
 
     std::vector<InventorySection::SectionItem> sortedItems;
@@ -1726,4 +1735,66 @@ bool CollectBoundBackpackEntriesForContent(
     }
 
     return !outEntries->empty();
+}
+
+bool IsInventoryOwnedByInventoryContext(Inventory* inventory, Inventory* contextInventory)
+{
+    if (inventory == 0
+        || contextInventory == 0
+        || !IsInventoryPointerValidSafe(inventory)
+        || !IsInventoryPointerValidSafe(contextInventory))
+    {
+        return false;
+    }
+
+    if (inventory == contextInventory)
+    {
+        return true;
+    }
+
+    RootObject* contextOwner = 0;
+    RootObject* contextCallbackObject = 0;
+    TryGetInventoryOwnerPointersSafe(contextInventory, &contextOwner, &contextCallbackObject);
+
+    RootObject* owner = 0;
+    RootObject* callbackObject = 0;
+    TryGetInventoryOwnerPointersSafe(inventory, &owner, &callbackObject);
+    if ((contextOwner != 0 && (owner == contextOwner || callbackObject == contextOwner))
+        || (contextCallbackObject != 0
+            && (owner == contextCallbackObject || callbackObject == contextCallbackObject)))
+    {
+        return true;
+    }
+
+    lektor<InventorySection*>& allSections = contextInventory->getAllSections();
+    for (std::size_t sectionIndex = 0; sectionIndex < allSections.size(); ++sectionIndex)
+    {
+        InventorySection* section = allSections[static_cast<uint32_t>(sectionIndex)];
+        if (section == 0)
+        {
+            continue;
+        }
+
+        const Ogre::vector<InventorySection::SectionItem>::type& items = section->getItems();
+        for (std::size_t itemIndex = 0; itemIndex < items.size(); ++itemIndex)
+        {
+            Item* item = items[itemIndex].item;
+            if (item == 0)
+            {
+                continue;
+            }
+
+            if (owner == item || callbackObject == item)
+            {
+                return true;
+            }
+
+            if (item->getInventory() == inventory)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
