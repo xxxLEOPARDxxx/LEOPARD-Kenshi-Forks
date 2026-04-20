@@ -33,6 +33,14 @@ MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* inventoryContentRoot);
 bool IsLikelyInventoryWindow(MyGUI::Widget* parent);
 void DumpInventoryTargetProbe();
 void DumpVisibleInventoryWindowCandidateDiagnostics();
+bool TryResolveCompanionControlsParentForTarget(
+    MyGUI::Widget* targetAnchor,
+    MyGUI::Widget* targetParent,
+    MyGUI::Widget** outParent);
+bool TryResolveCompanionBackpackFilterRootForTarget(
+    MyGUI::Widget* targetAnchor,
+    MyGUI::Widget* targetParent,
+    MyGUI::Widget** outFilterRoot);
 bool TryResolveHoveredInventoryTarget(
     MyGUI::Widget** outAnchor,
     MyGUI::Widget** outParent,

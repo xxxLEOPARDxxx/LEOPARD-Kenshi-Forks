@@ -186,6 +186,75 @@ std::string BuildParentChainForLog(MyGUI::Widget* widget)
     return chain.str();
 }
 
+std::string ExtractWidgetSessionPrefix(const std::string& widgetName)
+{
+    if (widgetName.empty())
+    {
+        return std::string();
+    }
+
+    std::size_t commaCount = 0;
+    for (std::size_t index = 0; index < widgetName.size(); ++index)
+    {
+        if (widgetName[index] != ',')
+        {
+            continue;
+        }
+
+        ++commaCount;
+        if (commaCount >= 4)
+        {
+            return widgetName.substr(0, index);
+        }
+    }
+
+    return std::string();
+}
+
+std::string BuildCompanionCaptionKey(const std::string& caption)
+{
+    std::string normalized = NormalizeCaptionMatchText(caption);
+    if (normalized.empty())
+    {
+        return normalized;
+    }
+
+    const std::string backpackToken = "BACKPACK";
+    std::size_t found = normalized.find(backpackToken);
+    while (found != std::string::npos)
+    {
+        normalized.erase(found, backpackToken.size());
+        found = normalized.find(backpackToken);
+    }
+
+    std::string collapsed;
+    collapsed.reserve(normalized.size());
+    bool previousWasSpace = true;
+    for (std::size_t index = 0; index < normalized.size(); ++index)
+    {
+        const char ch = normalized[index];
+        if (ch == ' ')
+        {
+            if (!previousWasSpace)
+            {
+                collapsed.push_back(ch);
+            }
+            previousWasSpace = true;
+            continue;
+        }
+
+        collapsed.push_back(ch);
+        previousWasSpace = false;
+    }
+
+    while (!collapsed.empty() && collapsed[collapsed.size() - 1] == ' ')
+    {
+        collapsed.erase(collapsed.size() - 1);
+    }
+
+    return collapsed;
+}
+
 bool HasInventoryMarkers(MyGUI::Widget* parent)
 {
     if (parent == 0)
@@ -1123,6 +1192,664 @@ MyGUI::Widget* ResolveInventoryEntriesRoot(MyGUI::Widget* inventoryContentRoot)
 bool IsLikelyInventoryWindow(MyGUI::Widget* parent)
 {
     return ComputeInventoryWindowCandidateScore(parent, 0) > 0;
+}
+
+bool TryResolveCompanionControlsParentForTarget(
+    MyGUI::Widget* targetAnchor,
+    MyGUI::Widget* targetParent,
+    MyGUI::Widget** outParent)
+{
+    if (outParent != 0)
+    {
+        *outParent = 0;
+    }
+
+    if (targetAnchor == 0 || targetParent == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Window* targetWindow = FindOwningWindow(targetAnchor);
+    const std::string targetCaption = targetWindow == 0 ? "" : targetWindow->getCaption().asUTF8();
+    const bool targetHasBackpackContent = FindWidgetInParentByToken(targetParent, "backpack_content") != 0;
+    if (!targetHasBackpackContent || !ContainsAsciiCaseInsensitive(targetCaption, "BACKPACK"))
+    {
+        return false;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    const std::string targetSessionPrefix = ExtractWidgetSessionPrefix(SafeWidgetName(targetAnchor));
+    const MyGUI::IntCoord targetCoord = targetParent->getAbsoluteCoord();
+    const int targetArea = targetCoord.width * targetCoord.height;
+    const int targetCenterX = targetCoord.left + (targetCoord.width / 2);
+    const int targetCenterY = targetCoord.top + (targetCoord.height / 2);
+    const std::string targetCaptionKey = BuildCompanionCaptionKey(targetCaption);
+
+    MyGUI::Widget* bestParent = 0;
+    std::string bestReason;
+    int bestScore = 0;
+
+    std::vector<MyGUI::Widget*> tokenCandidates;
+    CollectVisibleWidgetsByToken("backpack_attach", &tokenCandidates);
+    CollectVisibleWidgetsByToken("lbBackpack", &tokenCandidates);
+
+    for (std::size_t index = 0; index < tokenCandidates.size(); ++index)
+    {
+        MyGUI::Widget* tokenWidget = tokenCandidates[index];
+        if (tokenWidget == 0 || !tokenWidget->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* anchor = FindBestWindowAnchor(tokenWidget);
+        MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+        if (anchor == 0 || parent == 0 || parent == targetParent || !parent->getInheritedVisible())
+        {
+            continue;
+        }
+
+        const bool hasBackpackContentToken = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        if (hasBackpackContentToken)
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = FindOwningWindow(anchor);
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+        const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
+        const bool captionHasLoot = ContainsAsciiCaseInsensitive(caption, "LOOT");
+        const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
+        const bool captionHasContainer = ContainsAsciiCaseInsensitive(caption, "CONTAINER");
+        if (captionHasBackpack || captionHasLoot || captionHasTrader || captionHasContainer)
+        {
+            continue;
+        }
+
+        const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
+        const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const MyGUI::IntCoord coord = parent->getAbsoluteCoord();
+        const int area = coord.width * coord.height;
+        if (area <= 0)
+        {
+            continue;
+        }
+
+        const int candidateCenterX = coord.left + (coord.width / 2);
+        const int candidateCenterY = coord.top + (coord.height / 2);
+        int distance = candidateCenterX - targetCenterX;
+        if (distance < 0)
+        {
+            distance = -distance;
+        }
+        int distanceY = candidateCenterY - targetCenterY;
+        if (distanceY < 0)
+        {
+            distanceY = -distanceY;
+        }
+        distance += distanceY;
+
+        int score = 0;
+        std::stringstream reason;
+        score += 900;
+        reason << " backpack_anchor_token";
+
+        if (ContainsAsciiCaseInsensitive(tokenWidget->getName(), "backpack_attach"))
+        {
+            score += 260;
+            reason << " backpack_attach_token";
+        }
+        if (ContainsAsciiCaseInsensitive(tokenWidget->getName(), "lbBackpack"))
+        {
+            score += 140;
+            reason << " lbbackpack_token";
+        }
+        if (hasContainerToken)
+        {
+            score += 220;
+            reason << " container_token";
+        }
+        if (hasInventoryToken)
+        {
+            score += 120;
+            reason << " inventory_token";
+        }
+        if (hasEquipmentToken)
+        {
+            score += 60;
+            reason << " equipment_token";
+        }
+        if (coord.width >= 250 && coord.width <= 650 && coord.height >= 140 && coord.height <= 320)
+        {
+            score += 220;
+            reason << " creature_panel_size";
+        }
+        else if (coord.width >= 200 && coord.width <= 700 && coord.height >= 120 && coord.height <= 380)
+        {
+            score += 100;
+            reason << " panel_size";
+        }
+        if (area < targetArea)
+        {
+            score += 180;
+            reason << " smaller_than_popup";
+        }
+        if (distance < 1200)
+        {
+            score += 300 - (distance / 6);
+            reason << " near_popup";
+        }
+
+        const std::string candidateCaptionKey = BuildCompanionCaptionKey(caption);
+        if (!targetCaptionKey.empty() && !candidateCaptionKey.empty())
+        {
+            if (candidateCaptionKey == targetCaptionKey)
+            {
+                score += 700;
+                reason << " caption_match";
+            }
+            else if (candidateCaptionKey.find(targetCaptionKey) != std::string::npos
+                || targetCaptionKey.find(candidateCaptionKey) != std::string::npos)
+            {
+                score += 420;
+                reason << " caption_partial_match";
+            }
+        }
+        else if (caption.empty())
+        {
+            score += 80;
+            reason << " blank_caption";
+        }
+
+        if (score <= bestScore)
+        {
+            continue;
+        }
+
+        bestParent = parent;
+        bestScore = score;
+        bestReason = reason.str();
+    }
+
+    if (bestParent != 0)
+    {
+        if (outParent != 0)
+        {
+            *outParent = bestParent;
+        }
+
+        if (ShouldLogDebug())
+        {
+            MyGUI::Window* bestWindow = FindOwningWindow(bestParent);
+            const MyGUI::IntCoord coord = bestParent->getAbsoluteCoord();
+            std::stringstream line;
+            line << "resolved companion controls parent"
+                 << " target_anchor=" << SafeWidgetName(targetAnchor)
+                 << " target_parent=" << SafeWidgetName(targetParent)
+                 << " target_caption=\"" << TruncateForLog(targetCaption, 60) << "\""
+                 << " controls_parent=" << SafeWidgetName(bestParent)
+                 << " controls_caption=\""
+                 << (bestWindow == 0 ? "" : TruncateForLog(bestWindow->getCaption().asUTF8(), 60))
+                 << "\""
+                 << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")"
+                 << " reason=\"" << TruncateForLog(bestReason, 160) << "\""
+                 << " score=" << bestScore;
+            LogDebugLine(line.str());
+        }
+
+        return true;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || root == targetAnchor || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0 || parent == targetParent || !parent->getInheritedVisible())
+        {
+            continue;
+        }
+
+        const std::string sessionPrefix = ExtractWidgetSessionPrefix(SafeWidgetName(root));
+        if (!targetSessionPrefix.empty() && sessionPrefix != targetSessionPrefix)
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = FindOwningWindow(root);
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+        const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
+        const bool captionHasLoot = ContainsAsciiCaseInsensitive(caption, "LOOT");
+        const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
+        const bool captionHasContainer = ContainsAsciiCaseInsensitive(caption, "CONTAINER");
+        const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
+        const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const bool hasBackpackContentToken = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        if (captionHasBackpack
+            || captionHasLoot
+            || captionHasTrader
+            || captionHasContainer
+            || hasBackpackContentToken)
+        {
+            continue;
+        }
+
+        const MyGUI::IntCoord coord = parent->getAbsoluteCoord();
+        const int area = coord.width * coord.height;
+        if (area <= 0)
+        {
+            continue;
+        }
+
+        int score = 0;
+        std::stringstream reason;
+        score += 800;
+        reason << " shared_session_prefix";
+
+        if (hasContainerToken)
+        {
+            score += 220;
+            reason << " container_token";
+        }
+        if (hasInventoryToken)
+        {
+            score += 120;
+            reason << " inventory_token";
+        }
+        if (hasEquipmentToken)
+        {
+            score += 60;
+            reason << " equipment_token";
+        }
+        if (caption.empty())
+        {
+            score += 160;
+            reason << " blank_caption";
+        }
+        if (coord.width >= 250 && coord.width <= 650 && coord.height >= 140 && coord.height <= 320)
+        {
+            score += 220;
+            reason << " creature_panel_size";
+        }
+        else if (coord.width >= 200 && coord.width <= 700 && coord.height >= 120 && coord.height <= 380)
+        {
+            score += 100;
+            reason << " panel_size";
+        }
+        if (area < targetArea)
+        {
+            score += 180;
+            reason << " smaller_than_popup";
+        }
+        if (IsLikelyInventoryWindow(parent))
+        {
+            score -= 120;
+            reason << " likely_inventory_penalty";
+        }
+
+        if (score <= bestScore)
+        {
+            continue;
+        }
+
+        bestParent = parent;
+        bestScore = score;
+        bestReason = reason.str();
+    }
+
+    if (bestParent == 0)
+    {
+        return false;
+    }
+
+    if (outParent != 0)
+    {
+        *outParent = bestParent;
+    }
+
+    if (ShouldLogDebug())
+    {
+        MyGUI::Window* bestWindow = FindOwningWindow(bestParent);
+        const MyGUI::IntCoord coord = bestParent->getAbsoluteCoord();
+        std::stringstream line;
+        line << "resolved companion controls parent"
+             << " target_anchor=" << SafeWidgetName(targetAnchor)
+             << " target_parent=" << SafeWidgetName(targetParent)
+             << " target_caption=\"" << TruncateForLog(targetCaption, 60) << "\""
+             << " controls_parent=" << SafeWidgetName(bestParent)
+             << " controls_caption=\""
+             << (bestWindow == 0 ? "" : TruncateForLog(bestWindow->getCaption().asUTF8(), 60))
+             << "\""
+             << " coord=(" << coord.left << "," << coord.top << "," << coord.width << "," << coord.height << ")"
+             << " reason=\"" << TruncateForLog(bestReason, 160) << "\""
+             << " score=" << bestScore;
+        LogDebugLine(line.str());
+    }
+
+    return true;
+}
+
+bool TryResolveCompanionBackpackFilterRootForTarget(
+    MyGUI::Widget* targetAnchor,
+    MyGUI::Widget* targetParent,
+    MyGUI::Widget** outFilterRoot)
+{
+    if (outFilterRoot != 0)
+    {
+        *outFilterRoot = 0;
+    }
+
+    if (targetAnchor == 0 || targetParent == 0)
+    {
+        return false;
+    }
+
+    const bool targetAlreadyBackpack =
+        FindWidgetInParentByToken(targetParent, "backpack_content") != 0;
+    if (targetAlreadyBackpack)
+    {
+        if (outFilterRoot != 0)
+        {
+            *outFilterRoot = targetAnchor;
+        }
+        return true;
+    }
+
+    const bool targetLooksLikeCompanionWindow =
+        FindWidgetInParentByToken(targetParent, "backpack_attach") != 0
+        || FindWidgetInParentByToken(targetParent, "lbBackpack") != 0;
+    if (!targetLooksLikeCompanionWindow)
+    {
+        return false;
+    }
+
+    const MyGUI::IntCoord targetCoord = targetParent->getAbsoluteCoord();
+    const bool targetLooksLikeCreaturePanel =
+        targetCoord.width >= 200
+        && targetCoord.width <= 700
+        && targetCoord.height >= 120
+        && targetCoord.height <= 380;
+    if (!targetLooksLikeCreaturePanel)
+    {
+        return false;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return false;
+    }
+
+    MyGUI::Window* targetWindow = FindOwningWindow(targetAnchor);
+    const std::string targetCaption = targetWindow == 0 ? "" : targetWindow->getCaption().asUTF8();
+    const std::string targetCaptionKey = BuildCompanionCaptionKey(targetCaption);
+    const int targetCenterX = targetCoord.left + (targetCoord.width / 2);
+    const int targetCenterY = targetCoord.top + (targetCoord.height / 2);
+    const int targetArea = targetCoord.width * targetCoord.height;
+
+    MyGUI::Widget* bestRoot = 0;
+    int bestScore = 0;
+    std::string bestReason;
+
+    std::vector<MyGUI::Widget*> tokenCandidates;
+    CollectVisibleWidgetsByToken("backpack_content", &tokenCandidates);
+
+    for (std::size_t index = 0; index < tokenCandidates.size(); ++index)
+    {
+        MyGUI::Widget* contentWidget = tokenCandidates[index];
+        if (contentWidget == 0 || !contentWidget->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* anchor = FindBestWindowAnchor(contentWidget);
+        MyGUI::Widget* parent = ResolveInjectionParent(anchor);
+        if (anchor == 0 || parent == 0 || parent == targetParent || !parent->getInheritedVisible())
+        {
+            continue;
+        }
+
+        const bool hasBackpackContent = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        if (!hasBackpackContent)
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = FindOwningWindow(anchor);
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+        const std::string candidateCaptionKey = BuildCompanionCaptionKey(caption);
+        const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
+        const bool captionHasLoot = ContainsAsciiCaseInsensitive(caption, "LOOT");
+        const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
+        const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const MyGUI::IntCoord coord = anchor->getAbsoluteCoord();
+        const int area = coord.width * coord.height;
+        if (area <= 0 || captionHasLoot || captionHasTrader)
+        {
+            continue;
+        }
+
+        const int candidateCenterX = coord.left + (coord.width / 2);
+        const int candidateCenterY = coord.top + (coord.height / 2);
+        int distance = candidateCenterX - targetCenterX;
+        if (distance < 0)
+        {
+            distance = -distance;
+        }
+        int distanceY = candidateCenterY - targetCenterY;
+        if (distanceY < 0)
+        {
+            distanceY = -distanceY;
+        }
+        distance += distanceY;
+
+        int score = 900;
+        std::stringstream reason;
+        reason << " visible_backpack_content";
+
+        if (captionHasBackpack)
+        {
+            score += 260;
+            reason << " caption_backpack";
+        }
+        if (hasInventoryToken)
+        {
+            score += 160;
+            reason << " inventory_token";
+        }
+        if (hasContainerToken)
+        {
+            score += 120;
+            reason << " container_token";
+        }
+        if (coord.width >= 250 && coord.height >= 250)
+        {
+            score += 80;
+            reason << " popup_size";
+        }
+        if (area > targetArea)
+        {
+            score += 120;
+            reason << " larger_than_target";
+        }
+        if (distance < 1400)
+        {
+            score += 320 - (distance / 8);
+            reason << " near_target";
+        }
+        if (!targetCaptionKey.empty() && !candidateCaptionKey.empty())
+        {
+            if (candidateCaptionKey == targetCaptionKey)
+            {
+                score += 700;
+                reason << " caption_match";
+            }
+            else if (candidateCaptionKey.find(targetCaptionKey) != std::string::npos
+                || targetCaptionKey.find(candidateCaptionKey) != std::string::npos)
+            {
+                score += 420;
+                reason << " caption_partial_match";
+            }
+        }
+
+        if (score <= bestScore)
+        {
+            continue;
+        }
+
+        bestRoot = anchor;
+        bestScore = score;
+        bestReason = reason.str();
+    }
+
+    if (bestRoot != 0)
+    {
+        if (outFilterRoot != 0)
+        {
+            *outFilterRoot = bestRoot;
+        }
+
+        if (ShouldLogDebug())
+        {
+            MyGUI::Window* filterWindow = FindOwningWindow(bestRoot);
+            std::stringstream line;
+            line << "resolved companion backpack filter root"
+                 << " target_anchor=" << SafeWidgetName(targetAnchor)
+                 << " target_parent=" << SafeWidgetName(targetParent)
+                 << " target_caption=\""
+                 << (targetWindow == 0 ? "" : TruncateForLog(targetWindow->getCaption().asUTF8(), 60))
+                 << "\""
+                 << " filter_root=" << SafeWidgetName(bestRoot)
+                 << " filter_caption=\""
+                 << (filterWindow == 0 ? "" : TruncateForLog(filterWindow->getCaption().asUTF8(), 60))
+                 << "\""
+                 << " reason=\"" << TruncateForLog(bestReason, 160) << "\""
+                 << " score=" << bestScore;
+            LogDebugLine(line.str());
+        }
+
+        return true;
+    }
+
+    const std::string targetSessionPrefix = ExtractWidgetSessionPrefix(SafeWidgetName(targetAnchor));
+    if (targetSessionPrefix.empty())
+    {
+        return false;
+    }
+
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || root == targetAnchor || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        const std::string sessionPrefix = ExtractWidgetSessionPrefix(SafeWidgetName(root));
+        if (sessionPrefix != targetSessionPrefix)
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0 || !parent->getInheritedVisible())
+        {
+            continue;
+        }
+
+        const bool hasBackpackContent = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        if (!hasBackpackContent)
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = FindOwningWindow(root);
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+        const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
+        const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const MyGUI::IntCoord coord = root->getAbsoluteCoord();
+
+        int score = 800;
+        std::stringstream reason;
+        reason << " shared_session_prefix backpack_content";
+
+        if (captionHasBackpack)
+        {
+            score += 260;
+            reason << " caption_backpack";
+        }
+        if (hasInventoryToken)
+        {
+            score += 160;
+            reason << " inventory_token";
+        }
+        if (hasContainerToken)
+        {
+            score += 120;
+            reason << " container_token";
+        }
+        if (coord.width >= 250 && coord.height >= 250)
+        {
+            score += 80;
+            reason << " popup_size";
+        }
+
+        if (score <= bestScore)
+        {
+            continue;
+        }
+
+        bestRoot = root;
+        bestScore = score;
+        bestReason = reason.str();
+    }
+
+    if (bestRoot == 0)
+    {
+        return false;
+    }
+
+    if (outFilterRoot != 0)
+    {
+        *outFilterRoot = bestRoot;
+    }
+
+    if (ShouldLogDebug())
+    {
+        MyGUI::Window* filterWindow = FindOwningWindow(bestRoot);
+        std::stringstream line;
+        line << "resolved companion backpack filter root"
+             << " target_anchor=" << SafeWidgetName(targetAnchor)
+             << " target_parent=" << SafeWidgetName(targetParent)
+             << " target_caption=\""
+             << (FindOwningWindow(targetAnchor) == 0
+                    ? ""
+                    : TruncateForLog(FindOwningWindow(targetAnchor)->getCaption().asUTF8(), 60))
+             << "\""
+             << " filter_root=" << SafeWidgetName(bestRoot)
+             << " filter_caption=\""
+             << (filterWindow == 0 ? "" : TruncateForLog(filterWindow->getCaption().asUTF8(), 60))
+             << "\""
+             << " reason=\"" << TruncateForLog(bestReason, 160) << "\""
+             << " score=" << bestScore;
+        LogDebugLine(line.str());
+    }
+
+    return true;
 }
 
 void DumpInventoryTargetProbe()

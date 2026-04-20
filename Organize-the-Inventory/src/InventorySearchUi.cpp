@@ -1400,10 +1400,27 @@ void TickInventorySearchUi()
 
     g_loggedNoVisibleInventoryTarget = false;
     MyGUI::Widget* filterRoot = targetAnchor != 0 ? targetAnchor : targetParent;
+    MyGUI::Widget* companionFilterRoot = 0;
+    if (TryResolveCompanionBackpackFilterRootForTarget(
+            targetAnchor,
+            targetParent,
+            &companionFilterRoot))
+    {
+        filterRoot = companionFilterRoot;
+    }
+    MyGUI::Widget* controlsTargetParent = targetParent;
+    MyGUI::Widget* companionControlsParent = 0;
+    if (TryResolveCompanionControlsParentForTarget(
+            targetAnchor,
+            targetParent,
+            &companionControlsParent))
+    {
+        controlsTargetParent = companionControlsParent;
+    }
 
     if (controlsContainer == 0)
     {
-        if (!TryInjectControlsToTarget(targetParent, "auto"))
+        if (!TryInjectControlsToTarget(controlsTargetParent, "auto"))
         {
             return;
         }
@@ -1413,7 +1430,7 @@ void TickInventorySearchUi()
     MyGUI::Widget* currentParent = controlsContainer->getParent();
     if (currentParent == 0 || !currentParent->getInheritedVisible())
     {
-        if (!TryInjectControlsToTarget(targetParent, "reattach_missing_parent"))
+        if (!TryInjectControlsToTarget(controlsTargetParent, "reattach_missing_parent"))
         {
             return;
         }
@@ -1421,10 +1438,10 @@ void TickInventorySearchUi()
         currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
     }
 
-    if (currentParent != targetParent
+    if (currentParent != controlsTargetParent
         && InventoryState().g_followActiveInventory)
     {
-        if (!TryInjectControlsToTarget(targetParent, "follow_active_inventory"))
+        if (!TryInjectControlsToTarget(controlsTargetParent, "follow_active_inventory"))
         {
             return;
         }
@@ -1440,7 +1457,7 @@ void TickInventorySearchUi()
 
     if (AttachedControlsLayoutNeedsRebuild(currentParent))
     {
-        if (!TryInjectControlsToTarget(targetParent, "layout_config_changed"))
+        if (!TryInjectControlsToTarget(controlsTargetParent, "layout_config_changed"))
         {
             return;
         }

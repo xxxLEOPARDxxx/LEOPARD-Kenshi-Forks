@@ -103,6 +103,11 @@ struct EquippedBackpackCandidate
     int score;
 };
 
+bool TryCollectBackpackSectionItems(
+    Inventory* inventory,
+    std::vector<InventorySection::SectionItem>* outItems,
+    std::size_t* outQuantity);
+
 DWORD CurrentBindingTick()
 {
     return GetTickCount();
@@ -396,6 +401,36 @@ int ComputeCaptionMatchScore(const std::string& captionNormalized, Item* item)
         || itemCaptionNormalized.find(captionNormalized) != std::string::npos)
     {
         return 3200;
+    }
+
+    return 0;
+}
+
+int ComputeRootObjectCaptionMatchScore(
+    const std::string& captionNormalized,
+    RootObject* object)
+{
+    if (captionNormalized.empty() || object == 0)
+    {
+        return 0;
+    }
+
+    const std::string objectCaptionNormalized =
+        NormalizeInventorySearchText(RootObjectDisplayNameForLog(object));
+    if (objectCaptionNormalized.empty())
+    {
+        return 0;
+    }
+
+    if (captionNormalized == objectCaptionNormalized)
+    {
+        return 4800;
+    }
+
+    if (captionNormalized.find(objectCaptionNormalized) != std::string::npos
+        || objectCaptionNormalized.find(captionNormalized) != std::string::npos)
+    {
+        return 2400;
     }
 
     return 0;
@@ -917,6 +952,142 @@ bool TryResolveInventoryFromInventoryGuiBackPointerOffsets(
     return false;
 }
 
+void AddInventoryGuiScanCandidate(
+    Inventory* inventory,
+    RootObject* resolvedOwner,
+    std::size_t offset,
+    const char* kindLabel,
+    const std::string& backpackCaptionNormalized,
+    std::size_t expectedEntryCount,
+    std::size_t expectedQuantity,
+    std::vector<BackpackInventoryCandidate>* outCandidates,
+    std::vector<std::string>* outFinalCandidateRows)
+{
+    if (inventory == 0 || outCandidates == 0 || !IsInventoryPointerValidSafe(inventory))
+    {
+        return;
+    }
+
+    std::vector<InventorySection::SectionItem> sectionItems;
+    std::size_t sectionQuantity = 0;
+    if (!TryCollectBackpackSectionItems(inventory, &sectionItems, &sectionQuantity))
+    {
+        return;
+    }
+
+    int priorityBias = 11200;
+    const int entryDiff =
+        static_cast<int>(sectionItems.size()) - static_cast<int>(expectedEntryCount);
+    if (entryDiff == 0)
+    {
+        priorityBias += 700;
+    }
+    else
+    {
+        priorityBias -= std::abs(entryDiff) * 180;
+    }
+
+    const int quantityDiff =
+        static_cast<int>(sectionQuantity) - static_cast<int>(expectedQuantity);
+    if (quantityDiff == 0)
+    {
+        priorityBias += 400;
+    }
+    else
+    {
+        priorityBias -= std::abs(quantityDiff) * 40;
+    }
+
+    priorityBias += ComputeRootObjectCaptionMatchScore(
+        backpackCaptionNormalized,
+        resolvedOwner);
+
+    std::stringstream source;
+    source << "inventory_gui_scan"
+           << " kind=" << (kindLabel == 0 ? "unknown" : kindLabel)
+           << " offset=0x" << std::hex << std::uppercase << offset << std::dec
+           << " owner=" << RootObjectDisplayNameForLog(resolvedOwner);
+    AddInventoryCandidateUnique(
+        outCandidates,
+        inventory,
+        priorityBias,
+        source.str());
+
+    if (outFinalCandidateRows != 0)
+    {
+        std::stringstream row;
+        row << "scan_inventory=" << inventory
+            << " kind=" << (kindLabel == 0 ? "unknown" : kindLabel)
+            << " offset=0x" << std::hex << std::uppercase << offset << std::dec
+            << " owner=" << RootObjectDisplayNameForLog(resolvedOwner)
+            << " section_items=" << sectionItems.size()
+            << " section_quantity=" << sectionQuantity
+            << " entry_diff=" << entryDiff
+            << " quantity_diff=" << quantityDiff
+            << " priority_bias=" << priorityBias;
+        outFinalCandidateRows->push_back(row.str());
+    }
+}
+
+void CollectInventoryGuiFallbackScanCandidates(
+    InventoryGUI* inventoryGui,
+    const std::string& backpackCaptionNormalized,
+    std::size_t expectedEntryCount,
+    std::size_t expectedQuantity,
+    std::vector<BackpackInventoryCandidate>* outCandidates,
+    std::vector<std::string>* outFinalCandidateRows)
+{
+    if (inventoryGui == 0 || outCandidates == 0)
+    {
+        return;
+    }
+
+    const std::size_t kMaxScanOffset = 0x400;
+    for (std::size_t offset = sizeof(void*); offset <= kMaxScanOffset; offset += sizeof(void*))
+    {
+        const void* value = 0;
+        if (!TryReadPointerValueSafe(inventoryGui, offset, &value) || value == 0)
+        {
+            continue;
+        }
+
+        Inventory* directInventory = reinterpret_cast<Inventory*>(const_cast<void*>(value));
+        if (IsInventoryPointerValidSafe(directInventory))
+        {
+            RootObject* owner = 0;
+            RootObject* callbackObject = 0;
+            TryGetInventoryOwnerPointersSafe(directInventory, &owner, &callbackObject);
+            AddInventoryGuiScanCandidate(
+                directInventory,
+                owner != 0 ? owner : callbackObject,
+                offset,
+                "inventory",
+                backpackCaptionNormalized,
+                expectedEntryCount,
+                expectedQuantity,
+                outCandidates,
+                outFinalCandidateRows);
+        }
+
+        RootObject* resolvedOwner = reinterpret_cast<RootObject*>(const_cast<void*>(value));
+        if (!IsRootObjectPointerValidSafe(resolvedOwner))
+        {
+            continue;
+        }
+
+        AddInventoryGuiScanCandidate(
+            TryGetRootObjectInventorySafe(resolvedOwner),
+            resolvedOwner,
+            offset,
+            "root_object",
+            backpackCaptionNormalized,
+            expectedEntryCount,
+            expectedQuantity,
+            outCandidates,
+            outFinalCandidateRows);
+    }
+}
+
 void CollectWidgetChainInventoryCandidates(
     MyGUI::Widget* widget,
     const char* sourcePrefix,
@@ -1387,6 +1558,17 @@ Inventory* ResolveBestBackpackInventory(
                 << " tracked_gui_links=" << g_inventoryGuiInventoryLinks.size()
                 << " learned_offsets=" << g_inventoryGuiBackPointerOffsets.size();
             outFinalCandidateRows->push_back(row.str());
+        }
+
+        if (!matchedTrackedLink && guiResolvedInventory == 0)
+        {
+            CollectInventoryGuiFallbackScanCandidates(
+                widgetGui,
+                backpackCaptionNormalized,
+                expectedEntryCount,
+                expectedQuantity,
+                &candidates,
+                outFinalCandidateRows);
         }
     }
 

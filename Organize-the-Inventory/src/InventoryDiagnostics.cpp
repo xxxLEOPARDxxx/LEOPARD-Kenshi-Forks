@@ -7,15 +7,79 @@
 
 #include <kenshi/Item.h>
 
+#include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstring>
 #include <sstream>
 #include <vector>
 
 namespace
 {
 std::string g_lastBackpackDiagnosticsSignature;
+
+struct CreatureWindowProbeCandidate
+{
+    MyGUI::Widget* root;
+    MyGUI::Widget* parent;
+    std::string caption;
+    bool isCurrentTarget;
+    bool isMainWindowCandidate;
+    bool isBackpackPopupCandidate;
+    bool hasInventoryToken;
+    bool hasEquipmentToken;
+    bool hasContainerToken;
+    bool hasBackpackContentToken;
+    bool likelyInventory;
+    int area;
+    MyGUI::IntCoord absoluteCoord;
+};
+
+bool ContainsAsciiCaseInsensitiveLocal(const std::string& haystack, const char* needle)
+{
+    if (needle == 0 || *needle == '\0')
+    {
+        return true;
+    }
+
+    const std::size_t haystackLength = haystack.size();
+    const std::size_t needleLength = std::strlen(needle);
+    if (needleLength == 0)
+    {
+        return true;
+    }
+    if (needleLength > haystackLength)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index + needleLength <= haystackLength; ++index)
+    {
+        bool match = true;
+        for (std::size_t needleIndex = 0; needleIndex < needleLength; ++needleIndex)
+        {
+            const unsigned char haystackChar =
+                static_cast<unsigned char>(haystack[index + needleIndex]);
+            const unsigned char needleChar =
+                static_cast<unsigned char>(needle[needleIndex]);
+            if (std::tolower(haystackChar) != std::tolower(needleChar))
+            {
+                match = false;
+                break;
+            }
+        }
+
+        if (match)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void LogWidgetSummary(const char* label, MyGUI::Widget* widget)
 {
@@ -219,6 +283,151 @@ void LogBackpackEntriesRootSample(const char* label, MyGUI::Widget* entriesRoot)
         LogInfoLine(line.str());
     }
 }
+
+void DumpCreatureWindowAttachmentProbe(MyGUI::Widget* targetAnchor, MyGUI::Widget* targetParent)
+{
+    MyGUI::Widget* effectiveTarget = targetParent != 0 ? targetParent : targetAnchor;
+    if (effectiveTarget == 0)
+    {
+        return;
+    }
+
+    const std::string targetCaption =
+        FindOwningWindow(targetAnchor != 0 ? targetAnchor : targetParent) == 0
+            ? ""
+            : FindOwningWindow(targetAnchor != 0 ? targetAnchor : targetParent)->getCaption().asUTF8();
+    const bool targetLooksLikeBackpack =
+        FindWidgetInParentByToken(effectiveTarget, "backpack_content") != 0
+        || ContainsAsciiCaseInsensitiveLocal(targetCaption, "backpack");
+    if (!targetLooksLikeBackpack)
+    {
+        return;
+    }
+
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0)
+    {
+        return;
+    }
+
+    std::vector<CreatureWindowProbeCandidate> candidates;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == 0 || !root->getInheritedVisible())
+        {
+            continue;
+        }
+
+        MyGUI::Widget* parent = ResolveInjectionParent(root);
+        if (parent == 0)
+        {
+            continue;
+        }
+
+        MyGUI::Window* window = FindOwningWindow(root);
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
+        const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
+        const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const bool hasBackpackContentToken =
+            FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        const bool captionHasBackpack = ContainsAsciiCaseInsensitiveLocal(caption, "backpack");
+        const bool captionHasLoot = ContainsAsciiCaseInsensitiveLocal(caption, "loot");
+        const bool captionHasContainer = ContainsAsciiCaseInsensitiveLocal(caption, "container");
+        const bool isCurrentTarget = root == targetAnchor || parent == targetParent;
+        const bool isBackpackPopupCandidate = captionHasBackpack || hasBackpackContentToken;
+        const bool isMainWindowCandidate =
+            hasContainerToken
+            && !hasBackpackContentToken
+            && !captionHasBackpack
+            && !captionHasLoot
+            && !captionHasContainer;
+        const bool likelyInventory = IsLikelyInventoryWindow(parent);
+
+        if (!isCurrentTarget
+            && !isBackpackPopupCandidate
+            && !isMainWindowCandidate
+            && !hasInventoryToken
+            && !hasEquipmentToken
+            && !hasContainerToken)
+        {
+            continue;
+        }
+
+        CreatureWindowProbeCandidate candidate;
+        candidate.root = root;
+        candidate.parent = parent;
+        candidate.caption = caption;
+        candidate.isCurrentTarget = isCurrentTarget;
+        candidate.isMainWindowCandidate = isMainWindowCandidate;
+        candidate.isBackpackPopupCandidate = isBackpackPopupCandidate;
+        candidate.hasInventoryToken = hasInventoryToken;
+        candidate.hasEquipmentToken = hasEquipmentToken;
+        candidate.hasContainerToken = hasContainerToken;
+        candidate.hasBackpackContentToken = hasBackpackContentToken;
+        candidate.likelyInventory = likelyInventory;
+        candidate.absoluteCoord = root->getAbsoluteCoord();
+        candidate.area = candidate.absoluteCoord.width * candidate.absoluteCoord.height;
+        candidates.push_back(candidate);
+    }
+
+    std::sort(
+        candidates.begin(),
+        candidates.end(),
+        [](const CreatureWindowProbeCandidate& left, const CreatureWindowProbeCandidate& right) -> bool
+        {
+            if (left.isCurrentTarget != right.isCurrentTarget)
+            {
+                return left.isCurrentTarget;
+            }
+            if (left.isMainWindowCandidate != right.isMainWindowCandidate)
+            {
+                return left.isMainWindowCandidate;
+            }
+            if (left.isBackpackPopupCandidate != right.isBackpackPopupCandidate)
+            {
+                return left.isBackpackPopupCandidate;
+            }
+            if (left.likelyInventory != right.likelyInventory)
+            {
+                return left.likelyInventory;
+            }
+            return left.area > right.area;
+        });
+
+    std::stringstream start;
+    start << "inventory creature window probe"
+          << " target_anchor=" << SafeWidgetName(targetAnchor)
+          << " target_parent=" << SafeWidgetName(targetParent)
+          << " target_caption=\"" << TruncateForLog(targetCaption, 80) << "\""
+          << " visible_candidates=" << candidates.size();
+    LogInfoLine(start.str());
+
+    const std::size_t maxLoggedCandidates = candidates.size() < 16 ? candidates.size() : 16;
+    for (std::size_t index = 0; index < maxLoggedCandidates; ++index)
+    {
+        const CreatureWindowProbeCandidate& candidate = candidates[index];
+        std::stringstream line;
+        line << "inventory creature window probe candidate[" << index << "]"
+             << " root=" << SafeWidgetName(candidate.root)
+             << " parent=" << SafeWidgetName(candidate.parent)
+             << " caption=\"" << TruncateForLog(candidate.caption, 80) << "\""
+             << " current_target=" << (candidate.isCurrentTarget ? "true" : "false")
+             << " main_window_candidate=" << (candidate.isMainWindowCandidate ? "true" : "false")
+             << " backpack_popup_candidate=" << (candidate.isBackpackPopupCandidate ? "true" : "false")
+             << " likely_inventory=" << (candidate.likelyInventory ? "true" : "false")
+             << " inventory_token=" << (candidate.hasInventoryToken ? "true" : "false")
+             << " equipment_token=" << (candidate.hasEquipmentToken ? "true" : "false")
+             << " container_token=" << (candidate.hasContainerToken ? "true" : "false")
+             << " backpack_content_token=" << (candidate.hasBackpackContentToken ? "true" : "false")
+             << " abs_coord=(" << candidate.absoluteCoord.left << "," << candidate.absoluteCoord.top
+             << "," << candidate.absoluteCoord.width << "," << candidate.absoluteCoord.height << ")"
+             << " area=" << candidate.area;
+        LogInfoLine(line.str());
+    }
+}
 }
 
 void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
@@ -247,6 +456,7 @@ void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
     {
         LogResolvedTargetSummary("manual diagnostics: visible_target", visibleAnchor, visibleParent);
         DumpInventoryBackpackCandidateDiagnosticsIfChanged(visibleParent);
+        DumpCreatureWindowAttachmentProbe(visibleAnchor, visibleParent);
     }
     else
     {
