@@ -1,5 +1,6 @@
 {
   "enabled": true,
+  "creatureSearchEnabled": true,
   "showSearchEntryCount": true,
   "showSearchQuantityCount": true,
   "showSearchClearButton": true,
@@ -14,5 +15,11 @@
   "searchInputHeight": 26,
   "searchInputPositionCustomized": false,
   "searchInputLeft": 0,
-  "searchInputTop": 0
+  "searchInputTop": 0,
+  "creatureSearchBarWidth": 360,
+  "creatureSearchInputWidth": 222,
+  "creatureSearchInputHeight": 26,
+  "creatureSearchInputPositionCustomized": false,
+  "creatureSearchInputLeft": 0,
+  "creatureSearchInputTop": 0
 }

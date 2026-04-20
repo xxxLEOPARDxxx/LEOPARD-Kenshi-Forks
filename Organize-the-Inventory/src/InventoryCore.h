@@ -16,6 +16,7 @@ struct InventoryConfigSnapshot
 {
     InventoryConfigSnapshot()
         : enabled(true)
+        , creatureSearchEnabled(true)
         , showSearchEntryCount(true)
         , showSearchQuantityCount(true)
         , showSearchClearButton(true)
@@ -31,10 +32,17 @@ struct InventoryConfigSnapshot
         , searchInputPositionCustomized(false)
         , searchInputLeft(0)
         , searchInputTop(0)
+        , creatureSearchBarWidth(kDefaultSearchBarConfiguredWidth)
+        , creatureSearchInputWidth(kDefaultSearchInputConfiguredWidth)
+        , creatureSearchInputHeight(kDefaultSearchInputConfiguredHeight)
+        , creatureSearchInputPositionCustomized(false)
+        , creatureSearchInputLeft(0)
+        , creatureSearchInputTop(0)
     {
     }
 
     bool enabled;
+    bool creatureSearchEnabled;
     bool showSearchEntryCount;
     bool showSearchQuantityCount;
     bool showSearchClearButton;
@@ -50,12 +58,19 @@ struct InventoryConfigSnapshot
     bool searchInputPositionCustomized;
     int searchInputLeft;
     int searchInputTop;
+    int creatureSearchBarWidth;
+    int creatureSearchInputWidth;
+    int creatureSearchInputHeight;
+    bool creatureSearchInputPositionCustomized;
+    int creatureSearchInputLeft;
+    int creatureSearchInputTop;
 };
 
 struct InventoryRuntimeState
 {
     InventoryRuntimeState()
         : g_controlsEnabled(true)
+        , g_creatureSearchEnabled(true)
         , g_showSearchEntryCount(true)
         , g_showSearchQuantityCount(true)
         , g_showSearchClearButton(true)
@@ -71,10 +86,17 @@ struct InventoryRuntimeState
         , g_searchInputPositionCustomized(false)
         , g_searchInputStoredLeft(0)
         , g_searchInputStoredTop(0)
+        , g_creatureSearchBarConfiguredWidth(kDefaultSearchBarConfiguredWidth)
+        , g_creatureSearchInputConfiguredWidth(kDefaultSearchInputConfiguredWidth)
+        , g_creatureSearchInputConfiguredHeight(kDefaultSearchInputConfiguredHeight)
+        , g_creatureSearchInputPositionCustomized(false)
+        , g_creatureSearchInputStoredLeft(0)
+        , g_creatureSearchInputStoredTop(0)
     {
     }
 
     bool g_controlsEnabled;
+    bool g_creatureSearchEnabled;
     bool g_showSearchEntryCount;
     bool g_showSearchQuantityCount;
     bool g_showSearchClearButton;
@@ -90,6 +112,12 @@ struct InventoryRuntimeState
     bool g_searchInputPositionCustomized;
     int g_searchInputStoredLeft;
     int g_searchInputStoredTop;
+    int g_creatureSearchBarConfiguredWidth;
+    int g_creatureSearchInputConfiguredWidth;
+    int g_creatureSearchInputConfiguredHeight;
+    bool g_creatureSearchInputPositionCustomized;
+    int g_creatureSearchInputStoredLeft;
+    int g_creatureSearchInputStoredTop;
     std::string g_searchQueryRaw;
 };
 

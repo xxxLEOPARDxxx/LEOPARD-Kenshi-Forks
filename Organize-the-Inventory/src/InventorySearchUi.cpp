@@ -65,6 +65,7 @@ bool g_prevDiagnosticsHotkeyDown = false;
 bool g_prevSearchSlashHotkeyDown = false;
 bool g_prevSearchCtrlFHotkeyDown = false;
 bool g_searchContainerDragging = false;
+bool g_searchContainerUsesCreatureLayout = false;
 bool g_pendingSlashFocusTextSuppression = false;
 bool g_suppressNextSearchEditChangeEvent = false;
 bool g_haveSearchEditSnapshot = false;
@@ -704,6 +705,102 @@ bool TryGetCurrentMousePosition(int* xOut, int* yOut)
     return true;
 }
 
+bool ParentLooksLikePlayerInventorySearchTarget(MyGUI::Widget* parent)
+{
+    if (parent == 0)
+    {
+        return false;
+    }
+
+    return FindWidgetInParentByToken(parent, "CharacterSelectionItemBox") != 0
+        || (FindWidgetInParentByToken(parent, "Inventory") != 0
+            && FindWidgetInParentByToken(parent, "Equipment") != 0);
+}
+
+bool ParentLooksLikeCreatureSearchTarget(MyGUI::Widget* parent)
+{
+    if (parent == 0 || ParentLooksLikePlayerInventorySearchTarget(parent))
+    {
+        return false;
+    }
+
+    const bool hasCreatureBackpackToken =
+        FindWidgetInParentByToken(parent, "backpack_attach") != 0
+        || FindWidgetInParentByToken(parent, "lbBackpack") != 0;
+    if (!hasCreatureBackpackToken)
+    {
+        return false;
+    }
+
+    const MyGUI::IntCoord coord = parent->getAbsoluteCoord();
+    return coord.width >= 200
+        && coord.width <= 700
+        && coord.height >= 120
+        && coord.height <= 380;
+}
+
+void SetSearchContainerUsesCreatureLayout(bool usesCreatureLayout)
+{
+    g_searchContainerUsesCreatureLayout = usesCreatureLayout;
+}
+
+int CurrentSearchBarConfiguredWidth()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchBarConfiguredWidth
+        : InventoryState().g_searchBarConfiguredWidth;
+}
+
+int CurrentSearchInputConfiguredWidth()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchInputConfiguredWidth
+        : InventoryState().g_searchInputConfiguredWidth;
+}
+
+int CurrentSearchInputConfiguredHeight()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchInputConfiguredHeight
+        : InventoryState().g_searchInputConfiguredHeight;
+}
+
+bool CurrentSearchInputPositionCustomized()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchInputPositionCustomized
+        : InventoryState().g_searchInputPositionCustomized;
+}
+
+int CurrentSearchInputStoredLeft()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchInputStoredLeft
+        : InventoryState().g_searchInputStoredLeft;
+}
+
+int CurrentSearchInputStoredTop()
+{
+    return g_searchContainerUsesCreatureLayout
+        ? InventoryState().g_creatureSearchInputStoredTop
+        : InventoryState().g_searchInputStoredTop;
+}
+
+void StoreCurrentSearchInputPosition(int left, int top)
+{
+    if (g_searchContainerUsesCreatureLayout)
+    {
+        InventoryState().g_creatureSearchInputStoredLeft = left;
+        InventoryState().g_creatureSearchInputStoredTop = top;
+        InventoryState().g_creatureSearchInputPositionCustomized = true;
+        return;
+    }
+
+    InventoryState().g_searchInputStoredLeft = left;
+    InventoryState().g_searchInputStoredTop = top;
+    InventoryState().g_searchInputPositionCustomized = true;
+}
+
 SearchContainerMetrics BuildSearchContainerMetrics()
 {
     SearchContainerMetrics metrics;
@@ -711,13 +808,13 @@ SearchContainerMetrics BuildSearchContainerMetrics()
         || InventoryState().g_showSearchQuantityCount;
     metrics.searchRowTop = kPanelOuterPadding;
     metrics.searchInputLeft = kPanelOuterPadding + kPanelHandleWidth + kPanelHandleGap;
-    metrics.searchAreaWidth = InventoryState().g_searchInputConfiguredWidth;
+    metrics.searchAreaWidth = CurrentSearchInputConfiguredWidth();
     metrics.clearButtonWidth =
-        InventoryState().g_searchInputConfiguredHeight > 32
+        CurrentSearchInputConfiguredHeight() > 32
             ? 32
-            : InventoryState().g_searchInputConfiguredHeight;
+            : CurrentSearchInputConfiguredHeight();
     metrics.containerHeight =
-        InventoryState().g_searchInputConfiguredHeight + (kPanelOuterPadding * 2);
+        CurrentSearchInputConfiguredHeight() + (kPanelOuterPadding * 2);
 
     const int baseContainerWidth =
         kPanelOuterPadding
@@ -732,7 +829,7 @@ SearchContainerMetrics BuildSearchContainerMetrics()
     }
 
     const int minimumContainerWidth = baseContainerWidth + kSearchCountGap + kSearchCountWidthMin;
-    metrics.containerWidth = InventoryState().g_searchBarConfiguredWidth;
+    metrics.containerWidth = CurrentSearchBarConfiguredWidth();
     if (metrics.containerWidth < minimumContainerWidth)
     {
         metrics.containerWidth = minimumContainerWidth;
@@ -779,9 +876,7 @@ void RememberSearchContainerPosition(MyGUI::Widget* container)
     }
 
     const MyGUI::IntCoord coord = container->getCoord();
-    InventoryState().g_searchInputStoredLeft = coord.left;
-    InventoryState().g_searchInputStoredTop = coord.top;
-    InventoryState().g_searchInputPositionCustomized = true;
+    StoreCurrentSearchInputPosition(coord.left, coord.top);
 }
 
 void PersistSearchContainerPosition()
@@ -953,10 +1048,10 @@ MyGUI::IntCoord BuildSearchContainerCoord(MyGUI::Widget* parent)
         kTopMargin,
         metrics.containerWidth,
         metrics.containerHeight);
-    if (InventoryState().g_searchInputPositionCustomized)
+    if (CurrentSearchInputPositionCustomized())
     {
-        coord.left = InventoryState().g_searchInputStoredLeft;
-        coord.top = InventoryState().g_searchInputStoredTop;
+        coord.left = CurrentSearchInputStoredLeft();
+        coord.top = CurrentSearchInputStoredTop();
     }
     return ClampPanelCoord(parent, coord);
 }
@@ -1131,7 +1226,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             kPanelOuterPadding,
             metrics.searchRowTop,
             kPanelHandleWidth,
-            InventoryState().g_searchInputConfiguredHeight),
+            CurrentSearchInputConfiguredHeight()),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchDragHandleName);
     if (dragHandle == 0)
@@ -1155,7 +1250,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
                 metrics.containerWidth - kPanelOuterPadding - metrics.countWidth,
                 metrics.searchRowTop,
                 metrics.countWidth,
-                InventoryState().g_searchInputConfiguredHeight),
+                CurrentSearchInputConfiguredHeight()),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSearchCountTextName);
         if (countText == 0)
@@ -1175,7 +1270,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             metrics.searchInputLeft,
             metrics.searchRowTop,
             metrics.searchAreaWidth,
-            InventoryState().g_searchInputConfiguredHeight),
+            CurrentSearchInputConfiguredHeight()),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchEditName);
     if (searchEdit == 0)
@@ -1197,7 +1292,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             metrics.searchInputLeft + 10,
             metrics.searchRowTop + 1,
             metrics.searchAreaWidth - 16,
-            InventoryState().g_searchInputConfiguredHeight),
+            CurrentSearchInputConfiguredHeight()),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchPlaceholderName);
     if (placeholder == 0)
@@ -1267,7 +1362,7 @@ bool AttachedControlsLayoutNeedsRebuild(MyGUI::Widget* parent)
     if (searchEditCoord.left != metrics.searchInputLeft
         || searchEditCoord.top != metrics.searchRowTop
         || searchEditCoord.width != metrics.searchAreaWidth
-        || searchEditCoord.height != InventoryState().g_searchInputConfiguredHeight)
+        || searchEditCoord.height != CurrentSearchInputConfiguredHeight())
     {
         return true;
     }
@@ -1283,7 +1378,7 @@ bool AttachedControlsLayoutNeedsRebuild(MyGUI::Widget* parent)
         const MyGUI::IntCoord countCoord = countText->getCoord();
         if (countCoord.width != metrics.countWidth
             || countCoord.top != metrics.searchRowTop
-            || countCoord.height != InventoryState().g_searchInputConfiguredHeight)
+            || countCoord.height != CurrentSearchInputConfiguredHeight())
         {
             return true;
         }
@@ -1313,7 +1408,7 @@ bool AttachedControlsLayoutNeedsRebuild(MyGUI::Widget* parent)
 void RefreshAttachedControlsPositionIfNeeded(MyGUI::Widget* parent)
 {
     MyGUI::Widget* controlsContainer = FindControlsContainer();
-    if (controlsContainer == 0 || parent == 0 || InventoryState().g_searchInputPositionCustomized)
+    if (controlsContainer == 0 || parent == 0 || CurrentSearchInputPositionCustomized())
     {
         return;
     }
@@ -1370,6 +1465,17 @@ void TickInventorySearchUi()
         if (TryResolveHoveredInventoryTarget(&targetAnchor, &targetParent, false))
         {
             g_loggedNoVisibleInventoryTarget = false;
+            const bool hoverUsesCreatureLayout = ParentLooksLikeCreatureSearchTarget(targetParent);
+            SetSearchContainerUsesCreatureLayout(hoverUsesCreatureLayout);
+            if (hoverUsesCreatureLayout && !InventoryState().g_creatureSearchEnabled)
+            {
+                if (controlsContainer != 0)
+                {
+                    DestroyControlsIfPresent(false);
+                }
+                ClearInventorySearchFilterState();
+                return;
+            }
             if (!TryInjectControlsToTarget(targetParent, "hover_auto"))
             {
                 return;
@@ -1418,6 +1524,18 @@ void TickInventorySearchUi()
         controlsTargetParent = companionControlsParent;
     }
 
+    const bool usesCreatureSearchLayout = ParentLooksLikeCreatureSearchTarget(controlsTargetParent);
+    SetSearchContainerUsesCreatureLayout(usesCreatureSearchLayout);
+    if (usesCreatureSearchLayout && !InventoryState().g_creatureSearchEnabled)
+    {
+        if (controlsContainer != 0)
+        {
+            DestroyControlsIfPresent(false);
+        }
+        ClearInventorySearchFilterState();
+        return;
+    }
+
     if (controlsContainer == 0)
     {
         if (!TryInjectControlsToTarget(controlsTargetParent, "auto"))
@@ -1449,6 +1567,7 @@ void TickInventorySearchUi()
         currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
     }
 
+    SetSearchContainerUsesCreatureLayout(ParentLooksLikeCreatureSearchTarget(currentParent));
     if (currentParent == 0)
     {
         ClearInventorySearchFilterState();

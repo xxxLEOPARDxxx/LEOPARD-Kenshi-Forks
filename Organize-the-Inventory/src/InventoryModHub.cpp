@@ -154,6 +154,25 @@ EMC_Result __cdecl SetEnabledSetting(void* user_data, int32_t value, char* err_b
         &InventoryConfigSnapshot::enabled);
 }
 
+EMC_Result __cdecl GetCreatureSearchEnabledSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &InventoryConfigSnapshot::creatureSearchEnabled);
+}
+
+EMC_Result __cdecl SetCreatureSearchEnabledSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &InventoryConfigSnapshot::creatureSearchEnabled);
+}
+
 EMC_Result __cdecl GetShowSearchEntryCountSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(
@@ -397,6 +416,72 @@ EMC_Result __cdecl SetSearchInputHeightSetting(
         &InventoryConfigSnapshot::searchInputHeight);
 }
 
+EMC_Result __cdecl GetCreatureSearchInputWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(
+        user_data,
+        out_value,
+        &InventoryConfigSnapshot::creatureSearchInputWidth);
+}
+
+EMC_Result __cdecl SetCreatureSearchInputWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &InventoryConfigSnapshot::creatureSearchInputWidth);
+}
+
+EMC_Result __cdecl GetCreatureSearchBarWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(
+        user_data,
+        out_value,
+        &InventoryConfigSnapshot::creatureSearchBarWidth);
+}
+
+EMC_Result __cdecl SetCreatureSearchBarWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &InventoryConfigSnapshot::creatureSearchBarWidth);
+}
+
+EMC_Result __cdecl GetCreatureSearchInputHeightSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(
+        user_data,
+        out_value,
+        &InventoryConfigSnapshot::creatureSearchInputHeight);
+}
+
+EMC_Result __cdecl SetCreatureSearchInputHeightSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &InventoryConfigSnapshot::creatureSearchInputHeight);
+}
+
 void LogModHubFallback(const char* reason)
 {
     std::stringstream line;
@@ -435,6 +520,14 @@ void EnsureModHubClientConfigured()
         &g_modHubClient,
         &GetEnabledSetting,
         &SetEnabledSetting };
+
+    static const EMC_BoolSettingDefV1 kCreatureSearchEnabledSetting = {
+        "creature_search_enabled",
+        "Creature search",
+        "Show search controls when the active target is a creature or pack animal inventory",
+        &g_modHubClient,
+        &GetCreatureSearchEnabledSetting,
+        &SetCreatureSearchEnabledSetting };
 
     static const EMC_BoolSettingDefV1 kShowSearchEntryCountSetting = {
         "show_search_entry_count",
@@ -541,8 +634,48 @@ void EnsureModHubClientConfigured()
         &GetSearchInputHeightSetting,
         &SetSearchInputHeightSetting };
 
+    static const EMC_IntSettingDefV1 kCreatureSearchInputWidthSetting = {
+        "creature_search_input_width",
+        "Creature search input width",
+        "Desired creature search input width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredWidthMin),
+        static_cast<int32_t>(kSearchInputConfiguredWidthMax),
+        1,
+        &GetCreatureSearchInputWidthSetting,
+        &SetCreatureSearchInputWidthSetting };
+
+    static const EMC_IntSettingDefV1 kCreatureSearchBarWidthSetting = {
+        "creature_search_bar_width",
+        "Creature search bar width",
+        "Desired total creature search bar width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchBarConfiguredWidthMin),
+        static_cast<int32_t>(kSearchBarConfiguredWidthMax),
+        1,
+        &GetCreatureSearchBarWidthSetting,
+        &SetCreatureSearchBarWidthSetting };
+
+    static const EMC_IntSettingDefV1 kCreatureSearchInputHeightSetting = {
+        "creature_search_input_height",
+        "Creature search input height",
+        "Desired creature search input height in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredHeightMin),
+        static_cast<int32_t>(kSearchInputConfiguredHeightMax),
+        1,
+        &GetCreatureSearchInputHeightSetting,
+        &SetCreatureSearchInputHeightSetting };
+
     static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, "enabled", &kEnabledSetting, 0, 0 },
+        {
+            emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
+            "creature_search_enabled",
+            &kCreatureSearchEnabledSetting,
+            0,
+            0
+        },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "show_search_entry_count",
@@ -624,6 +757,27 @@ void EnsureModHubClientConfigured()
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "search_input_height",
             &kSearchInputHeightSetting,
+            0,
+            0
+        },
+        {
+            emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
+            "creature_search_bar_width",
+            &kCreatureSearchBarWidthSetting,
+            0,
+            0
+        },
+        {
+            emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
+            "creature_search_input_width",
+            &kCreatureSearchInputWidthSetting,
+            0,
+            0
+        },
+        {
+            emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
+            "creature_search_input_height",
+            &kCreatureSearchInputHeightSetting,
             0,
             0
         }

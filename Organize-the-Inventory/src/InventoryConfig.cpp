@@ -237,12 +237,14 @@ int ComputeDefaultSearchBarConfiguredWidth(int searchInputWidth)
     return searchInputWidth + (kDefaultSearchBarConfiguredWidth - kDefaultSearchInputConfiguredWidth);
 }
 
-int ComputeMinimumSearchBarConfiguredWidth(const InventoryConfigSnapshot& config)
+int ComputeMinimumSearchBarConfiguredWidth(
+    const InventoryConfigSnapshot& config,
+    int searchInputWidth)
 {
     const int kSearchBarChromeWidth = 52;
     const int kSearchCountWidthMin = 56;
     const bool reserveCount = config.showSearchEntryCount || config.showSearchQuantityCount;
-    return config.searchInputWidth + kSearchBarChromeWidth + (reserveCount ? kSearchCountWidthMin : 0);
+    return searchInputWidth + kSearchBarChromeWidth + (reserveCount ? kSearchCountWidthMin : 0);
 }
 
 int ClampSearchBarConfiguredWidth(int value)
@@ -255,6 +257,8 @@ std::string BuildInventoryConfigText(const InventoryConfigSnapshot& config)
     std::stringstream content;
     content << "{\n"
             << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n"
+            << "  \"creatureSearchEnabled\": "
+            << (config.creatureSearchEnabled ? "true" : "false") << ",\n"
             << "  \"showSearchEntryCount\": "
             << (config.showSearchEntryCount ? "true" : "false") << ",\n"
             << "  \"showSearchQuantityCount\": "
@@ -278,7 +282,14 @@ std::string BuildInventoryConfigText(const InventoryConfigSnapshot& config)
             << "  \"searchInputPositionCustomized\": "
             << (config.searchInputPositionCustomized ? "true" : "false") << ",\n"
             << "  \"searchInputLeft\": " << config.searchInputLeft << ",\n"
-            << "  \"searchInputTop\": " << config.searchInputTop << "\n"
+            << "  \"searchInputTop\": " << config.searchInputTop << ",\n"
+            << "  \"creatureSearchBarWidth\": " << config.creatureSearchBarWidth << ",\n"
+            << "  \"creatureSearchInputWidth\": " << config.creatureSearchInputWidth << ",\n"
+            << "  \"creatureSearchInputHeight\": " << config.creatureSearchInputHeight << ",\n"
+            << "  \"creatureSearchInputPositionCustomized\": "
+            << (config.creatureSearchInputPositionCustomized ? "true" : "false") << ",\n"
+            << "  \"creatureSearchInputLeft\": " << config.creatureSearchInputLeft << ",\n"
+            << "  \"creatureSearchInputTop\": " << config.creatureSearchInputTop << "\n"
             << "}\n";
     return content.str();
 }
@@ -288,6 +299,7 @@ void LogInventoryConfigSnapshot(const char* prefix, const InventoryConfigSnapsho
     std::stringstream line;
     line << prefix
          << " enabled=" << (config.enabled ? "true" : "false")
+         << " creatureSearchEnabled=" << (config.creatureSearchEnabled ? "true" : "false")
          << " showSearchEntryCount=" << (config.showSearchEntryCount ? "true" : "false")
          << " showSearchQuantityCount="
          << (config.showSearchQuantityCount ? "true" : "false")
@@ -308,6 +320,13 @@ void LogInventoryConfigSnapshot(const char* prefix, const InventoryConfigSnapsho
          << (config.searchInputPositionCustomized ? "true" : "false")
          << " searchInputLeft=" << config.searchInputLeft
          << " searchInputTop=" << config.searchInputTop
+         << " creatureSearchBarWidth=" << config.creatureSearchBarWidth
+         << " creatureSearchInputWidth=" << config.creatureSearchInputWidth
+         << " creatureSearchInputHeight=" << config.creatureSearchInputHeight
+         << " creatureSearchInputPositionCustomized="
+         << (config.creatureSearchInputPositionCustomized ? "true" : "false")
+         << " creatureSearchInputLeft=" << config.creatureSearchInputLeft
+         << " creatureSearchInputTop=" << config.creatureSearchInputTop
          << " verboseDiagnosticsCompiled="
          << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
     LogInfoLine(line.str());
@@ -324,15 +343,33 @@ void NormalizeInventoryConfigSnapshot(InventoryConfigSnapshot* config)
     config->searchInputWidth = ClampSearchInputConfiguredWidth(config->searchInputWidth);
     config->searchInputHeight = ClampSearchInputConfiguredHeight(config->searchInputHeight);
     config->searchBarWidth = ClampSearchBarConfiguredWidth(config->searchBarWidth);
-    const int minimumSearchBarWidth = ComputeMinimumSearchBarConfiguredWidth(*config);
+    const int minimumSearchBarWidth =
+        ComputeMinimumSearchBarConfiguredWidth(*config, config->searchInputWidth);
     if (config->searchBarWidth < minimumSearchBarWidth)
     {
         config->searchBarWidth = minimumSearchBarWidth;
+    }
+    config->creatureSearchInputWidth =
+        ClampSearchInputConfiguredWidth(config->creatureSearchInputWidth);
+    config->creatureSearchInputHeight =
+        ClampSearchInputConfiguredHeight(config->creatureSearchInputHeight);
+    config->creatureSearchBarWidth =
+        ClampSearchBarConfiguredWidth(config->creatureSearchBarWidth);
+    const int minimumCreatureSearchBarWidth =
+        ComputeMinimumSearchBarConfiguredWidth(*config, config->creatureSearchInputWidth);
+    if (config->creatureSearchBarWidth < minimumCreatureSearchBarWidth)
+    {
+        config->creatureSearchBarWidth = minimumCreatureSearchBarWidth;
     }
     if (!config->searchInputPositionCustomized)
     {
         config->searchInputLeft = 0;
         config->searchInputTop = 0;
+    }
+    if (!config->creatureSearchInputPositionCustomized)
+    {
+        config->creatureSearchInputLeft = 0;
+        config->creatureSearchInputTop = 0;
     }
 }
 
@@ -340,6 +377,7 @@ InventoryConfigSnapshot CaptureInventoryConfigSnapshot()
 {
     InventoryConfigSnapshot config;
     config.enabled = InventoryState().g_controlsEnabled;
+    config.creatureSearchEnabled = InventoryState().g_creatureSearchEnabled;
     config.showSearchEntryCount = InventoryState().g_showSearchEntryCount;
     config.showSearchQuantityCount = InventoryState().g_showSearchQuantityCount;
     config.showSearchClearButton = InventoryState().g_showSearchClearButton;
@@ -355,6 +393,13 @@ InventoryConfigSnapshot CaptureInventoryConfigSnapshot()
     config.searchInputPositionCustomized = InventoryState().g_searchInputPositionCustomized;
     config.searchInputLeft = InventoryState().g_searchInputStoredLeft;
     config.searchInputTop = InventoryState().g_searchInputStoredTop;
+    config.creatureSearchBarWidth = InventoryState().g_creatureSearchBarConfiguredWidth;
+    config.creatureSearchInputWidth = InventoryState().g_creatureSearchInputConfiguredWidth;
+    config.creatureSearchInputHeight = InventoryState().g_creatureSearchInputConfiguredHeight;
+    config.creatureSearchInputPositionCustomized =
+        InventoryState().g_creatureSearchInputPositionCustomized;
+    config.creatureSearchInputLeft = InventoryState().g_creatureSearchInputStoredLeft;
+    config.creatureSearchInputTop = InventoryState().g_creatureSearchInputStoredTop;
     NormalizeInventoryConfigSnapshot(&config);
     return config;
 }
@@ -365,6 +410,7 @@ void ApplyInventoryConfigSnapshot(const InventoryConfigSnapshot& config)
     NormalizeInventoryConfigSnapshot(&normalized);
 
     InventoryState().g_controlsEnabled = normalized.enabled;
+    InventoryState().g_creatureSearchEnabled = normalized.creatureSearchEnabled;
     InventoryState().g_showSearchEntryCount = normalized.showSearchEntryCount;
     InventoryState().g_showSearchQuantityCount = normalized.showSearchQuantityCount;
     InventoryState().g_showSearchClearButton = normalized.showSearchClearButton;
@@ -380,6 +426,13 @@ void ApplyInventoryConfigSnapshot(const InventoryConfigSnapshot& config)
     InventoryState().g_searchInputPositionCustomized = normalized.searchInputPositionCustomized;
     InventoryState().g_searchInputStoredLeft = normalized.searchInputLeft;
     InventoryState().g_searchInputStoredTop = normalized.searchInputTop;
+    InventoryState().g_creatureSearchBarConfiguredWidth = normalized.creatureSearchBarWidth;
+    InventoryState().g_creatureSearchInputConfiguredWidth = normalized.creatureSearchInputWidth;
+    InventoryState().g_creatureSearchInputConfiguredHeight = normalized.creatureSearchInputHeight;
+    InventoryState().g_creatureSearchInputPositionCustomized =
+        normalized.creatureSearchInputPositionCustomized;
+    InventoryState().g_creatureSearchInputStoredLeft = normalized.creatureSearchInputLeft;
+    InventoryState().g_creatureSearchInputStoredTop = normalized.creatureSearchInputTop;
 }
 
 bool SaveInventoryConfigSnapshot(const InventoryConfigSnapshot& config)
@@ -433,6 +486,10 @@ void LoadInventoryConfig()
     {
         config.enabled = parsedValue;
     }
+    if (TryParseJsonBoolByKey(configText, "creatureSearchEnabled", &parsedValue))
+    {
+        config.creatureSearchEnabled = parsedValue;
+    }
     if (TryParseJsonBoolByKey(configText, "showSearchEntryCount", &parsedValue))
     {
         config.showSearchEntryCount = parsedValue;
@@ -472,6 +529,17 @@ void LoadInventoryConfig()
 
     int parsedIntValue = 0;
     bool parsedSearchBarWidth = false;
+    bool parsedSearchInputWidth = false;
+    bool parsedSearchInputHeight = false;
+    bool parsedSearchInputPositionCustomized = false;
+    bool parsedSearchInputLeft = false;
+    bool parsedSearchInputTop = false;
+    bool parsedCreatureSearchBarWidth = false;
+    bool parsedCreatureSearchInputWidth = false;
+    bool parsedCreatureSearchInputHeight = false;
+    bool parsedCreatureSearchInputPositionCustomized = false;
+    bool parsedCreatureSearchInputLeft = false;
+    bool parsedCreatureSearchInputTop = false;
     if (TryParseJsonIntByKey(configText, "searchBarWidth", &parsedIntValue))
     {
         config.searchBarWidth = parsedIntValue;
@@ -480,27 +548,91 @@ void LoadInventoryConfig()
     if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
     {
         config.searchInputWidth = parsedIntValue;
+        parsedSearchInputWidth = true;
     }
     if (TryParseJsonIntByKey(configText, "searchInputHeight", &parsedIntValue))
     {
         config.searchInputHeight = parsedIntValue;
+        parsedSearchInputHeight = true;
     }
     if (TryParseJsonBoolByKey(configText, "searchInputPositionCustomized", &parsedValue))
     {
         config.searchInputPositionCustomized = parsedValue;
+        parsedSearchInputPositionCustomized = true;
     }
     if (TryParseJsonIntByKey(configText, "searchInputLeft", &parsedIntValue))
     {
         config.searchInputLeft = parsedIntValue;
+        parsedSearchInputLeft = true;
     }
     if (TryParseJsonIntByKey(configText, "searchInputTop", &parsedIntValue))
     {
         config.searchInputTop = parsedIntValue;
+        parsedSearchInputTop = true;
+    }
+    if (TryParseJsonIntByKey(configText, "creatureSearchBarWidth", &parsedIntValue))
+    {
+        config.creatureSearchBarWidth = parsedIntValue;
+        parsedCreatureSearchBarWidth = true;
+    }
+    if (TryParseJsonIntByKey(configText, "creatureSearchInputWidth", &parsedIntValue))
+    {
+        config.creatureSearchInputWidth = parsedIntValue;
+        parsedCreatureSearchInputWidth = true;
+    }
+    if (TryParseJsonIntByKey(configText, "creatureSearchInputHeight", &parsedIntValue))
+    {
+        config.creatureSearchInputHeight = parsedIntValue;
+        parsedCreatureSearchInputHeight = true;
+    }
+    if (TryParseJsonBoolByKey(
+            configText,
+            "creatureSearchInputPositionCustomized",
+            &parsedValue))
+    {
+        config.creatureSearchInputPositionCustomized = parsedValue;
+        parsedCreatureSearchInputPositionCustomized = true;
+    }
+    if (TryParseJsonIntByKey(configText, "creatureSearchInputLeft", &parsedIntValue))
+    {
+        config.creatureSearchInputLeft = parsedIntValue;
+        parsedCreatureSearchInputLeft = true;
+    }
+    if (TryParseJsonIntByKey(configText, "creatureSearchInputTop", &parsedIntValue))
+    {
+        config.creatureSearchInputTop = parsedIntValue;
+        parsedCreatureSearchInputTop = true;
     }
 
     if (!parsedSearchBarWidth)
     {
         config.searchBarWidth = ComputeDefaultSearchBarConfiguredWidth(config.searchInputWidth);
+    }
+    if (!parsedCreatureSearchInputWidth && parsedSearchInputWidth)
+    {
+        config.creatureSearchInputWidth = config.searchInputWidth;
+    }
+    if (!parsedCreatureSearchInputHeight && parsedSearchInputHeight)
+    {
+        config.creatureSearchInputHeight = config.searchInputHeight;
+    }
+    if (!parsedCreatureSearchBarWidth)
+    {
+        config.creatureSearchBarWidth = parsedSearchBarWidth
+            ? config.searchBarWidth
+            : ComputeDefaultSearchBarConfiguredWidth(config.creatureSearchInputWidth);
+    }
+    if (!parsedCreatureSearchInputPositionCustomized && parsedSearchInputPositionCustomized)
+    {
+        config.creatureSearchInputPositionCustomized = config.searchInputPositionCustomized;
+    }
+    if (!parsedCreatureSearchInputLeft && parsedSearchInputLeft)
+    {
+        config.creatureSearchInputLeft = config.searchInputLeft;
+    }
+    if (!parsedCreatureSearchInputTop && parsedSearchInputTop)
+    {
+        config.creatureSearchInputTop = config.searchInputTop;
     }
 
     ApplyInventoryConfigSnapshot(config);
