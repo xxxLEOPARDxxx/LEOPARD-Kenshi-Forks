@@ -104,11 +104,13 @@ int ComputeCaptionNameMatchBias(
     {
         score += 2200;
     }
-    if (captionNormalized.find(nameNormalized) != std::string::npos)
+    if (nameNormalized.size() >= 3
+        && captionNormalized.find(nameNormalized) != std::string::npos)
     {
         score += 1400;
     }
-    if (nameNormalized.find(captionNormalized) != std::string::npos)
+    if (nameNormalized.size() >= 3
+        && nameNormalized.find(captionNormalized) != std::string::npos)
     {
         score += 900;
     }
@@ -658,9 +660,12 @@ int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* out
     const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
     const bool captionHasLoot = ContainsAsciiCaseInsensitive(caption, "LOOT");
     const bool captionHasContainer = ContainsAsciiCaseInsensitive(caption, "CONTAINER");
+    const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
     const bool hasCharacterSelection = FindWidgetInParentByToken(parent, "CharacterSelectionItemBox") != 0;
     const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
     const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
+    const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+    const bool hasBackpackContentToken = FindWidgetInParentByToken(parent, "backpack_content") != 0;
     std::string selectedCharacterName;
     const int selectedCaptionScore =
         ComputePlayerCharacterCaptionMatchScore(caption, &selectedCharacterName, 0, 0);
@@ -679,11 +684,20 @@ int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* out
         && !captionHasLoot
         && !captionHasContainer
         && !traderDialogueContextActive;
+    const bool backpackContentFallback =
+        hasBackpackContentToken
+        && captionHasBackpack
+        && !hasMoneyMarkers
+        && !captionHasTrader
+        && !captionHasLoot
+        && !captionHasContainer
+        && !traderDialogueContextActive;
 
     if (!hasInventoryMarkers
         && !(selectedInventoryVisible && (hasInventoryToken || hasEquipmentToken || hasCharacterSelection))
         && !(captionMatchesSelectedCharacter && (hasInventoryToken || hasEquipmentToken))
-        && !inventoryTokenFallback)
+        && !inventoryTokenFallback
+        && !backpackContentFallback)
     {
         return 0;
     }
@@ -733,16 +747,34 @@ int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* out
         reason << " equipment_token";
     }
 
+    if (hasContainerToken)
+    {
+        score += 180;
+        reason << " container_token";
+    }
+
     if (hasInventoryToken && hasEquipmentToken)
     {
         score += 220;
         reason << " inventory_equipment_pair";
     }
 
+    if (hasInventoryToken && hasContainerToken)
+    {
+        score += 320;
+        reason << " inventory_container_pair";
+    }
+
     if (inventoryTokenFallback)
     {
         score += 520;
         reason << " inventory_token_fallback";
+    }
+
+    if (backpackContentFallback)
+    {
+        score += 460;
+        reason << " backpack_content_fallback";
     }
 
     if (captionHasLoot || captionHasContainer)
@@ -1142,35 +1174,34 @@ void DumpVisibleInventoryWindowCandidateDiagnostics()
             continue;
         }
 
-        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
-        if (window == 0)
-        {
-            continue;
-        }
-
         MyGUI::Widget* parent = ResolveInjectionParent(root);
         if (parent == 0)
         {
             continue;
         }
 
+        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
         const bool hasMarkers = HasInventoryStructure(parent);
         const bool hasCharacterSelection = FindWidgetInParentByToken(parent, "CharacterSelectionItemBox") != 0;
         const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
         const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
+        const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
+        const bool hasBackpackContentToken = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+        const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
         std::string selectedCharacterName;
         std::size_t selectedCaptionCandidateCount = 0;
         bool selectedCaptionCandidateListTruncated = false;
         const int selectedCaptionScore =
             ComputePlayerCharacterCaptionMatchScore(
-                window->getCaption().asUTF8(),
+                caption,
                 &selectedCharacterName,
                 &selectedCaptionCandidateCount,
                 &selectedCaptionCandidateListTruncated);
         const bool captionInteresting =
-            ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "inventory")
-            || ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "loot")
-            || ContainsAsciiCaseInsensitive(window->getCaption().asUTF8(), "container");
+            ContainsAsciiCaseInsensitive(caption, "inventory")
+            || ContainsAsciiCaseInsensitive(caption, "loot")
+            || ContainsAsciiCaseInsensitive(caption, "container")
+            || ContainsAsciiCaseInsensitive(caption, "backpack");
 
         bool selectedInventoryVisible = false;
         TryResolveSelectedInventoryVisible(&selectedInventoryVisible);
@@ -1182,6 +1213,8 @@ void DumpVisibleInventoryWindowCandidateDiagnostics()
             && !hasCharacterSelection
             && !hasInventoryToken
             && !hasEquipmentToken
+            && !hasContainerToken
+            && !hasBackpackContentToken
             && selectedCaptionScore <= 0
             && !captionInteresting)
         {
@@ -1194,11 +1227,13 @@ void DumpVisibleInventoryWindowCandidateDiagnostics()
         std::stringstream line;
         line << "inventory window-candidate[" << index << "]"
              << " name=" << SafeWidgetName(root)
-             << " caption=\"" << TruncateForLog(window->getCaption().asUTF8(), 60) << "\""
+             << " caption=\"" << TruncateForLog(caption, 60) << "\""
              << " has_markers=" << (hasMarkers ? "true" : "false")
              << " character_selection=" << (hasCharacterSelection ? "true" : "false")
              << " inventory_token=" << (hasInventoryToken ? "true" : "false")
              << " equipment_token=" << (hasEquipmentToken ? "true" : "false")
+             << " container_token=" << (hasContainerToken ? "true" : "false")
+             << " backpack_content_token=" << (hasBackpackContentToken ? "true" : "false")
              << " selected_caption_score=" << selectedCaptionScore
              << " selected_caption_name=\"" << TruncateForLog(selectedCharacterName, 40) << "\""
              << " selected_caption_candidates=" << selectedCaptionCandidateCount
@@ -1248,12 +1283,6 @@ bool TryResolveVisibleInventoryTarget(MyGUI::Widget** outAnchor, MyGUI::Widget**
     {
         MyGUI::Widget* root = roots.current();
         if (root == 0 || !root->getInheritedVisible())
-        {
-            continue;
-        }
-
-        MyGUI::Window* window = root->castType<MyGUI::Window>(false);
-        if (window == 0)
         {
             continue;
         }

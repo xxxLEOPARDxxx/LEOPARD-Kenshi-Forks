@@ -759,7 +759,15 @@ void LearnInventoryGuiBackPointerOffsets()
             return left.offset < right.offset;
         });
 
-    g_inventoryGuiBackPointerOffsets.swap(offsetHits);
+    bool retainedPreviousOffsets = false;
+    if (!offsetHits.empty())
+    {
+        g_inventoryGuiBackPointerOffsets.swap(offsetHits);
+    }
+    else if (!g_inventoryGuiBackPointerOffsets.empty())
+    {
+        retainedPreviousOffsets = true;
+    }
 
     std::stringstream signature;
     for (std::size_t index = 0; index < g_inventoryGuiBackPointerOffsets.size(); ++index)
@@ -782,7 +790,9 @@ void LearnInventoryGuiBackPointerOffsets()
         }
         else
         {
-            line << "inventory gui back-pointer offsets learned";
+            line << (retainedPreviousOffsets
+                        ? "inventory gui back-pointer offsets retained"
+                        : "inventory gui back-pointer offsets learned");
             const std::size_t previewCount =
                 g_inventoryGuiBackPointerOffsets.size() < 8
                     ? g_inventoryGuiBackPointerOffsets.size()
