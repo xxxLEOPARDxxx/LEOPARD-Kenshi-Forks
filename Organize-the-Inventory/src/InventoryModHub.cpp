@@ -477,6 +477,32 @@ void LogModHubFallback(const char* reason)
     LogWarnLine(line.str());
 }
 
+void LogModHubRegistrationFailureTrace()
+{
+    if (!g_modHubClient.HasLastRegistrationFailureTrace())
+    {
+        return;
+    }
+
+    std::stringstream line;
+    line << "event=mod_hub_registration_failure"
+         << " stage=" << (g_modHubClient.LastRegistrationFailureStage() != 0
+                 ? g_modHubClient.LastRegistrationFailureStage()
+                 : "unknown")
+         << " row_index=" << g_modHubClient.LastRegistrationFailureRowIndex()
+         << " setting_id=" << (g_modHubClient.LastRegistrationFailureSettingId() != 0
+                 ? g_modHubClient.LastRegistrationFailureSettingId()
+                 : "null")
+         << " section_id=" << (g_modHubClient.LastRegistrationFailureSectionId() != 0
+                 ? g_modHubClient.LastRegistrationFailureSectionId()
+                 : "null")
+         << " visible_when_setting_id=" << (g_modHubClient.LastRegistrationFailureVisibleWhenSettingId() != 0
+                 ? g_modHubClient.LastRegistrationFailureVisibleWhenSettingId()
+                 : "null")
+         << " result=" << g_modHubClient.LastRegistrationFailureTraceResult();
+    LogWarnLine(line.str());
+}
+
 void EnsureModHubClientConfigured()
 {
     if (g_modHubClientConfigured)
@@ -637,122 +663,152 @@ void EnsureModHubClientConfigured()
         &GetCreatureSearchInputHeightSetting,
         &SetCreatureSearchInputHeightSetting };
 
-    static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, "enabled", &kEnabledSetting, 0, 0 },
+    static const emc::ModHubClientSettingRowV2 kModHubRows[] = {
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, "enabled", &kEnabledSetting, 0, 0, 0, 1 },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "creature_search_enabled",
             &kCreatureSearchEnabledSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "show_search_entry_count",
             &kShowSearchEntryCountSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "show_search_quantity_count",
             &kShowSearchQuantityCountSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "show_search_clear_button",
             &kShowSearchClearButtonSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "auto_focus_search_input",
             &kAutoFocusSearchInputSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "debug_logging",
             &kDebugLoggingSetting,
             kHubSectionAdvancedId,
-            kHubSectionAdvancedLabel
+            kHubSectionAdvancedLabel,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "debug_search_logging",
             &kDebugSearchLoggingSetting,
             kHubSectionAdvancedId,
-            kHubSectionAdvancedLabel
+            kHubSectionAdvancedLabel,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "debug_binding_logging",
             &kDebugBindingLoggingSetting,
             kHubSectionAdvancedId,
-            kHubSectionAdvancedLabel
+            kHubSectionAdvancedLabel,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "enable_debug_probes",
             &kEnableDebugProbesSetting,
             kHubSectionAdvancedId,
-            kHubSectionAdvancedLabel
+            kHubSectionAdvancedLabel,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "search_bar_width",
             &kSearchBarWidthSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "search_input_width",
             &kSearchInputWidthSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "search_input_height",
             &kSearchInputHeightSetting,
             0,
-            0
+            0,
+            0,
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "creature_search_bar_width",
             &kCreatureSearchBarWidthSetting,
             0,
-            0
+            0,
+            "creature_search_enabled",
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "creature_search_input_width",
             &kCreatureSearchInputWidthSetting,
             0,
-            0
+            0,
+            "creature_search_enabled",
+            1
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
             "creature_search_input_height",
             &kCreatureSearchInputHeightSetting,
             0,
-            0
+            0,
+            "creature_search_enabled",
+            1
         }
     };
 
-    static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {
+    static const emc::ModHubClientTableRegistrationV2 kModHubRegistration = {
         &kModHubDescriptor,
         kModHubRows,
         static_cast<uint32_t>(sizeof(kModHubRows) / sizeof(kModHubRows[0])) };
 
     emc::ModHubClient::Config config;
-    config.table_registration = &kModHubRegistration;
+    config.table_registration_v2 = &kModHubRegistration;
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
 }
@@ -783,6 +839,7 @@ void InventoryModHub_OnStartup()
 
     if (result == emc::ModHubClient::REGISTRATION_FAILED)
     {
+        LogModHubRegistrationFailureTrace();
         LogModHubFallback("register_mod_or_setting_failed");
         return;
     }

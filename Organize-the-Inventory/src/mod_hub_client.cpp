@@ -9,6 +9,85 @@
 
 namespace
 {
+struct RegistrationFailureTrace
+{
+    bool has_failure;
+    const char* stage;
+    uint32_t row_index;
+    const char* setting_id;
+    const char* section_id;
+    const char* visible_when_setting_id;
+    EMC_Result result;
+};
+
+RegistrationFailureTrace g_registration_failure_trace = {
+    false,
+    0,
+    0u,
+    0,
+    0,
+    0,
+    EMC_OK
+};
+
+void ClearRegistrationFailureTrace()
+{
+    g_registration_failure_trace.has_failure = false;
+    g_registration_failure_trace.stage = 0;
+    g_registration_failure_trace.row_index = 0u;
+    g_registration_failure_trace.setting_id = 0;
+    g_registration_failure_trace.section_id = 0;
+    g_registration_failure_trace.visible_when_setting_id = 0;
+    g_registration_failure_trace.result = EMC_OK;
+}
+
+void SetRegistrationFailureTrace(
+    const char* stage,
+    uint32_t row_index,
+    const char* setting_id,
+    const char* section_id,
+    const char* visible_when_setting_id,
+    EMC_Result result)
+{
+    g_registration_failure_trace.has_failure = true;
+    g_registration_failure_trace.stage = stage;
+    g_registration_failure_trace.row_index = row_index;
+    g_registration_failure_trace.setting_id = setting_id;
+    g_registration_failure_trace.section_id = section_id;
+    g_registration_failure_trace.visible_when_setting_id = visible_when_setting_id;
+    g_registration_failure_trace.result = result;
+}
+
+void SetRegistrationFailureTraceForRow(
+    const char* stage,
+    uint32_t row_index,
+    const emc::ModHubClientSettingRowV1* row,
+    EMC_Result result)
+{
+    SetRegistrationFailureTrace(
+        stage,
+        row_index,
+        row != 0 ? row->setting_id : 0,
+        row != 0 ? row->section_id : 0,
+        0,
+        result);
+}
+
+void SetRegistrationFailureTraceForRow(
+    const char* stage,
+    uint32_t row_index,
+    const emc::ModHubClientSettingRowV2* row,
+    EMC_Result result)
+{
+    SetRegistrationFailureTrace(
+        stage,
+        row_index,
+        row != 0 ? row->setting_id : 0,
+        row != 0 ? row->section_id : 0,
+        row != 0 ? row->visible_when_setting_id : 0,
+        result);
+}
+
 #if defined(EMC_ENABLE_TEST_EXPORTS)
 const int32_t kDefaultLookupModeAuto = 0;
 const int32_t kDefaultLookupModeAliasOnly = 1;
@@ -252,6 +331,66 @@ bool HasActionRowV2Support(const EMC_HubApiV1* api, uint32_t api_size)
         && api->register_action_row_v2 != 0;
 }
 
+bool HasRowVisibilityBoolRuleSupport(const EMC_HubApiV1* api, uint32_t api_size)
+{
+    return api != 0
+        && api_size >= EMC_HUB_API_V1_ROW_VISIBILITY_BOOL_RULE_MIN_SIZE
+        && api->api_size >= EMC_HUB_API_V1_ROW_VISIBILITY_BOOL_RULE_MIN_SIZE
+        && api->register_row_visibility_bool_rule != 0;
+}
+
+bool TryMapClientSettingKindToHubRowKind(int32_t client_kind, int32_t* out_row_kind)
+{
+    if (out_row_kind == 0)
+    {
+        return false;
+    }
+
+    switch (client_kind)
+    {
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_BOOL;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_KEYBIND;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_INT:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_INT;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT:
+        *out_row_kind = EMC_HUB_ROW_KIND_FLOAT;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_ACTION;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_SELECT;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT:
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2:
+        *out_row_kind = EMC_HUB_ROW_KIND_TEXT;
+        return true;
+
+    case emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR:
+        *out_row_kind = EMC_HUB_ROW_KIND_COLOR;
+        return true;
+
+    default:
+        return false;
+    }
+}
+
 uint32_t ResolveExpectedSdkApiVersion(const emc::ModHubClient::Config& config)
 {
     return config.expected_sdk_api_version != 0u
@@ -259,11 +398,38 @@ uint32_t ResolveExpectedSdkApiVersion(const emc::ModHubClient::Config& config)
         : EMC_HUB_API_VERSION_1;
 }
 
+uint32_t ResolveTableRegistrationV2MinApiSize(const emc::ModHubClientTableRegistrationV2* table_registration)
+{
+    if (table_registration == 0 || table_registration->rows == 0)
+    {
+        return EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
+    }
+
+    for (uint32_t row_index = 0u; row_index < table_registration->row_count; ++row_index)
+    {
+        const emc::ModHubClientSettingRowV2* row = &table_registration->rows[row_index];
+        if (row->visible_when_setting_id != 0 && row->visible_when_setting_id[0] != '\0')
+        {
+            return EMC_HUB_API_V1_ROW_VISIBILITY_BOOL_RULE_MIN_SIZE;
+        }
+    }
+
+    return EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
+}
+
 uint32_t ResolveExpectedSdkMinApiSize(const emc::ModHubClient::Config& config)
 {
-    return config.expected_sdk_min_api_size != 0u
-        ? config.expected_sdk_min_api_size
-        : EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
+    if (config.expected_sdk_min_api_size != 0u)
+    {
+        return config.expected_sdk_min_api_size;
+    }
+
+    if (config.table_registration_v2 != 0)
+    {
+        return ResolveTableRegistrationV2MinApiSize(config.table_registration_v2);
+    }
+
+    return EMC_HUB_API_V1_OPTIONS_WINDOW_INIT_OBSERVER_MIN_SIZE;
 }
 
 bool IsSdkStampDriftDetected(
@@ -329,6 +495,66 @@ void EmitSdkStampWarning(
 #endif
 }
 
+void EmitV2RegistrationFailureTrace(
+    const char* stage,
+    const emc::ModHubClientSettingRowV2* row,
+    uint32_t row_index,
+    EMC_Result result)
+{
+    char message[512];
+    message[0] = '\0';
+
+    const char* setting_id = (row != 0 && row->setting_id != 0 && row->setting_id[0] != '\0')
+        ? row->setting_id
+        : "(null)";
+    const char* section_id = (row != 0 && row->section_id != 0 && row->section_id[0] != '\0')
+        ? row->section_id
+        : "(null)";
+    const char* visible_when_setting_id =
+        (row != 0 && row->visible_when_setting_id != 0 && row->visible_when_setting_id[0] != '\0')
+        ? row->visible_when_setting_id
+        : "(null)";
+
+#if defined(_MSC_VER) && _MSC_VER < 1900
+    _snprintf_s(
+        message,
+        sizeof(message),
+        _TRUNCATE,
+        "Emkejs-Mod-Core: Mod Hub V2 registration failed (stage=%s row_index=%u setting_id=%s kind=%d section_id=%s visible_when_setting_id=%s result=%d).",
+        stage != 0 ? stage : "(null)",
+        (unsigned int)row_index,
+        setting_id,
+        row != 0 ? (int)row->kind : -1,
+        section_id,
+        visible_when_setting_id,
+        (int)result);
+#else
+    std::snprintf(
+        message,
+        sizeof(message),
+        "Emkejs-Mod-Core: Mod Hub V2 registration failed (stage=%s row_index=%u setting_id=%s kind=%d section_id=%s visible_when_setting_id=%s result=%d).",
+        stage != 0 ? stage : "(null)",
+        (unsigned int)row_index,
+        setting_id,
+        row != 0 ? (int)row->kind : -1,
+        section_id,
+        visible_when_setting_id,
+        (int)result);
+#endif
+
+    if (message[0] == '\0')
+    {
+        return;
+    }
+
+#if defined(_WIN32)
+    OutputDebugStringA(message);
+    OutputDebugStringA("\n");
+#else
+    std::fprintf(stderr, "%s\n", message);
+#endif
+}
+
 EMC_Result DefaultGetApi(
     uint32_t requested_version,
     uint32_t caller_api_size,
@@ -360,11 +586,21 @@ EMC_Result RegisterSettingsRow(
     const EMC_HubApiV1* api,
     uint32_t api_size,
     EMC_ModHandle mod_handle,
-    const emc::ModHubClientSettingRowV1* row)
+    const emc::ModHubClientSettingRowV1* row,
+    const char** out_failed_stage)
 {
     if (api == 0 || row == 0 || row->def == 0)
     {
+        if (out_failed_stage != 0)
+        {
+            *out_failed_stage = "register_setting_prepare";
+        }
         return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (out_failed_stage != 0)
+    {
+        *out_failed_stage = 0;
     }
 
     EMC_Result result = EMC_ERR_INVALID_ARGUMENT;
@@ -488,6 +724,10 @@ EMC_Result RegisterSettingsRow(
 
     if (result != EMC_OK)
     {
+        if (out_failed_stage != 0)
+        {
+            *out_failed_stage = "register_setting";
+        }
         return result;
     }
 
@@ -495,11 +735,19 @@ EMC_Result RegisterSettingsRow(
     {
         if (row->setting_id == nullptr || row->setting_id[0] == '\0')
         {
+            if (out_failed_stage != 0)
+            {
+                *out_failed_stage = "register_setting_section_prepare";
+            }
             return EMC_ERR_INVALID_ARGUMENT;
         }
 
         if (row->section_display_name == nullptr || row->section_display_name[0] == '\0')
         {
+            if (out_failed_stage != 0)
+            {
+                *out_failed_stage = "register_setting_section_prepare";
+            }
             return EMC_ERR_INVALID_ARGUMENT;
         }
 
@@ -514,9 +762,59 @@ EMC_Result RegisterSettingsRow(
             row->section_display_name
         };
         result = api->register_setting_section(mod_handle, &section_def);
+        if (result != EMC_OK && out_failed_stage != 0)
+        {
+            *out_failed_stage = "register_setting_section";
+        }
     }
 
     return result;
+}
+
+EMC_Result RegisterRowVisibilityRuleIfNeeded(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
+    EMC_ModHandle mod_handle,
+    const emc::ModHubClientSettingRowV2* row)
+{
+    if (api == 0 || row == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (row->visible_when_setting_id == 0 || row->visible_when_setting_id[0] == '\0')
+    {
+        return EMC_OK;
+    }
+
+    if (row->setting_id == 0 || row->setting_id[0] == '\0')
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (row->visible_when_bool != 0 && row->visible_when_bool != 1)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (!HasRowVisibilityBoolRuleSupport(api, api_size))
+    {
+        return EMC_ERR_API_SIZE_MISMATCH;
+    }
+
+    int32_t target_row_kind = 0;
+    if (!TryMapClientSettingKindToHubRowKind(row->kind, &target_row_kind))
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const EMC_RowVisibilityBoolRuleDefV1 rule_def = {
+        row->setting_id,
+        row->visible_when_setting_id,
+        target_row_kind,
+        row->visible_when_bool
+    };
+    return api->register_row_visibility_bool_rule(mod_handle, &rule_def);
 }
 }
 
@@ -564,9 +862,91 @@ EMC_Result RegisterSettingsTableWithApiSizeV1(
     for (uint32_t row_index = 0u; row_index < table_registration->row_count; ++row_index)
     {
         const ModHubClientSettingRowV1* row = &table_registration->rows[row_index];
-        result = RegisterSettingsRow(api, api_size, mod_handle, row);
+        const char* failed_stage = 0;
+        result = RegisterSettingsRow(api, api_size, mod_handle, row, &failed_stage);
         if (result != EMC_OK)
         {
+            SetRegistrationFailureTraceForRow(
+                failed_stage != 0 ? failed_stage : "register_setting",
+                row_index,
+                row,
+                result);
+            return result;
+        }
+    }
+
+    return EMC_OK;
+}
+
+EMC_Result RegisterSettingsTableV2(
+    const EMC_HubApiV1* api,
+    const ModHubClientTableRegistrationV2* table_registration)
+{
+    return RegisterSettingsTableWithApiSizeV2(api, api != 0 ? api->api_size : 0u, table_registration);
+}
+
+EMC_Result RegisterSettingsTableWithApiSizeV2(
+    const EMC_HubApiV1* api,
+    uint32_t api_size,
+    const ModHubClientTableRegistrationV2* table_registration)
+{
+    if (api == 0 || table_registration == 0 || table_registration->mod_desc == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (api->register_mod == 0)
+    {
+        return EMC_ERR_INTERNAL;
+    }
+
+    if (table_registration->row_count > 0u && table_registration->rows == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    EMC_ModHandle mod_handle = 0;
+    EMC_Result result = api->register_mod(table_registration->mod_desc, &mod_handle);
+    if (result != EMC_OK)
+    {
+        EmitV2RegistrationFailureTrace("register_mod", 0, 0u, result);
+        return result;
+    }
+
+    if (mod_handle == 0)
+    {
+        EmitV2RegistrationFailureTrace("register_mod_handle", 0, 0u, EMC_ERR_INTERNAL);
+        return EMC_ERR_INTERNAL;
+    }
+
+    for (uint32_t row_index = 0u; row_index < table_registration->row_count; ++row_index)
+    {
+        const ModHubClientSettingRowV2* row = &table_registration->rows[row_index];
+        const ModHubClientSettingRowV1 legacy_row = {
+            row->kind,
+            row->setting_id,
+            row->def,
+            row->section_id,
+            row->section_display_name
+        };
+        const char* failed_stage = 0;
+        result = RegisterSettingsRow(api, api_size, mod_handle, &legacy_row, &failed_stage);
+        if (result != EMC_OK)
+        {
+            SetRegistrationFailureTraceForRow(
+                failed_stage != 0 ? failed_stage : "register_setting",
+                row_index,
+                row,
+                result);
+            EmitV2RegistrationFailureTrace("register_setting", row, row_index, result);
+            return result;
+        }
+
+        result = RegisterRowVisibilityRuleIfNeeded(api, api_size, mod_handle, row);
+        if (result != EMC_OK)
+        {
+            SetRegistrationFailureTraceForRow("register_row_visibility_bool_rule", row_index, row, result);
+            EmitV2RegistrationFailureTrace("register_row_visibility_bool_rule", row, row_index, result);
             return result;
         }
     }
@@ -579,6 +959,7 @@ ModHubClient::Config::Config()
     , register_fn(0)
     , register_user_data(0)
     , table_registration(0)
+    , table_registration_v2(0)
     , should_force_attach_failure_fn(0)
     , attach_failure_user_data(0)
     , expected_sdk_api_version(EMC_HUB_API_VERSION_1)
@@ -629,6 +1010,7 @@ void ModHubClient::Reset()
     observer_api_ = 0;
     options_window_init_observer_registered_ = false;
     sdk_stamp_warning_emitted_ = false;
+    ClearRegistrationFailureTrace();
 }
 
 ModHubClient::AttemptResult ModHubClient::OnStartup()
@@ -678,6 +1060,41 @@ EMC_Result ModHubClient::LastAttemptFailureResult() const
     return last_attempt_failure_result_;
 }
 
+bool ModHubClient::HasLastRegistrationFailureTrace() const
+{
+    return g_registration_failure_trace.has_failure;
+}
+
+const char* ModHubClient::LastRegistrationFailureStage() const
+{
+    return g_registration_failure_trace.stage;
+}
+
+uint32_t ModHubClient::LastRegistrationFailureRowIndex() const
+{
+    return g_registration_failure_trace.row_index;
+}
+
+const char* ModHubClient::LastRegistrationFailureSettingId() const
+{
+    return g_registration_failure_trace.setting_id;
+}
+
+const char* ModHubClient::LastRegistrationFailureSectionId() const
+{
+    return g_registration_failure_trace.section_id;
+}
+
+const char* ModHubClient::LastRegistrationFailureVisibleWhenSettingId() const
+{
+    return g_registration_failure_trace.visible_when_setting_id;
+}
+
+EMC_Result ModHubClient::LastRegistrationFailureTraceResult() const
+{
+    return g_registration_failure_trace.result;
+}
+
 void ModHubClient::RegisterOptionsWindowInitObserverIfAvailable(const EMC_HubApiV1* api, uint32_t api_size)
 {
     if (options_window_init_observer_registered_ || !HasOptionsWindowInitObserverSupport(api, api_size))
@@ -723,7 +1140,7 @@ void __cdecl ModHubClient::OnOptionsWindowInitObserverThunk(void* user_data)
 
 ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry)
 {
-    if (config_.register_fn == 0 && config_.table_registration == 0)
+    if (config_.register_fn == 0 && config_.table_registration == 0 && config_.table_registration_v2 == 0)
     {
         use_hub_ui_ = false;
         last_attempt_failure_result_ = EMC_ERR_INVALID_ARGUMENT;
@@ -733,9 +1150,10 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
     const ModHubClientGetApiFn get_api_fn = config_.get_api_fn != 0 ? config_.get_api_fn : &DefaultGetApi;
     const EMC_HubApiV1* api = 0;
     uint32_t api_size = 0u;
+    const uint32_t expected_min_api_size = ResolveExpectedSdkMinApiSize(config_);
     EMC_Result get_api_result = get_api_fn(
         EMC_HUB_API_VERSION_1,
-        EMC_HUB_API_V1_MIN_SIZE,
+        expected_min_api_size,
         &api,
         &api_size);
     if (get_api_result != EMC_OK)
@@ -755,7 +1173,6 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
     if (!sdk_stamp_warning_emitted_)
     {
         const uint32_t expected_api_version = ResolveExpectedSdkApiVersion(config_);
-        const uint32_t expected_min_api_size = ResolveExpectedSdkMinApiSize(config_);
         if (IsSdkStampDriftDetected(expected_api_version, expected_min_api_size, api, api_size))
         {
             EmitSdkStampWarning(
@@ -785,7 +1202,11 @@ ModHubClient::AttemptResult ModHubClient::AttemptAttachAndRegister(bool is_retry
     }
 
     EMC_Result register_result = EMC_ERR_INVALID_ARGUMENT;
-    if (config_.table_registration != 0)
+    if (config_.table_registration_v2 != 0)
+    {
+        register_result = RegisterSettingsTableWithApiSizeV2(api, api_size, config_.table_registration_v2);
+    }
+    else if (config_.table_registration != 0)
     {
         register_result = RegisterSettingsTableWithApiSizeV1(api, api_size, config_.table_registration);
     }
