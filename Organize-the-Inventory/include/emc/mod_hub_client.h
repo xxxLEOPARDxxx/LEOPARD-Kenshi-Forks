@@ -45,29 +45,13 @@ struct ModHubClientSettingRowV1
     const char* section_display_name;
 };
 
-struct ModHubClientSettingRowV2
-{
-    int32_t kind;
-    const char* setting_id;
-    const void* def;
-    const char* section_id;
-    const char* section_display_name;
-    const char* visible_when_setting_id;
-    int32_t visible_when_bool;
-};
-
 struct ModHubClientTableRegistrationV1
 {
     const EMC_ModDescriptorV1* mod_desc;
     const ModHubClientSettingRowV1* rows;
     uint32_t row_count;
-};
-
-struct ModHubClientTableRegistrationV2
-{
-    const EMC_ModDescriptorV1* mod_desc;
-    const ModHubClientSettingRowV2* rows;
-    uint32_t row_count;
+    const EMC_BoolConditionRuleDefV1* bool_condition_rules;
+    uint32_t bool_condition_rule_count;
 };
 
 EMC_Result RegisterSettingsTableV1(
@@ -79,14 +63,16 @@ EMC_Result RegisterSettingsTableWithApiSizeV1(
     uint32_t api_size,
     const ModHubClientTableRegistrationV1* table_registration);
 
-EMC_Result RegisterSettingsTableV2(
+EMC_Result RegisterBoolConditionRuleV1(
     const EMC_HubApiV1* api,
-    const ModHubClientTableRegistrationV2* table_registration);
+    EMC_ModHandle mod,
+    const EMC_BoolConditionRuleDefV1* def);
 
-EMC_Result RegisterSettingsTableWithApiSizeV2(
+EMC_Result RegisterBoolConditionRuleWithApiSizeV1(
     const EMC_HubApiV1* api,
     uint32_t api_size,
-    const ModHubClientTableRegistrationV2* table_registration);
+    EMC_ModHandle mod,
+    const EMC_BoolConditionRuleDefV1* def);
 
 class ModHubClient
 {
@@ -97,7 +83,6 @@ public:
         ModHubClientRegisterFn register_fn;
         void* register_user_data;
         const ModHubClientTableRegistrationV1* table_registration;
-        const ModHubClientTableRegistrationV2* table_registration_v2;
         ModHubClientForceAttachFailureFn should_force_attach_failure_fn;
         void* attach_failure_user_data;
         uint32_t expected_sdk_api_version;
@@ -129,13 +114,6 @@ public:
     bool IsAttachRetryPending() const;
     bool HasAttachRetryAttempted() const;
     EMC_Result LastAttemptFailureResult() const;
-    bool HasLastRegistrationFailureTrace() const;
-    const char* LastRegistrationFailureStage() const;
-    uint32_t LastRegistrationFailureRowIndex() const;
-    const char* LastRegistrationFailureSettingId() const;
-    const char* LastRegistrationFailureSectionId() const;
-    const char* LastRegistrationFailureVisibleWhenSettingId() const;
-    EMC_Result LastRegistrationFailureTraceResult() const;
 
 private:
     void RegisterOptionsWindowInitObserverIfAvailable(const EMC_HubApiV1* api, uint32_t api_size);

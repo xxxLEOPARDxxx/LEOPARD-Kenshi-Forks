@@ -36,6 +36,12 @@ typedef int32_t EMC_Result;
 
 #define EMC_KEY_UNBOUND ((int32_t)-1)
 
+#define EMC_KEYBIND_MODIFIER_CTRL_MASK ((uint32_t)(1u << 0))
+#define EMC_KEYBIND_MODIFIER_SHIFT_MASK ((uint32_t)(1u << 1))
+#define EMC_KEYBIND_MODIFIER_ALT_MASK ((uint32_t)(1u << 2))
+#define EMC_KEYBIND_MODIFIER_SUPPORTED_MASK \
+    ((uint32_t)(EMC_KEYBIND_MODIFIER_CTRL_MASK | EMC_KEYBIND_MODIFIER_SHIFT_MASK | EMC_KEYBIND_MODIFIER_ALT_MASK))
+
 #define EMC_ACTION_FORCE_REFRESH ((uint32_t)(1u << 0))
 
 #define EMC_FLOAT_DISPLAY_DECIMALS_DEFAULT ((uint32_t)3u)
@@ -258,32 +264,26 @@ typedef struct EMC_ActionRowDefV2
     const char* hover_hint;
 } EMC_ActionRowDefV2;
 
+typedef enum EMC_BoolConditionEffectV1
+{
+    EMC_BOOL_CONDITION_EFFECT_HIDE = 0u,
+    EMC_BOOL_CONDITION_EFFECT_DISABLE = 1u
+} EMC_BoolConditionEffectV1;
+
+typedef struct EMC_BoolConditionRuleDefV1
+{
+    const char* target_setting_id;
+    const char* controller_setting_id;
+    uint32_t effect;
+    int32_t expected_bool_value;
+} EMC_BoolConditionRuleDefV1;
+
 typedef struct EMC_SettingSectionDefV1
 {
     const char* setting_id;
     const char* section_id;
     const char* section_display_name;
 } EMC_SettingSectionDefV1;
-
-typedef enum EMC_HubRowKindV1
-{
-    EMC_HUB_ROW_KIND_BOOL = 0,
-    EMC_HUB_ROW_KIND_KEYBIND = 1,
-    EMC_HUB_ROW_KIND_INT = 2,
-    EMC_HUB_ROW_KIND_FLOAT = 3,
-    EMC_HUB_ROW_KIND_ACTION = 4,
-    EMC_HUB_ROW_KIND_SELECT = 5,
-    EMC_HUB_ROW_KIND_TEXT = 6,
-    EMC_HUB_ROW_KIND_COLOR = 7
-} EMC_HubRowKindV1;
-
-typedef struct EMC_RowVisibilityBoolRuleDefV1
-{
-    const char* target_setting_id;
-    const char* visible_when_setting_id;
-    int32_t target_row_kind;
-    int32_t visible_when_bool;
-} EMC_RowVisibilityBoolRuleDefV1;
 
 typedef struct EMC_HubApiV1
 {
@@ -307,7 +307,7 @@ typedef struct EMC_HubApiV1
     EMC_Result(__cdecl* register_select_setting_v2)(EMC_ModHandle mod, const EMC_SelectSettingDefV2* def);
     EMC_Result(__cdecl* register_text_setting_v2)(EMC_ModHandle mod, const EMC_TextSettingDefV2* def);
     EMC_Result(__cdecl* register_action_row_v2)(EMC_ModHandle mod, const EMC_ActionRowDefV2* def);
-    EMC_Result(__cdecl* register_row_visibility_bool_rule)(EMC_ModHandle mod, const EMC_RowVisibilityBoolRuleDefV1* def);
+    EMC_Result(__cdecl* register_bool_condition_rule)(EMC_ModHandle mod, const EMC_BoolConditionRuleDefV1* def);
 } EMC_HubApiV1;
 
 #define EMC_HUB_API_V1_MIN_SIZE ((uint32_t)56u)
@@ -333,8 +333,8 @@ typedef struct EMC_HubApiV1
     ((uint32_t)(offsetof(EMC_HubApiV1, register_text_setting_v2) + sizeof(void*)))
 #define EMC_HUB_API_V1_ACTION_ROW_V2_MIN_SIZE \
     ((uint32_t)(offsetof(EMC_HubApiV1, register_action_row_v2) + sizeof(void*)))
-#define EMC_HUB_API_V1_ROW_VISIBILITY_BOOL_RULE_MIN_SIZE \
-    ((uint32_t)(offsetof(EMC_HubApiV1, register_row_visibility_bool_rule) + sizeof(void*)))
+#define EMC_HUB_API_V1_BOOL_CONDITION_RULE_MIN_SIZE \
+    ((uint32_t)(offsetof(EMC_HubApiV1, register_bool_condition_rule) + sizeof(void*)))
 
 EMC_MOD_HUB_API EMC_Result __cdecl EMC_ModHub_GetApi(
     uint32_t requested_version,
@@ -524,6 +524,12 @@ EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV2, action_flags, 32);
 EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV2, on_action, 40);
 EMC_ABI_ASSERT_OFFSET(EMC_ActionRowDefV2, hover_hint, 48);
 
+EMC_ABI_ASSERT_SIZE(EMC_BoolConditionRuleDefV1, 24);
+EMC_ABI_ASSERT_OFFSET(EMC_BoolConditionRuleDefV1, target_setting_id, 0);
+EMC_ABI_ASSERT_OFFSET(EMC_BoolConditionRuleDefV1, controller_setting_id, 8);
+EMC_ABI_ASSERT_OFFSET(EMC_BoolConditionRuleDefV1, effect, 16);
+EMC_ABI_ASSERT_OFFSET(EMC_BoolConditionRuleDefV1, expected_bool_value, 20);
+
 EMC_ABI_ASSERT_SIZE(EMC_HubApiV1, 160);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, api_version, 0);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, api_size, 4);
@@ -545,7 +551,7 @@ EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_keybind_setting_v2, 120);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_select_setting_v2, 128);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_text_setting_v2, 136);
 EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_action_row_v2, 144);
-EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_row_visibility_bool_rule, 152);
+EMC_ABI_ASSERT_OFFSET(EMC_HubApiV1, register_bool_condition_rule, 152);
 
 #undef EMC_ABI_ASSERT_OFFSET
 #undef EMC_ABI_ASSERT_SIZE
