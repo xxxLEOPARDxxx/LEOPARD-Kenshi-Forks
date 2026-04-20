@@ -261,28 +261,6 @@ EMC_Result __cdecl SetAutoFocusSearchInputSetting(
         &InventoryConfigSnapshot::autoFocusSearchInput);
 }
 
-EMC_Result __cdecl GetFollowActiveInventorySetting(void* user_data, int32_t* out_value)
-{
-    return GetHubBoolSetting(
-        user_data,
-        out_value,
-        &InventoryConfigSnapshot::followActiveInventory);
-}
-
-EMC_Result __cdecl SetFollowActiveInventorySetting(
-    void* user_data,
-    int32_t value,
-    char* err_buf,
-    uint32_t err_buf_size)
-{
-    return SetHubBoolSetting(
-        user_data,
-        value,
-        err_buf,
-        err_buf_size,
-        &InventoryConfigSnapshot::followActiveInventory);
-}
-
 EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(user_data, out_value, &InventoryConfigSnapshot::debugLogging);
@@ -561,14 +539,6 @@ void EnsureModHubClientConfigured()
         &GetAutoFocusSearchInputSetting,
         &SetAutoFocusSearchInputSetting };
 
-    static const EMC_BoolSettingDefV1 kFollowActiveInventorySetting = {
-        "follow_active_inventory",
-        "Follow active inventory",
-        "Reattach the search bar when the selected character changes while inventory stays open",
-        &g_modHubClient,
-        &GetFollowActiveInventorySetting,
-        &SetFollowActiveInventorySetting };
-
     static const EMC_BoolSettingDefV1 kDebugLoggingSetting = {
         "debug_logging",
         "Debug logging",
@@ -701,13 +671,6 @@ void EnsureModHubClientConfigured()
             emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
             "auto_focus_search_input",
             &kAutoFocusSearchInputSetting,
-            0,
-            0
-        },
-        {
-            emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL,
-            "follow_active_inventory",
-            &kFollowActiveInventorySetting,
             0,
             0
         },
