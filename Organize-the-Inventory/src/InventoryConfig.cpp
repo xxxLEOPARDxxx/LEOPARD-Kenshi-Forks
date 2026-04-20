@@ -329,7 +329,7 @@ void LogInventoryConfigSnapshot(const char* prefix, const InventoryConfigSnapsho
          << " creatureSearchInputTop=" << config.creatureSearchInputTop
          << " verboseDiagnosticsCompiled="
          << (ShouldCompileVerboseDiagnostics() ? "true" : "false");
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 }
 

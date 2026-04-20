@@ -278,7 +278,7 @@ void TryInstallInventoryLayoutCreateGUIHookEarly()
     std::stringstream line;
     line << "inventory layout createGUI hook installed at "
          << FormatAbsoluteAddressForLog(g_expectedInventoryLayoutCreateGUIAddress);
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 
 void TryInstallInventoryLayoutCreateGUIHookFromLayout(InventoryLayout* layout)
@@ -409,7 +409,7 @@ void TryInstallInventoryLayoutCreateGUIHookFromLayout(InventoryLayout* layout)
          << " resolved=" << FormatAbsoluteAddressForLog(selectedCandidate.resolvedAddress)
          << " expected=" << FormatAbsoluteAddressForLog(g_expectedInventoryLayoutCreateGUIAddress)
          << " slot=" << selectedCandidate.slot;
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
 }
 
 InventoryLayout* Character_createInventoryLayout_hook(Character* self)
@@ -459,7 +459,7 @@ bool InstallInventoryHooks()
         std::stringstream line;
         line << "inventory layout createGUI expected target="
              << FormatAbsoluteAddressForLog(g_expectedInventoryLayoutCreateGUIAddress);
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
     }
     else
     {
@@ -483,7 +483,7 @@ bool InstallInventoryHooks()
         std::stringstream line;
         line << "hooked Character::_NV_createInventoryLayout at "
              << FormatAbsoluteAddressForLog(characterCreateLayoutAddress);
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
     }
 
     const std::uintptr_t rootObjectCreateLayoutAddress =
@@ -502,7 +502,7 @@ bool InstallInventoryHooks()
         std::stringstream line;
         line << "hooked RootObject::_NV_createInventoryLayout at "
              << FormatAbsoluteAddressForLog(rootObjectCreateLayoutAddress);
-        LogInfoLine(line.str());
+        LogDebugLine(line.str());
     }
 
     const std::uintptr_t updateAddress = KenshiLib::GetRealAddress(&PlayerInterface::updateUT);
@@ -517,6 +517,6 @@ bool InstallInventoryHooks()
 
     std::stringstream line;
     line << "hooked PlayerInterface::updateUT";
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
     return true;
 }

@@ -1434,7 +1434,7 @@ bool TryInjectControlsToTarget(MyGUI::Widget* parent, const char* reason)
     line << "inventory controls scaffold injected"
          << " parent=" << SafeWidgetName(parent)
          << " reason=" << (reason == 0 ? "<unknown>" : reason);
-    LogInfoLine(line.str());
+    LogDebugLine(line.str());
     return true;
 }
 }

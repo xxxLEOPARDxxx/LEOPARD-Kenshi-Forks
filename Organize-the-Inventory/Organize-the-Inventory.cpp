@@ -52,7 +52,7 @@ __declspec(dllexport) void startPlugin()
     InventoryModHub_OnStartup();
 
     LogDebugLine("runtime debug logging is enabled");
-    LogInfoLine("inventory search scaffold tick is active");
+    LogDebugLine("inventory search scaffold tick is active");
 }
 
 BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)
