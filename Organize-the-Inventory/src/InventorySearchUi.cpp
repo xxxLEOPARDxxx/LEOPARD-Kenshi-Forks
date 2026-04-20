@@ -33,11 +33,12 @@ const char* kSearchDragHandleName = "OTI_SearchDragHandle";
 const char* kSearchCountTextName = "OTI_SearchCountText";
 const int kPanelOuterPadding = 8;
 const int kSearchCountGap = 2;
-const int kSearchCountWidth = 140;
+const int kSearchCountWidthMin = 56;
 const int kPanelHandleWidth = 28;
 const int kPanelHandleGap = 6;
-const int kRightMargin = 16;
-const int kTopMargin = 8;
+const int kPanelEdgeInset = 0;
+const int kRightMargin = 0;
+const int kTopMargin = 0;
 
 enum SearchFocusHotkeyKind
 {
@@ -74,6 +75,30 @@ int g_searchContainerDragStartTop = 0;
 PendingSearchEditShortcut g_pendingSearchEditShortcut;
 InventorySearchInputBehavior::Snapshot g_searchEditSnapshot;
 std::string g_pendingSlashFocusBaseQuery;
+
+struct SearchContainerMetrics
+{
+    SearchContainerMetrics()
+        : reserveCount(false)
+        , countWidth(0)
+        , containerWidth(0)
+        , containerHeight(0)
+        , clearButtonWidth(0)
+        , searchRowTop(0)
+        , searchInputLeft(0)
+        , searchAreaWidth(0)
+    {
+    }
+
+    bool reserveCount;
+    int countWidth;
+    int containerWidth;
+    int containerHeight;
+    int clearButtonWidth;
+    int searchRowTop;
+    int searchInputLeft;
+    int searchAreaWidth;
+};
 
 MyGUI::Widget* FindControlsContainer()
 {
@@ -679,6 +704,44 @@ bool TryGetCurrentMousePosition(int* xOut, int* yOut)
     return true;
 }
 
+SearchContainerMetrics BuildSearchContainerMetrics()
+{
+    SearchContainerMetrics metrics;
+    metrics.reserveCount = InventoryState().g_showSearchEntryCount
+        || InventoryState().g_showSearchQuantityCount;
+    metrics.searchRowTop = kPanelOuterPadding;
+    metrics.searchInputLeft = kPanelOuterPadding + kPanelHandleWidth + kPanelHandleGap;
+    metrics.searchAreaWidth = InventoryState().g_searchInputConfiguredWidth;
+    metrics.clearButtonWidth =
+        InventoryState().g_searchInputConfiguredHeight > 32
+            ? 32
+            : InventoryState().g_searchInputConfiguredHeight;
+    metrics.containerHeight =
+        InventoryState().g_searchInputConfiguredHeight + (kPanelOuterPadding * 2);
+
+    const int baseContainerWidth =
+        kPanelOuterPadding
+        + kPanelHandleWidth
+        + kPanelHandleGap
+        + metrics.searchAreaWidth
+        + kPanelOuterPadding;
+    if (!metrics.reserveCount)
+    {
+        metrics.containerWidth = baseContainerWidth;
+        return metrics;
+    }
+
+    const int minimumContainerWidth = baseContainerWidth + kSearchCountGap + kSearchCountWidthMin;
+    metrics.containerWidth = InventoryState().g_searchBarConfiguredWidth;
+    if (metrics.containerWidth < minimumContainerWidth)
+    {
+        metrics.containerWidth = minimumContainerWidth;
+    }
+
+    metrics.countWidth = metrics.containerWidth - baseContainerWidth - kSearchCountGap;
+    return metrics;
+}
+
 MyGUI::IntCoord ClampPanelCoord(MyGUI::Widget* parent, const MyGUI::IntCoord& requested)
 {
     if (parent == 0)
@@ -687,8 +750,8 @@ MyGUI::IntCoord ClampPanelCoord(MyGUI::Widget* parent, const MyGUI::IntCoord& re
     }
 
     MyGUI::IntCoord coord = requested;
-    const int maxLeft = parent->getWidth() - coord.width - 8;
-    const int maxTop = parent->getHeight() - coord.height - 8;
+    const int maxLeft = parent->getWidth() - coord.width - kPanelEdgeInset;
+    const int maxTop = parent->getHeight() - coord.height - kPanelEdgeInset;
     if (coord.left > maxLeft)
     {
         coord.left = maxLeft;
@@ -697,13 +760,13 @@ MyGUI::IntCoord ClampPanelCoord(MyGUI::Widget* parent, const MyGUI::IntCoord& re
     {
         coord.top = maxTop;
     }
-    if (coord.left < 8)
+    if (coord.left < kPanelEdgeInset)
     {
-        coord.left = 8;
+        coord.left = kPanelEdgeInset;
     }
-    if (coord.top < 8)
+    if (coord.top < kPanelEdgeInset)
     {
-        coord.top = 8;
+        coord.top = kPanelEdgeInset;
     }
     return coord;
 }
@@ -883,25 +946,13 @@ void TickSearchContainerDrag()
 
 MyGUI::IntCoord BuildSearchContainerCoord(MyGUI::Widget* parent)
 {
-    const bool reserveCount = InventoryState().g_showSearchEntryCount
-        || InventoryState().g_showSearchQuantityCount;
-    const int searchCountWidth = reserveCount ? kSearchCountWidth : 0;
-    const int searchCountGap = reserveCount ? kSearchCountGap : 0;
-    const int width =
-        kPanelOuterPadding
-        + kPanelHandleWidth
-        + kPanelHandleGap
-        + InventoryState().g_searchInputConfiguredWidth
-        + kPanelOuterPadding
-        + searchCountWidth
-        + searchCountGap;
-    const int height = InventoryState().g_searchInputConfiguredHeight + (kPanelOuterPadding * 2);
+    const SearchContainerMetrics metrics = BuildSearchContainerMetrics();
 
     MyGUI::IntCoord coord(
-        parent->getWidth() - width - kRightMargin,
+        parent->getWidth() - metrics.containerWidth - kRightMargin,
         kTopMargin,
-        width,
-        height);
+        metrics.containerWidth,
+        metrics.containerHeight);
     if (InventoryState().g_searchInputPositionCustomized)
     {
         coord.left = InventoryState().g_searchInputStoredLeft;
@@ -1061,27 +1112,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
         return false;
     }
 
-    const bool reserveCount = InventoryState().g_showSearchEntryCount
-        || InventoryState().g_showSearchQuantityCount;
-    const int searchCountWidth = reserveCount ? kSearchCountWidth : 0;
-    const int searchCountGap = reserveCount ? kSearchCountGap : 0;
-    const int containerWidth =
-        kPanelOuterPadding
-        + kPanelHandleWidth
-        + kPanelHandleGap
-        + InventoryState().g_searchInputConfiguredWidth
-        + kPanelOuterPadding
-        + searchCountWidth
-        + searchCountGap;
-    const int containerHeight =
-        InventoryState().g_searchInputConfiguredHeight + (kPanelOuterPadding * 2);
-    const int clearButtonWidth =
-        InventoryState().g_searchInputConfiguredHeight > 32
-            ? 32
-            : InventoryState().g_searchInputConfiguredHeight;
-    const int searchRowTop = kPanelOuterPadding;
-    const int searchInputLeft = kPanelOuterPadding + kPanelHandleWidth + kPanelHandleGap;
-    const int searchAreaWidth = InventoryState().g_searchInputConfiguredWidth;
+    const SearchContainerMetrics metrics = BuildSearchContainerMetrics();
 
     MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
         "Kenshi_GenericTextBoxFlatSkin",
@@ -1098,7 +1129,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
         "Kenshi_Button1",
         MyGUI::IntCoord(
             kPanelOuterPadding,
-            searchRowTop,
+            metrics.searchRowTop,
             kPanelHandleWidth,
             InventoryState().g_searchInputConfiguredHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
@@ -1116,14 +1147,14 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     dragHandle->eventMouseDrag += MyGUI::newDelegate(&OnSearchDragHandleMouseDrag);
     dragHandle->eventMouseButtonReleased += MyGUI::newDelegate(&OnSearchDragHandleMouseReleased);
 
-    if (reserveCount)
+    if (metrics.reserveCount)
     {
         MyGUI::TextBox* countText = container->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(
-                containerWidth - kPanelOuterPadding - searchCountWidth,
-                searchRowTop,
-                searchCountWidth,
+                metrics.containerWidth - kPanelOuterPadding - metrics.countWidth,
+                metrics.searchRowTop,
+                metrics.countWidth,
                 InventoryState().g_searchInputConfiguredHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSearchCountTextName);
@@ -1133,7 +1164,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
             LogErrorLine("failed to create inventory count text");
             return false;
         }
-        countText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
+        countText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
         countText->setCaption("");
         countText->setVisible(false);
     }
@@ -1141,9 +1172,9 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     MyGUI::EditBox* searchEdit = container->createWidget<MyGUI::EditBox>(
         "Kenshi_EditBox",
         MyGUI::IntCoord(
-            searchInputLeft,
-            searchRowTop,
-            searchAreaWidth,
+            metrics.searchInputLeft,
+            metrics.searchRowTop,
+            metrics.searchAreaWidth,
             InventoryState().g_searchInputConfiguredHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchEditName);
@@ -1163,9 +1194,9 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     MyGUI::TextBox* placeholder = container->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
         MyGUI::IntCoord(
-            searchInputLeft + 10,
-            searchRowTop + 1,
-            searchAreaWidth - 16,
+            metrics.searchInputLeft + 10,
+            metrics.searchRowTop + 1,
+            metrics.searchAreaWidth - 16,
             InventoryState().g_searchInputConfiguredHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchPlaceholderName);
@@ -1183,10 +1214,10 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
     MyGUI::Button* clearButton = container->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
         MyGUI::IntCoord(
-            searchInputLeft + searchAreaWidth - clearButtonWidth,
-            searchRowTop,
-            clearButtonWidth,
-            clearButtonWidth),
+            metrics.searchInputLeft + metrics.searchAreaWidth - metrics.clearButtonWidth,
+            metrics.searchRowTop,
+            metrics.clearButtonWidth,
+            metrics.clearButtonWidth),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kSearchClearButtonName);
     if (clearButton == 0)
@@ -1207,6 +1238,76 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
         RememberSearchEditSnapshot(searchEdit);
     }
     return true;
+}
+
+bool AttachedControlsLayoutNeedsRebuild(MyGUI::Widget* parent)
+{
+    MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer == 0 || parent == 0)
+    {
+        return false;
+    }
+
+    const SearchContainerMetrics metrics = BuildSearchContainerMetrics();
+    const MyGUI::IntCoord expectedContainerCoord = BuildSearchContainerCoord(parent);
+    const MyGUI::IntCoord currentContainerCoord = controlsContainer->getCoord();
+    if (currentContainerCoord.width != expectedContainerCoord.width
+        || currentContainerCoord.height != expectedContainerCoord.height)
+    {
+        return true;
+    }
+
+    MyGUI::EditBox* searchEdit = FindSearchEditBox();
+    if (searchEdit == 0)
+    {
+        return true;
+    }
+
+    const MyGUI::IntCoord searchEditCoord = searchEdit->getCoord();
+    if (searchEditCoord.left != metrics.searchInputLeft
+        || searchEditCoord.top != metrics.searchRowTop
+        || searchEditCoord.width != metrics.searchAreaWidth
+        || searchEditCoord.height != InventoryState().g_searchInputConfiguredHeight)
+    {
+        return true;
+    }
+
+    MyGUI::TextBox* countText = FindSearchCountTextBox();
+    if (metrics.reserveCount)
+    {
+        if (countText == 0)
+        {
+            return true;
+        }
+
+        const MyGUI::IntCoord countCoord = countText->getCoord();
+        if (countCoord.width != metrics.countWidth
+            || countCoord.top != metrics.searchRowTop
+            || countCoord.height != InventoryState().g_searchInputConfiguredHeight)
+        {
+            return true;
+        }
+    }
+    else if (countText != 0)
+    {
+        return true;
+    }
+
+    MyGUI::Button* clearButton = FindSearchClearButton();
+    if (clearButton == 0)
+    {
+        return true;
+    }
+
+    const MyGUI::IntCoord clearButtonCoord = clearButton->getCoord();
+    if (clearButtonCoord.width != metrics.clearButtonWidth
+        || clearButtonCoord.height != metrics.clearButtonWidth
+        || clearButtonCoord.top != metrics.searchRowTop)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 void RefreshAttachedControlsPositionIfNeeded(MyGUI::Widget* parent)
@@ -1335,6 +1436,21 @@ void TickInventorySearchUi()
     {
         ClearInventorySearchFilterState();
         return;
+    }
+
+    if (AttachedControlsLayoutNeedsRebuild(currentParent))
+    {
+        if (!TryInjectControlsToTarget(targetParent, "layout_config_changed"))
+        {
+            return;
+        }
+        controlsContainer = FindControlsContainer();
+        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
+        if (currentParent == 0)
+        {
+            ClearInventorySearchFilterState();
+            return;
+        }
     }
 
     DumpInventoryBackpackCandidateDiagnosticsIfChanged(targetParent);

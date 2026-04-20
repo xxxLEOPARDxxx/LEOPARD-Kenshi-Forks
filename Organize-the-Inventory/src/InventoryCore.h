@@ -6,8 +6,11 @@ static const int kSearchInputConfiguredWidthMin = 120;
 static const int kSearchInputConfiguredWidthMax = 720;
 static const int kSearchInputConfiguredHeightMin = 22;
 static const int kSearchInputConfiguredHeightMax = 48;
+static const int kSearchBarConfiguredWidthMin = 236;
+static const int kSearchBarConfiguredWidthMax = 960;
 static const int kDefaultSearchInputConfiguredWidth = 372;
 static const int kDefaultSearchInputConfiguredHeight = 26;
+static const int kDefaultSearchBarConfiguredWidth = 504;
 
 struct InventoryConfigSnapshot
 {
@@ -22,6 +25,7 @@ struct InventoryConfigSnapshot
         , debugSearchLogging(false)
         , debugBindingLogging(false)
         , enableDebugProbes(false)
+        , searchBarWidth(kDefaultSearchBarConfiguredWidth)
         , searchInputWidth(kDefaultSearchInputConfiguredWidth)
         , searchInputHeight(kDefaultSearchInputConfiguredHeight)
         , searchInputPositionCustomized(false)
@@ -40,6 +44,7 @@ struct InventoryConfigSnapshot
     bool debugSearchLogging;
     bool debugBindingLogging;
     bool enableDebugProbes;
+    int searchBarWidth;
     int searchInputWidth;
     int searchInputHeight;
     bool searchInputPositionCustomized;
@@ -60,6 +65,7 @@ struct InventoryRuntimeState
         , g_debugSearchLogging(false)
         , g_debugBindingLogging(false)
         , g_enableDebugProbes(false)
+        , g_searchBarConfiguredWidth(kDefaultSearchBarConfiguredWidth)
         , g_searchInputConfiguredWidth(kDefaultSearchInputConfiguredWidth)
         , g_searchInputConfiguredHeight(kDefaultSearchInputConfiguredHeight)
         , g_searchInputPositionCustomized(false)
@@ -78,6 +84,7 @@ struct InventoryRuntimeState
     bool g_debugSearchLogging;
     bool g_debugBindingLogging;
     bool g_enableDebugProbes;
+    int g_searchBarConfiguredWidth;
     int g_searchInputConfiguredWidth;
     int g_searchInputConfiguredHeight;
     bool g_searchInputPositionCustomized;

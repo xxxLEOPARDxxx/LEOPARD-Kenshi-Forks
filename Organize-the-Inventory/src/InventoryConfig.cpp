@@ -232,6 +232,24 @@ int ClampSearchInputConfiguredHeight(int value)
     return ClampIntValue(value, kSearchInputConfiguredHeightMin, kSearchInputConfiguredHeightMax);
 }
 
+int ComputeDefaultSearchBarConfiguredWidth(int searchInputWidth)
+{
+    return searchInputWidth + (kDefaultSearchBarConfiguredWidth - kDefaultSearchInputConfiguredWidth);
+}
+
+int ComputeMinimumSearchBarConfiguredWidth(const InventoryConfigSnapshot& config)
+{
+    const int kSearchBarChromeWidth = 52;
+    const int kSearchCountWidthMin = 56;
+    const bool reserveCount = config.showSearchEntryCount || config.showSearchQuantityCount;
+    return config.searchInputWidth + kSearchBarChromeWidth + (reserveCount ? kSearchCountWidthMin : 0);
+}
+
+int ClampSearchBarConfiguredWidth(int value)
+{
+    return ClampIntValue(value, kSearchBarConfiguredWidthMin, kSearchBarConfiguredWidthMax);
+}
+
 std::string BuildInventoryConfigText(const InventoryConfigSnapshot& config)
 {
     std::stringstream content;
@@ -254,6 +272,7 @@ std::string BuildInventoryConfigText(const InventoryConfigSnapshot& config)
             << (config.debugBindingLogging ? "true" : "false") << ",\n"
             << "  \"enableDebugProbes\": "
             << (config.enableDebugProbes ? "true" : "false") << ",\n"
+            << "  \"searchBarWidth\": " << config.searchBarWidth << ",\n"
             << "  \"searchInputWidth\": " << config.searchInputWidth << ",\n"
             << "  \"searchInputHeight\": " << config.searchInputHeight << ",\n"
             << "  \"searchInputPositionCustomized\": "
@@ -282,6 +301,7 @@ void LogInventoryConfigSnapshot(const char* prefix, const InventoryConfigSnapsho
          << " debugSearchLogging=" << (config.debugSearchLogging ? "true" : "false")
          << " debugBindingLogging=" << (config.debugBindingLogging ? "true" : "false")
          << " enableDebugProbes=" << (config.enableDebugProbes ? "true" : "false")
+         << " searchBarWidth=" << config.searchBarWidth
          << " searchInputWidth=" << config.searchInputWidth
          << " searchInputHeight=" << config.searchInputHeight
          << " searchInputPositionCustomized="
@@ -303,6 +323,12 @@ void NormalizeInventoryConfigSnapshot(InventoryConfigSnapshot* config)
 
     config->searchInputWidth = ClampSearchInputConfiguredWidth(config->searchInputWidth);
     config->searchInputHeight = ClampSearchInputConfiguredHeight(config->searchInputHeight);
+    config->searchBarWidth = ClampSearchBarConfiguredWidth(config->searchBarWidth);
+    const int minimumSearchBarWidth = ComputeMinimumSearchBarConfiguredWidth(*config);
+    if (config->searchBarWidth < minimumSearchBarWidth)
+    {
+        config->searchBarWidth = minimumSearchBarWidth;
+    }
     if (!config->searchInputPositionCustomized)
     {
         config->searchInputLeft = 0;
@@ -323,6 +349,7 @@ InventoryConfigSnapshot CaptureInventoryConfigSnapshot()
     config.debugSearchLogging = InventoryState().g_debugSearchLogging;
     config.debugBindingLogging = InventoryState().g_debugBindingLogging;
     config.enableDebugProbes = InventoryState().g_enableDebugProbes;
+    config.searchBarWidth = InventoryState().g_searchBarConfiguredWidth;
     config.searchInputWidth = InventoryState().g_searchInputConfiguredWidth;
     config.searchInputHeight = InventoryState().g_searchInputConfiguredHeight;
     config.searchInputPositionCustomized = InventoryState().g_searchInputPositionCustomized;
@@ -347,6 +374,7 @@ void ApplyInventoryConfigSnapshot(const InventoryConfigSnapshot& config)
     InventoryState().g_debugSearchLogging = normalized.debugSearchLogging;
     InventoryState().g_debugBindingLogging = normalized.debugBindingLogging;
     InventoryState().g_enableDebugProbes = normalized.enableDebugProbes;
+    InventoryState().g_searchBarConfiguredWidth = normalized.searchBarWidth;
     InventoryState().g_searchInputConfiguredWidth = normalized.searchInputWidth;
     InventoryState().g_searchInputConfiguredHeight = normalized.searchInputHeight;
     InventoryState().g_searchInputPositionCustomized = normalized.searchInputPositionCustomized;
@@ -443,6 +471,12 @@ void LoadInventoryConfig()
     }
 
     int parsedIntValue = 0;
+    bool parsedSearchBarWidth = false;
+    if (TryParseJsonIntByKey(configText, "searchBarWidth", &parsedIntValue))
+    {
+        config.searchBarWidth = parsedIntValue;
+        parsedSearchBarWidth = true;
+    }
     if (TryParseJsonIntByKey(configText, "searchInputWidth", &parsedIntValue))
     {
         config.searchInputWidth = parsedIntValue;
@@ -462,6 +496,11 @@ void LoadInventoryConfig()
     if (TryParseJsonIntByKey(configText, "searchInputTop", &parsedIntValue))
     {
         config.searchInputTop = parsedIntValue;
+    }
+
+    if (!parsedSearchBarWidth)
+    {
+        config.searchBarWidth = ComputeDefaultSearchBarConfiguredWidth(config.searchInputWidth);
     }
 
     ApplyInventoryConfigSnapshot(config);

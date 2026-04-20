@@ -345,6 +345,25 @@ EMC_Result __cdecl GetSearchInputWidthSetting(void* user_data, int32_t* out_valu
     return GetHubIntSetting(user_data, out_value, &InventoryConfigSnapshot::searchInputWidth);
 }
 
+EMC_Result __cdecl GetSearchBarWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &InventoryConfigSnapshot::searchBarWidth);
+}
+
+EMC_Result __cdecl SetSearchBarWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &InventoryConfigSnapshot::searchBarWidth);
+}
+
 EMC_Result __cdecl SetSearchInputWidthSetting(
     void* user_data,
     int32_t value,
@@ -500,6 +519,17 @@ void EnsureModHubClientConfigured()
         &GetSearchInputWidthSetting,
         &SetSearchInputWidthSetting };
 
+    static const EMC_IntSettingDefV1 kSearchBarWidthSetting = {
+        "search_bar_width",
+        "Search bar width",
+        "Desired total search bar width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchBarConfiguredWidthMin),
+        static_cast<int32_t>(kSearchBarConfiguredWidthMax),
+        1,
+        &GetSearchBarWidthSetting,
+        &SetSearchBarWidthSetting };
+
     static const EMC_IntSettingDefV1 kSearchInputHeightSetting = {
         "search_input_height",
         "Search input height",
@@ -575,6 +605,13 @@ void EnsureModHubClientConfigured()
             &kEnableDebugProbesSetting,
             kHubSectionAdvancedId,
             kHubSectionAdvancedLabel
+        },
+        {
+            emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
+            "search_bar_width",
+            &kSearchBarWidthSetting,
+            0,
+            0
         },
         {
             emc::MOD_HUB_CLIENT_SETTING_KIND_INT,
