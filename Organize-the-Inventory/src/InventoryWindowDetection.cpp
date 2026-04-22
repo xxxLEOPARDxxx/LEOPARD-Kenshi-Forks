@@ -16,6 +16,7 @@
 #include <mygui/MyGUI_Window.h>
 
 #include <cctype>
+#include <cstring>
 #include <sstream>
 #include <vector>
 
@@ -23,29 +24,64 @@ namespace
 {
 static const std::size_t kMaxCaptionMatchPlayerCharacters = 256;
 static const std::size_t kMaxCaptionMatchNameLength = 256;
+static const std::size_t kMaxWidgetNameCopyLength = 256;
 
-bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
+bool ContainsAsciiCaseInsensitiveRange(
+    const char* haystack,
+    std::size_t haystackLength,
+    const char* needle)
 {
     if (needle == 0 || *needle == '\0')
     {
         return true;
     }
-
-    std::string needleUpper;
-    for (const char* current = needle; *current != '\0'; ++current)
+    if (haystack == 0)
     {
-        needleUpper.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(*current))));
+        return false;
     }
 
-    std::string haystackUpper;
-    haystackUpper.reserve(haystack.size());
-    for (std::size_t index = 0; index < haystack.size(); ++index)
+    const std::size_t needleLength = std::strlen(needle);
+    if (needleLength > haystackLength)
     {
-        haystackUpper.push_back(static_cast<char>(
-            std::toupper(static_cast<unsigned char>(haystack[index]))));
+        return false;
     }
 
-    return haystackUpper.find(needleUpper) != std::string::npos;
+    for (std::size_t start = 0; start + needleLength <= haystackLength; ++start)
+    {
+        bool matched = true;
+        for (std::size_t offset = 0; offset < needleLength; ++offset)
+        {
+            const unsigned char haystackChar =
+                static_cast<unsigned char>(haystack[start + offset]);
+            const unsigned char needleChar =
+                static_cast<unsigned char>(needle[offset]);
+            if (std::toupper(haystackChar) != std::toupper(needleChar))
+            {
+                matched = false;
+                break;
+            }
+        }
+
+        if (matched)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool ContainsAsciiCaseInsensitive(const char* haystack, const char* needle)
+{
+    return ContainsAsciiCaseInsensitiveRange(
+        haystack,
+        haystack == 0 ? 0 : std::strlen(haystack),
+        needle);
+}
+
+bool ContainsAsciiCaseInsensitive(const std::string& haystack, const char* needle)
+{
+    return ContainsAsciiCaseInsensitiveRange(haystack.c_str(), haystack.size(), needle);
 }
 
 std::string NormalizeCaptionMatchText(const std::string& value)
@@ -297,6 +333,246 @@ bool HasTraderMoneyMarkers(MyGUI::Widget* parent)
 bool HasInventoryStructure(MyGUI::Widget* parent)
 {
     return HasInventoryMarkers(parent) || HasTraderMoneyMarkers(parent);
+}
+
+bool TryResolveSelectedInventoryVisible(bool* visibleOut);
+bool TryResolveTraderDialogueContextActive(bool* activeOut);
+
+struct InventoryWindowDetectionContext
+{
+    InventoryWindowDetectionContext()
+        : selectedInventoryVisible(false)
+        , traderDialogueContextActive(false)
+    {
+    }
+
+    bool selectedInventoryVisible;
+    bool traderDialogueContextActive;
+};
+
+struct InventoryWindowTokenProfile
+{
+    InventoryWindowTokenProfile()
+        : hasScrollviewBackpackContentToken(false)
+        , hasBackpackContentToken(false)
+        , hasMoneyMarkers(false)
+        , hasCharacterSelection(false)
+        , hasInventoryToken(false)
+        , hasEquipmentToken(false)
+        , hasContainerToken(false)
+    {
+    }
+
+    bool HasInventoryMarkers() const
+    {
+        return hasScrollviewBackpackContentToken && hasBackpackContentToken;
+    }
+
+    bool HasAnyInventoryHint() const
+    {
+        return HasInventoryMarkers()
+            || hasMoneyMarkers
+            || hasCharacterSelection
+            || hasInventoryToken
+            || hasEquipmentToken
+            || hasContainerToken
+            || hasBackpackContentToken;
+    }
+
+    bool HasAllTrackedTokens() const
+    {
+        return hasScrollviewBackpackContentToken
+            && hasBackpackContentToken
+            && hasMoneyMarkers
+            && hasCharacterSelection
+            && hasInventoryToken
+            && hasEquipmentToken
+            && hasContainerToken;
+    }
+
+    bool hasScrollviewBackpackContentToken;
+    bool hasBackpackContentToken;
+    bool hasMoneyMarkers;
+    bool hasCharacterSelection;
+    bool hasInventoryToken;
+    bool hasEquipmentToken;
+    bool hasContainerToken;
+};
+
+bool NameHasTraderMoneyToken(const char* name)
+{
+    const char* moneyTokens[] =
+    {
+        "MoneyAmountTextBox",
+        "MoneyAmountText",
+        "TotalMoneyBuyer",
+        "lbTotalMoney",
+        "MoneyLabelText",
+        "lbBuyersMoney"
+    };
+
+    for (std::size_t index = 0; index < sizeof(moneyTokens) / sizeof(moneyTokens[0]); ++index)
+    {
+        if (ContainsAsciiCaseInsensitive(name, moneyTokens[index]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void UpdateInventoryWindowTokenProfileFromName(
+    const char* name,
+    InventoryWindowTokenProfile* profile)
+{
+    if (profile == 0 || name == 0 || *name == '\0')
+    {
+        return;
+    }
+
+    if (!profile->hasScrollviewBackpackContentToken
+        && ContainsAsciiCaseInsensitive(name, "scrollview_backpack_content"))
+    {
+        profile->hasScrollviewBackpackContentToken = true;
+    }
+    if (!profile->hasBackpackContentToken
+        && ContainsAsciiCaseInsensitive(name, "backpack_content"))
+    {
+        profile->hasBackpackContentToken = true;
+    }
+    if (!profile->hasMoneyMarkers && NameHasTraderMoneyToken(name))
+    {
+        profile->hasMoneyMarkers = true;
+    }
+    if (!profile->hasCharacterSelection
+        && ContainsAsciiCaseInsensitive(name, "CharacterSelectionItemBox"))
+    {
+        profile->hasCharacterSelection = true;
+    }
+    if (!profile->hasInventoryToken && ContainsAsciiCaseInsensitive(name, "Inventory"))
+    {
+        profile->hasInventoryToken = true;
+    }
+    if (!profile->hasEquipmentToken && ContainsAsciiCaseInsensitive(name, "Equipment"))
+    {
+        profile->hasEquipmentToken = true;
+    }
+    if (!profile->hasContainerToken && ContainsAsciiCaseInsensitive(name, "Container"))
+    {
+        profile->hasContainerToken = true;
+    }
+}
+
+bool TryCopyWidgetName(
+    MyGUI::Widget* widget,
+    char* outNameBuffer,
+    std::size_t outNameBufferSize)
+{
+    if (outNameBuffer == 0 || outNameBufferSize == 0)
+    {
+        return false;
+    }
+
+    outNameBuffer[0] = '\0';
+    if (widget == 0)
+    {
+        return true;
+    }
+
+    __try
+    {
+        const std::string& name = widget->getName();
+        std::size_t copyLength = name.size();
+        if (copyLength >= outNameBufferSize)
+        {
+            copyLength = outNameBufferSize - 1;
+        }
+
+        for (std::size_t index = 0; index < copyLength; ++index)
+        {
+            outNameBuffer[index] = name[index];
+        }
+        outNameBuffer[copyLength] = '\0';
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        outNameBuffer[0] = '\0';
+        return false;
+    }
+}
+
+void CollectInventoryWindowTokenProfileRecursive(
+    MyGUI::Widget* root,
+    InventoryWindowTokenProfile* profile)
+{
+    if (root == 0 || profile == 0 || profile->HasAllTrackedTokens())
+    {
+        return;
+    }
+
+    char nameBuffer[kMaxWidgetNameCopyLength];
+    if (TryCopyWidgetName(root, nameBuffer, sizeof(nameBuffer)))
+    {
+        UpdateInventoryWindowTokenProfileFromName(nameBuffer, profile);
+    }
+    if (profile->HasAllTrackedTokens())
+    {
+        return;
+    }
+
+    const std::size_t childCount = root->getChildCount();
+    for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+    {
+        CollectInventoryWindowTokenProfileRecursive(root->getChildAt(childIndex), profile);
+        if (profile->HasAllTrackedTokens())
+        {
+            return;
+        }
+    }
+}
+
+bool TryBuildInventoryWindowTokenProfile(
+    MyGUI::Widget* parent,
+    InventoryWindowTokenProfile* outProfile)
+{
+    if (outProfile == 0)
+    {
+        return false;
+    }
+
+    *outProfile = InventoryWindowTokenProfile();
+    if (parent == 0)
+    {
+        return true;
+    }
+
+    __try
+    {
+        CollectInventoryWindowTokenProfileRecursive(parent, outProfile);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        *outProfile = InventoryWindowTokenProfile();
+        return false;
+    }
+}
+
+InventoryWindowTokenProfile BuildInventoryWindowTokenProfile(MyGUI::Widget* parent)
+{
+    InventoryWindowTokenProfile profile;
+    TryBuildInventoryWindowTokenProfile(parent, &profile);
+    return profile;
+}
+
+InventoryWindowDetectionContext BuildInventoryWindowDetectionContext()
+{
+    InventoryWindowDetectionContext context;
+    TryResolveSelectedInventoryVisible(&context.selectedInventoryVisible);
+    TryResolveTraderDialogueContextActive(&context.traderDialogueContextActive);
+    return context;
 }
 
 bool TryResolveCharacterInventoryVisible(Character* character, bool* visibleOut)
@@ -710,7 +986,11 @@ bool TryResolveTraderDialogueContextActive(bool* activeOut)
     }
 }
 
-int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* outReason)
+int ComputeInventoryWindowCandidateScore(
+    MyGUI::Widget* parent,
+    const InventoryWindowTokenProfile& tokenProfile,
+    const InventoryWindowDetectionContext& detectionContext,
+    std::string* outReason)
 {
     if (outReason != 0)
     {
@@ -724,28 +1004,28 @@ int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* out
 
     MyGUI::Window* window = FindOwningWindow(parent);
     const std::string caption = window == 0 ? "" : window->getCaption().asUTF8();
-    const bool hasInventoryMarkers = HasInventoryMarkers(parent);
-    const bool hasMoneyMarkers = HasTraderMoneyMarkers(parent);
+    const bool hasInventoryMarkers = tokenProfile.HasInventoryMarkers();
+    const bool hasMoneyMarkers = tokenProfile.hasMoneyMarkers;
     const bool captionHasTrader = ContainsAsciiCaseInsensitive(caption, "TRADER");
     const bool captionHasLoot = ContainsAsciiCaseInsensitive(caption, "LOOT");
     const bool captionHasContainer = ContainsAsciiCaseInsensitive(caption, "CONTAINER");
     const bool captionHasBackpack = ContainsAsciiCaseInsensitive(caption, "BACKPACK");
-    const bool hasCharacterSelection = FindWidgetInParentByToken(parent, "CharacterSelectionItemBox") != 0;
-    const bool hasInventoryToken = FindWidgetInParentByToken(parent, "Inventory") != 0;
-    const bool hasEquipmentToken = FindWidgetInParentByToken(parent, "Equipment") != 0;
-    const bool hasContainerToken = FindWidgetInParentByToken(parent, "Container") != 0;
-    const bool hasBackpackContentToken = FindWidgetInParentByToken(parent, "backpack_content") != 0;
+    const bool hasCharacterSelection = tokenProfile.hasCharacterSelection;
+    const bool hasInventoryToken = tokenProfile.hasInventoryToken;
+    const bool hasEquipmentToken = tokenProfile.hasEquipmentToken;
+    const bool hasContainerToken = tokenProfile.hasContainerToken;
+    const bool hasBackpackContentToken = tokenProfile.hasBackpackContentToken;
     std::string selectedCharacterName;
-    const int selectedCaptionScore =
-        ComputePlayerCharacterCaptionMatchScore(caption, &selectedCharacterName, 0, 0);
+    int selectedCaptionScore = 0;
+    if (hasInventoryToken || hasEquipmentToken)
+    {
+        selectedCaptionScore =
+            ComputePlayerCharacterCaptionMatchScore(caption, &selectedCharacterName, 0, 0);
+    }
     const bool captionMatchesSelectedCharacter = selectedCaptionScore > 0;
 
-    bool selectedInventoryVisible = false;
-    TryResolveSelectedInventoryVisible(&selectedInventoryVisible);
-
-    bool traderDialogueContextActive = false;
-    TryResolveTraderDialogueContextActive(&traderDialogueContextActive);
-
+    const bool selectedInventoryVisible = detectionContext.selectedInventoryVisible;
+    const bool traderDialogueContextActive = detectionContext.traderDialogueContextActive;
     const bool inventoryTokenFallback =
         hasInventoryToken
         && !hasMoneyMarkers
@@ -863,6 +1143,21 @@ int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* out
     }
 
     return score;
+}
+
+int ComputeInventoryWindowCandidateScore(MyGUI::Widget* parent, std::string* outReason)
+{
+    InventoryWindowTokenProfile tokenProfile;
+    if (!TryBuildInventoryWindowTokenProfile(parent, &tokenProfile))
+    {
+        return 0;
+    }
+
+    return ComputeInventoryWindowCandidateScore(
+        parent,
+        tokenProfile,
+        BuildInventoryWindowDetectionContext(),
+        outReason);
 }
 
 MyGUI::Widget* FindWidgetByName(const char* widgetName)
@@ -2004,6 +2299,8 @@ bool TryResolveVisibleInventoryTarget(MyGUI::Widget** outAnchor, MyGUI::Widget**
     std::string bestReason;
     int bestScore = -1;
     int bestArea = -1;
+    const InventoryWindowDetectionContext detectionContext =
+        BuildInventoryWindowDetectionContext();
 
     MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
     while (roots.next())
@@ -2021,7 +2318,19 @@ bool TryResolveVisibleInventoryTarget(MyGUI::Widget** outAnchor, MyGUI::Widget**
         }
 
         std::string candidateReason;
-        const int candidateScore = ComputeInventoryWindowCandidateScore(parent, &candidateReason);
+        InventoryWindowTokenProfile tokenProfile;
+        if (!TryBuildInventoryWindowTokenProfile(parent, &tokenProfile)
+            || !tokenProfile.HasAnyInventoryHint())
+        {
+            continue;
+        }
+
+        const int candidateScore =
+            ComputeInventoryWindowCandidateScore(
+                parent,
+                tokenProfile,
+                detectionContext,
+                &candidateReason);
         if (candidateScore <= 0)
         {
             continue;
