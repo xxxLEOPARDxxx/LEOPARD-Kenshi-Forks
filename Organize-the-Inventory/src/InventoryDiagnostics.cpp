@@ -2,6 +2,7 @@
 
 #include "InventoryBinding.h"
 #include "InventoryCore.h"
+#include "InventoryPerformanceTelemetry.h"
 #include "InventorySearchText.h"
 #include "InventoryWindowDetection.h"
 
@@ -11,6 +12,8 @@
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
 
+#include <Windows.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -19,7 +22,11 @@
 
 namespace
 {
+const DWORD kBackpackDiagnosticsScanIntervalMs = 1000UL;
+
 std::string g_lastBackpackDiagnosticsSignature;
+MyGUI::Widget* g_lastBackpackDiagnosticsParent = 0;
+DWORD g_lastBackpackDiagnosticsScanTick = 0;
 
 struct CreatureWindowProbeCandidate
 {
@@ -455,7 +462,7 @@ void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
     if (TryResolveVisibleInventoryTarget(&visibleAnchor, &visibleParent))
     {
         LogResolvedTargetSummary("manual diagnostics: visible_target", visibleAnchor, visibleParent);
-        DumpInventoryBackpackCandidateDiagnosticsIfChanged(visibleParent);
+        DumpInventoryBackpackCandidateDiagnosticsIfChanged(visibleParent, true);
         DumpCreatureWindowAttachmentProbe(visibleAnchor, visibleParent);
     }
     else
@@ -477,13 +484,31 @@ void DumpOnDemandInventoryDiagnosticsSnapshot(MyGUI::Widget* controlsContainer)
     LogWarnLine("manual inventory diagnostics end");
 }
 
-void DumpInventoryBackpackCandidateDiagnosticsIfChanged(MyGUI::Widget* inventoryParent)
+void DumpInventoryBackpackCandidateDiagnosticsIfChanged(
+    MyGUI::Widget* inventoryParent,
+    bool forceScan)
 {
     if (!ShouldEnableDebugProbes() || inventoryParent == 0 || !inventoryParent->getInheritedVisible())
     {
         g_lastBackpackDiagnosticsSignature.clear();
+        g_lastBackpackDiagnosticsParent = 0;
+        g_lastBackpackDiagnosticsScanTick = 0;
         return;
     }
+
+    const DWORD now = GetTickCount();
+    if (!forceScan
+        && g_lastBackpackDiagnosticsParent == inventoryParent
+        && g_lastBackpackDiagnosticsScanTick != 0
+        && now - g_lastBackpackDiagnosticsScanTick < kBackpackDiagnosticsScanIntervalMs)
+    {
+        return;
+    }
+    g_lastBackpackDiagnosticsParent = inventoryParent;
+    g_lastBackpackDiagnosticsScanTick = now;
+
+    InventoryDebugProbePerfScope perfScope;
+    InventoryDebugProbePerfSample& perfSample = perfScope.Sample();
 
     std::vector<MyGUI::Widget*> candidates;
     AppendTokenMatches(inventoryParent, "backpack_content", &candidates);
@@ -493,6 +518,8 @@ void DumpInventoryBackpackCandidateDiagnosticsIfChanged(MyGUI::Widget* inventory
 
     std::vector<MyGUI::Widget*> globalBackpackContents;
     CollectVisibleWidgetsByToken("backpack_content", &globalBackpackContents);
+    perfSample.localCandidates = candidates.size();
+    perfSample.globalBackpackContents = globalBackpackContents.size();
 
     std::stringstream signature;
     signature << inventoryParent
@@ -518,6 +545,7 @@ void DumpInventoryBackpackCandidateDiagnosticsIfChanged(MyGUI::Widget* inventory
         return;
     }
     g_lastBackpackDiagnosticsSignature = signature.str();
+    perfSample.signatureChanged = true;
 
     MyGUI::Window* owningWindow = FindOwningWindow(inventoryParent);
     std::stringstream summary;

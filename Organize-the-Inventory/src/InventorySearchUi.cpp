@@ -3,8 +3,11 @@
 #include "InventoryConfig.h"
 #include "InventoryCore.h"
 #include "InventoryDiagnostics.h"
+#include "InventoryPerformanceTelemetry.h"
+#include "InventorySearchFilterScheduler.h"
 #include "InventorySearchInputBehavior.h"
 #include "InventorySearchPipeline.h"
+#include "InventorySearchTargetCache.h"
 #include "InventoryWindowDetection.h"
 
 #include <kenshi/Globals.h>
@@ -1161,6 +1164,7 @@ void DestroyControlsIfPresent(bool clearQuery)
     ResetSearchEditSnapshot();
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
+    ClearInventorySearchFilterRefreshState();
     ClearInventorySearchFilterState();
 
     if (controlsContainer != 0)
@@ -1441,6 +1445,9 @@ bool TryInjectControlsToTarget(MyGUI::Widget* parent, const char* reason)
 
 void TickInventorySearchUi()
 {
+    InventorySearchTickPerfScope perfScope;
+    InventorySearchTickPerfSample& perfSample = perfScope.Sample();
+
     TickSearchContainerDrag();
 
     if (IsDiagnosticsHotkeyPressedEdge())
@@ -1448,60 +1455,49 @@ void TickInventorySearchUi()
         DumpOnDemandInventoryDiagnosticsSnapshot(FindControlsContainer());
     }
 
+    perfSample.controlsEnabled = InventoryState().g_controlsEnabled;
     if (!InventoryState().g_controlsEnabled)
     {
+        ClearInventorySearchTargetCache();
         DestroyControlsIfPresent(true);
         g_loggedNoVisibleInventoryTarget = false;
         return;
     }
 
-    MyGUI::Widget* targetAnchor = 0;
-    MyGUI::Widget* targetParent = 0;
-    const bool hasVisibleTarget = TryResolveVisibleInventoryTarget(&targetAnchor, &targetParent);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
+    InventorySearchTargetResolution targetResolution =
+        ResolveInventorySearchTarget(controlsContainer != 0, true);
+    MyGUI::Widget* targetAnchor = targetResolution.anchor;
+    MyGUI::Widget* targetParent = targetResolution.parent;
+    perfSample.visibleTargetMicros = targetResolution.visibleScanMicros;
+    perfSample.hoverTargetMicros = targetResolution.hoverScanMicros;
+    perfSample.visibleTarget = targetResolution.visibleTarget;
+    perfSample.hoverTarget = targetResolution.hoverTarget;
+    perfSample.targetCacheHit = targetResolution.cacheHit;
+    perfSample.visibleScanAttempted = targetResolution.visibleScanAttempted;
+    perfSample.visibleScanSkipped = targetResolution.visibleScanSkipped;
+    perfSample.hoverScanAttempted = targetResolution.hoverScanAttempted;
 
-    if (!hasVisibleTarget)
+    if (!targetResolution.hasTarget)
     {
-        if (TryResolveHoveredInventoryTarget(&targetAnchor, &targetParent, false))
+        if (controlsContainer != 0)
         {
-            g_loggedNoVisibleInventoryTarget = false;
-            const bool hoverUsesCreatureLayout = ParentLooksLikeCreatureSearchTarget(targetParent);
-            SetSearchContainerUsesCreatureLayout(hoverUsesCreatureLayout);
-            if (hoverUsesCreatureLayout && !InventoryState().g_creatureSearchEnabled)
-            {
-                if (controlsContainer != 0)
-                {
-                    DestroyControlsIfPresent(false);
-                }
-                ClearInventorySearchFilterState();
-                return;
-            }
-            if (!TryInjectControlsToTarget(targetParent, "hover_auto"))
-            {
-                return;
-            }
-            controlsContainer = FindControlsContainer();
+            ClearInventorySearchTargetCache();
+            DestroyControlsIfPresent(true);
+            LogDebugLine("inventory controls scaffold removed after inventory window closed");
         }
-        else
+        else if (!g_loggedNoVisibleInventoryTarget)
         {
-            if (controlsContainer != 0)
+            LogDebugLine("inventory search scaffold waiting for a visible inventory target");
+            if (ShouldLogDebug())
             {
-                DestroyControlsIfPresent(true);
-                LogDebugLine("inventory controls scaffold removed after inventory window closed");
+                DumpInventoryTargetProbe();
+                DumpVisibleInventoryWindowCandidateDiagnostics();
             }
-            else if (!g_loggedNoVisibleInventoryTarget)
-            {
-                LogDebugLine("inventory search scaffold waiting for a visible inventory target");
-                if (ShouldLogDebug())
-                {
-                    DumpInventoryTargetProbe();
-                    DumpVisibleInventoryWindowCandidateDiagnostics();
-                }
-            }
+        }
 
-            g_loggedNoVisibleInventoryTarget = true;
-            return;
-        }
+        g_loggedNoVisibleInventoryTarget = true;
+        return;
     }
 
     g_loggedNoVisibleInventoryTarget = false;
@@ -1532,7 +1528,9 @@ void TickInventorySearchUi()
         {
             DestroyControlsIfPresent(false);
         }
+        ClearInventorySearchFilterRefreshState();
         ClearInventorySearchFilterState();
+        ClearInventorySearchTargetCache();
         return;
     }
 
@@ -1570,6 +1568,7 @@ void TickInventorySearchUi()
     SetSearchContainerUsesCreatureLayout(ParentLooksLikeCreatureSearchTarget(currentParent));
     if (currentParent == 0)
     {
+        ClearInventorySearchFilterRefreshState();
         ClearInventorySearchFilterState();
         return;
     }
@@ -1584,6 +1583,7 @@ void TickInventorySearchUi()
         currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
         if (currentParent == 0)
         {
+            ClearInventorySearchFilterRefreshState();
             ClearInventorySearchFilterState();
             return;
         }
@@ -1622,7 +1622,11 @@ void TickInventorySearchUi()
         g_suppressNextSearchEditChangeEvent = false;
         g_pendingSlashFocusBaseQuery.clear();
     }
-    ApplyInventorySearchFilterToParent(filterRoot, false);
+    InventorySearchFilterRefreshResult filterRefresh =
+        ApplyInventorySearchFilterIfNeeded(filterRoot, false);
+    perfSample.filterAttempted = filterRefresh.attempted;
+    perfSample.filterApplied = filterRefresh.applied;
+    perfSample.filterSkipped = filterRefresh.skipped;
 }
 
 void SetInventorySearchCountDisplay(const std::string& caption, bool visible)

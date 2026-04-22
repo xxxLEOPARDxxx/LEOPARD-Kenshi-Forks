@@ -36,10 +36,19 @@
     <ClCompile Include="src\InventoryModHub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\InventoryPerformanceTelemetry.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\InventorySearchFilterScheduler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\InventorySearchInputBehavior.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\InventorySearchPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\InventorySearchTargetCache.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\InventorySearchText.cpp">
@@ -83,10 +92,19 @@
     <ClInclude Include="src\InventoryModHub.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\InventoryPerformanceTelemetry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\InventorySearchFilterScheduler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\InventorySearchInputBehavior.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\InventorySearchPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\InventorySearchTargetCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\InventorySearchText.h">

@@ -3,6 +3,7 @@
 #include "InventoryBackpackBinding.h"
 #include "InventoryBinding.h"
 #include "InventoryCore.h"
+#include "InventoryPerformanceTelemetry.h"
 #include "InventorySearchText.h"
 #include "InventorySearchUi.h"
 #include "InventoryWindowDetection.h"
@@ -773,6 +774,10 @@ void LogFilterSummaryIfChanged(
 
 bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool forceShowAll)
 {
+    InventorySearchFilterPerfScope perfScope;
+    InventorySearchFilterPerfSample& perfSample = perfScope.Sample();
+    perfSample.forceShowAll = forceShowAll;
+
     if (inventoryParent == 0)
     {
         ClearInventorySearchFilterState();
@@ -782,12 +787,15 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
     ParsedSearchQuery parsedQuery = forceShowAll
         ? ParsedSearchQuery()
         : ParseSearchQuery(InventoryState().g_searchQueryRaw);
+    perfSample.blueprintOnly = parsedQuery.blueprintOnly;
     LogInvestigateEntryIfNeeded(inventoryParent, forceShowAll, parsedQuery);
 
+    perfSample.previousTrackedEntries = g_lastFilteredEntryWidgets.size();
     RestoreTrackedEntryVisibility();
 
     std::vector<InventorySearchEntry> entries;
     CollectSearchEntriesFromItemWidgets(inventoryParent, &entries);
+    perfSample.rawWidgetEntries = entries.size();
 
     std::vector<InventoryBoundEntry> boundEntries;
     std::string boundReason;
@@ -818,6 +826,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
                 entries.size());
         }
     }
+    perfSample.boundEntries = boundEntries.size();
 
     Inventory* inventoryContext = ResolveBoundInventoryForRoot(inventoryParent);
     if (inventoryContext == 0)
@@ -825,6 +834,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
         inventoryContext = ResolveInventoryContextInventory(inventoryParent);
     }
     CollectSearchEntriesFromBackpackPanels(inventoryParent, inventoryContext, &entries);
+    perfSample.mergedEntries = entries.size();
 
     if (entries.empty())
     {
@@ -836,6 +846,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 
     const bool hasActiveFilter =
         parsedQuery.blueprintOnly || !parsedQuery.normalizedQuery.empty();
+    perfSample.hasActiveFilter = hasActiveFilter;
 
     std::size_t totalEntryCount = 0;
     std::size_t visibleEntryCount = 0;
@@ -901,6 +912,10 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
         totalEntryCount,
         visibleEntryCount,
         visibleQuantity);
+    perfSample.success = true;
+    perfSample.totalEntryCount = totalEntryCount;
+    perfSample.visibleEntryCount = visibleEntryCount;
+    perfSample.visibleQuantity = visibleQuantity;
     return true;
 }
 
