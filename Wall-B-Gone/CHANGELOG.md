@@ -4,6 +4,15 @@ All notable changes to Wall-B-Gone will be documented in this file.
 
 The format is based on Keep a Changelog, and this project uses SemVer-style versioning tags.
 
+## [0.1.0-beta.4] - 2026-04-22
+### Added
+- Hotkey dismantle support for beds and common furniture.
+- Occupied-bed protection for bed dismantle.
+- `debugLogging` support in `mod-config.json` and the Advanced Mod Hub section.
+
+### Changed
+- Mod Hub now hides dependent Wall-B-Gone rows when `enabled` is off.
+
 ## [0.1.0-beta.3] - 2026-03-13
 ### Added
 - Ctrl/Shift/Alt modifier toggles for combo dismantle hotkeys in the native settings tab and Mod Hub.

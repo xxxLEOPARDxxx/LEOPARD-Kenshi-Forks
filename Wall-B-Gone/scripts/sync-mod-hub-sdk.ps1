@@ -29,6 +29,27 @@ function Get-GitCommandPath {
     return $git.Source
 }
 
+function Set-SubmoduleCheckoutConfig {
+    param(
+        [Parameter(Mandatory = $true)][string]$GitCommand,
+        [Parameter(Mandatory = $true)][string]$SdkRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $SdkRoot)) {
+        return
+    }
+
+    & $GitCommand -C $SdkRoot rev-parse --is-inside-work-tree *> $null
+    if ($LASTEXITCODE -ne 0) {
+        return
+    }
+
+    & $GitCommand -C $SdkRoot config core.fileMode false
+    if ($LASTEXITCODE -ne 0) {
+        throw "Failed to configure core.fileMode=false for SDK submodule."
+    }
+}
+
 function Assert-SdkContractFiles {
     param(
         [Parameter(Mandatory = $true)][string]$SdkRoot
@@ -86,11 +107,15 @@ if (-not $SkipPull) {
         throw "Expected '$SdkSubmodulePath' to be a git submodule. Use -SkipPull for validation-only mode."
     }
 
+    Set-SubmoduleCheckoutConfig -GitCommand $git -SdkRoot $SdkRoot
+
     $previousRevision = (& $git -C $SdkRoot rev-parse --short HEAD 2>$null) -join ""
     & $git -C $RepoDir submodule update --init --remote --recursive -- $SdkSubmodulePath
     if ($LASTEXITCODE -ne 0) {
         throw "Submodule update failed for $SdkSubmodulePath"
     }
+
+    Set-SubmoduleCheckoutConfig -GitCommand $git -SdkRoot $SdkRoot
 
     $currentRevision = (& $git -C $SdkRoot rev-parse --short HEAD 2>$null) -join ""
     Write-Host ("SDK sync revision: {0} -> {1}" -f $previousRevision, $currentRevision) -ForegroundColor Gray

@@ -1,5 +1,5 @@
 ## Wall-B-Gone (RE_Kenshi plugin)
-Safely dismantles selected walls, beds, and common furniture (beds only when not occupied) with Hotkey X and returns materials.
+Safely dismantles selected walls, beds, and common furniture (beds only when not occupied) with a configurable hotkey, default `X`, and returns materials.
 
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
