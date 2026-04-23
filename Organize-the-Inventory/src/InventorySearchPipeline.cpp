@@ -16,10 +16,13 @@
 
 #include <cctype>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace
 {
+const DWORD kSearchEntryCacheLifetimeMs = 1000UL;
+
 struct ParsedSearchQuery
 {
     ParsedSearchQuery()
@@ -37,12 +40,37 @@ struct InventorySearchEntry
         : widget(0)
         , item(0)
         , quantity(0)
+        , hasNormalizedSearchText(false)
     {
     }
 
     MyGUI::Widget* widget;
     Item* item;
     int quantity;
+    bool hasNormalizedSearchText;
+    std::string normalizedSearchText;
+};
+
+struct InventorySearchEntryCache
+{
+    InventorySearchEntryCache()
+        : inventoryParent(0)
+        , builtTick(0)
+        , hasValue(false)
+        , rawWidgetEntries(0)
+        , boundEntries(0)
+        , mergedEntries(0)
+    {
+    }
+
+    MyGUI::Widget* inventoryParent;
+    DWORD builtTick;
+    bool hasValue;
+    std::vector<InventorySearchEntry> entries;
+    std::string boundReason;
+    std::size_t rawWidgetEntries;
+    std::size_t boundEntries;
+    std::size_t mergedEntries;
 };
 
 MyGUI::Widget* g_lastFilteredParent = 0;
@@ -51,6 +79,7 @@ std::string g_lastFilterSummarySignature;
 std::string g_lastInvestigateEnterSignature;
 std::string g_lastInvestigateEmptyScanSignature;
 std::string g_lastInvestigateBoundScanSignature;
+InventorySearchEntryCache g_searchEntryCache;
 
 bool TrySetWidgetVisibleSafe(MyGUI::Widget* widget, bool visible)
 {
@@ -68,6 +97,19 @@ bool TrySetWidgetVisibleSafe(MyGUI::Widget* widget, bool visible)
     {
         return false;
     }
+}
+
+void ClearSearchEntryCache()
+{
+    g_searchEntryCache = InventorySearchEntryCache();
+}
+
+bool IsSearchEntryCacheFresh(MyGUI::Widget* inventoryParent, DWORD now)
+{
+    return g_searchEntryCache.hasValue
+        && g_searchEntryCache.inventoryParent == inventoryParent
+        && now >= g_searchEntryCache.builtTick
+        && now - g_searchEntryCache.builtTick < kSearchEntryCacheLifetimeMs;
 }
 
 void RestoreTrackedEntryVisibility()
@@ -597,6 +639,63 @@ void LogInvestigateBoundScanIfNeeded(
     LogSearchDebugLine(line.str());
 }
 
+void RebuildSearchEntryCache(
+    MyGUI::Widget* inventoryParent,
+    const ParsedSearchQuery& parsedQuery)
+{
+    ClearSearchEntryCache();
+    g_searchEntryCache.inventoryParent = inventoryParent;
+    g_searchEntryCache.builtTick = GetTickCount();
+    g_searchEntryCache.hasValue = true;
+
+    CollectSearchEntriesFromItemWidgets(inventoryParent, &g_searchEntryCache.entries);
+    g_searchEntryCache.rawWidgetEntries = g_searchEntryCache.entries.size();
+
+    std::vector<InventoryBoundEntry> boundEntries;
+    std::string boundReason;
+    if (CollectBoundInventoryEntriesForRoot(inventoryParent, &boundEntries, &boundReason))
+    {
+        const std::size_t entryCountBeforeBoundMerge = g_searchEntryCache.entries.size();
+        for (std::size_t index = 0; index < boundEntries.size(); ++index)
+        {
+            const InventoryBoundEntry& boundEntry = boundEntries[index];
+            MyGUI::Widget* visibilityWidget =
+                ResolveFilterVisibilityWidget(boundEntry.widget, inventoryParent);
+            Item* item = boundEntry.item != 0
+                ? boundEntry.item
+                : ResolveSearchEntryItemPointer(visibilityWidget);
+            AddSearchEntryUnique(
+                &g_searchEntryCache.entries,
+                visibilityWidget,
+                item,
+                ResolveEntryQuantity(visibilityWidget, item));
+        }
+
+        if (g_searchEntryCache.entries.size() != entryCountBeforeBoundMerge
+            || entryCountBeforeBoundMerge == 0)
+        {
+            LogInvestigateBoundScanIfNeeded(
+                inventoryParent,
+                parsedQuery,
+                boundReason,
+                g_searchEntryCache.entries.size());
+        }
+    }
+    g_searchEntryCache.boundReason = boundReason;
+    g_searchEntryCache.boundEntries = boundEntries.size();
+
+    Inventory* inventoryContext = ResolveBoundInventoryForRoot(inventoryParent);
+    if (inventoryContext == 0)
+    {
+        inventoryContext = ResolveInventoryContextInventory(inventoryParent);
+    }
+    CollectSearchEntriesFromBackpackPanels(
+        inventoryParent,
+        inventoryContext,
+        &g_searchEntryCache.entries);
+    g_searchEntryCache.mergedEntries = g_searchEntryCache.entries.size();
+}
+
 struct InventoryScanProbe
 {
     InventoryScanProbe()
@@ -793,48 +892,17 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
     perfSample.previousTrackedEntries = g_lastFilteredEntryWidgets.size();
     RestoreTrackedEntryVisibility();
 
-    std::vector<InventorySearchEntry> entries;
-    CollectSearchEntriesFromItemWidgets(inventoryParent, &entries);
-    perfSample.rawWidgetEntries = entries.size();
-
-    std::vector<InventoryBoundEntry> boundEntries;
-    std::string boundReason;
-    if (CollectBoundInventoryEntriesForRoot(inventoryParent, &boundEntries, &boundReason))
+    const DWORD now = GetTickCount();
+    const bool cacheHit = IsSearchEntryCacheFresh(inventoryParent, now);
+    if (!cacheHit)
     {
-        const std::size_t entryCountBeforeBoundMerge = entries.size();
-        for (std::size_t index = 0; index < boundEntries.size(); ++index)
-        {
-            const InventoryBoundEntry& boundEntry = boundEntries[index];
-            MyGUI::Widget* visibilityWidget =
-                ResolveFilterVisibilityWidget(boundEntry.widget, inventoryParent);
-            Item* item = boundEntry.item != 0
-                ? boundEntry.item
-                : ResolveSearchEntryItemPointer(visibilityWidget);
-            AddSearchEntryUnique(
-                &entries,
-                visibilityWidget,
-                item,
-                ResolveEntryQuantity(visibilityWidget, item));
-        }
-
-        if (entries.size() != entryCountBeforeBoundMerge || entryCountBeforeBoundMerge == 0)
-        {
-            LogInvestigateBoundScanIfNeeded(
-                inventoryParent,
-                parsedQuery,
-                boundReason,
-                entries.size());
-        }
+        RebuildSearchEntryCache(inventoryParent, parsedQuery);
     }
-    perfSample.boundEntries = boundEntries.size();
-
-    Inventory* inventoryContext = ResolveBoundInventoryForRoot(inventoryParent);
-    if (inventoryContext == 0)
-    {
-        inventoryContext = ResolveInventoryContextInventory(inventoryParent);
-    }
-    CollectSearchEntriesFromBackpackPanels(inventoryParent, inventoryContext, &entries);
-    perfSample.mergedEntries = entries.size();
+    perfSample.entryCacheHit = cacheHit;
+    perfSample.rawWidgetEntries = g_searchEntryCache.rawWidgetEntries;
+    perfSample.boundEntries = g_searchEntryCache.boundEntries;
+    perfSample.mergedEntries = g_searchEntryCache.mergedEntries;
+    std::vector<InventorySearchEntry>& entries = g_searchEntryCache.entries;
 
     if (entries.empty())
     {
@@ -868,15 +936,25 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
         bool visible = true;
         if (hasActiveFilter)
         {
-            const std::string normalizedSearchText =
-                NormalizeInventorySearchText(
-                    BuildInventoryItemSearchTextFromResolvedItem(entryWidget, entry.item));
+            InventorySearchEntry& mutableEntry = entries[index];
+            if (mutableEntry.hasNormalizedSearchText)
+            {
+                ++perfSample.searchTextCacheHits;
+            }
+            else
+            {
+                mutableEntry.normalizedSearchText =
+                    NormalizeInventorySearchText(
+                        BuildInventoryItemSearchTextFromResolvedItem(entryWidget, entry.item));
+                mutableEntry.hasNormalizedSearchText = true;
+                ++perfSample.searchTextCacheMisses;
+            }
             visible = InventorySearchTextMatchesQuery(
-                normalizedSearchText,
+                mutableEntry.normalizedSearchText,
                 parsedQuery.normalizedQuery);
             if (visible && parsedQuery.blueprintOnly)
             {
-                visible = SearchTextMatchesBlueprintFilter(normalizedSearchText);
+                visible = SearchTextMatchesBlueprintFilter(mutableEntry.normalizedSearchText);
             }
         }
 
@@ -922,6 +1000,7 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 void ClearInventorySearchFilterState()
 {
     RestoreTrackedEntryVisibility();
+    ClearSearchEntryCache();
     g_lastFilterSummarySignature.clear();
     g_lastInvestigateEnterSignature.clear();
     g_lastInvestigateEmptyScanSignature.clear();

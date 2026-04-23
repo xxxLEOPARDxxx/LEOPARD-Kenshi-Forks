@@ -64,6 +64,7 @@ struct FilterPerfAggregate
         , success(0)
         , activeFilter(0)
         , forceShowAll(0)
+        , entryCacheHit(0)
         , totalMicros(0)
         , maxMicros(0)
         , previousTrackedEntries(0)
@@ -80,6 +81,8 @@ struct FilterPerfAggregate
         , maxVisibleEntryCount(0)
         , visibleQuantity(0)
         , maxVisibleQuantity(0)
+        , searchTextCacheHits(0)
+        , searchTextCacheMisses(0)
     {
     }
 
@@ -88,6 +91,7 @@ struct FilterPerfAggregate
     std::size_t success;
     std::size_t activeFilter;
     std::size_t forceShowAll;
+    std::size_t entryCacheHit;
     unsigned long totalMicros;
     unsigned long maxMicros;
     std::size_t previousTrackedEntries;
@@ -104,6 +108,8 @@ struct FilterPerfAggregate
     std::size_t maxVisibleEntryCount;
     std::size_t visibleQuantity;
     std::size_t maxVisibleQuantity;
+    std::size_t searchTextCacheHits;
+    std::size_t searchTextCacheMisses;
 };
 
 struct DebugProbePerfAggregate
@@ -351,6 +357,10 @@ void RecordInventorySearchFilterPerf(const InventorySearchFilterPerfSample& samp
     {
         ++g_filterPerfAggregate.forceShowAll;
     }
+    if (sample.entryCacheHit)
+    {
+        ++g_filterPerfAggregate.entryCacheHit;
+    }
 
     g_filterPerfAggregate.totalMicros += sample.elapsedMicros;
     AddMaxUnsignedLong(sample.elapsedMicros, &g_filterPerfAggregate.maxMicros);
@@ -368,6 +378,8 @@ void RecordInventorySearchFilterPerf(const InventorySearchFilterPerfSample& samp
     AddMaxSize(sample.visibleEntryCount, &g_filterPerfAggregate.maxVisibleEntryCount);
     g_filterPerfAggregate.visibleQuantity += sample.visibleQuantity;
     AddMaxSize(sample.visibleQuantity, &g_filterPerfAggregate.maxVisibleQuantity);
+    g_filterPerfAggregate.searchTextCacheHits += sample.searchTextCacheHits;
+    g_filterPerfAggregate.searchTextCacheMisses += sample.searchTextCacheMisses;
 
     if (!ShouldFlushTelemetryWindow(g_filterPerfAggregate.windowStartedMs, nowMs))
     {
@@ -380,6 +392,7 @@ void RecordInventorySearchFilterPerf(const InventorySearchFilterPerfSample& samp
          << " success=" << g_filterPerfAggregate.success
          << " active_filter=" << g_filterPerfAggregate.activeFilter
          << " force_show_all=" << g_filterPerfAggregate.forceShowAll
+         << " entry_cache_hit=" << g_filterPerfAggregate.entryCacheHit
          << " avg_us="
          << AverageUnsignedLong(g_filterPerfAggregate.totalMicros, g_filterPerfAggregate.samples)
          << " max_us=" << g_filterPerfAggregate.maxMicros
@@ -403,7 +416,9 @@ void RecordInventorySearchFilterPerf(const InventorySearchFilterPerfSample& samp
          << " visible_entries_max=" << g_filterPerfAggregate.maxVisibleEntryCount
          << " visible_quantity_avg="
          << AverageSize(g_filterPerfAggregate.visibleQuantity, g_filterPerfAggregate.samples)
-         << " visible_quantity_max=" << g_filterPerfAggregate.maxVisibleQuantity;
+         << " visible_quantity_max=" << g_filterPerfAggregate.maxVisibleQuantity
+         << " search_text_cache_hits=" << g_filterPerfAggregate.searchTextCacheHits
+         << " search_text_cache_misses=" << g_filterPerfAggregate.searchTextCacheMisses;
     LogInfoLine(line.str());
     ResetFilterPerfAggregate(nowMs);
 }
@@ -521,6 +536,7 @@ InventorySearchFilterPerfSample::InventorySearchFilterPerfSample()
     , forceShowAll(false)
     , hasActiveFilter(false)
     , blueprintOnly(false)
+    , entryCacheHit(false)
     , previousTrackedEntries(0)
     , rawWidgetEntries(0)
     , boundEntries(0)
@@ -528,6 +544,8 @@ InventorySearchFilterPerfSample::InventorySearchFilterPerfSample()
     , totalEntryCount(0)
     , visibleEntryCount(0)
     , visibleQuantity(0)
+    , searchTextCacheHits(0)
+    , searchTextCacheMisses(0)
     , elapsedMicros(0)
 {
 }

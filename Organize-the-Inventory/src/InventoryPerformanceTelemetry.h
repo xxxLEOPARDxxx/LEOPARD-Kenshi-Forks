@@ -54,6 +54,7 @@ struct InventorySearchFilterPerfSample
     bool forceShowAll;
     bool hasActiveFilter;
     bool blueprintOnly;
+    bool entryCacheHit;
     std::size_t previousTrackedEntries;
     std::size_t rawWidgetEntries;
     std::size_t boundEntries;
@@ -61,6 +62,8 @@ struct InventorySearchFilterPerfSample
     std::size_t totalEntryCount;
     std::size_t visibleEntryCount;
     std::size_t visibleQuantity;
+    std::size_t searchTextCacheHits;
+    std::size_t searchTextCacheMisses;
     unsigned long elapsedMicros;
 };
 
