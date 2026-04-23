@@ -23,11 +23,16 @@ struct TickPerfAggregate
         , filterApplied(0)
         , filterSkipped(0)
         , targetCacheHit(0)
+        , targetCacheValidated(0)
+        , targetCacheInvalidated(0)
+        , hiddenControlsCacheCleared(0)
         , visibleScanAttempted(0)
         , visibleScanSkipped(0)
         , hoverScanAttempted(0)
         , totalMicros(0)
         , maxMicros(0)
+        , targetCacheValidationMicros(0)
+        , maxTargetCacheValidationMicros(0)
         , visibleTargetMicros(0)
         , maxVisibleTargetMicros(0)
         , hoverTargetMicros(0)
@@ -45,11 +50,16 @@ struct TickPerfAggregate
     std::size_t filterApplied;
     std::size_t filterSkipped;
     std::size_t targetCacheHit;
+    std::size_t targetCacheValidated;
+    std::size_t targetCacheInvalidated;
+    std::size_t hiddenControlsCacheCleared;
     std::size_t visibleScanAttempted;
     std::size_t visibleScanSkipped;
     std::size_t hoverScanAttempted;
     unsigned long totalMicros;
     unsigned long maxMicros;
+    unsigned long targetCacheValidationMicros;
+    unsigned long maxTargetCacheValidationMicros;
     unsigned long visibleTargetMicros;
     unsigned long maxVisibleTargetMicros;
     unsigned long hoverTargetMicros;
@@ -271,6 +281,18 @@ void RecordInventorySearchTickPerf(const InventorySearchTickPerfSample& sample)
     {
         ++g_tickPerfAggregate.targetCacheHit;
     }
+    if (sample.targetCacheValidated)
+    {
+        ++g_tickPerfAggregate.targetCacheValidated;
+    }
+    if (sample.targetCacheInvalidated)
+    {
+        ++g_tickPerfAggregate.targetCacheInvalidated;
+    }
+    if (sample.hiddenControlsCacheCleared)
+    {
+        ++g_tickPerfAggregate.hiddenControlsCacheCleared;
+    }
     if (sample.visibleScanAttempted)
     {
         ++g_tickPerfAggregate.visibleScanAttempted;
@@ -286,6 +308,10 @@ void RecordInventorySearchTickPerf(const InventorySearchTickPerfSample& sample)
 
     g_tickPerfAggregate.totalMicros += sample.totalMicros;
     AddMaxUnsignedLong(sample.totalMicros, &g_tickPerfAggregate.maxMicros);
+    g_tickPerfAggregate.targetCacheValidationMicros += sample.targetCacheValidationMicros;
+    AddMaxUnsignedLong(
+        sample.targetCacheValidationMicros,
+        &g_tickPerfAggregate.maxTargetCacheValidationMicros);
     g_tickPerfAggregate.visibleTargetMicros += sample.visibleTargetMicros;
     AddMaxUnsignedLong(sample.visibleTargetMicros, &g_tickPerfAggregate.maxVisibleTargetMicros);
     g_tickPerfAggregate.hoverTargetMicros += sample.hoverTargetMicros;
@@ -310,6 +336,19 @@ void RecordInventorySearchTickPerf(const InventorySearchTickPerfSample& sample)
          << " filter_applied=" << g_tickPerfAggregate.filterApplied
          << " filter_skipped=" << g_tickPerfAggregate.filterSkipped
          << " target_cache_hit=" << g_tickPerfAggregate.targetCacheHit
+         << " target_cache_validated=" << g_tickPerfAggregate.targetCacheValidated
+         << " target_cache_invalidated=" << g_tickPerfAggregate.targetCacheInvalidated
+         << " hidden_controls_cache_cleared=" << g_tickPerfAggregate.hiddenControlsCacheCleared
+         << " target_cache_validation_avg_us="
+         << AverageUnsignedLong(
+                g_tickPerfAggregate.targetCacheValidationMicros,
+                g_tickPerfAggregate.samples)
+         << " target_cache_validation_attempt_avg_us="
+         << AverageUnsignedLong(
+                g_tickPerfAggregate.targetCacheValidationMicros,
+                g_tickPerfAggregate.targetCacheValidated)
+         << " target_cache_validation_max_us="
+         << g_tickPerfAggregate.maxTargetCacheValidationMicros
          << " visible_scan_attempts=" << g_tickPerfAggregate.visibleScanAttempted
          << " visible_scan_skipped=" << g_tickPerfAggregate.visibleScanSkipped
          << " visible_scan_avg_us="
@@ -505,9 +544,13 @@ InventorySearchTickPerfSample::InventorySearchTickPerfSample()
     , filterApplied(false)
     , filterSkipped(false)
     , targetCacheHit(false)
+    , targetCacheValidated(false)
+    , targetCacheInvalidated(false)
+    , hiddenControlsCacheCleared(false)
     , visibleScanAttempted(false)
     , visibleScanSkipped(false)
     , hoverScanAttempted(false)
+    , targetCacheValidationMicros(0)
     , visibleTargetMicros(0)
     , hoverTargetMicros(0)
     , totalMicros(0)

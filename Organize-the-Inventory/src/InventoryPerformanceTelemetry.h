@@ -25,9 +25,13 @@ struct InventorySearchTickPerfSample
     bool filterApplied;
     bool filterSkipped;
     bool targetCacheHit;
+    bool targetCacheValidated;
+    bool targetCacheInvalidated;
+    bool hiddenControlsCacheCleared;
     bool visibleScanAttempted;
     bool visibleScanSkipped;
     bool hoverScanAttempted;
+    unsigned long targetCacheValidationMicros;
     unsigned long visibleTargetMicros;
     unsigned long hoverTargetMicros;
     unsigned long totalMicros;

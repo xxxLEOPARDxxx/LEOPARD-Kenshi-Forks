@@ -503,6 +503,132 @@ bool TryCopyWidgetName(
     }
 }
 
+bool TryGetWidgetInheritedVisible(MyGUI::Widget* widget, bool* outVisible)
+{
+    if (outVisible != 0)
+    {
+        *outVisible = false;
+    }
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        if (outVisible != 0)
+        {
+            *outVisible = widget->getInheritedVisible();
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool TryGetWidgetChildCount(MyGUI::Widget* widget, std::size_t* outChildCount)
+{
+    if (outChildCount != 0)
+    {
+        *outChildCount = 0;
+    }
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        if (outChildCount != 0)
+        {
+            *outChildCount = widget->getChildCount();
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool TryGetWidgetChildAt(
+    MyGUI::Widget* widget,
+    std::size_t childIndex,
+    MyGUI::Widget** outChild)
+{
+    if (outChild != 0)
+    {
+        *outChild = 0;
+    }
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        if (outChild != 0)
+        {
+            *outChild = widget->getChildAt(childIndex);
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool TryWidgetNameEquals(MyGUI::Widget* widget, const char* expectedName, bool* outMatches)
+{
+    if (outMatches != 0)
+    {
+        *outMatches = false;
+    }
+    if (expectedName == 0)
+    {
+        return false;
+    }
+
+    char nameBuffer[kMaxWidgetNameCopyLength];
+    if (!TryCopyWidgetName(widget, nameBuffer, sizeof(nameBuffer)))
+    {
+        return false;
+    }
+
+    if (outMatches != 0)
+    {
+        *outMatches = std::strcmp(nameBuffer, expectedName) == 0;
+    }
+    return true;
+}
+
+bool TryWidgetNameContainsToken(MyGUI::Widget* widget, const char* token, bool* outMatches)
+{
+    if (outMatches != 0)
+    {
+        *outMatches = false;
+    }
+    if (token == 0)
+    {
+        return false;
+    }
+
+    char nameBuffer[kMaxWidgetNameCopyLength];
+    if (!TryCopyWidgetName(widget, nameBuffer, sizeof(nameBuffer)))
+    {
+        return false;
+    }
+
+    if (outMatches != 0)
+    {
+        *outMatches = ContainsAsciiCaseInsensitive(nameBuffer, token);
+    }
+    return true;
+}
+
 void CollectInventoryWindowTokenProfileRecursive(
     MyGUI::Widget* root,
     InventoryWindowTokenProfile* profile)
@@ -1188,7 +1314,8 @@ MyGUI::Widget* FindFirstVisibleWidgetByName(const char* widgetName)
     while (roots.next())
     {
         MyGUI::Widget* root = roots.current();
-        if (root == 0 || !root->getInheritedVisible())
+        bool rootVisible = false;
+        if (root == 0 || !TryGetWidgetInheritedVisible(root, &rootVisible) || !rootVisible)
         {
             continue;
         }
@@ -1267,13 +1394,18 @@ std::string SafeWidgetName(MyGUI::Widget* widget)
         return "<null>";
     }
 
-    const std::string& name = widget->getName();
-    if (name.empty())
+    char nameBuffer[kMaxWidgetNameCopyLength];
+    if (!TryCopyWidgetName(widget, nameBuffer, sizeof(nameBuffer)))
+    {
+        return "<stale>";
+    }
+
+    if (nameBuffer[0] == '\0')
     {
         return "<unnamed>";
     }
 
-    return name;
+    return nameBuffer;
 }
 
 MyGUI::Widget* FindNamedDescendantRecursive(
@@ -1286,16 +1418,35 @@ MyGUI::Widget* FindNamedDescendantRecursive(
         return 0;
     }
 
-    if ((!requireVisible || root->getInheritedVisible()) && root->getName() == widgetName)
+    bool rootVisible = true;
+    if (requireVisible && !TryGetWidgetInheritedVisible(root, &rootVisible))
+    {
+        return 0;
+    }
+
+    bool nameMatches = false;
+    if ((!requireVisible || rootVisible)
+        && TryWidgetNameEquals(root, widgetName, &nameMatches)
+        && nameMatches)
     {
         return root;
     }
 
-    const std::size_t childCount = root->getChildCount();
+    std::size_t childCount = 0;
+    if (!TryGetWidgetChildCount(root, &childCount))
+    {
+        return 0;
+    }
     for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
     {
+        MyGUI::Widget* child = 0;
+        if (!TryGetWidgetChildAt(root, childIndex, &child))
+        {
+            continue;
+        }
+
         MyGUI::Widget* found = FindNamedDescendantRecursive(
-            root->getChildAt(childIndex),
+            child,
             widgetName,
             requireVisible);
         if (found != 0)
@@ -1317,17 +1468,35 @@ MyGUI::Widget* FindNamedDescendantByTokenRecursive(
         return 0;
     }
 
-    if ((!requireVisible || root->getInheritedVisible())
-        && ContainsAsciiCaseInsensitive(root->getName(), token))
+    bool rootVisible = true;
+    if (requireVisible && !TryGetWidgetInheritedVisible(root, &rootVisible))
+    {
+        return 0;
+    }
+
+    bool nameMatches = false;
+    if ((!requireVisible || rootVisible)
+        && TryWidgetNameContainsToken(root, token, &nameMatches)
+        && nameMatches)
     {
         return root;
     }
 
-    const std::size_t childCount = root->getChildCount();
+    std::size_t childCount = 0;
+    if (!TryGetWidgetChildCount(root, &childCount))
+    {
+        return 0;
+    }
     for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
     {
+        MyGUI::Widget* child = 0;
+        if (!TryGetWidgetChildAt(root, childIndex, &child))
+        {
+            continue;
+        }
+
         MyGUI::Widget* found = FindNamedDescendantByTokenRecursive(
-            root->getChildAt(childIndex),
+            child,
             token,
             requireVisible);
         if (found != 0)
@@ -1350,8 +1519,16 @@ void CollectNamedDescendantsByTokenRecursive(
         return;
     }
 
-    if ((!requireVisible || root->getInheritedVisible())
-        && ContainsAsciiCaseInsensitive(root->getName(), token))
+    bool rootVisible = true;
+    if (requireVisible && !TryGetWidgetInheritedVisible(root, &rootVisible))
+    {
+        return;
+    }
+
+    bool nameMatches = false;
+    if ((!requireVisible || rootVisible)
+        && TryWidgetNameContainsToken(root, token, &nameMatches)
+        && nameMatches)
     {
         for (std::size_t index = 0; index < outWidgets->size(); ++index)
         {
@@ -1364,11 +1541,21 @@ void CollectNamedDescendantsByTokenRecursive(
         outWidgets->push_back(root);
     }
 
-    const std::size_t childCount = root->getChildCount();
+    std::size_t childCount = 0;
+    if (!TryGetWidgetChildCount(root, &childCount))
+    {
+        return;
+    }
     for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
     {
+        MyGUI::Widget* child = 0;
+        if (!TryGetWidgetChildAt(root, childIndex, &child))
+        {
+            continue;
+        }
+
         CollectNamedDescendantsByTokenRecursive(
-            root->getChildAt(childIndex),
+            child,
             token,
             requireVisible,
             outWidgets);
@@ -1594,12 +1781,17 @@ bool TryResolveCompanionControlsParentForTarget(
         score += 900;
         reason << " backpack_anchor_token";
 
-        if (ContainsAsciiCaseInsensitive(tokenWidget->getName(), "backpack_attach"))
+        bool tokenHasBackpackAttach = false;
+        bool tokenHasLbBackpack = false;
+        TryWidgetNameContainsToken(tokenWidget, "backpack_attach", &tokenHasBackpackAttach);
+        TryWidgetNameContainsToken(tokenWidget, "lbBackpack", &tokenHasLbBackpack);
+
+        if (tokenHasBackpackAttach)
         {
             score += 260;
             reason << " backpack_attach_token";
         }
-        if (ContainsAsciiCaseInsensitive(tokenWidget->getName(), "lbBackpack"))
+        if (tokenHasLbBackpack)
         {
             score += 140;
             reason << " lbbackpack_token";

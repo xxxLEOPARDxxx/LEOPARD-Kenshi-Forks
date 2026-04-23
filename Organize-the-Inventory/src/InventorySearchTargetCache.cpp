@@ -21,6 +21,11 @@ bool HasElapsed(DWORD now, DWORD previous, DWORD intervalMs)
     return previous == 0 || now - previous >= intervalMs;
 }
 
+bool HasCachedTarget()
+{
+    return g_cachedTargetAnchor != 0 || g_cachedTargetParent != 0;
+}
+
 bool TryIsWidgetInheritedVisible(MyGUI::Widget* widget, bool* outVisible)
 {
     if (outVisible != 0)
@@ -46,15 +51,38 @@ bool TryIsWidgetInheritedVisible(MyGUI::Widget* widget, bool* outVisible)
     }
 }
 
-bool IsCachedTargetVisible()
+bool IsCachedTargetVisible(InventorySearchTargetResolution* resolution)
 {
+    if (!HasCachedTarget())
+    {
+        return false;
+    }
+
+    InventoryPerfTimer validationTimer;
+    if (resolution != 0)
+    {
+        resolution->cacheValidated = true;
+    }
+
     bool anchorVisible = false;
     bool parentVisible = false;
-    if (!TryIsWidgetInheritedVisible(g_cachedTargetAnchor, &anchorVisible)
-        || !TryIsWidgetInheritedVisible(g_cachedTargetParent, &parentVisible)
-        || !anchorVisible
-        || !parentVisible)
+    const bool visible =
+        TryIsWidgetInheritedVisible(g_cachedTargetAnchor, &anchorVisible)
+        && TryIsWidgetInheritedVisible(g_cachedTargetParent, &parentVisible)
+        && anchorVisible
+        && parentVisible;
+
+    if (resolution != 0)
     {
+        resolution->cacheValidationMicros = validationTimer.ElapsedMicros();
+    }
+
+    if (!visible)
+    {
+        if (resolution != 0)
+        {
+            resolution->cacheInvalidated = true;
+        }
         ClearInventorySearchTargetCache();
         return false;
     }
@@ -90,9 +118,12 @@ InventorySearchTargetResolution::InventorySearchTargetResolution()
     , visibleTarget(false)
     , hoverTarget(false)
     , cacheHit(false)
+    , cacheValidated(false)
+    , cacheInvalidated(false)
     , visibleScanAttempted(false)
     , visibleScanSkipped(false)
     , hoverScanAttempted(false)
+    , cacheValidationMicros(0)
     , visibleScanMicros(0)
     , hoverScanMicros(0)
 {
@@ -104,7 +135,7 @@ InventorySearchTargetResolution ResolveInventorySearchTarget(
 {
     InventorySearchTargetResolution resolution;
     const DWORD now = GetTickCount();
-    const bool cachedTargetVisible = IsCachedTargetVisible();
+    const bool cachedTargetVisible = IsCachedTargetVisible(&resolution);
     const bool refreshCachedTarget =
         cachedTargetVisible
         && HasElapsed(now, g_lastVisibleScanTick, kCachedTargetRefreshIntervalMs);

@@ -181,6 +181,39 @@ void DestroyWidgetDirect(MyGUI::Widget* widget)
     }
 }
 
+bool TryGetControlsVisibleParent(
+    MyGUI::Widget* controlsContainer,
+    MyGUI::Widget*& parent)
+{
+    parent = 0;
+    if (controlsContainer == 0)
+    {
+        return false;
+    }
+
+    __try
+    {
+        parent = controlsContainer->getParent();
+        return parent != 0 && parent->getInheritedVisible();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        parent = 0;
+        return false;
+    }
+}
+
+bool ControlsParentIsSafelyVisible(MyGUI::Widget* controlsContainer)
+{
+    if (controlsContainer == 0)
+    {
+        return true;
+    }
+
+    MyGUI::Widget* parent = 0;
+    return TryGetControlsVisibleParent(controlsContainer, parent);
+}
+
 bool IsVirtualKeyDown(int virtualKey)
 {
     return virtualKey > 0 && (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
@@ -1164,8 +1197,17 @@ void DestroyControlsIfPresent(bool clearQuery)
     ResetSearchEditSnapshot();
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
+    const bool restoreFilteredEntries =
+        ControlsParentIsSafelyVisible(controlsContainer);
     ClearInventorySearchFilterRefreshState();
-    ClearInventorySearchFilterState();
+    if (restoreFilteredEntries)
+    {
+        ClearInventorySearchFilterState();
+    }
+    else
+    {
+        ClearInventorySearchFilterStateWithoutRestoringEntries();
+    }
 
     if (controlsContainer != 0)
     {
@@ -1465,6 +1507,12 @@ void TickInventorySearchUi()
     }
 
     MyGUI::Widget* controlsContainer = FindControlsContainer();
+    if (controlsContainer != 0 && !ControlsParentIsSafelyVisible(controlsContainer))
+    {
+        ClearInventorySearchTargetCache();
+        perfSample.hiddenControlsCacheCleared = true;
+    }
+
     InventorySearchTargetResolution targetResolution =
         ResolveInventorySearchTarget(controlsContainer != 0, true);
     MyGUI::Widget* targetAnchor = targetResolution.anchor;
@@ -1474,6 +1522,9 @@ void TickInventorySearchUi()
     perfSample.visibleTarget = targetResolution.visibleTarget;
     perfSample.hoverTarget = targetResolution.hoverTarget;
     perfSample.targetCacheHit = targetResolution.cacheHit;
+    perfSample.targetCacheValidated = targetResolution.cacheValidated;
+    perfSample.targetCacheInvalidated = targetResolution.cacheInvalidated;
+    perfSample.targetCacheValidationMicros = targetResolution.cacheValidationMicros;
     perfSample.visibleScanAttempted = targetResolution.visibleScanAttempted;
     perfSample.visibleScanSkipped = targetResolution.visibleScanSkipped;
     perfSample.hoverScanAttempted = targetResolution.hoverScanAttempted;
@@ -1540,18 +1591,16 @@ void TickInventorySearchUi()
         {
             return;
         }
-        controlsContainer = FindControlsContainer();
+        return;
     }
 
-    MyGUI::Widget* currentParent = controlsContainer->getParent();
-    if (currentParent == 0 || !currentParent->getInheritedVisible())
+    MyGUI::Widget* currentParent = 0;
+    if (!TryGetControlsVisibleParent(controlsContainer, currentParent))
     {
-        if (!TryInjectControlsToTarget(controlsTargetParent, "reattach_missing_parent"))
-        {
-            return;
-        }
-        controlsContainer = FindControlsContainer();
-        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
+        ClearInventorySearchFilterRefreshState();
+        ClearInventorySearchFilterStateWithoutRestoringEntries();
+        ClearInventorySearchTargetCache();
+        return;
     }
 
     if (currentParent != controlsTargetParent
@@ -1561,8 +1610,7 @@ void TickInventorySearchUi()
         {
             return;
         }
-        controlsContainer = FindControlsContainer();
-        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
+        return;
     }
 
     SetSearchContainerUsesCreatureLayout(ParentLooksLikeCreatureSearchTarget(currentParent));
@@ -1579,14 +1627,7 @@ void TickInventorySearchUi()
         {
             return;
         }
-        controlsContainer = FindControlsContainer();
-        currentParent = controlsContainer == 0 ? 0 : controlsContainer->getParent();
-        if (currentParent == 0)
-        {
-            ClearInventorySearchFilterRefreshState();
-            ClearInventorySearchFilterState();
-            return;
-        }
+        return;
     }
 
     DumpInventoryBackpackCandidateDiagnosticsIfChanged(targetParent);

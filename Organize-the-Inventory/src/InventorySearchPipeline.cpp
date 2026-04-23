@@ -123,6 +123,12 @@ void RestoreTrackedEntryVisibility()
     g_lastFilteredParent = 0;
 }
 
+void DiscardTrackedEntryVisibility()
+{
+    g_lastFilteredEntryWidgets.clear();
+    g_lastFilteredParent = 0;
+}
+
 bool ContainsWidgetPointer(
     const std::vector<MyGUI::Widget*>& widgets,
     MyGUI::Widget* candidate)
@@ -1000,6 +1006,17 @@ bool ApplyInventorySearchFilterToParent(MyGUI::Widget* inventoryParent, bool for
 void ClearInventorySearchFilterState()
 {
     RestoreTrackedEntryVisibility();
+    ClearSearchEntryCache();
+    g_lastFilterSummarySignature.clear();
+    g_lastInvestigateEnterSignature.clear();
+    g_lastInvestigateEmptyScanSignature.clear();
+    g_lastInvestigateBoundScanSignature.clear();
+    SetInventorySearchCountDisplay("", false);
+}
+
+void ClearInventorySearchFilterStateWithoutRestoringEntries()
+{
+    DiscardTrackedEntryVisibility();
     ClearSearchEntryCache();
     g_lastFilterSummarySignature.clear();
     g_lastInvestigateEnterSignature.clear();

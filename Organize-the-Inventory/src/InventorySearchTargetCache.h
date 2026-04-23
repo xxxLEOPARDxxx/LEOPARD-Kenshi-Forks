@@ -15,9 +15,12 @@ struct InventorySearchTargetResolution
     bool visibleTarget;
     bool hoverTarget;
     bool cacheHit;
+    bool cacheValidated;
+    bool cacheInvalidated;
     bool visibleScanAttempted;
     bool visibleScanSkipped;
     bool hoverScanAttempted;
+    unsigned long cacheValidationMicros;
     unsigned long visibleScanMicros;
     unsigned long hoverScanMicros;
 };
