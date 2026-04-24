@@ -94,6 +94,7 @@ Behavior:
 - `bounty_symbol`, the per-state status labels (`unconscious_text`, `recovery_coma_text`, `dying_text`, `playing_dead_text`, `dead_text`), and the per-state icon textures are exposed as bounded text rows, and `bounty_symbol_position` is exposed as a select row.
 - Relation colors and bounty-symbol tier colors are exposed as color rows. Bounty tier rows edit RGB only; any existing alpha stays unchanged.
 - On section-aware Mod Hub builds, the settings render as five collapsible sections under `Vital Sense`: `Core`, `States`, `Bounty`, `Tint & relation colors`, and `Advanced`.
+- On Mod Hub builds with hover-hint V2 row support, supported bool/keybind/select/text rows also show Vital Sense-specific hover tooltips. Older builds keep the same settings but fall back to the older row types without custom hover hints.
 - On older Mod Hub builds that do not understand nested sections yet, Vital Sense still registers one flat settings page in the same order.
 - If Mod Hub is unavailable or registration fails, the plugin falls back to file-only config behavior.
 

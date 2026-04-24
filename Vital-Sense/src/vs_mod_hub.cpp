@@ -10,6 +10,7 @@
 #include "vs_marker_render.h"
 #include "vs_parse.h"
 #include "vs_probe_cache.h"
+#include "vs_mod_hub_helpers.h"
 #include "vs_runtime_state.h"
 
 #include <cstring>
@@ -100,6 +101,7 @@ EMC_Result __cdecl GetSelectSettingValue(void* user_data, int32_t* out_value);
 EMC_Result __cdecl SetSelectSettingValue(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size);
 EMC_Result __cdecl GetTextSettingValue(void* user_data, char* out_value, uint32_t out_value_size);
 EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char* err_buf, uint32_t err_buf_size);
+EMC_Result __cdecl RegisterModHubSettings(const EMC_HubApiV1* api, void* user_data);
 
 emc::ModHubClient g_modHubClient;
 bool g_modHubClientConfigured = false;
@@ -343,17 +345,25 @@ enum
 };
 
 EMC_BoolSettingDefV1 g_boolSettingDefs[kHubBoolSettingCount];
+EMC_BoolSettingDefV2 g_boolSettingDefsV2[kHubBoolSettingCount];
 EMC_KeybindSettingDefV1 g_keybindSettingDefs[kHubKeybindSettingCount];
+EMC_KeybindSettingDefV2 g_keybindSettingDefsV2[kHubKeybindSettingCount];
 EMC_IntSettingDefV1 g_intSettingDefs[kHubIntSettingCount];
 EMC_BoolSettingDefV1 g_advancedBoolSettingDefs[kHubAdvancedBoolSettingCount];
+EMC_BoolSettingDefV2 g_advancedBoolSettingDefsV2[kHubAdvancedBoolSettingCount];
 EMC_BoolSettingDefV1 g_tintBoolSettingDefs[kHubTintBoolSettingCount];
+EMC_BoolSettingDefV2 g_tintBoolSettingDefsV2[kHubTintBoolSettingCount];
 EMC_SelectSettingDefV1 g_selectSettingDefs[kHubSelectSettingCount];
+EMC_SelectSettingDefV2 g_selectSettingDefsV2[kHubSelectSettingCount];
 EMC_TextSettingDefV1 g_textSettingDefs[kHubTextSettingCount];
+EMC_TextSettingDefV2 g_textSettingDefsV2[kHubTextSettingCount];
 EMC_TextSettingDefV1 g_stateIconTextureSettingDefs[kHubStateIconTextureSettingCount];
+EMC_TextSettingDefV2 g_stateIconTextureSettingDefsV2[kHubStateIconTextureSettingCount];
 EMC_IntSettingDefV1 g_stateIconSizeSettingDefs[kHubStateIconSizeSettingCount];
 EMC_IntSettingDefV1 g_bountyIntSettingDefs[kHubBountyIntSettingCount];
 EMC_ColorSettingDefV1 g_colorSettingDefs[kHubColorSettingCount];
 emc::ModHubClientSettingRowV1 g_modHubRows[kHubRowCount];
+emc::ModHubClientSettingRowV1 g_modHubRowsV2[kHubRowCount];
 
 const EMC_ModDescriptorV1 kModHubDescriptor = {
     kHubNamespaceId,
@@ -368,8 +378,14 @@ emc::ModHubClientTableRegistrationV1 g_modHubRegistration = {
     g_modHubRows,
     0u
 };
+emc::ModHubClientTableRegistrationV1 g_modHubRegistrationV2 = {
+    &kModHubDescriptor,
+    g_modHubRowsV2,
+    0u
+};
 
 void SetHubRow(
+    emc::ModHubClientSettingRowV1* rows,
     size_t row_index,
     int32_t kind,
     const char* setting_id,
@@ -377,11 +393,45 @@ void SetHubRow(
     const char* section_id,
     const char* section_display_name)
 {
-    g_modHubRows[row_index].kind = kind;
-    g_modHubRows[row_index].setting_id = setting_id;
-    g_modHubRows[row_index].def = def;
-    g_modHubRows[row_index].section_id = section_id;
-    g_modHubRows[row_index].section_display_name = section_display_name;
+    rows[row_index].kind = kind;
+    rows[row_index].setting_id = setting_id;
+    rows[row_index].def = def;
+    rows[row_index].section_id = section_id;
+    rows[row_index].section_display_name = section_display_name;
+}
+
+void SetHubRows(
+    size_t row_index,
+    int32_t kind_v1,
+    const char* setting_id,
+    const void* def_v1,
+    int32_t kind_v2,
+    const void* def_v2,
+    const char* section_id,
+    const char* section_display_name)
+{
+    SetHubRow(g_modHubRows, row_index, kind_v1, setting_id, def_v1, section_id, section_display_name);
+    SetHubRow(g_modHubRowsV2, row_index, kind_v2, setting_id, def_v2, section_id, section_display_name);
+}
+
+bool SupportsHoverHintSettingRows(const EMC_HubApiV1* api)
+{
+    if (api == 0)
+    {
+        return false;
+    }
+
+    const uint32_t api_size = api->api_size;
+    return api_size >= EMC_HUB_API_V1_TEXT_SETTING_V2_MIN_SIZE
+        && api->register_bool_setting_v2 != 0
+        && api->register_keybind_setting_v2 != 0
+        && api->register_select_setting_v2 != 0
+        && api->register_text_setting_v2 != 0;
+}
+
+const emc::ModHubClientTableRegistrationV1* GetModHubRegistrationForApi(const EMC_HubApiV1* api)
+{
+    return SupportsHoverHintSettingRows(api) ? &g_modHubRegistrationV2 : &g_modHubRegistration;
 }
 
 bool IsBountyTierOrderValid(const PluginConfig& config)
@@ -415,6 +465,14 @@ void InitializeSettingDefinitions()
         g_boolSettingDefs[i].user_data = &g_boolSettingDescriptors[i];
         g_boolSettingDefs[i].get_value = &GetBoolSettingValue;
         g_boolSettingDefs[i].set_value = &SetBoolSettingValue;
+
+        g_boolSettingDefsV2[i].setting_id = g_boolSettingDescriptors[i].settingId;
+        g_boolSettingDefsV2[i].label = g_boolSettingDescriptors[i].label;
+        g_boolSettingDefsV2[i].description = g_boolSettingDescriptors[i].description;
+        g_boolSettingDefsV2[i].user_data = &g_boolSettingDescriptors[i];
+        g_boolSettingDefsV2[i].get_value = &GetBoolSettingValue;
+        g_boolSettingDefsV2[i].set_value = &SetBoolSettingValue;
+        g_boolSettingDefsV2[i].hover_hint = g_boolSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_keybindSettingDescriptors); ++i)
@@ -425,6 +483,14 @@ void InitializeSettingDefinitions()
         g_keybindSettingDefs[i].user_data = &g_keybindSettingDescriptors[i];
         g_keybindSettingDefs[i].get_value = &GetKeybindSettingValue;
         g_keybindSettingDefs[i].set_value = &SetKeybindSettingValue;
+
+        g_keybindSettingDefsV2[i].setting_id = g_keybindSettingDescriptors[i].settingId;
+        g_keybindSettingDefsV2[i].label = g_keybindSettingDescriptors[i].label;
+        g_keybindSettingDefsV2[i].description = g_keybindSettingDescriptors[i].description;
+        g_keybindSettingDefsV2[i].user_data = &g_keybindSettingDescriptors[i];
+        g_keybindSettingDefsV2[i].get_value = &GetKeybindSettingValue;
+        g_keybindSettingDefsV2[i].set_value = &SetKeybindSettingValue;
+        g_keybindSettingDefsV2[i].hover_hint = g_keybindSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
@@ -448,6 +514,14 @@ void InitializeSettingDefinitions()
         g_advancedBoolSettingDefs[i].user_data = &g_advancedBoolSettingDescriptors[i];
         g_advancedBoolSettingDefs[i].get_value = &GetBoolSettingValue;
         g_advancedBoolSettingDefs[i].set_value = &SetBoolSettingValue;
+
+        g_advancedBoolSettingDefsV2[i].setting_id = g_advancedBoolSettingDescriptors[i].settingId;
+        g_advancedBoolSettingDefsV2[i].label = g_advancedBoolSettingDescriptors[i].label;
+        g_advancedBoolSettingDefsV2[i].description = g_advancedBoolSettingDescriptors[i].description;
+        g_advancedBoolSettingDefsV2[i].user_data = &g_advancedBoolSettingDescriptors[i];
+        g_advancedBoolSettingDefsV2[i].get_value = &GetBoolSettingValue;
+        g_advancedBoolSettingDefsV2[i].set_value = &SetBoolSettingValue;
+        g_advancedBoolSettingDefsV2[i].hover_hint = g_advancedBoolSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_tintBoolSettingDescriptors); ++i)
@@ -458,6 +532,14 @@ void InitializeSettingDefinitions()
         g_tintBoolSettingDefs[i].user_data = &g_tintBoolSettingDescriptors[i];
         g_tintBoolSettingDefs[i].get_value = &GetBoolSettingValue;
         g_tintBoolSettingDefs[i].set_value = &SetBoolSettingValue;
+
+        g_tintBoolSettingDefsV2[i].setting_id = g_tintBoolSettingDescriptors[i].settingId;
+        g_tintBoolSettingDefsV2[i].label = g_tintBoolSettingDescriptors[i].label;
+        g_tintBoolSettingDefsV2[i].description = g_tintBoolSettingDescriptors[i].description;
+        g_tintBoolSettingDefsV2[i].user_data = &g_tintBoolSettingDescriptors[i];
+        g_tintBoolSettingDefsV2[i].get_value = &GetBoolSettingValue;
+        g_tintBoolSettingDefsV2[i].set_value = &SetBoolSettingValue;
+        g_tintBoolSettingDefsV2[i].hover_hint = g_tintBoolSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_colorSettingDescriptors); ++i)
@@ -483,6 +565,16 @@ void InitializeSettingDefinitions()
         g_selectSettingDefs[i].option_count = g_selectSettingDescriptors[i].optionCount;
         g_selectSettingDefs[i].get_value = &GetSelectSettingValue;
         g_selectSettingDefs[i].set_value = &SetSelectSettingValue;
+
+        g_selectSettingDefsV2[i].setting_id = g_selectSettingDescriptors[i].settingId;
+        g_selectSettingDefsV2[i].label = g_selectSettingDescriptors[i].label;
+        g_selectSettingDefsV2[i].description = g_selectSettingDescriptors[i].description;
+        g_selectSettingDefsV2[i].user_data = &g_selectSettingDescriptors[i];
+        g_selectSettingDefsV2[i].options = g_selectSettingDescriptors[i].options;
+        g_selectSettingDefsV2[i].option_count = g_selectSettingDescriptors[i].optionCount;
+        g_selectSettingDefsV2[i].get_value = &GetSelectSettingValue;
+        g_selectSettingDefsV2[i].set_value = &SetSelectSettingValue;
+        g_selectSettingDefsV2[i].hover_hint = g_selectSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
@@ -494,6 +586,15 @@ void InitializeSettingDefinitions()
         g_textSettingDefs[i].max_length = g_textSettingDescriptors[i].maxLength;
         g_textSettingDefs[i].get_value = &GetTextSettingValue;
         g_textSettingDefs[i].set_value = &SetTextSettingValue;
+
+        g_textSettingDefsV2[i].setting_id = g_textSettingDescriptors[i].settingId;
+        g_textSettingDefsV2[i].label = g_textSettingDescriptors[i].label;
+        g_textSettingDefsV2[i].description = g_textSettingDescriptors[i].description;
+        g_textSettingDefsV2[i].user_data = &g_textSettingDescriptors[i];
+        g_textSettingDefsV2[i].max_length = g_textSettingDescriptors[i].maxLength;
+        g_textSettingDefsV2[i].get_value = &GetTextSettingValue;
+        g_textSettingDefsV2[i].set_value = &SetTextSettingValue;
+        g_textSettingDefsV2[i].hover_hint = g_textSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconTextureSettingDescriptors); ++i)
@@ -505,6 +606,15 @@ void InitializeSettingDefinitions()
         g_stateIconTextureSettingDefs[i].max_length = g_stateIconTextureSettingDescriptors[i].maxLength;
         g_stateIconTextureSettingDefs[i].get_value = &GetTextSettingValue;
         g_stateIconTextureSettingDefs[i].set_value = &SetTextSettingValue;
+
+        g_stateIconTextureSettingDefsV2[i].setting_id = g_stateIconTextureSettingDescriptors[i].settingId;
+        g_stateIconTextureSettingDefsV2[i].label = g_stateIconTextureSettingDescriptors[i].label;
+        g_stateIconTextureSettingDefsV2[i].description = g_stateIconTextureSettingDescriptors[i].description;
+        g_stateIconTextureSettingDefsV2[i].user_data = &g_stateIconTextureSettingDescriptors[i];
+        g_stateIconTextureSettingDefsV2[i].max_length = g_stateIconTextureSettingDescriptors[i].maxLength;
+        g_stateIconTextureSettingDefsV2[i].get_value = &GetTextSettingValue;
+        g_stateIconTextureSettingDefsV2[i].set_value = &SetTextSettingValue;
+        g_stateIconTextureSettingDefsV2[i].hover_hint = g_stateIconTextureSettingDescriptors[i].hoverHint;
     }
 
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconSizeSettingDescriptors); ++i)
@@ -536,72 +646,73 @@ void InitializeSettingDefinitions()
     size_t rowIndex = 0u;
 
     // Core section.
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[0].setting_id, &g_boolSettingDefs[0], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, g_keybindSettingDefs[0].setting_id, &g_keybindSettingDefs[0], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[1].setting_id, &g_boolSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[2].setting_id, &g_boolSettingDefs[2], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[3].setting_id, &g_boolSettingDefs[3], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[1].setting_id, &g_intSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[9].setting_id, &g_boolSettingDefs[9], kHubSectionCoreId, kHubSectionCoreLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[10].setting_id, &g_boolSettingDefs[10], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[0].setting_id, &g_boolSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[0], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, g_keybindSettingDefs[0].setting_id, &g_keybindSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2, &g_keybindSettingDefsV2[0], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[1].setting_id, &g_boolSettingDefs[1], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[1], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[2].setting_id, &g_boolSettingDefs[2], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[2], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[3].setting_id, &g_boolSettingDefs[3], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[3], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[1].setting_id, &g_intSettingDefs[1], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[9].setting_id, &g_boolSettingDefs[9], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[9], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[10].setting_id, &g_boolSettingDefs[10], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[10], kHubSectionCoreId, kHubSectionCoreLabel);
 
     // States section.
     for (size_t i = 4u; i <= 8u; ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[i].setting_id, &g_boolSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[i].setting_id, &g_boolSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
     for (size_t i = 1u; i < VS_ARRAY_COUNT(g_textSettingDescriptors); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[i].setting_id, &g_textSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[i].setting_id, &g_textSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2, &g_textSettingDefsV2[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
     for (size_t i = 3u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[i].setting_id, &g_intSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[i].setting_id, &g_intSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconTextureSettingDescriptors); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_stateIconTextureSettingDefs[i].setting_id, &g_stateIconTextureSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_stateIconTextureSettingDefs[i].setting_id, &g_stateIconTextureSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2, &g_stateIconTextureSettingDefsV2[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_stateIconSizeSettingDefs); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_stateIconSizeSettingDefs[i].setting_id, &g_stateIconSizeSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_stateIconSizeSettingDefs[i].setting_id, &g_stateIconSizeSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_stateIconSizeSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
 
     // Bounty section.
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[11].setting_id, &g_boolSettingDefs[11], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[12].setting_id, &g_boolSettingDefs[12], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[14].setting_id, &g_boolSettingDefs[14], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[0].setting_id, &g_textSettingDefs[0], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[2].setting_id, &g_intSettingDefs[2], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT, g_selectSettingDefs[0].setting_id, &g_selectSettingDefs[0], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[11].setting_id, &g_boolSettingDefs[11], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[11], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[12].setting_id, &g_boolSettingDefs[12], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[12], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[14].setting_id, &g_boolSettingDefs[14], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[14], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[0].setting_id, &g_textSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2, &g_textSettingDefsV2[0], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[2].setting_id, &g_intSettingDefs[2], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[2], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT, g_selectSettingDefs[0].setting_id, &g_selectSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT_V2, &g_selectSettingDefsV2[0], kHubSectionBountyId, kHubSectionBountyLabel);
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_bountyIntSettingDefs); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_bountyIntSettingDefs[i].setting_id, &g_bountyIntSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_bountyIntSettingDefs[i].setting_id, &g_bountyIntSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_bountyIntSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
     }
     for (size_t i = 3u; i < VS_ARRAY_COUNT(g_colorSettingDefs); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, &g_colorSettingDefs[i], kHubSectionBountyId, kHubSectionBountyLabel);
     }
 
     // Tint & relation colors section.
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[13].setting_id, &g_boolSettingDefs[13], kHubSectionTintId, kHubSectionTintLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[13].setting_id, &g_boolSettingDefs[13], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[13], kHubSectionTintId, kHubSectionTintLabel);
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_tintBoolSettingDefs); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_tintBoolSettingDefs[i].setting_id, &g_tintBoolSettingDefs[i], kHubSectionTintId, kHubSectionTintLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_tintBoolSettingDefs[i].setting_id, &g_tintBoolSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_tintBoolSettingDefsV2[i], kHubSectionTintId, kHubSectionTintLabel);
     }
     for (size_t i = 0u; i < 3u; ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], kHubSectionTintId, kHubSectionTintLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, g_colorSettingDefs[i].setting_id, &g_colorSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, &g_colorSettingDefs[i], kHubSectionTintId, kHubSectionTintLabel);
     }
 
     // Advanced section.
-    SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[0].setting_id, &g_intSettingDefs[0], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[0].setting_id, &g_intSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[0], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_advancedBoolSettingDefs); ++i)
     {
-        SetHubRow(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_advancedBoolSettingDefs[i].setting_id, &g_advancedBoolSettingDefs[i], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
+        SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_advancedBoolSettingDefs[i].setting_id, &g_advancedBoolSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_advancedBoolSettingDefsV2[i], kHubSectionAdvancedId, kHubSectionAdvancedLabel);
     }
 
     g_modHubRegistration.row_count = static_cast<uint32_t>(rowIndex);
+    g_modHubRegistrationV2.row_count = static_cast<uint32_t>(rowIndex);
     g_modHubRowsInitialized = true;
 }
 
@@ -842,10 +953,12 @@ EMC_Result __cdecl GetSelectSettingValue(void* user_data, int32_t* out_value)
 
     const HubSelectSettingDescriptor* descriptor = static_cast<const HubSelectSettingDescriptor*>(user_data);
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
-    *out_value = (state.config.*(descriptor->field))
-        ? kBountySymbolPositionBeforeStateIcon
-        : kBountySymbolPositionBeforeStateText;
-    return EMC_OK;
+    return vs_mod_hub_helpers::GetBoolSelectionFieldValue(
+        &state.config,
+        out_value,
+        descriptor->field,
+        kBountySymbolPositionBeforeStateText,
+        kBountySymbolPositionBeforeStateIcon);
 }
 
 EMC_Result __cdecl SetSelectSettingValue(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
@@ -856,18 +969,20 @@ EMC_Result __cdecl SetSelectSettingValue(void* user_data, int32_t value, char* e
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
+    const HubSelectSettingDescriptor* descriptor = static_cast<const HubSelectSettingDescriptor*>(user_data);
     bool placeBeforeStateIcon = false;
-    if (value == kBountySymbolPositionBeforeStateIcon)
+    const EMC_Result selectValidation = vs_mod_hub_helpers::NormalizeBoolSelectionValue(
+        value,
+        kBountySymbolPositionBeforeStateText,
+        kBountySymbolPositionBeforeStateIcon,
+        &placeBeforeStateIcon,
+        err_buf,
+        err_buf_size);
+    if (selectValidation != EMC_OK)
     {
-        placeBeforeStateIcon = true;
-    }
-    else if (value != kBountySymbolPositionBeforeStateText)
-    {
-        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_select_option");
-        return EMC_ERR_INVALID_ARGUMENT;
+        return selectValidation;
     }
 
-    const HubSelectSettingDescriptor* descriptor = static_cast<const HubSelectSettingDescriptor*>(user_data);
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     PluginConfig updated = state.config;
     updated.*(descriptor->field) = placeBeforeStateIcon;
@@ -883,14 +998,7 @@ EMC_Result __cdecl GetTextSettingValue(void* user_data, char* out_value, uint32_
 
     const HubTextSettingDescriptor* descriptor = static_cast<const HubTextSettingDescriptor*>(user_data);
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
-    const std::string& value = state.config.*(descriptor->field);
-    if (value.size() + 1u > out_value_size)
-    {
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    std::memcpy(out_value, value.c_str(), value.size() + 1u);
-    return EMC_OK;
+    return vs_mod_hub_helpers::GetStringFieldValue(&state.config, out_value, out_value_size, descriptor->field);
 }
 
 EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char* err_buf, uint32_t err_buf_size)
@@ -902,22 +1010,23 @@ EMC_Result __cdecl SetTextSettingValue(void* user_data, const char* value, char*
     }
 
     const HubTextSettingDescriptor* descriptor = static_cast<const HubTextSettingDescriptor*>(user_data);
-    const std::string trimmed = vs_parse::TrimAscii(value);
-    if (trimmed.empty() && !descriptor->allowEmpty)
+    std::string normalized;
+    const EMC_Result textValidation = vs_mod_hub_helpers::NormalizeTextValue(
+        value,
+        descriptor->maxLength,
+        normalized,
+        err_buf,
+        err_buf_size,
+        true,
+        descriptor->allowEmpty);
+    if (textValidation != EMC_OK)
     {
-        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "text_required");
-        return EMC_ERR_INVALID_ARGUMENT;
-    }
-
-    if (trimmed.size() > descriptor->maxLength)
-    {
-        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "text_too_long");
-        return EMC_ERR_INVALID_ARGUMENT;
+        return textValidation;
     }
 
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     PluginConfig updated = state.config;
-    updated.*(descriptor->field) = trimmed;
+    updated.*(descriptor->field) = normalized;
     return ApplyHubConfigUpdate(updated, err_buf, err_buf_size);
 }
 
@@ -948,9 +1057,24 @@ void EnsureModHubClientConfigured()
     InitializeSettingDefinitions();
 
     emc::ModHubClient::Config config;
-    config.table_registration = &g_modHubRegistration;
+    config.register_fn = &RegisterModHubSettings;
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
+}
+
+EMC_Result __cdecl RegisterModHubSettings(const EMC_HubApiV1* api, void* user_data)
+{
+    (void)user_data;
+
+    if (api == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    return emc::RegisterSettingsTableWithApiSizeV1(
+        api,
+        api->api_size,
+        GetModHubRegistrationForApi(api));
 }
 
 #undef VS_ARRAY_COUNT
