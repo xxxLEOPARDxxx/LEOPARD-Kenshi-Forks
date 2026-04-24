@@ -17,13 +17,15 @@ struct RuntimeStateView
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig;
     std::vector<CachedKoTarget>& koTargetCache;
     std::vector<CharacterTintEntry>& characterTintEntries;
-    std::vector<hand>& visibleKoHandlesScratch;
+    ProbeRuntimeCaches& probeRuntimeCaches;
     std::vector<KoMarkerWidget>& koMarkerWidgets;
     std::vector<std::string>& iconTextureOkLogs;
     std::vector<std::string>& iconTextureWarnLogs;
     UtilityT*& projectionUtility;
     unsigned int& koMarkerWidgetSerial;
     bool& highlightRuntimeActive;
+    unsigned int& configRevision;
+    unsigned int& lastTintConfigRevision;
 };
 
 namespace vs_runtime_state
@@ -36,13 +38,15 @@ RuntimeStateView CreateRuntimeStateView(
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig,
     std::vector<CachedKoTarget>& koTargetCache,
     std::vector<CharacterTintEntry>& characterTintEntries,
-    std::vector<hand>& visibleKoHandlesScratch,
+    ProbeRuntimeCaches& probeRuntimeCaches,
     std::vector<KoMarkerWidget>& koMarkerWidgets,
     std::vector<std::string>& iconTextureOkLogs,
     std::vector<std::string>& iconTextureWarnLogs,
     UtilityT*& projectionUtility,
     unsigned int& koMarkerWidgetSerial,
-    bool& highlightRuntimeActive);
+    bool& highlightRuntimeActive,
+    unsigned int& configRevision,
+    unsigned int& lastTintConfigRevision);
 
 RuntimeStateView GetRuntimeStateView();
 PlayerInterfaceUpdateUTFn* GetPlayerInterfaceUpdateUTOrigSlot();

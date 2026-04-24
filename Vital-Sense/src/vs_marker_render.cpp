@@ -43,7 +43,64 @@ const float kKoBountyGlowAlpha = 0.90f;
 const MyGUI::Colour kKoBountyGlowColour(1.0f, 0.93f, 0.28f, kKoBountyGlowAlpha);
 const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
 const int kKoBountyGlowTextureSizePx = 64;
+const DWORD kMarkerDiagLogIntervalMs = 2000;
 bool gMarkerImageFallbackWarned = false;
+DWORD gMarkerDiagLastLogMs = 0;
+bool gMarkerDiagnosticsEnabled = false;
+unsigned int gMarkerDiagRenderTicks = 0;
+unsigned int gMarkerDiagVisibleMarkers = 0;
+unsigned int gMarkerDiagVisualRefreshes = 0;
+unsigned int gMarkerDiagVisualReuses = 0;
+unsigned int gMarkerDiagTextureApplyCalls = 0;
+
+void ResetMarkerDiagCounters()
+{
+    gMarkerDiagRenderTicks = 0;
+    gMarkerDiagVisibleMarkers = 0;
+    gMarkerDiagVisualRefreshes = 0;
+    gMarkerDiagVisualReuses = 0;
+    gMarkerDiagTextureApplyCalls = 0;
+}
+
+void EmitMarkerDiagLogIfDue(const char* pluginName)
+{
+    if (!gMarkerDiagnosticsEnabled)
+    {
+        gMarkerDiagLastLogMs = 0;
+        ResetMarkerDiagCounters();
+        return;
+    }
+    if (!pluginName)
+    {
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (gMarkerDiagLastLogMs != 0 && (nowMs - gMarkerDiagLastLogMs) < kMarkerDiagLogIntervalMs)
+    {
+        return;
+    }
+    gMarkerDiagLastLogMs = nowMs;
+
+    if (gMarkerDiagRenderTicks == 0
+        && gMarkerDiagVisibleMarkers == 0
+        && gMarkerDiagVisualRefreshes == 0
+        && gMarkerDiagVisualReuses == 0
+        && gMarkerDiagTextureApplyCalls == 0)
+    {
+        return;
+    }
+
+    std::stringstream ss;
+    ss << "marker diag ticks=" << gMarkerDiagRenderTicks
+       << " visible_markers=" << gMarkerDiagVisibleMarkers
+       << " visual_refreshes=" << gMarkerDiagVisualRefreshes
+       << " visual_reuses=" << gMarkerDiagVisualReuses
+       << " texture_apply_calls=" << gMarkerDiagTextureApplyCalls;
+    vs_log::LogInfo(pluginName, ss.str());
+
+    ResetMarkerDiagCounters();
+}
 
 bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
 {
@@ -179,6 +236,11 @@ bool SetKoMarkerIconTexture(RuntimeStateView& state, const char* pluginName, MyG
     if (!marker || !texture)
     {
         return false;
+    }
+
+    if (gMarkerDiagnosticsEnabled)
+    {
+        ++gMarkerDiagTextureApplyCalls;
     }
 
     const char* fallbackTexture = "Kenshi_UI.png";
@@ -774,6 +836,51 @@ DWORD ResolveMarkerTextSizePx(RuntimeStateView& state, int markerState)
     return state.config.unconsciousTextSizePx;
 }
 
+bool NeedsKoMarkerVisualRefresh(
+    const KoMarkerWidget& marker,
+    RuntimeStateView& state,
+    int markerState,
+    int markerRelation,
+    int totalBounty,
+    bool showStateIcon,
+    bool showStateText,
+    bool showBountyGlow,
+    bool showBountySymbol)
+{
+    const KoMarkerVisualState& visualState = marker.visualState;
+    return !visualState.valid
+        || visualState.configRevision != state.configRevision
+        || visualState.markerState != markerState
+        || visualState.markerRelation != markerRelation
+        || visualState.totalBounty != totalBounty
+        || visualState.showStateIcon != showStateIcon
+        || visualState.showStateText != showStateText
+        || visualState.showBountyGlow != showBountyGlow
+        || visualState.showBountySymbol != showBountySymbol;
+}
+
+void UpdateKoMarkerVisualStateCache(
+    KoMarkerWidget& marker,
+    RuntimeStateView& state,
+    int markerState,
+    int markerRelation,
+    int totalBounty,
+    bool showStateIcon,
+    bool showStateText,
+    bool showBountyGlow,
+    bool showBountySymbol)
+{
+    marker.visualState.valid = true;
+    marker.visualState.configRevision = state.configRevision;
+    marker.visualState.markerState = markerState;
+    marker.visualState.markerRelation = markerRelation;
+    marker.visualState.totalBounty = totalBounty;
+    marker.visualState.showStateIcon = showStateIcon;
+    marker.visualState.showStateText = showStateText;
+    marker.visualState.showBountyGlow = showBountyGlow;
+    marker.visualState.showBountySymbol = showBountySymbol;
+}
+
 bool HasCustomMarkerIcon(RuntimeStateView& state, int markerState)
 {
     const std::string* texture = ResolveCustomMarkerIconTexture(state, markerState);
@@ -985,7 +1092,12 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
             fallbackText->setVisible(false);
         }
 
-        KoMarkerWidget marker = { bountyGlow, icon, bountySymbol, fallbackText };
+        KoMarkerWidget marker = {};
+        marker.bountyGlow = bountyGlow;
+        marker.icon = icon;
+        marker.bountySymbol = bountySymbol;
+        marker.fallbackText = fallbackText;
+        marker.visualState.valid = false;
 
         if (index >= state.koMarkerWidgets.size())
         {
@@ -1209,6 +1321,9 @@ void HideAllKoMarkerWidgets(RuntimeStateView& state, const char* pluginName)
 
 void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
 {
+    gMarkerDiagnosticsEnabled = state.config.debugLogDiagnostics;
+    EmitMarkerDiagLogIfDue(pluginName);
+
     if (!state.config.enabled)
     {
         HideAllKoMarkerWidgetsInternal(state);
@@ -1237,6 +1352,11 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
     {
         HideAllKoMarkerWidgetsInternal(state);
         return;
+    }
+
+    if (gMarkerDiagnosticsEnabled)
+    {
+        ++gMarkerDiagRenderTicks;
     }
 
     int viewWidth = 0;
@@ -1303,7 +1423,40 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
             && cached.totalBounty > 0
             && !isBountyOnlyState
             && cached.markerRelation != CachedKoTarget::RELATION_SQUAD;
-        ApplyKoMarkerVisualState(state, pluginName, marker, cached.markerState, cached.markerRelation, cached.totalBounty, showBountyGlow, showBountySymbol);
+        if (NeedsKoMarkerVisualRefresh(
+                marker,
+                state,
+                cached.markerState,
+                cached.markerRelation,
+                cached.totalBounty,
+                showStateIcon,
+                showStateText,
+                showBountyGlow,
+                showBountySymbol))
+        {
+            ApplyKoMarkerVisualState(state, pluginName, marker, cached.markerState, cached.markerRelation, cached.totalBounty, showBountyGlow, showBountySymbol);
+            UpdateKoMarkerVisualStateCache(
+                marker,
+                state,
+                cached.markerState,
+                cached.markerRelation,
+                cached.totalBounty,
+                showStateIcon,
+                showStateText,
+                showBountyGlow,
+                showBountySymbol);
+            if (gMarkerDiagnosticsEnabled)
+            {
+                ++gMarkerDiagVisualRefreshes;
+            }
+        }
+        else
+        {
+            if (gMarkerDiagnosticsEnabled)
+            {
+                ++gMarkerDiagVisualReuses;
+            }
+        }
         SetKoMarkerPosition(state, marker, markerLeft, markerTop, cached.totalBounty, showStateIcon, showStateText, showBountySymbol, isBountyOnlyState);
         SetKoMarkerVisible(state, marker, true, showBountyGlow, showStateIcon, showStateText, showBountySymbol);
 
@@ -1314,6 +1467,12 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
     {
         SetKoMarkerVisible(state, state.koMarkerWidgets[i], false, false, false, false, false);
     }
+
+    if (gMarkerDiagnosticsEnabled)
+    {
+        gMarkerDiagVisibleMarkers += static_cast<unsigned int>(visibleMarkerCount);
+    }
+    EmitMarkerDiagLogIfDue(pluginName);
 }
 
 } // namespace vs_marker_render

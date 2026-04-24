@@ -9,6 +9,7 @@
 #include "vs_log.h"
 #include "vs_marker_render.h"
 #include "vs_parse.h"
+#include "vs_probe_cache.h"
 #include "vs_runtime_state.h"
 
 #include <cstring>
@@ -643,12 +644,12 @@ EMC_Result ApplyHubConfigUpdate(const PluginConfig& updated, char* err_buf, uint
         return EMC_ERR_INTERNAL;
     }
 
+    ++state.configRevision;
     state.lastProbeTickMs = 0;
 
     if (!updated.enabled)
     {
-        state.koTargetCache.clear();
-        state.visibleKoHandlesScratch.clear();
+        vs_probe_cache::Reset(state);
         state.highlightRuntimeActive = false;
     }
 

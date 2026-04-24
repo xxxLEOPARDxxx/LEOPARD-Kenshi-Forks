@@ -74,13 +74,15 @@ DWORD g_lastProbeTickMs = 0;
 PlayerInterfaceUpdateUTFn g_playerInterfaceUpdateUTOrig = 0;
 std::vector<CachedKoTarget> g_koTargetCache;
 std::vector<CharacterTintEntry> g_characterTintEntries;
-std::vector<hand> g_visibleKoHandlesScratch;
+ProbeRuntimeCaches g_probeRuntimeCaches;
 std::vector<KoMarkerWidget> g_koMarkerWidgets;
 std::vector<std::string> g_iconTextureOkLogs;
 std::vector<std::string> g_iconTextureWarnLogs;
 UtilityT* g_projectionUtility = 0;
 unsigned int g_koMarkerWidgetSerial = 0;
 bool g_highlightRuntimeActive = false;
+unsigned int g_configRevision = 0;
+unsigned int g_lastTintConfigRevision = 0;
 } // namespace
 
 namespace vs_runtime_state
@@ -93,13 +95,15 @@ RuntimeStateView CreateRuntimeStateView(
     PlayerInterfaceUpdateUTFn& playerInterfaceUpdateUTOrig,
     std::vector<CachedKoTarget>& koTargetCache,
     std::vector<CharacterTintEntry>& characterTintEntries,
-    std::vector<hand>& visibleKoHandlesScratch,
+    ProbeRuntimeCaches& probeRuntimeCaches,
     std::vector<KoMarkerWidget>& koMarkerWidgets,
     std::vector<std::string>& iconTextureOkLogs,
     std::vector<std::string>& iconTextureWarnLogs,
     UtilityT*& projectionUtility,
     unsigned int& koMarkerWidgetSerial,
-    bool& highlightRuntimeActive)
+    bool& highlightRuntimeActive,
+    unsigned int& configRevision,
+    unsigned int& lastTintConfigRevision)
 {
     RuntimeStateView state = {
         config,
@@ -108,13 +112,15 @@ RuntimeStateView CreateRuntimeStateView(
         playerInterfaceUpdateUTOrig,
         koTargetCache,
         characterTintEntries,
-        visibleKoHandlesScratch,
+        probeRuntimeCaches,
         koMarkerWidgets,
         iconTextureOkLogs,
         iconTextureWarnLogs,
         projectionUtility,
         koMarkerWidgetSerial,
-        highlightRuntimeActive
+        highlightRuntimeActive,
+        configRevision,
+        lastTintConfigRevision
     };
 
     return state;
@@ -129,13 +135,15 @@ RuntimeStateView GetRuntimeStateView()
         g_playerInterfaceUpdateUTOrig,
         g_koTargetCache,
         g_characterTintEntries,
-        g_visibleKoHandlesScratch,
+        g_probeRuntimeCaches,
         g_koMarkerWidgets,
         g_iconTextureOkLogs,
         g_iconTextureWarnLogs,
         g_projectionUtility,
         g_koMarkerWidgetSerial,
-        g_highlightRuntimeActive);
+        g_highlightRuntimeActive,
+        g_configRevision,
+        g_lastTintConfigRevision);
 }
 
 PlayerInterfaceUpdateUTFn* GetPlayerInterfaceUpdateUTOrigSlot()

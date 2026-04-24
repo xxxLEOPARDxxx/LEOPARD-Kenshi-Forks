@@ -9,7 +9,9 @@
 #include <kenshi/Character.h>
 #include <mygui/MyGUI_Colour.h>
 
+#include <stddef.h>
 #include <stdint.h>
+#include <map>
 #include <string>
 
 namespace MyGUI
@@ -110,6 +112,7 @@ struct CachedKoTarget
     int markerState;
     int markerRelation;
     int totalBounty;
+    unsigned int lastSeenGeneration;
 };
 
 struct CharacterTintEntry
@@ -118,10 +121,73 @@ struct CharacterTintEntry
     int markerRelation;
 };
 
+struct ProbeDeferredCandidateState
+{
+    ProbeDeferredCandidateState()
+        : nextEligibleProbeMs(0)
+    {
+    }
+
+    DWORD nextEligibleProbeMs;
+};
+
+struct ProbeHandleKey
+{
+    ProbeHandleKey()
+        : type(0)
+        , index(0)
+        , serial(0)
+    {
+    }
+
+    unsigned int type;
+    unsigned int index;
+    unsigned int serial;
+
+    bool operator<(const ProbeHandleKey& other) const
+    {
+        if (type != other.type)
+        {
+            return type < other.type;
+        }
+        if (index != other.index)
+        {
+            return index < other.index;
+        }
+        return serial < other.serial;
+    }
+};
+
+struct ProbeRuntimeCaches
+{
+    ProbeRuntimeCaches()
+        : generation(0)
+    {
+    }
+
+    std::map<ProbeHandleKey, size_t> koTargetIndexByHandle;
+    std::map<ProbeHandleKey, ProbeDeferredCandidateState> notDownedByHandle;
+    unsigned int generation;
+};
+
+struct KoMarkerVisualState
+{
+    bool valid;
+    unsigned int configRevision;
+    int markerState;
+    int markerRelation;
+    int totalBounty;
+    bool showStateIcon;
+    bool showStateText;
+    bool showBountyGlow;
+    bool showBountySymbol;
+};
+
 struct KoMarkerWidget
 {
     MyGUI::ImageBox* bountyGlow;
     MyGUI::ImageBox* icon;
     MyGUI::TextBox* bountySymbol;
     MyGUI::TextBox* fallbackText;
+    KoMarkerVisualState visualState;
 };

@@ -1,6 +1,7 @@
 #include "vs_character_tint.h"
 
 #include "vs_appearance_extern.h"
+#include "vs_character_lookup.h"
 #include "vs_log.h"
 
 #ifndef BOOST_ALL_NO_LIB
@@ -70,10 +71,14 @@ DWORD gTintRelationSampleLogWindowStartMs = 0;
 unsigned int gTintRelationSampleLogCount = 0;
 DWORD gTintWarmupUntilMs = 0;
 size_t gTintLastObservedActiveCharacterCount = 0;
+unsigned int gTintDiagHandleResolveCalls = 0;
+unsigned int gTintDiagHandleResolveHits = 0;
+unsigned int gTintDiagHandleResolveMisses = 0;
+unsigned int gTintDiagConfigRefreshes = 0;
 
-struct ResolvedCharacter
+struct ResolvedTintCandidate
 {
-    hand targetHandle;
+    CharacterTintEntry tintEntry;
     Character* character;
 };
 
@@ -140,6 +145,10 @@ void EmitTintDiagLogIfDue(const char* pluginName)
         gTintDiagAppliedBodyMaterial = 0;
         gTintDiagAppliedEntityMaterial = 0;
         gTintDiagAppliedSkeletonFallback = 0;
+        gTintDiagHandleResolveCalls = 0;
+        gTintDiagHandleResolveHits = 0;
+        gTintDiagHandleResolveMisses = 0;
+        gTintDiagConfigRefreshes = 0;
         return;
     }
 
@@ -166,6 +175,10 @@ void EmitTintDiagLogIfDue(const char* pluginName)
        << " no_shader_param=" << gTintDiagNoShader
        << " suppressed=" << gTintDiagSuppressed
        << " cleared=" << gTintDiagCleared
+       << " handle_resolves=" << gTintDiagHandleResolveCalls
+       << " handle_hits=" << gTintDiagHandleResolveHits
+       << " handle_misses=" << gTintDiagHandleResolveMisses
+       << " config_refreshes=" << gTintDiagConfigRefreshes
        << " entity_offset=0x";
     ss << std::hex;
     if (gAppearanceEntityOffsetBytes >= 0)
@@ -199,6 +212,10 @@ void EmitTintDiagLogIfDue(const char* pluginName)
     gTintDiagAppliedBodyMaterial = 0;
     gTintDiagAppliedEntityMaterial = 0;
     gTintDiagAppliedSkeletonFallback = 0;
+    gTintDiagHandleResolveCalls = 0;
+    gTintDiagHandleResolveHits = 0;
+    gTintDiagHandleResolveMisses = 0;
+    gTintDiagConfigRefreshes = 0;
 }
 
 bool HandlesEqualByKey(const hand& a, const hand& b)
@@ -238,124 +255,37 @@ bool TintEntriesContainExact(
     return false;
 }
 
-bool ResolvedCharactersContainHandle(
-    const std::vector<ResolvedCharacter>& resolvedCharacters,
+int FindResolvedTintCandidateIndex(
+    const std::vector<ResolvedTintCandidate>& resolvedCandidates,
     const hand& targetHandle)
 {
-    for (size_t i = 0; i < resolvedCharacters.size(); ++i)
+    for (size_t i = 0; i < resolvedCandidates.size(); ++i)
     {
-        if (HandlesEqualByKey(resolvedCharacters[i].targetHandle, targetHandle))
+        if (HandlesEqualByKey(resolvedCandidates[i].tintEntry.targetHandle, targetHandle))
         {
-            return true;
+            return static_cast<int>(i);
         }
     }
 
-    return false;
+    return -1;
 }
 
-bool TryReadCharacterHandleSafe(Character* candidate, hand* handleOut)
+Character* ResolveTintCharacterByHandle(const hand& targetHandle)
 {
-    if (!candidate || !handleOut)
+    Character* candidate = vs_character_lookup::ResolveCharacterByHandleSafe(targetHandle);
+    if (gTintDiagnosticsEnabled)
     {
-        return false;
-    }
-
-    __try
-    {
-        *handleOut = candidate->getHandle();
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        return false;
-    }
-
-    return !handleOut->isNull();
-}
-
-void AddResolvedCharacter(
-    std::vector<ResolvedCharacter>& resolvedCharacters,
-    const hand& targetHandle,
-    Character* candidate)
-{
-    if (!candidate || targetHandle.isNull())
-    {
-        return;
-    }
-
-    if (ResolvedCharactersContainHandle(resolvedCharacters, targetHandle))
-    {
-        return;
-    }
-
-    ResolvedCharacter resolved = { targetHandle, candidate };
-    resolvedCharacters.push_back(resolved);
-}
-
-void CollectResolvedCharacters(std::vector<ResolvedCharacter>& resolvedCharacters)
-{
-    resolvedCharacters.clear();
-    if (!ou)
-    {
-        return;
-    }
-
-    const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
-    resolvedCharacters.reserve(activeCharacters.size());
-    for (ogre_unordered_set<Character*>::type::const_iterator it = activeCharacters.begin();
-         it != activeCharacters.end();
-         ++it)
-    {
-        Character* candidate = *it;
-        hand targetHandle;
-        if (!TryReadCharacterHandleSafe(candidate, &targetHandle))
+        ++gTintDiagHandleResolveCalls;
+        if (candidate)
         {
-            continue;
+            ++gTintDiagHandleResolveHits;
         }
-
-        AddResolvedCharacter(resolvedCharacters, targetHandle, candidate);
-    }
-
-    const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
-    for (ogre_unordered_map<hand, Character*>::type::const_iterator it = deathParadeCharacters.begin();
-         it != deathParadeCharacters.end();
-         ++it)
-    {
-        Character* candidate = 0;
-        __try
+        else
         {
-            candidate = ou->getFromDeathParade(it->first);
-            if (!candidate)
-            {
-                candidate = it->second;
-            }
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            candidate = 0;
-        }
-
-        if (!candidate)
-        {
-            continue;
-        }
-
-        AddResolvedCharacter(resolvedCharacters, it->first, candidate);
-    }
-}
-
-Character* FindResolvedCharacterByHandle(
-    const std::vector<ResolvedCharacter>& resolvedCharacters,
-    const hand& targetHandle)
-{
-    for (size_t i = 0; i < resolvedCharacters.size(); ++i)
-    {
-        if (HandlesEqualByKey(resolvedCharacters[i].targetHandle, targetHandle))
-        {
-            return resolvedCharacters[i].character;
+            ++gTintDiagHandleResolveMisses;
         }
     }
-
-    return 0;
+    return candidate;
 }
 
 
@@ -1867,139 +1797,6 @@ AppearanceBase* GetCharacterAppearanceSafe(Character* candidate)
     return appearance;
 }
 
-bool IsAnimalCharacterSafe(Character* candidate)
-{
-    if (!candidate)
-    {
-        return false;
-    }
-
-    bool isAnimalCharacter = false;
-    __try
-    {
-        isAnimalCharacter = (candidate->isAnimal() != 0);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        isAnimalCharacter = false;
-    }
-
-    return isAnimalCharacter;
-}
-
-bool IsCharacterInPlayerSquadSafe(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    bool inPlayerSquad = false;
-    __try
-    {
-        const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
-        if (playerCharacters.valid())
-        {
-            for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-            {
-                if (*it == candidate)
-                {
-                    inPlayerSquad = true;
-                    break;
-                }
-            }
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        inPlayerSquad = false;
-    }
-
-    return inPlayerSquad;
-}
-
-bool IsEnemyToAnyPlayerCharacterSafe(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    bool isEnemy = false;
-    __try
-    {
-        const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
-        if (!playerCharacters.valid())
-        {
-            return false;
-        }
-
-        for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-        {
-            Character* playerCharacter = *it;
-            if (!playerCharacter || playerCharacter == candidate)
-            {
-                continue;
-            }
-
-            bool hostileToPlayerCharacter = false;
-            __try
-            {
-                hostileToPlayerCharacter = candidate->isEnemy(playerCharacter, true);
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = candidate->shouldIScrewThisGuyOver(playerCharacter);
-                }
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = candidate->areYouGonnaGetMe(playerCharacter);
-                }
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = playerCharacter->areYouGonnaGetMe(candidate);
-                }
-            }
-            __except (EXCEPTION_EXECUTE_HANDLER)
-            {
-                hostileToPlayerCharacter = false;
-            }
-
-            if (hostileToPlayerCharacter)
-            {
-                isEnemy = true;
-                break;
-            }
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        isEnemy = false;
-    }
-
-    return isEnemy;
-}
-
-bool IsSameFactionAsPlayerSafe(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    bool sameFaction = false;
-    __try
-    {
-        Faction* playerFaction = ou->player->participant;
-        sameFaction = (playerFaction && candidate->owner == playerFaction);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        sameFaction = false;
-    }
-
-    return sameFaction;
-}
-
 int ResolveEffectiveTintRelationSafe(Character* candidate, int cachedRelation)
 {
     if (!candidate)
@@ -2013,7 +1810,7 @@ int ResolveEffectiveTintRelationSafe(Character* candidate, int cachedRelation)
         return CachedKoTarget::RELATION_ENEMY;
     }
 
-    if (IsCharacterInPlayerSquadSafe(candidate))
+    if (vs_character_lookup::IsCharacterInPlayerSquadSafe(candidate))
     {
         return CachedKoTarget::RELATION_SQUAD;
     }
@@ -2025,12 +1822,12 @@ int ResolveEffectiveTintRelationSafe(Character* candidate, int cachedRelation)
         return cachedRelation;
     }
 
-    if (IsEnemyToAnyPlayerCharacterSafe(candidate))
+    if (vs_character_lookup::IsEnemyToAnyPlayerCharacterSafe(candidate))
     {
         return CachedKoTarget::RELATION_ENEMY;
     }
 
-    if (IsSameFactionAsPlayerSafe(candidate))
+    if (vs_character_lookup::IsSameFactionAsPlayerSafe(candidate))
     {
         return CachedKoTarget::RELATION_ALLY;
     }
@@ -2066,10 +1863,10 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     }
 
     Ogre::Entity* characterEntity = ResolveCharacterEntityFromAppearance(appearance, pluginName);
-    const bool isAnimalCharacter = IsAnimalCharacterSafe(candidate);
-    const bool isSquadCharacter = IsCharacterInPlayerSquadSafe(candidate);
+    const bool isAnimalCharacter = vs_character_lookup::IsAnimalCharacterSafe(candidate);
+    const bool isSquadCharacter = vs_character_lookup::IsCharacterInPlayerSquadSafe(candidate);
     hand targetHandle;
-    const bool hasTargetHandle = TryReadCharacterHandleSafe(candidate, &targetHandle);
+    const bool hasTargetHandle = vs_character_lookup::TryReadCharacterHandleSafe(candidate, &targetHandle);
     const bool wantsBodyHighlight = colour.a > 0.0f;
     if (!wantsBodyHighlight)
     {
@@ -2252,14 +2049,12 @@ void BuildDesiredTintEntries(RuntimeStateView& state, std::vector<CharacterTintE
     }
 }
 
-bool SetTintForHandle(
-    const hand& targetHandle,
-    const std::vector<ResolvedCharacter>& resolvedCharacters,
+bool SetTintForCharacter(
+    Character* candidate,
     const Ogre::ColourValue& colour,
     bool depthOverride,
     const char* pluginName)
 {
-    Character* candidate = FindResolvedCharacterByHandle(resolvedCharacters, targetHandle);
     if (!candidate)
     {
         ++gTintDiagNoEntity;
@@ -2347,20 +2142,13 @@ void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         return;
     }
 
-    std::vector<ResolvedCharacter> resolvedCharacters;
-    CollectResolvedCharacters(resolvedCharacters);
-
     std::vector<CharacterTintEntry> unclearedEntries;
     unclearedEntries.reserve(state.characterTintEntries.size());
 
     for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
     {
-        if (SetTintForHandle(
-                state.characterTintEntries[i].targetHandle,
-                resolvedCharacters,
-                kClearTintColour,
-                false,
-                pluginName))
+        Character* candidate = ResolveTintCharacterByHandle(state.characterTintEntries[i].targetHandle);
+        if (SetTintForCharacter(candidate, kClearTintColour, false, pluginName))
         {
             ++gTintDiagCleared;
         }
@@ -2379,10 +2167,16 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
     gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
     ++gTintDiagSyncCalls;
+    const bool tintConfigChanged = (state.lastTintConfigRevision != state.configRevision);
+    if (gTintDiagnosticsEnabled && tintConfigChanged)
+    {
+        ++gTintDiagConfigRefreshes;
+    }
 
     if (!state.config.enableCharacterTint || !ou)
     {
         ClearKoCharacterTint(state, pluginName);
+        state.lastTintConfigRevision = state.configRevision;
         return;
     }
 
@@ -2392,34 +2186,30 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         return;
     }
 
-    std::vector<CharacterTintEntry> desiredEntries;
-    BuildDesiredTintEntries(state, desiredEntries);
+    std::vector<CharacterTintEntry> rawDesiredEntries;
+    BuildDesiredTintEntries(state, rawDesiredEntries);
 
-    std::vector<ResolvedCharacter> resolvedCharacters;
-    if (!desiredEntries.empty()
-        || !state.characterTintEntries.empty()
-        || !gAnimalTintMaterialCloneEntries.empty())
+    std::vector<ResolvedTintCandidate> desiredEntries;
+    desiredEntries.reserve(rawDesiredEntries.size());
+    for (size_t i = 0; i < rawDesiredEntries.size(); ++i)
     {
-        CollectResolvedCharacters(resolvedCharacters);
-    }
-
-    for (size_t i = 0; i < desiredEntries.size(); ++i)
-    {
-        Character* desiredCandidate = FindResolvedCharacterByHandle(
-            resolvedCharacters,
-            desiredEntries[i].targetHandle);
-        desiredEntries[i].markerRelation = ResolveEffectiveTintRelationSafe(
-            desiredCandidate,
-            desiredEntries[i].markerRelation);
+        ResolvedTintCandidate desired = {
+            rawDesiredEntries[i],
+            ResolveTintCharacterByHandle(rawDesiredEntries[i].targetHandle)
+        };
+        desired.tintEntry.markerRelation = ResolveEffectiveTintRelationSafe(
+            desired.character,
+            desired.tintEntry.markerRelation);
+        desiredEntries.push_back(desired);
     }
 
     std::sort(
         desiredEntries.begin(),
         desiredEntries.end(),
-        [](const CharacterTintEntry& a, const CharacterTintEntry& b) -> bool
+        [](const ResolvedTintCandidate& a, const ResolvedTintCandidate& b) -> bool
         {
-            return ResolveTintApplyPriority(a.markerRelation)
-                < ResolveTintApplyPriority(b.markerRelation);
+            return ResolveTintApplyPriority(a.tintEntry.markerRelation)
+                < ResolveTintApplyPriority(b.tintEntry.markerRelation);
         });
 
     std::vector<CharacterTintEntry> retainedEntries;
@@ -2427,16 +2217,18 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
     {
         const CharacterTintEntry& oldEntry = state.characterTintEntries[i];
-        const int desiredIndex = FindTintEntryByHandle(desiredEntries, oldEntry.targetHandle);
-        const bool keepCurrentTint = (desiredIndex >= 0)
-            && (desiredEntries[static_cast<size_t>(desiredIndex)].markerRelation == oldEntry.markerRelation);
+        const int desiredIndex = FindResolvedTintCandidateIndex(desiredEntries, oldEntry.targetHandle);
+        const bool keepCurrentTint = !tintConfigChanged
+            && (desiredIndex >= 0)
+            && (desiredEntries[static_cast<size_t>(desiredIndex)].tintEntry.markerRelation == oldEntry.markerRelation);
         if (keepCurrentTint)
         {
             retainedEntries.push_back(oldEntry);
             continue;
         }
 
-        if (SetTintForHandle(oldEntry.targetHandle, resolvedCharacters, kClearTintColour, false, pluginName))
+        Character* existingCandidate = ResolveTintCharacterByHandle(oldEntry.targetHandle);
+        if (SetTintForCharacter(existingCandidate, kClearTintColour, false, pluginName))
         {
             ++gTintDiagCleared;
         }
@@ -2446,7 +2238,7 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             CharacterTintEntry retained = oldEntry;
             if (desiredIndex >= 0)
             {
-                retained.markerRelation = desiredEntries[static_cast<size_t>(desiredIndex)].markerRelation;
+                retained.markerRelation = desiredEntries[static_cast<size_t>(desiredIndex)].tintEntry.markerRelation;
             }
             retainedEntries.push_back(retained);
         }
@@ -2456,14 +2248,14 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     nextEntries.reserve(desiredEntries.size());
     for (size_t i = 0; i < desiredEntries.size(); ++i)
     {
-        const CharacterTintEntry& desired = desiredEntries[i];
-        if (FindTintEntryByHandle(retainedEntries, desired.targetHandle) >= 0)
+        const ResolvedTintCandidate& desired = desiredEntries[i];
+        if (FindTintEntryByHandle(retainedEntries, desired.tintEntry.targetHandle) >= 0)
         {
             continue;
         }
 
-        Ogre::ColourValue tintColour = ResolveTintColour(state, desired.markerRelation);
-        Character* desiredCandidate = FindResolvedCharacterByHandle(resolvedCharacters, desired.targetHandle);
+        Ogre::ColourValue tintColour = ResolveTintColour(state, desired.tintEntry.markerRelation);
+        Character* desiredCandidate = desired.character;
         if (gTintDiagnosticsEnabled && desiredCandidate)
         {
             const DWORD nowMs = GetTickCount();
@@ -2475,11 +2267,11 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             }
             if (gTintRelationSampleLogCount < 8)
             {
-                const bool inPlayerSquad = IsCharacterInPlayerSquadSafe(desiredCandidate);
-                const bool enemyToPlayer = IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
-                const bool sameFaction = IsSameFactionAsPlayerSafe(desiredCandidate);
+                const bool inPlayerSquad = vs_character_lookup::IsCharacterInPlayerSquadSafe(desiredCandidate);
+                const bool enemyToPlayer = vs_character_lookup::IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
+                const bool sameFaction = vs_character_lookup::IsSameFactionAsPlayerSafe(desiredCandidate);
                 std::stringstream ss;
-                ss << "tint relation sample relation=" << desired.markerRelation
+                ss << "tint relation sample relation=" << desired.tintEntry.markerRelation
                    << " in_squad=" << (inPlayerSquad ? "true" : "false")
                    << " enemy=" << (enemyToPlayer ? "true" : "false")
                    << " same_faction=" << (sameFaction ? "true" : "false")
@@ -2488,14 +2280,14 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                    << tintColour.g << ","
                    << tintColour.b << ","
                    << tintColour.a << ")"
-                   << " handle_type=" << desired.targetHandle.type
-                   << " handle_index=" << desired.targetHandle.index
-                   << " handle_serial=" << desired.targetHandle.serial;
+                   << " handle_type=" << desired.tintEntry.targetHandle.type
+                   << " handle_index=" << desired.tintEntry.targetHandle.index
+                   << " handle_serial=" << desired.tintEntry.targetHandle.serial;
                 vs_log::LogInfo(pluginName, ss.str());
                 ++gTintRelationSampleLogCount;
             }
         }
-        if (gTintDiagnosticsEnabled && desiredCandidate && IsAnimalCharacterSafe(desiredCandidate))
+        if (gTintDiagnosticsEnabled && desiredCandidate && vs_character_lookup::IsAnimalCharacterSafe(desiredCandidate))
         {
             const DWORD nowMs = GetTickCount();
             if (gTintAnimalSampleLogWindowStartMs == 0
@@ -2507,31 +2299,31 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             if (gTintAnimalSampleLogCount < 6)
             {
                 std::stringstream ss;
-                ss << "animal tint sample relation=" << desired.markerRelation
+                ss << "animal tint sample relation=" << desired.tintEntry.markerRelation
                    << " colour_rgba=("
                    << tintColour.r << ","
                    << tintColour.g << ","
                    << tintColour.b << ","
                    << tintColour.a << ")"
-                   << " handle_type=" << desired.targetHandle.type
-                   << " handle_index=" << desired.targetHandle.index
-                   << " handle_serial=" << desired.targetHandle.serial;
+                   << " handle_type=" << desired.tintEntry.targetHandle.type
+                   << " handle_index=" << desired.tintEntry.targetHandle.index
+                   << " handle_serial=" << desired.tintEntry.targetHandle.serial;
                 vs_log::LogInfo(pluginName, ss.str());
                 ++gTintAnimalSampleLogCount;
             }
         }
-        if (SetTintForHandle(
-                desired.targetHandle,
-                resolvedCharacters,
+        if (SetTintForCharacter(
+                desiredCandidate,
                 tintColour,
                 state.config.characterTintForceDepthOverride,
                 pluginName))
         {
-            nextEntries.push_back(desired);
+            nextEntries.push_back(desired.tintEntry);
         }
     }
 
     state.characterTintEntries.swap(nextEntries);
+    state.lastTintConfigRevision = state.configRevision;
     EmitTintDiagLogIfDue(pluginName);
 }
 

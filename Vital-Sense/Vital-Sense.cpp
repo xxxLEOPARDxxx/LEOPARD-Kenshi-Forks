@@ -110,6 +110,8 @@ __declspec(dllexport) void startPlugin()
 
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     vs_config::LoadConfigState(state, kPluginName);
+    ++state.configRevision;
+    state.lastTintConfigRevision = 0;
     const PluginConfig& config = state.config;
 
     std::stringstream info;
@@ -133,7 +135,6 @@ __declspec(dllexport) void startPlugin()
     vs_log::LogInfo(kPluginName, info.str());
 
     state.koTargetCache.reserve(128);
-    state.visibleKoHandlesScratch.reserve(128);
     state.koMarkerWidgets.reserve(kMaxKoMarkerWidgets);
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(

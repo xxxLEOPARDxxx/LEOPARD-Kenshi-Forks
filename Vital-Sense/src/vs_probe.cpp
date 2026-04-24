@@ -1,7 +1,9 @@
 #include "vs_probe.h"
 
+#include "vs_character_lookup.h"
 #include "vs_keybind.h"
 #include "vs_log.h"
+#include "vs_probe_cache.h"
 
 #include <core/Functions.h>
 #include <kenshi/GameData.h>
@@ -67,6 +69,11 @@ struct ProbeDiagCounters
     unsigned int rejectProjectionAnimals;
     unsigned int rejectNullHandle;
     unsigned int rejectNullHandleAnimals;
+    unsigned int rejectNotDownedDeferred;
+    unsigned int notDownedDeferralsWritten;
+    unsigned int targetCacheUpdates;
+    unsigned int targetCacheCreates;
+    unsigned int targetCachePrunes;
 };
 
 DWORD gProbeDiagLastLogMs = 0;
@@ -307,7 +314,7 @@ void MaybeLogAnimalProbeSample(
     vs_log::LogInfo(pluginName, ss.str());
 }
 
-void EmitProbeDiagLogIfDue(const char* pluginName)
+void EmitProbeDiagLogIfDue(RuntimeStateView& state, const char* pluginName)
 {
     if (!pluginName)
     {
@@ -336,6 +343,8 @@ void EmitProbeDiagLogIfDue(const char* pluginName)
     std::stringstream ss;
     ss << "probe diag ticks=" << gProbeDiag.ticks
        << " candidates=" << gProbeDiag.candidatesSeen
+       << " active_cache_entries=" << state.koTargetCache.size()
+       << " deferred_not_downed_entries=" << state.probeRuntimeCaches.notDownedByHandle.size()
        << " animals=" << gProbeDiag.animalsSeen
        << " spiders=" << gProbeDiag.spidersSeen
        << " downed_animals=" << gProbeDiag.downedAnimals
@@ -356,7 +365,12 @@ void EmitProbeDiagLogIfDue(const char* pluginName)
        << " reject_projection=" << gProbeDiag.rejectProjection
        << " reject_projection_animals=" << gProbeDiag.rejectProjectionAnimals
        << " reject_null_handle=" << gProbeDiag.rejectNullHandle
-       << " reject_null_handle_animals=" << gProbeDiag.rejectNullHandleAnimals;
+       << " reject_null_handle_animals=" << gProbeDiag.rejectNullHandleAnimals
+       << " reject_not_downed_deferred=" << gProbeDiag.rejectNotDownedDeferred
+       << " not_downed_deferrals_written=" << gProbeDiag.notDownedDeferralsWritten
+       << " target_cache_updates=" << gProbeDiag.targetCacheUpdates
+       << " target_cache_creates=" << gProbeDiag.targetCacheCreates
+       << " target_cache_prunes=" << gProbeDiag.targetCachePrunes;
     vs_log::LogInfo(pluginName, ss.str());
 
     std::memset(&gProbeDiag, 0, sizeof(gProbeDiag));
@@ -422,57 +436,6 @@ bool EnsureProjectionUtility(RuntimeStateView& state)
 
 namespace vs_probe
 {
-
-int FindCachedKoTargetIndex(RuntimeStateView& state, const hand& targetHandle)
-{
-    for (size_t i = 0; i < state.koTargetCache.size(); ++i)
-    {
-        const hand& cached = state.koTargetCache[i].targetHandle;
-        if (cached.type == targetHandle.type
-            && cached.index == targetHandle.index
-            && cached.serial == targetHandle.serial)
-        {
-            return static_cast<int>(i);
-        }
-    }
-    return -1;
-}
-
-bool HandlesEqualByKey(const hand& a, const hand& b)
-{
-    return a.type == b.type
-        && a.index == b.index
-        && a.serial == b.serial;
-}
-
-bool HandleVectorContains(const std::vector<hand>& handles, const hand& targetHandle)
-{
-    for (size_t i = 0; i < handles.size(); ++i)
-    {
-        if (HandlesEqualByKey(handles[i], targetHandle))
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool VisibleHandleListContains(RuntimeStateView& state, const hand& targetHandle)
-{
-    return HandleVectorContains(state.visibleKoHandlesScratch, targetHandle);
-}
-
-bool StringListContains(const std::vector<std::string>& values, const std::string& needle)
-{
-    for (size_t i = 0; i < values.size(); ++i)
-    {
-        if (values[i] == needle)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 bool IsMarkerStateEnabled(RuntimeStateView& state, int markerState)
 {
@@ -930,11 +893,27 @@ void ProcessMarkerCandidate(
         return;
     }
 
+    hand targetHandleHint;
+    const bool hasTargetHandleHint = vs_character_lookup::TryReadCharacterHandleSafe(candidate, &targetHandleHint);
     CandidateSpeciesInfo speciesInfo;
     speciesInfo.classified = false;
     speciesInfo.isAnimal = false;
     speciesInfo.isLikelySpider = false;
     std::memset(speciesInfo.raceId, 0, sizeof(speciesInfo.raceId));
+
+    const int totalBounty = ResolveTotalBounty(candidate);
+    const bool allowBountyOnlyState =
+        state.config.showBountySymbol
+        && state.config.showBountySymbolOnAllCharacters
+        && totalBounty > 0;
+    if (hasTargetHandleHint
+        && !allowBountyOnlyState
+        && vs_probe_cache::ShouldDeferNotDownedCandidate(state, targetHandleHint, nowMs))
+    {
+        ++gProbeDiag.rejectNotDownedDeferred;
+        return;
+    }
+
     const bool speciesClassified = TryClassifySpeciesSafe(candidate, &speciesInfo);
     if (speciesClassified && speciesInfo.isAnimal)
     {
@@ -945,7 +924,6 @@ void ProcessMarkerCandidate(
         }
     }
 
-    const int totalBounty = ResolveTotalBounty(candidate);
     int markerState = CachedKoTarget::STATE_UNCONSCIOUS;
     const bool isDownedState = TryResolveMarkerState(state, candidate, &markerState);
     if (isDownedState && speciesClassified && speciesInfo.isAnimal)
@@ -958,9 +936,13 @@ void ProcessMarkerCandidate(
     }
     if (!isDownedState)
     {
-        if (!state.config.showBountySymbol || !state.config.showBountySymbolOnAllCharacters || totalBounty <= 0)
+        if (!allowBountyOnlyState)
         {
             ++gProbeDiag.rejectNotDowned;
+            if (hasTargetHandleHint && vs_probe_cache::RecordNotDownedCandidate(state, targetHandleHint, nowMs))
+            {
+                ++gProbeDiag.notDownedDeferralsWritten;
+            }
             if (speciesClassified && speciesInfo.isAnimal)
             {
                 ++gProbeDiag.rejectNotDownedAnimals;
@@ -1052,6 +1034,7 @@ void ProcessMarkerCandidate(
         return;
     }
 
+    vs_probe_cache::ClearNotDownedCandidate(state, targetHandle);
     const int markerRelation = ResolveMarkerRelationSafe(state, candidate);
     int resolvedRelation = markerRelation;
     if (speciesClassified && speciesInfo.isLikelySpider && markerRelation != CachedKoTarget::RELATION_SQUAD)
@@ -1060,32 +1043,22 @@ void ProcessMarkerCandidate(
         resolvedRelation = CachedKoTarget::RELATION_ENEMY;
     }
 
-    if (!VisibleHandleListContains(state, targetHandle))
+    CachedKoTarget cachedTarget = {
+        targetHandle,
+        candidatePos,
+        nowMs,
+        markerState,
+        resolvedRelation,
+        totalBounty,
+        state.probeRuntimeCaches.generation
+    };
+    if (vs_probe_cache::UpsertCachedKoTarget(state, cachedTarget))
     {
-        state.visibleKoHandlesScratch.push_back(targetHandle);
-    }
-
-    const int existingIndex = FindCachedKoTargetIndex(state, targetHandle);
-    if (existingIndex >= 0)
-    {
-        CachedKoTarget& existing = state.koTargetCache[existingIndex];
-        existing.worldPos = candidatePos;
-        existing.lastSeenMs = nowMs;
-        existing.markerState = markerState;
-        existing.markerRelation = resolvedRelation;
-        existing.totalBounty = totalBounty;
+        ++gProbeDiag.targetCacheUpdates;
     }
     else
     {
-        CachedKoTarget created = {
-            targetHandle,
-            candidatePos,
-            nowMs,
-            markerState,
-            resolvedRelation,
-            totalBounty
-        };
-        state.koTargetCache.push_back(created);
+        ++gProbeDiag.targetCacheCreates;
     }
 
     ++gProbeDiag.accepted;
@@ -1103,7 +1076,7 @@ void ProcessMarkerCandidate(
 ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName)
 {
     gProbeDiagnosticsEnabled = state.config.debugLogDiagnostics;
-    EmitProbeDiagLogIfDue(pluginName);
+    EmitProbeDiagLogIfDue(state, pluginName);
 
     const bool anyHighlightVisualEnabled =
         state.config.showMarkerIcons
@@ -1115,7 +1088,7 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName
     {
         if (state.highlightRuntimeActive)
         {
-            state.koTargetCache.clear();
+            vs_probe_cache::Reset(state);
             state.highlightRuntimeActive = false;
             return PROBE_RENDER_HIDE_ALL;
         }
@@ -1136,7 +1109,7 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName
 
     const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
     const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
-    state.visibleKoHandlesScratch.clear();
+    vs_probe_cache::BeginWindow(state);
 
     for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)
     {
@@ -1149,15 +1122,9 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName
         ProcessMarkerCandidate(state, deathParadeCandidate, cameraCenter, nowMs, pluginName);
     }
 
-    for (int i = static_cast<int>(state.koTargetCache.size()) - 1; i >= 0; --i)
-    {
-        if (!VisibleHandleListContains(state, state.koTargetCache[static_cast<size_t>(i)].targetHandle))
-        {
-            state.koTargetCache.erase(state.koTargetCache.begin() + i);
-        }
-    }
+    gProbeDiag.targetCachePrunes += vs_probe_cache::PruneUnseenCachedTargets(state);
 
-    EmitProbeDiagLogIfDue(pluginName);
+    EmitProbeDiagLogIfDue(state, pluginName);
     return PROBE_RENDER_TICK;
 }
 

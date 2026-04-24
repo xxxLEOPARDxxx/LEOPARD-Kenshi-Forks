@@ -89,6 +89,7 @@
   <ItemGroup>
     <ClCompile Include="Vital-Sense.cpp" />
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
+    <ClCompile Include="src\vs_character_lookup.cpp" />
     <ClCompile Include="src\vs_character_tint.cpp" />
     <ClCompile Include="src\vs_config.cpp" />
     <ClCompile Include="src\vs_keybind.cpp" />
@@ -97,6 +98,7 @@
     <ClCompile Include="src\vs_mod_hub.cpp" />
     <ClCompile Include="src\vs_parse.cpp" />
     <ClCompile Include="src\vs_probe.cpp" />
+    <ClCompile Include="src\vs_probe_cache.cpp" />
     <ClCompile Include="src\vs_runtime_state.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -104,6 +106,7 @@
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_client.h" />
     <ClInclude Include="tools\mod-hub-sdk\include\emc\mod_hub_consumer_helpers.h" />
     <ClInclude Include="src\vs_config.h" />
+    <ClInclude Include="src\vs_character_lookup.h" />
     <ClInclude Include="src\vs_character_tint.h" />
     <ClInclude Include="src\vs_keybind.h" />
     <ClInclude Include="src\vs_log.h" />
@@ -111,6 +114,7 @@
     <ClInclude Include="src\vs_mod_hub.h" />
     <ClInclude Include="src\vs_parse.h" />
     <ClInclude Include="src\vs_probe.h" />
+    <ClInclude Include="src\vs_probe_cache.h" />
     <ClInclude Include="src\vs_appearance_extern.h" />
     <ClInclude Include="src\vs_runtime_state.h" />
     <ClInclude Include="src\vs_types.h" />

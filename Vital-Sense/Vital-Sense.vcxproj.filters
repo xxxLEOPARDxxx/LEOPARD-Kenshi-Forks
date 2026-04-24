@@ -21,6 +21,9 @@
     <ClCompile Include="src\vs_character_tint.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\vs_character_lookup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\vs_config.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,6 +39,9 @@
     <ClCompile Include="src\vs_probe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\vs_probe_cache.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\vs_runtime_state.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -45,6 +51,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\vs_character_tint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vs_character_lookup.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\vs_config.h">
@@ -60,6 +69,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\vs_probe.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vs_probe_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\vs_runtime_state.h">
