@@ -2,12 +2,24 @@
 
 All notable changes to Vital-Sense will be documented in this file.
 
-## [0.2.0-alpha.1] - 2026-03-12
-- Added configurable per-character body tint highlighting for downed targets, including squad and bounty-only controls.
-- Added optional Emkejs Mod Core Mod Hub integration for supported bool/int/keybind settings.
-- Added `highlight_key` plus optional `CTRL` / `SHIFT` / `ALT` modifiers, with `UNBOUND` support and migration from deprecated `only_when_alt_held`.
-- Improved tint stability across reloads and animal material restore paths.
-- Aligned shared build scripts and pinned Mod Hub SDK consumption with the current shared consumer workflow.
+## [0.2.0-alpha.2] - 2026-04-25
+### Added
+- Expanded Emkejs Mod Core Mod Hub coverage to the full config surface, including grouped sections, color rows, bounded text rows, and hover hints on supported core builds.
+
+### Changed
+- Reduced highlight overhead in dense scenes by caching tint sync work, marker visuals, and repeated not-downed probe results instead of rebuilding them every active frame.
+
+## [0.2.0-alpha.1] - 2026-03-26
+### Added
+- Configurable per-character body tint highlighting for downed targets, including squad and bounty-only controls.
+- Full Emkejs Mod Core Mod Hub coverage for the config surface, including grouped bool, int, keybind, select, text, and color rows with hover hints on supported core builds.
+- `highlight_key` plus optional `CTRL` / `SHIFT` / `ALT` modifiers, with `UNBOUND` support and migration from deprecated `only_when_alt_held`.
+
+### Changed
+- Shared build scripts and Mod Hub SDK consumption now follow the current shared consumer workflow.
+
+### Fixed
+- Tint stability across reloads and animal material restore paths.
 
 ## [0.1.0-alpha.2] - 2026-03-02
 - Added configurable bounty marker support for downed targets and live on-screen targets with bounty.
