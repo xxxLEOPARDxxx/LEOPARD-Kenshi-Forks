@@ -151,9 +151,11 @@ static void ContextMenu_showContextMenu_hook(ContextMenu* thisptr, bool on, Root
 
 static void ContextMenu_update_hook(ContextMenu* thisptr)
 {
+    const DWORD nowMs = GetTickCount();
     if (thisptr)
     {
-        TickCustomExecutePanelOverlay(thisptr, GetTickCount());
+        g_customExecutePanelLastContextMenuTickMs = nowMs;
+        TickCustomExecutePanelOverlay(thisptr, nowMs);
     }
     else
     {
@@ -169,11 +171,20 @@ static void ContextMenu_update_hook(ContextMenu* thisptr)
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
+    const DWORD nowMs = GetTickCount();
     if (g_customExecutePanelMenuPtr != 0)
     {
-        TickCustomExecutePanelOverlay(
-            reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr),
-            GetTickCount());
+        const bool contextMenuTickRecent = g_customExecutePanelLastContextMenuTickMs != 0
+            && !DebounceWindowElapsed(
+                nowMs,
+                g_customExecutePanelLastContextMenuTickMs,
+                kCustomExecutePanelFallbackTickMinGapMs);
+        if (!contextMenuTickRecent)
+        {
+            TickCustomExecutePanelOverlay(
+                reinterpret_cast<ContextMenu*>(g_customExecutePanelMenuPtr),
+                nowMs);
+        }
     }
     TickQueuedExecuteAction(thisptr);
 }

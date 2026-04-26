@@ -67,6 +67,8 @@ static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
 static const float kQueuedExecuteFacingDotMin = 0.90f;
 static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
+static const DWORD kCustomExecutePanelFallbackTickMinGapMs = 100;
+static const DWORD kCustomExecutePanelPredicateRefreshMs = 100;
 static const std::string kQueuedExecuteSlaveAnimName = "salute";
 static const char* kExecuteKillSoundEventCandidates[] =
 {
@@ -252,6 +254,12 @@ static uintptr_t g_customExecutePanelMenuPtr = 0;
 static uint32_t g_customExecutePanelOrdersCount = 0;
 static uint64_t g_customExecutePanelShowSeq = 0;
 static DWORD g_customExecutePanelArmMs = 0;
+static DWORD g_customExecutePanelLastContextMenuTickMs = 0;
+static DWORD g_customExecutePanelLastPredicateEvalMs = 0;
+static uintptr_t g_customExecutePanelLastPredicateActorPtr = 0;
+static uintptr_t g_customExecutePanelLastPredicateTargetPtr = 0;
+static bool g_customExecutePanelHasLastPredicateResult = false;
+static bool g_customExecutePanelLastPredicateResult = false;
 static DWORD g_customExecutePanelLastDispatchMs = 0;
 static uintptr_t g_customExecutePanelLastDispatchActorPtr = 0;
 static uintptr_t g_customExecutePanelLastDispatchTargetPtr = 0;
@@ -259,6 +267,14 @@ static int g_customExecutePanelLastDispatchAction = 0;
 static bool g_customExecutePanelAnchorRectCached = false;
 static MyGUI::IntCoord g_customExecutePanelAnchorRect(0, 0, 0, 0);
 static int g_customExecutePanelAnchorSource = 0;
+static bool g_customExecutePanelHasLayoutState = false;
+static uint32_t g_customExecutePanelLastLayoutOrdersCount = 0;
+static bool g_customExecutePanelLastLayoutExecuteAllEnabled = false;
+static int g_customExecutePanelLastLayoutWidthPx = 0;
+static int g_customExecutePanelLastLayoutHeightPx = 0;
+static int g_customExecutePanelLastLayoutGapPx = 0;
+static int g_customExecutePanelLastLayoutOffsetXPx = 0;
+static int g_customExecutePanelLastLayoutOffsetYPx = 0;
 static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
 static bool g_hasLastCanExecuteDecision = false;
@@ -1299,14 +1315,26 @@ static bool TryGetCharactersWithinSphere(
     lektor<RootObject*>* resultsOut,
     const Ogre::Vector3& spherePos,
     float radiusUnits,
-    RootObject* skip)
+    RootObject* skip,
+    size_t maxResults)
 {
-    if (!resultsOut || !ou)
+    if (!resultsOut || !ou || maxResults == 0)
     {
         return false;
     }
 
     resultsOut->clear();
+
+    size_t queryCap = maxResults;
+    const size_t hardCap = static_cast<size_t>(kExecuteAllWorldQueryMaxTargets);
+    if (queryCap > hardCap)
+    {
+        queryCap = hardCap;
+    }
+    if (queryCap == 0)
+    {
+        return false;
+    }
 
     __try
     {
@@ -1316,8 +1344,8 @@ static bool TryGetCharactersWithinSphere(
             radiusUnits,
             radiusUnits,
             radiusUnits,
-            kExecuteAllWorldQueryMaxTargets,
-            kExecuteAllWorldQueryMaxTargets,
+            static_cast<int>(queryCap),
+            static_cast<int>(queryCap),
             skip);
         return true;
     }
@@ -2556,6 +2584,44 @@ static int FindAnimalTintCloneEntryByHandle(const hand& targetHandle)
     return -1;
 }
 
+static size_t ComputeExecuteAllWorldQueryCap(size_t maxTargets)
+{
+    if (maxTargets == 0)
+    {
+        return 0;
+    }
+
+    size_t queryCap = maxTargets;
+    const size_t hardCap = static_cast<size_t>(kExecuteAllWorldQueryMaxTargets);
+    if (queryCap > hardCap / 2)
+    {
+        queryCap = hardCap;
+    }
+    else
+    {
+        queryCap *= 2;
+    }
+
+    if (queryCap > hardCap)
+    {
+        queryCap = hardCap;
+    }
+
+    return queryCap;
+}
+
+static void ForgetAnimalTintMaterialCloneEntryByHandle(const hand& targetHandle)
+{
+    const int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
+    if (entryIndex < 0)
+    {
+        return;
+    }
+
+    g_characterTintAnimalMaterialCloneEntries.erase(
+        g_characterTintAnimalMaterialCloneEntries.begin() + entryIndex);
+}
+
 static std::string BuildAnimalTintCloneName(const hand& targetHandle, size_t subEntityIndex)
 {
     std::stringstream ss;
@@ -3615,7 +3681,12 @@ static size_t CollectExecuteAllTargets(
     if (ou && TryReadRootObjectPosition(target, &targetPos))
     {
         lektor<RootObject*> nearbyTargets;
-        (void)TryGetCharactersWithinSphere(&nearbyTargets, targetPos, radiusUnits, target);
+        (void)TryGetCharactersWithinSphere(
+            &nearbyTargets,
+            targetPos,
+            radiusUnits,
+            target,
+            ComputeExecuteAllWorldQueryCap(maxTargets));
 
         const uint32_t nearbyCount = nearbyTargets.size();
         for (uint32_t i = 0; i < nearbyCount && targetCount < maxTargets; ++i)
@@ -3648,17 +3719,18 @@ static void ClearExecuteAllHoverTint()
 {
     if (!g_executeAllHoverTintActive)
     {
-        ResetExecuteAllHoverTintState();
         return;
     }
 
     for (size_t i = 0; i < g_executeAllHoverTintTargetCount; ++i)
     {
+        const hand targetHandle = g_executeAllHoverTintTargetHandles[i];
         Character* targetCharacter = 0;
         if (!TryResolveCharacterFromRootObjectHandleSafe(
-                g_executeAllHoverTintTargetHandles[i],
+                targetHandle,
                 &targetCharacter))
         {
+            ForgetAnimalTintMaterialCloneEntryByHandle(targetHandle);
             continue;
         }
 
@@ -3668,6 +3740,7 @@ static void ClearExecuteAllHoverTint()
             false,
             0,
             0);
+        ForgetAnimalTintMaterialCloneEntryByHandle(targetHandle);
     }
 
     ResetExecuteAllHoverTintState();
@@ -4916,6 +4989,65 @@ static bool TryGetStableCustomExecutePanelAnchorRect(ContextMenu* menu, MyGUI::I
     return true;
 }
 
+static bool ShouldRefreshCustomExecutePanelPredicate(uintptr_t actorPtr, uintptr_t targetPtr, DWORD nowMs)
+{
+    if (!g_customExecutePanelHasLastPredicateResult)
+    {
+        return true;
+    }
+
+    if (g_customExecutePanelLastPredicateActorPtr != actorPtr
+        || g_customExecutePanelLastPredicateTargetPtr != targetPtr)
+    {
+        return true;
+    }
+
+    return DebounceWindowElapsed(
+        nowMs,
+        g_customExecutePanelLastPredicateEvalMs,
+        kCustomExecutePanelPredicateRefreshMs);
+}
+
+static bool EvaluateCustomExecutePanelPredicateCached(Character* actor, RootObject* target, DWORD nowMs)
+{
+    const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
+    const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    if (!ShouldRefreshCustomExecutePanelPredicate(actorPtr, targetPtr, nowMs))
+    {
+        return g_customExecutePanelLastPredicateResult;
+    }
+
+    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
+    const bool canExecute = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
+    if (!canExecute && ShouldLogExecuteDebug())
+    {
+        (void)CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, true);
+    }
+
+    g_customExecutePanelLastPredicateEvalMs = nowMs;
+    g_customExecutePanelLastPredicateActorPtr = actorPtr;
+    g_customExecutePanelLastPredicateTargetPtr = targetPtr;
+    g_customExecutePanelHasLastPredicateResult = true;
+    g_customExecutePanelLastPredicateResult = canExecute;
+    return canExecute;
+}
+
+static bool IsCustomExecutePanelLayoutDirty()
+{
+    if (!g_customExecutePanelHasLayoutState || !g_customExecutePanelAnchorRectCached)
+    {
+        return true;
+    }
+
+    return g_customExecutePanelLastLayoutOrdersCount != g_customExecutePanelOrdersCount
+        || g_customExecutePanelLastLayoutExecuteAllEnabled != IsExecuteAllEnabled()
+        || g_customExecutePanelLastLayoutWidthPx != g_config.executeButtonWidthPx
+        || g_customExecutePanelLastLayoutHeightPx != g_config.executeButtonHeightPx
+        || g_customExecutePanelLastLayoutGapPx != g_config.executeButtonGapPx
+        || g_customExecutePanelLastLayoutOffsetXPx != g_config.executeButtonOffsetXPx
+        || g_customExecutePanelLastLayoutOffsetYPx != g_config.executeButtonOffsetYPx;
+}
+
 static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
 {
     if (!g_customExecutePanelRoot || !g_customExecutePanelButton || !g_customExecuteAllPanelButton)
@@ -5007,6 +5139,15 @@ static void LayoutCustomExecutePanelOverlay(ContextMenu* menu)
     {
         g_customExecutePanelValue->setVisible(false);
     }
+
+    g_customExecutePanelHasLayoutState = true;
+    g_customExecutePanelLastLayoutOrdersCount = g_customExecutePanelOrdersCount;
+    g_customExecutePanelLastLayoutExecuteAllEnabled = IsExecuteAllEnabled();
+    g_customExecutePanelLastLayoutWidthPx = g_config.executeButtonWidthPx;
+    g_customExecutePanelLastLayoutHeightPx = g_config.executeButtonHeightPx;
+    g_customExecutePanelLastLayoutGapPx = g_config.executeButtonGapPx;
+    g_customExecutePanelLastLayoutOffsetXPx = g_config.executeButtonOffsetXPx;
+    g_customExecutePanelLastLayoutOffsetYPx = g_config.executeButtonOffsetYPx;
 }
 
 static void HideCustomExecutePanelOverlay()
@@ -5028,9 +5169,23 @@ static void HideCustomExecutePanelOverlay()
     g_customExecutePanelOrdersCount = 0;
     g_customExecutePanelShowSeq = 0;
     g_customExecutePanelArmMs = 0;
+    g_customExecutePanelLastContextMenuTickMs = 0;
+    g_customExecutePanelLastPredicateEvalMs = 0;
+    g_customExecutePanelLastPredicateActorPtr = 0;
+    g_customExecutePanelLastPredicateTargetPtr = 0;
+    g_customExecutePanelHasLastPredicateResult = false;
+    g_customExecutePanelLastPredicateResult = false;
     g_customExecutePanelAnchorRectCached = false;
     g_customExecutePanelAnchorRect = MyGUI::IntCoord(0, 0, 0, 0);
     g_customExecutePanelAnchorSource = 0;
+    g_customExecutePanelHasLayoutState = false;
+    g_customExecutePanelLastLayoutOrdersCount = 0;
+    g_customExecutePanelLastLayoutExecuteAllEnabled = false;
+    g_customExecutePanelLastLayoutWidthPx = 0;
+    g_customExecutePanelLastLayoutHeightPx = 0;
+    g_customExecutePanelLastLayoutGapPx = 0;
+    g_customExecutePanelLastLayoutOffsetXPx = 0;
+    g_customExecutePanelLastLayoutOffsetYPx = 0;
 }
 
 static void ArmCustomExecutePanelOverlay(
@@ -5067,10 +5222,24 @@ static void ArmCustomExecutePanelOverlay(
     g_customExecutePanelOrdersCount = ordersCount;
     g_customExecutePanelShowSeq = showSeq;
     g_customExecutePanelArmMs = nowMs;
+    g_customExecutePanelLastContextMenuTickMs = 0;
+    g_customExecutePanelLastPredicateEvalMs = 0;
+    g_customExecutePanelLastPredicateActorPtr = 0;
+    g_customExecutePanelLastPredicateTargetPtr = 0;
+    g_customExecutePanelHasLastPredicateResult = false;
+    g_customExecutePanelLastPredicateResult = false;
     g_customExecutePanelRightMouseWasDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     g_customExecutePanelAnchorRectCached = false;
     g_customExecutePanelAnchorRect = MyGUI::IntCoord(0, 0, 0, 0);
     g_customExecutePanelAnchorSource = 0;
+    g_customExecutePanelHasLayoutState = false;
+    g_customExecutePanelLastLayoutOrdersCount = 0;
+    g_customExecutePanelLastLayoutExecuteAllEnabled = false;
+    g_customExecutePanelLastLayoutWidthPx = 0;
+    g_customExecutePanelLastLayoutHeightPx = 0;
+    g_customExecutePanelLastLayoutGapPx = 0;
+    g_customExecutePanelLastLayoutOffsetXPx = 0;
+    g_customExecutePanelLastLayoutOffsetYPx = 0;
 
     LayoutCustomExecutePanelOverlay(menu);
     g_customExecutePanelRoot->setVisible(true);
@@ -5117,14 +5286,8 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
         HideCustomExecutePanelOverlay();
         return;
     }
-    CanExecuteDiagnostics diagnostics = MakeCanExecuteDiagnostics();
-    const bool canExecute = CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, false);
-    if (!canExecute)
+    if (!EvaluateCustomExecutePanelPredicateCached(actor, target, nowMs))
     {
-        if (ShouldLogExecuteDebug())
-        {
-            (void)CanExecuteFromNativeMenuSelection(actor, target, &diagnostics, true);
-        }
         HideCustomExecutePanelOverlay();
         return;
     }
@@ -5135,9 +5298,15 @@ static void TickCustomExecutePanelOverlay(ContextMenu* menu, DWORD nowMs)
         return;
     }
 
-    LayoutCustomExecutePanelOverlay(menu);
-    g_customExecutePanelRoot->setVisible(true);
-    g_customExecutePanelVisible = true;
+    if (IsCustomExecutePanelLayoutDirty())
+    {
+        LayoutCustomExecutePanelOverlay(menu);
+    }
+    if (!g_customExecutePanelVisible)
+    {
+        g_customExecutePanelRoot->setVisible(true);
+        g_customExecutePanelVisible = true;
+    }
 
     const bool rightDown = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     const bool rightReleasedThisFrame = g_customExecutePanelRightMouseWasDown && !rightDown;
