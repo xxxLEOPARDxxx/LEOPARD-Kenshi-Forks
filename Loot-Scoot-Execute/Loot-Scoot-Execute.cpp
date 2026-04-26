@@ -2145,7 +2145,7 @@ static bool ApplyTintConstantsToPass(
         try
         {
             Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
-            if (!fragmentParams.isNull())
+            if (!fragmentParams.isNull() && fragmentParams->hasNamedParameters())
             {
                 const char* colourParamNames[] = {
                     "coloroverride",
@@ -2155,6 +2155,10 @@ static bool ApplyTintConstantsToPass(
                 };
                 for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
                 {
+                    if (!fragmentParams->_findNamedConstantDefinition(colourParamNames[i], false))
+                    {
+                        continue;
+                    }
                     try
                     {
                         fragmentParams->setNamedConstant(colourParamNames[i], colour);
@@ -2176,7 +2180,7 @@ static bool ApplyTintConstantsToPass(
         try
         {
             Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
-            if (!vertexParams.isNull())
+            if (!vertexParams.isNull() && vertexParams->hasNamedParameters())
             {
                 const char* depthParamNames[] = {
                     "overrideDepth",
@@ -2184,6 +2188,10 @@ static bool ApplyTintConstantsToPass(
                 };
                 for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
                 {
+                    if (!vertexParams->_findNamedConstantDefinition(depthParamNames[i], false))
+                    {
+                        continue;
+                    }
                     try
                     {
                         vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
@@ -2219,7 +2227,7 @@ static bool ApplyTintConstantsToPassColourRequired(
         try
         {
             Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
-            if (!fragmentParams.isNull())
+            if (!fragmentParams.isNull() && fragmentParams->hasNamedParameters())
             {
                 const char* colourParamNames[] = {
                     "coloroverride",
@@ -2229,6 +2237,10 @@ static bool ApplyTintConstantsToPassColourRequired(
                 };
                 for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
                 {
+                    if (!fragmentParams->_findNamedConstantDefinition(colourParamNames[i], false))
+                    {
+                        continue;
+                    }
                     try
                     {
                         fragmentParams->setNamedConstant(colourParamNames[i], colour);
@@ -2250,7 +2262,7 @@ static bool ApplyTintConstantsToPassColourRequired(
         try
         {
             Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
-            if (!vertexParams.isNull())
+            if (!vertexParams.isNull() && vertexParams->hasNamedParameters())
             {
                 const char* depthParamNames[] = {
                     "overrideDepth",
@@ -2258,6 +2270,10 @@ static bool ApplyTintConstantsToPassColourRequired(
                 };
                 for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
                 {
+                    if (!vertexParams->_findNamedConstantDefinition(depthParamNames[i], false))
+                    {
+                        continue;
+                    }
                     try
                     {
                         vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
