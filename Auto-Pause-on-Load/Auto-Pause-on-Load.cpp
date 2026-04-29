@@ -1,7 +1,6 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
-#include "TradeWindowProbe.h"
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -40,6 +39,7 @@ struct RuntimeState
     DWORD saveLoadIntentTimestampMs;
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
+    DWORD lastUiDetectionPollMs;
     bool loggedWorldUnavailable;
     bool tradeActive;
     bool inventoryActive;
@@ -55,10 +55,13 @@ static const DWORD kTickAliveIntervalMs = 5000;
 static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
 static const DWORD kSaveLoadIntentTimeoutMs = 5000;
+static const DWORD kUiDetectionPollIntervalMs = 100;
+static const DWORD kObservedTradeConversationPendingMs = 30000;
+static const DWORD kObservedTradeConversationTimeoutMs = 300000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
 static PluginConfig g_config = { true, 2000, false, true, true, true, true };
-static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, false, false, false, false, false, false, false };
+static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, 0, false, false, false, false, false, false, false };
 
 static std::string g_settingsPath;
 static bool g_configNeedsWriteBack = false;
@@ -72,8 +75,17 @@ static PlayerInterface* g_lastPlayerInterface = 0;
 static bool g_hooksInstalled = false;
 static bool g_updateUTHookVerified = false;
 static DWORD g_updateUTHookVerifyTimeMs = 0;
+static bool (*Dialogue_startPlayerConversation_orig)(Dialogue*, Character*, DialogLineData*) = 0;
+static Dialogue* g_observedTradeDialogue = 0;
+static Character* g_observedTradeSpeaker = 0;
+static Character* g_observedTradeTarget = 0;
+static DWORD g_observedTradeStartedMs = 0;
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr);
+static bool Dialogue_startPlayerConversation_hook(
+    Dialogue* dialogue,
+    Character* target,
+    DialogLineData* dialogLine);
 
 static bool IsSupportedVersion(unsigned int platform, const std::string& version);
 static bool ResolveSupportedRuntimeNoSeh(unsigned int* out_platform, std::string* out_version);
@@ -1332,6 +1344,149 @@ static bool TryResolveCharacterInventoryVisible(Character* character, bool* visi
     }
 }
 
+static void ClearObservedTradeConversation()
+{
+    g_observedTradeDialogue = 0;
+    g_observedTradeSpeaker = 0;
+    g_observedTradeTarget = 0;
+    g_observedTradeStartedMs = 0;
+}
+
+static bool IsPlayerCharacter(Character* character)
+{
+    if (!character || !ou || !ou->player)
+    {
+        return false;
+    }
+
+    __try
+    {
+        const lektor<Character*>& playerCharacters = ou->player->getAllPlayerCharacters();
+        for (lektor<Character*>::const_iterator it = playerCharacters.begin();
+             it != playerCharacters.end();
+             ++it)
+        {
+            if (*it == character)
+            {
+                return true;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+
+    return false;
+}
+
+static void ObserveTradeConversationStart(Dialogue* dialogue, Character* target)
+{
+    Character* speaker = 0;
+    bool shouldTrack = false;
+
+    __try
+    {
+        speaker = dialogue == 0 ? 0 : dialogue->getCharacter();
+        shouldTrack = speaker != 0
+            && target != 0
+            && speaker->isATrader()
+            && IsPlayerCharacter(target);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        shouldTrack = false;
+    }
+
+    if (!shouldTrack)
+    {
+        return;
+    }
+
+    g_observedTradeDialogue = dialogue;
+    g_observedTradeSpeaker = speaker;
+    g_observedTradeTarget = target;
+    g_observedTradeStartedMs = GetTickCount();
+
+    if (g_config.debugLogTransitions)
+    {
+        DebugLog("Auto-Pause-on-Load DEBUG: observed trader conversation start");
+    }
+
+}
+
+static bool QueryObservedTradeConversation(
+    bool* speakerInventoryVisibleOut,
+    bool* targetInventoryVisibleOut,
+    bool* pendingOut)
+{
+    if (speakerInventoryVisibleOut == 0 || targetInventoryVisibleOut == 0 || pendingOut == 0)
+    {
+        return false;
+    }
+
+    *speakerInventoryVisibleOut = false;
+    *targetInventoryVisibleOut = false;
+    *pendingOut = false;
+    if (g_observedTradeDialogue == 0 || g_observedTradeSpeaker == 0)
+    {
+        return false;
+    }
+
+    bool active = false;
+    bool shouldClear = false;
+    bool speakerInventoryVisible = false;
+    bool targetInventoryVisible = false;
+    const DWORD nowMs = GetTickCount();
+
+    __try
+    {
+        if (DebounceWindowElapsed(
+                nowMs,
+                g_observedTradeStartedMs,
+                kObservedTradeConversationTimeoutMs))
+        {
+            shouldClear = true;
+        }
+        else if (!g_observedTradeSpeaker->isATrader())
+        {
+            shouldClear = true;
+        }
+        else
+        {
+            TryResolveCharacterInventoryVisible(g_observedTradeSpeaker, &speakerInventoryVisible);
+            TryResolveCharacterInventoryVisible(g_observedTradeTarget, &targetInventoryVisible);
+
+            const bool inventoryVisible = speakerInventoryVisible || targetInventoryVisible;
+            const bool withinPendingWindow = !DebounceWindowElapsed(
+                nowMs,
+                g_observedTradeStartedMs,
+                kObservedTradeConversationPendingMs);
+            *pendingOut = withinPendingWindow;
+            active = inventoryVisible;
+            shouldClear = !withinPendingWindow && !inventoryVisible;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        shouldClear = true;
+    }
+
+    if (shouldClear)
+    {
+        ClearObservedTradeConversation();
+    }
+
+    if (!active)
+    {
+        return false;
+    }
+
+    *speakerInventoryVisibleOut = speakerInventoryVisible;
+    *targetInventoryVisibleOut = targetInventoryVisible;
+    return true;
+}
+
 static bool TryResolveActiveTraderFallback(
     Character* speaker,
     Character** targetOut,
@@ -1529,11 +1684,42 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
 
     AccumulateSelectedCharacterUiSignals(selected, &anyTradeActive, &anyInventoryVisible);
 
+    bool observedTradeSpeakerInventoryVisible = false;
+    bool observedTradeTargetInventoryVisible = false;
+    bool observedTradePending = false;
+    if (QueryObservedTradeConversation(
+            &observedTradeSpeakerInventoryVisible,
+            &observedTradeTargetInventoryVisible,
+            &observedTradePending))
+    {
+        anyTradeActive = true;
+        if (observedTradeSpeakerInventoryVisible || observedTradeTargetInventoryVisible)
+        {
+            anyInventoryVisible = true;
+        }
+    }
+    else if (observedTradePending)
+    {
+        anyInventoryVisible = false;
+    }
+
     if (!anyTradeActive)
     {
-        bool traderWindowVisible = false;
-        if (QueryVisibleTraderWindow(&traderWindowVisible, 0) && traderWindowVisible)
+        Character* fallbackTarget = 0;
+        bool fallbackTargetInventoryVisible = false;
+        bool fallbackTargetEngaged = false;
+        if (TryResolveActiveTraderFallback(
+                selected,
+                &fallbackTarget,
+                &fallbackTargetInventoryVisible,
+                &fallbackTargetEngaged)
+            && fallbackTarget)
         {
+            if (fallbackTargetInventoryVisible)
+            {
+                anyInventoryVisible = true;
+            }
+
             anyTradeActive = true;
         }
     }
@@ -1595,6 +1781,8 @@ static void ResetUiTracking()
     g_state.inventoryPausedByPlugin = false;
     g_state.tradeWasPausedBeforeStart = false;
     g_state.inventoryWasPausedBeforeStart = false;
+    g_state.lastUiDetectionPollMs = 0;
+    ClearObservedTradeConversation();
 }
 
 static void TryPauseOnUiOpen(
@@ -1698,6 +1886,20 @@ static void TickPauseOnTradeAndInventory()
         return;
     }
 
+    if (!g_config.pauseOnTrade && !g_config.pauseOnInventoryOpen)
+    {
+        ResetUiTracking();
+        return;
+    }
+
+    const DWORD nowMs = GetTickCount();
+    if (g_state.lastUiDetectionPollMs != 0
+        && !DebounceWindowElapsed(nowMs, g_state.lastUiDetectionPollMs, kUiDetectionPollIntervalMs))
+    {
+        return;
+    }
+    g_state.lastUiDetectionPollMs = nowMs;
+
     bool tradeActiveNow = false;
     bool inventoryActiveNow = false;
     if (!QueryTradeAndInventoryStates(&tradeActiveNow, &inventoryActiveNow))
@@ -1705,12 +1907,11 @@ static void TickPauseOnTradeAndInventory()
         return;
     }
 
+    const bool effectiveInventoryActiveNow = inventoryActiveNow && !tradeActiveNow;
     const bool tradeOpened = (!g_state.tradeActive && tradeActiveNow);
     const bool tradeClosed = (g_state.tradeActive && !tradeActiveNow);
-    const bool inventoryOpened = (!g_state.inventoryActive && inventoryActiveNow);
-    const bool inventoryClosed = (g_state.inventoryActive && !inventoryActiveNow);
-
-    const DWORD nowMs = GetTickCount();
+    const bool inventoryOpened = (!g_state.inventoryActive && effectiveInventoryActiveNow);
+    const bool inventoryClosed = (g_state.inventoryActive && !effectiveInventoryActiveNow);
 
     if (tradeOpened)
     {
@@ -1720,7 +1921,7 @@ static void TickPauseOnTradeAndInventory()
         {
             TryPauseOnUiOpen(
                 nowMs,
-                "trade_open",
+                "trade",
                 &g_state.tradePausedByPlugin,
                 &g_state.tradeWasPausedBeforeStart);
         }
@@ -1741,7 +1942,7 @@ static void TickPauseOnTradeAndInventory()
     }
 
     g_state.tradeActive = tradeActiveNow;
-    g_state.inventoryActive = inventoryActiveNow;
+    g_state.inventoryActive = effectiveInventoryActiveNow;
 
     if (tradeClosed)
     {
@@ -2113,6 +2314,29 @@ static bool TryInstallUpdateUTHook()
     return false;
 }
 
+static bool TryInstallDialogueStartPlayerConversationHook()
+{
+    if (Dialogue_startPlayerConversation_orig != 0)
+    {
+        return true;
+    }
+
+    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&Dialogue::startPlayerConversation),
+            Dialogue_startPlayerConversation_hook,
+            &Dialogue_startPlayerConversation_orig))
+    {
+        if (g_config.debugLogTransitions)
+        {
+            DebugLog("Auto-Pause-on-Load INFO: Dialogue::startPlayerConversation hook installed");
+        }
+        return true;
+    }
+
+    ErrorLog("Auto-Pause-on-Load WARN: failed to install Dialogue::startPlayerConversation hook");
+    return false;
+}
+
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 {
     PlayerInterface_updateUT_orig(thisptr);
@@ -2145,6 +2369,25 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     }
 }
 
+static bool Dialogue_startPlayerConversation_hook(
+    Dialogue* dialogue,
+    Character* target,
+    DialogLineData* dialogLine)
+{
+    bool result = false;
+    if (Dialogue_startPlayerConversation_orig != 0)
+    {
+        result = Dialogue_startPlayerConversation_orig(dialogue, target, dialogLine);
+    }
+
+    if (result)
+    {
+        ObserveTradeConversationStart(dialogue, target);
+    }
+
+    return result;
+}
+
 __declspec(dllexport) void startPlugin()
 {
     unsigned int platform = KenshiLib::BinaryVersion::UNKNOWN;
@@ -2174,6 +2417,7 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Auto-Pause-on-Load WARN: failed to install updateUT host at startup; pause runtime will remain inactive");
     }
+    TryInstallDialogueStartPlayerConversationHook();
 
     g_hasObservedLoadSignal = false;
     g_lastObservedLoadSignal = false;
