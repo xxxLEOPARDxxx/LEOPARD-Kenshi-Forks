@@ -40,7 +40,10 @@ struct RuntimeState
     DWORD lastPauseMs;
     DWORD lastTickAliveLogMs;
     DWORD lastUiDetectionPollMs;
+    DWORD lastActiveTraderFallbackPollMs;
     bool loggedWorldUnavailable;
+    bool activeTraderFallbackActive;
+    bool activeTraderFallbackInventoryVisible;
     bool tradeActive;
     bool inventoryActive;
     bool tradePausedByPlugin;
@@ -56,12 +59,13 @@ static const DWORD kNoSignalDisarmMs = 1500;
 static const DWORD kArmedTimeoutMs = 60000;
 static const DWORD kSaveLoadIntentTimeoutMs = 5000;
 static const DWORD kUiDetectionPollIntervalMs = 100;
+static const DWORD kActiveTraderFallbackPollIntervalMs = 1000;
 static const DWORD kObservedTradeConversationPendingMs = 30000;
 static const DWORD kObservedTradeConversationTimeoutMs = 300000;
 static const DWORD kPauseDebounceMsMin = 0;
 static const DWORD kPauseDebounceMsMax = 600000;
 static PluginConfig g_config = { true, 2000, false, true, true, true, true };
-static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, 0, false, false, false, false, false, false, false };
+static RuntimeState g_state = { false, false, false, false, 0, 0, 0, 0, 0, 0, false, false, false, false, false, false, false, false, false };
 
 static std::string g_settingsPath;
 static bool g_configNeedsWriteBack = false;
@@ -80,6 +84,7 @@ static Dialogue* g_observedTradeDialogue = 0;
 static Character* g_observedTradeSpeaker = 0;
 static Character* g_observedTradeTarget = 0;
 static DWORD g_observedTradeStartedMs = 0;
+static bool g_observedTradeInventorySeen = false;
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr);
 static bool Dialogue_startPlayerConversation_hook(
@@ -1350,6 +1355,7 @@ static void ClearObservedTradeConversation()
     g_observedTradeSpeaker = 0;
     g_observedTradeTarget = 0;
     g_observedTradeStartedMs = 0;
+    g_observedTradeInventorySeen = false;
 }
 
 static bool IsPlayerCharacter(Character* character)
@@ -1407,6 +1413,7 @@ static void ObserveTradeConversationStart(Dialogue* dialogue, Character* target)
     g_observedTradeSpeaker = speaker;
     g_observedTradeTarget = target;
     g_observedTradeStartedMs = GetTickCount();
+    g_observedTradeInventorySeen = false;
 
     if (g_config.debugLogTransitions)
     {
@@ -1462,9 +1469,20 @@ static bool QueryObservedTradeConversation(
                 nowMs,
                 g_observedTradeStartedMs,
                 kObservedTradeConversationPendingMs);
-            *pendingOut = withinPendingWindow;
-            active = inventoryVisible;
-            shouldClear = !withinPendingWindow && !inventoryVisible;
+            if (inventoryVisible)
+            {
+                g_observedTradeInventorySeen = true;
+                active = true;
+            }
+            else if (g_observedTradeInventorySeen)
+            {
+                shouldClear = true;
+            }
+            else
+            {
+                *pendingOut = withinPendingWindow;
+                shouldClear = !withinPendingWindow;
+            }
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1575,6 +1593,43 @@ static bool TryResolveActiveTraderFallback(
     }
 }
 
+static bool ShouldRefreshActiveTraderFallback()
+{
+    const DWORD nowMs = GetTickCount();
+    if (g_state.lastActiveTraderFallbackPollMs != 0
+        && !DebounceWindowElapsed(
+            nowMs,
+            g_state.lastActiveTraderFallbackPollMs,
+            kActiveTraderFallbackPollIntervalMs))
+    {
+        return false;
+    }
+
+    g_state.lastActiveTraderFallbackPollMs = nowMs;
+    return true;
+}
+
+static void RefreshActiveTraderFallback(Character* selected)
+{
+    g_state.activeTraderFallbackActive = false;
+    g_state.activeTraderFallbackInventoryVisible = false;
+
+    Character* fallbackTarget = 0;
+    bool fallbackTargetInventoryVisible = false;
+    bool fallbackTargetEngaged = false;
+    if (TryResolveActiveTraderFallback(
+            selected,
+            &fallbackTarget,
+            &fallbackTargetInventoryVisible,
+            &fallbackTargetEngaged)
+        && fallbackTarget
+        && fallbackTargetInventoryVisible)
+    {
+        g_state.activeTraderFallbackActive = true;
+        g_state.activeTraderFallbackInventoryVisible = fallbackTargetInventoryVisible;
+    }
+}
+
 static void AccumulateCharacterUiSignals(
     Character* character,
     bool* anyTradeActiveOut,
@@ -1612,13 +1667,10 @@ static void AccumulateCharacterUiSignals(
                     &fallbackTarget,
                     &fallbackTargetInventoryVisible,
                     &fallbackTargetEngaged)
-                && fallbackTarget)
+                && fallbackTarget
+                && fallbackTargetInventoryVisible)
             {
-                if (fallbackTargetInventoryVisible)
-                {
-                    *anyInventoryVisibleOut = true;
-                }
-
+                *anyInventoryVisibleOut = true;
                 *anyTradeActiveOut = true;
                 return;
             }
@@ -1635,19 +1687,17 @@ static void AccumulateCharacterUiSignals(
         const bool targetEngaged = target->_isEngagedWithAPlayer;
         const bool engaged = playerEngaged || targetEngaged;
         const bool targetIsTrader = target->isATrader();
-        if (!dialogActive && !targetIsTrader)
+        if (!targetIsTrader || !targetInventoryVisible)
         {
             return;
         }
 
-        if (!engaged
-            && !targetIsTrader
-            && !characterInventoryVisible
-            && !targetInventoryVisible)
+        if (!dialogActive && !engaged && !characterInventoryVisible)
         {
             return;
         }
 
+        *anyInventoryVisibleOut = true;
         *anyTradeActiveOut = true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
@@ -1701,21 +1751,20 @@ static bool QueryTradeAndInventoryStates(bool* tradeActiveOut, bool* inventoryAc
     else if (observedTradePending)
     {
         anyInventoryVisible = false;
+        g_state.activeTraderFallbackActive = false;
+        g_state.activeTraderFallbackInventoryVisible = false;
     }
 
-    if (!anyTradeActive)
+    if (!anyTradeActive && !observedTradePending)
     {
-        Character* fallbackTarget = 0;
-        bool fallbackTargetInventoryVisible = false;
-        bool fallbackTargetEngaged = false;
-        if (TryResolveActiveTraderFallback(
-                selected,
-                &fallbackTarget,
-                &fallbackTargetInventoryVisible,
-                &fallbackTargetEngaged)
-            && fallbackTarget)
+        if (ShouldRefreshActiveTraderFallback())
         {
-            if (fallbackTargetInventoryVisible)
+            RefreshActiveTraderFallback(selected);
+        }
+
+        if (g_state.activeTraderFallbackActive)
+        {
+            if (g_state.activeTraderFallbackInventoryVisible)
             {
                 anyInventoryVisible = true;
             }
@@ -1782,6 +1831,9 @@ static void ResetUiTracking()
     g_state.tradeWasPausedBeforeStart = false;
     g_state.inventoryWasPausedBeforeStart = false;
     g_state.lastUiDetectionPollMs = 0;
+    g_state.lastActiveTraderFallbackPollMs = 0;
+    g_state.activeTraderFallbackActive = false;
+    g_state.activeTraderFallbackInventoryVisible = false;
     ClearObservedTradeConversation();
 }
 
