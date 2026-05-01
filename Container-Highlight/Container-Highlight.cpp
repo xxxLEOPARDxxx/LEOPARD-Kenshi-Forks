@@ -90,6 +90,8 @@ const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "container_highlight";
 const char* kHubModDisplayName = "Container Highlight";
+const char* kHubSectionAdvancedId = "advanced";
+const char* kHubSectionAdvancedLabel = "Advanced";
 const char* kHubSettingEnabledId = "enabled";
 const char* kHubSettingShowIconsId = "show_icons";
 const char* kHubSettingShowTextId = "show_text";
@@ -3325,22 +3327,24 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubLogRenderTraceAction };
 
     static const emc::ModHubClientSettingRowV1 kRows[] = {
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, &kMaxHighlightDistanceSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowIconsSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowTextSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnableTintSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnableScreenHighlightSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kScreenHighlightUseBoxSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugLoggingSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kProbeSnapshotActionDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kRenderTraceActionDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, kHubSettingMaxHighlightDistanceId, &kMaxHighlightDistanceSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowIconsId, &kShowIconsSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowTextId, &kShowTextSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableTintId, &kEnableTintSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableScreenHighlightId, &kEnableScreenHighlightSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingScreenHighlightUseBoxId, &kScreenHighlightUseBoxSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDebugLoggingId, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogProbeSnapshotId, &kProbeSnapshotActionDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, 0, 0 }
     };
 
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {
         &kModDescriptor,
         kRows,
-        static_cast<uint32_t>(sizeof(kRows) / sizeof(kRows[0])) };
+        static_cast<uint32_t>(sizeof(kRows) / sizeof(kRows[0])),
+        0,
+        0 };
 
     return &kRegistration;
 }
