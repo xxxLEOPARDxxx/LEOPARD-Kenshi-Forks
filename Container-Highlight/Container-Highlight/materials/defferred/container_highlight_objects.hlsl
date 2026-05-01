@@ -1,5 +1,5 @@
 // Deferred object highlight shader for container tinting.
-#define CH_DIAGNOSTIC_SOLID_OUTPUT 1
+#define CH_DIAGNOSTIC_SOLID_OUTPUT 0
 
 #include "gbuffer.hlsl"
 #include "wet.hlsl"

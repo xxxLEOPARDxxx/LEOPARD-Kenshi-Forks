@@ -3155,6 +3155,29 @@ bool TryParseHubRgbColour(const char* rawValue, Ogre::ColourValue* colourOut)
     return true;
 }
 
+bool TryMapSingleModifierMaskToPrimaryKey(uint32_t modifiers, int* keyCodeOut)
+{
+    if (keyCodeOut == 0)
+    {
+        return false;
+    }
+
+    switch (modifiers)
+    {
+    case EMC_KEYBIND_MODIFIER_CTRL_MASK:
+        *keyCodeOut = static_cast<int>(OIS::KC_LCONTROL);
+        return true;
+    case EMC_KEYBIND_MODIFIER_SHIFT_MASK:
+        *keyCodeOut = static_cast<int>(OIS::KC_LSHIFT);
+        return true;
+    case EMC_KEYBIND_MODIFIER_ALT_MASK:
+        *keyCodeOut = static_cast<int>(OIS::KC_LMENU);
+        return true;
+    default:
+        return false;
+    }
+}
+
 EMC_Result __cdecl HubGetEnabledSetting(void* user_data, int32_t* out_value)
 {
     return HubGetBoolSetting(user_data, g_state.config.enabled, out_value);
@@ -3189,29 +3212,42 @@ EMC_Result __cdecl HubSetHighlightKeySetting(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
+    int requestedKeyCode = value.keycode;
     uint32_t unsupportedModifiers = value.modifiers & ~EMC_KEYBIND_MODIFIER_SUPPORTED_MASK;
     uint32_t modifierRequirements = value.modifiers & EMC_KEYBIND_MODIFIER_SUPPORTED_MASK;
-    if (IsCtrlKeyCode(value.keycode))
+    if (requestedKeyCode == kKeyCodeUnbound)
+    {
+        if (TryMapSingleModifierMaskToPrimaryKey(modifierRequirements, &requestedKeyCode))
+        {
+            modifierRequirements = 0u;
+        }
+    }
+
+    if (IsCtrlKeyCode(requestedKeyCode))
     {
         modifierRequirements &= ~EMC_KEYBIND_MODIFIER_CTRL_MASK;
     }
-    if (IsShiftKeyCode(value.keycode))
+    if (IsShiftKeyCode(requestedKeyCode))
     {
         modifierRequirements &= ~EMC_KEYBIND_MODIFIER_SHIFT_MASK;
     }
-    if (IsAltKeyCode(value.keycode))
+    if (IsAltKeyCode(requestedKeyCode))
     {
         modifierRequirements &= ~EMC_KEYBIND_MODIFIER_ALT_MASK;
     }
-    unsupportedModifiers |= modifierRequirements;
     if (unsupportedModifiers != 0u)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_modifiers");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+    if (modifierRequirements != 0u)
     {
         WriteRuntimeApiError(err_buf, err_buf_size, "use_modifier_toggles");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
     std::string reason;
-    if (!ValidatePrimaryKeyCode(value.keycode, &reason))
+    if (!ValidatePrimaryKeyCode(requestedKeyCode, &reason))
     {
         WriteRuntimeApiError(err_buf, err_buf_size, reason.empty() ? "invalid_keybind" : reason.c_str());
         return EMC_ERR_INVALID_ARGUMENT;
@@ -3219,7 +3255,7 @@ EMC_Result __cdecl HubSetHighlightKeySetting(
 
     const int previousKeyCode = g_state.config.highlightKeyCode;
 
-    g_state.config.highlightKeyCode = value.keycode;
+    g_state.config.highlightKeyCode = requestedKeyCode;
 
     if (!SaveConfigState())
     {
