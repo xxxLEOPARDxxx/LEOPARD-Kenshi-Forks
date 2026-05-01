@@ -87,6 +87,8 @@ const int kDefaultHighlightKeyCode = static_cast<int>(OIS::KC_LMENU);
 const float kHubMinHighlightDistance = 100.0f;
 const float kHubMaxHighlightDistance = 5000.0f;
 const uint32_t kHubMarkerTextMaxLength = 24u;
+const DWORD kDebugSummaryIntervalMs = 5000;
+const DWORD kDebugInvestigationIntervalMs = 5000;
 const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "container_highlight";
@@ -208,6 +210,7 @@ struct RuntimeState
     RuntimeState()
         : projectionUtility(0)
         , lastProbeTickMs(0)
+        , lastProbeDebugLogTickMs(0)
         , lastTintDebugLogTickMs(0)
         , markerWidgetSerial(0)
         , tintCloneSerial(0)
@@ -224,6 +227,7 @@ struct RuntimeState
     std::vector<ContainerTintEntry> tintEntries;
     UtilityT* projectionUtility;
     DWORD lastProbeTickMs;
+    DWORD lastProbeDebugLogTickMs;
     DWORD lastTintDebugLogTickMs;
     unsigned int markerWidgetSerial;
     unsigned int tintCloneSerial;
@@ -536,21 +540,26 @@ void LogDebugLine(const std::string& message)
     LogInfoLine(message);
 }
 
-bool ShouldEmitTintInvestigation()
+bool ShouldEmitThrottledDebug(DWORD* lastTickMs, DWORD intervalMs)
 {
-    if (!ShouldLogDebug())
+    if (!ShouldLogDebug() || lastTickMs == 0)
     {
         return false;
     }
 
     const DWORD nowMs = GetTickCount();
-    if (g_state.lastTintDebugLogTickMs != 0 && (nowMs - g_state.lastTintDebugLogTickMs) < 1000)
+    if (*lastTickMs != 0 && (nowMs - *lastTickMs) < intervalMs)
     {
         return false;
     }
 
-    g_state.lastTintDebugLogTickMs = nowMs;
+    *lastTickMs = nowMs;
     return true;
+}
+
+bool ShouldEmitTintInvestigation()
+{
+    return ShouldEmitThrottledDebug(&g_state.lastTintDebugLogTickMs, kDebugInvestigationIntervalMs);
 }
 
 std::string BaseNameForPath(const std::string& path)
@@ -3674,14 +3683,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetEnableScreenHighlightSetting,
         &HubSetEnableScreenHighlightSetting };
 
-    static const EMC_BoolSettingDefV1 kScreenHighlightUseBoxSettingDef = {
-        kHubSettingScreenHighlightUseBoxId,
-        "Screen highlight use box",
-        "Use box-style highlight (true) or corner-style highlight (false)",
-        &g_modHubClient,
-        &HubGetScreenHighlightUseBoxSetting,
-        &HubSetScreenHighlightUseBoxSetting };
-
     static const EMC_FloatSettingDefV1 kMaxHighlightDistanceSettingDef = {
         kHubSettingMaxHighlightDistanceId,
         "Max highlight distance",
@@ -3724,7 +3725,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableTintId, &kEnableTintSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingTintColorId, &kTintColorSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableScreenHighlightId, &kEnableScreenHighlightSettingDef, 0, 0 },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingScreenHighlightUseBoxId, &kScreenHighlightUseBoxSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDebugLoggingId, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogProbeSnapshotId, &kProbeSnapshotActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }
@@ -3743,7 +3743,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { kHubSettingEnableTintId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingTintColorId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingEnableScreenHighlightId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
-        { kHubSettingScreenHighlightUseBoxId, kHubSettingEnableScreenHighlightId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubActionLogProbeSnapshotId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubActionLogRenderTraceId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 }
     };
@@ -5154,7 +5153,7 @@ void RefreshContainerTargetCache()
         g_state.targetCache.resize(kMaxContainerMarkers);
     }
 
-    if (ShouldLogDebug())
+    if (ShouldEmitThrottledDebug(&g_state.lastProbeDebugLogTickMs, kDebugSummaryIntervalMs))
     {
         std::stringstream line;
         line << "probe center=(" << probeCenter.x << "," << probeCenter.y << "," << probeCenter.z << ")"
@@ -5870,28 +5869,6 @@ bool ProjectContainerBoundsToScreen(
     if (visibleCount == 0)
     {
         return false;
-    }
-
-    {
-        Ogre::Vector3 playerPos = Ogre::Vector3::ZERO;
-        if (ou && ou->player)
-        {
-            Character* selectedCharacter = ou->player->selectedCharacter.getCharacter();
-            if (selectedCharacter != 0 && selectedCharacter->isValid())
-            {
-                playerPos = selectedCharacter->getPosition();
-            }
-        }
-        float dist = (worldCenter - playerPos).length();
-
-        std::stringstream debug;
-        debug << "[proj] center=(" << worldCenter.x << "," << worldCenter.y << "," << worldCenter.z
-              << ") size=(" << worldSizeX << "," << worldSizeY << "," << worldSizeZ << ")"
-              << " screenRect=(" << minX << "," << minY << "," << maxX << "," << maxY << ")"
-              << " view=" << viewWidth << "x" << viewHeight
-              << " dist=" << dist
-              << " visibleCorners=" << visibleCount;
-        LogDebugLine(debug.str());
     }
 
     *outLeft = minX;
