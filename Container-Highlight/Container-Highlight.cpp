@@ -3719,14 +3719,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetDebugLoggingSetting,
         &HubSetDebugLoggingSetting };
 
-    static const EMC_BoolSettingDefV1 kEnableScreenHighlightSettingDef = {
-        kHubSettingEnableScreenHighlightId,
-        "Enable screen highlight",
-        "Draw a screen-space highlight box around detected containers",
-        &g_modHubClient,
-        &HubGetEnableScreenHighlightSetting,
-        &HubSetEnableScreenHighlightSetting };
-
     static const EMC_FloatSettingDefV1 kMaxHighlightDistanceSettingDef = {
         kHubSettingMaxHighlightDistanceId,
         "Max highlight distance",
@@ -3768,7 +3760,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingMarkerColorId, &kMarkerColorSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableTintId, &kEnableTintSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingTintColorId, &kTintColorSettingDef, 0, 0 },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableScreenHighlightId, &kEnableScreenHighlightSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDebugLoggingId, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogProbeSnapshotId, &kProbeSnapshotActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }
@@ -3786,7 +3777,6 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { kHubSettingMarkerColorId, kHubSettingShowTextId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingEnableTintId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingTintColorId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
-        { kHubSettingEnableScreenHighlightId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubActionLogProbeSnapshotId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubActionLogRenderTraceId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 }
     };
