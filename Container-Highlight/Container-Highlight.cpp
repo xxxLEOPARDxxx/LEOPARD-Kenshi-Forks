@@ -80,6 +80,11 @@ const int kMarkerTextOutlineOffsetPx = 1;
 const float kDefaultAnchorYOffsetWorld = 0.90f;
 const float kContainerAnchorPaddingWorld = 0.30f;
 const DWORD kDefaultUpdateIntervalMs = 150;
+const DWORD kMaxAdaptiveUpdateIntervalMs = 500;
+const size_t kAdaptiveScanCountStepOne = 128;
+const size_t kAdaptiveScanCountStepTwo = 256;
+const size_t kAdaptiveScanCountStepThree = 512;
+const size_t kMaxTintTargetsPerCycle = 32;
 const float kDefaultMaxHighlightDistance = 900.0f;
 const int kDefaultMaxObjectsPerType = 256;
 const char* kDefaultMarkerText = "BOX";
@@ -213,6 +218,8 @@ struct RuntimeState
     RuntimeState()
         : projectionUtility(0)
         , lastProbeTickMs(0)
+        , currentProbeIntervalMs(kDefaultUpdateIntervalMs)
+        , lastProbeScannedObjects(0)
         , lastProbeDebugLogTickMs(0)
         , lastTintDebugLogTickMs(0)
         , markerWidgetSerial(0)
@@ -230,6 +237,8 @@ struct RuntimeState
     std::vector<ContainerTintEntry> tintEntries;
     UtilityT* projectionUtility;
     DWORD lastProbeTickMs;
+    DWORD currentProbeIntervalMs;
+    size_t lastProbeScannedObjects;
     DWORD lastProbeDebugLogTickMs;
     DWORD lastTintDebugLogTickMs;
     unsigned int markerWidgetSerial;
@@ -558,6 +567,38 @@ bool ShouldEmitThrottledDebug(DWORD* lastTickMs, DWORD intervalMs)
 
     *lastTickMs = nowMs;
     return true;
+}
+
+DWORD ResolveAdaptiveProbeIntervalMs(DWORD baseIntervalMs, size_t scannedObjects)
+{
+    if (baseIntervalMs == 0)
+    {
+        baseIntervalMs = kDefaultUpdateIntervalMs;
+    }
+
+    DWORD targetIntervalMs = baseIntervalMs;
+    if (scannedObjects >= kAdaptiveScanCountStepThree)
+    {
+        targetIntervalMs = 500;
+    }
+    else if (scannedObjects >= kAdaptiveScanCountStepTwo)
+    {
+        targetIntervalMs = 350;
+    }
+    else if (scannedObjects >= kAdaptiveScanCountStepOne)
+    {
+        targetIntervalMs = 250;
+    }
+
+    if (targetIntervalMs < baseIntervalMs)
+    {
+        targetIntervalMs = baseIntervalMs;
+    }
+    if (targetIntervalMs > kMaxAdaptiveUpdateIntervalMs)
+    {
+        targetIntervalMs = kMaxAdaptiveUpdateIntervalMs;
+    }
+    return targetIntervalMs;
 }
 
 bool ShouldEmitTintInvestigation()
@@ -5155,6 +5196,10 @@ void RefreshContainerTargetCache()
     {
         g_state.targetCache.resize(kMaxContainerMarkers);
     }
+    g_state.lastProbeScannedObjects = scannedObjects;
+    g_state.currentProbeIntervalMs = ResolveAdaptiveProbeIntervalMs(
+        g_state.config.updateIntervalMs,
+        scannedObjects);
 
     if (ShouldEmitThrottledDebug(&g_state.lastProbeDebugLogTickMs, kDebugSummaryIntervalMs))
     {
@@ -5164,7 +5209,8 @@ void RefreshContainerTargetCache()
              << " matched=" << matchedTargets
              << " matched_building=" << matchedObjectsByType[0]
              << " matched_container=" << matchedObjectsByType[1]
-             << " cached=" << g_state.targetCache.size();
+             << " cached=" << g_state.targetCache.size()
+             << " next_probe_ms=" << g_state.currentProbeIntervalMs;
         LogDebugLine(line.str());
     }
 
@@ -7937,7 +7983,8 @@ void SyncTint()
 
     const bool emitTintInvestigation = ShouldEmitTintInvestigation();
     std::vector<hand> activeHandles;
-    for (size_t targetIndex = 0; targetIndex < g_state.targetCache.size(); ++targetIndex)
+    const size_t tintTargetCount = std::min(g_state.targetCache.size(), kMaxTintTargetsPerCycle);
+    for (size_t targetIndex = 0; targetIndex < tintTargetCount; ++targetIndex)
     {
         const hand targetHandle = g_state.targetCache[targetIndex].targetHandle;
         std::vector<Ogre::Entity*> entities;
@@ -8087,6 +8134,10 @@ void ResetHighlightRuntime()
     g_state.highlightRuntimeActive = false;
     g_state.targetCache.clear();
     g_state.lastProbeTickMs = 0;
+    g_state.currentProbeIntervalMs = g_state.config.updateIntervalMs > 0
+        ? g_state.config.updateIntervalMs
+        : kDefaultUpdateIntervalMs;
+    g_state.lastProbeScannedObjects = 0;
     g_state.lastTintDebugLogTickMs = 0;
     HideAllMarkerWidgetsInternal();
     HideAllScreenHighlightWidgetsInternal();
@@ -8112,8 +8163,11 @@ void TickContainerHighlightRuntime()
     g_state.highlightRuntimeActive = true;
 
     const DWORD nowMs = GetTickCount();
+    const DWORD probeIntervalMs = g_state.currentProbeIntervalMs > 0
+        ? g_state.currentProbeIntervalMs
+        : g_state.config.updateIntervalMs;
     if (g_state.lastProbeTickMs == 0
-        || (nowMs - g_state.lastProbeTickMs) >= g_state.config.updateIntervalMs)
+        || (nowMs - g_state.lastProbeTickMs) >= probeIntervalMs)
     {
         RefreshContainerTargetCache();
         g_state.lastProbeTickMs = nowMs;
@@ -8178,6 +8232,8 @@ __declspec(dllexport) void startPlugin()
     g_state.targetCache.reserve(kMaxContainerMarkers);
     g_state.markerWidgets.reserve(kMaxContainerMarkers);
     g_state.tintEntries.reserve(kMaxContainerMarkers);
+    g_state.currentProbeIntervalMs = g_state.config.updateIntervalMs;
+    g_state.lastProbeScannedObjects = 0;
 
     LoadConfigState();
     ConfigureModHubClient();
