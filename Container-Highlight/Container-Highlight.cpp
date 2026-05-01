@@ -75,6 +75,8 @@ const int kMarkerHeightPx = 18;
 const int kMarkerYOffsetPx = 24;
 const int kMarkerIconGapPx = 1;
 const int kMarkerIconSizePx = 18;
+const int kMarkerTextOutlineGrowPx = 4;
+const int kMarkerTextOutlineInsetPx = 2;
 const float kDefaultAnchorYOffsetWorld = 0.90f;
 const float kContainerAnchorPaddingWorld = 0.30f;
 const DWORD kDefaultUpdateIntervalMs = 150;
@@ -145,6 +147,7 @@ struct PluginConfig
 struct MarkerWidget
 {
     MyGUI::ImageBox* icon;
+    MyGUI::TextBox* outlineText;
     MyGUI::TextBox* text;
 };
 
@@ -5224,6 +5227,14 @@ void SetMarkerTextColour(MyGUI::TextBox* textBox, const MyGUI::Colour& colour)
     }
 }
 
+MyGUI::Colour MarkerTextOutlineColour(const MyGUI::Colour& textColour)
+{
+    const float luminance = (textColour.red * 0.2126f) + (textColour.green * 0.7152f) + (textColour.blue * 0.0722f);
+    return luminance >= 0.50f
+        ? MyGUI::Colour(0.0f, 0.0f, 0.0f, textColour.alpha)
+        : MyGUI::Colour(1.0f, 1.0f, 1.0f, textColour.alpha);
+}
+
 void SetMarkerTextFontHeight(MyGUI::TextBox* textBox, int fontHeight)
 {
     if (!textBox || fontHeight <= 0)
@@ -5390,7 +5401,7 @@ void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, b
         }
     }
 
-    if (marker.text)
+    if (marker.outlineText || marker.text)
     {
         try
         {
@@ -5406,11 +5417,29 @@ void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, b
 
             if (showText)
             {
-                marker.text->setCoord(layoutLeft, top, textWidth, kMarkerHeightPx);
+                if (marker.outlineText)
+                {
+                    marker.outlineText->setCoord(
+                        layoutLeft - kMarkerTextOutlineInsetPx,
+                        top - kMarkerTextOutlineInsetPx,
+                        textWidth + (kMarkerTextOutlineInsetPx * 2),
+                        kMarkerHeightPx + kMarkerTextOutlineGrowPx);
+                }
+                if (marker.text)
+                {
+                    marker.text->setCoord(layoutLeft, top, textWidth, kMarkerHeightPx);
+                }
             }
             else
             {
-                marker.text->setCoord(layoutLeft, top, 0, kMarkerHeightPx);
+                if (marker.outlineText)
+                {
+                    marker.outlineText->setCoord(layoutLeft, top, 0, kMarkerHeightPx);
+                }
+                if (marker.text)
+                {
+                    marker.text->setCoord(layoutLeft, top, 0, kMarkerHeightPx);
+                }
             }
         }
         catch (...)
@@ -5422,6 +5451,7 @@ void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, b
 void SetMarkerVisible(MarkerWidget& marker, bool showIcon, bool showText)
 {
     SetWidgetVisible(marker.icon, showIcon);
+    SetWidgetVisible(marker.outlineText, showText);
     SetWidgetVisible(marker.text, showText);
 }
 
@@ -5446,6 +5476,15 @@ bool CreateMarkerWidgetAt(size_t index)
         std::stringstream name;
         name << "CH_Marker_" << index << "_" << g_state.markerWidgetSerial++;
 
+        const int textLeft = kMarkerHeightPx + kMarkerIconGapPx;
+        const int textWidth = kMarkerWidthPx - textLeft;
+        const MyGUI::IntCoord textCoord(textLeft, 0, textWidth, kMarkerHeightPx);
+        const MyGUI::IntCoord outlineCoord(
+            textLeft - kMarkerTextOutlineInsetPx,
+            -kMarkerTextOutlineInsetPx,
+            textWidth + (kMarkerTextOutlineInsetPx * 2),
+            kMarkerHeightPx + kMarkerTextOutlineGrowPx);
+
         MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kMarkerIconSizePx, kMarkerIconSizePx),
@@ -5453,9 +5492,25 @@ bool CreateMarkerWidgetAt(size_t index)
             "Top",
             name.str() + "_icon");
 
+        MyGUI::TextBox* outlineText = gui->createWidget<MyGUI::TextBox>(
+            "Kenshi_TextboxStandardText",
+            outlineCoord,
+            MyGUI::Align::Default,
+            "Top",
+            name.str() + "_outline");
+        if (outlineText == 0)
+        {
+            outlineText = gui->createWidget<MyGUI::TextBox>(
+                "TextBox",
+                outlineCoord,
+                MyGUI::Align::Default,
+                "Top",
+                name.str() + "_outline_fallback");
+        }
+
         MyGUI::TextBox* text = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(kMarkerHeightPx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerHeightPx + kMarkerIconGapPx), kMarkerHeightPx),
+            textCoord,
             MyGUI::Align::Default,
             "Top",
             name.str());
@@ -5463,7 +5518,7 @@ bool CreateMarkerWidgetAt(size_t index)
         {
             text = gui->createWidget<MyGUI::TextBox>(
                 "TextBox",
-                MyGUI::IntCoord(kMarkerHeightPx + kMarkerIconGapPx, 0, kMarkerWidthPx - (kMarkerHeightPx + kMarkerIconGapPx), kMarkerHeightPx),
+                textCoord,
                 MyGUI::Align::Default,
                 "Top",
                 name.str() + "_fallback");
@@ -5474,6 +5529,12 @@ bool CreateMarkerWidgetAt(size_t index)
             icon->setNeedMouseFocus(false);
             icon->setVisible(false);
         }
+        if (outlineText)
+        {
+            outlineText->setNeedMouseFocus(false);
+            outlineText->setTextShadow(false);
+            outlineText->setVisible(false);
+        }
         if (text)
         {
             text->setNeedMouseFocus(false);
@@ -5483,6 +5544,7 @@ bool CreateMarkerWidgetAt(size_t index)
 
         MarkerWidget marker;
         marker.icon = icon;
+        marker.outlineText = outlineText;
         marker.text = text;
 
         if (index >= g_state.markerWidgets.size())
@@ -5519,6 +5581,7 @@ bool EnsureMarkerPool(size_t requiredCount)
     for (size_t i = 0; i < requiredCount; ++i)
     {
         if (!g_state.markerWidgets[i].icon
+            && !g_state.markerWidgets[i].outlineText
             && !g_state.markerWidgets[i].text
             && !CreateMarkerWidgetAt(i))
         {
@@ -6101,6 +6164,12 @@ void TickMarkerRender()
         const bool showText = g_state.config.showMarkerText && marker.text != 0;
         if (showText)
         {
+            if (marker.outlineText)
+            {
+                SetMarkerCaption(marker.outlineText, g_state.config.markerText.c_str());
+                SetMarkerTextFontHeight(marker.outlineText, static_cast<int>(g_state.config.markerTextSizePx) + kMarkerTextOutlineGrowPx);
+                SetMarkerTextColour(marker.outlineText, MarkerTextOutlineColour(g_state.config.markerColour));
+            }
             SetMarkerCaption(marker.text, g_state.config.markerText.c_str());
             SetMarkerTextFontHeight(marker.text, static_cast<int>(g_state.config.markerTextSizePx));
             SetMarkerTextColour(marker.text, g_state.config.markerColour);

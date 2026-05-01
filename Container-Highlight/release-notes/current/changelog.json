@@ -1,6 +1,7 @@
 {
   "changes": [
     "Add Mod Hub settings for the highlight key, tint color, marker text, marker icon, and marker color.",
+    "Add a contrasting larger text layer behind marker labels so custom marker text stays readable.",
     "Add advanced debug logging plus probe and render trace actions for troubleshooting.",
     "Support modifier-only highlight keys through the Mod Hub keybind controls.",
     "Remove the ineffective box-style screen highlight toggle from the exposed options."
