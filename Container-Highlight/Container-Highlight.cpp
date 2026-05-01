@@ -94,6 +94,9 @@ const char* kHubSectionAdvancedId = "advanced";
 const char* kHubSectionAdvancedLabel = "Advanced";
 const char* kHubSettingEnabledId = "enabled";
 const char* kHubSettingHighlightKeyId = "highlight_key";
+const char* kHubSettingHighlightKeyRequireCtrlId = "highlight_key_require_ctrl";
+const char* kHubSettingHighlightKeyRequireShiftId = "highlight_key_require_shift";
+const char* kHubSettingHighlightKeyRequireAltId = "highlight_key_require_alt";
 const char* kHubSettingShowIconsId = "show_icons";
 const char* kHubSettingShowTextId = "show_text";
 const char* kHubSettingEnableTintId = "enable_tint";
@@ -3028,6 +3031,8 @@ bool IsHubUserDataValid(void* user_data)
     return user_data == &g_modHubClient;
 }
 
+void ClearAllTint();
+
 EMC_Result HubGetBoolSetting(void* user_data, bool value, int32_t* out_value)
 {
     if (!IsHubUserDataValid(user_data) || out_value == 0)
@@ -3169,19 +3174,6 @@ EMC_Result __cdecl HubGetHighlightKeySetting(void* user_data, EMC_KeybindValueV1
 
     out_value->keycode = g_state.config.highlightKeyCode;
     out_value->modifiers = 0u;
-    const bool hasPrimaryKey = g_state.config.highlightKeyCode != kKeyCodeUnbound;
-    if (hasPrimaryKey && g_state.config.highlightKeyRequireCtrl && !IsCtrlKeyCode(g_state.config.highlightKeyCode))
-    {
-        out_value->modifiers |= EMC_KEYBIND_MODIFIER_CTRL_MASK;
-    }
-    if (hasPrimaryKey && g_state.config.highlightKeyRequireShift && !IsShiftKeyCode(g_state.config.highlightKeyCode))
-    {
-        out_value->modifiers |= EMC_KEYBIND_MODIFIER_SHIFT_MASK;
-    }
-    if (hasPrimaryKey && g_state.config.highlightKeyRequireAlt && !IsAltKeyCode(g_state.config.highlightKeyCode))
-    {
-        out_value->modifiers |= EMC_KEYBIND_MODIFIER_ALT_MASK;
-    }
     return EMC_OK;
 }
 
@@ -3197,9 +3189,24 @@ EMC_Result __cdecl HubSetHighlightKeySetting(
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
-    if ((value.modifiers & ~EMC_KEYBIND_MODIFIER_SUPPORTED_MASK) != 0u)
+    uint32_t unsupportedModifiers = value.modifiers & ~EMC_KEYBIND_MODIFIER_SUPPORTED_MASK;
+    uint32_t modifierRequirements = value.modifiers & EMC_KEYBIND_MODIFIER_SUPPORTED_MASK;
+    if (IsCtrlKeyCode(value.keycode))
     {
-        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_modifiers");
+        modifierRequirements &= ~EMC_KEYBIND_MODIFIER_CTRL_MASK;
+    }
+    if (IsShiftKeyCode(value.keycode))
+    {
+        modifierRequirements &= ~EMC_KEYBIND_MODIFIER_SHIFT_MASK;
+    }
+    if (IsAltKeyCode(value.keycode))
+    {
+        modifierRequirements &= ~EMC_KEYBIND_MODIFIER_ALT_MASK;
+    }
+    unsupportedModifiers |= modifierRequirements;
+    if (unsupportedModifiers != 0u)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "use_modifier_toggles");
         return EMC_ERR_INVALID_ARGUMENT;
     }
 
@@ -3211,30 +3218,47 @@ EMC_Result __cdecl HubSetHighlightKeySetting(
     }
 
     const int previousKeyCode = g_state.config.highlightKeyCode;
-    const bool previousRequireCtrl = g_state.config.highlightKeyRequireCtrl;
-    const bool previousRequireShift = g_state.config.highlightKeyRequireShift;
-    const bool previousRequireAlt = g_state.config.highlightKeyRequireAlt;
 
     g_state.config.highlightKeyCode = value.keycode;
-    const bool hasPrimaryKey = value.keycode != kKeyCodeUnbound;
-    g_state.config.highlightKeyRequireCtrl =
-        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_CTRL_MASK) != 0u && !IsCtrlKeyCode(value.keycode);
-    g_state.config.highlightKeyRequireShift =
-        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_SHIFT_MASK) != 0u && !IsShiftKeyCode(value.keycode);
-    g_state.config.highlightKeyRequireAlt =
-        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_ALT_MASK) != 0u && !IsAltKeyCode(value.keycode);
 
     if (!SaveConfigState())
     {
         g_state.config.highlightKeyCode = previousKeyCode;
-        g_state.config.highlightKeyRequireCtrl = previousRequireCtrl;
-        g_state.config.highlightKeyRequireShift = previousRequireShift;
-        g_state.config.highlightKeyRequireAlt = previousRequireAlt;
         WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
         return EMC_ERR_INTERNAL;
     }
 
     return EMC_OK;
+}
+
+EMC_Result __cdecl HubGetHighlightKeyRequireCtrlSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_state.config.highlightKeyRequireCtrl, out_value);
+}
+
+EMC_Result __cdecl HubSetHighlightKeyRequireCtrlSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_state.config.highlightKeyRequireCtrl, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl HubGetHighlightKeyRequireShiftSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_state.config.highlightKeyRequireShift, out_value);
+}
+
+EMC_Result __cdecl HubSetHighlightKeyRequireShiftSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_state.config.highlightKeyRequireShift, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl HubGetHighlightKeyRequireAltSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_state.config.highlightKeyRequireAlt, out_value);
+}
+
+EMC_Result __cdecl HubSetHighlightKeyRequireAltSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_state.config.highlightKeyRequireAlt, err_buf, err_buf_size);
 }
 
 EMC_Result __cdecl HubGetShowIconsSetting(void* user_data, int32_t* out_value)
@@ -3311,6 +3335,7 @@ EMC_Result __cdecl HubSetTintColorSetting(
         return EMC_ERR_INTERNAL;
     }
 
+    ClearAllTint();
     return EMC_OK;
 }
 
@@ -3420,10 +3445,34 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_KeybindSettingDefV1 kHighlightKeySettingDef = {
         kHubSettingHighlightKeyId,
         "Highlight key",
-        "Primary key and optional modifiers that gate container highlighting; clear to Unbound for always-on",
+        "Primary key that gates container highlighting; use modifier toggles below for Ctrl/Shift/Alt",
         &g_modHubClient,
         &HubGetHighlightKeySetting,
         &HubSetHighlightKeySetting };
+
+    static const EMC_BoolSettingDefV1 kHighlightKeyRequireCtrlSettingDef = {
+        kHubSettingHighlightKeyRequireCtrlId,
+        "Require Ctrl",
+        "Require Ctrl to be held with the highlight key",
+        &g_modHubClient,
+        &HubGetHighlightKeyRequireCtrlSetting,
+        &HubSetHighlightKeyRequireCtrlSetting };
+
+    static const EMC_BoolSettingDefV1 kHighlightKeyRequireShiftSettingDef = {
+        kHubSettingHighlightKeyRequireShiftId,
+        "Require Shift",
+        "Require Shift to be held with the highlight key",
+        &g_modHubClient,
+        &HubGetHighlightKeyRequireShiftSetting,
+        &HubSetHighlightKeyRequireShiftSetting };
+
+    static const EMC_BoolSettingDefV1 kHighlightKeyRequireAltSettingDef = {
+        kHubSettingHighlightKeyRequireAltId,
+        "Require Alt",
+        "Require Alt to be held with the highlight key",
+        &g_modHubClient,
+        &HubGetHighlightKeyRequireAltSetting,
+        &HubSetHighlightKeyRequireAltSetting };
 
     static const EMC_BoolSettingDefV1 kShowIconsSettingDef = {
         kHubSettingShowIconsId,
@@ -3515,6 +3564,9 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const emc::ModHubClientSettingRowV1 kRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, kHubSettingHighlightKeyId, &kHighlightKeySettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingHighlightKeyRequireCtrlId, &kHighlightKeyRequireCtrlSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingHighlightKeyRequireShiftId, &kHighlightKeyRequireShiftSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingHighlightKeyRequireAltId, &kHighlightKeyRequireAltSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, kHubSettingMaxHighlightDistanceId, &kMaxHighlightDistanceSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowIconsId, &kShowIconsSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowTextId, &kShowTextSettingDef, 0, 0 },
@@ -3527,12 +3579,28 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, 0, 0 }
     };
 
+    static const EMC_BoolConditionRuleDefV1 kBoolConditionRules[] = {
+        { kHubSettingHighlightKeyId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingHighlightKeyRequireCtrlId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingHighlightKeyRequireShiftId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingHighlightKeyRequireAltId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingMaxHighlightDistanceId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingShowIconsId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingShowTextId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingEnableTintId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingTintColorId, kHubSettingEnableTintId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingEnableScreenHighlightId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingScreenHighlightUseBoxId, kHubSettingEnableScreenHighlightId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubActionLogProbeSnapshotId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubActionLogRenderTraceId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 }
+    };
+
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {
         &kModDescriptor,
         kRows,
         static_cast<uint32_t>(sizeof(kRows) / sizeof(kRows[0])),
-        0,
-        0 };
+        kBoolConditionRules,
+        static_cast<uint32_t>(sizeof(kBoolConditionRules) / sizeof(kBoolConditionRules[0])) };
 
     return &kRegistration;
 }
@@ -7017,7 +7085,11 @@ Ogre::MaterialPtr EnsureTintOverlayMaterial(
 
 bool EnsureTintOverlayMaterials()
 {
-    const Ogre::ColourValue fillColour(1.0f, 0.0f, 1.0f, 1.0f);
+    const Ogre::ColourValue fillColour(
+        g_state.config.tintColour.r,
+        g_state.config.tintColour.g,
+        g_state.config.tintColour.b,
+        g_state.config.tintColour.a);
     const Ogre::MaterialPtr fillMaterial = EnsureTintOverlayMaterial(
         kTintOverlayFillMaterialName,
         fillColour,
@@ -7031,7 +7103,11 @@ bool EnsureTintOverlayMaterials()
         return false;
     }
 
-    const Ogre::ColourValue outlineColour(0.0f, 1.0f, 1.0f, 1.0f);
+    const Ogre::ColourValue outlineColour(
+        g_state.config.tintColour.r,
+        g_state.config.tintColour.g,
+        g_state.config.tintColour.b,
+        1.0f);
     const Ogre::MaterialPtr outlineMaterial = EnsureTintOverlayMaterial(
         kTintOverlayOutlineMaterialName,
         outlineColour,
@@ -7045,7 +7121,11 @@ bool EnsureTintOverlayMaterials()
         return false;
     }
 
-    const Ogre::ColourValue depthOutlineColour(0.2f, 1.0f, 0.1f, 1.0f);
+    const Ogre::ColourValue depthOutlineColour(
+        g_state.config.tintColour.r,
+        g_state.config.tintColour.g,
+        g_state.config.tintColour.b,
+        1.0f);
     const Ogre::MaterialPtr depthOutlineMaterial = EnsureTintOverlayMaterial(
         kTintOverlayDepthOutlineMaterialName,
         depthOutlineColour,
