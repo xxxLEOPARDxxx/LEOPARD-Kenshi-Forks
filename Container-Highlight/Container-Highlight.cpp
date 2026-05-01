@@ -93,9 +93,11 @@ const char* kHubModDisplayName = "Container Highlight";
 const char* kHubSectionAdvancedId = "advanced";
 const char* kHubSectionAdvancedLabel = "Advanced";
 const char* kHubSettingEnabledId = "enabled";
+const char* kHubSettingHighlightKeyId = "highlight_key";
 const char* kHubSettingShowIconsId = "show_icons";
 const char* kHubSettingShowTextId = "show_text";
 const char* kHubSettingEnableTintId = "enable_tint";
+const char* kHubSettingTintColorId = "tint_color_hex";
 const char* kHubSettingDebugLoggingId = "debug_logging";
 const char* kHubSettingMaxHighlightDistanceId = "max_highlight_distance_m";
 const char* kHubSettingEnableScreenHighlightId = "enable_screen_highlight";
@@ -3107,6 +3109,47 @@ EMC_Result HubSetFloatSetting(
     return EMC_OK;
 }
 
+bool CopyHubTextValue(char* out_value, uint32_t out_value_size, const std::string& value)
+{
+    if (out_value == 0 || out_value_size == 0u || value.size() + 1u > out_value_size)
+    {
+        return false;
+    }
+
+    std::memcpy(out_value, value.c_str(), value.size() + 1u);
+    return true;
+}
+
+bool TryParseHubRgbColour(const char* rawValue, Ogre::ColourValue* colourOut)
+{
+    if (rawValue == 0 || colourOut == 0)
+    {
+        return false;
+    }
+
+    std::string value = TrimAscii(rawValue);
+    if (!value.empty() && value[0] == '#')
+    {
+        value.erase(0, 1);
+    }
+    if (value.size() != 6)
+    {
+        return false;
+    }
+
+    float red = 0.0f;
+    float green = 0.0f;
+    float blue = 0.0f;
+    float alpha = 1.0f;
+    if (!TryParseHexColour(value, &red, &green, &blue, &alpha))
+    {
+        return false;
+    }
+
+    *colourOut = Ogre::ColourValue(red, green, blue, 1.0f);
+    return true;
+}
+
 EMC_Result __cdecl HubGetEnabledSetting(void* user_data, int32_t* out_value)
 {
     return HubGetBoolSetting(user_data, g_state.config.enabled, out_value);
@@ -3115,6 +3158,83 @@ EMC_Result __cdecl HubGetEnabledSetting(void* user_data, int32_t* out_value)
 EMC_Result __cdecl HubSetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
     return HubSetBoolSetting(user_data, value, &g_state.config.enabled, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl HubGetHighlightKeySetting(void* user_data, EMC_KeybindValueV1* out_value)
+{
+    if (!IsHubUserDataValid(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    out_value->keycode = g_state.config.highlightKeyCode;
+    out_value->modifiers = 0u;
+    const bool hasPrimaryKey = g_state.config.highlightKeyCode != kKeyCodeUnbound;
+    if (hasPrimaryKey && g_state.config.highlightKeyRequireCtrl && !IsCtrlKeyCode(g_state.config.highlightKeyCode))
+    {
+        out_value->modifiers |= EMC_KEYBIND_MODIFIER_CTRL_MASK;
+    }
+    if (hasPrimaryKey && g_state.config.highlightKeyRequireShift && !IsShiftKeyCode(g_state.config.highlightKeyCode))
+    {
+        out_value->modifiers |= EMC_KEYBIND_MODIFIER_SHIFT_MASK;
+    }
+    if (hasPrimaryKey && g_state.config.highlightKeyRequireAlt && !IsAltKeyCode(g_state.config.highlightKeyCode))
+    {
+        out_value->modifiers |= EMC_KEYBIND_MODIFIER_ALT_MASK;
+    }
+    return EMC_OK;
+}
+
+EMC_Result __cdecl HubSetHighlightKeySetting(
+    void* user_data,
+    EMC_KeybindValueV1 value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if ((value.modifiers & ~EMC_KEYBIND_MODIFIER_SUPPORTED_MASK) != 0u)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_modifiers");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    std::string reason;
+    if (!ValidatePrimaryKeyCode(value.keycode, &reason))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, reason.empty() ? "invalid_keybind" : reason.c_str());
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const int previousKeyCode = g_state.config.highlightKeyCode;
+    const bool previousRequireCtrl = g_state.config.highlightKeyRequireCtrl;
+    const bool previousRequireShift = g_state.config.highlightKeyRequireShift;
+    const bool previousRequireAlt = g_state.config.highlightKeyRequireAlt;
+
+    g_state.config.highlightKeyCode = value.keycode;
+    const bool hasPrimaryKey = value.keycode != kKeyCodeUnbound;
+    g_state.config.highlightKeyRequireCtrl =
+        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_CTRL_MASK) != 0u && !IsCtrlKeyCode(value.keycode);
+    g_state.config.highlightKeyRequireShift =
+        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_SHIFT_MASK) != 0u && !IsShiftKeyCode(value.keycode);
+    g_state.config.highlightKeyRequireAlt =
+        hasPrimaryKey && (value.modifiers & EMC_KEYBIND_MODIFIER_ALT_MASK) != 0u && !IsAltKeyCode(value.keycode);
+
+    if (!SaveConfigState())
+    {
+        g_state.config.highlightKeyCode = previousKeyCode;
+        g_state.config.highlightKeyRequireCtrl = previousRequireCtrl;
+        g_state.config.highlightKeyRequireShift = previousRequireShift;
+        g_state.config.highlightKeyRequireAlt = previousRequireAlt;
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
 }
 
 EMC_Result __cdecl HubGetShowIconsSetting(void* user_data, int32_t* out_value)
@@ -3145,6 +3265,53 @@ EMC_Result __cdecl HubGetEnableTintSetting(void* user_data, int32_t* out_value)
 EMC_Result __cdecl HubSetEnableTintSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
     return HubSetBoolSetting(user_data, value, &g_state.config.enableTint, err_buf, err_buf_size);
+}
+
+EMC_Result __cdecl HubGetTintColorSetting(void* user_data, char* out_value, uint32_t out_value_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const std::string value = BuildHexColourString(
+        g_state.config.tintColour.r,
+        g_state.config.tintColour.g,
+        g_state.config.tintColour.b,
+        g_state.config.tintColour.a,
+        false);
+    return CopyHubTextValue(out_value, out_value_size, value) ? EMC_OK : EMC_ERR_INVALID_ARGUMENT;
+}
+
+EMC_Result __cdecl HubSetTintColorSetting(
+    void* user_data,
+    const char* value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    Ogre::ColourValue parsed;
+    if (!TryParseHubRgbColour(value, &parsed))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "expected_rgb_hex");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const Ogre::ColourValue previousValue = g_state.config.tintColour;
+    g_state.config.tintColour = Ogre::ColourValue(parsed.r, parsed.g, parsed.b, previousValue.a);
+    if (!SaveConfigState())
+    {
+        g_state.config.tintColour = previousValue;
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
 }
 
 EMC_Result __cdecl HubGetDebugLoggingSetting(void* user_data, int32_t* out_value)
@@ -3250,6 +3417,14 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetEnabledSetting,
         &HubSetEnabledSetting };
 
+    static const EMC_KeybindSettingDefV1 kHighlightKeySettingDef = {
+        kHubSettingHighlightKeyId,
+        "Highlight key",
+        "Primary key and optional modifiers that gate container highlighting; clear to Unbound for always-on",
+        &g_modHubClient,
+        &HubGetHighlightKeySetting,
+        &HubSetHighlightKeySetting };
+
     static const EMC_BoolSettingDefV1 kShowIconsSettingDef = {
         kHubSettingShowIconsId,
         "Show icons",
@@ -3273,6 +3448,17 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &g_modHubClient,
         &HubGetEnableTintSetting,
         &HubSetEnableTintSetting };
+
+    static const EMC_ColorSettingDefV1 kTintColorSettingDef = {
+        kHubSettingTintColorId,
+        "Tint color",
+        "RGB tint color for highlighted containers; JSON alpha is preserved",
+        &g_modHubClient,
+        EMC_COLOR_PREVIEW_KIND_SWATCH,
+        0,
+        0u,
+        &HubGetTintColorSetting,
+        &HubSetTintColorSetting };
 
     static const EMC_BoolSettingDefV1 kDebugLoggingSettingDef = {
         kHubSettingDebugLoggingId,
@@ -3328,10 +3514,12 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
 
     static const emc::ModHubClientSettingRowV1 kRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, kHubSettingHighlightKeyId, &kHighlightKeySettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, kHubSettingMaxHighlightDistanceId, &kMaxHighlightDistanceSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowIconsId, &kShowIconsSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowTextId, &kShowTextSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableTintId, &kEnableTintSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingTintColorId, &kTintColorSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableScreenHighlightId, &kEnableScreenHighlightSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingScreenHighlightUseBoxId, &kScreenHighlightUseBoxSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDebugLoggingId, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
