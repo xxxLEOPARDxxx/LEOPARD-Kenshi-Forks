@@ -76,7 +76,6 @@ const int kMarkerYOffsetPx = 24;
 const int kMarkerIconGapPx = 1;
 const int kMarkerIconSizePx = 18;
 const int kMarkerTextOutlineGrowPx = 4;
-const int kMarkerTextOutlineInsetPx = 2;
 const float kDefaultAnchorYOffsetWorld = 0.90f;
 const float kContainerAnchorPaddingWorld = 0.30f;
 const DWORD kDefaultUpdateIntervalMs = 150;
@@ -5420,9 +5419,9 @@ void SetMarkerPosition(MarkerWidget& marker, int left, int top, bool showIcon, b
                 if (marker.outlineText)
                 {
                     marker.outlineText->setCoord(
-                        layoutLeft - kMarkerTextOutlineInsetPx,
-                        top - kMarkerTextOutlineInsetPx,
-                        textWidth + (kMarkerTextOutlineInsetPx * 2),
+                        layoutLeft,
+                        top,
+                        textWidth,
                         kMarkerHeightPx + kMarkerTextOutlineGrowPx);
                 }
                 if (marker.text)
@@ -5479,11 +5478,7 @@ bool CreateMarkerWidgetAt(size_t index)
         const int textLeft = kMarkerHeightPx + kMarkerIconGapPx;
         const int textWidth = kMarkerWidthPx - textLeft;
         const MyGUI::IntCoord textCoord(textLeft, 0, textWidth, kMarkerHeightPx);
-        const MyGUI::IntCoord outlineCoord(
-            textLeft - kMarkerTextOutlineInsetPx,
-            -kMarkerTextOutlineInsetPx,
-            textWidth + (kMarkerTextOutlineInsetPx * 2),
-            kMarkerHeightPx + kMarkerTextOutlineGrowPx);
+        const MyGUI::IntCoord outlineCoord(textLeft, 0, textWidth, kMarkerHeightPx + kMarkerTextOutlineGrowPx);
 
         MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
