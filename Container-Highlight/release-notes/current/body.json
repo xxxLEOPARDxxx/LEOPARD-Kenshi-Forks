@@ -1,0 +1,8 @@
+{
+  "summary": "Adds configurable container tinting, marker styling, and Mod Hub controls for lootable containers.",
+  "details": [
+    "Container Highlight now exposes a configurable highlight key, tint color, marker text, marker icon, and marker color through Mod Hub.",
+    "Advanced Mod Hub settings include debug logging plus the probe and render trace actions used for troubleshooting.",
+    "The old box-style screen highlight toggle is no longer surfaced in Mod Hub because it did not produce a meaningful difference in practice."
+  ]
+}
