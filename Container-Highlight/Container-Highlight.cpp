@@ -2579,11 +2579,6 @@ std::string KeyCodeToConfigString(int keyCode)
 
 std::string FormatKeybind(const PluginConfig& config)
 {
-    if (config.highlightKeyCode == kKeyCodeUnbound)
-    {
-        return "UNBOUND";
-    }
-
     std::stringstream ss;
     bool wrotePrefix = false;
     if (config.highlightKeyRequireCtrl && !IsCtrlKeyCode(config.highlightKeyCode))
@@ -2609,6 +2604,10 @@ std::string FormatKeybind(const PluginConfig& config)
         ss << "ALT";
         wrotePrefix = true;
     }
+    if (config.highlightKeyCode == kKeyCodeUnbound)
+    {
+        return wrotePrefix ? ss.str() : "UNBOUND";
+    }
     if (wrotePrefix)
     {
         ss << "+";
@@ -2619,7 +2618,10 @@ std::string FormatKeybind(const PluginConfig& config)
 
 bool IsHighlightGateOpen(const PluginConfig& config)
 {
-    if (config.highlightKeyCode == kKeyCodeUnbound)
+    const bool hasModifierRequirement = config.highlightKeyRequireCtrl
+        || config.highlightKeyRequireShift
+        || config.highlightKeyRequireAlt;
+    if (config.highlightKeyCode == kKeyCodeUnbound && !hasModifierRequirement)
     {
         return true;
     }
@@ -2629,7 +2631,7 @@ bool IsHighlightGateOpen(const PluginConfig& config)
     }
 
     OIS::Keyboard* keyboard = key->keyboard;
-    if (!IsKeyDown(keyboard, config.highlightKeyCode))
+    if (config.highlightKeyCode != kKeyCodeUnbound && !IsKeyDown(keyboard, config.highlightKeyCode))
     {
         return false;
     }
@@ -3481,7 +3483,7 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_KeybindSettingDefV1 kHighlightKeySettingDef = {
         kHubSettingHighlightKeyId,
         "Highlight key",
-        "Primary key that gates container highlighting; use modifier toggles below for Ctrl/Shift/Alt",
+        "Primary key that gates container highlighting; set Unbound and use modifier toggles for Shift/Alt alone",
         &g_modHubClient,
         &HubGetHighlightKeySetting,
         &HubSetHighlightKeySetting };
