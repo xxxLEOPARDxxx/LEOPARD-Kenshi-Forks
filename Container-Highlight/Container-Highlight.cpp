@@ -257,11 +257,8 @@ const KeyNameEntry kKeyNameMap[] = {
 const size_t kKeyNameMapCount = sizeof(kKeyNameMap) / sizeof(kKeyNameMap[0]);
 
 const char* kColorOverrideParam = "coloroverride";
-const char* kColourOverrideParam = "colouroverride";
-const char* kColorOverrideParamCamel = "colorOverride";
-const char* kColourOverrideParamCamel = "colourOverride";
 const char* kDepthOverrideParam = "overrideDepth";
-const char* kOverrideDepthLowerParam = "overridedepth";
+const char* kHighlightObjectProgramPrefix = "CH_Object_";
 const char* kHighlightObjectVertexProgram = "CH_Object_VP";
 const char* kHighlightObjectConstructionVertexProgram = "CH_Object_Construction_VP";
 const char* kHighlightObjectColouredVertexProgram = "CH_Object_Coloured_VP";
@@ -6008,6 +6005,11 @@ bool PassUsesObjectLikePrograms(const std::string& vertexProgramNameLower, const
         || fragmentProgramNameLower.find("ch_object") != std::string::npos;
 }
 
+bool IsHighlightObjectProgramName(const std::string& programName)
+{
+    return programName.compare(0, std::strlen(kHighlightObjectProgramPrefix), kHighlightObjectProgramPrefix) == 0;
+}
+
 struct HighlightShaderVariantSelection
 {
     bool usesColouring;
@@ -6265,41 +6267,24 @@ bool ApplyTintConstantsToPass(
 
     bool appliedAny = false;
     bool appliedColour = false;
+    const std::string fragmentProgramName = SafeGetPassFragmentProgramName(pass);
+    const std::string vertexProgramName = SafeGetPassVertexProgramName(pass);
 
-    if (pass->hasFragmentProgram())
+    if (pass->hasFragmentProgram() && IsHighlightObjectProgramName(fragmentProgramName))
     {
         try
         {
             Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
             if (!fragmentParams.isNull())
             {
+                const bool hasNamedParameters = fragmentParams->hasNamedParameters();
                 if (applyInfo)
                 {
-                    applyInfo->fragmentHasNamedParameters = fragmentParams->hasNamedParameters();
+                    applyInfo->fragmentHasNamedParameters = hasNamedParameters;
                 }
-                const char* colourParamNames[] = {
-                    kColorOverrideParam,
-                    kColourOverrideParam,
-                    kColorOverrideParamCamel,
-                    kColourOverrideParamCamel
-                };
-                for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
-                {
-                    bool hasDefinition = false;
-                    try
-                    {
-                        hasDefinition = fragmentParams->hasNamedParameters()
-                            && fragmentParams->_findNamedConstantDefinition(colourParamNames[i], false) != 0;
-                    }
-                    catch (...)
-                    {
-                        hasDefinition = false;
-                    }
-                    if (!hasDefinition)
-                    {
-                        continue;
-                    }
 
+                if (hasNamedParameters)
+                {
                     if (applyInfo)
                     {
                         applyInfo->fragmentHasColourConstant = true;
@@ -6307,15 +6292,14 @@ bool ApplyTintConstantsToPass(
 
                     try
                     {
-                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
+                        fragmentParams->setNamedConstant(kColorOverrideParam, colour);
                         appliedAny = true;
                         appliedColour = true;
                         if (applyInfo)
                         {
                             applyInfo->appliedColour = true;
-                            applyInfo->appliedColourParamName = colourParamNames[i];
+                            applyInfo->appliedColourParamName = kColorOverrideParam;
                         }
-                        break;
                     }
                     catch (...)
                     {
@@ -6328,38 +6312,21 @@ bool ApplyTintConstantsToPass(
         }
     }
 
-    if (pass->hasVertexProgram())
+    if (pass->hasVertexProgram() && IsHighlightObjectProgramName(vertexProgramName))
     {
         try
         {
             Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
             if (!vertexParams.isNull())
             {
+                const bool hasNamedParameters = vertexParams->hasNamedParameters();
                 if (applyInfo)
                 {
-                    applyInfo->vertexHasNamedParameters = vertexParams->hasNamedParameters();
+                    applyInfo->vertexHasNamedParameters = hasNamedParameters;
                 }
-                const char* depthParamNames[] = {
-                    kDepthOverrideParam,
-                    kOverrideDepthLowerParam
-                };
-                for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
-                {
-                    bool hasDefinition = false;
-                    try
-                    {
-                        hasDefinition = vertexParams->hasNamedParameters()
-                            && vertexParams->_findNamedConstantDefinition(depthParamNames[i], false) != 0;
-                    }
-                    catch (...)
-                    {
-                        hasDefinition = false;
-                    }
-                    if (!hasDefinition)
-                    {
-                        continue;
-                    }
 
+                if (hasNamedParameters)
+                {
                     if (applyInfo)
                     {
                         applyInfo->vertexHasDepthConstant = true;
@@ -6367,14 +6334,13 @@ bool ApplyTintConstantsToPass(
 
                     try
                     {
-                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
+                        vertexParams->setNamedConstant(kDepthOverrideParam, depthOverride ? 1 : 0);
                         appliedAny = true;
                         if (applyInfo)
                         {
                             applyInfo->appliedDepth = true;
-                            applyInfo->appliedDepthParamName = depthParamNames[i];
+                            applyInfo->appliedDepthParamName = kDepthOverrideParam;
                         }
-                        break;
                     }
                     catch (...)
                     {
