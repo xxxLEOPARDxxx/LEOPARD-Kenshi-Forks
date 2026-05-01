@@ -134,10 +134,6 @@ if ($env:BOOST_RUNTIME_DLL_SOURCE_DIR -and (Test-Path $env:BOOST_RUNTIME_DLL_SOU
         $boostDllDest = Join-Path $resolved.KenshiModPath $boostDllName
         Copy-Item -Path $boostDllSource -Destination $boostDllDest -Force
         Write-Host "Copied runtime dependency: $boostDllSource -> $boostDllDest" -ForegroundColor Gray
-
-        $boostDllRootDest = Join-Path $resolved.KenshiPath $boostDllName
-        Copy-Item -Path $boostDllSource -Destination $boostDllRootDest -Force
-        Write-Host "Copied root runtime dependency: $boostDllSource -> $boostDllRootDest" -ForegroundColor Gray
     }
 }
 
