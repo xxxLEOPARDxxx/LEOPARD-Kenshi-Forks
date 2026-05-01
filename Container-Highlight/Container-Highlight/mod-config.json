@@ -14,7 +14,7 @@
   "tint_force_depth_override": true,
   "marker_text": "BOX",
   "marker_text_size_px": 18,
-  "marker_icon_texture": "figure.png",
+  "marker_icon_texture": "container_highlight_chest.png",
   "marker_color_hex": "#F6C454",
   "tint_color_hex": "#F6C454D9",
   "debug_logging": true

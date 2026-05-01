@@ -81,11 +81,12 @@ const DWORD kDefaultUpdateIntervalMs = 150;
 const float kDefaultMaxHighlightDistance = 900.0f;
 const int kDefaultMaxObjectsPerType = 256;
 const char* kDefaultMarkerText = "BOX";
-const char* kDefaultMarkerIconTexture = "figure.png";
+const char* kDefaultMarkerIconTexture = "container_highlight_chest.png";
 const int kKeyCodeUnbound = -1;
 const int kDefaultHighlightKeyCode = static_cast<int>(OIS::KC_LMENU);
 const float kHubMinHighlightDistance = 100.0f;
 const float kHubMaxHighlightDistance = 5000.0f;
+const uint32_t kHubMarkerTextMaxLength = 24u;
 const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "container_highlight";
@@ -99,6 +100,8 @@ const char* kHubSettingHighlightKeyRequireShiftId = "highlight_key_require_shift
 const char* kHubSettingHighlightKeyRequireAltId = "highlight_key_require_alt";
 const char* kHubSettingShowIconsId = "show_icons";
 const char* kHubSettingShowTextId = "show_text";
+const char* kHubSettingMarkerTextId = "marker_text";
+const char* kHubSettingMarkerColorId = "marker_color_hex";
 const char* kHubSettingEnableTintId = "enable_tint";
 const char* kHubSettingTintColorId = "tint_color_hex";
 const char* kHubSettingDebugLoggingId = "debug_logging";
@@ -3319,6 +3322,94 @@ EMC_Result __cdecl HubSetShowTextSetting(void* user_data, int32_t value, char* e
     return HubSetBoolSetting(user_data, value, &g_state.config.showMarkerText, err_buf, err_buf_size);
 }
 
+EMC_Result __cdecl HubGetMarkerTextSetting(void* user_data, char* out_value, uint32_t out_value_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    return CopyHubTextValue(out_value, out_value_size, g_state.config.markerText) ? EMC_OK : EMC_ERR_INVALID_ARGUMENT;
+}
+
+EMC_Result __cdecl HubSetMarkerTextSetting(
+    void* user_data,
+    const char* value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data) || value == 0)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const std::string parsed = TrimAscii(value);
+    if (parsed.empty() || parsed.size() > kHubMarkerTextMaxLength)
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "invalid_marker_text");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const std::string previousValue = g_state.config.markerText;
+    g_state.config.markerText = parsed;
+    if (!SaveConfigState())
+    {
+        g_state.config.markerText = previousValue;
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
+EMC_Result __cdecl HubGetMarkerColorSetting(void* user_data, char* out_value, uint32_t out_value_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const std::string value = BuildHexColourString(
+        g_state.config.markerColour.red,
+        g_state.config.markerColour.green,
+        g_state.config.markerColour.blue,
+        g_state.config.markerColour.alpha,
+        false);
+    return CopyHubTextValue(out_value, out_value_size, value) ? EMC_OK : EMC_ERR_INVALID_ARGUMENT;
+}
+
+EMC_Result __cdecl HubSetMarkerColorSetting(
+    void* user_data,
+    const char* value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    if (!IsHubUserDataValid(user_data))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    Ogre::ColourValue parsed;
+    if (!TryParseHubRgbColour(value, &parsed))
+    {
+        WriteRuntimeApiError(err_buf, err_buf_size, "expected_rgb_hex");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const MyGUI::Colour previousValue = g_state.config.markerColour;
+    g_state.config.markerColour = MyGUI::Colour(parsed.r, parsed.g, parsed.b, previousValue.alpha);
+    if (!SaveConfigState())
+    {
+        g_state.config.markerColour = previousValue;
+        WriteRuntimeApiError(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    return EMC_OK;
+}
+
 EMC_Result __cdecl HubGetEnableTintSetting(void* user_data, int32_t* out_value)
 {
     return HubGetBoolSetting(user_data, g_state.config.enableTint, out_value);
@@ -3528,6 +3619,26 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetShowTextSetting,
         &HubSetShowTextSetting };
 
+    static const EMC_TextSettingDefV1 kMarkerTextSettingDef = {
+        kHubSettingMarkerTextId,
+        "Marker text",
+        "Text shown above matched containers when Show text is enabled",
+        &g_modHubClient,
+        kHubMarkerTextMaxLength,
+        &HubGetMarkerTextSetting,
+        &HubSetMarkerTextSetting };
+
+    static const EMC_ColorSettingDefV1 kMarkerColorSettingDef = {
+        kHubSettingMarkerColorId,
+        "Marker color",
+        "RGB color for marker text and icon",
+        &g_modHubClient,
+        EMC_COLOR_PREVIEW_KIND_SWATCH,
+        0,
+        0u,
+        &HubGetMarkerColorSetting,
+        &HubSetMarkerColorSetting };
+
     static const EMC_BoolSettingDefV1 kEnableTintSettingDef = {
         kHubSettingEnableTintId,
         "Enable tint",
@@ -3608,13 +3719,15 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, kHubSettingMaxHighlightDistanceId, &kMaxHighlightDistanceSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowIconsId, &kShowIconsSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingShowTextId, &kShowTextSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, kHubSettingMarkerTextId, &kMarkerTextSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingMarkerColorId, &kMarkerColorSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableTintId, &kEnableTintSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_COLOR, kHubSettingTintColorId, &kTintColorSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnableScreenHighlightId, &kEnableScreenHighlightSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingScreenHighlightUseBoxId, &kScreenHighlightUseBoxSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDebugLoggingId, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogProbeSnapshotId, &kProbeSnapshotActionDef, 0, 0 },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, 0, 0 }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogProbeSnapshotId, &kProbeSnapshotActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, kHubActionLogRenderTraceId, &kRenderTraceActionDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }
     };
 
     static const EMC_BoolConditionRuleDefV1 kBoolConditionRules[] = {
@@ -3625,8 +3738,10 @@ const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { kHubSettingMaxHighlightDistanceId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingShowIconsId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingShowTextId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingMarkerTextId, kHubSettingShowTextId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingMarkerColorId, kHubSettingShowTextId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingEnableTintId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
-        { kHubSettingTintColorId, kHubSettingEnableTintId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
+        { kHubSettingTintColorId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingEnableScreenHighlightId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubSettingScreenHighlightUseBoxId, kHubSettingEnableScreenHighlightId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
         { kHubActionLogProbeSnapshotId, kHubSettingEnabledId, EMC_BOOL_CONDITION_EFFECT_HIDE, 0 },
