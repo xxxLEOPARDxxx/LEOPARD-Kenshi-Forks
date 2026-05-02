@@ -2,7 +2,10 @@
   "mod_name": "Container Highlight",
   "include_shared": [
     "install",
-    "tested_with",
+    "uninstall",
+    "features",
+    "configuration",
+    "optional_mod_hub_integration",
     "feedback",
     "support_the_developer"
   ],
