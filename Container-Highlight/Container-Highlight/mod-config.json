@@ -17,5 +17,5 @@
   "marker_icon_texture": "container_highlight_chest.png",
   "marker_color_hex": "#F6C454",
   "tint_color_hex": "#F6C454D9",
-  "debug_logging": true
+  "debug_logging": false
 }

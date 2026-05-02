@@ -2,5 +2,6 @@
   "title": "Install",
   "items": [
     "[b][size=4]Install[/size][/b]\n[spoiler]\n[list]\n[*] Ensure RE_Kenshi is installed and enabled.\n[*] Download and extract.\n[*] Copy the Container-Highlight folder into your Kenshi mods directory.\n[*] Enable the mod in the Kenshi launcher.\n[/list]\n[/spoiler]"
-  ]
+  ],
+  "key": "install"
 }
