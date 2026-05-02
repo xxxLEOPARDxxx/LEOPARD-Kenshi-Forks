@@ -124,23 +124,6 @@ if ($sourceInfo.Length -ne $destInfo.Length) {
 
 Write-Host "Copied DLL: $($resolved.DllPath) -> $destDllPath" -ForegroundColor Gray
 
-if ($env:BOOST_RUNTIME_DLL_SOURCE_DIR -and (Test-Path $env:BOOST_RUNTIME_DLL_SOURCE_DIR)) {
-    foreach ($boostDllName in @("boost_system-vc100-mt-1_60.dll", "boost_thread-vc100-mt-1_60.dll")) {
-        $boostDllSource = Join-Path $env:BOOST_RUNTIME_DLL_SOURCE_DIR $boostDllName
-        if (-not (Test-Path $boostDllSource)) {
-            continue
-        }
-
-        $boostDllDest = Join-Path $resolved.KenshiModPath $boostDllName
-        Copy-Item -Path $boostDllSource -Destination $boostDllDest -Force
-        Write-Host "Copied runtime dependency: $boostDllSource -> $boostDllDest" -ForegroundColor Gray
-
-        $boostDllRootDest = Join-Path $resolved.KenshiPath $boostDllName
-        Copy-Item -Path $boostDllSource -Destination $boostDllRootDest -Force
-        Write-Host "Copied root runtime dependency: $boostDllSource -> $boostDllRootDest" -ForegroundColor Gray
-    }
-}
-
 Write-Host "Updating RE_Kenshi.json Plugins list..." -ForegroundColor Yellow
 $reKenshiJsonPath = Join-Path $resolved.KenshiModPath $resolved.ConfigFileName
 try {

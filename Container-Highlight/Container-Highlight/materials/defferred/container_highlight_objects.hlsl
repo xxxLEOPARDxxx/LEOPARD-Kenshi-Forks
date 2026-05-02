@@ -1,4 +1,6 @@
 // Deferred object highlight shader for container tinting.
+#define CH_DIAGNOSTIC_SOLID_OUTPUT 0
+
 #include "gbuffer.hlsl"
 #include "wet.hlsl"
 
@@ -234,6 +236,12 @@ void main_ps(
     #endif
 
     diffuse.rgb = lerp(diffuse.rgb, coloroverride.rgb, coloroverride.a);
+
+    #if CH_DIAGNOSTIC_SOLID_OUTPUT
+    diffuse.rgb = float3(1.0, 0.0, 1.0);
+    diffuse.a = 1.0;
+    metalness = 0.0;
+    #endif
 
     INITIALISE_OUTPUT(buffer);
     writeAlbedo(buffer, diffuse.rgb, fragCoord.xy);

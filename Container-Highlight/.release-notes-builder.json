@@ -1,0 +1,28 @@
+{
+  "mod_name": "Container Highlight",
+  "release_notes_dir": "release-notes",
+  "default_platforms": [
+    "nexus",
+    "steam"
+  ],
+  "default_shared_fragments": [
+    "install",
+    "tested_with",
+    "feedback"
+  ],
+  "default_include_shared": [
+    "install",
+    "tested_with",
+    "feedback"
+  ],
+  "default_seed_shared": [
+    "credits",
+    "support_the_developer"
+  ],
+  "archive_generated_output": false,
+  "infer_repo_name_as_mod_name": true,
+  "mod_nexus_url": "https://www.nexusmods.com/kenshi/mods/1953",
+  "mod_steam_url": "https://steamcommunity.com/sharedfiles/filedetails/?id=3718256301",
+  "mod_reddit_url": "https://www.reddit.com/r/Kenshi/comments/1t1jtkf/i_made_a_small_qol_mod_container_highlight_re/",
+  "include_in_other_mods": true
+}

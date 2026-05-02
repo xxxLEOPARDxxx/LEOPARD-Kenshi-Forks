@@ -1,0 +1,7 @@
+{
+  "title": "Features",
+  "items": [
+    "[b][size=4]Features[/size][/b]\n[list]\n[*] Highlights nearby lootable containers while the configured highlight key is held.\n[*] Screen-space markers can show a configurable icon, short text label, and marker color.\n[*] Marker labels use a contrasting outline so the text stays readable over bright or noisy backgrounds.\n[*] Optional world tinting can color compatible container render paths when Kenshi exposes a tintable target.\n[*] Configurable scan distance for nearby container detection.\n[*] Modifier-only highlight key support for Shift, Alt, or Ctrl based activation.\n[*] In-game settings through Emkejs Mod Core / Mod Hub when installed.\n[*] Advanced debug actions for probe snapshots and render tracing during troubleshooting.\n[/list]"
+  ],
+  "key": "features"
+}

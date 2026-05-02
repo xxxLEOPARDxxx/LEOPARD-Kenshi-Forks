@@ -1,0 +1,7 @@
+{
+  "title": "Uninstall",
+  "items": [
+    "[b][size=4]Uninstall[/size][/b]\n[spoiler]\n[list]\n[*] Disable the mod in the Kenshi launcher.\n[*] Delete the [b]Container-Highlight[/b] folder from your Kenshi [b]mods[/b] directory.\n[*] No save-game data is added by this mod.\n[/list]\n[/spoiler]"
+  ],
+  "key": "uninstall"
+}

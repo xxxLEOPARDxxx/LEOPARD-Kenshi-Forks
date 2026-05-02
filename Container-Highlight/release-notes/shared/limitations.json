@@ -1,0 +1,7 @@
+{
+  "title": "Limitations",
+  "items": [
+    "[b][size=4]Limitations[/size][/b]\n[list]\n[*] Designed for vanilla and vanilla-like lootable containers.\n[*] Custom storage-building mods may use building storage objects or render paths that do not expose the same compatible container target, so those buildings are not guaranteed to highlight or tint correctly.\n[*] World tinting depends on Kenshi exposing a compatible render path for that specific container; screen-space markers are the more reliable highlight path.\n[/list]"
+  ],
+  "key": "limitations"
+}

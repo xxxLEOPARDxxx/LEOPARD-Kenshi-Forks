@@ -1,0 +1,19 @@
+{
+  "steam": {
+    "included_other_mod_ids": [
+      "wall-b-gone",
+      "emkejs-mod-core",
+      "job-b-gone",
+      "loot-scoot-execute",
+      "vital-sense",
+      "organize-the-trader",
+      "map-markers",
+      "auto-pause-on-load",
+      "organize-the-crafting-stations",
+      "vital-read",
+      "hidden-faction-relations",
+      "emkejs-test-kit",
+      "organize-the-inventory"
+    ]
+  }
+}
