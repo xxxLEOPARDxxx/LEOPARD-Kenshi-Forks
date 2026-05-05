@@ -542,8 +542,6 @@ std::string BuildConfigText(const PluginConfig& config)
     out << "{\n";
     out << "  \"enabled\": " << (config.enabled ? "true" : "false") << ",\n";
     out << "  \"debugLogging\": " << (config.debugLogging ? "true" : "false") << ",\n";
-    out << "  \"debugSearchLogging\": " << (config.debugSearchLogging ? "true" : "false") << ",\n";
-    out << "  \"debugBindingLogging\": " << (config.debugBindingLogging ? "true" : "false") << ",\n";
     out << "  \"showIcons\": " << (config.showIcons ? "true" : "false") << ",\n";
     out << "  \"showText\": " << (config.showText ? "true" : "false") << ",\n";
     out << "  \"portraitIconDisplaySizePx\": " << config.portraitIconDisplaySizePx << ",\n";
@@ -641,8 +639,6 @@ std::string BuildConfigText(const PluginConfig& config)
 PluginConfig::PluginConfig()
     : enabled(true)
     , debugLogging(false)
-    , debugSearchLogging(false)
-    , debugBindingLogging(false)
     , showIcons(true)
     , showText(true)
     , portraitIconDisplaySizePx(kDefaultPortraitIconDisplaySizePx)
@@ -724,14 +720,6 @@ LoadStatus LoadFromFile(const std::string& path, PluginConfig* outConfig)
     if (TryParseJsonBoolByKey(content, "debugLogging", &parsedBool))
     {
         outConfig->debugLogging = parsedBool;
-    }
-    if (TryParseJsonBoolByKey(content, "debugSearchLogging", &parsedBool))
-    {
-        outConfig->debugSearchLogging = parsedBool;
-    }
-    if (TryParseJsonBoolByKey(content, "debugBindingLogging", &parsedBool))
-    {
-        outConfig->debugBindingLogging = parsedBool;
     }
     if (TryParseJsonBoolByKey(content, "showIcons", &parsedBool))
     {

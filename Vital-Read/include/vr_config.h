@@ -16,8 +16,6 @@ struct PluginConfig
 
     bool enabled;
     bool debugLogging;
-    bool debugSearchLogging;
-    bool debugBindingLogging;
     bool showIcons;
     bool showText;
     DWORD portraitIconDisplaySizePx;

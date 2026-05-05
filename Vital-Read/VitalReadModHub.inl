@@ -30,14 +30,16 @@ struct HubIntSettingDescriptor
 
 emc::ModHubClient g_modHubClient;
 bool g_modHubRowsInitialized = false;
+const char* kHubSectionCoreId = "core";
+const char* kHubSectionCoreLabel = "Core";
+const char* kHubSectionAdvancedId = "advanced";
+const char* kHubSectionAdvancedLabel = "Advanced";
 
 HubBoolSettingDescriptor g_hubBoolSettingDescriptors[] = {
     { "enabled", "Enabled", "Enable Vital Read runtime probes and overlays", &g_enabled },
     { "show_icons", "Show icons", "Show portrait state icon overlays", &g_showIcons },
     { "show_text", "Show text", "Show portrait state text badges", &g_showText },
-    { "debug_logging", "Debug logging", "Enable general Vital Read debug logs", &g_debugLogging },
-    { "debug_search_logging", "Search debug logging", "Enable portrait search diagnostics (requires Debug logging)", &g_debugSearchLogging },
-    { "debug_binding_logging", "Binding debug logging", "Enable portrait binding diagnostics (requires Debug logging)", &g_debugBindingLogging }
+    { "debug_logging", "Debug logging", "Enable general Vital Read debug logs", &g_debugLogging }
 };
 
 enum
@@ -307,7 +309,18 @@ void InitializeModHubSettingRows()
         g_hubBoolSettingDefs[index].set_value = &SetHubBoolSetting;
 
         g_hubSettingRows[index].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL;
+        g_hubSettingRows[index].setting_id = g_hubBoolSettingDefs[index].setting_id;
         g_hubSettingRows[index].def = &g_hubBoolSettingDefs[index];
+        if (g_hubBoolSettingDescriptors[index].field == &g_debugLogging)
+        {
+            g_hubSettingRows[index].section_id = kHubSectionAdvancedId;
+            g_hubSettingRows[index].section_display_name = kHubSectionAdvancedLabel;
+        }
+        else
+        {
+            g_hubSettingRows[index].section_id = kHubSectionCoreId;
+            g_hubSettingRows[index].section_display_name = kHubSectionCoreLabel;
+        }
     }
 
     for (size_t index = 0u; index < static_cast<size_t>(kHubIntSettingCount); ++index)
@@ -334,7 +347,10 @@ void InitializeModHubSettingRows()
             g_hubIntSettingDefsV2[index].set_value = &SetHubIntSetting;
 
             g_hubSettingRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2;
+            g_hubSettingRows[rowIndex].setting_id = g_hubIntSettingDefsV2[index].setting_id;
             g_hubSettingRows[rowIndex].def = &g_hubIntSettingDefsV2[index];
+            g_hubSettingRows[rowIndex].section_id = kHubSectionCoreId;
+            g_hubSettingRows[rowIndex].section_display_name = kHubSectionCoreLabel;
             continue;
         }
 
@@ -349,7 +365,10 @@ void InitializeModHubSettingRows()
         g_hubIntSettingDefs[index].set_value = &SetHubIntSetting;
 
         g_hubSettingRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT;
+        g_hubSettingRows[rowIndex].setting_id = g_hubIntSettingDefs[index].setting_id;
         g_hubSettingRows[rowIndex].def = &g_hubIntSettingDefs[index];
+        g_hubSettingRows[rowIndex].section_id = kHubSectionCoreId;
+        g_hubSettingRows[rowIndex].section_display_name = kHubSectionCoreLabel;
     }
 
     g_modHubTableRegistration.row_count = static_cast<uint32_t>(kHubSettingRowCount);

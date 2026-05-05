@@ -52,8 +52,6 @@ After deploy, expected files:
 mod-config.json starts with the shared logging baseline:
 - enabled
 - debugLogging
-- debugSearchLogging
-- debugBindingLogging
 - showIcons
 - showText
 - portraitIconDisplaySizePx

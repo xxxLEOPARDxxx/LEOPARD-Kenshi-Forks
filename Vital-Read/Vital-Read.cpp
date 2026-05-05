@@ -102,8 +102,6 @@ std::string g_configPath;
 vr_config::PluginConfig g_config;
 bool& g_enabled = g_config.enabled;
 bool& g_debugLogging = g_config.debugLogging;
-bool& g_debugSearchLogging = g_config.debugSearchLogging;
-bool& g_debugBindingLogging = g_config.debugBindingLogging;
 bool& g_showIcons = g_config.showIcons;
 bool& g_showText = g_config.showText;
 DWORD& g_portraitIconDisplaySizePx = g_config.portraitIconDisplaySizePx;
@@ -533,35 +531,9 @@ bool ShouldLogDebug()
     return g_debugLogging;
 }
 
-bool ShouldLogSearchDebug()
-{
-    return g_debugLogging && g_debugSearchLogging;
-}
-
-bool ShouldLogBindingDebug()
-{
-    return g_debugLogging && g_debugBindingLogging;
-}
-
 void LogDebugLine(const std::string& message)
 {
     if (ShouldLogDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogSearchDebugLine(const std::string& message)
-{
-    if (ShouldLogSearchDebug())
-    {
-        LogInfoLine(message);
-    }
-}
-
-void LogBindingDebugLine(const std::string& message)
-{
-    if (ShouldLogBindingDebug())
     {
         LogInfoLine(message);
     }
@@ -605,8 +577,6 @@ void LoadLoggingConfig()
         std::stringstream line;
         line << "logging flags enabled=" << (g_enabled ? "true" : "false")
              << " debugLogging=" << (g_debugLogging ? "true" : "false")
-             << " debugSearchLogging=" << (g_debugSearchLogging ? "true" : "false")
-             << " debugBindingLogging=" << (g_debugBindingLogging ? "true" : "false")
              << " showIcons=" << (g_showIcons ? "true" : "false")
              << " showText=" << (g_showText ? "true" : "false")
              << " portraitIconDisplaySizePx=" << g_portraitIconDisplaySizePx
@@ -2432,7 +2402,6 @@ void ClearPortraitDisplayCache()
 bool TryValidatePortraitDisplayCache(
     const std::string& rosterSignature,
     const size_t scopedMemberCount,
-    const size_t requiredDisplayPortraitCount,
     std::vector<PortraitCandidateRecord>* outDisplayPortraits)
 {
     if (outDisplayPortraits == 0)
@@ -2450,8 +2419,7 @@ bool TryValidatePortraitDisplayCache(
     const bool expired = now - g_portraitDisplayCache.refreshedTick > kPortraitDisplayCacheMaxAgeMs;
     const bool rosterChanged = g_portraitDisplayCache.rosterSignature != rosterSignature
         || g_portraitDisplayCache.scopedMemberCount != scopedMemberCount;
-    const bool tooSmall = g_portraitDisplayCache.displayPortraits.size() < requiredDisplayPortraitCount;
-    if (expired || rosterChanged || tooSmall)
+    if (expired || rosterChanged)
     {
         ++g_overlayPerfStats.portraitCacheInvalidations;
         if (expired)
@@ -2462,14 +2430,11 @@ bool TryValidatePortraitDisplayCache(
         {
             ++g_overlayPerfStats.portraitCacheInvalidationsRoster;
         }
-        if (tooSmall)
-        {
-            ++g_overlayPerfStats.portraitCacheInvalidationsTooSmall;
-        }
         ClearPortraitDisplayCache();
         return false;
     }
 
+    // Partial portrait bars are stable cache states; slot resolution skips missing portraits.
     for (size_t index = 0u; index < g_portraitDisplayCache.displayPortraits.size(); ++index)
     {
         MyGUI::Widget* widget = g_portraitDisplayCache.displayPortraits[index].widget;
@@ -2627,7 +2592,6 @@ bool TryCollectPortraitRefreshContext(
     std::vector<PortraitTextLabelMatch> pendingTextMatches;
     bool needsDisplayPortraits = false;
     size_t scopedMemberCount = 0u;
-    size_t requiredDisplayPortraitCount = 0u;
     std::stringstream rosterSignature;
     rosterSignature << scope.scope;
 
@@ -2643,10 +2607,6 @@ bool TryCollectPortraitRefreshContext(
 
             ++scopedMemberCount;
             const int portraitIndex = static_cast<int>(candidate->portraitIndex);
-            if (portraitIndex >= 0 && static_cast<size_t>(portraitIndex + 1) > requiredDisplayPortraitCount)
-            {
-                requiredDisplayPortraitCount = static_cast<size_t>(portraitIndex + 1);
-            }
             rosterSignature << "|"
                             << SafeHandleString(candidate->handle)
                             << ":"
@@ -2702,16 +2662,11 @@ bool TryCollectPortraitRefreshContext(
         return true;
     }
 
-    if (scopedMemberCount > requiredDisplayPortraitCount)
-    {
-        requiredDisplayPortraitCount = scopedMemberCount;
-    }
-
     ++g_overlayPerfStats.contextsBuilt;
     g_overlayPerfStats.scopedMembersScanned += scopedMemberCount;
 
     std::vector<PortraitCandidateRecord> displayPortraits;
-    if (TryValidatePortraitDisplayCache(rosterSignature.str(), scopedMemberCount, requiredDisplayPortraitCount, &displayPortraits))
+    if (TryValidatePortraitDisplayCache(rosterSignature.str(), scopedMemberCount, &displayPortraits))
     {
         ++g_overlayPerfStats.portraitCacheHits;
         context.usedCachedDisplayPortraits = true;
@@ -4331,8 +4286,6 @@ __declspec(dllexport) void startPlugin()
     StartModHubClient();
 
     LogDebugLine("runtime debug logging is enabled");
-    LogSearchDebugLine("search diagnostics are enabled");
-    LogBindingDebugLine("binding diagnostics are enabled");
 
     if (g_enabled)
     {
