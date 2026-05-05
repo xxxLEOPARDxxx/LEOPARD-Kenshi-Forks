@@ -68,6 +68,8 @@ const OIS::KeyCode kDumpMemberStatesHotkey = OIS::KC_F12;
 
 const DWORD kHoveredMarkerLifetimeMs = 1500;
 const DWORD kPortraitOverlayRefreshIntervalMs = 250;
+const DWORD kPortraitDisplayCacheMaxAgeMs = 5000;
+const DWORD kPerfSummaryIntervalMs = 10000;
 const int kHoveredMarkerInsetPx = 2;
 const int kHoveredMarkerMinSizePx = 10;
 const int kHoveredMarkerMaxSizePx = 18;
@@ -133,6 +135,7 @@ MyGUI::Widget* g_hoveredMarkerWidget = 0;
 Character* g_pendingMedicalGuiProbeCharacter = 0;
 DWORD g_pendingMedicalGuiProbeExpireTick = 0u;
 std::string g_pendingMedicalGuiProbeReason;
+bool g_disabledRuntimeStateCleared = false;
 
 struct PortraitOverlayRuntime
 {
@@ -319,7 +322,8 @@ enum PortraitOverlayState
     PORTRAIT_OVERLAY_STATE_PLAYING_DEAD,
     PORTRAIT_OVERLAY_STATE_STARVING,
     PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM,
-    PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG
+    PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG,
+    PORTRAIT_OVERLAY_STATE_COUNT
 };
 
 enum PortraitTextLabelState
@@ -386,9 +390,95 @@ struct PortraitTextLabelMatch
     const char* mappingKey;
 };
 
+struct PortraitOverlayRefreshContext
+{
+    PortraitOverlayRefreshContext()
+        : visibleRootCount(0u)
+        , scannedNodes(0u)
+        , usedCachedDisplayPortraits(false)
+        , guiCollectionFailed(false)
+    {
+        for (size_t index = 0u; index < PORTRAIT_OVERLAY_STATE_COUNT; ++index)
+        {
+            overlayFailureStatuses[index] = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
+        }
+    }
+
+    std::vector<PortraitOverlayMatch> overlayMatches[PORTRAIT_OVERLAY_STATE_COUNT];
+    std::vector<PortraitTextLabelMatch> textMatches;
+    PortraitOverlayMatchStatus overlayFailureStatuses[PORTRAIT_OVERLAY_STATE_COUNT];
+    size_t visibleRootCount;
+    size_t scannedNodes;
+    bool usedCachedDisplayPortraits;
+    bool guiCollectionFailed;
+};
+
+struct PortraitDisplayCache
+{
+    PortraitDisplayCache()
+        : valid(false)
+        , refreshedTick(0u)
+        , targetPlatoon(0)
+        , scopedMemberCount(0u)
+    {
+    }
+
+    bool valid;
+    DWORD refreshedTick;
+    Platoon* targetPlatoon;
+    size_t scopedMemberCount;
+    std::vector<PortraitCandidateRecord> displayPortraits;
+};
+
+struct OverlayRuntimePerfStats
+{
+    OverlayRuntimePerfStats()
+        : nextSummaryTick(0u)
+        , refreshes(0u)
+        , iconRefreshes(0u)
+        , textRefreshes(0u)
+        , refreshFailures(0u)
+        , refreshDurationTotalMs(0u)
+        , refreshDurationMaxMs(0u)
+        , contextsBuilt(0u)
+        , scopedMembersScanned(0u)
+        , portraitCacheHits(0u)
+        , portraitCacheMisses(0u)
+        , portraitCacheInvalidations(0u)
+        , portraitGuiScans(0u)
+        , portraitGuiScanNodesTotal(0u)
+        , portraitGuiScanNodesMax(0u)
+        , disabledClears(0u)
+        , disabledClearSkips(0u)
+    {
+    }
+
+    DWORD nextSummaryTick;
+    size_t refreshes;
+    size_t iconRefreshes;
+    size_t textRefreshes;
+    size_t refreshFailures;
+    DWORD refreshDurationTotalMs;
+    DWORD refreshDurationMaxMs;
+    size_t contextsBuilt;
+    size_t scopedMembersScanned;
+    size_t portraitCacheHits;
+    size_t portraitCacheMisses;
+    size_t portraitCacheInvalidations;
+    size_t portraitGuiScans;
+    size_t portraitGuiScanNodesTotal;
+    size_t portraitGuiScanNodesMax;
+    size_t disabledClears;
+    size_t disabledClearSkips;
+};
+
+PortraitDisplayCache g_portraitDisplayCache;
+OverlayRuntimePerfStats g_overlayPerfStats;
+
 bool EnsureHoveredMarkerWidget();
 void HideHoveredMarker();
 void ClearPendingMedicalGuiProbe();
+void ClearPortraitDisplayCache();
 void ResetStateOverlays();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
@@ -2322,6 +2412,76 @@ void CollectDisplayPortraitCandidates(
     std::stable_sort(outDisplayPortraits->begin(), outDisplayPortraits->end(), PortraitCandidateSortPredicate);
 }
 
+void ClearPortraitDisplayCache()
+{
+    g_portraitDisplayCache.valid = false;
+    g_portraitDisplayCache.refreshedTick = 0u;
+    g_portraitDisplayCache.targetPlatoon = 0;
+    g_portraitDisplayCache.scopedMemberCount = 0u;
+    g_portraitDisplayCache.displayPortraits.clear();
+}
+
+bool TryValidatePortraitDisplayCache(
+    const SquadProbeScope& scope,
+    const size_t scopedMemberCount,
+    const size_t requiredDisplayPortraitCount,
+    std::vector<PortraitCandidateRecord>* outDisplayPortraits)
+{
+    if (outDisplayPortraits == 0)
+    {
+        return false;
+    }
+
+    outDisplayPortraits->clear();
+    if (!g_portraitDisplayCache.valid)
+    {
+        return false;
+    }
+
+    const DWORD now = GetTickCount();
+    const bool expired = now - g_portraitDisplayCache.refreshedTick > kPortraitDisplayCacheMaxAgeMs;
+    const bool scopeChanged = g_portraitDisplayCache.targetPlatoon != scope.targetPlatoon
+        || g_portraitDisplayCache.scopedMemberCount != scopedMemberCount;
+    const bool tooSmall = g_portraitDisplayCache.displayPortraits.size() < requiredDisplayPortraitCount;
+    if (expired || scopeChanged || tooSmall)
+    {
+        ++g_overlayPerfStats.portraitCacheInvalidations;
+        ClearPortraitDisplayCache();
+        return false;
+    }
+
+    for (size_t index = 0u; index < g_portraitDisplayCache.displayPortraits.size(); ++index)
+    {
+        MyGUI::Widget* widget = g_portraitDisplayCache.displayPortraits[index].widget;
+        PortraitCandidateRecord current = BuildPortraitCandidateRecord(widget, 0);
+        if (!IsVisibleDisplayPortraitCandidate(current))
+        {
+            ++g_overlayPerfStats.portraitCacheInvalidations;
+            ClearPortraitDisplayCache();
+            outDisplayPortraits->clear();
+            return false;
+        }
+
+        outDisplayPortraits->push_back(current);
+    }
+
+    std::stable_sort(outDisplayPortraits->begin(), outDisplayPortraits->end(), PortraitCandidateSortPredicate);
+    g_portraitDisplayCache.displayPortraits = *outDisplayPortraits;
+    return true;
+}
+
+void StorePortraitDisplayCache(
+    const SquadProbeScope& scope,
+    const size_t scopedMemberCount,
+    const std::vector<PortraitCandidateRecord>& displayPortraits)
+{
+    g_portraitDisplayCache.valid = true;
+    g_portraitDisplayCache.refreshedTick = GetTickCount();
+    g_portraitDisplayCache.targetPlatoon = scope.targetPlatoon;
+    g_portraitDisplayCache.scopedMemberCount = scopedMemberCount;
+    g_portraitDisplayCache.displayPortraits = displayPortraits;
+}
+
 bool TryResolveDisplayPortraitSlotIndex(
     Character* character,
     const size_t displayPortraitCount,
@@ -2352,26 +2512,102 @@ bool TryResolveDisplayPortraitSlotIndex(
     return false;
 }
 
-bool TryCollectPortraitOverlayMatches(
-    const PortraitOverlayState overlayState,
-    std::vector<PortraitOverlayMatch>* outMatches,
-    PortraitOverlayMatchStatus* outFailureStatus)
+size_t GetPortraitOverlayStateIndex(const PortraitOverlayState overlayState)
 {
-    if (outMatches == 0 || outFailureStatus == 0)
+    if (overlayState < PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS
+        || overlayState >= PORTRAIT_OVERLAY_STATE_COUNT)
+    {
+        return static_cast<size_t>(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
+    }
+
+    return static_cast<size_t>(overlayState);
+}
+
+PortraitOverlayState GetPortraitOverlayStateByIndex(const size_t index)
+{
+    if (index >= static_cast<size_t>(PORTRAIT_OVERLAY_STATE_COUNT))
+    {
+        return PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS;
+    }
+
+    return static_cast<PortraitOverlayState>(index);
+}
+
+void SortPortraitOverlayMatches(std::vector<PortraitOverlayMatch>* matches)
+{
+    if (matches == 0)
+    {
+        return;
+    }
+
+    std::stable_sort(
+        matches->begin(),
+        matches->end(),
+        [](const PortraitOverlayMatch& left, const PortraitOverlayMatch& right) -> bool
+        {
+            if (left.displaySlotIndex != right.displaySlotIndex)
+            {
+                return left.displaySlotIndex < right.displaySlotIndex;
+            }
+            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
+        });
+}
+
+void SortPortraitTextLabelMatches(std::vector<PortraitTextLabelMatch>* matches)
+{
+    if (matches == 0)
+    {
+        return;
+    }
+
+    std::stable_sort(
+        matches->begin(),
+        matches->end(),
+        [](const PortraitTextLabelMatch& left, const PortraitTextLabelMatch& right) -> bool
+        {
+            if (left.displaySlotIndex != right.displaySlotIndex)
+            {
+                return left.displaySlotIndex < right.displaySlotIndex;
+            }
+            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
+        });
+}
+
+bool TryCollectPortraitRefreshContext(
+    const bool collectIcons,
+    const bool collectText,
+    PortraitOverlayRefreshContext* outContext)
+{
+    if (outContext == 0)
     {
         return false;
     }
 
-    outMatches->clear();
-    *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
+    PortraitOverlayRefreshContext context;
+    if (!collectIcons && !collectText)
+    {
+        *outContext = context;
+        return true;
+    }
 
     SquadProbeScope scope;
     if (!TryResolveSquadProbeScope(&scope))
     {
+        *outContext = context;
         return true;
     }
 
-    std::vector<PortraitOverlayMatch> stateMatches;
+    for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
+    {
+        context.overlayFailureStatuses[stateIndex] = PORTRAIT_OVERLAY_MATCH_NO_STATE;
+    }
+
+    std::vector<PortraitOverlayMatch> pendingOverlayMatches[PORTRAIT_OVERLAY_STATE_COUNT];
+    std::vector<PortraitTextLabelMatch> pendingTextMatches;
+    bool needsDisplayPortraits = false;
+    size_t scopedMemberCount = 0u;
+    size_t requiredDisplayPortraitCount = 0u;
+
     if (scope.allPlayerCharacters != 0)
     {
         for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
@@ -2382,51 +2618,160 @@ bool TryCollectPortraitOverlayMatches(
                 continue;
             }
 
+            ++scopedMemberCount;
+            const int portraitIndex = static_cast<int>(candidate->portraitIndex);
+            if (portraitIndex >= 0 && static_cast<size_t>(portraitIndex + 1) > requiredDisplayPortraitCount)
+            {
+                requiredDisplayPortraitCount = static_cast<size_t>(portraitIndex + 1);
+            }
+
             MemberStateSnapshot snapshot;
             if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
             {
                 continue;
             }
 
-            if (!SnapshotMatchesPortraitOverlayState(snapshot, overlayState))
+            if (collectIcons)
+            {
+                for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
+                {
+                    const PortraitOverlayState overlayState = GetPortraitOverlayStateByIndex(stateIndex);
+                    if (!SnapshotMatchesPortraitOverlayState(snapshot, overlayState))
+                    {
+                        continue;
+                    }
+
+                    PortraitOverlayMatch match;
+                    match.overlayState = overlayState;
+                    match.character = candidate;
+                    match.state = snapshot;
+                    pendingOverlayMatches[stateIndex].push_back(match);
+                    needsDisplayPortraits = true;
+                }
+            }
+
+            if (collectText)
+            {
+                PortraitTextLabelState labelState = PORTRAIT_TEXT_LABEL_NONE;
+                if (TryResolvePortraitTextLabelState(snapshot, &labelState)
+                    && labelState != PORTRAIT_TEXT_LABEL_NONE)
+                {
+                    PortraitTextLabelMatch match;
+                    match.labelState = labelState;
+                    match.character = candidate;
+                    match.state = snapshot;
+                    pendingTextMatches.push_back(match);
+                    needsDisplayPortraits = true;
+                }
+            }
+        }
+    }
+
+    if (!needsDisplayPortraits)
+    {
+        *outContext = context;
+        return true;
+    }
+
+    if (scopedMemberCount > requiredDisplayPortraitCount)
+    {
+        requiredDisplayPortraitCount = scopedMemberCount;
+    }
+
+    ++g_overlayPerfStats.contextsBuilt;
+    g_overlayPerfStats.scopedMembersScanned += scopedMemberCount;
+
+    std::vector<PortraitCandidateRecord> displayPortraits;
+    if (TryValidatePortraitDisplayCache(scope, scopedMemberCount, requiredDisplayPortraitCount, &displayPortraits))
+    {
+        ++g_overlayPerfStats.portraitCacheHits;
+        context.usedCachedDisplayPortraits = true;
+        context.visibleRootCount = 0u;
+        context.scannedNodes = 0u;
+    }
+    else
+    {
+        ++g_overlayPerfStats.portraitCacheMisses;
+
+        std::vector<PortraitCandidateRecord> allCandidates;
+        if (!TryCollectPortraitCandidates(0, &allCandidates, &context.visibleRootCount, &context.scannedNodes))
+        {
+            context.guiCollectionFailed = true;
+            for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
+            {
+                if (!pendingOverlayMatches[stateIndex].empty())
+                {
+                    context.overlayFailureStatuses[stateIndex] = PORTRAIT_OVERLAY_MATCH_NO_GUI;
+                }
+            }
+            *outContext = context;
+            return true;
+        }
+
+        ++g_overlayPerfStats.portraitGuiScans;
+        g_overlayPerfStats.portraitGuiScanNodesTotal += context.scannedNodes;
+        if (context.scannedNodes > g_overlayPerfStats.portraitGuiScanNodesMax)
+        {
+            g_overlayPerfStats.portraitGuiScanNodesMax = context.scannedNodes;
+        }
+
+        CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
+        StorePortraitDisplayCache(scope, scopedMemberCount, displayPortraits);
+    }
+
+    for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
+    {
+        if (pendingOverlayMatches[stateIndex].empty())
+        {
+            continue;
+        }
+
+        context.overlayFailureStatuses[stateIndex] = PORTRAIT_OVERLAY_MATCH_NO_PORTRAIT;
+        std::vector<bool> usedSlots(displayPortraits.size(), false);
+        for (size_t index = 0u; index < pendingOverlayMatches[stateIndex].size(); ++index)
+        {
+            PortraitOverlayMatch match = pendingOverlayMatches[stateIndex][index];
+            match.visibleRootCount = context.visibleRootCount;
+            match.scannedNodes = context.scannedNodes;
+            match.displayPortraitCount = displayPortraits.size();
+
+            if (!TryResolveDisplayPortraitSlotIndex(
+                    match.character,
+                    displayPortraits.size(),
+                    &match.displaySlotIndex,
+                    &match.mappingKey))
             {
                 continue;
             }
 
-            PortraitOverlayMatch match;
-            match.overlayState = overlayState;
-            match.character = candidate;
-            match.state = snapshot;
-            stateMatches.push_back(match);
+            if (match.displaySlotIndex < 0
+                || static_cast<size_t>(match.displaySlotIndex) >= displayPortraits.size())
+            {
+                continue;
+            }
+
+            if (usedSlots[static_cast<size_t>(match.displaySlotIndex)])
+            {
+                continue;
+            }
+
+            usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
+            match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
+            match.status = PORTRAIT_OVERLAY_MATCH_OK;
+            context.overlayMatches[stateIndex].push_back(match);
+        }
+
+        if (!context.overlayMatches[stateIndex].empty())
+        {
+            SortPortraitOverlayMatches(&context.overlayMatches[stateIndex]);
+            context.overlayFailureStatuses[stateIndex] = PORTRAIT_OVERLAY_MATCH_OK;
         }
     }
 
-    if (stateMatches.empty())
+    std::vector<bool> usedTextSlots(displayPortraits.size(), false);
+    for (size_t index = 0u; index < pendingTextMatches.size(); ++index)
     {
-        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_STATE;
-        return true;
-    }
-
-    size_t visibleRootCount = 0u;
-    size_t scannedNodes = 0u;
-    std::vector<PortraitCandidateRecord> allCandidates;
-    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
-    {
-        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_GUI;
-        return true;
-    }
-
-    std::vector<PortraitCandidateRecord> displayPortraits;
-    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
-    std::vector<bool> usedSlots(displayPortraits.size(), false);
-
-    for (size_t index = 0u; index < stateMatches.size(); ++index)
-    {
-        PortraitOverlayMatch match = stateMatches[index];
-        match.visibleRootCount = visibleRootCount;
-        match.scannedNodes = scannedNodes;
-        match.displayPortraitCount = displayPortraits.size();
-
+        PortraitTextLabelMatch match = pendingTextMatches[index];
         if (!TryResolveDisplayPortraitSlotIndex(
                 match.character,
                 displayPortraits.size(),
@@ -2442,36 +2787,18 @@ bool TryCollectPortraitOverlayMatches(
             continue;
         }
 
-        if (usedSlots[static_cast<size_t>(match.displaySlotIndex)])
+        if (usedTextSlots[static_cast<size_t>(match.displaySlotIndex)])
         {
             continue;
         }
 
-        usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
+        usedTextSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
         match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
-        match.status = PORTRAIT_OVERLAY_MATCH_OK;
-        outMatches->push_back(match);
+        context.textMatches.push_back(match);
     }
 
-    if (outMatches->empty())
-    {
-        *outFailureStatus = PORTRAIT_OVERLAY_MATCH_NO_PORTRAIT;
-        return true;
-    }
-
-    std::stable_sort(
-        outMatches->begin(),
-        outMatches->end(),
-        [](const PortraitOverlayMatch& left, const PortraitOverlayMatch& right) -> bool
-        {
-            if (left.displaySlotIndex != right.displaySlotIndex)
-            {
-                return left.displaySlotIndex < right.displaySlotIndex;
-            }
-            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
-        });
-
-    *outFailureStatus = PORTRAIT_OVERLAY_MATCH_OK;
+    SortPortraitTextLabelMatches(&context.textMatches);
+    *outContext = context;
     return true;
 }
 
@@ -2487,127 +2814,21 @@ bool TryResolvePortraitOverlayMatch(
     *outMatch = PortraitOverlayMatch();
     outMatch->overlayState = overlayState;
 
-    std::vector<PortraitOverlayMatch> matches;
-    PortraitOverlayMatchStatus failureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
-    if (!TryCollectPortraitOverlayMatches(overlayState, &matches, &failureStatus))
+    PortraitOverlayRefreshContext context;
+    if (!TryCollectPortraitRefreshContext(true, false, &context))
     {
         return false;
     }
 
-    if (failureStatus != PORTRAIT_OVERLAY_MATCH_OK || matches.empty())
+    const size_t stateIndex = GetPortraitOverlayStateIndex(overlayState);
+    if (context.overlayFailureStatuses[stateIndex] != PORTRAIT_OVERLAY_MATCH_OK
+        || context.overlayMatches[stateIndex].empty())
     {
-        outMatch->status = failureStatus;
+        outMatch->status = context.overlayFailureStatuses[stateIndex];
         return true;
     }
 
-    *outMatch = matches.front();
-    return true;
-}
-
-bool TryCollectPortraitTextLabelMatches(std::vector<PortraitTextLabelMatch>* outMatches)
-{
-    if (outMatches == 0)
-    {
-        return false;
-    }
-
-    outMatches->clear();
-
-    SquadProbeScope scope;
-    if (!TryResolveSquadProbeScope(&scope))
-    {
-        return true;
-    }
-
-    std::vector<PortraitTextLabelMatch> stateMatches;
-    if (scope.allPlayerCharacters != 0)
-    {
-        for (uint32_t rawIndex = 0u; rawIndex < scope.allPlayerCharacters->size(); ++rawIndex)
-        {
-            Character* candidate = (*scope.allPlayerCharacters)[rawIndex];
-            if (!CharacterMatchesSquadProbeScope(scope, candidate))
-            {
-                continue;
-            }
-
-            MemberStateSnapshot snapshot;
-            if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
-            {
-                continue;
-            }
-
-            PortraitTextLabelState labelState = PORTRAIT_TEXT_LABEL_NONE;
-            if (!TryResolvePortraitTextLabelState(snapshot, &labelState)
-                || labelState == PORTRAIT_TEXT_LABEL_NONE)
-            {
-                continue;
-            }
-
-            PortraitTextLabelMatch match;
-            match.labelState = labelState;
-            match.character = candidate;
-            match.state = snapshot;
-            stateMatches.push_back(match);
-        }
-    }
-
-    if (stateMatches.empty())
-    {
-        return true;
-    }
-
-    size_t visibleRootCount = 0u;
-    size_t scannedNodes = 0u;
-    std::vector<PortraitCandidateRecord> allCandidates;
-    if (!TryCollectPortraitCandidates(0, &allCandidates, &visibleRootCount, &scannedNodes))
-    {
-        return false;
-    }
-
-    std::vector<PortraitCandidateRecord> displayPortraits;
-    CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
-    std::vector<bool> usedSlots(displayPortraits.size(), false);
-
-    for (size_t index = 0u; index < stateMatches.size(); ++index)
-    {
-        PortraitTextLabelMatch match = stateMatches[index];
-        if (!TryResolveDisplayPortraitSlotIndex(
-                match.character,
-                displayPortraits.size(),
-                &match.displaySlotIndex,
-                &match.mappingKey))
-        {
-            continue;
-        }
-
-        if (match.displaySlotIndex < 0
-            || static_cast<size_t>(match.displaySlotIndex) >= displayPortraits.size())
-        {
-            continue;
-        }
-
-        if (usedSlots[static_cast<size_t>(match.displaySlotIndex)])
-        {
-            continue;
-        }
-
-        usedSlots[static_cast<size_t>(match.displaySlotIndex)] = true;
-        match.target = displayPortraits[static_cast<size_t>(match.displaySlotIndex)];
-        outMatches->push_back(match);
-    }
-
-    std::stable_sort(
-        outMatches->begin(),
-        outMatches->end(),
-        [](const PortraitTextLabelMatch& left, const PortraitTextLabelMatch& right) -> bool
-        {
-            if (left.displaySlotIndex != right.displaySlotIndex)
-            {
-                return left.displaySlotIndex < right.displaySlotIndex;
-            }
-            return reinterpret_cast<size_t>(left.character) < reinterpret_cast<size_t>(right.character);
-        });
-
+    *outMatch = context.overlayMatches[stateIndex].front();
     return true;
 }
 
@@ -3433,6 +3654,7 @@ void ResetStateOverlays()
     ResetPortraitOverlayRuntime(&g_crippledArmOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_crippledLegOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
+    ClearPortraitDisplayCache();
 }
 
 void ResetPortraitIconOverlays()
@@ -3444,6 +3666,17 @@ void ResetPortraitIconOverlays()
     ResetPortraitOverlayRuntime(&g_starvingOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_crippledArmOverlayRuntime);
     ResetPortraitOverlayRuntime(&g_crippledLegOverlayRuntime);
+}
+
+void HidePortraitIconOverlays()
+{
+    HidePortraitOverlay(&g_unconsciousOverlayRuntime);
+    HidePortraitOverlay(&g_recoveryComaOverlayRuntime);
+    HidePortraitOverlay(&g_dyingOverlayRuntime);
+    HidePortraitOverlay(&g_playingDeadOverlayRuntime);
+    HidePortraitOverlay(&g_starvingOverlayRuntime);
+    HidePortraitOverlay(&g_crippledArmOverlayRuntime);
+    HidePortraitOverlay(&g_crippledLegOverlayRuntime);
 }
 
 void TickHoveredMarker()
@@ -3459,7 +3692,129 @@ void TickHoveredMarker()
     }
 }
 
-void RefreshPortraitOverlayImpl(const PortraitOverlayState overlayState)
+bool IsPortraitOverlayRuntimeDue(PortraitOverlayRuntime* overlayRuntime, const DWORD now)
+{
+    if (overlayRuntime == 0)
+    {
+        return false;
+    }
+
+    return overlayRuntime->nextRefreshTick == 0u || now >= overlayRuntime->nextRefreshTick;
+}
+
+bool AnyPortraitIconOverlayRuntimeDue(const DWORD now)
+{
+    return IsPortraitOverlayRuntimeDue(&g_unconsciousOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_recoveryComaOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_dyingOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_playingDeadOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_starvingOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_crippledArmOverlayRuntime, now)
+        || IsPortraitOverlayRuntimeDue(&g_crippledLegOverlayRuntime, now);
+}
+
+void SchedulePortraitOverlayRuntime(PortraitOverlayRuntime* overlayRuntime, const DWORD nextRefreshTick)
+{
+    if (overlayRuntime != 0)
+    {
+        overlayRuntime->nextRefreshTick = nextRefreshTick;
+    }
+}
+
+void SchedulePortraitIconOverlayRuntimes(const DWORD nextRefreshTick)
+{
+    SchedulePortraitOverlayRuntime(&g_unconsciousOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_recoveryComaOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_dyingOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_playingDeadOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_starvingOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_crippledArmOverlayRuntime, nextRefreshTick);
+    SchedulePortraitOverlayRuntime(&g_crippledLegOverlayRuntime, nextRefreshTick);
+}
+
+void MaybeLogOverlayPerfSummary(const DWORD now)
+{
+    if (!ShouldLogDebug())
+    {
+        return;
+    }
+
+    if (g_overlayPerfStats.nextSummaryTick == 0u)
+    {
+        g_overlayPerfStats.nextSummaryTick = now + kPerfSummaryIntervalMs;
+        return;
+    }
+
+    if (now < g_overlayPerfStats.nextSummaryTick)
+    {
+        return;
+    }
+
+    const vr_marker_ui::OverlayPerfStats markerStats = vr_marker_ui::GetOverlayPerfStats();
+    std::stringstream line;
+    line << "perf overlay_summary"
+         << " interval_ms=" << kPerfSummaryIntervalMs
+         << " refreshes=" << g_overlayPerfStats.refreshes
+         << " icon_refreshes=" << g_overlayPerfStats.iconRefreshes
+         << " text_refreshes=" << g_overlayPerfStats.textRefreshes
+         << " refresh_failures=" << g_overlayPerfStats.refreshFailures
+         << " refresh_duration_total_ms=" << g_overlayPerfStats.refreshDurationTotalMs
+         << " refresh_duration_max_ms=" << g_overlayPerfStats.refreshDurationMaxMs
+         << " contexts_built=" << g_overlayPerfStats.contextsBuilt
+         << " scoped_members_scanned=" << g_overlayPerfStats.scopedMembersScanned
+         << " portrait_cache_hits=" << g_overlayPerfStats.portraitCacheHits
+         << " portrait_cache_misses=" << g_overlayPerfStats.portraitCacheMisses
+         << " portrait_cache_invalidations=" << g_overlayPerfStats.portraitCacheInvalidations
+         << " portrait_gui_scans=" << g_overlayPerfStats.portraitGuiScans
+         << " portrait_gui_scan_nodes_total=" << g_overlayPerfStats.portraitGuiScanNodesTotal
+         << " portrait_gui_scan_nodes_max=" << g_overlayPerfStats.portraitGuiScanNodesMax
+         << " disabled_clears=" << g_overlayPerfStats.disabledClears
+         << " disabled_clear_skips=" << g_overlayPerfStats.disabledClearSkips
+         << " overlay_calls=" << markerStats.showOverlayCalls
+         << " texture_apply_requests=" << markerStats.imageTextureApplyRequests
+         << " texture_apply_skips=" << markerStats.imageTextureApplySkips
+         << " texture_candidate_attempts=" << markerStats.imageTextureCandidateAttempts
+         << " texture_apply_successes=" << markerStats.imageTextureApplySuccesses
+         << " texture_apply_failures=" << markerStats.imageTextureApplyFailures
+         << " widgets_created=" << markerStats.widgetsCreated
+         << " widget_mode_changes=" << markerStats.widgetModeChanges;
+    LogDebugLine(line.str());
+
+    g_overlayPerfStats = OverlayRuntimePerfStats();
+    g_overlayPerfStats.nextSummaryTick = now + kPerfSummaryIntervalMs;
+    vr_marker_ui::ResetOverlayPerfStats();
+}
+
+void RecordOverlayRefreshPerf(
+    const DWORD startTick,
+    const bool refreshIcons,
+    const bool refreshText)
+{
+    const DWORD now = GetTickCount();
+    const DWORD durationMs = now - startTick;
+
+    ++g_overlayPerfStats.refreshes;
+    if (refreshIcons)
+    {
+        ++g_overlayPerfStats.iconRefreshes;
+    }
+    if (refreshText)
+    {
+        ++g_overlayPerfStats.textRefreshes;
+    }
+    g_overlayPerfStats.refreshDurationTotalMs += durationMs;
+    if (durationMs > g_overlayPerfStats.refreshDurationMaxMs)
+    {
+        g_overlayPerfStats.refreshDurationMaxMs = durationMs;
+    }
+
+    MaybeLogOverlayPerfSummary(now);
+}
+
+void RenderPortraitOverlayMatches(
+    const PortraitOverlayState overlayState,
+    const std::vector<PortraitOverlayMatch>& matches,
+    const vr_marker_ui::ViewSize* viewSize)
 {
     PortraitOverlayRuntime* overlayRuntime = GetPortraitOverlayRuntime(overlayState);
     if (overlayRuntime == 0)
@@ -3467,23 +3822,10 @@ void RefreshPortraitOverlayImpl(const PortraitOverlayState overlayState)
         return;
     }
 
-    std::vector<PortraitOverlayMatch> matches;
-    PortraitOverlayMatchStatus failureStatus = PORTRAIT_OVERLAY_MATCH_NO_PLAYER_INTERFACE;
-    if (!TryCollectPortraitOverlayMatches(overlayState, &matches, &failureStatus)
-        || failureStatus != PORTRAIT_OVERLAY_MATCH_OK
-        || matches.empty())
+    if (matches.empty())
     {
         HidePortraitOverlay(overlayRuntime);
         return;
-    }
-
-    MyGUI::IntSize rawViewSize(0, 0);
-    vr_marker_ui::ViewSize viewSize;
-    vr_marker_ui::ViewSize* viewSizePtr = 0;
-    if (TryGetViewSize(&rawViewSize))
-    {
-        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
-        viewSizePtr = &viewSize;
     }
 
     const vr_marker_ui::OverlayStyle overlayStyle = BuildPortraitOverlayStyle(overlayState);
@@ -3500,7 +3842,7 @@ void RefreshPortraitOverlayImpl(const PortraitOverlayState overlayState)
                     matches[index].target.absoluteCoord.top,
                     matches[index].target.absoluteCoord.width,
                     matches[index].target.absoluteCoord.height),
-                viewSizePtr))
+                viewSize))
         {
             continue;
         }
@@ -3516,56 +3858,14 @@ void RefreshPortraitOverlayImpl(const PortraitOverlayState overlayState)
     }
 }
 
-bool TryRefreshPortraitOverlaySeh(const PortraitOverlayState overlayState)
+void RenderPortraitTextLabelMatches(
+    const std::vector<PortraitTextLabelMatch>& matches,
+    const vr_marker_ui::ViewSize* viewSize)
 {
-    __try
-    {
-        RefreshPortraitOverlayImpl(overlayState);
-        return true;
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        return false;
-    }
-}
-
-void TickPortraitOverlay(const PortraitOverlayState overlayState)
-{
-    PortraitOverlayRuntime* overlayRuntime = GetPortraitOverlayRuntime(overlayState);
-    if (overlayRuntime == 0)
-    {
-        return;
-    }
-
-    const DWORD now = GetTickCount();
-    if (overlayRuntime->nextRefreshTick != 0u && now < overlayRuntime->nextRefreshTick)
-    {
-        return;
-    }
-
-    overlayRuntime->nextRefreshTick = now + kPortraitOverlayRefreshIntervalMs;
-    if (!TryRefreshPortraitOverlaySeh(overlayState))
-    {
-        HidePortraitOverlay(overlayRuntime);
-    }
-}
-
-void RefreshPortraitTextLabelsImpl()
-{
-    std::vector<PortraitTextLabelMatch> matches;
-    if (!TryCollectPortraitTextLabelMatches(&matches) || matches.empty())
+    if (matches.empty())
     {
         HidePortraitOverlay(&g_portraitTextLabelRuntime);
         return;
-    }
-
-    MyGUI::IntSize rawViewSize(0, 0);
-    vr_marker_ui::ViewSize viewSize;
-    vr_marker_ui::ViewSize* viewSizePtr = 0;
-    if (TryGetViewSize(&rawViewSize))
-    {
-        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
-        viewSizePtr = &viewSize;
     }
 
     size_t visibleWidgetCount = 0u;
@@ -3582,7 +3882,7 @@ void RefreshPortraitTextLabelsImpl()
                     matches[index].target.absoluteCoord.top,
                     matches[index].target.absoluteCoord.width,
                     matches[index].target.absoluteCoord.height),
-                viewSizePtr))
+                viewSize))
         {
             continue;
         }
@@ -3597,45 +3897,91 @@ void RefreshPortraitTextLabelsImpl()
     }
 }
 
-bool TryRefreshPortraitTextLabelsSeh()
+void RefreshDueStateOverlaysImpl(const bool refreshIcons, const bool refreshText)
+{
+    const DWORD startTick = GetTickCount();
+    PortraitOverlayRefreshContext context;
+    if (!TryCollectPortraitRefreshContext(refreshIcons, refreshText, &context))
+    {
+        if (refreshIcons)
+        {
+            HidePortraitIconOverlays();
+        }
+        if (refreshText)
+        {
+            HidePortraitOverlay(&g_portraitTextLabelRuntime);
+        }
+        RecordOverlayRefreshPerf(startTick, refreshIcons, refreshText);
+        return;
+    }
+
+    MyGUI::IntSize rawViewSize(0, 0);
+    vr_marker_ui::ViewSize viewSize;
+    vr_marker_ui::ViewSize* viewSizePtr = 0;
+    if (TryGetViewSize(&rawViewSize))
+    {
+        viewSize = vr_marker_ui::ViewSize(rawViewSize.width, rawViewSize.height);
+        viewSizePtr = &viewSize;
+    }
+
+    if (refreshIcons)
+    {
+        for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
+        {
+            const PortraitOverlayState overlayState = GetPortraitOverlayStateByIndex(stateIndex);
+            if (context.overlayFailureStatuses[stateIndex] != PORTRAIT_OVERLAY_MATCH_OK)
+            {
+                HidePortraitOverlay(GetPortraitOverlayRuntime(overlayState));
+                continue;
+            }
+
+            RenderPortraitOverlayMatches(overlayState, context.overlayMatches[stateIndex], viewSizePtr);
+        }
+    }
+
+    if (refreshText)
+    {
+        if (context.guiCollectionFailed)
+        {
+            HidePortraitOverlay(&g_portraitTextLabelRuntime);
+        }
+        else
+        {
+            RenderPortraitTextLabelMatches(context.textMatches, viewSizePtr);
+        }
+    }
+
+    RecordOverlayRefreshPerf(startTick, refreshIcons, refreshText);
+}
+
+bool TryRefreshDueStateOverlaysSeh(const bool refreshIcons, const bool refreshText)
 {
     __try
     {
-        RefreshPortraitTextLabelsImpl();
+        RefreshDueStateOverlaysImpl(refreshIcons, refreshText);
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        ++g_overlayPerfStats.refreshFailures;
+        ClearPortraitDisplayCache();
         return false;
-    }
-}
-
-void TickPortraitTextLabels()
-{
-    const DWORD now = GetTickCount();
-    if (g_portraitTextLabelRuntime.nextRefreshTick != 0u && now < g_portraitTextLabelRuntime.nextRefreshTick)
-    {
-        return;
-    }
-
-    g_portraitTextLabelRuntime.nextRefreshTick = now + kPortraitOverlayRefreshIntervalMs;
-    if (!TryRefreshPortraitTextLabelsSeh())
-    {
-        HidePortraitOverlay(&g_portraitTextLabelRuntime);
     }
 }
 
 void TickStateOverlays()
 {
+    const DWORD now = GetTickCount();
+    bool refreshIcons = false;
+    bool refreshText = false;
+
     if (g_showIcons)
     {
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_RECOVERY_COMA);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_DYING);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_PLAYING_DEAD);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_STARVING);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_CRIPPLED_ARM);
-        TickPortraitOverlay(PORTRAIT_OVERLAY_STATE_CRIPPLED_LEG);
+        refreshIcons = AnyPortraitIconOverlayRuntimeDue(now);
+        if (refreshIcons)
+        {
+            SchedulePortraitIconOverlayRuntimes(now + kPortraitOverlayRefreshIntervalMs);
+        }
     }
     else
     {
@@ -3644,11 +3990,32 @@ void TickStateOverlays()
 
     if (g_showText)
     {
-        TickPortraitTextLabels();
+        refreshText = IsPortraitOverlayRuntimeDue(&g_portraitTextLabelRuntime, now);
+        if (refreshText)
+        {
+            SchedulePortraitOverlayRuntime(&g_portraitTextLabelRuntime, now + kPortraitOverlayRefreshIntervalMs);
+        }
     }
     else
     {
         ResetPortraitOverlayRuntime(&g_portraitTextLabelRuntime);
+    }
+
+    if (!refreshIcons && !refreshText)
+    {
+        return;
+    }
+
+    if (!TryRefreshDueStateOverlaysSeh(refreshIcons, refreshText))
+    {
+        if (refreshIcons)
+        {
+            HidePortraitIconOverlays();
+        }
+        if (refreshText)
+        {
+            HidePortraitOverlay(&g_portraitTextLabelRuntime);
+        }
     }
 }
 
@@ -3782,11 +4149,23 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 
     if (!g_enabled)
     {
-        HideHoveredMarker();
-        ResetStateOverlays();
+        if (!g_disabledRuntimeStateCleared)
+        {
+            HideHoveredMarker();
+            ResetStateOverlays();
+            ClearPendingMedicalGuiProbe();
+            g_disabledRuntimeStateCleared = true;
+            ++g_overlayPerfStats.disabledClears;
+        }
+        else
+        {
+            ++g_overlayPerfStats.disabledClearSkips;
+        }
+        MaybeLogOverlayPerfSummary(GetTickCount());
         return;
     }
 
+    g_disabledRuntimeStateCleared = false;
     TickHoveredMarker();
     TickStateOverlays();
     ExpirePendingMedicalGuiProbeIfNeeded();

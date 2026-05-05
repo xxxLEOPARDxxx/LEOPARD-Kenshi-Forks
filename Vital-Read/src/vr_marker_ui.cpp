@@ -7,6 +7,7 @@
 #include <mygui/MyGUI_Widget.h>
 
 #include <cstring>
+#include <map>
 #include <sstream>
 
 namespace vr_marker_ui
@@ -63,6 +64,70 @@ enum WidgetMode
     WIDGET_MODE_IMAGE,
     WIDGET_MODE_TEXT
 };
+
+struct ImageTextureCacheEntry
+{
+    ImageTextureCacheEntry()
+        : widgetName()
+        , textureKey()
+    {
+    }
+
+    std::string widgetName;
+    std::string textureKey;
+};
+
+OverlayPerfStats g_overlayPerfStats;
+std::map<MyGUI::Widget*, ImageTextureCacheEntry> g_imageTextureCache;
+
+std::string BuildImageTextureCacheKey(const char* pluginName, const std::string& textureName, int textureSizePx)
+{
+    std::stringstream key;
+    key << (pluginName != 0 ? pluginName : "")
+        << "|"
+        << textureName
+        << "|"
+        << textureSizePx;
+    return key.str();
+}
+
+bool IsImageTextureCacheHit(MyGUI::Widget* widget, const std::string& textureKey)
+{
+    if (widget == 0)
+    {
+        return false;
+    }
+
+    std::map<MyGUI::Widget*, ImageTextureCacheEntry>::const_iterator it = g_imageTextureCache.find(widget);
+    if (it == g_imageTextureCache.end())
+    {
+        return false;
+    }
+
+    return it->second.widgetName == widget->getName()
+        && it->second.textureKey == textureKey;
+}
+
+void SetImageTextureCache(MyGUI::Widget* widget, const std::string& textureKey)
+{
+    if (widget == 0)
+    {
+        return;
+    }
+
+    ImageTextureCacheEntry entry;
+    entry.widgetName = widget->getName();
+    entry.textureKey = textureKey;
+    g_imageTextureCache[widget] = entry;
+}
+
+void ClearImageTextureCache(MyGUI::Widget* widget)
+{
+    if (widget != 0)
+    {
+        g_imageTextureCache.erase(widget);
+    }
+}
 
 WidgetMode GetWidgetMode(MyGUI::Widget* widget)
 {
@@ -198,6 +263,7 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
     {
         try
         {
+            ++g_overlayPerfStats.imageTextureCandidateAttempts;
             imageBox->setImageTexture(candidates[index]);
 
             const MyGUI::IntSize imageSize = imageBox->getImageSize();
@@ -209,6 +275,7 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
             const int resolvedSize = textureSizePx > 0 ? textureSizePx : imageSize.width;
             imageBox->setImageCoord(MyGUI::IntCoord(0, 0, resolvedSize, resolvedSize));
             imageBox->setImageTile(MyGUI::IntSize(resolvedSize, resolvedSize));
+            ++g_overlayPerfStats.imageTextureApplySuccesses;
             return true;
         }
         catch (...)
@@ -221,6 +288,7 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
         return EnsureTextureApplied(imageBox, pluginName, fallbackTexture, textureSizePx);
     }
 
+    ++g_overlayPerfStats.imageTextureApplyFailures;
     return false;
 }
 
@@ -279,6 +347,8 @@ bool EnsureWidgetMode(
     MyGUI::Widget* widget = (*widgets)[index];
     if (widget != 0 && GetWidgetMode(widget) != desiredMode)
     {
+        ++g_overlayPerfStats.widgetModeChanges;
+        ClearImageTextureCache(widget);
         try
         {
             gui->destroyWidget(widget);
@@ -344,6 +414,7 @@ bool EnsureWidgetMode(
             return false;
         }
 
+        ++g_overlayPerfStats.widgetsCreated;
         widget->setNeedMouseFocus(false);
         widget->setVisible(false);
         (*widgets)[index] = widget;
@@ -363,10 +434,29 @@ bool EnsureWidgetMode(
     if (desiredMode == WIDGET_MODE_IMAGE)
     {
         MyGUI::ImageBox* imageBox = widget->castType<MyGUI::ImageBox>(false);
-        if (imageBox == 0 || !EnsureTextureApplied(imageBox, pluginName != 0 ? pluginName : "", style.iconTexture, style.iconTextureSizePx))
+        const std::string textureKey = BuildImageTextureCacheKey(
+            pluginName != 0 ? pluginName : "",
+            style.iconTexture,
+            style.iconTextureSizePx);
+        if (imageBox == 0)
         {
             widget->setVisible(false);
             return false;
+        }
+        if (IsImageTextureCacheHit(widget, textureKey))
+        {
+            ++g_overlayPerfStats.imageTextureApplySkips;
+        }
+        else
+        {
+            ++g_overlayPerfStats.imageTextureApplyRequests;
+            if (!EnsureTextureApplied(imageBox, pluginName != 0 ? pluginName : "", style.iconTexture, style.iconTextureSizePx))
+            {
+                ClearImageTextureCache(widget);
+                widget->setVisible(false);
+                return false;
+            }
+            SetImageTextureCache(widget, textureKey);
         }
         ApplyImageCoord(imageBox, style);
     }
@@ -563,6 +653,18 @@ OverlayStyle::OverlayStyle()
 {
 }
 
+OverlayPerfStats::OverlayPerfStats()
+    : showOverlayCalls(0u)
+    , imageTextureApplyRequests(0u)
+    , imageTextureApplySkips(0u)
+    , imageTextureCandidateAttempts(0u)
+    , imageTextureApplySuccesses(0u)
+    , imageTextureApplyFailures(0u)
+    , widgetsCreated(0u)
+    , widgetModeChanges(0u)
+{
+}
+
 bool TryPlaceMarkerWidget(
     MyGUI::Widget* widget,
     const Rect& targetBounds,
@@ -594,6 +696,8 @@ bool ShowOverlayMarker(
     const Rect& targetBounds,
     const ViewSize* viewSize)
 {
+    ++g_overlayPerfStats.showOverlayCalls;
+
     MyGUI::Widget* widget = 0;
     if (!EnsureWidgetMode(widgets, index, pluginName, style, &widget))
     {
@@ -644,5 +748,15 @@ void HideWidgetsFrom(std::vector<MyGUI::Widget*>* widgets, const size_t startInd
             (*widgets)[index]->setVisible(false);
         }
     }
+}
+
+OverlayPerfStats GetOverlayPerfStats()
+{
+    return g_overlayPerfStats;
+}
+
+void ResetOverlayPerfStats()
+{
+    g_overlayPerfStats = OverlayPerfStats();
 }
 }

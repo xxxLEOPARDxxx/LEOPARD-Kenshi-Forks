@@ -135,6 +135,11 @@ EMC_Result __cdecl SetHubBoolSetting(void* user_data, int32_t value, char* err_b
         {
             HideHoveredMarker();
             ClearPendingMedicalGuiProbe();
+            g_disabledRuntimeStateCleared = true;
+        }
+        else
+        {
+            g_disabledRuntimeStateCleared = false;
         }
     }
     else if (descriptor->field == &g_showIcons || descriptor->field == &g_showText)

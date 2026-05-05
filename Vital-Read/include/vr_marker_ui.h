@@ -63,6 +63,20 @@ struct OverlayStyle
     int maxSizePx;
 };
 
+struct OverlayPerfStats
+{
+    OverlayPerfStats();
+
+    size_t showOverlayCalls;
+    size_t imageTextureApplyRequests;
+    size_t imageTextureApplySkips;
+    size_t imageTextureCandidateAttempts;
+    size_t imageTextureApplySuccesses;
+    size_t imageTextureApplyFailures;
+    size_t widgetsCreated;
+    size_t widgetModeChanges;
+};
+
 bool TryPlaceMarkerWidget(
     MyGUI::Widget* widget,
     const Rect& targetBounds,
@@ -82,4 +96,6 @@ bool ShowOverlayMarker(
 
 void HideWidgets(std::vector<MyGUI::Widget*>* widgets);
 void HideWidgetsFrom(std::vector<MyGUI::Widget*>* widgets, size_t startIndex);
+OverlayPerfStats GetOverlayPerfStats();
+void ResetOverlayPerfStats();
 }
