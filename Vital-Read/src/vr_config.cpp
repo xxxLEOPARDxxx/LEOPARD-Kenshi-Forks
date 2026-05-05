@@ -30,7 +30,7 @@ const int kMinPortraitOverlayMarginPx = -16;
 const int kMaxPortraitOverlayMarginPx = 16;
 const char* kDefaultRecoveryComaIconTexture = "gui/gfx/heart_64px_opt.png";
 const char* kDefaultDyingIconTexture = "gui/gfx/death_64px_opt.png";
-const char* kDefaultPlayingDeadIconTexture = "";
+const char* kDefaultPlayingDeadIconTexture = "Kenshi_UI.png";
 const char* kDefaultStarvingIconTexture = "gui/gfx/starving_64px_opt.png";
 const char* kDefaultCrippledArmIconTexture = "gui/gfx/broken-arm_64px_opt.png";
 const char* kDefaultCrippledLegIconTexture = "gui/gfx/broken-leg_64px_opt.png";
@@ -670,11 +670,11 @@ PluginConfig::PluginConfig()
     , dyingIconCoordHeight(0)
     , playingDeadIconTexture(kDefaultPlayingDeadIconTexture)
     , playingDeadIconSizePx(kDefaultPlayingDeadIconSizePx)
-    , playingDeadIconHasImageCoord(false)
-    , playingDeadIconCoordLeft(0)
-    , playingDeadIconCoordTop(0)
-    , playingDeadIconCoordWidth(0)
-    , playingDeadIconCoordHeight(0)
+    , playingDeadIconHasImageCoord(true)
+    , playingDeadIconCoordLeft(80)
+    , playingDeadIconCoordTop(126)
+    , playingDeadIconCoordWidth(38)
+    , playingDeadIconCoordHeight(27)
     , starvingIconTexture(kDefaultStarvingIconTexture)
     , starvingIconSizePx(kDefaultStarvingIconSizePx)
     , starvingIconHasImageCoord(false)

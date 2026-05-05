@@ -330,6 +330,7 @@ enum PortraitTextLabelState
     PORTRAIT_TEXT_LABEL_DYING,
     PORTRAIT_TEXT_LABEL_RECOVERY_COMA,
     PORTRAIT_TEXT_LABEL_UNCONSCIOUS,
+    PORTRAIT_TEXT_LABEL_PLAYING_DEAD,
     PORTRAIT_TEXT_LABEL_STARVING,
     PORTRAIT_TEXT_LABEL_CRIPPLED_ARM,
     PORTRAIT_TEXT_LABEL_CRIPPLED_LEG
@@ -487,13 +488,59 @@ void ClearPendingMedicalGuiProbe();
 void ClearPortraitDisplayCache();
 void ResetStateOverlays();
 
-bool IsSupportedVersion(KenshiLib::BinaryVersion& versionInfo)
+bool IsSupportedVersion(const unsigned int platform, const std::string& version)
 {
-    const unsigned int platform = versionInfo.GetPlatform();
-    const std::string version = versionInfo.GetVersion();
-
     return platform != KenshiLib::BinaryVersion::UNKNOWN
         && (version == "1.0.65" || version == "1.0.68");
+}
+
+bool ResolveSupportedRuntimeNoSeh(unsigned int* outPlatform, std::string* outVersion)
+{
+    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
+    const unsigned int platform = versionInfo.GetPlatform();
+    const std::string version = versionInfo.GetVersion();
+    if (!IsSupportedVersion(platform, version))
+    {
+        return false;
+    }
+
+    if (outPlatform != 0)
+    {
+        *outPlatform = platform;
+    }
+    if (outVersion != 0)
+    {
+        *outVersion = version;
+    }
+    return true;
+}
+
+bool ResolveSupportedRuntime(unsigned int* outPlatform, std::string* outVersion)
+{
+#ifdef _DEBUG
+    // Debug deployments run under RE_Kenshi.exe, and KenshiLib::GetKenshiVersion()
+    // can fault across CRT boundaries in that configuration. Use the local Steam
+    // test runtime instead of crashing before config and Mod Hub startup.
+    if (outPlatform != 0)
+    {
+        *outPlatform = KenshiLib::BinaryVersion::STEAM;
+    }
+    if (outVersion != 0)
+    {
+        *outVersion = "1.0.65";
+    }
+    return true;
+#else
+    __try
+    {
+        return ResolveSupportedRuntimeNoSeh(outPlatform, outVersion);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Vital-Read ERROR: GetKenshiVersion() faulted during startup");
+        return false;
+    }
+#endif
 }
 
 void LogInfoLine(const std::string& message)
@@ -1043,6 +1090,9 @@ bool TryMapPortraitTextLabelToOverlayState(
     case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
         *outOverlayState = PORTRAIT_OVERLAY_STATE_STRICT_UNCONSCIOUS;
         return true;
+    case PORTRAIT_TEXT_LABEL_PLAYING_DEAD:
+        *outOverlayState = PORTRAIT_OVERLAY_STATE_PLAYING_DEAD;
+        return true;
     case PORTRAIT_TEXT_LABEL_STARVING:
         *outOverlayState = PORTRAIT_OVERLAY_STATE_STARVING;
         return true;
@@ -1068,6 +1118,8 @@ const char* GetPortraitTextLabelCaption(const PortraitTextLabelState labelState)
         return "RC";
     case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
         return "ZZ";
+    case PORTRAIT_TEXT_LABEL_PLAYING_DEAD:
+        return "PD";
     case PORTRAIT_TEXT_LABEL_STARVING:
         return "ST";
     case PORTRAIT_TEXT_LABEL_CRIPPLED_ARM:
@@ -1091,8 +1143,14 @@ bool TryResolvePortraitTextLabelState(
 
     *outLabelState = PORTRAIT_TEXT_LABEL_NONE;
 
-    if (snapshot.dead || snapshot.playingDead)
+    if (snapshot.dead)
     {
+        return true;
+    }
+
+    if (snapshot.playingDead)
+    {
+        *outLabelState = PORTRAIT_TEXT_LABEL_PLAYING_DEAD;
         return true;
     }
 
@@ -3580,6 +3638,9 @@ vr_marker_ui::OverlayStyle BuildPortraitTextLabelStyle(const PortraitTextLabelSt
     case PORTRAIT_TEXT_LABEL_UNCONSCIOUS:
         style.colour = MyGUI::Colour(1.0f, 0.80f, 0.20f, 1.0f);
         break;
+    case PORTRAIT_TEXT_LABEL_PLAYING_DEAD:
+        style.colour = MyGUI::Colour(0.72f, 0.72f, 0.78f, 1.0f);
+        break;
     case PORTRAIT_TEXT_LABEL_STARVING:
         style.colour = MyGUI::Colour(0.95f, 0.83f, 0.24f, 1.0f);
         break;
@@ -4237,19 +4298,20 @@ __declspec(dllexport) void startPlugin()
 {
     LogInfoLine("startPlugin()");
 
-    KenshiLib::BinaryVersion versionInfo = KenshiLib::GetKenshiVersion();
-    if (!IsSupportedVersion(versionInfo))
+    unsigned int platform = KenshiLib::BinaryVersion::UNKNOWN;
+    std::string version;
+    if (!ResolveSupportedRuntime(&platform, &version))
     {
         std::stringstream error;
         error << "unsupported Kenshi version/platform"
-              << " version=" << versionInfo.GetVersion()
-              << " platform=" << versionInfo.GetPlatform();
+              << " version=" << version
+              << " platform=" << platform;
         LogErrorLine(error.str());
         return;
     }
 
     std::stringstream versionLine;
-    versionLine << "supported Kenshi version detected: " << versionInfo.GetVersion();
+    versionLine << "supported Kenshi version detected: " << version;
     LogDebugLine(versionLine.str());
 
     LoadLoggingConfig();

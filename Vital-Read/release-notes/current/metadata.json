@@ -1,0 +1,19 @@
+{
+  "mod_name": "Vital Read",
+  "include_shared": [
+    "install",
+    "uninstall",
+    "how_to_use",
+    "features",
+    "configuration",
+    "optional_mod_hub_integration",
+    "compatibility",
+    "tested_with",
+    "troubleshooting",
+    "feedback",
+    "support_the_developer",
+    "credits"
+  ],
+  "link_sections": [],
+  "tags": []
+}

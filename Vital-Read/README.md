@@ -105,8 +105,12 @@ Custom state icon example:
   "recoveryComaIconSizePx": 64,
   "dyingIconTexture": "gui/gfx/death_64px_opt.png",
   "dyingIconSizePx": 64,
-  "playingDeadIconTexture": "",
+  "playingDeadIconTexture": "Kenshi_UI.png",
   "playingDeadIconSizePx": 64,
+  "playingDeadIconCoordLeft": 80,
+  "playingDeadIconCoordTop": 126,
+  "playingDeadIconCoordWidth": 38,
+  "playingDeadIconCoordHeight": 27,
   "starvingIconTexture": "gui/gfx/starving_64px_opt.png",
   "starvingIconSizePx": 64,
   "crippledArmIconTexture": "gui/gfx/broken-arm_64px_opt.png",
@@ -127,7 +131,7 @@ Texture lookup accepts plain filenames and relative paths. If no coord crop is p
 When Emkejs-Mod-Core is present, Mod Hub also exposes `enabled`, `showIcons`, `showText`, `portraitIconDisplaySizePx`, `portraitTextFontHeightPx`, `portraitOverlayMarginXPx`, `portraitOverlayMarginYPx`, `portraitIconAnchor`, `portraitTextAnchor`, and `debugLogging` so they can be adjusted in-game. The two anchor settings use dropdown controls for the supported portrait corners.
 
 ## Current Runtime
-When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, `playing_dead`, `starving`, `crippled arm`, or `crippled leg` squad portrait it can map with high confidence. `showIcons` controls the icon overlays, `showText` controls the text badges, `portraitIconDisplaySizePx` controls icon widget size, `portraitTextFontHeightPx` controls badge font height, `portraitOverlayMarginXPx` / `portraitOverlayMarginYPx` control shared edge margins for both icons and text, and `portraitIconAnchor` / `portraitTextAnchor` choose which portrait corner each overlay type uses. By default unconscious uses the built-in atlas pip, recovery coma and dying use the supplied `_opt` heart/death textures, starving and the two crippled states use the new supplied `_opt` textures, and playing dead uses a distinct tinted pip unless you override it. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, `playingDeadIconTexture`, `starvingIconTexture`, `crippledArmIconTexture`, and `crippledLegIconTexture` can override those per state. Text badges now use `ZZ` for unconscious, `RC` for `recovery_coma`, `DY` for dying, `ST` for starving, `CrA` for crippled arm, and `CrL` for crippled leg. Probe hotkeys remain available for verification.
+When `enabled` is on, Vital Read now shows a small always-on corner marker on each strictly unconscious, `recovery_coma`, `dying`, `playing_dead`, `starving`, `crippled arm`, or `crippled leg` squad portrait it can map with high confidence. `showIcons` controls the icon overlays, `showText` controls the text badges, `portraitIconDisplaySizePx` controls icon widget size, `portraitTextFontHeightPx` controls badge font height, `portraitOverlayMarginXPx` / `portraitOverlayMarginYPx` control shared edge margins for both icons and text, and `portraitIconAnchor` / `portraitTextAnchor` choose which portrait corner each overlay type uses. By default unconscious and playing dead use built-in `Kenshi_UI.png` atlas pips, recovery coma and dying use the supplied `_opt` heart/death textures, and starving and the two crippled states use the supplied `_opt` textures. `unconsciousIconTexture`, `recoveryComaIconTexture`, `dyingIconTexture`, `playingDeadIconTexture`, `starvingIconTexture`, `crippledArmIconTexture`, and `crippledLegIconTexture` can override those per state. Text badges now use `ZZ` for unconscious, `RC` for `recovery_coma`, `DY` for dying, `PD` for playing dead, `ST` for starving, `CrA` for crippled arm, and `CrL` for crippled leg. Probe hotkeys remain available for verification.
 
 ## Probe Hotkeys
 Probe hotkeys are manual, quiet by default, and only active when `debugLogging=true`.

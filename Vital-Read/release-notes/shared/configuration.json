@@ -1,0 +1,6 @@
+{
+  "title": "Configuration",
+  "items": [
+    "[b][size=4]Configuration[/size][/b]\n[spoiler]\n[list]\n[*] [b]enabled[/b] (bool): Master plugin toggle.\n[*] [b]showIcons[/b] / [b]showText[/b] (bool): Toggle icon and text overlays.\n[*] [b]portraitIconDisplaySizePx[/b] (int): On-screen icon size. [b]0[/b] keeps automatic sizing.\n[*] [b]portraitTextFontHeightPx[/b] (int): Text badge size.\n[*] [b]portraitOverlayMarginXPx[/b] / [b]portraitOverlayMarginYPx[/b] (int): Shared anchor-relative edge margins for icons and text.\n[*] [b]portraitIconAnchor[/b] / [b]portraitTextAnchor[/b] (string): [b]bottom_left[/b], [b]bottom_right[/b], [b]top_left[/b], or [b]top_right[/b].\n[*] Per-state [b]*IconTexture[/b], [b]*IconSizePx[/b], and optional [b]*IconCoord*[/b]: Override individual state icons.\n[/list]\n[/spoiler]"
+  ]
+}
