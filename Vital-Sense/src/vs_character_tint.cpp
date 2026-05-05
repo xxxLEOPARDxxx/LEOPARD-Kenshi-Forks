@@ -29,6 +29,7 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <map>
 
 namespace vs_character_tint
 {
@@ -75,6 +76,12 @@ unsigned int gTintDiagHandleResolveCalls = 0;
 unsigned int gTintDiagHandleResolveHits = 0;
 unsigned int gTintDiagHandleResolveMisses = 0;
 unsigned int gTintDiagConfigRefreshes = 0;
+unsigned int gTintDiagDesiredEntries = 0;
+unsigned int gTintDiagRetainedEntries = 0;
+unsigned int gTintDiagRetainedReused = 0;
+unsigned int gTintDiagDesiredSkippedRetained = 0;
+unsigned int gTintDiagDesiredIndexHits = 0;
+unsigned int gTintDiagDesiredIndexMisses = 0;
 
 struct ResolvedTintCandidate
 {
@@ -149,6 +156,12 @@ void EmitTintDiagLogIfDue(const char* pluginName)
         gTintDiagHandleResolveHits = 0;
         gTintDiagHandleResolveMisses = 0;
         gTintDiagConfigRefreshes = 0;
+        gTintDiagDesiredEntries = 0;
+        gTintDiagRetainedEntries = 0;
+        gTintDiagRetainedReused = 0;
+        gTintDiagDesiredSkippedRetained = 0;
+        gTintDiagDesiredIndexHits = 0;
+        gTintDiagDesiredIndexMisses = 0;
         return;
     }
 
@@ -179,6 +192,12 @@ void EmitTintDiagLogIfDue(const char* pluginName)
        << " handle_hits=" << gTintDiagHandleResolveHits
        << " handle_misses=" << gTintDiagHandleResolveMisses
        << " config_refreshes=" << gTintDiagConfigRefreshes
+       << " desired_entries=" << gTintDiagDesiredEntries
+       << " retained_entries=" << gTintDiagRetainedEntries
+       << " retained_reused=" << gTintDiagRetainedReused
+       << " desired_skipped_retained=" << gTintDiagDesiredSkippedRetained
+       << " desired_index_hits=" << gTintDiagDesiredIndexHits
+       << " desired_index_misses=" << gTintDiagDesiredIndexMisses
        << " entity_offset=0x";
     ss << std::hex;
     if (gAppearanceEntityOffsetBytes >= 0)
@@ -216,6 +235,12 @@ void EmitTintDiagLogIfDue(const char* pluginName)
     gTintDiagHandleResolveHits = 0;
     gTintDiagHandleResolveMisses = 0;
     gTintDiagConfigRefreshes = 0;
+    gTintDiagDesiredEntries = 0;
+    gTintDiagRetainedEntries = 0;
+    gTintDiagRetainedReused = 0;
+    gTintDiagDesiredSkippedRetained = 0;
+    gTintDiagDesiredIndexHits = 0;
+    gTintDiagDesiredIndexMisses = 0;
 }
 
 bool HandlesEqualByKey(const hand& a, const hand& b)
@@ -223,6 +248,15 @@ bool HandlesEqualByKey(const hand& a, const hand& b)
     return a.type == b.type
         && a.index == b.index
         && a.serial == b.serial;
+}
+
+ProbeHandleKey MakeProbeHandleKey(const hand& source)
+{
+    ProbeHandleKey key;
+    key.type = static_cast<unsigned int>(source.type);
+    key.index = static_cast<unsigned int>(source.index);
+    key.serial = static_cast<unsigned int>(source.serial);
+    return key;
 }
 
 int FindTintEntryByHandle(const std::vector<CharacterTintEntry>& entries, const hand& targetHandle)
@@ -2212,22 +2246,56 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                 < ResolveTintApplyPriority(b.tintEntry.markerRelation);
         });
 
+    if (gTintDiagnosticsEnabled)
+    {
+        gTintDiagDesiredEntries += static_cast<unsigned int>(desiredEntries.size());
+    }
+
+    std::map<ProbeHandleKey, size_t> desiredIndexByHandle;
+    for (size_t i = 0; i < desiredEntries.size(); ++i)
+    {
+        desiredIndexByHandle[MakeProbeHandleKey(desiredEntries[i].tintEntry.targetHandle)] = i;
+    }
+
     std::vector<CharacterTintEntry> retainedEntries;
     retainedEntries.reserve(state.characterTintEntries.size());
+    std::map<ProbeHandleKey, bool> retainedByHandle;
     for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
     {
         const CharacterTintEntry& oldEntry = state.characterTintEntries[i];
-        const int desiredIndex = FindResolvedTintCandidateIndex(desiredEntries, oldEntry.targetHandle);
+        std::map<ProbeHandleKey, size_t>::const_iterator desiredIt =
+            desiredIndexByHandle.find(MakeProbeHandleKey(oldEntry.targetHandle));
+        const bool hasDesiredEntry = desiredIt != desiredIndexByHandle.end();
+        const size_t desiredIndex = hasDesiredEntry ? desiredIt->second : 0;
+        if (gTintDiagnosticsEnabled)
+        {
+            if (hasDesiredEntry)
+            {
+                ++gTintDiagDesiredIndexHits;
+            }
+            else
+            {
+                ++gTintDiagDesiredIndexMisses;
+            }
+        }
         const bool keepCurrentTint = !tintConfigChanged
-            && (desiredIndex >= 0)
-            && (desiredEntries[static_cast<size_t>(desiredIndex)].tintEntry.markerRelation == oldEntry.markerRelation);
+            && hasDesiredEntry
+            && (desiredEntries[desiredIndex].tintEntry.markerRelation == oldEntry.markerRelation);
         if (keepCurrentTint)
         {
             retainedEntries.push_back(oldEntry);
+            retainedByHandle[MakeProbeHandleKey(oldEntry.targetHandle)] = true;
+            if (gTintDiagnosticsEnabled)
+            {
+                ++gTintDiagRetainedEntries;
+                ++gTintDiagRetainedReused;
+            }
             continue;
         }
 
-        Character* existingCandidate = ResolveTintCharacterByHandle(oldEntry.targetHandle);
+        Character* existingCandidate = hasDesiredEntry
+            ? desiredEntries[desiredIndex].character
+            : ResolveTintCharacterByHandle(oldEntry.targetHandle);
         if (SetTintForCharacter(existingCandidate, kClearTintColour, false, pluginName))
         {
             ++gTintDiagCleared;
@@ -2236,11 +2304,16 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         {
             // Keep unresolved handles to retry clear instead of dropping stale tint state.
             CharacterTintEntry retained = oldEntry;
-            if (desiredIndex >= 0)
+            if (hasDesiredEntry)
             {
-                retained.markerRelation = desiredEntries[static_cast<size_t>(desiredIndex)].tintEntry.markerRelation;
+                retained.markerRelation = desiredEntries[desiredIndex].tintEntry.markerRelation;
             }
             retainedEntries.push_back(retained);
+            retainedByHandle[MakeProbeHandleKey(retained.targetHandle)] = true;
+            if (gTintDiagnosticsEnabled)
+            {
+                ++gTintDiagRetainedEntries;
+            }
         }
     }
 
@@ -2249,8 +2322,12 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     for (size_t i = 0; i < desiredEntries.size(); ++i)
     {
         const ResolvedTintCandidate& desired = desiredEntries[i];
-        if (FindTintEntryByHandle(retainedEntries, desired.tintEntry.targetHandle) >= 0)
+        if (retainedByHandle.find(MakeProbeHandleKey(desired.tintEntry.targetHandle)) != retainedByHandle.end())
         {
+            if (gTintDiagnosticsEnabled)
+            {
+                ++gTintDiagDesiredSkippedRetained;
+            }
             continue;
         }
 

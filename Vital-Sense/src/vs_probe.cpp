@@ -34,7 +34,14 @@ namespace
 const float kKoMarkerHeadAnchorYOffset = 2.0f;
 const float kProbablyDyingBloodMax = 50.0f;
 const DWORD kProbeDiagLogIntervalMs = 2000;
-const unsigned int kProbeAnimalSampleMaxPerWindow = 10;
+const DWORD kProbeAdaptiveIntervalStepOneMs = 250;
+const DWORD kProbeAdaptiveIntervalStepTwoMs = 350;
+const DWORD kProbeAdaptiveIntervalStepThreeMs = 500;
+const unsigned int kProbeAdaptiveCandidateStepOne = 128;
+const unsigned int kProbeAdaptiveCandidateStepTwo = 256;
+const unsigned int kProbeAdaptiveCandidateStepThree = 512;
+const DWORD kProbeAnimalSampleLogIntervalMs = 10000;
+const unsigned int kProbeAnimalSampleMaxPerWindow = 3;
 
 struct CandidateSpeciesInfo
 {
@@ -74,9 +81,14 @@ struct ProbeDiagCounters
     unsigned int targetCacheUpdates;
     unsigned int targetCacheCreates;
     unsigned int targetCachePrunes;
+    unsigned int probeWindows;
+    unsigned int intervalSkips;
+    unsigned int adaptiveBackoffs;
+    unsigned int maxWindowCandidates;
 };
 
 DWORD gProbeDiagLastLogMs = 0;
+DWORD gProbeAnimalSampleLogWindowStartMs = 0;
 unsigned int gProbeAnimalSamplesLogged = 0;
 ProbeDiagCounters gProbeDiag;
 bool gProbeDiagnosticsEnabled = false;
@@ -115,6 +127,29 @@ bool ContainsCaseInsensitiveToken(const char* haystack, const char* needle)
     }
 
     return false;
+}
+
+DWORD MaxDword(DWORD a, DWORD b)
+{
+    return a > b ? a : b;
+}
+
+DWORD ResolveAdaptiveProbeIntervalMs(DWORD baseIntervalMs, unsigned int candidateCount)
+{
+    DWORD intervalMs = baseIntervalMs;
+    if (candidateCount >= kProbeAdaptiveCandidateStepThree)
+    {
+        intervalMs = MaxDword(intervalMs, kProbeAdaptiveIntervalStepThreeMs);
+    }
+    else if (candidateCount >= kProbeAdaptiveCandidateStepTwo)
+    {
+        intervalMs = MaxDword(intervalMs, kProbeAdaptiveIntervalStepTwoMs);
+    }
+    else if (candidateCount >= kProbeAdaptiveCandidateStepOne)
+    {
+        intervalMs = MaxDword(intervalMs, kProbeAdaptiveIntervalStepOneMs);
+    }
+    return intervalMs;
 }
 
 bool TryReadAnimalRaceIdSafe(Character* candidate, char* raceIdOut, size_t raceIdOutLen)
@@ -290,6 +325,14 @@ void MaybeLogAnimalProbeSample(
     {
         return;
     }
+
+    const DWORD nowMs = GetTickCount();
+    if (gProbeAnimalSampleLogWindowStartMs == 0
+        || (nowMs - gProbeAnimalSampleLogWindowStartMs) >= kProbeAnimalSampleLogIntervalMs)
+    {
+        gProbeAnimalSampleLogWindowStartMs = nowMs;
+        gProbeAnimalSamplesLogged = 0;
+    }
     if (gProbeAnimalSamplesLogged >= kProbeAnimalSampleMaxPerWindow)
     {
         return;
@@ -323,6 +366,7 @@ void EmitProbeDiagLogIfDue(RuntimeStateView& state, const char* pluginName)
     if (!gProbeDiagnosticsEnabled)
     {
         std::memset(&gProbeDiag, 0, sizeof(gProbeDiag));
+        gProbeAnimalSampleLogWindowStartMs = 0;
         gProbeAnimalSamplesLogged = 0;
         return;
     }
@@ -336,7 +380,6 @@ void EmitProbeDiagLogIfDue(RuntimeStateView& state, const char* pluginName)
 
     if (gProbeDiag.ticks == 0 && gProbeDiag.candidatesSeen == 0)
     {
-        gProbeAnimalSamplesLogged = 0;
         return;
     }
 
@@ -370,11 +413,18 @@ void EmitProbeDiagLogIfDue(RuntimeStateView& state, const char* pluginName)
        << " not_downed_deferrals_written=" << gProbeDiag.notDownedDeferralsWritten
        << " target_cache_updates=" << gProbeDiag.targetCacheUpdates
        << " target_cache_creates=" << gProbeDiag.targetCacheCreates
-       << " target_cache_prunes=" << gProbeDiag.targetCachePrunes;
+       << " target_cache_prunes=" << gProbeDiag.targetCachePrunes
+       << " probe_windows=" << gProbeDiag.probeWindows
+       << " interval_skips=" << gProbeDiag.intervalSkips
+       << " adaptive_backoffs=" << gProbeDiag.adaptiveBackoffs
+       << " current_interval_ms=" << (state.probeRuntimeCaches.currentProbeIntervalMs != 0
+            ? state.probeRuntimeCaches.currentProbeIntervalMs
+            : state.config.updateIntervalMs)
+       << " last_window_candidates=" << state.probeRuntimeCaches.lastProbeCandidateCount
+       << " max_window_candidates=" << gProbeDiag.maxWindowCandidates;
     vs_log::LogInfo(pluginName, ss.str());
 
     std::memset(&gProbeDiag, 0, sizeof(gProbeDiag));
-    gProbeAnimalSamplesLogged = 0;
 }
 
 bool EnsureProjectionUtility(RuntimeStateView& state)
@@ -1099,8 +1149,19 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName
 
     const DWORD nowMs = GetTickCount();
 
-    if (state.lastProbeTickMs != 0 && (nowMs - state.lastProbeTickMs) < state.config.updateIntervalMs)
+    DWORD probeIntervalMs = state.probeRuntimeCaches.currentProbeIntervalMs;
+    if (probeIntervalMs == 0)
     {
+        probeIntervalMs = state.config.updateIntervalMs;
+        state.probeRuntimeCaches.currentProbeIntervalMs = probeIntervalMs;
+    }
+
+    if (state.lastProbeTickMs != 0 && (nowMs - state.lastProbeTickMs) < probeIntervalMs)
+    {
+        if (gProbeDiagnosticsEnabled)
+        {
+            ++gProbeDiag.intervalSkips;
+        }
         return PROBE_RENDER_TICK;
     }
     state.lastProbeTickMs = nowMs;
@@ -1109,6 +1170,23 @@ ProbeRenderDirective TickKoProbe(RuntimeStateView& state, const char* pluginName
 
     const ogre_unordered_set<Character*>::type& activeCharacters = ou->getCharacterUpdateList();
     const ogre_unordered_map<hand, Character*>::type& deathParadeCharacters = ou->deathParade;
+    const unsigned int windowCandidateCount =
+        static_cast<unsigned int>(activeCharacters.size() + deathParadeCharacters.size());
+    state.probeRuntimeCaches.lastProbeCandidateCount = windowCandidateCount;
+    const DWORD nextProbeIntervalMs = ResolveAdaptiveProbeIntervalMs(state.config.updateIntervalMs, windowCandidateCount);
+    if (gProbeDiagnosticsEnabled)
+    {
+        ++gProbeDiag.probeWindows;
+        if (nextProbeIntervalMs > state.config.updateIntervalMs)
+        {
+            ++gProbeDiag.adaptiveBackoffs;
+        }
+        if (windowCandidateCount > gProbeDiag.maxWindowCandidates)
+        {
+            gProbeDiag.maxWindowCandidates = windowCandidateCount;
+        }
+    }
+    state.probeRuntimeCaches.currentProbeIntervalMs = nextProbeIntervalMs;
     vs_probe_cache::BeginWindow(state);
 
     for (auto iter = activeCharacters.begin(); iter != activeCharacters.end(); ++iter)

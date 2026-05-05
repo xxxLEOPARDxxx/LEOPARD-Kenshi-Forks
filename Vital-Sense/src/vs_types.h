@@ -162,12 +162,16 @@ struct ProbeRuntimeCaches
 {
     ProbeRuntimeCaches()
         : generation(0)
+        , currentProbeIntervalMs(0)
+        , lastProbeCandidateCount(0)
     {
     }
 
     std::map<ProbeHandleKey, size_t> koTargetIndexByHandle;
     std::map<ProbeHandleKey, ProbeDeferredCandidateState> notDownedByHandle;
     unsigned int generation;
+    DWORD currentProbeIntervalMs;
+    unsigned int lastProbeCandidateCount;
 };
 
 struct KoMarkerVisualState
@@ -181,6 +185,15 @@ struct KoMarkerVisualState
     bool showStateText;
     bool showBountyGlow;
     bool showBountySymbol;
+    bool visible;
+    bool positionValid;
+    int positionLeft;
+    int positionTop;
+    int positionTotalBounty;
+    bool positionShowStateIcon;
+    bool positionShowStateText;
+    bool positionShowBountySymbol;
+    bool positionIsBountyOnlyState;
 };
 
 struct KoMarkerWidget
@@ -188,6 +201,7 @@ struct KoMarkerWidget
     MyGUI::ImageBox* bountyGlow;
     MyGUI::ImageBox* icon;
     MyGUI::TextBox* bountySymbol;
+    MyGUI::TextBox* fallbackTextOutline[8];
     MyGUI::TextBox* fallbackText;
     KoMarkerVisualState visualState;
 };

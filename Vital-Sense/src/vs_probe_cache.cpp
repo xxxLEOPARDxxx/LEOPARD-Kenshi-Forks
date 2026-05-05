@@ -44,6 +44,8 @@ void Reset(RuntimeStateView& state)
     state.probeRuntimeCaches.koTargetIndexByHandle.clear();
     state.probeRuntimeCaches.notDownedByHandle.clear();
     state.probeRuntimeCaches.generation = 0;
+    state.probeRuntimeCaches.currentProbeIntervalMs = state.config.updateIntervalMs;
+    state.probeRuntimeCaches.lastProbeCandidateCount = 0;
 }
 
 void BeginWindow(RuntimeStateView& state)

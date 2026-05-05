@@ -43,6 +43,8 @@ const float kKoBountyGlowAlpha = 0.90f;
 const MyGUI::Colour kKoBountyGlowColour(1.0f, 0.93f, 0.28f, kKoBountyGlowAlpha);
 const char* kKoBountyGlowTexture = "gui/gfx/bounty_glow_64px.png";
 const int kKoBountyGlowTextureSizePx = 64;
+const int kKoTextOutlineLayerCount = 8;
+const int kKoTextOutlineOffsetPx = 1;
 const DWORD kMarkerDiagLogIntervalMs = 2000;
 bool gMarkerImageFallbackWarned = false;
 DWORD gMarkerDiagLastLogMs = 0;
@@ -52,6 +54,7 @@ unsigned int gMarkerDiagVisibleMarkers = 0;
 unsigned int gMarkerDiagVisualRefreshes = 0;
 unsigned int gMarkerDiagVisualReuses = 0;
 unsigned int gMarkerDiagTextureApplyCalls = 0;
+unsigned int gMarkerDiagVisibilityApplyCalls = 0;
 
 void ResetMarkerDiagCounters()
 {
@@ -60,6 +63,7 @@ void ResetMarkerDiagCounters()
     gMarkerDiagVisualRefreshes = 0;
     gMarkerDiagVisualReuses = 0;
     gMarkerDiagTextureApplyCalls = 0;
+    gMarkerDiagVisibilityApplyCalls = 0;
 }
 
 void EmitMarkerDiagLogIfDue(const char* pluginName)
@@ -86,7 +90,8 @@ void EmitMarkerDiagLogIfDue(const char* pluginName)
         && gMarkerDiagVisibleMarkers == 0
         && gMarkerDiagVisualRefreshes == 0
         && gMarkerDiagVisualReuses == 0
-        && gMarkerDiagTextureApplyCalls == 0)
+        && gMarkerDiagTextureApplyCalls == 0
+        && gMarkerDiagVisibilityApplyCalls == 0)
     {
         return;
     }
@@ -96,7 +101,8 @@ void EmitMarkerDiagLogIfDue(const char* pluginName)
        << " visible_markers=" << gMarkerDiagVisibleMarkers
        << " visual_refreshes=" << gMarkerDiagVisualRefreshes
        << " visual_reuses=" << gMarkerDiagVisualReuses
-       << " texture_apply_calls=" << gMarkerDiagTextureApplyCalls;
+       << " texture_apply_calls=" << gMarkerDiagTextureApplyCalls
+       << " visibility_apply_calls=" << gMarkerDiagVisibilityApplyCalls;
     vs_log::LogInfo(pluginName, ss.str());
 
     ResetMarkerDiagCounters();
@@ -212,6 +218,34 @@ void SetKoMarkerTextFontHeight(MyGUI::TextBox* marker, int fontHeight)
     }
     catch (...)
     {
+    }
+}
+
+MyGUI::Colour MarkerTextOutlineColour(const MyGUI::Colour& textColour)
+{
+    return MyGUI::Colour(0.0f, 0.0f, 0.0f, textColour.alpha);
+}
+
+void GetKoMarkerTextOutlineOffset(size_t index, int* offsetX, int* offsetY)
+{
+    static const int kOffsets[kKoTextOutlineLayerCount][2] = {
+        { -1, -1 },
+        { 0, -1 },
+        { 1, -1 },
+        { -1, 0 },
+        { 1, 0 },
+        { -1, 1 },
+        { 0, 1 },
+        { 1, 1 },
+    };
+
+    if (offsetX)
+    {
+        *offsetX = kOffsets[index][0] * kKoTextOutlineOffsetPx;
+    }
+    if (offsetY)
+    {
+        *offsetY = kOffsets[index][1] * kKoTextOutlineOffsetPx;
     }
 }
 
@@ -529,6 +563,18 @@ void SetKoMarkerPosition(
     bool showBountySymbol,
     bool isBountyOnlyState)
 {
+    if (marker.visualState.positionValid
+        && marker.visualState.positionLeft == left
+        && marker.visualState.positionTop == top
+        && marker.visualState.positionTotalBounty == totalBounty
+        && marker.visualState.positionShowStateIcon == showStateIcon
+        && marker.visualState.positionShowStateText == showStateText
+        && marker.visualState.positionShowBountySymbol == showBountySymbol
+        && marker.visualState.positionIsBountyOnlyState == isBountyOnlyState)
+    {
+        return;
+    }
+
     const bool placeSymbolBeforeIcon = showBountySymbol && showStateIcon && state.config.placeBountySymbolBeforeStateIcon;
     const int symbolWidth = showBountySymbol ? ResolveBountySymbolWidthPx(state, totalBounty) : kKoBountySymbolMinWidthPx;
     int layoutLeft = left;
@@ -624,16 +670,48 @@ void SetKoMarkerPosition(
             if (showStateText)
             {
                 marker.fallbackText->setCoord(layoutLeft, top, textWidth, kKoMarkerHeightPx);
+                for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+                {
+                    if (!marker.fallbackTextOutline[i])
+                    {
+                        continue;
+                    }
+                    int offsetX = 0;
+                    int offsetY = 0;
+                    GetKoMarkerTextOutlineOffset(static_cast<size_t>(i), &offsetX, &offsetY);
+                    marker.fallbackTextOutline[i]->setCoord(
+                        layoutLeft + offsetX,
+                        top + offsetY,
+                        textWidth,
+                        kKoMarkerHeightPx);
+                }
             }
             else
             {
                 marker.fallbackText->setCoord(layoutLeft, top, 0, kKoMarkerHeightPx);
+                for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+                {
+                    if (!marker.fallbackTextOutline[i])
+                    {
+                        continue;
+                    }
+                    marker.fallbackTextOutline[i]->setCoord(layoutLeft, top, 0, kKoMarkerHeightPx);
+                }
             }
         }
         catch (...)
         {
         }
     }
+
+    marker.visualState.positionValid = true;
+    marker.visualState.positionLeft = left;
+    marker.visualState.positionTop = top;
+    marker.visualState.positionTotalBounty = totalBounty;
+    marker.visualState.positionShowStateIcon = showStateIcon;
+    marker.visualState.positionShowStateText = showStateText;
+    marker.visualState.positionShowBountySymbol = showBountySymbol;
+    marker.visualState.positionIsBountyOnlyState = isBountyOnlyState;
 }
 
 void SetKoMarkerVisible(
@@ -645,10 +723,29 @@ void SetKoMarkerVisible(
     bool showStateText,
     bool showBountySymbol)
 {
+    if (marker.visualState.valid
+        && marker.visualState.visible == visible
+        && marker.visualState.showBountyGlow == showBountyGlow
+        && marker.visualState.showStateIcon == showStateIcon
+        && marker.visualState.showStateText == showStateText
+        && marker.visualState.showBountySymbol == showBountySymbol)
+    {
+        return;
+    }
+
+    if (gMarkerDiagnosticsEnabled)
+    {
+        ++gMarkerDiagVisibilityApplyCalls;
+    }
     SetWidgetVisible(marker.bountyGlow, visible && state.config.showMarkerIcons && showBountyGlow);
     SetWidgetVisible(marker.icon, visible && showStateIcon);
     SetWidgetVisible(marker.bountySymbol, visible && showBountySymbol);
+    for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+    {
+        SetWidgetVisible(marker.fallbackTextOutline[i], visible && showStateText);
+    }
     SetWidgetVisible(marker.fallbackText, visible && showStateText);
+    marker.visualState.visible = visible;
 }
 
 const char* ResolveMarkerCaption(RuntimeStateView& state, int markerState)
@@ -879,6 +976,8 @@ void UpdateKoMarkerVisualStateCache(
     marker.visualState.showStateText = showStateText;
     marker.visualState.showBountyGlow = showBountyGlow;
     marker.visualState.showBountySymbol = showBountySymbol;
+    marker.visualState.visible = false;
+    marker.visualState.positionValid = false;
 }
 
 bool HasCustomMarkerIcon(RuntimeStateView& state, int markerState)
@@ -952,13 +1051,25 @@ void ApplyKoMarkerVisualState(
         if (isBountyOnlyState)
         {
             SetKoMarkerCaption(marker.fallbackText, "");
+            for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+            {
+                SetKoMarkerCaption(marker.fallbackTextOutline[i], "");
+            }
         }
         else
         {
             const int fontHeight = static_cast<int>(ResolveMarkerTextSizePx(state, markerState));
+            const char* caption = ResolveMarkerCaption(state, markerState);
+            const MyGUI::Colour outlineColour = MarkerTextOutlineColour(colour);
             SetKoMarkerTextFontHeight(marker.fallbackText, fontHeight);
-            SetKoMarkerCaption(marker.fallbackText, ResolveMarkerCaption(state, markerState));
+            SetKoMarkerCaption(marker.fallbackText, caption);
             SetKoMarkerTextColour(marker.fallbackText, colour);
+            for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+            {
+                SetKoMarkerTextFontHeight(marker.fallbackTextOutline[i], fontHeight);
+                SetKoMarkerCaption(marker.fallbackTextOutline[i], caption);
+                SetKoMarkerTextColour(marker.fallbackTextOutline[i], outlineColour);
+            }
         }
     }
 
@@ -1030,6 +1141,28 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                 name.str() + "_bounty_symbol_fallback");
         }
 
+        MyGUI::TextBox* fallbackTextOutline[kKoTextOutlineLayerCount] = {};
+        for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+        {
+            std::stringstream outlineName;
+            outlineName << name.str() << "_outline_" << i;
+            fallbackTextOutline[i] = gui->createWidget<MyGUI::TextBox>(
+                "Kenshi_TextboxStandardText",
+                MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
+                MyGUI::Align::Default,
+                "Top",
+                outlineName.str());
+            if (!fallbackTextOutline[i])
+            {
+                fallbackTextOutline[i] = gui->createWidget<MyGUI::TextBox>(
+                    "TextBox",
+                    MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
+                    MyGUI::Align::Default,
+                    "Top",
+                    outlineName.str() + "_fallback");
+            }
+        }
+
         MyGUI::TextBox* fallbackText = gui->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
@@ -1092,10 +1225,25 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
             fallbackText->setVisible(false);
         }
 
+        for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+        {
+            if (!fallbackTextOutline[i])
+            {
+                continue;
+            }
+            fallbackTextOutline[i]->setNeedMouseFocus(false);
+            fallbackTextOutline[i]->setTextShadow(false);
+            fallbackTextOutline[i]->setVisible(false);
+        }
+
         KoMarkerWidget marker = {};
         marker.bountyGlow = bountyGlow;
         marker.icon = icon;
         marker.bountySymbol = bountySymbol;
+        for (int i = 0; i < kKoTextOutlineLayerCount; ++i)
+        {
+            marker.fallbackTextOutline[i] = fallbackTextOutline[i];
+        }
         marker.fallbackText = fallbackText;
         marker.visualState.valid = false;
 
