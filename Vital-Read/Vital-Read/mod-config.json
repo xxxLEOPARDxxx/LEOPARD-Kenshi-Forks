@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "debugLogging": true,
+  "debugLogging": false,
   "showIcons": true,
   "showText": true,
   "portraitIconDisplaySizePx": 20,

@@ -2,6 +2,5 @@
   "title": "Install",
   "items": [
     "[b][size=4]Install[/size][/b]\n[spoiler]\n[list]\n[*] Ensure RE_Kenshi is installed and enabled.\n[*] Download and extract.\n[*] Copy the [b]Vital-Read[/b] folder into your Kenshi [b]mods[/b] directory.\n[*] Enable the mod in the Kenshi launcher.\n[/list]\n[/spoiler]"
-  ],
-  "key": "install"
+  ]
 }

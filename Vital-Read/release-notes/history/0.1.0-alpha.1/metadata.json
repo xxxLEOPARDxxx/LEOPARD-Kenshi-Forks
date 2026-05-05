@@ -25,11 +25,11 @@
       "description": "Adds a hotkey that allows the player to quickly dismantle player-built walls."
     },
     {
-      "mod_id": "emkejs-mod-core",
+      "mod_id": "auto-pause-on-load",
       "source": "registry",
-      "url": "https://www.nexusmods.com/kenshi/mods/1885",
-      "link_text": "Emkejs Mod Core",
-      "description": "Install this to enable the in-game menu and shared settings for this mod."
+      "url": "https://www.nexusmods.com/kenshi/mods/1867",
+      "link_text": "Auto-Pause on Load",
+      "description": "Auto-pauses Kenshi right after a save finishes loading."
     },
     {
       "mod_id": "job-b-gone",
@@ -53,6 +53,13 @@
       "description": "Highlights downed characters with state text/icons and shows configurable bounty symbol markers for downed and live bounty targets while ALT is held."
     },
     {
+      "mod_id": "emkejs-mod-core",
+      "source": "registry",
+      "url": "https://www.nexusmods.com/kenshi/mods/1885",
+      "link_text": "Emkejs Mod Core",
+      "description": "Install this to enable the in-game menu and shared settings for this mod."
+    },
+    {
       "mod_id": "organize-the-trader",
       "source": "registry",
       "url": "https://www.nexusmods.com/kenshi/mods/1886",
@@ -67,39 +74,11 @@
       "description": "Adds persistent custom markers to Kenshi's world map through RE_Kenshi. You can place markers per save, assign a type, add a short label, and manage them directly on the map."
     },
     {
-      "mod_id": "auto-pause-on-load",
-      "source": "registry",
-      "url": "https://www.nexusmods.com/kenshi/mods/1867",
-      "link_text": "Auto-Pause on Load",
-      "description": null
-    },
-    {
       "mod_id": "organize-the-crafting-stations",
       "source": "registry",
       "url": "https://www.nexusmods.com/kenshi/mods/1900",
       "link_text": "Organize the Crafting Stations",
       "description": "Adds a search bar to Kenshi crafting and research windows so you can filter visible recipes and blueprints without scrolling through the full list."
-    },
-    {
-      "mod_id": "hidden-faction-relations",
-      "source": "registry",
-      "url": "https://www.nexusmods.com/kenshi/mods/1915",
-      "link_text": "Hidden Faction Relations",
-      "description": "Adds an in-game panel to the Options menu that shows the player's hidden faction relations."
-    },
-    {
-      "mod_id": "emkejs-test-kit",
-      "source": "registry",
-      "url": "https://www.nexusmods.com/kenshi/mods/1912",
-      "link_text": "Emkejs Test Kit",
-      "description": "Adds an in-game debug toolkit for Kenshi that brings Health, Stats, Teleport, Inventory, and Spawn tools together in a single panel, with spawn faction testing."
-    },
-    {
-      "mod_id": "organize-the-inventory",
-      "source": "registry",
-      "url": "https://www.nexusmods.com/kenshi/mods/1936",
-      "link_text": "Organize the Inventory",
-      "description": "Adds search bars to Kenshi's inventory UI so you can filter the active player inventory view or supported creature and pack-animal inventory views without moving items."
     }
   ]
 }

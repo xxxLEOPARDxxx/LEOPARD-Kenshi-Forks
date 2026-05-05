@@ -1,0 +1,7 @@
+{
+  "title": "Optional Mod Hub Integration",
+  "items": [
+    "[b][size=4]Optional Mod Hub integration[/size][/b]\n[list]\n[*] If [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] is installed, this mod also registers its core settings in Mod Hub and still persists changes back to [u]mod-config.json[/u].\n[*] Recommended load order when using Mod Hub:\n[list]\n[*] [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url]\n[*] this mod\n[/list]\n[/list]"
+  ],
+  "key": "optional_mod_hub_integration"
+}

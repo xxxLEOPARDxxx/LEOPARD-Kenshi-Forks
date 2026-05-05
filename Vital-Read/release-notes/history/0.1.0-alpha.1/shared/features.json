@@ -2,6 +2,5 @@
   "title": "Features",
   "items": [
     "[b][size=4]Features[/size][/b]\n[list]\n[*] Portrait overlays for unconscious, recovery coma, dying, and playing dead.\n[*] Portrait overlays and text support for starving, crippled arm, and crippled leg.\n[*] Configurable icon/text size, corner, and edge margin behavior.\n[*] Optional Mod Hub integration for in-game settings changes.\n[/list]"
-  ],
-  "key": "features"
+  ]
 }

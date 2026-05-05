@@ -1,0 +1,91 @@
+{
+  "steam": {
+    "body": {
+      "summary": "Vital Read adds small configurable status markers to squad portraits so you can read critical downed and injury states at a glance without opening each character panel.",
+      "details": [
+        "Vital Read adds portrait icon overlays and optional text badges for unconscious, recovery coma, dying, playing dead, starving, crippled arm, and crippled leg states. Icons, text, size, corner, and shared edge margins are configurable through [u]mod-config.json[/u], and optional in-game controls are available when [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed.",
+        "It is intentionally focused on portrait readability and status visibility. It does not change Kenshi gameplay, medical rules, or AI behavior.",
+        "[h3]Requirements[/h3]\n- [url=https://www.nexusmods.com/kenshi/mods/847]RE_Kenshi[/url]"
+      ]
+    },
+    "shared_fragments": [
+      {
+        "name": "how_to_use",
+        "source_format": "json",
+        "fragment": {
+          "key": "how_to_use",
+          "title": "How to Use",
+          "items": [
+            "[h3]How to Use[/h3]\n[list]\n[*] Load into a save with squad portraits visible.\n[*] Downed and injury states will appear as portrait icons and optional text badges automatically.\n[*] Adjust [u]mod-config.json[/u] if you want different text/icon visibility, size, corners, margins, or textures.\n[*] If [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed, you can adjust the main overlay settings from Mod Hub in game.\n[/list]"
+          ]
+        }
+      },
+      {
+        "name": "compatibility",
+        "source_format": "json",
+        "fragment": {
+          "key": "compatibility",
+          "title": "Compatibility",
+          "items": [
+            "[h3]Compatibility[/h3]\n[list]\n[*] No special load order required beyond RE_Kenshi unless you also use [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url]. For Mod Hub integration, load [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] before this mod.\n[/list]"
+          ]
+        }
+      },
+      {
+        "name": "troubleshooting",
+        "source_format": "json",
+        "fragment": {
+          "key": "troubleshooting",
+          "title": "Troubleshooting",
+          "items": [
+            "[h3]Troubleshooting[/h3]\n[list]\n[*] Ensure RE_Kenshi is installed and enabled.\n[*] If another mod also draws portrait overlays, check for UI overlap and adjust corners or margins.\n[*]If you use Mod Hub, confirm [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] is installed and loads before this mod.\n[/list]"
+          ]
+        }
+      },
+      {
+        "name": "feedback",
+        "source_format": "json",
+        "fragment": {
+          "key": "feedback",
+          "title": "Feedback",
+          "items": [
+            "[h3]Support / full patch notes[/h3]\nFor updates, full changelog, bug reports, and support, use the Nexus page:\n[url=https://www.nexusmods.com/kenshi/mods/1863]Wall-B-Gone on Nexus Mods[/url]"
+          ]
+        }
+      },
+      {
+        "name": "support_the_developer",
+        "source_format": "json",
+        "fragment": {
+          "key": "support_the_developer",
+          "title": "Support the Developer",
+          "items": [
+            "[h3]Support the developer[/h3]\nIf you enjoy my mods and want to support future development, you can support me on Ko-fi. You can also help decide what I build next by voting in my polls:\n[url=https://ko-fi.com/emkej]https://ko-fi.com/emkej[/url]"
+          ]
+        }
+      },
+      {
+        "name": "credits",
+        "source_format": "json",
+        "fragment": {
+          "key": "credits",
+          "title": "Credits",
+          "items": [
+            "[h3]Credits[/h3]\n[list]\n[*] Lo-Fi Games (Kenshi)\nRE_Kenshi team\n[*] [url=https://www.flaticon.com/free-icons/bandage]Bandage icons created by Freepik - Flaticon\n[/url]\n[*] [url=https://www.flaticon.com/free-icons/skull]Skull icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/starving]Starving icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/patient]Patient icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/broken-leg]Broken-leg icons created by Graphiqa - Flaticon[/url]\n[/list]"
+          ]
+        }
+      }
+    ],
+    "included_other_mod_ids": [
+      "wall-b-gone",
+      "auto-pause-on-load",
+      "job-b-gone",
+      "loot-scoot-execute",
+      "vital-sense",
+      "emkejs-mod-core",
+      "organize-the-trader",
+      "map-markers",
+      "organize-the-crafting-stations"
+    ]
+  }
+}
