@@ -200,6 +200,7 @@ struct KoMarkerWidget
 {
     MyGUI::ImageBox* bountyGlow;
     MyGUI::ImageBox* icon;
+    MyGUI::TextBox* bountySymbolOutline[8];
     MyGUI::TextBox* bountySymbol;
     MyGUI::TextBox* fallbackTextOutline[8];
     MyGUI::TextBox* fallbackText;

@@ -2,6 +2,12 @@
 
 All notable changes to Vital-Sense will be documented in this file.
 
+## [0.2.0-alpha.4] - 2026-04-26
+### Changed
+- Improved marker text readability with a black outline around status and bounty labels.
+- Reduced highlight overhead in dense scenes by reusing unchanged tint state, backing off probe refreshes when many characters are nearby, and avoiding redundant marker UI updates.
+- Reduced diagnostic log noise while debug logging remains enabled, especially repeated animal probe samples.
+
 ## [0.2.0-alpha.2] - 2026-04-25
 ### Added
 - Expanded Emkejs Mod Core Mod Hub coverage to the full config surface, including grouped sections, color rows, bounded text rows, and hover hints on supported core builds.
