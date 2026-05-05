@@ -2,7 +2,7 @@
 
 All notable changes to Vital-Sense will be documented in this file.
 
-## [0.2.0-alpha.4] - 2026-04-26
+## [0.2.3] - 2026-05-05
 ### Changed
 - Improved marker text readability with a black outline around status and bounty labels.
 - Reduced highlight overhead in dense scenes by reusing unchanged tint state, backing off probe refreshes when many characters are nearby, and avoiding redundant marker UI updates.
