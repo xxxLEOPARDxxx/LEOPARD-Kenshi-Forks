@@ -418,15 +418,15 @@ struct PortraitDisplayCache
     PortraitDisplayCache()
         : valid(false)
         , refreshedTick(0u)
-        , targetPlatoon(0)
         , scopedMemberCount(0u)
+        , rosterSignature()
     {
     }
 
     bool valid;
     DWORD refreshedTick;
-    Platoon* targetPlatoon;
     size_t scopedMemberCount;
+    std::string rosterSignature;
     std::vector<PortraitCandidateRecord> displayPortraits;
 };
 
@@ -445,6 +445,10 @@ struct OverlayRuntimePerfStats
         , portraitCacheHits(0u)
         , portraitCacheMisses(0u)
         , portraitCacheInvalidations(0u)
+        , portraitCacheInvalidationsExpired(0u)
+        , portraitCacheInvalidationsRoster(0u)
+        , portraitCacheInvalidationsTooSmall(0u)
+        , portraitCacheInvalidationsWidget(0u)
         , portraitGuiScans(0u)
         , portraitGuiScanNodesTotal(0u)
         , portraitGuiScanNodesMax(0u)
@@ -465,6 +469,10 @@ struct OverlayRuntimePerfStats
     size_t portraitCacheHits;
     size_t portraitCacheMisses;
     size_t portraitCacheInvalidations;
+    size_t portraitCacheInvalidationsExpired;
+    size_t portraitCacheInvalidationsRoster;
+    size_t portraitCacheInvalidationsTooSmall;
+    size_t portraitCacheInvalidationsWidget;
     size_t portraitGuiScans;
     size_t portraitGuiScanNodesTotal;
     size_t portraitGuiScanNodesMax;
@@ -2416,13 +2424,13 @@ void ClearPortraitDisplayCache()
 {
     g_portraitDisplayCache.valid = false;
     g_portraitDisplayCache.refreshedTick = 0u;
-    g_portraitDisplayCache.targetPlatoon = 0;
     g_portraitDisplayCache.scopedMemberCount = 0u;
+    g_portraitDisplayCache.rosterSignature.clear();
     g_portraitDisplayCache.displayPortraits.clear();
 }
 
 bool TryValidatePortraitDisplayCache(
-    const SquadProbeScope& scope,
+    const std::string& rosterSignature,
     const size_t scopedMemberCount,
     const size_t requiredDisplayPortraitCount,
     std::vector<PortraitCandidateRecord>* outDisplayPortraits)
@@ -2440,12 +2448,24 @@ bool TryValidatePortraitDisplayCache(
 
     const DWORD now = GetTickCount();
     const bool expired = now - g_portraitDisplayCache.refreshedTick > kPortraitDisplayCacheMaxAgeMs;
-    const bool scopeChanged = g_portraitDisplayCache.targetPlatoon != scope.targetPlatoon
+    const bool rosterChanged = g_portraitDisplayCache.rosterSignature != rosterSignature
         || g_portraitDisplayCache.scopedMemberCount != scopedMemberCount;
     const bool tooSmall = g_portraitDisplayCache.displayPortraits.size() < requiredDisplayPortraitCount;
-    if (expired || scopeChanged || tooSmall)
+    if (expired || rosterChanged || tooSmall)
     {
         ++g_overlayPerfStats.portraitCacheInvalidations;
+        if (expired)
+        {
+            ++g_overlayPerfStats.portraitCacheInvalidationsExpired;
+        }
+        if (rosterChanged)
+        {
+            ++g_overlayPerfStats.portraitCacheInvalidationsRoster;
+        }
+        if (tooSmall)
+        {
+            ++g_overlayPerfStats.portraitCacheInvalidationsTooSmall;
+        }
         ClearPortraitDisplayCache();
         return false;
     }
@@ -2457,6 +2477,7 @@ bool TryValidatePortraitDisplayCache(
         if (!IsVisibleDisplayPortraitCandidate(current))
         {
             ++g_overlayPerfStats.portraitCacheInvalidations;
+            ++g_overlayPerfStats.portraitCacheInvalidationsWidget;
             ClearPortraitDisplayCache();
             outDisplayPortraits->clear();
             return false;
@@ -2471,14 +2492,14 @@ bool TryValidatePortraitDisplayCache(
 }
 
 void StorePortraitDisplayCache(
-    const SquadProbeScope& scope,
+    const std::string& rosterSignature,
     const size_t scopedMemberCount,
     const std::vector<PortraitCandidateRecord>& displayPortraits)
 {
     g_portraitDisplayCache.valid = true;
     g_portraitDisplayCache.refreshedTick = GetTickCount();
-    g_portraitDisplayCache.targetPlatoon = scope.targetPlatoon;
     g_portraitDisplayCache.scopedMemberCount = scopedMemberCount;
+    g_portraitDisplayCache.rosterSignature = rosterSignature;
     g_portraitDisplayCache.displayPortraits = displayPortraits;
 }
 
@@ -2607,6 +2628,8 @@ bool TryCollectPortraitRefreshContext(
     bool needsDisplayPortraits = false;
     size_t scopedMemberCount = 0u;
     size_t requiredDisplayPortraitCount = 0u;
+    std::stringstream rosterSignature;
+    rosterSignature << scope.scope;
 
     if (scope.allPlayerCharacters != 0)
     {
@@ -2624,6 +2647,12 @@ bool TryCollectPortraitRefreshContext(
             {
                 requiredDisplayPortraitCount = static_cast<size_t>(portraitIndex + 1);
             }
+            rosterSignature << "|"
+                            << SafeHandleString(candidate->handle)
+                            << ":"
+                            << candidate->squadMemberID
+                            << ":"
+                            << portraitIndex;
 
             MemberStateSnapshot snapshot;
             if (!TryResolveMemberStateSnapshot(candidate, &snapshot))
@@ -2682,7 +2711,7 @@ bool TryCollectPortraitRefreshContext(
     g_overlayPerfStats.scopedMembersScanned += scopedMemberCount;
 
     std::vector<PortraitCandidateRecord> displayPortraits;
-    if (TryValidatePortraitDisplayCache(scope, scopedMemberCount, requiredDisplayPortraitCount, &displayPortraits))
+    if (TryValidatePortraitDisplayCache(rosterSignature.str(), scopedMemberCount, requiredDisplayPortraitCount, &displayPortraits))
     {
         ++g_overlayPerfStats.portraitCacheHits;
         context.usedCachedDisplayPortraits = true;
@@ -2716,7 +2745,7 @@ bool TryCollectPortraitRefreshContext(
         }
 
         CollectDisplayPortraitCandidates(allCandidates, &displayPortraits);
-        StorePortraitDisplayCache(scope, scopedMemberCount, displayPortraits);
+        StorePortraitDisplayCache(rosterSignature.str(), scopedMemberCount, displayPortraits);
     }
 
     for (size_t stateIndex = 0u; stateIndex < PORTRAIT_OVERLAY_STATE_COUNT; ++stateIndex)
@@ -3765,6 +3794,10 @@ void MaybeLogOverlayPerfSummary(const DWORD now)
          << " portrait_cache_hits=" << g_overlayPerfStats.portraitCacheHits
          << " portrait_cache_misses=" << g_overlayPerfStats.portraitCacheMisses
          << " portrait_cache_invalidations=" << g_overlayPerfStats.portraitCacheInvalidations
+         << " portrait_cache_invalidations_expired=" << g_overlayPerfStats.portraitCacheInvalidationsExpired
+         << " portrait_cache_invalidations_roster=" << g_overlayPerfStats.portraitCacheInvalidationsRoster
+         << " portrait_cache_invalidations_too_small=" << g_overlayPerfStats.portraitCacheInvalidationsTooSmall
+         << " portrait_cache_invalidations_widget=" << g_overlayPerfStats.portraitCacheInvalidationsWidget
          << " portrait_gui_scans=" << g_overlayPerfStats.portraitGuiScans
          << " portrait_gui_scan_nodes_total=" << g_overlayPerfStats.portraitGuiScanNodesTotal
          << " portrait_gui_scan_nodes_max=" << g_overlayPerfStats.portraitGuiScanNodesMax
