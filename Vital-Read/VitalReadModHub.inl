@@ -35,6 +35,13 @@ const char* kHubSectionCoreLabel = "Core";
 const char* kHubSectionAdvancedId = "advanced";
 const char* kHubSectionAdvancedLabel = "Advanced";
 
+const EMC_SelectOptionV1 kHubPortraitAnchorOptions[] = {
+    { 0, "Bottom left" },
+    { 1, "Bottom right" },
+    { 2, "Top left" },
+    { 3, "Top right" }
+};
+
 HubBoolSettingDescriptor g_hubBoolSettingDescriptors[] = {
     { "enabled", "Enabled", "Enable Vital Read runtime probes and overlays", &g_enabled },
     { "show_icons", "Show icons", "Show portrait state icon overlays", &g_showIcons },
@@ -52,21 +59,27 @@ HubIntSettingDescriptor g_hubIntSettingDescriptors[] = {
     { "portrait_icon_display_size_px", "Icon size", "Set portrait state icon display size in pixels (0 keeps automatic sizing)", &g_portraitIconDisplaySizePx, 0, 0, 0, 0, 64, 1, false, { 0, 0, 0 }, { 0, 0, 0 } },
     { "portrait_text_font_height_px", "Text size", "Set portrait state text badge font height", &g_portraitTextFontHeightPx, 0, 0, 0, 8, 48, 1, false, { 0, 0, 0 }, { 0, 0, 0 } },
     { "portrait_overlay_margin_x_px", "Overlay X margin", "Set horizontal edge margin for portrait icons and text; positive moves inward, negative moves outward", 0, &g_portraitOverlayMarginXPx, 0, 0, -16, 16, 1, true, { 5, 1, 0 }, { 1, 5, 0 } },
-    { "portrait_overlay_margin_y_px", "Overlay Y margin", "Set vertical edge margin for portrait icons and text; positive moves inward, negative moves outward", 0, &g_portraitOverlayMarginYPx, 0, 0, -16, 16, 1, true, { 5, 1, 0 }, { 1, 5, 0 } },
-    { "portrait_icon_anchor", "Icon corner", "Set portrait icon corner: 0=bottom left, 1=bottom right, 2=top left, 3=top right", 0, 0, &g_portraitIconAnchor, 0, 0, 3, 1, true, { 1, 0, 0 }, { 1, 0, 0 } },
-    { "portrait_text_anchor", "Text corner", "Set portrait text corner: 0=bottom left, 1=bottom right, 2=top left, 3=top right", 0, 0, &g_portraitTextAnchor, 3, 0, 3, 1, true, { 1, 0, 0 }, { 1, 0, 0 } }
+    { "portrait_overlay_margin_y_px", "Overlay Y margin", "Set vertical edge margin for portrait icons and text; positive moves inward, negative moves outward", 0, &g_portraitOverlayMarginYPx, 0, 0, -16, 16, 1, true, { 5, 1, 0 }, { 1, 5, 0 } }
+};
+
+HubIntSettingDescriptor g_hubSelectSettingDescriptors[] = {
+    { "portrait_icon_anchor", "Icon corner", "Set portrait icon corner", 0, 0, &g_portraitIconAnchor, 0, 0, 3, 1, true, { 1, 0, 0 }, { 1, 0, 0 } },
+    { "portrait_text_anchor", "Text corner", "Set portrait text corner", 0, 0, &g_portraitTextAnchor, 3, 0, 3, 1, true, { 1, 0, 0 }, { 1, 0, 0 } }
 };
 
 enum
 {
     kHubIntSettingCount =
         static_cast<int>(sizeof(g_hubIntSettingDescriptors) / sizeof(g_hubIntSettingDescriptors[0])),
-    kHubSettingRowCount = kHubBoolSettingCount + kHubIntSettingCount
+    kHubSelectSettingCount =
+        static_cast<int>(sizeof(g_hubSelectSettingDescriptors) / sizeof(g_hubSelectSettingDescriptors[0])),
+    kHubSettingRowCount = kHubBoolSettingCount + kHubIntSettingCount + kHubSelectSettingCount
 };
 
 EMC_BoolSettingDefV1 g_hubBoolSettingDefs[kHubBoolSettingCount];
 EMC_IntSettingDefV1 g_hubIntSettingDefs[kHubIntSettingCount];
 EMC_IntSettingDefV2 g_hubIntSettingDefsV2[kHubIntSettingCount];
+EMC_SelectSettingDefV1 g_hubSelectSettingDefs[kHubSelectSettingCount];
 emc::ModHubClientSettingRowV1 g_hubSettingRows[kHubSettingRowCount];
 
 const EMC_ModDescriptorV1 kModHubDescriptor = {
@@ -367,6 +380,26 @@ void InitializeModHubSettingRows()
         g_hubSettingRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_INT;
         g_hubSettingRows[rowIndex].setting_id = g_hubIntSettingDefs[index].setting_id;
         g_hubSettingRows[rowIndex].def = &g_hubIntSettingDefs[index];
+        g_hubSettingRows[rowIndex].section_id = kHubSectionCoreId;
+        g_hubSettingRows[rowIndex].section_display_name = kHubSectionCoreLabel;
+    }
+
+    for (size_t index = 0u; index < static_cast<size_t>(kHubSelectSettingCount); ++index)
+    {
+        const size_t rowIndex = static_cast<size_t>(kHubBoolSettingCount + kHubIntSettingCount) + index;
+        g_hubSelectSettingDefs[index].setting_id = g_hubSelectSettingDescriptors[index].settingId;
+        g_hubSelectSettingDefs[index].label = g_hubSelectSettingDescriptors[index].label;
+        g_hubSelectSettingDefs[index].description = g_hubSelectSettingDescriptors[index].description;
+        g_hubSelectSettingDefs[index].user_data = &g_hubSelectSettingDescriptors[index];
+        g_hubSelectSettingDefs[index].options = kHubPortraitAnchorOptions;
+        g_hubSelectSettingDefs[index].option_count =
+            static_cast<uint32_t>(sizeof(kHubPortraitAnchorOptions) / sizeof(kHubPortraitAnchorOptions[0]));
+        g_hubSelectSettingDefs[index].get_value = &GetHubIntSetting;
+        g_hubSelectSettingDefs[index].set_value = &SetHubIntSetting;
+
+        g_hubSettingRows[rowIndex].kind = emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT;
+        g_hubSettingRows[rowIndex].setting_id = g_hubSelectSettingDefs[index].setting_id;
+        g_hubSettingRows[rowIndex].def = &g_hubSelectSettingDefs[index];
         g_hubSettingRows[rowIndex].section_id = kHubSectionCoreId;
         g_hubSettingRows[rowIndex].section_display_name = kHubSectionCoreLabel;
     }
