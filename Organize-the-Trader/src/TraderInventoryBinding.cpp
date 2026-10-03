@@ -4,7 +4,7 @@
 #include "TraderWindowDetection.h"
 
 #include <core/Functions.h>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>

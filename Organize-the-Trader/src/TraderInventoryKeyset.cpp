@@ -3,7 +3,7 @@
 #include "TraderSearchText.h"
 #include "TraderWindowDetection.h"
 
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
 #include <kenshi/Dialogue.h>
 #include <kenshi/GameWorld.h>

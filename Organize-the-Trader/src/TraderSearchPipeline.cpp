@@ -1,4 +1,5 @@
 #include "TraderSearchPipeline.h"
+#include "TraderMoveTransaction.h"
 
 #include "TraderCore.h"
 #include "TraderInventoryBinding.h"
@@ -8,6 +9,8 @@
 
 #include <kenshi/Inventory.h>
 #include <kenshi/Item.h>
+#include <kenshi/GUI/InventoryGUI.h>
+#include <set>
 
 #include <mygui/MyGUI_Widget.h>
 
@@ -16,6 +19,26 @@
 #include <limits>
 #include <sstream>
 #include <vector>
+
+namespace {
+InventoryGUI* g_filteredGui = 0;
+std::set<Item*> g_hiddenItems;
+}
+void ClearTraderHiddenItems()
+{
+    g_filteredGui = 0;
+    g_hiddenItems.clear();
+}
+bool HasTraderMouseFilter(InventoryGUI* gui)
+{
+    return gui != 0 && gui == g_filteredGui
+        && TraderState().search.g_searchQueryNormalized.size() != 0
+        && ResolveTraderParentFromControlsContainer() != 0;
+}
+bool IsTraderItemFilteredOut(InventoryGUI* gui, Item* item)
+{
+    return item != 0 && HasTraderMouseFilter(gui) && g_hiddenItems.count(item) != 0;
+}
 
 #define g_searchFilterDirty (TraderState().search.g_searchFilterDirty)
 #define g_loggedMissingBackpackForSearch (TraderState().search.g_loggedMissingBackpackForSearch)
@@ -191,7 +214,7 @@ void EnsureBaseEntryCoords(MyGUI::Widget* entriesRoot, std::vector<OrderedEntry>
                 shouldCapture = true;
                 break;
             }
-            (*orderedEntries)[index].coord = baseCoord;
+            // Native cells may have moved since the previous filter; use live icon coordinates.
         }
     }
 
@@ -842,37 +865,6 @@ bool TryBuildSortedTargetCoords(
     return true;
 }
 
-void ApplyEntryTargetCoords(
-    const std::vector<OrderedEntry>& orderedEntries,
-    const std::vector<MyGUI::IntCoord>& targetCoords)
-{
-    if (orderedEntries.size() != targetCoords.size())
-    {
-        return;
-    }
-
-    for (std::size_t index = 0; index < orderedEntries.size(); ++index)
-    {
-        MyGUI::Widget* widget = orderedEntries[index].widget;
-        if (widget == 0)
-        {
-            continue;
-        }
-
-        const MyGUI::IntCoord currentCoord = widget->getCoord();
-        const MyGUI::IntCoord targetCoord = targetCoords[index];
-        if (currentCoord.left == targetCoord.left
-            && currentCoord.top == targetCoord.top
-            && currentCoord.width == targetCoord.width
-            && currentCoord.height == targetCoord.height)
-        {
-            continue;
-        }
-
-        widget->setCoord(targetCoord);
-    }
-}
-
 void ResetSortedInventoryLayoutState()
 {
     g_sortedInventory = 0;
@@ -987,6 +979,7 @@ bool RestoreSortedInventoryLayoutInternal()
         restoreGridMetrics,
         &failureReason);
 
+    if (g_sortedInventory != 0) SynchronizeTraderIcons(g_sortedInventory->getInventoryGUI());
     ResetSortedInventoryLayoutState();
     return changed && failureReason.empty();
 }
@@ -1194,6 +1187,8 @@ bool ApplySortedInventoryTargetCells(
         InventorySection* section;
         int targetCellX;
         int targetCellY;
+        int oldX;
+        int oldY;
     };
 
     std::vector<InventoryTargetCell> targets;
@@ -1247,6 +1242,8 @@ bool ApplySortedInventoryTargetCells(
         target.section = targetSection;
         target.targetCellX = targetCellX;
         target.targetCellY = targetCellY;
+        target.oldX = item->inventoryPos.x;
+        target.oldY = item->inventoryPos.y;
         targets.push_back(target);
 
         if (item->inventoryPos.x != targetCellX
@@ -1266,75 +1263,44 @@ bool ApplySortedInventoryTargetCells(
         return false;
     }
 
-    for (std::size_t index = 0; index < targets.size(); ++index)
+    for (std::size_t i = 0; i < targets.size(); ++i)
     {
-        Item* item = targets[index].item;
-        if (item == 0)
+        const InventoryTargetCell& a = targets[i];
+        if (a.item->itemWidth <= 0 || a.item->itemHeight <= 0
+            || a.targetCellX < 0 || a.targetCellY < 0
+            || a.targetCellX + a.item->itemWidth > a.section->width
+            || a.targetCellY + a.item->itemHeight > a.section->height)
         {
-            continue;
-        }
-
-        InventorySection* currentSection =
-            item->inventorySection.empty() ? 0 : inventory->getSection(item->inventorySection);
-        if (currentSection == 0)
-        {
-            currentSection = targets[index].section;
-        }
-
-        if (currentSection == 0 || !currentSection->removeItem(item))
-        {
-            if (outFailureReason != 0)
-            {
-                std::stringstream line;
-                line << "remove_failed:index=" << index
-                     << ",section=" << (currentSection == 0 ? "<null>" : currentSection->name)
-                     << ",item=" << ResolveCanonicalItemName(item);
-                *outFailureReason = line.str();
-            }
+            if (outFailureReason != 0) *outFailureReason = "target_out_of_bounds";
             return false;
+        }
+        for (std::size_t j = 0; j < i; ++j)
+        {
+            const InventoryTargetCell& b = targets[j];
+            if (a.item == b.item || (a.section == b.section
+                && a.targetCellX < b.targetCellX + b.item->itemWidth
+                && b.targetCellX < a.targetCellX + a.item->itemWidth
+                && a.targetCellY < b.targetCellY + b.item->itemHeight
+                && b.targetCellY < a.targetCellY + a.item->itemHeight))
+            {
+                if (outFailureReason != 0) *outFailureReason = "duplicate_or_overlapping_target";
+                return false;
+            }
         }
     }
-
-    struct TargetTopLeftLess
+    struct MoveOperations
     {
-        bool operator()(const InventoryTargetCell& left, const InventoryTargetCell& right) const
-        {
-            if (left.targetCellY != right.targetCellY)
-            {
-                return left.targetCellY < right.targetCellY;
-            }
-            if (left.targetCellX != right.targetCellX)
-            {
-                return left.targetCellX < right.targetCellX;
-            }
-            return left.item < right.item;
-        }
-    };
-    std::sort(targets.begin(), targets.end(), TargetTopLeftLess());
-
-    for (std::size_t index = 0; index < targets.size(); ++index)
+        bool remove(const InventoryTargetCell& m) { return m.section->removeItem(m.item); }
+        bool canPlace(const InventoryTargetCell& m)
+        { return m.section->canItemGoHere(m.item, m.targetCellX, m.targetCellY); }
+        void restore(const InventoryTargetCell& m) { m.section->_addItem(m.item, m.oldX, m.oldY); }
+        void addTarget(const InventoryTargetCell& m)
+        { m.section->_addItem(m.item, m.targetCellX, m.targetCellY); }
+    } operations;
+    if (!TraderMoveTransaction::Apply(targets, operations))
     {
-        InventoryTargetCell& target = targets[index];
-        if (target.item == 0 || target.section == 0)
-        {
-            continue;
-        }
-
-        if (!target.section->canItemGoHere(target.item, target.targetCellX, target.targetCellY))
-        {
-            if (outFailureReason != 0)
-            {
-                std::stringstream line;
-                line << "target_blocked:index=" << index
-                     << ",section=" << target.section->name
-                     << ",cell=" << target.targetCellX << "," << target.targetCellY
-                     << ",item=" << ResolveCanonicalItemName(target.item);
-                *outFailureReason = line.str();
-            }
-            return false;
-        }
-
-        target.section->_addItem(target.item, target.targetCellX, target.targetCellY);
+        if (outFailureReason != 0) *outFailureReason = "move_rejected_original_cells_restored";
+        return false;
     }
 
     if (outFailureReason != 0)
@@ -1456,7 +1422,7 @@ void ObserveTraderEntriesStateForRefresh()
     if (currentSignature != g_lastObservedTraderEntriesStateSignature)
     {
         const bool expectedSortLayoutChange =
-            g_sortMode != TraderSortMode_None
+            (g_sortMode != TraderSortMode_None || !g_searchQueryNormalized.empty())
             && !g_expectedSortedInventoryLayoutSignature.empty()
             && currentSignature == g_expectedSortedInventoryLayoutSignature;
         g_lastObservedTraderEntriesStateSignature = currentSignature;
@@ -2347,7 +2313,28 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
     }
 
+    // Capture exact Item pointers from the GUI's own icon map, not name/quantity guesses.
+    ClearTraderHiddenItems();
+    if (hasActiveFilter && hasPanelBinding && panelBinding.inventory != 0)
+    {
+        g_filteredGui = panelBinding.inventory->getInventoryGUI();
+        if (g_filteredGui != 0)
+            for (Ogre::map<std::string, InventorySectionGUI*>::type::iterator it = g_filteredGui->inventorySections.begin();
+                it != g_filteredGui->inventorySections.end(); ++it)
+            {
+                InventorySectionGUI* section = it->second;
+                if (section == 0) continue;
+                for (std::size_t i = 0; i < section->itemsIcons.size(); ++i)
+                {
+                    InventoryIcon* icon = section->itemsIcons[i];
+                    if (icon != 0 && icon->item != 0 && icon->getWidget() != 0
+                        && !icon->getWidget()->getVisible()) g_hiddenItems.insert(icon->item);
+                }
+            }
+    }
+
     std::vector<std::size_t> displayOrder;
+    // Filtering and sorting both use native cell movement; never pack pictures alone.
     const bool shouldApplySearchLayout = hasActiveFilter && !entries.empty();
     const bool shouldApplySortLayout =
         g_sortMode != TraderSortMode_None
@@ -2475,14 +2462,13 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
         }
     }
 
-    if (shouldApplySearchLayout || g_sortMode == TraderSortMode_None)
-    {
-        ApplyEntryTargetCoords(orderedEntries, targetCoords);
-    }
+    // Both search packing and explicit sorting move native inventory cells.
+    // Icons are synchronized from committed native positions, never target guesses.
 
     std::string inventoryLayoutFailureReason;
-    if (g_sortMode == TraderSortMode_None)
+    if (!hasActiveFilter && g_sortMode == TraderSortMode_None)
     {
+        ClearTraderHiddenItems();
         RestoreSortedInventoryLayoutInternal();
         g_expectedSortedInventoryLayoutSignature.clear();
     }
@@ -2523,6 +2509,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                     sortedGridMetrics,
                     &applyFailureReason);
                 inventoryLayoutFailureReason = applyFailureReason;
+                SynchronizeTraderIcons(panelBinding.inventory->getInventoryGUI());
                 if (inventoryLayoutFailureReason.empty())
                 {
                     g_expectedSortedInventoryLayoutSignature =

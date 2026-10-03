@@ -1,4 +1,5 @@
 #include "TraderWindowDetection.h"
+#include "TraderLayoutRecognition.h"
 
 #include "TraderCore.h"
 #include "TraderSearchText.h"
@@ -184,6 +185,16 @@ int ComputeTraderWindowCandidateScore(MyGUI::Widget* parent, std::string* outRea
     if (outReason != 0)
     {
         outReason->clear();
+    }
+
+    // Verified against Kenshi_InventoryTraderWindow.layout. The money widgets
+    // below belong to a separate character-selection window in vanilla Kenshi.
+    // Prefer the trader layout itself, even with a translated/empty caption.
+    if (TraderLayoutRecognition::IsTrader(parent))
+    {
+        if (outReason != 0)
+            *outReason = "trader_layout_structure";
+        return 10000;
     }
 
     if (parent == 0 || !HasTraderInventoryMarkers(parent))

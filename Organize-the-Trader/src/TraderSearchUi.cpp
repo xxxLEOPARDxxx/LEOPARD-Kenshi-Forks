@@ -7,6 +7,8 @@
 #include "TraderSearchPipeline.h"
 #include "TraderSearchText.h"
 #include "TraderWindowDetection.h"
+#include "TraderInlinePlacement.h"
+
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
@@ -27,6 +29,69 @@
 
 namespace
 {
+const char* kDockWindowName = "OTT_InlineTraderSearch";
+// Non-owning identity only: validate against GUI roots before dereferencing.
+MyGUI::Widget* g_dockOwner = 0;
+MyGUI::Widget* FindLiveDockOwner(bool requireVisible)
+{
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0 || g_dockOwner == 0) return 0;
+    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+    while (roots.next())
+    {
+        MyGUI::Widget* root = roots.current();
+        if (root == g_dockOwner)
+            return !requireVisible || root->getInheritedVisible() ? root : 0;
+    }
+    return 0;
+}
+
+MyGUI::IntCoord InlineSearchCoord(MyGUI::Widget* parent)
+{
+    MyGUI::Widget* data = FindWidgetInParentByToken(parent, "datapanel");
+    MyGUI::Widget* money = data == 0 ? 0 : data->getParent();
+    if (money == 0) return MyGUI::IntCoord(220, 8, 240, 30);
+    const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
+    const MyGUI::IntCoord box = money->getAbsoluteCoord();
+    const TraderInlinePlacement::Rect coord = TraderInlinePlacement::Place(parent->getWidth(),
+        TraderInlinePlacement::Rect(box.left - origin.left, box.top - origin.top, box.width, box.height));
+    return MyGUI::IntCoord(coord.left, coord.top, coord.width, coord.height);
+}
+
+void PositionInlineControls()
+{
+    MyGUI::Widget* owner = FindLiveDockOwner(true);
+    MyGUI::Widget* panel = FindWidgetByName(kDockWindowName);
+    if (owner == 0 || panel == 0) return;
+    MyGUI::Widget* parent = ResolveInjectionParent(owner);
+    if (parent == 0) return;
+    const MyGUI::IntCoord coord = InlineSearchCoord(parent);
+    if (panel->getCoord() != coord) panel->setCoord(coord);
+    MyGUI::Widget* search = FindWidgetByName("OTT_TraderControlsContainer");
+    if (search != 0) search->setSize(coord.width, coord.height);
+    MyGUI::Widget* sort = FindWidgetByName("OTT_TraderSortControlsContainer");
+    MyGUI::Widget* arrange = FindWidgetInParentByToken(parent, "ArrangeButton");
+    if (sort != 0 && arrange != 0)
+    {
+        const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
+        const MyGUI::IntCoord button = arrange->getAbsoluteCoord();
+        int width = button.left - origin.left - 20;
+        if (width > 360) width = 360;
+        sort->setVisible(width >= 180);
+        if (width >= 180)
+        {
+            sort->setCoord(8, button.top - origin.top, width, button.height);
+            MyGUI::Widget* combo = FindWidgetByName("OTT_SortModeCombo");
+            MyGUI::Widget* direction = FindWidgetByName("OTT_SortDirectionButton");
+            MyGUI::Widget* label = FindWidgetByName("OTT_SortLabel");
+            const int height = button.height > 22 ? button.height - 4 : 18;
+            if (label != 0) label->setCoord(6, 2, 52, height);
+            if (combo != 0) combo->setCoord(62, 2, width - 98, height);
+            if (direction != 0) direction->setCoord(width - 30, 2, 28, height);
+        }
+    }
+}
+
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
 const char* kSortControlsContainerName = "OTT_TraderSortControlsContainer";
 const char* kSearchEditName = "OTT_SearchEdit";
@@ -349,7 +414,7 @@ std::string BuildSearchCountCaption(
         {
             line << " | ";
         }
-        line << "qty " << visibleQuantity;
+        line << visibleQuantity;
     }
 
     return line.str();
@@ -932,7 +997,7 @@ MyGUI::Button* FindSortDirectionButton()
 
 MyGUI::Widget* ResolveTraderParentFromControlsContainer()
 {
-    return ::ResolveTraderParentFromControlsContainer(FindControlsContainer());
+    return ResolveInjectionParent(FindLiveDockOwner(false));
 }
 
 void FocusSearchEdit(MyGUI::EditBox* searchEdit, const char* reason)
@@ -1262,7 +1327,10 @@ void TickSortContainerDrag()
 
 bool AreControlsScaffoldPresent()
 {
-    return FindControlsContainer() != 0 && FindSortControlsContainer() != 0;
+    MyGUI::Widget* search = FindControlsContainer();
+    MyGUI::Widget* sort = FindSortControlsContainer();
+    return search != 0 && sort != 0
+        && search->getInheritedVisible();
 }
 
 bool BuildControlsScaffold(
@@ -1283,10 +1351,10 @@ bool BuildControlsScaffold(
         return false;
     }
 
-    const int outerPadding = kPanelOuterPadding;
-    const int handleWidth = kPanelHandleWidth;
-    const int handleGap = kPanelHandleGap;
-    const int searchRowHeight = g_searchInputConfiguredHeight;
+    const int outerPadding = 0;
+    const int handleWidth = 0;
+    const int handleGap = 0;
+    const int searchRowHeight = parent->getHeight();
     const int sortRowHeight = g_sortPanelConfiguredHeight;
     const int searchRowTop = outerPadding;
     const int preferredCountWidth = ResolvePreferredSearchCountTextWidth();
@@ -1299,7 +1367,7 @@ bool BuildControlsScaffold(
         + preferredCountWidth
         + preferredCountGap;
     const int maxContainerWidth =
-        parent->getWidth() > 8 ? parent->getWidth() - 8 : parent->getWidth();
+        parent->getWidth();
     int containerWidth = desiredContainerWidth;
     if (maxContainerWidth > 0 && containerWidth > maxContainerWidth)
     {
@@ -1315,7 +1383,7 @@ bool BuildControlsScaffold(
     }
 
     const int searchContainerHeight = searchRowHeight + (outerPadding * 2);
-    int sortContainerWidth = g_sortPanelConfiguredWidth;
+    int sortContainerWidth = containerWidth;
     if (sortContainerWidth < kSortPanelConfiguredWidthMin)
     {
         sortContainerWidth = kSortPanelConfiguredWidthMin;
@@ -1326,46 +1394,9 @@ bool BuildControlsScaffold(
     }
     const int sortContainerHeight = sortRowHeight + (outerPadding * 2);
 
-    const int rightMargin = 16;
-    int left = parent->getWidth() - containerWidth - rightMargin;
-    if (left < 8)
-    {
-        left = 8;
-    }
-
-    int top = topOverride >= 0 ? topOverride : ResolveControlsTop(parent);
-    const int scaffoldHeight =
-        searchContainerHeight
-        + (g_sortContainerPositionCustomized ? 0 : (kPanelGap + sortContainerHeight));
-    const int maxTop = parent->getHeight() - scaffoldHeight - 8;
-    if (top > maxTop)
-    {
-        top = maxTop;
-    }
-    if (top < 8)
-    {
-        top = 8;
-    }
-
-    MyGUI::IntCoord containerCoord(left, top, containerWidth, searchContainerHeight);
-    if (g_searchContainerPositionCustomized)
-    {
-        containerCoord.left = g_searchContainerStoredLeft;
-        containerCoord.top = g_searchContainerStoredTop;
-    }
-    containerCoord = ClampPanelCoord(parent, containerCoord);
-
-    MyGUI::IntCoord sortContainerCoord(
-        containerCoord.left,
-        containerCoord.top + containerCoord.height + kPanelGap,
-        sortContainerWidth,
-        sortContainerHeight);
-    if (g_sortContainerPositionCustomized)
-    {
-        sortContainerCoord.left = g_sortContainerStoredLeft;
-        sortContainerCoord.top = g_sortContainerStoredTop;
-    }
-    sortContainerCoord = ClampPanelCoord(parent, sortContainerCoord);
+    MyGUI::IntCoord containerCoord(0, 0, containerWidth, searchContainerHeight);
+    MyGUI::IntCoord sortContainerCoord(8, 8 + searchContainerHeight + kPanelGap,
+        sortContainerWidth, sortContainerHeight);
 
     if (ShouldLogDebug())
     {
@@ -1385,9 +1416,9 @@ bool BuildControlsScaffold(
     }
 
     MyGUI::Widget* container = parent->createWidget<MyGUI::Widget>(
-        "Kenshi_GenericTextBoxFlatSkin",
+        "PanelEmpty",
         containerCoord,
-        MyGUI::Align::Right | MyGUI::Align::Top,
+        MyGUI::Align::HStretch | MyGUI::Align::Top,
         kControlsContainerName);
     if (container == 0)
     {
@@ -1426,6 +1457,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
+    dragHandle->setVisible(false);
     dragHandle->setCaption("::");
     dragHandle->setNeedMouseFocus(true);
     dragHandle->eventMouseButtonPressed += MyGUI::newDelegate(&OnSearchDragHandleMousePressed);
@@ -1442,7 +1474,7 @@ bool BuildControlsScaffold(
                 searchRowTop,
                 countWidth,
                 searchRowHeight),
-            MyGUI::Align::Left | MyGUI::Align::Top,
+            MyGUI::Align::Right | MyGUI::Align::Top,
             kSearchCountTextName);
         if (countText == 0)
         {
@@ -1487,7 +1519,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
-    placeholder->setCaption("Search items...");
+    placeholder->setCaption(MyGUI::UString(L"\u041f\u043e\u0438\u0441\u043a \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u043e\u0432..."));
     placeholder->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
     placeholder->setNeedMouseFocus(true);
     placeholder->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchPlaceholderClicked);
@@ -1510,8 +1542,10 @@ bool BuildControlsScaffold(
     clearButton->setCaption("x");
     clearButton->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchClearButtonClicked);
 
-    sortContainer = parent->createWidget<MyGUI::Widget>(
-        "Kenshi_GenericTextBoxFlatSkin",
+    MyGUI::Widget* sortParent = ResolveInjectionParent(FindLiveDockOwner(true));
+    if (sortParent == 0) { DestroyWidgetDirect(container); return false; }
+    sortContainer = sortParent->createWidget<MyGUI::Widget>(
+        "PanelEmpty",
         sortContainerCoord,
         MyGUI::Align::Right | MyGUI::Align::Top,
         kSortControlsContainerName);
@@ -1538,6 +1572,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
+    sortDragHandle->setVisible(false);
     sortDragHandle->setCaption("::");
     sortDragHandle->setNeedMouseFocus(true);
     sortDragHandle->eventMouseButtonPressed += MyGUI::newDelegate(&OnSortDragHandleMousePressed);
@@ -1548,7 +1583,7 @@ bool BuildControlsScaffold(
     const int sortPanelLeft = outerPadding + handleWidth + handleGap;
     const int sortPanelWidth = sortContainerWidth - sortPanelLeft - outerPadding;
     const int sortPanelInnerPadding = 6;
-    const int sortLabelWidth = 32;
+    const int sortLabelWidth = 52;
     const int sortControlGap = 4;
     const int sortControlsTop = outerPadding;
     int sortDirectionButtonWidth = sortRowHeight;
@@ -1589,7 +1624,8 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
-    sortLabel->setCaption("Sort");
+    sortLabel->setCaption(MyGUI::UString(L"\u0421\u043e\u0440\u0442"));
+    sortLabel->setTextColour(MyGUI::Colour(0.65f, 0.63f, 0.59f, 1.0f));
     sortLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
 
     MyGUI::ComboBox* sortModeCombo = sortContainer->createWidget<MyGUI::ComboBox>(
@@ -1610,13 +1646,13 @@ bool BuildControlsScaffold(
     }
     sortModeCombo->setComboModeDrop(true);
     sortModeCombo->setSmoothShow(false);
-    sortModeCombo->addItem("Default");
-    sortModeCombo->addItem("Name");
-    sortModeCombo->addItem("Unit price");
-    sortModeCombo->addItem("Stack value");
-    sortModeCombo->addItem("Unit weight");
-    sortModeCombo->addItem("Stack weight");
-    sortModeCombo->addItem("Value/weight");
+    sortModeCombo->addItem(MyGUI::UString(L"\u041f\u043e \u0443\u043c\u043e\u043b\u0447\u0430\u043d\u0438\u044e"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u041f\u043e \u0438\u043c\u0435\u043d\u0438"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u0426\u0435\u043d\u0430 \u0437\u0430 \u0448\u0442\u0443\u043a\u0443"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c \u0441\u0442\u043e\u043f\u043a\u0438"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u0412\u0435\u0441 \u0437\u0430 \u0448\u0442\u0443\u043a\u0443"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u0412\u0435\u0441 \u0441\u0442\u043e\u043f\u043a\u0438"));
+    sortModeCombo->addItem(MyGUI::UString(L"\u0426\u0435\u043d\u0430 / \u0432\u0435\u0441"));
     sortModeCombo->setIndexSelected(ResolveSortModeComboIndex(g_sortMode));
     sortModeCombo->eventComboAccept += MyGUI::newDelegate(&OnSortModeComboAccepted);
 
@@ -2107,7 +2143,7 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
     RememberSearchEditSnapshot(sender);
 }
 
-void DestroyControlsIfPresent()
+void DestroyEmbeddedControlsIfPresent()
 {
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     MyGUI::Widget* sortControlsContainer = FindSortControlsContainer();
@@ -2137,13 +2173,13 @@ void DestroyControlsIfPresent()
         return;
     }
 
-    if (controlsContainer != 0 && g_searchContainerPositionCustomized)
+    if (controlsContainer != 0 && g_searchContainerPositionCustomized && FindWidgetByName(kDockWindowName) == 0)
     {
         const MyGUI::IntCoord coord = controlsContainer->getCoord();
         g_searchContainerStoredLeft = coord.left;
         g_searchContainerStoredTop = coord.top;
     }
-    if (sortControlsContainer != 0 && g_sortContainerPositionCustomized)
+    if (sortControlsContainer != 0 && g_sortContainerPositionCustomized && FindWidgetByName(kDockWindowName) == 0)
     {
         const MyGUI::IntCoord coord = sortControlsContainer->getCoord();
         g_sortContainerStoredLeft = coord.left;
@@ -2189,6 +2225,18 @@ void DestroyControlsIfPresent()
     ClearLockedKeysetSource();
     ClearInventoryGuiInventoryLinks();
     ClearTraderPanelInventoryBindings();
+}
+
+void DestroyControlsIfPresent()
+{
+    MyGUI::EditBox* edit = FindSearchEditBox();
+    if (edit != 0) BlurSearchEdit(edit, "dock_destroyed");
+    ClearTraderHiddenItems();
+    DestroyEmbeddedControlsIfPresent();
+    MyGUI::Widget* panel = FindWidgetByName(kDockWindowName);
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (panel != 0 && gui != 0) gui->destroyWidget(panel);
+    g_dockOwner = 0;
 }
 
 void ApplyRuntimeSearchUiConfig()
@@ -2241,17 +2289,16 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     g_activeTraderTargetId = nextTraderTargetId;
     g_focusSearchEditOnNextInjection = g_autoFocusSearchInput;
 
-    MyGUI::Widget* controlsParent = parent;
-    int topOverride = -1;
-
-    MyGUI::Window* owningWindow = FindOwningWindow(parent);
-    if (owningWindow != 0 && parent != owningWindow)
-    {
-        controlsParent = owningWindow;
-        topOverride = 12;
-    }
-
     DestroyControlsIfPresent();
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    if (gui == 0) return false;
+    g_dockOwner = anchor;
+    const MyGUI::IntCoord inlineCoord = InlineSearchCoord(parent);
+    if (inlineCoord.width < 160 || inlineCoord.height < 22) { g_dockOwner = 0; return false; }
+    MyGUI::Widget* controlsParent = parent->createWidget<MyGUI::Widget>(
+        "PanelEmpty", inlineCoord, MyGUI::Align::Default, kDockWindowName);
+    if (controlsParent == 0) { g_dockOwner = 0; return false; }
+    const int topOverride = 0;
     SearchUiCallbacks callbacks;
     callbacks.onSearchTextChanged = &OnSearchTextChanged;
     callbacks.onSearchEditFocusChanged = &OnSearchEditKeyFocusChanged;
@@ -2259,10 +2306,13 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     callbacks.onSearchClearButtonClicked = &OnSearchClearButtonClicked;
     if (!BuildControlsScaffold(controlsParent, topOverride, callbacks))
     {
-        LogErrorLine("failed to build phase 2 controls scaffold");
+        LogErrorLine("failed to build inline controls");
+        DestroyControlsIfPresent();
         return false;
     }
 
+    PositionInlineControls();
+    UpdateSearchUiState();
     g_controlsWereInjected = true;
     MarkSearchFilterDirty("controls_injected");
     if (ApplySearchFilterToTraderParent(parent, false, ShouldLogSearchDebug()))
@@ -2328,6 +2378,16 @@ void EnsureControlsInjectedIfEnabled()
     {
         return;
     }
+
+    if (g_dockOwner != 0 && FindLiveDockOwner(true) == 0)
+    {
+        ApplySearchFilterFromControls(true, false);
+        DestroyControlsIfPresent();
+        ResetSearchQueryForTraderSwitch("trader_closed");
+        g_activeTraderTargetId.clear();
+    }
+    PositionInlineControls();
+    UpdateSearchUiState();
 
     if (AreControlsScaffoldPresent())
     {

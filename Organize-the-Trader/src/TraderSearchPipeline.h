@@ -15,3 +15,10 @@ void ObserveTraderEntriesStateForRefresh();
 void RestoreSortedInventoryLayoutIfNeeded();
 bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShowAll, bool logSummary);
 void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary);
+
+class InventoryGUI;
+class Item;
+bool IsTraderItemFilteredOut(InventoryGUI* gui, Item* item);
+bool HasTraderMouseFilter(InventoryGUI* gui);
+void ClearTraderHiddenItems();
+void SynchronizeTraderIcons(InventoryGUI* gui);

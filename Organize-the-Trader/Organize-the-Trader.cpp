@@ -12,7 +12,8 @@
 #include <kenshi/RootObject.h>
 #include <kenshi/Character.h>
 #include <kenshi/Dialogue.h>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
+#include <kenshi/GUI/InventoryGUI.h>
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_ComboBox.h>
@@ -46,16 +47,6 @@ public:
     void getBuildingsWithFunction(lektor<Building*>& out, BuildingFunction bf);
 };
 
-class InventoryGUI;
-class InventoryIcon;
-class InventoryLayout;
-class InventorySectionGUI
-{
-public:
-    MyGUI::Widget* _widget;
-    Ogre::vector<InventoryIcon*>::type _icons;
-};
-
 #include "src/TraderCore.h"
 #include "src/TraderDiagnostics.h"
 #include "src/TraderInventoryBinding.h"
@@ -64,6 +55,29 @@ public:
 #include "src/TraderSearchText.h"
 #include "src/TraderModHub.h"
 #include "src/TraderWindowDetection.h"
+
+void SynchronizeTraderIcons(InventoryGUI* gui)
+{
+    if (gui == 0) return;
+    for (Ogre::map<std::string, InventorySectionGUI*>::type::iterator section = gui->inventorySections.begin();
+        section != gui->inventorySections.end(); ++section)
+    {
+        InventorySectionGUI* group = section->second;
+        if (group == 0) continue;
+        for (std::size_t i = 0; i < group->itemsIcons.size(); ++i)
+        {
+            InventoryIcon* icon = group->itemsIcons[i];
+            if (icon == 0 || icon->item == 0) continue;
+            // Derive visual position exclusively from committed native item cells.
+            MyGUI::Widget* widget = icon->getWidget();
+            if (widget != 0)
+            {
+                widget->setPosition(InventoryIcon::getItemPosition(icon->item->inventoryPos.x, icon->item->inventoryPos.y));
+                widget->setVisible(!IsTraderItemFilteredOut(gui, icon->item));
+            }
+        }
+    }
+}
 
 namespace
 {
@@ -151,6 +165,36 @@ const char* kDiagnosticsHotkeyHint = "Ctrl+Shift+F9";
 #define g_lastPanelBindingProbeSignature (TraderState().binding.g_lastPanelBindingProbeSignature)
 #define g_recentRefreshedInventories (TraderState().binding.g_recentRefreshedInventories)
 
+typedef Item* (*MouseItemFn)(InventoryGUI*);
+typedef Item* (*SelectedItemFn)(InventoryGUI*, const std::string&);
+typedef void (*SectionMouseFn)(InventoryGUI*, MyGUI::Widget*, int, int, MyGUI::MouseButton);
+MouseItemFn g_mouseItemOriginal = 0;
+SelectedItemFn g_selectedItemOriginal = 0;
+SectionMouseFn g_mousePressedOriginal = 0;
+SectionMouseFn g_mouseReleasedOriginal = 0;
+Item* FilterMouseItem(InventoryGUI* self)
+{
+    Item* item = g_mouseItemOriginal(self);
+    return IsTraderItemFilteredOut(self, item) ? 0 : item;
+}
+Item* FilterSelectedItem(InventoryGUI* self, const std::string& section)
+{
+    Item* item = g_selectedItemOriginal(self, section);
+    return IsTraderItemFilteredOut(self, item) ? 0 : item;
+}
+bool BlockHiddenMouseItem(InventoryGUI* self)
+{
+    return HasTraderMouseFilter(self) && IsTraderItemFilteredOut(self, g_mouseItemOriginal(self));
+}
+void FilterMousePressed(InventoryGUI* self, MyGUI::Widget* widget, int x, int y, MyGUI::MouseButton button)
+{
+    if (!BlockHiddenMouseItem(self)) g_mousePressedOriginal(self, widget, x, y, button);
+}
+void FilterMouseReleased(InventoryGUI* self, MyGUI::Widget* widget, int x, int y, MyGUI::MouseButton button)
+{
+    if (!BlockHiddenMouseItem(self)) g_mouseReleasedOriginal(self, widget, x, y, button);
+}
+
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
     const unsigned int platform = versionInfo.GetPlatform();
@@ -204,12 +248,12 @@ void InventoryLayoutCreateGUI_hook(
              ++it)
         {
             InventorySectionGUI* sectionGui = it->second;
-            if (sectionGui == 0 || sectionGui->_widget == 0)
+            if (sectionGui == 0 || sectionGui->widget == 0)
             {
                 continue;
             }
 
-            firstSectionWidget = sectionGui->_widget;
+            firstSectionWidget = sectionGui->widget;
             firstSectionName = it->first;
             break;
         }
@@ -240,7 +284,7 @@ void InventoryLayoutCreateGUI_hook(
          ++it)
     {
         InventorySectionGUI* sectionGui = it->second;
-        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->_widget;
+        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->widget;
         if (sectionWidget == 0)
         {
             continue;
@@ -905,6 +949,24 @@ __declspec(dllexport) void startPlugin()
         LogErrorLine("could not hook PlayerInterface::updateUT");
         return;
     }
+
+    if (KenshiLib::AddHook(KenshiLib::GetRealAddress(&InventoryGUI::getMouseItem), FilterMouseItem, &g_mouseItemOriginal) != KenshiLib::SUCCESS
+        || KenshiLib::AddHook(KenshiLib::GetRealAddress(&InventoryGUI::getSelectedItem), FilterSelectedItem, &g_selectedItemOriginal) != KenshiLib::SUCCESS)
+    {
+        g_controlsEnabled = false;
+        LogErrorLine("hidden-item input hooks failed; search disabled");
+        return;
+    }
+    // Some runtime builds expose these callbacks only after export augmentation.
+    // The item lookup hooks above remain the primary filter for selection/hover.
+    HMODULE runtime = GetModuleHandleA("KenshiLib.dll");
+    FARPROC pressed = GetProcAddress(runtime, "?sectionMouseButtonPressed@InventoryGUI@@QEAAXPEAVWidget@MyGUI@@HHUMouseButton@3@@Z");
+    FARPROC released = GetProcAddress(runtime, "?sectionMouseButtonReleased@InventoryGUI@@QEAAXPEAVWidget@MyGUI@@HHUMouseButton@3@@Z");
+    if (pressed != 0)
+        KenshiLib::AddHook(KenshiLib::GetRealAddress(pressed), FilterMousePressed, &g_mousePressedOriginal);
+    if (released != 0)
+        KenshiLib::AddHook(KenshiLib::GetRealAddress(released), FilterMouseReleased, &g_mouseReleasedOriginal);
+    LogInfoLine("native search packing and hidden-item mouse hooks installed");
 
     TraderModHub_OnStartup();
 
