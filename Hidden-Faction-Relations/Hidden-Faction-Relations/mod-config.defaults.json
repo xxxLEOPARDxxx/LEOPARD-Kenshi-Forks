@@ -9,5 +9,9 @@
   "openMenuRequireAlt": true,
   "searchInputWidth": 270,
   "searchInputHeight": 34,
-  "openMenuKeycode": 34
+  "openMenuKeycode": 34,
+  "open_hidden_factions_key": "G",
+  "open_hidden_factions_require_ctrl": true,
+  "open_hidden_factions_require_shift": false,
+  "open_hidden_factions_require_alt": true
 }
