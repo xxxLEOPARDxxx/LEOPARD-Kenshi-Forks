@@ -1,8 +1,13 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "organize_the_inventory"
+#include <Localization.h>
+
 #include "InventoryModHub.h"
 
 #include "InventoryConfig.h"
 #include "InventoryCore.h"
 #include "emc/mod_hub_client.h"
+#include <McmModHubBridge.h>
 
 #include <sstream>
 
@@ -776,7 +781,7 @@ void EnsureModHubClientConfigured()
             sizeof(kCreatureSearchConditionRules) / sizeof(kCreatureSearchConditionRules[0])) };
 
     emc::ModHubClient::Config config;
-    config.table_registration = &kModHubRegistration;
+    config.table_registration = mcm_bridge::Capture(&kModHubRegistration);
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
 }
@@ -786,6 +791,9 @@ void InventoryModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -813,3 +821,6 @@ void InventoryModHub_OnStartup()
 
     LogModHubFallback("invalid_client_configuration");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE("A search bar in inventories that filters items by name.")

@@ -23,11 +23,9 @@
 class Inventory;
 class InventoryGUI;
 class InventoryLayout;
-class InventorySectionGUI
-{
-public:
-    MyGUI::Widget* _widget;
-};
+// InventorySectionGUI - из KenshiLib (widget по смещению 0, как и в
+// прежней заглушке этого файла).
+#include <kenshi/gui/InventoryGUI.h>
 
 namespace
 {
@@ -201,7 +199,7 @@ void InventoryLayoutCreateGUI_hook(
          ++it)
     {
         InventorySectionGUI* sectionGui = it->second;
-        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->_widget;
+        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->widget;
         if (sectionWidget == 0)
         {
             continue;
