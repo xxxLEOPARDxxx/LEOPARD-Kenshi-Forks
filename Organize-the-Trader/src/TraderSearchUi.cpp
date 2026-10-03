@@ -1,4 +1,5 @@
 #include "TraderSearchUi.h"
+#include <WidgetRef.h>
 
 #include "TraderCore.h"
 #include "TraderDiagnostics.h"
@@ -30,6 +31,16 @@
 namespace
 {
 const char* kDockWindowName = "OTT_InlineTraderSearch";
+
+// Пристыкованная панель поиска - по ссылке (shared/WidgetRef.h), без
+// поиска по имени через весь интерфейс каждый кадр.
+MyGUI::Widget* FindSortControlsContainer();
+
+static WidgetRef& DockPanelRef()
+{
+    static WidgetRef* ref = new WidgetRef();   // не разрушается: MyGUI держит его в списке
+    return *ref;
+}
 // Non-owning identity only: validate against GUI roots before dereferencing.
 MyGUI::Widget* g_dockOwner = 0;
 MyGUI::Widget* FindLiveDockOwner(bool requireVisible)
@@ -61,15 +72,16 @@ MyGUI::IntCoord InlineSearchCoord(MyGUI::Widget* parent)
 void PositionInlineControls()
 {
     MyGUI::Widget* owner = FindLiveDockOwner(true);
-    MyGUI::Widget* panel = FindWidgetByName(kDockWindowName);
-    if (owner == 0 || panel == 0) return;
+    if (owner == 0) return;
+    MyGUI::Widget* panel = DockPanelRef().get();
+    if (panel == 0) return;
     MyGUI::Widget* parent = ResolveInjectionParent(owner);
     if (parent == 0) return;
     const MyGUI::IntCoord coord = InlineSearchCoord(parent);
     if (panel->getCoord() != coord) panel->setCoord(coord);
-    MyGUI::Widget* search = FindWidgetByName("OTT_TraderControlsContainer");
+    MyGUI::Widget* search = FindControlsContainer();
     if (search != 0) search->setSize(coord.width, coord.height);
-    MyGUI::Widget* sort = FindWidgetByName("OTT_TraderSortControlsContainer");
+    MyGUI::Widget* sort = FindSortControlsContainer();
     MyGUI::Widget* arrange = FindWidgetInParentByToken(parent, "ArrangeButton");
     if (sort != 0 && arrange != 0)
     {
@@ -81,9 +93,9 @@ void PositionInlineControls()
         if (width >= 180)
         {
             sort->setCoord(8, button.top - origin.top, width, button.height);
-            MyGUI::Widget* combo = FindWidgetByName("OTT_SortModeCombo");
-            MyGUI::Widget* direction = FindWidgetByName("OTT_SortDirectionButton");
-            MyGUI::Widget* label = FindWidgetByName("OTT_SortLabel");
+            MyGUI::Widget* combo = FindNamedDescendantRecursive(sort, "OTT_SortModeCombo", false);
+            MyGUI::Widget* direction = FindNamedDescendantRecursive(sort, "OTT_SortDirectionButton", false);
+            MyGUI::Widget* label = FindNamedDescendantRecursive(sort, "OTT_SortLabel", false);
             const int height = button.height > 22 ? button.height - 4 : 18;
             if (label != 0) label->setCoord(6, 2, 52, height);
             if (combo != 0) combo->setCoord(62, 2, width - 98, height);
@@ -483,9 +495,24 @@ MyGUI::IntCoord ClampPanelCoord(MyGUI::Widget* parent, const MyGUI::IntCoord& in
     return MyGUI::IntCoord(left, top, width, height);
 }
 
+// Своя панель - по ссылке, которая сама обнуляется при удалении виджета
+// (shared/WidgetRef.h). Раньше её искали по имени через весь интерфейс по
+// нескольку раз за кадр, и пока окно закрыто - всегда безуспешно.
+static WidgetRef& ControlsContainerRef()
+{
+    static WidgetRef* ref = new WidgetRef();   // не разрушается: MyGUI держит его в списке
+    return *ref;
+}
+
+static WidgetRef& SortControlsContainerRef()
+{
+    static WidgetRef* ref = new WidgetRef();
+    return *ref;
+}
+
 MyGUI::Widget* FindSortControlsContainer()
 {
-    return FindWidgetByName(kSortControlsContainerName);
+    return SortControlsContainerRef().get();
 }
 
 void RememberSearchContainerPosition(MyGUI::Widget* container)
@@ -917,7 +944,7 @@ void EnsureControlsInjectedIfEnabled();
 
 MyGUI::Widget* FindControlsContainer()
 {
-    return FindWidgetByName(kControlsContainerName);
+    return ControlsContainerRef().get();
 }
 
 MyGUI::EditBox* FindSearchEditBox()
@@ -1425,6 +1452,7 @@ bool BuildControlsScaffold(
         LogErrorLine("failed to create controls container");
         return false;
     }
+    ControlsContainerRef().set(container);
 
     MyGUI::Widget* sortContainer = 0;
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
@@ -1549,6 +1577,7 @@ bool BuildControlsScaffold(
         sortContainerCoord,
         MyGUI::Align::Right | MyGUI::Align::Top,
         kSortControlsContainerName);
+    SortControlsContainerRef().set(sortContainer);
     if (sortContainer == 0)
     {
         LogErrorLine("failed to create sort controls container");
@@ -2173,13 +2202,13 @@ void DestroyEmbeddedControlsIfPresent()
         return;
     }
 
-    if (controlsContainer != 0 && g_searchContainerPositionCustomized && FindWidgetByName(kDockWindowName) == 0)
+    if (controlsContainer != 0 && g_searchContainerPositionCustomized && DockPanelRef().get() == 0)
     {
         const MyGUI::IntCoord coord = controlsContainer->getCoord();
         g_searchContainerStoredLeft = coord.left;
         g_searchContainerStoredTop = coord.top;
     }
-    if (sortControlsContainer != 0 && g_sortContainerPositionCustomized && FindWidgetByName(kDockWindowName) == 0)
+    if (sortControlsContainer != 0 && g_sortContainerPositionCustomized && DockPanelRef().get() == 0)
     {
         const MyGUI::IntCoord coord = sortControlsContainer->getCoord();
         g_sortContainerStoredLeft = coord.left;
@@ -2233,7 +2262,7 @@ void DestroyControlsIfPresent()
     if (edit != 0) BlurSearchEdit(edit, "dock_destroyed");
     ClearTraderHiddenItems();
     DestroyEmbeddedControlsIfPresent();
-    MyGUI::Widget* panel = FindWidgetByName(kDockWindowName);
+    MyGUI::Widget* panel = DockPanelRef().get();
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (panel != 0 && gui != 0) gui->destroyWidget(panel);
     g_dockOwner = 0;
@@ -2298,6 +2327,7 @@ bool TryInjectControlsToTarget(MyGUI::Widget* anchor, MyGUI::Widget* parent, con
     MyGUI::Widget* controlsParent = parent->createWidget<MyGUI::Widget>(
         "PanelEmpty", inlineCoord, MyGUI::Align::Default, kDockWindowName);
     if (controlsParent == 0) { g_dockOwner = 0; return false; }
+    DockPanelRef().set(controlsParent);
     const int topOverride = 0;
     SearchUiCallbacks callbacks;
     callbacks.onSearchTextChanged = &OnSearchTextChanged;
@@ -2398,6 +2428,16 @@ void EnsureControlsInjectedIfEnabled()
     {
         DestroyControlsIfPresent();
     }
+
+    // Окно торговли ищем не каждый кадр: панель появится с задержкой не
+    // больше 0,1 с, а перебор окон в каждом кадре стоил впустую.
+    static DWORD s_lastTargetScanMs = 0;
+    const DWORD nowMs = GetTickCount();
+    if (s_lastTargetScanMs != 0 && nowMs - s_lastTargetScanMs < 100)
+    {
+        return;
+    }
+    s_lastTargetScanMs = nowMs;
 
     MyGUI::Widget* anchor = 0;
     MyGUI::Widget* parent = 0;

@@ -91,3 +91,7 @@ The script reads the latest `RE_Kenshi_log.txt` session and passes only when the
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- Производительность: панели поиска и сортировки и пристыкованная панель запоминаются при создании (shared/WidgetRef.h) вместо поиска по имени через весь интерфейс - до восьми полных обходов за кадр. Окно торговли, пока панели нет, ищется 10 раз в секунду.
