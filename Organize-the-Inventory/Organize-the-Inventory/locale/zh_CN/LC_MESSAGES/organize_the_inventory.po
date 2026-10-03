@@ -103,3 +103,6 @@ msgstr "动物搜索框高度"
 
 msgid "Desired creature search input height in pixels"
 msgstr "动物物品栏搜索框高度（像素）"
+
+msgid "Advanced"
+msgstr "高级"

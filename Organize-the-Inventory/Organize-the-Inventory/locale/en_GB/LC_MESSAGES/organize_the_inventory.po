@@ -103,3 +103,6 @@ msgstr "Animal search field height"
 
 msgid "Desired creature search input height in pixels"
 msgstr "Height of the search field in animal inventories, px"
+
+msgid "Advanced"
+msgstr "Advanced"

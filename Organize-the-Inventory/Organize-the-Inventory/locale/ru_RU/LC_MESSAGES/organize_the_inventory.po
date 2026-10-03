@@ -103,3 +103,6 @@ msgstr "Высота поля поиска у животных"
 
 msgid "Desired creature search input height in pixels"
 msgstr "Высота поля поиска в инвентаре животных, пикс."
+
+msgid "Advanced"
+msgstr "Дополнительно"
