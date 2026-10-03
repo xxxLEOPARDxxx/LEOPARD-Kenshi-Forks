@@ -130,3 +130,7 @@ After deploy, expected files are:
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- Производительность: пока карта закрыта, мод ничего не делает (признак открытой карты - вызовы MapScreen::update). Раньше он каждый кадр по нескольку раз обходил весь интерфейс в поисках карты. При открытой карте картинка карты ищется один раз за кадр, смена сохранения проверяется раз в секунду.

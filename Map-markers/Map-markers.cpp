@@ -14,6 +14,7 @@
 #include <core/Functions.h>
 #include <kenshi/InputHandler.h>
 #include <kenshi/Kenshi.h>
+#include <kenshi/gui/MapScreen.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/SaveFileSystem.h>
 #include <kenshi/SaveManager.h>
@@ -1129,7 +1130,30 @@ MyGUI::Widget* FindMapTabInParentChain(MyGUI::Widget* widget)
     return 0;
 }
 
+// Картинку карты ищут обходом всех видимых окон. Внутри одного тика её
+// спрашивали четыре раза - теперь находим один раз и отдаём запомненную.
+// Вне тика (обработчики клавиш) - честный поиск.
+bool g_mapImageTickCacheActive = false;
+bool g_mapImageTickCacheFilled = false;
+MyGUI::ImageBox* g_mapImageTickCache = 0;
+
+MyGUI::ImageBox* FindActiveMapImageScan();
+
 MyGUI::ImageBox* FindActiveMapImage()
+{
+    if (!g_mapImageTickCacheActive)
+    {
+        return FindActiveMapImageScan();
+    }
+    if (!g_mapImageTickCacheFilled)
+    {
+        g_mapImageTickCache = FindActiveMapImageScan();
+        g_mapImageTickCacheFilled = true;
+    }
+    return g_mapImageTickCache;
+}
+
+MyGUI::ImageBox* FindActiveMapImageScan()
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
@@ -3684,6 +3708,37 @@ void SaveManager_import_hook(SaveManager* thisptr, const SaveInfo& saveInfo, int
     }
 }
 
+// Открыта ли карта - по вызовам MapScreen::update: игра зовёт его только
+// пока карта на экране. Без этого мод каждый кадр по нескольку раз обходил
+// весь интерфейс в поисках карты, которой нет.
+bool g_mapScreenHooked = false;
+DWORD g_lastMapScreenUpdateMs = 0;
+
+bool IsMapScreenLikelyOpen(DWORD now)
+{
+    if (!g_mapScreenHooked)
+    {
+        return true;                    // без перехвата - по-старому, искать каждый кадр
+    }
+    return g_lastMapScreenUpdateMs != 0 && now - g_lastMapScreenUpdateMs < 300;
+}
+
+struct MapImageTickCacheScope
+{
+    MapImageTickCacheScope()
+    {
+        g_mapImageTickCacheActive = true;
+        g_mapImageTickCacheFilled = false;
+        g_mapImageTickCache = 0;
+    }
+    ~MapImageTickCacheScope()
+    {
+        g_mapImageTickCacheActive = false;
+        g_mapImageTickCacheFilled = false;
+        g_mapImageTickCache = 0;
+    }
+};
+
 void TickUiDiagnostics()
 {
     if (g_markerEditorDragging && (GetAsyncKeyState(VK_LBUTTON) & 0x8000) == 0)
@@ -3692,7 +3747,22 @@ void TickUiDiagnostics()
     }
 
     TickPendingSaveTransition();
-    LogSaveIdentityIfChanged(false);
+
+    const DWORD tickNow = GetTickCount();
+    if (!IsMapScreenLikelyOpen(tickNow) && !g_mapWasVisible && !g_markerEditorDragging && !g_probeLive)
+    {
+        return;                         // карта закрыта и была закрыта: делать нечего
+    }
+
+    MapImageTickCacheScope mapImageCache;
+
+    // Смена сохранения: при открытии карты - сразу, дальше раз в секунду.
+    static DWORD s_lastSaveIdentityCheckMs = 0;
+    if (!g_mapWasVisible || tickNow - s_lastSaveIdentityCheckMs >= 1000)
+    {
+        s_lastSaveIdentityCheckMs = tickNow;
+        LogSaveIdentityIfChanged(false);
+    }
     const MyGUI::ImageBox* activeMapImage = FindActiveMapImage();
     const bool mapVisibleNow = activeMapImage != 0 && activeMapImage->getInheritedVisible();
     if (!mapVisibleNow && g_mapWasVisible && g_closeEditorOnMapClose)
@@ -3724,6 +3794,17 @@ void TickUiDiagnostics()
     {
         g_lastHoverLogTick = now;
         LogHoveredWidgetState(false);
+    }
+}
+
+void (*MapScreen_update_orig)(MapScreen* thisptr) = 0;
+
+void MapScreen_update_hook(MapScreen* thisptr)
+{
+    g_lastMapScreenUpdateMs = GetTickCount();
+    if (MapScreen_update_orig)
+    {
+        MapScreen_update_orig(thisptr);
     }
 }
 
@@ -3848,6 +3929,16 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Map-markers: could not hook InputHandler::keyDownEvent");
         return;
+    }
+
+    // Признак открытой карты. Не встал - мод работает по-старому, только дороже.
+    g_mapScreenHooked = KenshiLib::SUCCESS == KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&MapScreen::update),
+        MapScreen_update_hook,
+        &MapScreen_update_orig);
+    if (!g_mapScreenHooked)
+    {
+        ErrorLog("Map-markers WARN: could not hook MapScreen::update; the map is searched every frame");
     }
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
