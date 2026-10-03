@@ -1,3 +1,4 @@
+#include <McmModHubBridge.h>
 const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "vital_read";
@@ -430,6 +431,9 @@ void LogModHubFallback(const char* reason)
 
 void StartModHubClient()
 {
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -463,3 +467,6 @@ void StartModHubClient()
 
     LogModHubFallback("invalid_client_configuration");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(&g_modHubTableRegistration, "State icons on squad portraits: unconscious, coma, dying, playing dead, starving, crippled limbs.")

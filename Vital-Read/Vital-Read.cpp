@@ -1,3 +1,7 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "vital_read"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include "vr_config.h"
@@ -13,7 +17,7 @@
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Platoon.h>
-#include <kenshi/TitleScreen.h>
+#include <kenshi/gui/TitleScreen.h>
 
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
