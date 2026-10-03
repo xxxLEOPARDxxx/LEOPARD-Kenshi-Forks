@@ -702,20 +702,168 @@ bool TryResolveSortedGridMetrics(
     return true;
 }
 
+// Раскладка для поиска и сортировки.
+//
+// Первые leadingCount записей displayOrder - найденные (или все, если
+// поиска нет и включена сортировка): они встают в начало сетки, в своём
+// порядке. Остальные - скрытые поиском - занимают оставшееся место плотно.
+//
+// Раньше все записи, и скрытые тоже, ставились полками: ряд высотой с самую
+// высокую вещь плюс пустой ряд. У торговца сотня с лишним вещей, полки не
+// влезали в сетку (shelf_overflow), и раскладка отменялась целиком - вещи
+// оставались на своих местах, найденное было разбросано по сетке.
+//
+// Порядок попыток: найденное полками, если не влезло - найденное плотно
+// (первое свободное место слева направо, сверху вниз). Скрытые - всегда
+// плотно, крупные первыми: так меньше дыр.
+namespace
+{
+bool TryFirstFitCell(
+    const std::vector<char>& occupancy,
+    int columns,
+    int rows,
+    int widthCells,
+    int heightCells,
+    int* outLeft,
+    int* outTop)
+{
+    for (int top = 0; top + heightCells <= rows; ++top)
+    {
+        for (int left = 0; left + widthCells <= columns; ++left)
+        {
+            if (CanPlaceEntryFootprint(occupancy, columns, rows, left, top, widthCells, heightCells))
+            {
+                *outLeft = left;
+                *outTop = top;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+struct PackSpan
+{
+    std::size_t sourceIndex;
+    int widthCells;
+    int heightCells;
+};
+
+struct PackSpanLargerFirst
+{
+    bool operator()(const PackSpan& left, const PackSpan& right) const
+    {
+        return left.widthCells * left.heightCells > right.widthCells * right.heightCells;
+    }
+};
+
+bool TryPackEntries(
+    const std::vector<OrderedEntry>& orderedEntries,
+    const std::vector<PackSpan>& leading,
+    const std::vector<PackSpan>& trailing,
+    const SortedGridMetrics& grid,
+    bool shelvesForLeading,
+    std::vector<MyGUI::IntCoord>* outTargetCoords,
+    std::string* outFailureReason)
+{
+    const int columns = grid.columns;
+    const int rows = grid.rows;
+    std::vector<char> occupancy(columns * rows, 0);
+
+    int shelfTopCell = 0;
+    int shelfLeftCell = 0;
+    int shelfHeightCells = 0;
+    bool shelfHasEntries = false;
+    for (std::size_t i = 0; i < leading.size(); ++i)
+    {
+        const PackSpan& span = leading[i];
+        int left = 0;
+        int top = 0;
+        if (shelvesForLeading)
+        {
+            if (shelfHasEntries && shelfLeftCell + span.widthCells > columns)
+            {
+                shelfTopCell += shelfHeightCells + kSortedShelfGapRows;
+                shelfLeftCell = 0;
+                shelfHeightCells = 0;
+                shelfHasEntries = false;
+            }
+            if (shelfTopCell + span.heightCells > rows
+                || !CanPlaceEntryFootprint(occupancy, columns, rows, shelfLeftCell, shelfTopCell,
+                                           span.widthCells, span.heightCells))
+            {
+                std::stringstream line;
+                line << "shelf_overflow:index=" << span.sourceIndex << ",top_cell=" << shelfTopCell
+                     << ",rows=" << rows;
+                *outFailureReason = line.str();
+                return false;
+            }
+            left = shelfLeftCell;
+            top = shelfTopCell;
+            shelfLeftCell += span.widthCells;
+            if (span.heightCells > shelfHeightCells)
+            {
+                shelfHeightCells = span.heightCells;
+            }
+            shelfHasEntries = true;
+        }
+        else if (!TryFirstFitCell(occupancy, columns, rows, span.widthCells, span.heightCells, &left, &top))
+        {
+            std::stringstream line;
+            line << "leading_no_room:index=" << span.sourceIndex;
+            *outFailureReason = line.str();
+            return false;
+        }
+
+        FillEntryFootprint(&occupancy, columns, left, top, span.widthCells, span.heightCells);
+        const OrderedEntry& entry = orderedEntries[span.sourceIndex];
+        (*outTargetCoords)[span.sourceIndex] = MyGUI::IntCoord(
+            grid.originLeft + left * grid.cellWidth,
+            grid.originTop + top * grid.cellHeight,
+            entry.coord.width,
+            entry.coord.height);
+    }
+
+    for (std::size_t i = 0; i < trailing.size(); ++i)
+    {
+        const PackSpan& span = trailing[i];
+        int left = 0;
+        int top = 0;
+        if (!TryFirstFitCell(occupancy, columns, rows, span.widthCells, span.heightCells, &left, &top))
+        {
+            std::stringstream line;
+            line << "trailing_no_room:index=" << span.sourceIndex
+                 << ",width_cells=" << span.widthCells << ",height_cells=" << span.heightCells;
+            *outFailureReason = line.str();
+            return false;
+        }
+        FillEntryFootprint(&occupancy, columns, left, top, span.widthCells, span.heightCells);
+        const OrderedEntry& entry = orderedEntries[span.sourceIndex];
+        (*outTargetCoords)[span.sourceIndex] = MyGUI::IntCoord(
+            grid.originLeft + left * grid.cellWidth,
+            grid.originTop + top * grid.cellHeight,
+            entry.coord.width,
+            entry.coord.height);
+    }
+    return true;
+}
+}
+
 bool TryBuildSortedTargetCoords(
     MyGUI::Widget* entriesRoot,
     const std::vector<OrderedEntry>& orderedEntries,
     const std::vector<std::size_t>& displayOrder,
+    std::size_t leadingCount,
     std::vector<MyGUI::IntCoord>* outTargetCoords,
     SortedGridMetrics* outGridMetrics,
     std::string* outFailureReason)
 {
+    std::string localReason;
+    std::string* reason = outFailureReason != 0 ? outFailureReason : &localReason;
+
     if (entriesRoot == 0 || outTargetCoords == 0)
     {
-        if (outFailureReason != 0)
-        {
-            *outFailureReason = "missing_entries_root";
-        }
+        *reason = "missing_entries_root";
         return false;
     }
 
@@ -728,10 +876,7 @@ bool TryBuildSortedTargetCoords(
 
     if (orderedEntries.size() != displayOrder.size() || orderedEntries.empty())
     {
-        if (outFailureReason != 0)
-        {
-            *outFailureReason = orderedEntries.empty() ? "empty_ordered_entries" : "display_order_mismatch";
-        }
+        *reason = orderedEntries.empty() ? "empty_ordered_entries" : "display_order_mismatch";
         return false;
     }
 
@@ -740,129 +885,61 @@ bool TryBuildSortedTargetCoords(
     {
         return false;
     }
-    const int cellWidth = gridMetrics.cellWidth;
-    const int cellHeight = gridMetrics.cellHeight;
-    const int originLeft = gridMetrics.originLeft;
-    const int originTop = gridMetrics.originTop;
-    const int columns = gridMetrics.columns;
-    const int rows = gridMetrics.rows;
     if (outGridMetrics != 0)
     {
         *outGridMetrics = gridMetrics;
     }
 
-    std::vector<char> occupancy(columns * rows, 0);
-    int shelfTopCell = 0;
-    int shelfLeftCell = 0;
-    int shelfHeightCells = 0;
-    bool shelfHasEntries = false;
+    std::vector<PackSpan> leading;
+    std::vector<PackSpan> trailing;
+    leading.reserve(displayOrder.size());
+    trailing.reserve(displayOrder.size());
     for (std::size_t orderIndex = 0; orderIndex < displayOrder.size(); ++orderIndex)
     {
         const std::size_t sourceIndex = displayOrder[orderIndex];
-        if (sourceIndex >= orderedEntries.size())
+        if (sourceIndex >= orderedEntries.size() || orderedEntries[sourceIndex].widget == 0)
         {
             continue;
         }
 
         const OrderedEntry& entry = orderedEntries[sourceIndex];
-        if (entry.widget == 0)
+        PackSpan span;
+        span.sourceIndex = sourceIndex;
+        span.widthCells = ResolveEntrySpanCells(entry.coord.width, entry.widthCells, gridMetrics.cellWidth);
+        span.heightCells = ResolveEntrySpanCells(entry.coord.height, entry.heightCells, gridMetrics.cellHeight);
+        if (span.widthCells <= 0
+            || span.heightCells <= 0
+            || span.widthCells > gridMetrics.columns
+            || span.heightCells > gridMetrics.rows)
         {
-            continue;
-        }
-
-        const int widthCells =
-            ResolveEntrySpanCells(entry.coord.width, entry.widthCells, cellWidth);
-        const int heightCells =
-            ResolveEntrySpanCells(entry.coord.height, entry.heightCells, cellHeight);
-        if (widthCells <= 0
-            || heightCells <= 0
-            || widthCells > columns
-            || heightCells > rows)
-        {
-            if (outFailureReason != 0)
-            {
-                std::stringstream line;
-                line << "entry_span_invalid:index=" << sourceIndex
-                     << ",width_cells=" << widthCells
-                     << ",height_cells=" << heightCells
-                     << ",columns=" << columns
-                     << ",rows=" << rows;
-                *outFailureReason = line.str();
-            }
+            std::stringstream line;
+            line << "entry_span_invalid:index=" << sourceIndex
+                 << ",width_cells=" << span.widthCells
+                 << ",height_cells=" << span.heightCells
+                 << ",columns=" << gridMetrics.columns
+                 << ",rows=" << gridMetrics.rows;
+            *reason = line.str();
             return false;
         }
 
-        if (shelfHasEntries && shelfLeftCell + widthCells > columns)
+        if (orderIndex < leadingCount)
         {
-            shelfTopCell += shelfHeightCells + kSortedShelfGapRows;
-            shelfLeftCell = 0;
-            shelfHeightCells = 0;
-            shelfHasEntries = false;
+            leading.push_back(span);
         }
-
-        if (shelfTopCell + heightCells > rows)
+        else
         {
-            if (outFailureReason != 0)
-            {
-                std::stringstream line;
-                line << "shelf_overflow:index=" << sourceIndex
-                     << ",width_cells=" << widthCells
-                     << ",height_cells=" << heightCells
-                     << ",top_cell=" << shelfTopCell
-                     << ",rows=" << rows;
-                *outFailureReason = line.str();
-            }
-            return false;
+            trailing.push_back(span);
         }
-
-        if (!CanPlaceEntryFootprint(
-                occupancy,
-                columns,
-                rows,
-                shelfLeftCell,
-                shelfTopCell,
-                widthCells,
-                heightCells))
-        {
-            if (outFailureReason != 0)
-            {
-                std::stringstream line;
-                line << "shelf_placement_blocked:index=" << sourceIndex
-                     << ",left_cell=" << shelfLeftCell
-                     << ",top_cell=" << shelfTopCell
-                     << ",width_cells=" << widthCells
-                     << ",height_cells=" << heightCells;
-                *outFailureReason = line.str();
-            }
-            return false;
-        }
-
-        FillEntryFootprint(
-            &occupancy,
-            columns,
-            shelfLeftCell,
-            shelfTopCell,
-            widthCells,
-            heightCells);
-        (*outTargetCoords)[sourceIndex] = MyGUI::IntCoord(
-            originLeft + (shelfLeftCell * cellWidth),
-            originTop + (shelfTopCell * cellHeight),
-            entry.coord.width,
-            entry.coord.height);
-
-        shelfLeftCell += widthCells;
-        if (heightCells > shelfHeightCells)
-        {
-            shelfHeightCells = heightCells;
-        }
-        shelfHasEntries = true;
     }
+    std::stable_sort(trailing.begin(), trailing.end(), PackSpanLargerFirst());
 
-    if (outFailureReason != 0)
+    if (TryPackEntries(orderedEntries, leading, trailing, gridMetrics, true, outTargetCoords, reason)
+        || TryPackEntries(orderedEntries, leading, trailing, gridMetrics, false, outTargetCoords, reason))
     {
-        outFailureReason->clear();
+        reason->clear();
+        return true;
     }
-    return true;
+    return false;
 }
 
 void ResetSortedInventoryLayoutState()
@@ -2334,6 +2411,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     }
 
     std::vector<std::size_t> displayOrder;
+    std::size_t leadingCount = 0;           // сколько первых в displayOrder - найденные
     // Filtering and sorting both use native cell movement; never pack pictures alone.
     const bool shouldApplySearchLayout = hasActiveFilter && !entries.empty();
     const bool shouldApplySortLayout =
@@ -2420,6 +2498,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
                 SortMetricSorter(&entries, g_sortMode, g_sortDirection));
         }
 
+        leadingCount = visibleEntryIndices.size();
         displayOrder.insert(
             displayOrder.end(),
             visibleEntryIndices.begin(),
@@ -2440,6 +2519,7 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
             entriesRoot,
             orderedEntries,
             displayOrder,
+            leadingCount,
             &targetCoords,
             &sortedGridMetrics,
             &sortLayoutFailureReason);
@@ -2521,6 +2601,34 @@ bool ApplySearchFilterToTraderParent(MyGUI::Widget* traderParent, bool forceShow
     else
     {
         g_expectedSortedInventoryLayoutSignature.clear();
+    }
+
+    // Поиск без сортировки тоже собирает найденное в начало сетки. Если не
+    // вышло - причина одной строкой на запрос, и без отладочного режима:
+    // иначе «вещи остались на местах» не разобрать.
+    if (hasActiveFilter && g_sortMode == TraderSortMode_None)
+    {
+        static std::string s_lastPackFailure;
+        const std::string reason = !hasPanelBinding
+            ? std::string("no_panel_binding:") + panelBindingStatus
+            : inventoryLayoutFailureReason;
+        const std::string key = queryLogKey + "|" + reason;
+        if (!reason.empty() && key != s_lastPackFailure)
+        {
+            s_lastPackFailure = key;
+            std::stringstream line;
+            line << "search packing skipped reason=" << reason
+                 << " layout=" << (sortedLayoutApplied ? 1 : 0)
+                 << " layout_reason=" << sortLayoutFailureReason
+                 << " entries=" << entries.size()
+                 << " grid=" << sortedGridMetrics.columns << "x" << sortedGridMetrics.rows
+                 << " cell=" << sortedGridMetrics.cellWidth << "x" << sortedGridMetrics.cellHeight;
+            LogWarnLine(line.str());
+        }
+        else if (reason.empty())
+        {
+            s_lastPackFailure.clear();
+        }
     }
 
     if (g_sortMode != TraderSortMode_None
