@@ -1,3 +1,7 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "hidden_faction_relations"
+#include <Localization.h>
+
 #include "HiddenFactionRelationsModHub.h"
 
 #include "HiddenFactionRelationsConfig.h"
@@ -5,6 +9,8 @@
 #include <Debug.h>
 
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#include <McmModHubBridge.h>
 
 #include <ois/OISKeyboard.h>
 #include <sstream>
@@ -450,7 +456,7 @@ void EnsureModHubClientConfigured()
     };
 
     emc::ModHubClient::Config config;
-    config.table_registration = &kModHubRegistration;
+    config.table_registration = mcm_bridge::Capture(&kModHubRegistration);
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
 }
@@ -460,6 +466,9 @@ void HiddenFactionRelationsModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -487,3 +496,6 @@ void HiddenFactionRelationsModHub_OnStartup()
 
     LogWarnLine("event=mod_hub_fallback reason=invalid_client_configuration use_hub_ui=0");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE("An Options tab with your relations toward the hidden factions.")

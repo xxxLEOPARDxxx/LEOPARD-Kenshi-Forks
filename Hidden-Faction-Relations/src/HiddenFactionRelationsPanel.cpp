@@ -9,7 +9,7 @@
 #include <core/Functions.h>
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
-#include <kenshi/TitleScreen.h>
+#include <kenshi/gui/TitleScreen.h>
 #include <kenshi/util/lektor.h>
 
 #include <mygui/MyGUI_Button.h>
