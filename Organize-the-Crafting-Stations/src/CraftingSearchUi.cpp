@@ -7,6 +7,7 @@
 #include "CraftingSearchPipeline.h"
 #include "CraftingSearchText.h"
 #include "CraftingWindowDetection.h"
+#include <WidgetRef.h>
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
@@ -781,9 +782,18 @@ bool IsSlashCharacterChordDown(bool shiftDown, bool ctrlDown, bool altDown)
 void OnSearchEditKeyPressed(MyGUI::Widget* sender, MyGUI::KeyCode keyCode, MyGUI::Char character);
 void OnSearchEditKeyReleased(MyGUI::Widget* sender, MyGUI::KeyCode keyCode);
 
+// Своя панель - по ссылке, которая сама обнуляется при удалении виджета
+// (shared/WidgetRef.h). Раньше её искали по имени через весь интерфейс по
+// нескольку раз за кадр, и пока окно закрыто - всегда безуспешно.
+static WidgetRef& ControlsContainerRef()
+{
+    static WidgetRef* ref = new WidgetRef();   // не разрушается: MyGUI держит его в списке
+    return *ref;
+}
+
 MyGUI::Widget* FindControlsContainer()
 {
-    return FindWidgetByName(kControlsContainerName);
+    return ControlsContainerRef().get();
 }
 
 MyGUI::EditBox* FindSearchEditBox()
@@ -1202,6 +1212,7 @@ bool BuildControlsScaffold(
         LogErrorLine("failed to create controls container");
         return false;
     }
+    ControlsContainerRef().set(container);
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
     int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
     int countGap = countWidth > 0 ? kSearchCountGap : 0;
@@ -1859,6 +1870,16 @@ void EnsureControlsInjectedIfEnabled()
         ApplySearchFilterFromControls(true, false);
         DestroyControlsIfPresent();
     }
+
+    // Окно крафта ищем не каждый кадр: панель появится с задержкой не
+    // больше 0,1 с, а перебор окон в каждом кадре стоил впустую.
+    static DWORD s_lastTargetScanMs = 0;
+    const DWORD nowMs = GetTickCount();
+    if (s_lastTargetScanMs != 0 && nowMs - s_lastTargetScanMs < 100)
+    {
+        return;
+    }
+    s_lastTargetScanMs = nowMs;
 
     MyGUI::Widget* anchor = 0;
     MyGUI::Widget* parent = 0;

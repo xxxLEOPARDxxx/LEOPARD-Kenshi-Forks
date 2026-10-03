@@ -41,3 +41,7 @@ The authoritative developer role is:
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- Производительность: своя панель поиска запоминается при создании (shared/WidgetRef.h) и сама забывается, когда MyGUI её удаляет. Раньше её искали по имени через весь интерфейс по нескольку раз за кадр. Окно крафта, пока панели нет, ищется 10 раз в секунду, а не каждый кадр.
