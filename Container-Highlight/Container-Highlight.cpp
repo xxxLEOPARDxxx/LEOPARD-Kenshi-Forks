@@ -1,7 +1,12 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "container_highlight"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include <core/Functions.h>
 #include "emc/mod_hub_client.h"
+#include <McmModHubBridge.h>
 #include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>
@@ -3871,6 +3876,9 @@ void ConfigureModHubClient()
 
 void StartModHubClient()
 {
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -8476,3 +8484,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD fdwReason, LPVOID)
 
     return TRUE;
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(GetModHubTableRegistration(), "Highlights nearby containers with a marker and a tint while the highlight key is held.")
