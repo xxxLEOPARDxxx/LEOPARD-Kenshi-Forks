@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Hidden-Faction-Relations\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "An Options tab with your relations toward the hidden factions."
+msgstr "设置中的一个标签页，显示你与隐藏派系的关系。"
+
+msgid "Auto-focus search on open"
+msgstr "自动聚焦搜索框"
+
+msgid "Focus the Hidden Factions search box when the tab opens"
+msgstr "打开标签页时自动将光标放入搜索框"
+
+msgid "Open Hidden Factions key"
+msgstr "隐藏派系按键"
+
+msgid "Gameplay shortcut key that opens Options on the Hidden Factions tab"
+msgstr "打开设置窗口并切换到隐藏派系标签页。NONE - 不设按键"
+
+msgid "Open shortcut requires Ctrl"
+msgstr "需要 Ctrl"
+
+msgid "Require Ctrl for the gameplay Hidden Factions shortcut"
+msgstr "需要同时按住 Ctrl"
+
+msgid "Open shortcut requires Shift"
+msgstr "需要 Shift"
+
+msgid "Require Shift for the gameplay Hidden Factions shortcut"
+msgstr "需要同时按住 Shift"
+
+msgid "Open shortcut requires Alt"
+msgstr "需要 Alt"
+
+msgid "Require Alt for the gameplay Hidden Factions shortcut"
+msgstr "需要同时按住 Alt"
+
+msgid "Search width"
+msgstr "搜索框宽度"
+
+msgid "Preferred Hidden Factions search box width in pixels"
+msgstr "搜索框宽度（像素）"
+
+msgid "Search height"
+msgstr "搜索框高度"
+
+msgid "Preferred Hidden Factions control height in pixels"
+msgstr "搜索框和按钮的高度（像素）"

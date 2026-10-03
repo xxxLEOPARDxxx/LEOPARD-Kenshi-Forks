@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Hidden-Faction-Relations\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "An Options tab with your relations toward the hidden factions."
+msgstr "An Options tab with your relations toward the hidden factions."
+
+msgid "Auto-focus search on open"
+msgstr "Auto-focus search"
+
+msgid "Focus the Hidden Factions search box when the tab opens"
+msgstr "Puts the cursor into the search field when the tab opens"
+
+msgid "Open Hidden Factions key"
+msgstr "Hidden factions key"
+
+msgid "Gameplay shortcut key that opens Options on the Hidden Factions tab"
+msgstr "Opens the Options window on the hidden factions tab. NONE - no key"
+
+msgid "Open shortcut requires Ctrl"
+msgstr "Require Ctrl"
+
+msgid "Require Ctrl for the gameplay Hidden Factions shortcut"
+msgstr "Ctrl must be held together with the key"
+
+msgid "Open shortcut requires Shift"
+msgstr "Require Shift"
+
+msgid "Require Shift for the gameplay Hidden Factions shortcut"
+msgstr "Shift must be held together with the key"
+
+msgid "Open shortcut requires Alt"
+msgstr "Require Alt"
+
+msgid "Require Alt for the gameplay Hidden Factions shortcut"
+msgstr "Alt must be held together with the key"
+
+msgid "Search width"
+msgstr "Search width"
+
+msgid "Preferred Hidden Factions search box width in pixels"
+msgstr "Width of the search field, px"
+
+msgid "Search height"
+msgstr "Search height"
+
+msgid "Preferred Hidden Factions control height in pixels"
+msgstr "Height of the search field and buttons, px"

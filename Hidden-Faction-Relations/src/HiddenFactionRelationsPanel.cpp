@@ -1249,7 +1249,13 @@ void BindTabSelectDelegateBestEffort(MyGUI::TabControl* optionsTab)
 
 bool BuildPanelUnsafe(OptionsWindow* self)
 {
-    MyGUI::TabItem* panelTab = self->optionsTab->addItem(kHiddenFactionsTabName);
+    // Перед последней вкладкой (ванильной «Моды»): RE_Kenshi вешает свои
+    // кнопки на последнюю вкладку окна - стань мы последними, они легли бы
+    // поверх списка фракций. Так же встают KEP и MCM.
+    const size_t tabCount = self->optionsTab->getItemCount();
+    MyGUI::TabItem* panelTab = tabCount > 0
+        ? self->optionsTab->insertItemAt(tabCount - 1, kHiddenFactionsTabName)
+        : self->optionsTab->addItem(kHiddenFactionsTabName);
     if (panelTab == 0)
     {
         LogErrorLine("failed to add hidden factions tab item");
