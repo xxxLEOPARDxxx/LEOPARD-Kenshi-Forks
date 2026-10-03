@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <OgrePrerequisites.h> // Ogre::map<>::type below
+
 namespace MyGUI
 {
 class Widget;

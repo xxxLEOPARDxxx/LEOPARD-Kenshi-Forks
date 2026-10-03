@@ -1,8 +1,14 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "organize_the_crafting_stations"
+#include <Localization.h>
+
 #include "CraftingModHub.h"
 
 #include "CraftingCore.h"
 #include "CraftingSearchUi.h"
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#include <McmModHubBridge.h>
 
 #include <sstream>
 
@@ -349,7 +355,7 @@ void EnsureModHubClientConfigured()
         static_cast<uint32_t>(sizeof(kModHubRows) / sizeof(kModHubRows[0])) };
 
     emc::ModHubClient::Config config;
-    config.table_registration = &kModHubRegistration;
+    config.table_registration = mcm_bridge::Capture(&kModHubRegistration);
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
 }
@@ -359,6 +365,9 @@ void TraderModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -386,3 +395,6 @@ void TraderModHub_OnStartup()
 
     LogModHubFallback("invalid_client_configuration");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE("A search bar in crafting and research windows that filters recipes and blueprints.")

@@ -12,7 +12,7 @@
 #include <kenshi/RootObject.h>
 #include <kenshi/Character.h>
 #include <kenshi/Dialogue.h>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_ComboBox.h>
@@ -49,12 +49,9 @@ public:
 class InventoryGUI;
 class InventoryIcon;
 class InventoryLayout;
-class InventorySectionGUI
-{
-public:
-    MyGUI::Widget* _widget;
-    Ogre::vector<InventoryIcon*>::type _icons;
-};
+// InventorySectionGUI - из KenshiLib (widget по 0, itemsIcons по 8 - как
+// в прежней заглушке этого файла: _widget и _icons).
+#include <kenshi/gui/InventoryGUI.h>
 
 #include "src/CraftingCore.h"
 #include "src/CraftingDiagnostics.h"
@@ -202,12 +199,12 @@ void InventoryLayoutCreateGUI_hook(
              ++it)
         {
             InventorySectionGUI* sectionGui = it->second;
-            if (sectionGui == 0 || sectionGui->_widget == 0)
+            if (sectionGui == 0 || sectionGui->widget == 0)
             {
                 continue;
             }
 
-            firstSectionWidget = sectionGui->_widget;
+            firstSectionWidget = sectionGui->widget;
             firstSectionName = it->first;
             break;
         }
@@ -238,7 +235,7 @@ void InventoryLayoutCreateGUI_hook(
          ++it)
     {
         InventorySectionGUI* sectionGui = it->second;
-        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->_widget;
+        MyGUI::Widget* sectionWidget = sectionGui == 0 ? 0 : sectionGui->widget;
         if (sectionWidget == 0)
         {
             continue;
