@@ -1142,18 +1142,20 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
         std::stringstream name;
         name << "VS_KOMarker_" << index << "_" << state.koMarkerWidgetSerial++;
 
+        // Слой Back - как у имён над головами и полос прогресса самой игры: под
+        // окнами и панелями. На слое Top значки просвечивали сквозь интерфейс.
         MyGUI::ImageBox* bountyGlow = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2), kKoMarkerHeightPx + (kKoBountyGlowPaddingPx * 2)),
             MyGUI::Align::Default,
-            "Top",
+            "Back",
             name.str() + "_bounty_glow");
 
         MyGUI::ImageBox* icon = gui->createWidget<MyGUI::ImageBox>(
             "ImageBox",
             MyGUI::IntCoord(0, 0, kKoMarkerHeightPx, kKoMarkerHeightPx),
             MyGUI::Align::Default,
-            "Top",
+            "Back",
             name.str() + "_icon");
 
         MyGUI::TextBox* bountySymbolOutline[kKoTextOutlineLayerCount] = {};
@@ -1165,7 +1167,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                 "Kenshi_TextboxStandardText",
                 MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
                 MyGUI::Align::Default,
-                "Top",
+                "Back",
                 outlineName.str());
             if (!bountySymbolOutline[i])
             {
@@ -1173,7 +1175,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                     "TextBox",
                     MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
                     MyGUI::Align::Default,
-                    "Top",
+                    "Back",
                     outlineName.str() + "_fallback");
             }
         }
@@ -1182,7 +1184,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
             MyGUI::Align::Default,
-            "Top",
+            "Back",
             name.str() + "_bounty_symbol");
         if (!bountySymbol)
         {
@@ -1190,7 +1192,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                 "TextBox",
                 MyGUI::IntCoord(0, 0, kKoBountySymbolMinWidthPx, kKoMarkerHeightPx),
                 MyGUI::Align::Default,
-                "Top",
+                "Back",
                 name.str() + "_bounty_symbol_fallback");
         }
 
@@ -1203,7 +1205,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                 "Kenshi_TextboxStandardText",
                 MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
                 MyGUI::Align::Default,
-                "Top",
+                "Back",
                 outlineName.str());
             if (!fallbackTextOutline[i])
             {
@@ -1211,7 +1213,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                     "TextBox",
                     MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
                     MyGUI::Align::Default,
-                    "Top",
+                    "Back",
                     outlineName.str() + "_fallback");
             }
         }
@@ -1220,7 +1222,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
             "Kenshi_TextboxStandardText",
             MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
             MyGUI::Align::Default,
-            "Top",
+            "Back",
             name.str());
         if (!fallbackText)
         {
@@ -1228,7 +1230,7 @@ bool CreateKoMarkerWidgetAt(RuntimeStateView& state, size_t index, const char* p
                 "TextBox",
                 MyGUI::IntCoord(kKoMarkerHeightPx + 1, 0, kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), kKoMarkerHeightPx),
                 MyGUI::Align::Default,
-                "Top",
+                "Back",
                 name.str() + "_fallback");
         }
         if (!bountyGlow && !icon && !bountySymbol && !fallbackText)

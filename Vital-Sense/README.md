@@ -101,3 +101,7 @@ Behavior:
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Значки рисуются на слое `Back` (как имена над головами у самой игры), а не на `Top`: больше не просвечивают сквозь окна и панели интерфейса.
+- Настройки — во вкладке MCM окна «Настройки»; Mod Hub не нужен.
