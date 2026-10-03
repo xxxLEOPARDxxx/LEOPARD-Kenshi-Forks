@@ -460,6 +460,78 @@ static bool CheckBedOccupiedSafely(const hand& bedHandle)
     return occupied;
 }
 
+// Своя ли постройка: фракция владельца - игрок.
+static bool IsPlayerOwnedSafely(Building* b)
+{
+    bool own = false;
+    __try
+    {
+        Faction* const faction = b->getFaction();
+        own = faction != 0 && faction->isThePlayer();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        own = false;
+    }
+    return own;
+}
+
+// В хранилище или станке что-то лежит: разбор мимо игры эти вещи не
+// выбрасывает, поэтому такие постройки не трогаем.
+static bool HasItemsSafely(Building* b)
+{
+    bool hasItems = false;
+    __try
+    {
+        Inventory* const inventory = b->getInventory();
+        hasItems = inventory != 0 && !inventory->isEmpty();
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        hasItems = true;
+    }
+    return hasItems;
+}
+
+// Кто-то лежит в кровати / сидит в клетке этой постройки или находится
+// внутри неё (дом, лачуга).
+static bool UnsafeAnyoneInside(Building* b)
+{
+    const ogre_unordered_set<Character*>::type& characters = ou->getCharacterUpdateList();
+    for (ogre_unordered_set<Character*>::type::const_iterator it = characters.begin(); it != characters.end(); ++it)
+    {
+        Character* character = *it;
+        if (!character)
+        {
+            continue;
+        }
+        if (character->inSomething != IN_NOTHING && character->inWhat.getBuilding() == b)
+        {
+            return true;
+        }
+        if (character->isIndoors().getBuilding() == b)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool CheckAnyoneInsideSafely(Building* b)
+{
+    bool inside = false;
+    __try
+    {
+        inside = !ou || UnsafeAnyoneInside(b);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED in CheckAnyoneInsideSafely");
+        inside = true;
+    }
+    return inside;
+}
+
 static bool PerformDismantleLogic(Building* b, const hand& sel)
 {
     b->dropMats();
@@ -527,7 +599,8 @@ static bool TryGetSelectedDismantleTarget(const hand& sel, Building** buildingOu
     }
 
     const bool isWallTarget = (b->isAWall() != 0);
-    const bool isSupportedTarget = (g_sleepingBagDismantleEnabled && IsSupportedBedOrFurnitureBuilding(b));
+    const bool isSupportedTarget = (g_sleepingBagDismantleEnabled && IsSupportedBedOrFurnitureBuilding(b))
+        || (g_dismantleAnyOwnBuilding && IsPlayerOwnedSafely(b));
     if (!isWallTarget && !isSupportedTarget)
     {
         return false;
@@ -538,19 +611,39 @@ static bool TryGetSelectedDismantleTarget(const hand& sel, Building** buildingOu
     return true;
 }
 
-static bool IsDismantleBlockedForTarget(Building* b, bool isWallTarget)
+// Почему разбирать нельзя; 0 - можно.
+static const char* GetDismantleBlockReason(Building* b, bool isWallTarget)
 {
     if (isWallTarget)
     {
-        return CheckInternalBuildingsSafely(b) || CheckMountedBuildingsSafely(b);
+        if (CheckInternalBuildingsSafely(b) || CheckMountedBuildingsSafely(b))
+        {
+            return "Hotkey action: skipped - something is built on or inside this wall";
+        }
+        return 0;
     }
 
-    if (IsBedBuilding(b))
+    if (IsBedBuilding(b) && CheckBedOccupiedSafely(b->getHandle()))
     {
-        return CheckBedOccupiedSafely(b->getHandle());
+        return "Hotkey action: skipped - the bed is occupied";
     }
-
-    return false;
+    if (CheckInternalBuildingsSafely(b))
+    {
+        return "Hotkey action: skipped - there is furniture or equipment inside; dismantle it first";
+    }
+    if (CheckMountedBuildingsSafely(b))
+    {
+        return "Hotkey action: skipped - something is mounted on this building";
+    }
+    if (HasItemsSafely(b))
+    {
+        return "Hotkey action: skipped - it still holds items; empty it first";
+    }
+    if (CheckAnyoneInsideSafely(b))
+    {
+        return "Hotkey action: skipped - someone is inside or using it";
+    }
+    return 0;
 }
 
 static bool IsFailedDismantleCooldownActive()
@@ -572,11 +665,10 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
         return;
     }
 
-    if (IsDismantleBlockedForTarget(b, isWallTarget))
+    const char* const blockReason = GetDismantleBlockReason(b, isWallTarget);
+    if (blockReason != 0)
     {
-        WallBGoneDebugLog(isWallTarget
-            ? "Hotkey action: skipped - something is built on or inside this wall"
-            : "Hotkey action: skipped - the bed is occupied");
+        WallBGoneDebugLog(blockReason);
         return;
     }
 
@@ -652,7 +744,8 @@ static void HandleHotkeyAction()
                  << "' sid='" << (data != 0 ? data->stringID : std::string("?"))
                  << "' wall=" << (selected->isAWall() != 0 ? 1 : 0)
                  << " function=" << selected->getSpecialFunction()
-                 << " furniture=" << (IsSupportedBedOrFurnitureBuilding(selected) ? 1 : 0);
+                 << " furniture=" << (IsSupportedBedOrFurnitureBuilding(selected) ? 1 : 0)
+                 << " own=" << (IsPlayerOwnedSafely(selected) ? 1 : 0);
         }
         else if (root != 0)
         {
@@ -672,7 +765,9 @@ static void HandleHotkeyAction()
         TryDismantleSelectedBuilding(b, sel, isWallTarget);
         return;
     }
-    WallBGoneDebugLog("Hotkey action: skipped - select a wall, bed, chair or table first");
+    WallBGoneDebugLog(g_dismantleAnyOwnBuilding
+        ? "Hotkey action: skipped - select a wall, furniture or your own building first"
+        : "Hotkey action: skipped - select a wall, bed, chair or table first (or enable 'Dismantle any own building')");
 
     RootObject* ro = sel.getRootObject();
     if (ro)

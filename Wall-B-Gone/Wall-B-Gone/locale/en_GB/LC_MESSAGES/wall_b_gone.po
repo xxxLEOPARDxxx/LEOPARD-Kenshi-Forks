@@ -24,7 +24,7 @@ msgid "Dismantle hotkey"
 msgstr "Dismantle hotkey"
 
 msgid "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo."
-msgstr "The key that dismantles the selected wall, bed or furniture. Type it as text: X, CTRL+X, SHIFT+ALT+X; NONE - no key"
+msgstr "Key that dismantles the selected wall, bed or furniture (or any own building, if enabled). Written as text: X, CTRL+X, SHIFT+ALT+X; NONE - no key"
 
 msgid "Reset hotkey default"
 msgstr "Default hotkey"
@@ -40,3 +40,9 @@ msgstr "Detailed log"
 
 msgid "Write extra runtime diagnostics to the RE_Kenshi log"
 msgstr "Writes extra details to RE_Kenshi_log.txt"
+
+msgid "Dismantle any own building"
+msgstr "Dismantle any own building"
+
+msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
+msgstr "Dismantle any selected building of yours, not only walls and furniture. Storage and machines must be empty, nobody may be inside, nothing may stand inside or be mounted on it"

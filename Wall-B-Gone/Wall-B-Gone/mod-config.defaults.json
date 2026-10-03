@@ -1,6 +1,7 @@
 {
   "enabled": true,
   "sleepingBagDismantleEnabled": true,
+  "dismantleAnyOwnBuilding": false,
   "debugLogging": false,
   "hotkeyRequireCtrl": false,
   "hotkeyRequireShift": false,

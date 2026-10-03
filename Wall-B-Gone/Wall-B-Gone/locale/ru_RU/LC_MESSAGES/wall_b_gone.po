@@ -24,7 +24,7 @@ msgid "Dismantle hotkey"
 msgstr "Клавиша разборки"
 
 msgid "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo."
-msgstr "Клавиша, которая разбирает выделенную стену, кровать или мебель. Пишется текстом: X, CTRL+X, SHIFT+ALT+X; NONE - без клавиши"
+msgstr "Клавиша, которая разбирает выделенную стену, кровать или мебель (а если включено - любую свою постройку). Пишется текстом: X, CTRL+X, SHIFT+ALT+X; NONE - без клавиши"
 
 msgid "Reset hotkey default"
 msgstr "Клавиша по умолчанию"
@@ -40,3 +40,9 @@ msgstr "Подробный журнал"
 
 msgid "Write extra runtime diagnostics to the RE_Kenshi log"
 msgstr "Пишет дополнительные подробности в RE_Kenshi_log.txt"
+
+msgid "Dismantle any own building"
+msgstr "Разбирать любые свои постройки"
+
+msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
+msgstr "Клавиша разбирает любую выделенную постройку вашей фракции, не только стены и мебель. Хранилище или станок должны быть пусты, внутри никого, внутри и на ней ничего не построено"

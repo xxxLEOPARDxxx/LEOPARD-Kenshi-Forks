@@ -555,6 +555,7 @@ static bool ReadConfigFromFile(
     const std::string& configPath,
     bool* enabledOut,
     bool* sleepingBagDismantleEnabledOut,
+    bool* anyOwnBuildingOut,
     bool* debugLoggingOut,
     bool* hotkeyRequireCtrlOut,
     bool* hotkeyRequireShiftOut,
@@ -563,6 +564,7 @@ static bool ReadConfigFromFile(
 {
     if (!enabledOut
         || !sleepingBagDismantleEnabledOut
+        || !anyOwnBuildingOut
         || !debugLoggingOut
         || !hotkeyRequireCtrlOut
         || !hotkeyRequireShiftOut
@@ -584,6 +586,7 @@ static bool ReadConfigFromFile(
     *enabledOut = ReadEnabledFromBody(body, &foundEnabled);
     bool foundSleepingBagDismantleEnabled = false;
     *sleepingBagDismantleEnabledOut = ReadSleepingBagDismantleEnabledFromBody(body, &foundSleepingBagDismantleEnabled);
+    *anyOwnBuildingOut = ReadBoolKeyFromBody(body, "dismantleAnyOwnBuilding", false);
     *debugLoggingOut = ReadBoolKeyFromBody(body, "debugLogging", false);
     *hotkeyRequireCtrlOut = ReadHotkeyRequireCtrlFromBody(body);
     *hotkeyRequireShiftOut = ReadHotkeyRequireShiftFromBody(body);
@@ -595,6 +598,7 @@ static bool SaveConfigToFile(
     const std::string& configPath,
     bool enabled,
     bool sleepingBagDismantleEnabled,
+    bool anyOwnBuilding,
     bool debugLogging,
     bool hotkeyRequireCtrl,
     bool hotkeyRequireShift,
@@ -621,6 +625,7 @@ static bool SaveConfigToFile(
     out << "{\n";
     out << "  \"enabled\": " << (enabled ? "true" : "false") << ",\n";
     out << "  \"sleepingBagDismantleEnabled\": " << (sleepingBagDismantleEnabled ? "true" : "false") << ",\n";
+    out << "  \"dismantleAnyOwnBuilding\": " << (anyOwnBuilding ? "true" : "false") << ",\n";
     out << "  \"debugLogging\": " << (debugLogging ? "true" : "false") << ",\n";
     out << "  \"hotkeyRequireCtrl\": " << (hotkeyRequireCtrl ? "true" : "false") << ",\n";
     out << "  \"hotkeyRequireShift\": " << (hotkeyRequireShift ? "true" : "false") << ",\n";
@@ -635,6 +640,7 @@ static void LoadConfigState()
 {
     g_modEnabled = true;
     g_sleepingBagDismantleEnabled = true;
+    g_dismantleAnyOwnBuilding = false;
     g_debugLogging = false;
     g_hotkeyPrimary = kDefaultHotkey;
     g_pendingHotkeyPrimary = kDefaultHotkey;
@@ -649,6 +655,7 @@ static void LoadConfigState()
 
     bool loadedEnabled = true;
     bool loadedSleepingBagDismantleEnabled = true;
+    bool loadedAnyOwnBuilding = false;
     bool loadedDebugLogging = false;
     bool loadedHotkeyRequireCtrl = kDefaultHotkeyRequireCtrl;
     bool loadedHotkeyRequireShift = kDefaultHotkeyRequireShift;
@@ -658,6 +665,7 @@ static void LoadConfigState()
         g_settingsPath,
         &loadedEnabled,
         &loadedSleepingBagDismantleEnabled,
+        &loadedAnyOwnBuilding,
         &loadedDebugLogging,
         &loadedHotkeyRequireCtrl,
         &loadedHotkeyRequireShift,
@@ -670,6 +678,7 @@ static void LoadConfigState()
 
     g_modEnabled = loadedEnabled;
     g_sleepingBagDismantleEnabled = loadedSleepingBagDismantleEnabled;
+    g_dismantleAnyOwnBuilding = loadedAnyOwnBuilding;
     g_debugLogging = loadedDebugLogging;
     g_hotkeyPrimary = loadedHotkey;
     g_pendingHotkeyPrimary = loadedHotkey;
@@ -692,6 +701,7 @@ static bool SaveConfigState()
         g_settingsPath,
         g_modEnabled,
         g_sleepingBagDismantleEnabled,
+        g_dismantleAnyOwnBuilding,
         g_debugLogging,
         g_hotkeyRequireCtrl,
         g_hotkeyRequireShift,

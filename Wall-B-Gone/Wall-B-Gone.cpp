@@ -13,6 +13,8 @@
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
+#include <kenshi/Faction.h>
+#include <kenshi/Inventory.h>
 #include <kenshi/GameData.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/gui/TitleScreen.h>
@@ -73,6 +75,8 @@ enum HotkeyValidationResult
 // Runtime toggle persisted to JSON and exposed in Plugins menu.
 static bool g_modEnabled = true;
 static bool g_sleepingBagDismantleEnabled = true;
+// Разбирать любую выделенную постройку игрока, а не только стены и мебель.
+static bool g_dismantleAnyOwnBuilding = false;
 static bool g_debugLogging = false;
 static std::string g_settingsPath;
 static const char* kWallBGoneTabName = "Wall-B-Gone";
@@ -84,6 +88,7 @@ static const char* kHubModId = "wall_b_gone";
 static const char* kHubModDisplayName = "Wall-B-Gone";
 static const char* kHubSettingEnabledId = "enabled";
 static const char* kHubSettingSleepingBagEnabledId = "sleeping_bag_dismantle_enabled";
+static const char* kHubSettingAnyOwnBuildingId = "dismantle_any_own_building";
 static const char* kHubSettingHotkeyId = "dismantle_hotkey";
 static const char* kHubSettingHotkeyRequireCtrlId = "dismantle_hotkey_require_ctrl";
 static const char* kHubSettingHotkeyRequireShiftId = "dismantle_hotkey_require_shift";

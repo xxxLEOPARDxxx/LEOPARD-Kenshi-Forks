@@ -40,3 +40,9 @@ msgstr "详细日志"
 
 msgid "Write extra runtime diagnostics to the RE_Kenshi log"
 msgstr "将额外的详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Dismantle any own building"
+msgstr "拆除自己的任何建筑"
+
+msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
+msgstr "热键可拆除你所选的任何己方建筑，而不仅是墙和家具。仓库或机器必须清空，里面不能有人，内部和上面不能有其他建筑"
