@@ -4,6 +4,8 @@
 #include <kenshi/Kenshi.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/PlayerInterface.h>
+#include <kenshi/SaveInfo.h>
+#include <kenshi/SaveManager.h>
 
 #include "src/vs_config.h"
 #include "src/vs_character_tint.h"
@@ -12,6 +14,7 @@
 #include "src/vs_marker_render.h"
 #include "src/vs_parse.h"
 #include "src/vs_probe.h"
+#include "src/vs_probe_cache.h"
 #include "src/vs_runtime_state.h"
 #include "src/vs_mod_hub.h"
 #include "src/vs_types.h"
@@ -35,7 +38,11 @@ const char* kPluginName = "Vital-Sense";
 const char* kConfigFileName = "mod-config.json";
 
 const size_t kMaxKoMarkerWidgets = 48;
+const DWORD kSaveLoadHighlightCooldownMs = 5000;
 void (*GameWorld_mainLoopGPUSensitiveStuffOrig)(GameWorld* thisptr, float time) = 0;
+void (*SaveManager_loadByNameOrig)(SaveManager* thisptr, const std::string& name) = 0;
+void (*SaveManager_loadByInfoOrig)(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos) = 0;
+DWORD gSaveLoadHighlightCooldownUntilMs = 0;
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -44,6 +51,32 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 
     return platform != KenshiLib::BinaryVersion::UNKNOWN
         && (version == "1.0.65" || version == "1.0.68");
+}
+
+std::string ColourToLogToken(const MyGUI::Colour& colour)
+{
+    std::string token = vs_parse::ColourToHexRgb(colour);
+    if (!token.empty() && token[0] == '#')
+    {
+        token[0] = '@';
+    }
+    return token;
+}
+
+bool IsSaveLoadHighlightCooldownActive()
+{
+    return gSaveLoadHighlightCooldownUntilMs != 0
+        && GetTickCount() < gSaveLoadHighlightCooldownUntilMs;
+}
+
+void BeginSaveLoadHighlightCooldown()
+{
+    RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    state.highlightRuntimeActive = false;
+    state.lastProbeTickMs = 0;
+    vs_probe_cache::Reset(state);
+    vs_character_tint::ResetKoCharacterTintRuntime(state);
+    gSaveLoadHighlightCooldownUntilMs = GetTickCount() + kSaveLoadHighlightCooldownMs;
 }
 
 void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
@@ -59,6 +92,19 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
         state.config.showMarkerIcons
         || state.config.showMarkerText
         || state.config.showBountySymbol;
+    if (IsSaveLoadHighlightCooldownActive())
+    {
+        state.highlightRuntimeActive = false;
+        state.lastProbeTickMs = 0;
+        vs_probe_cache::Reset(state);
+        vs_character_tint::ResetKoCharacterTintRuntime(state);
+        if (anyMarkerOverlayVisualEnabled)
+        {
+            vs_marker_render::HideAllKoMarkerWidgets(state, kPluginName);
+        }
+        return;
+    }
+
     const vs_probe::ProbeRenderDirective renderDirective = vs_probe::TickKoProbe(state, kPluginName);
     if (renderDirective == vs_probe::PROBE_RENDER_HIDE_ALL)
     {
@@ -79,6 +125,17 @@ void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
 void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
 {
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
+    if (IsSaveLoadHighlightCooldownActive())
+    {
+        state.highlightRuntimeActive = false;
+        vs_character_tint::ResetKoCharacterTintRuntime(state);
+        if (GameWorld_mainLoopGPUSensitiveStuffOrig)
+        {
+            GameWorld_mainLoopGPUSensitiveStuffOrig(thisptr, time);
+        }
+        return;
+    }
+
     vs_character_tint::TickKoCharacterTintRuntime(state);
 
     if (state.highlightRuntimeActive)
@@ -94,6 +151,26 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
     {
         GameWorld_mainLoopGPUSensitiveStuffOrig(thisptr, time);
     }
+}
+
+void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& name)
+{
+    BeginSaveLoadHighlightCooldown();
+    if (SaveManager_loadByNameOrig)
+    {
+        SaveManager_loadByNameOrig(thisptr, name);
+    }
+    BeginSaveLoadHighlightCooldown();
+}
+
+void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
+{
+    BeginSaveLoadHighlightCooldown();
+    if (SaveManager_loadByInfoOrig)
+    {
+        SaveManager_loadByInfoOrig(thisptr, saveInfo, resetPos);
+    }
+    BeginSaveLoadHighlightCooldown();
 }
 }
 
@@ -127,9 +204,9 @@ __declspec(dllexport) void startPlugin()
          << ", character_tint_force_depth_override=" << (config.characterTintForceDepthOverride ? "true" : "false")
          << ", debug_log_diagnostics=" << (config.debugLogDiagnostics ? "true" : "false")
          << ", debug_log_texture_info=" << (config.debugLogTextureInfo ? "true" : "false")
-         << ", enemy_color_hex=" << vs_parse::ColourToHexRgb(config.enemyMarkerColour)
-         << ", ally_color_hex=" << vs_parse::ColourToHexRgb(config.allyMarkerColour)
-         << ", squad_color_hex=" << vs_parse::ColourToHexRgb(config.squadMarkerColour)
+         << ", enemy_color_hex=" << ColourToLogToken(config.enemyMarkerColour)
+         << ", ally_color_hex=" << ColourToLogToken(config.allyMarkerColour)
+         << ", squad_color_hex=" << ColourToLogToken(config.squadMarkerColour)
          << ", max_highlight_distance_m=" << config.maxHighlightDistanceMeters
          << ")";
     vs_log::LogInfo(kPluginName, info.str());
@@ -155,7 +232,25 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    vs_log::LogInfo(kPluginName, "update and gpu hooks installed");
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
+        SaveManager_loadByName_hook,
+        &SaveManager_loadByNameOrig))
+    {
+        vs_log::LogError(kPluginName, "could not hook SaveManager::load(name)");
+        return;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
+        SaveManager_loadByInfo_hook,
+        &SaveManager_loadByInfoOrig))
+    {
+        vs_log::LogError(kPluginName, "could not hook SaveManager::load(info)");
+        return;
+    }
+
+    vs_log::LogInfo(kPluginName, "update, gpu, and save-load hooks installed");
     vs_mod_hub::OnStartup();
 }
 

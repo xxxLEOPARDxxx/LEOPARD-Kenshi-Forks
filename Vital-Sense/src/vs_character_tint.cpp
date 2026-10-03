@@ -400,6 +400,68 @@ bool PassHasTintConstants(Ogre::Pass* pass)
     return HasFragmentColourOverrideConstant(pass) || HasVertexDepthOverrideConstant(pass);
 }
 
+bool GpuParamsHaveNamedConstant(Ogre::GpuProgramParametersSharedPtr& params, const char* paramName)
+{
+    if (params.isNull() || !paramName)
+    {
+        return false;
+    }
+
+    bool hasConstant = false;
+    try
+    {
+        hasConstant = params->hasNamedParameters()
+            && params->_findNamedConstantDefinition(paramName, false) != 0;
+    }
+    catch (...)
+    {
+        hasConstant = false;
+    }
+    return hasConstant;
+}
+
+bool SetColourConstantIfPresent(
+    Ogre::GpuProgramParametersSharedPtr& params,
+    const char* paramName,
+    const Ogre::ColourValue& colour)
+{
+    if (!GpuParamsHaveNamedConstant(params, paramName))
+    {
+        return false;
+    }
+
+    try
+    {
+        params->setNamedConstant(paramName, colour);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool SetBoolConstantIfPresent(
+    Ogre::GpuProgramParametersSharedPtr& params,
+    const char* paramName,
+    bool value)
+{
+    if (!GpuParamsHaveNamedConstant(params, paramName))
+    {
+        return false;
+    }
+
+    try
+    {
+        params->setNamedConstant(paramName, value ? 1 : 0);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool ApplyTintConstantsToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour, bool depthOverride)
 {
     if (!pass)
@@ -424,17 +486,7 @@ bool ApplyTintConstantsToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour,
 
                 for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
                 {
-                    bool setOk = false;
-                    try
-                    {
-                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
-                        setOk = true;
-                    }
-                    catch (...)
-                    {
-                        setOk = false;
-                    }
-                    if (setOk)
+                    if (SetColourConstantIfPresent(fragmentParams, colourParamNames[i], colour))
                     {
                         appliedAnyConstant = true;
                     }
@@ -460,17 +512,7 @@ bool ApplyTintConstantsToPass(Ogre::Pass* pass, const Ogre::ColourValue& colour,
 
                 for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
                 {
-                    bool setOk = false;
-                    try
-                    {
-                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
-                        setOk = true;
-                    }
-                    catch (...)
-                    {
-                        setOk = false;
-                    }
-                    if (setOk)
+                    if (SetBoolConstantIfPresent(vertexParams, depthParamNames[i], depthOverride))
                     {
                         appliedAnyConstant = true;
                     }
@@ -512,17 +554,7 @@ bool ApplyTintConstantsToPassColourRequired(
 
                 for (size_t i = 0; i < (sizeof(colourParamNames) / sizeof(colourParamNames[0])); ++i)
                 {
-                    bool setOk = false;
-                    try
-                    {
-                        fragmentParams->setNamedConstant(colourParamNames[i], colour);
-                        setOk = true;
-                    }
-                    catch (...)
-                    {
-                        setOk = false;
-                    }
-                    if (setOk)
+                    if (SetColourConstantIfPresent(fragmentParams, colourParamNames[i], colour))
                     {
                         appliedColourConstant = true;
                     }
@@ -549,13 +581,7 @@ bool ApplyTintConstantsToPassColourRequired(
 
                 for (size_t i = 0; i < (sizeof(depthParamNames) / sizeof(depthParamNames[0])); ++i)
                 {
-                    try
-                    {
-                        vertexParams->setNamedConstant(depthParamNames[i], depthOverride ? 1 : 0);
-                    }
-                    catch (...)
-                    {
-                    }
+                    SetBoolConstantIfPresent(vertexParams, depthParamNames[i], depthOverride);
                 }
             }
         }
@@ -735,38 +761,10 @@ bool ApplyTintToMaterialPrimaryPassLikeExample(
             Ogre::GpuProgramParametersSharedPtr fragmentParams = pass->getFragmentProgramParameters();
             if (!fragmentParams.isNull())
             {
-                try
-                {
-                    fragmentParams->setNamedConstant(kColorOverrideParam, colour);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
-                try
-                {
-                    fragmentParams->setNamedConstant(kColourOverrideParam, colour);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
-                try
-                {
-                    fragmentParams->setNamedConstant(kColorOverrideParamCamel, colour);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
-                try
-                {
-                    fragmentParams->setNamedConstant(kColourOverrideParamCamel, colour);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
+                applied = SetColourConstantIfPresent(fragmentParams, kColorOverrideParam, colour) || applied;
+                applied = SetColourConstantIfPresent(fragmentParams, kColourOverrideParam, colour) || applied;
+                applied = SetColourConstantIfPresent(fragmentParams, kColorOverrideParamCamel, colour) || applied;
+                applied = SetColourConstantIfPresent(fragmentParams, kColourOverrideParamCamel, colour) || applied;
             }
         }
 
@@ -775,22 +773,8 @@ bool ApplyTintToMaterialPrimaryPassLikeExample(
             Ogre::GpuProgramParametersSharedPtr vertexParams = pass->getVertexProgramParameters();
             if (!vertexParams.isNull())
             {
-                try
-                {
-                    vertexParams->setNamedConstant(kDepthOverrideParam, depthOverride ? 1 : 0);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
-                try
-                {
-                    vertexParams->setNamedConstant(kOverrideDepthLowerParam, depthOverride ? 1 : 0);
-                    applied = true;
-                }
-                catch (...)
-                {
-                }
+                applied = SetBoolConstantIfPresent(vertexParams, kDepthOverrideParam, depthOverride) || applied;
+                applied = SetBoolConstantIfPresent(vertexParams, kOverrideDepthLowerParam, depthOverride) || applied;
             }
         }
     }
@@ -1916,7 +1900,7 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
         return restoredClone || clearedByConstants;
     }
 
-    if (hasTargetHandle)
+    if (hasTargetHandle && (isAnimalCharacter || isSquadCharacter))
     {
         if (ApplyTintToEntityUsingAnimalMaterialClones(
                 targetHandle,
@@ -1963,18 +1947,11 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
         return true;
     }
 
-    if (SetEntitySkeletonVisible(characterEntity, wantsBodyHighlight))
+    SetEntitySkeletonVisible(characterEntity, false);
+    if (wantsBodyHighlight && !gTintSkeletonFallbackWarned)
     {
-        if (wantsBodyHighlight)
-        {
-            ++gTintDiagAppliedSkeletonFallback;
-            if (!gTintSkeletonFallbackWarned)
-            {
-                vs_log::LogWarn(pluginName, "shader tint unavailable; using body skeleton highlight fallback");
-                gTintSkeletonFallbackWarned = true;
-            }
-        }
-        return true;
+        vs_log::LogWarn(pluginName, "shader tint unavailable; skeleton highlight fallback disabled");
+        gTintSkeletonFallbackWarned = true;
     }
 
     return false;
@@ -2165,6 +2142,13 @@ void TickKoCharacterTintRuntime(RuntimeStateView& state)
     }
 
     gTintLastObservedActiveCharacterCount = activeCharacterCount;
+}
+
+void ResetKoCharacterTintRuntime(RuntimeStateView& state)
+{
+    ResetTintRuntimeTracking(state);
+    gTintWarmupUntilMs = GetTickCount() + kTintPostLoadWarmupMs;
+    gTintLastObservedActiveCharacterCount = 0;
 }
 
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)

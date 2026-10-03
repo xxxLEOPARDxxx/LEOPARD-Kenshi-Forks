@@ -951,7 +951,8 @@ void ProcessMarkerCandidate(
     speciesInfo.isLikelySpider = false;
     std::memset(speciesInfo.raceId, 0, sizeof(speciesInfo.raceId));
 
-    const int totalBounty = ResolveTotalBounty(candidate);
+    const bool isPlayerControlledCharacter = vs_character_lookup::IsCharacterInPlayerSquadSafe(candidate);
+    const int totalBounty = isPlayerControlledCharacter ? 0 : ResolveTotalBounty(candidate);
     const bool allowBountyOnlyState =
         state.config.showBountySymbol
         && state.config.showBountySymbolOnAllCharacters
