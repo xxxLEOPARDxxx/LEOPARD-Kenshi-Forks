@@ -1,6 +1,11 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "vital_sense"
+#include <Localization.h>
+
 #include "vs_mod_hub.h"
 
 #include "emc/mod_hub_client.h"
+#include <McmModHubBridge.h>
 #include "emc/mod_hub_consumer_helpers.h"
 
 #include "vs_character_tint.h"
@@ -1084,6 +1089,9 @@ void OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -1107,3 +1115,6 @@ void OnStartup()
 }
 
 } // namespace vs_mod_hub
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(&vs_mod_hub::g_modHubRegistrationV2, "Highlights downed characters with state markers, an optional body tint and bounty indicators.")
