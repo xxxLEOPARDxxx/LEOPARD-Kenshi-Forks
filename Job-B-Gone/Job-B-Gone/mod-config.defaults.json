@@ -10,5 +10,8 @@
   "job_b_gone_panel_has_custom_position": false,
   "job_b_gone_panel_pos_x": 0,
   "job_b_gone_panel_pos_y": 0,
-  "panel_visibility_toggle_hotkey": "CTRL+B"
+  "panel_visibility_toggle_hotkey": "CTRL+B",
+  "panel_visibility_toggle_require_ctrl": true,
+  "panel_visibility_toggle_require_alt": false,
+  "panel_visibility_toggle_require_shift": false
 }
