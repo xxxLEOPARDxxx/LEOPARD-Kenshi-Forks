@@ -21,6 +21,7 @@
 #include <ogre/OgreEntity.h>
 #include <ogre/OgreGpuProgramParams.h>
 #include <ogre/OgreMaterial.h>
+#include <ogre/OgreMaterialManager.h>
 #include <ogre/OgrePass.h>
 #include <ogre/OgreSubEntity.h>
 #include <ogre/OgreTechnique.h>
@@ -107,9 +108,53 @@ std::vector<AnimalTintMaterialCloneEntry> gAnimalTintMaterialCloneEntries;
 unsigned int gAnimalTintMaterialCloneSerial = 0;
 bool gAnimalTintCloneFallbackWarned = false;
 
+// Клон материала остаётся в MaterialManager под своим уникальным именем,
+// пока его оттуда не убрать, - обнулить указатель мало. Раньше каждый
+// подсвеченный зверь оставлял там клоны навсегда. Убираем не сразу, а в
+// обычном кадре (FlushAnimalTintCloneReleases): сброс бывает и посреди
+// загрузки сохранения, а тогда Ogre лучше не трогать.
+std::vector<Ogre::MaterialPtr> gAnimalTintClonesToRelease;
+
+void ReleaseAnimalTintCloneLater(Ogre::MaterialPtr& clone)
+{
+    if (!clone.isNull())
+    {
+        gAnimalTintClonesToRelease.push_back(clone);
+        clone.setNull();
+    }
+}
+
+void ReleaseAnimalTintClonesLater(std::vector<Ogre::MaterialPtr>& clones)
+{
+    for (size_t i = 0; i < clones.size(); ++i)
+    {
+        ReleaseAnimalTintCloneLater(clones[i]);
+    }
+    clones.clear();
+}
+
+void FlushAnimalTintCloneReleases()
+{
+    for (size_t i = 0; i < gAnimalTintClonesToRelease.size(); ++i)
+    {
+        try
+        {
+            Ogre::MaterialManager::getSingleton().remove(gAnimalTintClonesToRelease[i]->getHandle());
+        }
+        catch (...)
+        {
+        }
+    }
+    gAnimalTintClonesToRelease.clear();
+}
+
 void ResetTintRuntimeTracking(RuntimeStateView& state)
 {
     state.characterTintEntries.clear();
+    for (size_t i = 0; i < gAnimalTintMaterialCloneEntries.size(); ++i)
+    {
+        ReleaseAnimalTintClonesLater(gAnimalTintMaterialCloneEntries[i].cloneMaterials);
+    }
     gAnimalTintMaterialCloneEntries.clear();
 }
 
@@ -1041,6 +1086,7 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
 
     if (restoredAll)
     {
+        ReleaseAnimalTintClonesLater(entry.cloneMaterials);
         gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
     }
 
@@ -1083,7 +1129,7 @@ bool ApplyTintToEntityUsingAnimalMaterialClones(
     if (entry.originalMaterials.size() != subEntityCount || entry.cloneMaterials.size() != subEntityCount)
     {
         entry.originalMaterials.clear();
-        entry.cloneMaterials.clear();
+        ReleaseAnimalTintClonesLater(entry.cloneMaterials);
         entry.originalMaterials.resize(subEntityCount);
         entry.cloneMaterials.resize(subEntityCount);
     }
@@ -1125,7 +1171,7 @@ bool ApplyTintToEntityUsingAnimalMaterialClones(
         if (!currentIsClone)
         {
             entry.originalMaterials[i] = currentMaterial;
-            cloneMaterial.setNull();
+            ReleaseAnimalTintCloneLater(cloneMaterial);
         }
         if (entry.originalMaterials[i].isNull())
         {
@@ -2142,6 +2188,12 @@ void TickKoCharacterTintRuntime(RuntimeStateView& state)
     }
 
     gTintLastObservedActiveCharacterCount = activeCharacterCount;
+
+    // Мир загружен и не в паузе загрузки - клоны можно убрать из менеджера.
+    if (!gAnimalTintClonesToRelease.empty() && nowMs >= gTintWarmupUntilMs)
+    {
+        FlushAnimalTintCloneReleases();
+    }
 }
 
 void ResetKoCharacterTintRuntime(RuntimeStateView& state)
