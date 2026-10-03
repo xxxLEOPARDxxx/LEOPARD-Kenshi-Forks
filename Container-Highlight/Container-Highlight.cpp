@@ -7755,6 +7755,34 @@ bool ApplyTintOverlayBinding(
     }
 }
 
+// Клон материала живёт в MaterialManager под уникальным именем, пока его
+// оттуда не убрать: обнулить свой указатель мало. Раньше каждое нажатие
+// ALT оставляло в менеджере по клону на каждую часть каждого контейнера -
+// память росла всю игру.
+void ReleaseTintClone(Ogre::MaterialPtr& clone)
+{
+    if (clone.isNull())
+    {
+        return;
+    }
+    try
+    {
+        Ogre::MaterialManager::getSingleton().remove(clone->getHandle());
+    }
+    catch (...)
+    {
+    }
+    clone.setNull();
+}
+
+void ReleaseTintClones(std::vector<Ogre::MaterialPtr>& clones)
+{
+    for (size_t i = 0; i < clones.size(); ++i)
+    {
+        ReleaseTintClone(clones[i]);
+    }
+}
+
 void ClearTintBinding(TintEntityBinding* binding)
 {
     if (binding == 0)
@@ -7787,6 +7815,7 @@ void ClearTintBinding(TintEntityBinding* binding)
 
     binding->entity = 0;
     binding->originalMaterials.clear();
+    ReleaseTintClones(binding->cloneMaterials);
     binding->cloneMaterials.clear();
 }
 
@@ -7840,7 +7869,7 @@ void ClearTintBatchBinding(TintBatchBinding* binding)
 
     binding->batch = 0;
     binding->originalMaterial.setNull();
-    binding->cloneMaterial.setNull();
+    ReleaseTintClone(binding->cloneMaterial);
 }
 
 void ClearTintEntry(ContainerTintEntry* entry)
@@ -7947,6 +7976,7 @@ bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogr
     if (binding->originalMaterials.size() != subEntityCount || binding->cloneMaterials.size() != subEntityCount)
     {
         binding->originalMaterials.clear();
+        ReleaseTintClones(binding->cloneMaterials);
         binding->cloneMaterials.clear();
         binding->originalMaterials.resize(subEntityCount);
         binding->cloneMaterials.resize(subEntityCount);
@@ -7989,7 +8019,7 @@ bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogr
         if (!currentIsClone)
         {
             binding->originalMaterials[subEntityIndex] = currentMaterial;
-            cloneMaterial.setNull();
+            ReleaseTintClone(cloneMaterial);
         }
         if (binding->originalMaterials[subEntityIndex].isNull())
         {
@@ -8055,7 +8085,7 @@ bool ApplyTintToBatchBinding(const hand& targetHandle, size_t bindingIndex, Ogre
     if (!currentIsClone)
     {
         binding->originalMaterial = currentMaterial;
-        binding->cloneMaterial.setNull();
+        ReleaseTintClone(binding->cloneMaterial);
     }
     if (binding->originalMaterial.isNull())
     {
@@ -8353,10 +8383,10 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
     (void)thisptr;
     (void)time;
 
-    if (!g_d3d11Trace.hooksInstalled && !g_d3d11Trace.hookInstallFailed)
-    {
-        EnsureD3D11TraceHooksInstalled();
-    }
+    // Перехваты Direct3D (10 методов контекста, тысячи вызовов за кадр)
+    // ставятся только по запросу трассировки - действием в настройках.
+    // Раньше их ставили всегда, и каждый вызов отрисовки шёл через лишнюю
+    // функцию, хотя трассировка почти никогда не включена.
 
     if (g_gameWorldMainLoopGPUSensitiveStuffOrig)
     {
