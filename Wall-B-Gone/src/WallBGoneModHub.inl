@@ -1,3 +1,4 @@
+#include <McmModHubBridge.h>
 static void WriteRuntimeApiError(char* err_buf, uint32_t err_buf_size, const char* text)
 {
     if (!err_buf || err_buf_size == 0u || !text)
@@ -485,6 +486,9 @@ static void ConfigureModHubClient()
 
 static void StartModHubClient()
 {
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -663,3 +667,6 @@ extern "C" __declspec(dllexport) int __cdecl WallBGone_SetRuntimeStateV1(
 
     return 0;
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(GetModHubTableRegistration(), "Dismantles the selected wall, bed or furniture with a hotkey and returns the materials.")

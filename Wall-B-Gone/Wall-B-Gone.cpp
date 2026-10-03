@@ -1,3 +1,7 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "wall_b_gone"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include <core/Functions.h>
@@ -7,11 +11,11 @@
 #include <kenshi/GameWorld.h>
 #include <kenshi/InputHandler.h>
 #include <kenshi/PlayerInterface.h>
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>
 #include <kenshi/Kenshi.h>
-#include <kenshi/TitleScreen.h>
+#include <kenshi/gui/TitleScreen.h>
 #include <kenshi/util/hand.h>
 #include <kenshi/util/lektor.h>
 #include <ois/OISKeyboard.h>
