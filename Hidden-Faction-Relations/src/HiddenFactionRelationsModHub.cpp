@@ -498,4 +498,16 @@ void HiddenFactionRelationsModHub_OnStartup()
 }
 
 // Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
-MCM_MODHUB_BRIDGE("An Options tab with your relations toward the hidden factions.")
+#include "HiddenFactionRelationsPanel.h"
+
+static void __cdecl McmAttachList(void*, void* parent) { HiddenFactionRelationsPanel_McmAttach(parent); }
+static void __cdecl McmDetachList(void*) { HiddenFactionRelationsPanel_McmDetach(); }
+
+// Настройки из таблицы - строками MCM; над ними (API v4) - сам список
+// отношений со скрытыми фракциями.
+extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
+{
+    mcm_bridge::Describe(api, "Your relations toward the hidden factions, with search and sorting.");
+    if (api != 0 && api->version >= 4)
+        api->customArea(api, &McmAttachList, &McmDetachList, 0, 62);
+}

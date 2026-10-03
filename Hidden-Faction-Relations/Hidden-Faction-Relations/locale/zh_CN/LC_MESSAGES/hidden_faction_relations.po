@@ -49,3 +49,6 @@ msgstr "搜索框高度"
 
 msgid "Preferred Hidden Factions control height in pixels"
 msgstr "搜索框和按钮的高度（像素）"
+
+msgid "Your relations toward the hidden factions, with search and sorting."
+msgstr "你与隐藏派系的关系，可搜索和排序。"

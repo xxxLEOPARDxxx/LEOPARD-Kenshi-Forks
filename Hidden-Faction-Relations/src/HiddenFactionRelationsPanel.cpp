@@ -97,6 +97,9 @@ ForgottenGUI* g_ptrKenshiGUI = 0;
 OptionsWindow* g_activeOptionsWindow = 0;
 DatapanelGUI* g_activePanel = 0;
 MyGUI::Widget* g_activePanelWidget = 0;
+// Список показан в странице ModConfigMenu (своя область, API v4); своей
+// вкладки в окне настроек больше нет.
+bool g_mcmAttached = false;
 MyGUI::TabControl* g_boundOptionsTab = 0;
 MyGUI::EditBox* g_activeSearchEdit = 0;
 MyGUI::Gui* g_boundGui = 0;
@@ -1067,7 +1070,7 @@ void OnGuiFrameStart(float)
     }
 
     g_refreshPending = false;
-    if (g_activePanelWidget == 0 || !IsHiddenFactionsTabCurrentlySelected(g_activeOptionsWindow))
+    if (g_activePanelWidget == 0 || !g_mcmAttached)
     {
         return;
     }
@@ -1112,7 +1115,7 @@ bool HandleSearchFocusShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
     if (inputHandler == 0
         || keyCode != OIS::KC_F
         || !inputHandler->ctrl
-        || !IsHiddenFactionsTabCurrentlySelected(g_activeOptionsWindow))
+        || !g_mcmAttached)
     {
         return false;
     }
@@ -1207,19 +1210,17 @@ bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode k
         return false;
     }
 
-    if (g_activeOptionsWindow != 0)
+    // Окно настроек на странице этого мода во вкладке MCM.
+    typedef void (__cdecl *OpenPageFn)(const char*);
+    HMODULE mcm = GetModuleHandleA("ModConfigMenu.dll");
+    OpenPageFn openPage = mcm != 0 ? reinterpret_cast<OpenPageFn>(GetProcAddress(mcm, "MCM_OpenPage")) : 0;
+    if (openPage == 0)
     {
-        return TrySelectHiddenFactionsTabBestEffort();
+        LogErrorLine("ModConfigMenu is not installed: the hidden factions list lives on its MCM page");
+        return false;
     }
-
-    g_selectHiddenFactionsOnNextOptionsInit = true;
-    if (OpenOptionsWindowForHiddenFactionsUnsafe())
-    {
-        return true;
-    }
-
-    g_selectHiddenFactionsOnNextOptionsInit = false;
-    return false;
+    openPage("hidden_faction_relations");
+    return true;
 }
 
 
@@ -1310,27 +1311,10 @@ void OptionsWindowInitHook(OptionsWindow* self)
         g_fnOptionsInitOrig(self);
     }
 
+    // Своей вкладки нет: список рисуется в странице MCM, когда она открыта
+    // (HiddenFactionRelationsPanel_McmAttach).
     BindGuiFrameStartBestEffort();
-
-    if (!EnsurePanel(self))
-    {
-        return;
-    }
-
-    BindTabSelectDelegateBestEffort(self->optionsTab);
-    if (g_selectHiddenFactionsOnNextOptionsInit)
-    {
-        g_selectHiddenFactionsOnNextOptionsInit = false;
-        SelectHiddenFactionsTabUnsafe(self->optionsTab);
-    }
-    if (IsHiddenFactionsTabCurrentlySelected(self))
-    {
-        if (HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen())
-        {
-            RequestSearchFocusOnNextRefresh();
-        }
-        RequestPanelRefresh();
-    }
+    g_activeOptionsWindow = self;
 }
 
 void OptionsWindowSaveHook(OptionsWindow* self)
@@ -1448,4 +1432,27 @@ bool HiddenFactionRelationsPanel_Initialize(
 
     LogInfoLine("hidden faction panel hooks installed");
     return true;
+}
+
+
+// Страница MCM открыта: рисуем список в выданной области.
+void HiddenFactionRelationsPanel_McmAttach(void* parent)
+{
+    BindGuiFrameStartBestEffort();
+    if (g_activePanelWidget != static_cast<MyGUI::Widget*>(parent))
+        DestroyDynamicWidgets();
+    g_activePanelWidget = static_cast<MyGUI::Widget*>(parent);
+    g_mcmAttached = g_activePanelWidget != 0;
+    if (HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen())
+        RequestSearchFocusOnNextRefresh();
+    RequestPanelRefresh();
+}
+
+// Страницу закрыли или ушли с неё: виджеты списка убрать, область отдать.
+void HiddenFactionRelationsPanel_McmDetach()
+{
+    DestroyDynamicWidgets();
+    g_mcmAttached = false;
+    g_activePanelWidget = 0;
+    g_activeSearchEdit = 0;
 }

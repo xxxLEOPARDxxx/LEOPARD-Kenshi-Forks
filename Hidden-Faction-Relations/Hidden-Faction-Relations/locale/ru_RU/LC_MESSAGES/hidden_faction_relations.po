@@ -49,3 +49,6 @@ msgstr "Высота поиска"
 
 msgid "Preferred Hidden Factions control height in pixels"
 msgstr "Высота поля поиска и кнопок в пикселях"
+
+msgid "Your relations toward the hidden factions, with search and sorting."
+msgstr "Ваши отношения со скрытыми фракциями, с поиском и сортировкой."
