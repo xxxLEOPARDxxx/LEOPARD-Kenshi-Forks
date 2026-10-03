@@ -79,3 +79,75 @@ msgstr "Log jobs"
 
 msgid "Log selected-member job snapshots for diagnostics"
 msgstr "Writes the jobs of the selected characters to RE_Kenshi_log.txt"
+
+msgid "Me"
+msgstr "Me"
+
+msgid "Selected"
+msgstr "Selected"
+
+msgid "Squad"
+msgstr "Squad"
+
+msgid "All"
+msgstr "All"
+
+msgid "Delete All Jobs"
+msgstr "Delete All Jobs"
+
+msgid "Confirm"
+msgstr "Confirm"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Selected member has no queued jobs."
+msgstr "Selected member has no queued jobs."
+
+msgid "Selected members have no queued jobs."
+msgstr "Selected members have no queued jobs."
+
+msgid "Selected members:"
+msgstr "Selected members:"
+
+msgid "Selected members jobs:"
+msgstr "Selected members jobs:"
+
+msgid "Selected member jobs:"
+msgstr "Selected member jobs:"
+
+msgid "showing"
+msgstr "showing"
+
+msgid "Task"
+msgstr "Task"
+
+msgid "Scroll job rows up."
+msgstr "Scroll job rows up."
+
+msgid "Scroll job rows down."
+msgstr "Scroll job rows down."
+
+msgid "Delete all queued jobs for the currently selected member."
+msgstr "Delete all queued jobs for the currently selected member."
+
+msgid "Delete all queued jobs for all selected members."
+msgstr "Delete all queued jobs for all selected members."
+
+msgid "Warning: delete all queued jobs for the selected member's squad."
+msgstr "Warning: delete all queued jobs for the selected member's squad."
+
+msgid "Warning: delete all queued jobs for all player-controlled squads."
+msgstr "Warning: delete all queued jobs for all player-controlled squads."
+
+msgid "Delete this job for selected member."
+msgstr "Delete this job for selected member."
+
+msgid "Delete this job for all selected members."
+msgstr "Delete this job for all selected members."
+
+msgid "Warning: delete this job for the whole squad."
+msgstr "Warning: delete this job for the whole squad."
+
+msgid "Warning: delete this job for all player-controlled squads."
+msgstr "Warning: delete this job for all player-controlled squads."

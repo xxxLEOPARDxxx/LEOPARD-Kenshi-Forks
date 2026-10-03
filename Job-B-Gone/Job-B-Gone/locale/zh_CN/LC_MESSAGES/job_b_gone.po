@@ -79,3 +79,75 @@ msgstr "记录工作"
 
 msgid "Log selected-member job snapshots for diagnostics"
 msgstr "将所选角色的工作写入 RE_Kenshi_log.txt"
+
+msgid "Me"
+msgstr "我"
+
+msgid "Selected"
+msgstr "所选"
+
+msgid "Squad"
+msgstr "小队"
+
+msgid "All"
+msgstr "全部"
+
+msgid "Delete All Jobs"
+msgstr "删除所有工作"
+
+msgid "Confirm"
+msgstr "确认"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Selected member has no queued jobs."
+msgstr "所选角色没有排队的工作。"
+
+msgid "Selected members have no queued jobs."
+msgstr "所选角色都没有排队的工作。"
+
+msgid "Selected members:"
+msgstr "已选："
+
+msgid "Selected members jobs:"
+msgstr "所选角色的工作："
+
+msgid "Selected member jobs:"
+msgstr "所选角色的工作："
+
+msgid "showing"
+msgstr "显示"
+
+msgid "Task"
+msgstr "工作"
+
+msgid "Scroll job rows up."
+msgstr "向上滚动工作列表。"
+
+msgid "Scroll job rows down."
+msgstr "向下滚动工作列表。"
+
+msgid "Delete all queued jobs for the currently selected member."
+msgstr "删除当前所选角色的所有排队工作。"
+
+msgid "Delete all queued jobs for all selected members."
+msgstr "删除所有所选角色的所有排队工作。"
+
+msgid "Warning: delete all queued jobs for the selected member's squad."
+msgstr "警告：删除所选角色所在小队的所有排队工作。"
+
+msgid "Warning: delete all queued jobs for all player-controlled squads."
+msgstr "警告：删除玩家所有小队的所有排队工作。"
+
+msgid "Delete this job for selected member."
+msgstr "删除所选角色的这项工作。"
+
+msgid "Delete this job for all selected members."
+msgstr "删除所有所选角色的这项工作。"
+
+msgid "Warning: delete this job for the whole squad."
+msgstr "警告：删除整个小队的这项工作。"
+
+msgid "Warning: delete this job for all player-controlled squads."
+msgstr "警告：删除玩家所有小队的这项工作。"
