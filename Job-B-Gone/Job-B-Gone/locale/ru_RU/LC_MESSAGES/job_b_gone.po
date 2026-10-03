@@ -1,0 +1,81 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Job-B-Gone\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad."
+msgstr "Панель над полосой отряда: снять поставленные работы у себя, у выделенных или у всего отряда."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable the Job-B-Gone panel and actions"
+msgstr "Включает и выключает весь мод"
+
+msgid "Panel toggle key"
+msgstr "Клавиша показа панели"
+
+msgid "Primary key for the panel visibility toggle. Clear to disable the hotkey."
+msgstr "Показывает и прячет панель. NONE - без клавиши"
+
+msgid "Require Ctrl"
+msgstr "Нужен Ctrl"
+
+msgid "Require Ctrl to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Ctrl"
+
+msgid "Require Alt"
+msgstr "Нужен Alt"
+
+msgid "Require Alt to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Alt"
+
+msgid "Require Shift"
+msgstr "Нужен Shift"
+
+msgid "Require Shift to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Shift"
+
+msgid "Top actions"
+msgstr "Кнопки сверху"
+
+msgid "Show the top scoped delete-all buttons"
+msgstr "Кнопки вверху панели, которые снимают все работы у меня, у выделенных или у отряда"
+
+msgid "Panel collapsed"
+msgstr "Панель свёрнута"
+
+msgid "Persist whether the panel is collapsed"
+msgstr "Свёрнута ли панель; запоминается между запусками"
+
+msgid "Hide in creation"
+msgstr "Прятать при создании персонажа"
+
+msgid "Hide the panel while character creation or editing is open"
+msgstr "Прятать панель, пока открыто создание или правка персонажа"
+
+msgid "Hide in inventory"
+msgstr "Прятать в инвентаре"
+
+msgid "Hide the panel while inventory or trade windows are open"
+msgstr "Прятать панель, пока открыт инвентарь или торговля"
+
+msgid "Hide in dialogue"
+msgstr "Прятать в разговоре"
+
+msgid "Hide the panel while characters are in dialogue or interaction"
+msgstr "Прятать панель во время разговора"
+
+msgid "Debug transitions"
+msgstr "Журнал панели"
+
+msgid "Enable transition and visibility diagnostics"
+msgstr "Пишет в RE_Kenshi_log.txt, когда и почему панель показывается или прячется"
+
+msgid "Debug snapshots"
+msgstr "Журнал работ"
+
+msgid "Log selected-member job snapshots for diagnostics"
+msgstr "Пишет работы выделенных персонажей в RE_Kenshi_log.txt"

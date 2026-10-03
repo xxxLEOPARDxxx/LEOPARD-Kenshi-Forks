@@ -1,0 +1,81 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Job-B-Gone\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad."
+msgstr "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable the Job-B-Gone panel and actions"
+msgstr "Turns the whole mod on and off"
+
+msgid "Panel toggle key"
+msgstr "Panel toggle key"
+
+msgid "Primary key for the panel visibility toggle. Clear to disable the hotkey."
+msgstr "Shows and hides the panel. NONE - no key"
+
+msgid "Require Ctrl"
+msgstr "Require Ctrl"
+
+msgid "Require Ctrl to be held with the panel toggle hotkey"
+msgstr "Ctrl must be held together with the panel key"
+
+msgid "Require Alt"
+msgstr "Require Alt"
+
+msgid "Require Alt to be held with the panel toggle hotkey"
+msgstr "Alt must be held together with the panel key"
+
+msgid "Require Shift"
+msgstr "Require Shift"
+
+msgid "Require Shift to be held with the panel toggle hotkey"
+msgstr "Shift must be held together with the panel key"
+
+msgid "Top actions"
+msgstr "Buttons at the top"
+
+msgid "Show the top scoped delete-all buttons"
+msgstr "The buttons at the top of the panel that clear all jobs of me, the selected or the squad"
+
+msgid "Panel collapsed"
+msgstr "Panel collapsed"
+
+msgid "Persist whether the panel is collapsed"
+msgstr "Whether the panel is collapsed; remembered between sessions"
+
+msgid "Hide in creation"
+msgstr "Hide in character creation"
+
+msgid "Hide the panel while character creation or editing is open"
+msgstr "Hides the panel while a character is being created or edited"
+
+msgid "Hide in inventory"
+msgstr "Hide in inventory"
+
+msgid "Hide the panel while inventory or trade windows are open"
+msgstr "Hides the panel while the inventory or trade window is open"
+
+msgid "Hide in dialogue"
+msgstr "Hide in dialogue"
+
+msgid "Hide the panel while characters are in dialogue or interaction"
+msgstr "Hides the panel during dialogue"
+
+msgid "Debug transitions"
+msgstr "Log panel changes"
+
+msgid "Enable transition and visibility diagnostics"
+msgstr "Writes when and why the panel shows or hides to RE_Kenshi_log.txt"
+
+msgid "Debug snapshots"
+msgstr "Log jobs"
+
+msgid "Log selected-member job snapshots for diagnostics"
+msgstr "Writes the jobs of the selected characters to RE_Kenshi_log.txt"
