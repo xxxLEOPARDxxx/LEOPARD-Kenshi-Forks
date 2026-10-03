@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Auto-Pause-on-Load\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Pauses the game after a save is loaded, and optionally while trading or in the inventory."
+msgstr "读档后自动暂停游戏，也可在交易或打开物品栏时暂停。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable all Auto-Pause-on-Load behavior"
+msgstr "开启或关闭整个模组"
+
+msgid "Pause debounce (ms)"
+msgstr "暂停最短间隔（毫秒）"
+
+msgid "Minimum interval between automatic pause events"
+msgstr "在上一次自动暂停后，至少间隔这么久才会再次暂停"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Emit verbose transition logs for load and UI pause flows"
+msgstr "将读档和暂停事件写入 RE_Kenshi_log.txt"
+
+msgid "Pause on trade"
+msgstr "交易时暂停"
+
+msgid "Pause the game when trade UI opens"
+msgstr "打开交易窗口时暂停游戏"
+
+msgid "Resume after trade"
+msgstr "交易后继续"
+
+msgid "Resume when trade UI closes if this mod paused the game"
+msgstr "关闭交易窗口时继续游戏（如果是本模组暂停的）"
+
+msgid "Pause on inventory open"
+msgstr "打开物品栏时暂停"
+
+msgid "Pause the game when inventory opens"
+msgstr "打开物品栏时暂停游戏"
+
+msgid "Resume after inventory close"
+msgstr "关闭物品栏后继续"
+
+msgid "Resume when inventory closes if this mod paused the game"
+msgstr "关闭物品栏时继续游戏（如果是本模组暂停的）"

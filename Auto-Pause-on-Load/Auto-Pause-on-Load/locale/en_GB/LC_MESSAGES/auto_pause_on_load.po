@@ -1,0 +1,51 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Auto-Pause-on-Load\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Pauses the game after a save is loaded, and optionally while trading or in the inventory."
+msgstr "Pauses the game after a save is loaded, and optionally while trading or in the inventory."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable all Auto-Pause-on-Load behavior"
+msgstr "Turns the whole mod on and off"
+
+msgid "Pause debounce (ms)"
+msgstr "Minimum pause interval, ms"
+
+msgid "Minimum interval between automatic pause events"
+msgstr "The mod will not pause again sooner than this after its previous pause"
+
+msgid "Debug logging"
+msgstr "Detailed log"
+
+msgid "Emit verbose transition logs for load and UI pause flows"
+msgstr "Writes loading and pause events to RE_Kenshi_log.txt"
+
+msgid "Pause on trade"
+msgstr "Pause on trade"
+
+msgid "Pause the game when trade UI opens"
+msgstr "Pauses the game when the trade window opens"
+
+msgid "Resume after trade"
+msgstr "Resume after trade"
+
+msgid "Resume when trade UI closes if this mod paused the game"
+msgstr "Resumes when the trade window closes, if this mod paused the game"
+
+msgid "Pause on inventory open"
+msgstr "Pause on inventory open"
+
+msgid "Pause the game when inventory opens"
+msgstr "Pauses the game when the inventory opens"
+
+msgid "Resume after inventory close"
+msgstr "Resume after inventory close"
+
+msgid "Resume when inventory closes if this mod paused the game"
+msgstr "Resumes when the inventory closes, if this mod paused the game"
