@@ -1,4 +1,7 @@
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#define MCM_BRIDGE_HAS_INT_V2
+#include <McmModHubBridge.h>
 #include "emc/mod_hub_consumer_helpers.h"
 
 static const char* kHubNamespaceId = "emkej.qol";
@@ -322,6 +325,9 @@ static void ConfigureModHubClient()
 
 static void StartModHubClient()
 {
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -349,3 +355,6 @@ static void StartModHubClient()
 
     LogModHubFallback("invalid_client_configuration");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(&kModHubTableRegistration, "Pauses the game after a save is loaded, and optionally while trading or in the inventory.")

@@ -1,3 +1,7 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "auto_pause_on_load"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include <core/Functions.h>
