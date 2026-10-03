@@ -1,3 +1,7 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "job_b_gone"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include <core/Functions.h>

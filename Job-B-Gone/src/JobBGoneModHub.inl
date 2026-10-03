@@ -1,4 +1,7 @@
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#define MCM_BRIDGE_HAS_INT_V2
+#include <McmModHubBridge.h>
 #include "emc/mod_hub_consumer_helpers.h"
 
 #include <ois/OISKeyboard.h>
@@ -662,6 +665,9 @@ void JobBGoneModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -686,3 +692,6 @@ void JobBGoneModHub_OnStartup()
 
 #undef JBG_ARRAY_COUNT
 } // namespace
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(&g_modHubRegistration, "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad.")
