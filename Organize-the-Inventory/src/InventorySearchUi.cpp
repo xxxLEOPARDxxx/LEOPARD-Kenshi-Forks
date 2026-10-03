@@ -1,4 +1,5 @@
 #include "InventorySearchUi.h"
+#include <WidgetRef.h>
 
 #include "InventoryConfig.h"
 #include "InventoryCore.h"
@@ -104,15 +105,18 @@ struct SearchContainerMetrics
     int searchAreaWidth;
 };
 
+// Своя панель - по ссылке, которая сама обнуляется при удалении виджета
+// (shared/WidgetRef.h). Раньше её искали по имени через весь интерфейс по
+// нескольку раз за кадр, и пока окно закрыто - всегда безуспешно.
+static WidgetRef& ControlsContainerRef()
+{
+    static WidgetRef* ref = new WidgetRef();   // не разрушается: MyGUI держит его в списке
+    return *ref;
+}
+
 MyGUI::Widget* FindControlsContainer()
 {
-    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui == 0)
-    {
-        return 0;
-    }
-
-    return gui->findWidgetT(kControlsContainerName, false);
+    return ControlsContainerRef().get();
 }
 
 MyGUI::EditBox* FindSearchEditBox()
@@ -1260,6 +1264,7 @@ bool BuildControlsScaffold(MyGUI::Widget* parent)
         BuildSearchContainerCoord(parent),
         MyGUI::Align::Right | MyGUI::Align::Top,
         kControlsContainerName);
+    ControlsContainerRef().set(container);
     if (container == 0)
     {
         LogErrorLine("failed to create inventory controls container");

@@ -57,3 +57,7 @@ mod-config.json starts with the shared logging baseline:
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- Производительность: своя панель поиска запоминается при создании (shared/WidgetRef.h) вместо поиска по имени через весь интерфейс каждый кадр.
