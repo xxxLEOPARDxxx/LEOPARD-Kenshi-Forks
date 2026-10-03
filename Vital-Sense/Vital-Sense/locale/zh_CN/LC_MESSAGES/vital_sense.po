@@ -1,0 +1,408 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Sense\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights downed characters with state markers, an optional body tint and bounty indicators."
+msgstr "用状态标记、可选的身体着色和悬赏标识高亮倒地的角色。"
+
+msgid "Core"
+msgstr "常规"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable all Vital Sense overlays and tint behavior"
+msgstr "开启或关闭整个模组"
+
+msgid "Highlight key"
+msgstr "高亮按键"
+
+msgid "Primary key that gates KO highlights. Clear to Unbound for always-on highlights."
+msgstr "按住此键时高亮倒地角色。NONE - 始终高亮"
+
+msgid "Require Ctrl"
+msgstr "需要 Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "需要同时按住 Ctrl 和高亮按键"
+
+msgid "Require Shift"
+msgstr "需要 Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "需要同时按住 Shift 和高亮按键"
+
+msgid "Require Alt"
+msgstr "需要 Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "需要同时按住 Alt 和高亮按键"
+
+msgid "Max highlight distance"
+msgstr "最大高亮距离"
+
+msgid "Maximum horizontal distance from camera center for highlights"
+msgstr "距离镜头中心多远的角色会被高亮"
+
+msgid "Show icons"
+msgstr "显示图标"
+
+msgid "Render icon widgets for KO states"
+msgstr "显示状态图标"
+
+msgid "Show text"
+msgstr "显示文字"
+
+msgid "Render short state labels such as ZZ and DY"
+msgstr "显示简短的状态文字，如 ZZ 或 DY"
+
+msgid "States"
+msgstr "状态"
+
+msgid "Show unconscious"
+msgstr "昏迷"
+
+msgid "Show markers for unconscious targets"
+msgstr "为昏迷的角色显示标记"
+
+msgid "Show recovery coma"
+msgstr "深度昏迷"
+
+msgid "Show markers for recovery coma targets"
+msgstr "为处于深度昏迷的角色显示标记"
+
+msgid "Show dying"
+msgstr "濒死"
+
+msgid "Show markers for dying targets"
+msgstr "为濒死的角色显示标记"
+
+msgid "Show playing dead"
+msgstr "装死"
+
+msgid "Show markers for playing dead targets"
+msgstr "为装死的角色显示标记"
+
+msgid "Show dead"
+msgstr "死亡"
+
+msgid "Show markers for dead targets"
+msgstr "为死亡的角色显示标记"
+
+msgid "Unconscious text"
+msgstr "昏迷文字"
+
+msgid "Short label for the unconscious marker"
+msgstr "昏迷标记的简短文字"
+
+msgid "Recovery coma text"
+msgstr "深度昏迷文字"
+
+msgid "Short label for the recovery coma marker"
+msgstr "深度昏迷标记的简短文字"
+
+msgid "Dying text"
+msgstr "濒死文字"
+
+msgid "Short label for the dying marker"
+msgstr "濒死标记的简短文字"
+
+msgid "Playing dead text"
+msgstr "装死文字"
+
+msgid "Short label for the playing dead marker"
+msgstr "装死标记的简短文字"
+
+msgid "Dead text"
+msgstr "死亡文字"
+
+msgid "Short label for the dead marker"
+msgstr "死亡标记的简短文字"
+
+msgid "Unconscious text size"
+msgstr "昏迷文字大小"
+
+msgid "Font height for the unconscious label"
+msgstr "昏迷文字的字体高度"
+
+msgid "Recovery coma text size"
+msgstr "深度昏迷文字大小"
+
+msgid "Font height for the recovery coma label"
+msgstr "深度昏迷文字的字体高度"
+
+msgid "Dying text size"
+msgstr "濒死文字大小"
+
+msgid "Font height for the dying label"
+msgstr "濒死文字的字体高度"
+
+msgid "Playing dead text size"
+msgstr "装死文字大小"
+
+msgid "Font height for the playing dead label"
+msgstr "装死文字的字体高度"
+
+msgid "Dead text size"
+msgstr "死亡文字大小"
+
+msgid "Font height for the dead label"
+msgstr "死亡文字的字体高度"
+
+msgid "Unconscious icon texture"
+msgstr "昏迷图标贴图"
+
+msgid "Short path for the unconscious icon texture"
+msgstr "昏迷图标贴图的路径"
+
+msgid "Recovery coma icon texture"
+msgstr "深度昏迷图标贴图"
+
+msgid "Short path for the recovery coma icon texture"
+msgstr "深度昏迷图标贴图的路径"
+
+msgid "Dying icon texture"
+msgstr "濒死图标贴图"
+
+msgid "Short path for the dying icon texture"
+msgstr "濒死图标贴图的路径"
+
+msgid "Playing dead icon texture"
+msgstr "装死图标贴图"
+
+msgid "Short path for the playing dead icon texture"
+msgstr "装死图标贴图的路径"
+
+msgid "Dead icon texture"
+msgstr "死亡图标贴图"
+
+msgid "Short path for the dead icon texture"
+msgstr "死亡图标贴图的路径"
+
+msgid "Unconscious icon size"
+msgstr "昏迷图标大小"
+
+msgid "Pixel size for the unconscious icon"
+msgstr "昏迷图标大小（像素）"
+
+msgid "Recovery coma icon size"
+msgstr "深度昏迷图标大小"
+
+msgid "Pixel size for the recovery coma icon"
+msgstr "深度昏迷图标大小（像素）"
+
+msgid "Dying icon size"
+msgstr "濒死图标大小"
+
+msgid "Pixel size for the dying icon"
+msgstr "濒死图标大小（像素）"
+
+msgid "Playing dead icon size"
+msgstr "装死图标大小"
+
+msgid "Pixel size for the playing dead icon"
+msgstr "装死图标大小（像素）"
+
+msgid "Dead icon size"
+msgstr "死亡图标大小"
+
+msgid "Pixel size for the dead icon"
+msgstr "死亡图标大小（像素）"
+
+msgid "Bounty"
+msgstr "悬赏"
+
+msgid "Show bounty glow"
+msgstr "悬赏光晕"
+
+msgid "Render bounty glow behind eligible targets"
+msgstr "在有悬赏的角色身后显示光晕"
+
+msgid "Show bounty symbol"
+msgstr "悬赏标志"
+
+msgid "Render bounty symbol text using tier colors"
+msgstr "悬赏标志，按悬赏金额着色"
+
+msgid "Show live bounty symbol"
+msgstr "站立目标的悬赏标志"
+
+msgid "Render bounty symbols for non-downed on-screen bounty targets"
+msgstr "在未倒地的悬赏目标上方也显示悬赏标志"
+
+msgid "Bounty symbol"
+msgstr "悬赏符号"
+
+msgid "Short bounty symbol text such as $ or B"
+msgstr "符号本身，例如 $ 或 B"
+
+msgid "Bounty symbol size"
+msgstr "悬赏符号大小"
+
+msgid "Base font height for the bounty symbol"
+msgstr "悬赏符号的字体高度"
+
+msgid "Bounty symbol position"
+msgstr "悬赏符号位置"
+
+msgid "Choose whether the bounty symbol renders before the state icon or before the state text"
+msgstr "符号位于状态图标前还是状态文字前"
+
+msgid "Before state icon"
+msgstr "状态图标前"
+
+msgid "Before state text"
+msgstr "状态文字前"
+
+msgid "Live symbol anchor offset"
+msgstr "站立目标上符号的高度"
+
+msgid "Vertical world-anchor offset for live bounty symbols"
+msgstr "悬赏符号在站立角色上方的高度"
+
+msgid "Bounty trivial max"
+msgstr "微不足道悬赏上限"
+
+msgid "Upper bound for the trivial bounty tier"
+msgstr "仍算作微不足道悬赏的最高金额"
+
+msgid "Bounty low max"
+msgstr "低悬赏上限"
+
+msgid "Upper bound for the low bounty tier"
+msgstr "仍算作低悬赏的最高金额"
+
+msgid "Bounty modest max"
+msgstr "一般悬赏上限"
+
+msgid "Upper bound for the modest bounty tier"
+msgstr "仍算作一般悬赏的最高金额"
+
+msgid "Bounty notable max"
+msgstr "可观悬赏上限"
+
+msgid "Upper bound for the notable bounty tier"
+msgstr "仍算作可观悬赏的最高金额"
+
+msgid "Bounty high value max"
+msgstr "高额悬赏上限"
+
+msgid "Upper bound for the high-value bounty tier"
+msgstr "仍算作高额悬赏的最高金额"
+
+msgid "Bounty elite max"
+msgstr "精英悬赏上限"
+
+msgid "Upper bound for the elite bounty tier"
+msgstr "仍算作精英悬赏的最高金额"
+
+msgid "Bounty trivial color"
+msgstr "微不足道悬赏颜色"
+
+msgid "Bounty symbol text color for the trivial tier; Mod Hub edits RGB only"
+msgstr "微不足道悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty low color"
+msgstr "低悬赏颜色"
+
+msgid "Bounty symbol text color for the low tier; Mod Hub edits RGB only"
+msgstr "低悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty modest color"
+msgstr "一般悬赏颜色"
+
+msgid "Bounty symbol text color for the modest tier; Mod Hub edits RGB only"
+msgstr "一般悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty notable color"
+msgstr "可观悬赏颜色"
+
+msgid "Bounty symbol text color for the notable tier; Mod Hub edits RGB only"
+msgstr "可观悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty high value color"
+msgstr "高额悬赏颜色"
+
+msgid "Bounty symbol text color for the high-value tier; Mod Hub edits RGB only"
+msgstr "高额悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty elite color"
+msgstr "精英悬赏颜色"
+
+msgid "Bounty symbol text color for the elite tier; Mod Hub edits RGB only"
+msgstr "精英悬赏的符号颜色，#RRGGBB"
+
+msgid "Bounty legendary color"
+msgstr "传奇悬赏颜色"
+
+msgid "Bounty symbol text color for the legendary tier; Mod Hub edits RGB only"
+msgstr "传奇悬赏的符号颜色，#RRGGBB"
+
+msgid "Tint & relation colors"
+msgstr "着色和关系颜色"
+
+msgid "Enable character tint"
+msgstr "为角色着色"
+
+msgid "Tint resolved characters in addition to marker overlays"
+msgstr "除了标记之外，也为角色本身着色"
+
+msgid "Tint squad"
+msgstr "为小队着色"
+
+msgid "Tint conscious squadmates when character tint is enabled"
+msgstr "也为站立的队友着色"
+
+msgid "Tint bounty-only"
+msgstr "为悬赏目标着色"
+
+msgid "Tint non-downed bounty-only targets when character tint is enabled"
+msgstr "也为站立的悬赏角色着色"
+
+msgid "Force depth override"
+msgstr "穿墙显示"
+
+msgid "Force tint to render through depth when supported by the shader"
+msgstr "在着色器支持时，着色可穿透墙壁和物体显示"
+
+msgid "Enemy color"
+msgstr "敌人颜色"
+
+msgid "Relation color used for enemy markers and tint"
+msgstr "敌人标记和着色的颜色，#RRGGBB"
+
+msgid "Ally color"
+msgstr "盟友颜色"
+
+msgid "Relation color used for ally markers and tint"
+msgstr "盟友标记和着色的颜色，#RRGGBB"
+
+msgid "Squad color"
+msgstr "小队颜色"
+
+msgid "Relation color used for squad markers and tint"
+msgstr "小队标记和着色的颜色，#RRGGBB"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Update interval"
+msgstr "更新间隔（毫秒）"
+
+msgid "KO target refresh interval in milliseconds"
+msgstr "多久搜索一次倒地角色（毫秒）"
+
+msgid "Debug diagnostics"
+msgstr "详细日志"
+
+msgid "Enable extra runtime diagnostics"
+msgstr "将详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Debug texture info"
+msgstr "记录图标贴图"
+
+msgid "Log custom icon texture resolution details"
+msgstr "将图标贴图的查找过程写入 RE_Kenshi_log.txt"

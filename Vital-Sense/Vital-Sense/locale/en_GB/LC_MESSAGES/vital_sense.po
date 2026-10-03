@@ -1,0 +1,408 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Sense\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights downed characters with state markers, an optional body tint and bounty indicators."
+msgstr "Highlights downed characters with state markers, an optional body tint and bounty indicators."
+
+msgid "Core"
+msgstr "General"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable all Vital Sense overlays and tint behavior"
+msgstr "Turns the whole mod on and off"
+
+msgid "Highlight key"
+msgstr "Highlight key"
+
+msgid "Primary key that gates KO highlights. Clear to Unbound for always-on highlights."
+msgstr "Downed characters are highlighted while this key is held. NONE - always highlighted"
+
+msgid "Require Ctrl"
+msgstr "Require Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "Ctrl must be held together with the highlight key"
+
+msgid "Require Shift"
+msgstr "Require Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "Shift must be held together with the highlight key"
+
+msgid "Require Alt"
+msgstr "Require Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "Alt must be held together with the highlight key"
+
+msgid "Max highlight distance"
+msgstr "Max highlight distance"
+
+msgid "Maximum horizontal distance from camera center for highlights"
+msgstr "How far from the centre of the camera characters are highlighted"
+
+msgid "Show icons"
+msgstr "Show icons"
+
+msgid "Render icon widgets for KO states"
+msgstr "Icons of the states"
+
+msgid "Show text"
+msgstr "Show text"
+
+msgid "Render short state labels such as ZZ and DY"
+msgstr "Short state text such as ZZ or DY"
+
+msgid "States"
+msgstr "States"
+
+msgid "Show unconscious"
+msgstr "Show unconscious"
+
+msgid "Show markers for unconscious targets"
+msgstr "Markers for unconscious characters"
+
+msgid "Show recovery coma"
+msgstr "Show recovery coma"
+
+msgid "Show markers for recovery coma targets"
+msgstr "Markers for characters in a recovery coma"
+
+msgid "Show dying"
+msgstr "Show dying"
+
+msgid "Show markers for dying targets"
+msgstr "Markers for dying characters"
+
+msgid "Show playing dead"
+msgstr "Show playing dead"
+
+msgid "Show markers for playing dead targets"
+msgstr "Markers for characters playing dead"
+
+msgid "Show dead"
+msgstr "Show dead"
+
+msgid "Show markers for dead targets"
+msgstr "Markers for dead characters"
+
+msgid "Unconscious text"
+msgstr "Unconscious text"
+
+msgid "Short label for the unconscious marker"
+msgstr "Short text of the unconscious marker"
+
+msgid "Recovery coma text"
+msgstr "Recovery coma text"
+
+msgid "Short label for the recovery coma marker"
+msgstr "Short text of the recovery coma marker"
+
+msgid "Dying text"
+msgstr "Dying text"
+
+msgid "Short label for the dying marker"
+msgstr "Short text of the dying marker"
+
+msgid "Playing dead text"
+msgstr "Playing dead text"
+
+msgid "Short label for the playing dead marker"
+msgstr "Short text of the playing dead marker"
+
+msgid "Dead text"
+msgstr "Dead text"
+
+msgid "Short label for the dead marker"
+msgstr "Short text of the dead marker"
+
+msgid "Unconscious text size"
+msgstr "Unconscious text size"
+
+msgid "Font height for the unconscious label"
+msgstr "Font height of the unconscious text"
+
+msgid "Recovery coma text size"
+msgstr "Recovery coma text size"
+
+msgid "Font height for the recovery coma label"
+msgstr "Font height of the recovery coma text"
+
+msgid "Dying text size"
+msgstr "Dying text size"
+
+msgid "Font height for the dying label"
+msgstr "Font height of the dying text"
+
+msgid "Playing dead text size"
+msgstr "Playing dead text size"
+
+msgid "Font height for the playing dead label"
+msgstr "Font height of the playing dead text"
+
+msgid "Dead text size"
+msgstr "Dead text size"
+
+msgid "Font height for the dead label"
+msgstr "Font height of the dead text"
+
+msgid "Unconscious icon texture"
+msgstr "Unconscious icon texture"
+
+msgid "Short path for the unconscious icon texture"
+msgstr "Path to the unconscious icon picture"
+
+msgid "Recovery coma icon texture"
+msgstr "Recovery coma icon texture"
+
+msgid "Short path for the recovery coma icon texture"
+msgstr "Path to the recovery coma icon picture"
+
+msgid "Dying icon texture"
+msgstr "Dying icon texture"
+
+msgid "Short path for the dying icon texture"
+msgstr "Path to the dying icon picture"
+
+msgid "Playing dead icon texture"
+msgstr "Playing dead icon texture"
+
+msgid "Short path for the playing dead icon texture"
+msgstr "Path to the playing dead icon picture"
+
+msgid "Dead icon texture"
+msgstr "Dead icon texture"
+
+msgid "Short path for the dead icon texture"
+msgstr "Path to the dead icon picture"
+
+msgid "Unconscious icon size"
+msgstr "Unconscious icon size"
+
+msgid "Pixel size for the unconscious icon"
+msgstr "Size of the unconscious icon, px"
+
+msgid "Recovery coma icon size"
+msgstr "Recovery coma icon size"
+
+msgid "Pixel size for the recovery coma icon"
+msgstr "Size of the recovery coma icon, px"
+
+msgid "Dying icon size"
+msgstr "Dying icon size"
+
+msgid "Pixel size for the dying icon"
+msgstr "Size of the dying icon, px"
+
+msgid "Playing dead icon size"
+msgstr "Playing dead icon size"
+
+msgid "Pixel size for the playing dead icon"
+msgstr "Size of the playing dead icon, px"
+
+msgid "Dead icon size"
+msgstr "Dead icon size"
+
+msgid "Pixel size for the dead icon"
+msgstr "Size of the dead icon, px"
+
+msgid "Bounty"
+msgstr "Bounty"
+
+msgid "Show bounty glow"
+msgstr "Show bounty glow"
+
+msgid "Render bounty glow behind eligible targets"
+msgstr "A glow behind characters with a bounty"
+
+msgid "Show bounty symbol"
+msgstr "Show bounty symbol"
+
+msgid "Render bounty symbol text using tier colors"
+msgstr "The bounty symbol, coloured by the size of the bounty"
+
+msgid "Show live bounty symbol"
+msgstr "Bounty symbol on standing targets"
+
+msgid "Render bounty symbols for non-downed on-screen bounty targets"
+msgstr "The bounty symbol also above characters who are not downed"
+
+msgid "Bounty symbol"
+msgstr "Bounty symbol"
+
+msgid "Short bounty symbol text such as $ or B"
+msgstr "The symbol itself, such as $ or B"
+
+msgid "Bounty symbol size"
+msgstr "Bounty symbol size"
+
+msgid "Base font height for the bounty symbol"
+msgstr "Font height of the bounty symbol"
+
+msgid "Bounty symbol position"
+msgstr "Bounty symbol position"
+
+msgid "Choose whether the bounty symbol renders before the state icon or before the state text"
+msgstr "Whether the symbol goes before the state icon or before the state text"
+
+msgid "Before state icon"
+msgstr "Before state icon"
+
+msgid "Before state text"
+msgstr "Before state text"
+
+msgid "Live symbol anchor offset"
+msgstr "Height of the symbol over standing targets"
+
+msgid "Vertical world-anchor offset for live bounty symbols"
+msgstr "How high above a standing character the bounty symbol hangs"
+
+msgid "Bounty trivial max"
+msgstr "Bounty trivial max"
+
+msgid "Upper bound for the trivial bounty tier"
+msgstr "The largest bounty that still counts as trivial"
+
+msgid "Bounty low max"
+msgstr "Bounty low max"
+
+msgid "Upper bound for the low bounty tier"
+msgstr "The largest bounty that still counts as low"
+
+msgid "Bounty modest max"
+msgstr "Bounty modest max"
+
+msgid "Upper bound for the modest bounty tier"
+msgstr "The largest bounty that still counts as modest"
+
+msgid "Bounty notable max"
+msgstr "Bounty notable max"
+
+msgid "Upper bound for the notable bounty tier"
+msgstr "The largest bounty that still counts as notable"
+
+msgid "Bounty high value max"
+msgstr "Bounty high value max"
+
+msgid "Upper bound for the high-value bounty tier"
+msgstr "The largest bounty that still counts as high value"
+
+msgid "Bounty elite max"
+msgstr "Bounty elite max"
+
+msgid "Upper bound for the elite bounty tier"
+msgstr "The largest bounty that still counts as elite"
+
+msgid "Bounty trivial color"
+msgstr "Bounty trivial color"
+
+msgid "Bounty symbol text color for the trivial tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a trivial bounty, #RRGGBB"
+
+msgid "Bounty low color"
+msgstr "Bounty low color"
+
+msgid "Bounty symbol text color for the low tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a low bounty, #RRGGBB"
+
+msgid "Bounty modest color"
+msgstr "Bounty modest color"
+
+msgid "Bounty symbol text color for the modest tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a modest bounty, #RRGGBB"
+
+msgid "Bounty notable color"
+msgstr "Bounty notable color"
+
+msgid "Bounty symbol text color for the notable tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a notable bounty, #RRGGBB"
+
+msgid "Bounty high value color"
+msgstr "Bounty high value color"
+
+msgid "Bounty symbol text color for the high-value tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a high value bounty, #RRGGBB"
+
+msgid "Bounty elite color"
+msgstr "Bounty elite color"
+
+msgid "Bounty symbol text color for the elite tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a elite bounty, #RRGGBB"
+
+msgid "Bounty legendary color"
+msgstr "Bounty legendary color"
+
+msgid "Bounty symbol text color for the legendary tier; Mod Hub edits RGB only"
+msgstr "Colour of the bounty symbol for a legendary bounty, #RRGGBB"
+
+msgid "Tint & relation colors"
+msgstr "Tint and relation colours"
+
+msgid "Enable character tint"
+msgstr "Enable character tint"
+
+msgid "Tint resolved characters in addition to marker overlays"
+msgstr "Tints the characters themselves, in addition to the markers"
+
+msgid "Tint squad"
+msgstr "Tint squad"
+
+msgid "Tint conscious squadmates when character tint is enabled"
+msgstr "Also tints your squadmates who are on their feet"
+
+msgid "Tint bounty-only"
+msgstr "Tint bounty targets"
+
+msgid "Tint non-downed bounty-only targets when character tint is enabled"
+msgstr "Also tints standing characters with a bounty"
+
+msgid "Force depth override"
+msgstr "Show through walls"
+
+msgid "Force tint to render through depth when supported by the shader"
+msgstr "The tint is visible through walls and objects, where the shader allows it"
+
+msgid "Enemy color"
+msgstr "Enemy color"
+
+msgid "Relation color used for enemy markers and tint"
+msgstr "Colour of enemy markers and tint, #RRGGBB"
+
+msgid "Ally color"
+msgstr "Ally color"
+
+msgid "Relation color used for ally markers and tint"
+msgstr "Colour of ally markers and tint, #RRGGBB"
+
+msgid "Squad color"
+msgstr "Squad color"
+
+msgid "Relation color used for squad markers and tint"
+msgstr "Colour of your squad's markers and tint, #RRGGBB"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "Update interval"
+msgstr "Update interval"
+
+msgid "KO target refresh interval in milliseconds"
+msgstr "How often downed characters are looked for, ms"
+
+msgid "Debug diagnostics"
+msgstr "Detailed log"
+
+msgid "Enable extra runtime diagnostics"
+msgstr "Writes details to RE_Kenshi_log.txt"
+
+msgid "Debug texture info"
+msgstr "Log icon pictures"
+
+msgid "Log custom icon texture resolution details"
+msgstr "Writes how the icon pictures were found to RE_Kenshi_log.txt"
