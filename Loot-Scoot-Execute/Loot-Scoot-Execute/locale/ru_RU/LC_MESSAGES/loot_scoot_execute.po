@@ -1,0 +1,87 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Loot-Scoot-Execute\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Adds an Execute action for downed enemies to the right-click menu."
+msgstr "Добавляет в меню правой кнопки действие Добить для лежащих врагов."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable Loot-Scoot-Execute"
+msgstr "Включает и выключает весь мод"
+
+msgid "Enable execute kill sound"
+msgstr "Звук добивания"
+
+msgid "Play execute kill sound when execute dispatch succeeds"
+msgstr "Звук, когда добивание удалось"
+
+msgid "Debug execute logging"
+msgstr "Подробный журнал"
+
+msgid "Enable focused execute investigation logs in RE_Kenshi_log.txt"
+msgstr "Пишет подробности добивания в RE_Kenshi_log.txt"
+
+msgid "Enable Execute All"
+msgstr "Добить всех"
+
+msgid "Show the Execute All button and allow batch execute behavior"
+msgstr "Кнопка, которая добивает всех лежащих врагов вокруг цели"
+
+msgid "Ignore execute alliance check"
+msgstr "Добивать и не врагов"
+
+msgid "Allow execute on incapacitated non-hostiles; player characters remain blocked"
+msgstr "Можно добивать и лежащих нейтральных; своих - никогда"
+
+msgid "Execute distance"
+msgstr "Дистанция добивания"
+
+msgid "Required distance before queued execute triggers (default 2, max 200)"
+msgstr "На какое расстояние палач подходит перед ударом. По умолчанию 2"
+
+msgid "Execute All radius"
+msgstr "Радиус Добить всех"
+
+msgid "Search radius for Execute All around the selected target (default 10, max 200)"
+msgstr "На каком расстоянии вокруг цели Добить всех ищет лежащих врагов. По умолчанию 10"
+
+msgid "Execute button width"
+msgstr "Ширина кнопки"
+
+msgid "Execute button width in pixels (default 310)"
+msgstr "Ширина кнопки Добить в пикселях. По умолчанию 310"
+
+msgid "Execute button height"
+msgstr "Высота кнопки"
+
+msgid "Execute button height in pixels (default 56)"
+msgstr "Высота кнопки Добить в пикселях. По умолчанию 56"
+
+msgid "Execute button gap"
+msgstr "Зазор между кнопками"
+
+msgid "Vertical gap in pixels between Execute rows; use negative values to overlap (default -8)"
+msgstr "Зазор между строками Добить в пикселях; минус - наезжают друг на друга. По умолчанию -8"
+
+msgid "Execute button X"
+msgstr "Сдвиг кнопки по X"
+
+msgid "Horizontal offset in pixels from the default anchored position"
+msgstr "Сдвиг кнопки влево или вправо от обычного места, пикс."
+
+msgid "Execute button Y"
+msgstr "Сдвиг кнопки по Y"
+
+msgid "Vertical offset in pixels from the default anchored position"
+msgstr "Сдвиг кнопки вверх или вниз от обычного места, пикс."
+
+msgid "Reset Execute button defaults"
+msgstr "Кнопка по умолчанию"
+
+msgid "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0"
+msgstr "Возвращает кнопке ширину 310, высоту 56, зазор -8 и сдвиги 0"
