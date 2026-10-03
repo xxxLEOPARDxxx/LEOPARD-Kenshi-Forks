@@ -10,7 +10,7 @@
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObjectBase.h>
 #include <kenshi/SaveManager.h>
-#include <kenshi/TitleScreen.h>
+#include <kenshi/gui/TitleScreen.h>
 #include <kenshi/util/lektor.h>
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_Gui.h>
