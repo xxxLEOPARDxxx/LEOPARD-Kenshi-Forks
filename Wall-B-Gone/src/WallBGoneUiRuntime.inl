@@ -568,16 +568,21 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
 {
     if (!b->canDismantle())
     {
+        WallBGoneDebugLog("Hotkey action: skipped - the game says this building cannot be dismantled");
         return;
     }
 
     if (IsDismantleBlockedForTarget(b, isWallTarget))
     {
+        WallBGoneDebugLog(isWallTarget
+            ? "Hotkey action: skipped - something is built on or inside this wall"
+            : "Hotkey action: skipped - the bed is occupied");
         return;
     }
 
     if (IsFailedDismantleCooldownActive())
     {
+        WallBGoneDebugLog("Hotkey action: skipped - cooldown after a failed dismantle");
         return;
     }
 
@@ -586,6 +591,7 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
         Building::ConstructionState* buildState = b->getBuildState();
         if (buildState && !buildState->isComplete)
         {
+            WallBGoneDebugLog("Hotkey action: skipped - construction is not complete");
             return;
         }
 
@@ -600,6 +606,7 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
         }
 
         g_lastFailedDismantleTime = 0;
+        WallBGoneDebugLog("Hotkey action: dismantled");
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
@@ -630,6 +637,34 @@ static void HandleHotkeyAction()
 
     const hand& sel = ou->player->selectedObject;
 
+    if (g_debugLogging)
+    {
+        // Что выделено в момент нажатия: без этого «ничего не происходит»
+        // не отличить от «выделено не то».
+        std::ostringstream note;
+        note << "Hotkey action: pressed, selected=";
+        Building* const selected = sel.getBuilding();
+        RootObject* const root = sel.getRootObject();
+        if (selected != 0)
+        {
+            const GameData* const data = selected->getGameData();
+            note << "building '" << (data != 0 ? data->name : std::string("?"))
+                 << "' sid='" << (data != 0 ? data->stringID : std::string("?"))
+                 << "' wall=" << (selected->isAWall() != 0 ? 1 : 0)
+                 << " function=" << selected->getSpecialFunction()
+                 << " furniture=" << (IsSupportedBedOrFurnitureBuilding(selected) ? 1 : 0);
+        }
+        else if (root != 0)
+        {
+            note << "not a building";
+        }
+        else
+        {
+            note << "nothing";
+        }
+        WallBGoneDebugLog(note.str().c_str());
+    }
+
     Building* b = 0;
     bool isWallTarget = false;
     if (TryGetSelectedDismantleTarget(sel, &b, &isWallTarget))
@@ -637,6 +672,7 @@ static void HandleHotkeyAction()
         TryDismantleSelectedBuilding(b, sel, isWallTarget);
         return;
     }
+    WallBGoneDebugLog("Hotkey action: skipped - select a wall, bed, chair or table first");
 
     RootObject* ro = sel.getRootObject();
     if (ro)
