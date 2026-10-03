@@ -15,36 +15,6 @@
 #include <algorithm>
 
 #include <Debug.h>
-#include <cstring>
-
-// Журнал. Автор писал всё подряд через ErrorLog: на каждое открытие
-// инвентаря - строка «Error … CLASS source=…». Теперь сбои (FAIL, ERROR,
-// fault, failed) идут в журнал всегда, остальное - только при [Debug] Log=1
-// в BetterLooting.ini (или «Подробный журнал» в MCM).
-static bool g_betterLootingDebugLog = false;
-
-static bool BlIsProblem(const char* message)
-{
-    return std::strstr(message, "FAIL") != NULL
-        || std::strstr(message, "ERROR") != NULL
-        || std::strstr(message, "fault") != NULL
-        || std::strstr(message, "failed") != NULL;
-}
-
-static void BlTrace(const char* message)
-{
-    if (message == NULL)
-        return;
-    if (BlIsProblem(message))
-        ErrorLog(message);
-    else if (g_betterLootingDebugLog)
-        DebugLog(message);
-}
-
-static void BlTrace(const std::string& message)
-{
-    BlTrace(message.c_str());
-}
 
 #include <kenshi/Inventory.h>
 #include <kenshi/Item.h>
@@ -55,32 +25,6 @@ static void BlTrace(const std::string& message)
 #include <core/Functions.h>
 
 #include "BetterLootingRules.h"
-#include "BetterLootingPanel.h"
-
-// Определение здесь, а не в заголовке: файлов мода теперь два.
-BetterLootingRules g_betterLootingRules =
-{
-    20.0f,
-    500,
-    300.0f,
-    false,
-
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    false,
-    false,
-    true,    true,
-    true,
-    45,
-    true
-};
 
 // BL_FIX_STACK_TRANSFER_ONE_SHOT_ADDARG1_NO_EQUIPMENT
 // BL_FIX_DESTINATION_AWARE_UNIT_TRANSFER_EXACT_SOURCE_ROLLBACK
@@ -333,7 +277,7 @@ static bool GetSectionGridSize(
             height
         );
 
-        BlTrace(message);
+        ErrorLog(message);
 
         return false;
     }
@@ -773,7 +717,7 @@ static void RegisterBetterLootingLootOrigin(
                 entry.quantity
             );
 
-            BlTrace(
+            ErrorLog(
                 updateMessage
             );
 
@@ -813,7 +757,7 @@ static void RegisterBetterLootingLootOrigin(
         quantity
     );
 
-    BlTrace(
+    ErrorLog(
         addMessage
     );
 }
@@ -936,7 +880,7 @@ static void ReleaseBetterLootingLootOriginForStore(
             entry.quantity
         );
 
-        BlTrace(
+        ErrorLog(
             releaseMessage
         );
     }
@@ -1069,7 +1013,7 @@ static int GetBetterLootingActiveProtectedQuantity(
                 entry.protectedQuantity
             );
 
-            BlTrace(clearMessage);
+            ErrorLog(clearMessage);
         }
 
 
@@ -1164,7 +1108,7 @@ static void RegisterBetterLootingProtectedLoot(
         !character->isPlayerCharacter()
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: AUTODEPOSIT_PROTECT_SKIP destination has no player character"
         );
 
@@ -1233,7 +1177,7 @@ static void RegisterBetterLootingProtectedLoot(
             entry.protectedQuantity
         );
 
-        BlTrace(updateMessage);
+        ErrorLog(updateMessage);
 
         return;
     }
@@ -1281,7 +1225,7 @@ static void RegisterBetterLootingProtectedLoot(
         entry.protectedQuantity
     );
 
-    BlTrace(addMessage);
+    ErrorLog(addMessage);
 }
 
 
@@ -1536,7 +1480,7 @@ static bool InventoryGetExcessLoot_hook(
             blockedQuantity
         );
 
-        BlTrace(filterMessage);
+        ErrorLog(filterMessage);
     }
 
 
@@ -1685,7 +1629,7 @@ FindBetterLootingDirectPlacementInWindow(
             !positionOk
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: PLACEMENT_ENGINE_PROBE roomHint=0 positionOk=0"
             );
         }
@@ -1694,7 +1638,7 @@ FindBetterLootingDirectPlacementInWindow(
             positionOk
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: PLACEMENT_RECOVER positionOk=1 roomHint=0"
             );
         }
@@ -2185,7 +2129,7 @@ TryBetterLootingNearestCompatiblePlayerStorage(
             )
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: EMERGENCY_STORAGE REJECT strict radius or town"
             );
 
@@ -2451,7 +2395,7 @@ TryBetterLootingNearestCompatiblePlayerStorage(
                 detachedQuantity
             );
 
-            BlTrace(
+            ErrorLog(
                 message
             );
 
@@ -2529,7 +2473,7 @@ static void LogBetterLootingTransferInvariantFault(
         ownerOk ? 1 : 0
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     g_betterLootingTransferFault = true;
@@ -2545,7 +2489,7 @@ static void ExecuteLootCandidate(
 {
     if (g_betterLootingTransferFault)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: TRANSFER_SKIP session transfer fault"
         );
 
@@ -2559,7 +2503,7 @@ static void ExecuteLootCandidate(
         !candidate.item
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: TRANSFER_SKIP invalid route"
         );
 
@@ -2573,7 +2517,7 @@ static void ExecuteLootCandidate(
 
     if (!itemData)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: TRANSFER_SKIP missing item data"
         );
 
@@ -2596,7 +2540,7 @@ static void ExecuteLootCandidate(
         !g_betterLootingRules.allowStolen
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: TRANSFER_SKIP body theft disabled by AllowStolen=0"
         );
 
@@ -2649,7 +2593,7 @@ static void ExecuteLootCandidate(
                 sourceQuantity
             );
 
-            BlTrace(quantityMessage);
+            ErrorLog(quantityMessage);
 
             return;
         }
@@ -2692,7 +2636,7 @@ static void ExecuteLootCandidate(
                 movedTotal
             );
 
-            BlTrace(noRoomMessage);
+            ErrorLog(noRoomMessage);
 
             return;
         }
@@ -2751,7 +2695,7 @@ static void ExecuteLootCandidate(
 
         if (!detachedItem)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: TRANSFER_SKIP source remove failed"
             );
 
@@ -2871,7 +2815,7 @@ static void ExecuteLootCandidate(
                         liveLocation.section
                 )
                 {
-                    BlTrace(
+                    ErrorLog(
                         "BetterLooting: BODY_THEFT_NATIVE_MARK_FAIL rollback=OK"
                     );
 
@@ -2879,7 +2823,7 @@ static void ExecuteLootCandidate(
                 }
 
 
-                BlTrace(
+                ErrorLog(
                     "BetterLooting: BODY_THEFT_NATIVE_MARK_FAIL rollback=FAILED"
                 );
 
@@ -3123,7 +3067,7 @@ static void ExecuteLootCandidate(
                         detachedQuantity
                     );
 
-                    BlTrace(
+                    ErrorLog(
                         fallbackMessage
                     );
 
@@ -3277,7 +3221,7 @@ static void ExecuteLootCandidate(
                     placement.maxStack
                 );
 
-                BlTrace(
+                ErrorLog(
                     rollbackMessage
                 );
 
@@ -3387,7 +3331,7 @@ static void ExecuteLootCandidate(
 
                     if (emergency.exact)
                     {
-                        BlTrace(
+                        ErrorLog(
                             "BetterLooting: TRANSFER_EMERGENCY_STORAGE result=OK"
                         );
 
@@ -3534,7 +3478,7 @@ static void ExecuteLootCandidate(
 
         if (!engineAdded)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: TRANSFER_ENGINE_FALSE_BUT_EXACT_MOVE accepted=1"
             );
         }
@@ -3589,7 +3533,7 @@ static void ExecuteLootCandidate(
             ownerOk ? 1 : 0
         );
 
-        BlTrace(successMessage);
+        ErrorLog(successMessage);
 
 
         if (!sourceWillRemain)
@@ -3638,7 +3582,7 @@ static void ExecuteLootCandidate(
     }
 
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: TRANSFER_SKIP safety pass limit"
     );
 
@@ -3743,7 +3687,7 @@ static void EvaluateTargetInventory(
         g_betterLootingRules.allowStolen ? 1 : 0
     );
 
-    BlTrace(header);
+    ErrorLog(header);
 
     for (
         std::size_t candidateIndex = 0;
@@ -3844,7 +3788,7 @@ static void EvaluateTargetInventory(
             candidate.y
         );
 
-        BlTrace(message);
+        ErrorLog(message);
 
         char planMessage[256];
 
@@ -3855,7 +3799,7 @@ static void EvaluateTargetInventory(
             BetterLootingDecisionName(decision)
         );
 
-        BlTrace(planMessage);
+        ErrorLog(planMessage);
 
 
         const hand& properOwner =
@@ -3889,7 +3833,7 @@ static void EvaluateTargetInventory(
             BetterLootingDecisionName(decision)
         );
 
-        BlTrace(itemAudit);
+        ErrorLog(itemAudit);
 
 
         if (decision == BetterLootingDecision::LOOT)
@@ -3904,7 +3848,7 @@ static void EvaluateTargetInventory(
 
             if (g_betterLootingTransferFault)
             {
-                BlTrace(
+                ErrorLog(
                     "BetterLooting: EVALUATE ABORT transfer invariant fault"
                 );
 
@@ -3913,8 +3857,6 @@ static void EvaluateTargetInventory(
         }
     }
 }
-
-static std::string BetterLootingIniPath();
 
 static bool LoadBetterLootingRules()
 {
@@ -3932,7 +3874,7 @@ static bool LoadBetterLootingRules()
         length >= MAX_PATH
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: CONFIG_ERROR executable path"
         );
 
@@ -3950,7 +3892,7 @@ static bool LoadBetterLootingRules()
 
     if (slash == std::string::npos)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: CONFIG_ERROR base path"
         );
 
@@ -3962,18 +3904,6 @@ static bool LoadBetterLootingRules()
 
     configPath +=
         "..\\mods\\BetterLooting\\BetterLooting.ini";
-
-    // Тот же файл, что пишут панель и MCM: путь от самой DLL, а не от
-    // исполняемого файла (exe - загрузчик RE_Kenshi, совпадало случайно).
-    configPath = BetterLootingIniPath();
-
-    g_betterLootingDebugLog =
-        GetPrivateProfileIntA(
-            "Debug",
-            "Log",
-            0,
-            configPath.c_str()
-        ) != 0;
 
 
     g_betterLootingRules.minValue =
@@ -4200,7 +4130,7 @@ static bool LoadBetterLootingRules()
             BETTER_LOOTING_MAX_RADIUS_METERS
         );
 
-        BlTrace(radiusMessage);
+        ErrorLog(radiusMessage);
     }
 
 if (g_betterLootingRules.minValue < 0)
@@ -4230,7 +4160,7 @@ if (g_betterLootingRules.minValue < 0)
         configPath.c_str()
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
     return true;
 }
@@ -4282,7 +4212,7 @@ static void QueueSmartLoot(
         sourceWindow == destinationWindow
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT QUEUE_SKIP invalid route"
         );
 
@@ -4297,7 +4227,7 @@ static void QueueSmartLoot(
 
     if (!sourceInventory)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT QUEUE_SKIP invalid source inventory"
         );
 
@@ -4311,7 +4241,7 @@ static void QueueSmartLoot(
         g_pendingLootInventory
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT QUEUE_SKIP busy"
         );
 
@@ -4337,11 +4267,11 @@ static void QueueSmartLoot(
         sourceInventory;
 
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: SMART_LOOT QUEUED"
     );
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: SMART_LOOT DIRECT_THEN_RADIAL_QUEUED"
     );
 }
@@ -4359,7 +4289,7 @@ static Character* GetBetterLootingRadiusCenter(
 
     if (!livePlayerWindow)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_CENTER SKIP no live player window"
         );
 
@@ -4373,7 +4303,7 @@ static Character* GetBetterLootingRadiusCenter(
 
     if (!character)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_CENTER SKIP no live callback character"
         );
 
@@ -4383,7 +4313,7 @@ static Character* GetBetterLootingRadiusCenter(
 
     if (!character->isPlayerCharacter())
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_CENTER SKIP callback is not player"
         );
 
@@ -4400,7 +4330,7 @@ static Character* GetBetterLootingRadiusCenter(
         character
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     return character;
@@ -4649,7 +4579,7 @@ static void LogBetterLootingBuildingDiagnostic(
             scanIndex
         );
 
-        BlTrace(nullMessage);
+        ErrorLog(nullMessage);
 
         return;
     }
@@ -4676,7 +4606,7 @@ static void LogBetterLootingBuildingDiagnostic(
             building
         );
 
-        BlTrace(invalidMessage);
+        ErrorLog(invalidMessage);
 
         return;
     }
@@ -4764,7 +4694,7 @@ static void LogBetterLootingBuildingDiagnostic(
         acceptedByCurrentFilter ? 1 : 0
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 }
 
 
@@ -4921,7 +4851,7 @@ static void BuildBetterLootingTargetQueue(
                 excludedInventory
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: RADIAL_TARGET SKIP direct target inventory"
             );
 
@@ -4951,7 +4881,7 @@ static void BuildBetterLootingTargetQueue(
             )
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: RADIAL_TARGET REJECT character outside strict radius"
             );
 
@@ -5002,7 +4932,7 @@ static void BuildBetterLootingTargetQueue(
                 excludedInventory
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: RADIAL_TARGET SKIP direct target inventory"
             );
 
@@ -5028,7 +4958,7 @@ static void BuildBetterLootingTargetQueue(
             )
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: RADIAL_TARGET REJECT building outside strict world radius"
             );
 
@@ -5098,7 +5028,7 @@ static void BuildBetterLootingTargetQueue(
     );
 
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: RADIAL_QUEUE SORTED_NEAREST_FIRST"
     );
 }
@@ -5135,7 +5065,7 @@ static void FinishBetterLootingRadiusRun()
         )
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     g_radialLootQueue.clear();
@@ -5160,7 +5090,7 @@ static bool StartBetterLootingRadiusRun(
 {
     if (g_betterLootingTransferFault)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_RUN RESET previous transfer invariant fault"
         );
 
@@ -5190,7 +5120,7 @@ static bool StartBetterLootingRadiusRun(
 
     if (g_radialLootQueue.empty())
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_RUN EMPTY"
         );
 
@@ -5252,7 +5182,7 @@ static bool StartBetterLootingRadiusRun(
         g_betterLootingRules.activationVirtualKey
     );
 
-    BlTrace(rulesAudit);
+    ErrorLog(rulesAudit);
 
 
     g_radialLootIndex = 0;
@@ -5281,7 +5211,7 @@ static bool StartBetterLootingRadiusRun(
         buildingCount
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     return true;
@@ -5298,7 +5228,7 @@ static void ProcessBetterLootingRadiusRun()
 
     if (!g_radialLootDestination)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_RUN ABORT invalid destination"
         );
 
@@ -5340,7 +5270,7 @@ static void ProcessBetterLootingRadiusRun()
 
     if (!target.object)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_TARGET SKIP null object"
         );
 
@@ -5359,7 +5289,7 @@ static void ProcessBetterLootingRadiusRun()
         )
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_TARGET SKIP live strict radius reject"
         );
 
@@ -5388,7 +5318,7 @@ static void ProcessBetterLootingRadiusRun()
             )
         );
 
-        BlTrace(skipMessage);
+        ErrorLog(skipMessage);
 
 
         g_radialLootWaitFrames = 1;
@@ -5421,7 +5351,7 @@ static void ProcessBetterLootingRadiusRun()
         inventory->getNumItems()
     );
 
-    BlTrace(targetMessage);
+    ErrorLog(targetMessage);
 
 
     EvaluateTargetInventory(
@@ -5433,7 +5363,7 @@ static void ProcessBetterLootingRadiusRun()
 
     if (g_betterLootingTransferFault)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: RADIAL_RUN ABORT transfer invariant fault"
         );
 
@@ -5817,7 +5747,7 @@ static Inventory* GetBetterLootingPreferredOriginInsideRadius(
     }
 
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: STORE_ALL ORIGIN_REJECT outside current strict radius or no longer valid"
     );
 
@@ -5854,7 +5784,7 @@ static void BuildBetterLootingStoreTargetQueue(
             isThePlayer()
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: STORE_ALL ABORT no exact player faction"
         );
 
@@ -5926,7 +5856,7 @@ static void BuildBetterLootingStoreTargetQueue(
                 g_betterLootingRules.lootRadius
             );
 
-            BlTrace(
+            ErrorLog(
                 radiusMessage
             );
 
@@ -5990,7 +5920,7 @@ static void BuildBetterLootingStoreTargetQueue(
                 furnitureParentBuilding()
         );
 
-        BlTrace(
+        ErrorLog(
             acceptedMessage
         );
     }
@@ -6045,7 +5975,7 @@ static void BuildBetterLootingStoreTargetQueue(
         playerFaction
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 }
 
 
@@ -6222,7 +6152,7 @@ FindBetterLootingStorePlacement(
                     target.inventory
                 );
 
-                BlTrace(
+                ErrorLog(
                     rejectMessage
                 );
 
@@ -6428,7 +6358,7 @@ FindBetterLootingStorePlacement(
                     target.distance / 10.0f
                 );
 
-                BlTrace(
+                ErrorLog(
                     selectMessage
                 );
 
@@ -6596,7 +6526,7 @@ static void ReleaseBetterLootingProtectedLootForStore(
         entry.protectedQuantity
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 }
 
 
@@ -6620,7 +6550,7 @@ static void LogBetterLootingStoreInvariantFault(
         destinationAfter
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     g_storeAllTransferFault =
@@ -6706,7 +6636,7 @@ static void ExecuteBetterLootingStoreCandidate(
             sourceQuantity > 100000
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: STORE_ALL invalid source quantity"
             );
 
@@ -6745,7 +6675,7 @@ static void ExecuteBetterLootingStoreCandidate(
                 movedTotal
             );
 
-            BlTrace(
+            ErrorLog(
                 noTargetMessage
             );
 
@@ -6781,7 +6711,7 @@ static void ExecuteBetterLootingStoreCandidate(
 
         if (!detachedItem)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: STORE_ALL source remove failed"
             );
 
@@ -6897,7 +6827,7 @@ static void ExecuteBetterLootingStoreCandidate(
                 engineAdded ? 1 : 0
             );
 
-            BlTrace(
+            ErrorLog(
                 successMessage
             );
 
@@ -6988,7 +6918,7 @@ static void ExecuteBetterLootingStoreCandidate(
                 destinationAfterRollback
             );
 
-            BlTrace(
+            ErrorLog(
                 rollbackMessage
             );
 
@@ -7019,7 +6949,7 @@ static void ExecuteBetterLootingStoreCandidate(
     }
 
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: STORE_ALL safety pass limit"
     );
 
@@ -7073,7 +7003,7 @@ static void EvaluateBetterLootingStoreSourceInventory(
         )
     );
 
-    BlTrace(
+    ErrorLog(
         startMessage
     );
 
@@ -7191,7 +7121,7 @@ static void EvaluateBetterLootingStoreSourceInventory(
             )
         );
 
-        BlTrace(
+        ErrorLog(
             decisionMessage
         );
 
@@ -7216,7 +7146,7 @@ static void EvaluateBetterLootingStoreSourceInventory(
 
         if (g_storeAllTransferFault)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: STORE_ALL SOURCE_ABORT invariant fault"
             );
 
@@ -7282,7 +7212,7 @@ static void RunBetterLootingStoreAll(
 
     if (!character)
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: STORE_ALL ABORT no live player character"
         );
 
@@ -7309,7 +7239,7 @@ static void RunBetterLootingStoreAll(
 
     if (targets.empty())
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: STORE_ALL END no storage targets"
         );
 
@@ -7344,7 +7274,7 @@ static void RunBetterLootingStoreAll(
         )
     );
 
-    BlTrace(
+    ErrorLog(
         startMessage
     );
 
@@ -7384,7 +7314,7 @@ static void RunBetterLootingStoreAll(
             : 0
     );
 
-    BlTrace(
+    ErrorLog(
         endMessage
     );
 
@@ -7456,7 +7386,7 @@ static void InventoryGUIUpdate_hook(
         );
 
 
-        BlTrace(
+        ErrorLog(
             "BetterLooting: STORE_ALL PLAYER_INVENTORY_TRIGGER"
         );
 
@@ -7522,7 +7452,7 @@ static void InventoryGUIUpdate_hook(
                 playerMainInventory
         )
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: SMART_LOOT PLAYER_INVENTORY_ONLY_REJECT"
             );
 
@@ -7536,7 +7466,7 @@ static void InventoryGUIUpdate_hook(
 
         if (!destination)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: SMART_LOOT RADIAL_ONLY_NO_DESTINATION"
             );
 
@@ -7574,7 +7504,7 @@ static void InventoryGUIUpdate_hook(
             radialStarted ? 1 : 0
         );
 
-        BlTrace(
+        ErrorLog(
             triggerMessage
         );
     }
@@ -7627,7 +7557,7 @@ static void InventoryGUIUpdate_hook(
         inventory
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT DEFERRED_RUN"
         );
 
@@ -7639,7 +7569,7 @@ static void InventoryGUIUpdate_hook(
     }
     else
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT DEFERRED_SKIP invalid state"
         );
     }
@@ -7661,7 +7591,7 @@ static void InventoryGUIUpdate_hook(
 
         if (g_betterLootingTransferFault)
         {
-            BlTrace(
+            ErrorLog(
                 "BetterLooting: SMART_LOOT DIRECT_THEN_RADIAL_SKIP transfer fault"
             );
         }
@@ -7689,7 +7619,7 @@ static void InventoryGUIUpdate_hook(
                 radialStarted ? 1 : 0
             );
 
-            BlTrace(chainMessage);
+            ErrorLog(chainMessage);
         }
     }
 }
@@ -7725,7 +7655,7 @@ static void LogClassification(
             : -1
     );
 
-    BlTrace(message);
+    ErrorLog(message);
 
 
     if (kind == InventoryKind::PLAYER_MAIN)
@@ -7766,9 +7696,9 @@ static void LogClassification(
             LootDestinationName(destination)
         );
 
-        BlTrace(routeMessage);
+        ErrorLog(routeMessage);
 
-        BlTrace(
+        ErrorLog(
             "BetterLooting: SMART_LOOT TARGET_CACHE_ONLY"
         );
     }
@@ -7876,35 +7806,1671 @@ InventoryGUI* ShowTraderInventory_hook(
 
 
 // ============================================================
-// BL_MYGUI_PANEL
-//
-// Окно настроек живёт в BetterLootingPanel.cpp и построено на родном
-// интерфейсе игры. Здесь остались только две точки, которыми панель
-// дотягивается до логики мода, и запись настроек в файл.
+// BL_BSP_EXACT_UI_MARKER
+// BetterLooting UI rebuilt from the proven Better Sell Prices
+// Win32 architecture: WM_CREATE controls, owner Kenshi window,
+// foreground guard, message pump thread, hide-on-close.
+// SHIFT+P toggles the window.
 // ============================================================
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 
-void BetterLootingRequestStoreAll()
+struct BetterLootingBspEnumWindowData
 {
-    const LONG previous =
-        InterlockedExchange(
-            &g_storeAllRequested,
-            1
+    DWORD processId;
+    HWND hwnd;
+};
+
+
+static HWND g_blBspWindow = NULL;
+static HWND g_blBspGameWindow = NULL;
+
+static bool g_blBspCursorSessionCaptured = false;
+static bool g_blBspCursorWasVisible = false;
+static HCURSOR g_blBspArrowCursor = NULL;
+
+
+static HFONT g_blBspFontTitle = NULL;
+static HFONT g_blBspFontNormal = NULL;
+static HFONT g_blBspFontButton = NULL;
+
+static HBRUSH g_blBspBrushBackground = NULL;
+static HBRUSH g_blBspBrushPanel = NULL;
+static HBRUSH g_blBspBrushEdit = NULL;
+
+static const COLORREF BL_BSP_COLOR_BG = RGB(18, 19, 17);
+static const COLORREF BL_BSP_COLOR_PANEL = RGB(39, 40, 36);
+static const COLORREF BL_BSP_COLOR_EDIT = RGB(25, 26, 23);
+static const COLORREF BL_BSP_COLOR_TEXT = RGB(232, 226, 207);
+
+static const int BL_BSP_ID_SAVE = 8201;
+static const int BL_BSP_ID_CLOSE = 8202;
+static const int BL_BSP_ID_CATEGORIES_ALL = 8203;
+static const int BL_BSP_ID_CATEGORIES_NONE = 8204;
+static const int BL_BSP_ID_DEFAULTS = 8205;
+static const int BL_UI_611_ID_CLOSE_X = 8210;
+static const int BL_UI_611_ID_LANG_ES = 8211;
+static const int BL_UI_611_ID_LANG_EN = 8212;
+static const int BL_UI_611J_ID_BALANCED = 8213;
+static const int BL_UI_611J_ID_MONEY = 8214;
+static const int BL_UI_611J_ID_RESOURCES = 8215;
+static const int BL_BSP_ID_STORE_ALL = 8216;
+
+static HWND g_blBspEditRadius = NULL;
+static HWND g_blBspEditMinValue = NULL;
+static HWND g_blBspEditMinValuePerKg = NULL;
+static HWND g_blBspComboActivationKey = NULL;
+static HWND g_blBspComboLanguage = NULL;
+
+
+static const int g_blBspHotkeyValues[] =
+{
+    VK_INSERT,
+    VK_HOME,
+    VK_END,
+    VK_DELETE,
+    VK_PRIOR,
+    VK_NEXT,
+    VK_F1,
+    VK_F2,
+    VK_F3,
+    VK_F4,
+    VK_F5,
+    VK_F6,
+    VK_F7,
+    VK_F8,
+    VK_F9,
+    VK_F10,
+    VK_F11,
+    VK_F12
+};
+
+
+static const char* g_blBspHotkeyNames[] =
+{
+    "Insert",
+    "Home",
+    "End",
+    "Delete",
+    "Page Up",
+    "Page Down",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12"
+};
+
+
+static const int g_blBspHotkeyCount =
+    sizeof(g_blBspHotkeyValues) /
+    sizeof(g_blBspHotkeyValues[0]);
+
+
+static int BetterLootingBspFindHotkeyIndex(
+    int virtualKey
+)
+{
+    for (
+        int i = 0;
+        i < g_blBspHotkeyCount;
+        ++i
+    )
+    {
+        if (
+            g_blBspHotkeyValues[i] ==
+            virtualKey
+        )
+        {
+            return i;
+        }
+    }
+
+
+    return 0;
+}
+
+static bool g_blBspSpanish = true;
+
+static HWND g_blBspCheckWeapons = NULL;
+static HWND g_blBspCheckArmour = NULL;
+static HWND g_blBspCheckMaterials = NULL;
+static HWND g_blBspCheckFood = NULL;
+static HWND g_blBspCheckMedicine = NULL;
+static HWND g_blBspCheckTools = NULL;
+static HWND g_blBspCheckAmmo = NULL;
+static HWND g_blBspCheckBlueprints = NULL;
+static HWND g_blBspCheckBooks = NULL;
+static HWND g_blBspCheckRobotics = NULL;
+static HWND g_blBspCheckNarcotics = NULL;
+static HWND g_blBspCheckSeveredLimbs = NULL;
+static HWND g_blBspCheckOther = NULL;
+
+static HWND g_blBspCheckAllowStolen = NULL;
+static HWND g_blBspCheckBestItemsFirst = NULL;
+static HWND g_blBspCheckPreferBackpack = NULL;
+
+
+static void BetterLootingBspSetControlFont(
+    HWND hwnd,
+    HFONT font
+)
+{
+    if (hwnd && font)
+    {
+        SendMessageA(
+            hwnd,
+            WM_SETFONT,
+            reinterpret_cast<WPARAM>(font),
+            TRUE
+        );
+    }
+}
+
+
+static void BetterLootingBspCreateGuiResources()
+{
+    if (!g_blBspFontTitle)
+    {
+        g_blBspFontTitle =
+            CreateFontA(
+                34,
+                0,
+                0,
+                0,
+                FW_BOLD,
+                FALSE,
+                FALSE,
+                FALSE,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                DEFAULT_PITCH | FF_DONTCARE,
+                "Bahnschrift SemiCondensed"
+            );
+    }
+
+
+    if (!g_blBspFontNormal)
+    {
+        g_blBspFontNormal =
+            CreateFontA(
+                20,
+                0,
+                0,
+                0,
+                FW_NORMAL,
+                FALSE,
+                FALSE,
+                FALSE,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                DEFAULT_PITCH | FF_DONTCARE,
+                "Segoe UI"
+            );
+    }
+
+
+    if (!g_blBspFontButton)
+    {
+        g_blBspFontButton =
+            CreateFontA(
+                20,
+                0,
+                0,
+                0,
+                FW_BOLD,
+                FALSE,
+                FALSE,
+                FALSE,
+                DEFAULT_CHARSET,
+                OUT_DEFAULT_PRECIS,
+                CLIP_DEFAULT_PRECIS,
+                CLEARTYPE_QUALITY,
+                DEFAULT_PITCH | FF_DONTCARE,
+                "Bahnschrift SemiCondensed"
+            );
+    }
+
+
+    if (!g_blBspBrushBackground)
+    {
+        g_blBspBrushBackground =
+            CreateSolidBrush(
+                BL_BSP_COLOR_BG
+            );
+    }
+
+
+    if (!g_blBspBrushPanel)
+    {
+        g_blBspBrushPanel =
+            CreateSolidBrush(
+                BL_BSP_COLOR_PANEL
+            );
+    }
+
+
+    if (!g_blBspBrushEdit)
+    {
+        g_blBspBrushEdit =
+            CreateSolidBrush(
+                BL_BSP_COLOR_EDIT
+            );
+    }
+}
+
+
+
+// ============================================================
+// BL_UI_611A_CLEAN_DARK
+// Visual layer rebuilt directly on the clean 5.90 controls.
+// No image overlays, no host windows, no fake controls.
+// Parent paints only background/panels; real HWND controls keep state.
+// ============================================================
+
+static HWND g_bl611SectionSettings = NULL;
+static HWND g_bl611SectionBehavior = NULL;
+static HWND g_bl611SectionCategories = NULL;
+static HWND g_bl611NProfileLabel = NULL;
+
+
+// BL_UI_611B_POLISH
+// BL_UI_611D_SAFE_LAYOUT_ONLY
+// BL_UI_611E_DEFAULT_INSERT
+// BL_UI_611F_HOTKEY_LANGUAGE_BUTTONS
+// BL_UI_611G_MICRO_POLISH_SAFE
+// BL_UI_611H_FEEDBACK_VALIDATION
+// BL_UI_611I_BILINGUAL_TOOLTIPS
+// BL_UI_611J_QUICK_PRESETS
+// BL_UI_611K_DIRTY_STATE_PRESET_HIGHLIGHT
+// BL_UI_611K1_CLOSE_DISCARD_FIX
+// BL_UI_611L_DARK_UNICODE_TOOLTIPS
+// BL_UI_611M_SAFE_MICRO_POLISH_VISUAL
+// BL_UI_611N_FINAL_STATE_COHERENCE
+// BL_UI_611O_FOCUS_ACTIVE_INDICATORS
+// BL_UI_611P_CLEANUP_O_TOOLTIP_ENCODING
+// BL_RELEASE_STEP5_TECHNICAL_CLEANUP
+// BL_UI_6121_REAL_LIVE_SUMMARY
+// BL_UI_6122_RIGHT_PANEL_REAL_CONTROLS
+// BL_UI_6123_REAL_EDIT_COMBO_POLISH
+// BL_UI_6124_FINAL_REAL_FOOTER_BAR
+static HWND g_bl611Title = NULL;
+
+
+// BL_UI_611H_FEEDBACK_VALIDATION
+static HWND g_bl611HStatus = NULL;
+static HWND g_bl611BehaviorHelp = NULL;
+
+
+static HWND g_bl611ITooltip = NULL;
+static HMODULE g_bl611IComCtlModule = NULL;
+static HMODULE g_bl611LUxThemeModule = NULL;
+
+static bool g_bl611KDirty = false;
+static bool g_bl611KSuppressTracking = false;
+static int g_bl611KActivePresetId = 0;
+
+static bool g_bl611HRadiusInvalid = false;
+static bool g_bl611HMinValueInvalid = false;
+static bool g_bl611HMinValuePerKgInvalid = false;
+
+static const UINT_PTR BL_UI_611H_TIMER_STATUS = 6118;
+static WNDPROC g_bl611BOriginalCheckProc = NULL;
+
+
+static HWND BetterLooting611CreateSectionLabel(
+    HWND parent,
+    const char* text,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    HWND control =
+        CreateWindowExA(
+            0,
+            "STATIC",
+            text,
+            WS_CHILD | WS_VISIBLE,
+            x,
+            y,
+            width,
+            height,
+            parent,
+            NULL,
+            reinterpret_cast<HINSTANCE>(
+                &__ImageBase
+            ),
+            NULL
         );
 
-    BlTrace(
-        previous == 0
-            ? "BetterLooting: PANEL store-all queued"
-            : "BetterLooting: PANEL store-all already queued"
+
+    BetterLootingBspSetControlFont(
+        control,
+        g_blBspFontButton
+    );
+
+
+    return control;
+}
+
+
+static void BetterLooting611FrameRect(
+    HDC hdc,
+    const RECT& rect,
+    COLORREF color
+)
+{
+    HBRUSH brush =
+        CreateSolidBrush(
+            color
+        );
+
+
+    FrameRect(
+        hdc,
+        &rect,
+        brush
+    );
+
+
+    DeleteObject(
+        brush
     );
 }
 
 
-static std::string BetterLootingIniPath()
+static void BetterLooting611PaintBackground(
+    HWND hwnd,
+    HDC hdc
+)
+{
+    RECT client = {};
+
+
+    GetClientRect(
+        hwnd,
+        &client
+    );
+
+
+    FillRect(
+        hdc,
+        &client,
+        g_blBspBrushBackground
+    );
+
+
+    HBRUSH headerBrush =
+        CreateSolidBrush(
+            RGB(
+                28,
+                29,
+                26
+            )
+        );
+
+
+    HBRUSH footerBrush =
+        CreateSolidBrush(
+            RGB(
+                29,
+                30,
+                27
+            )
+        );
+
+
+    RECT outer =
+    {
+        8,
+        8,
+        client.right - 8,
+        client.bottom - 8
+    };
+
+
+    RECT header =
+    {
+        18,
+        16,
+        client.right - 18,
+        68
+    };
+
+
+    RECT settings =
+    {
+        24,
+        82,
+        476,
+        314
+    };
+
+
+    RECT behavior =
+    {
+        24,
+        326,
+        476,
+        520
+    };
+
+
+    RECT categories =
+    {
+        492,
+        82,
+        956,
+        520
+    };
+
+
+    RECT footer =
+    {
+        24,
+        532,
+        956,
+        612
+    };
+
+
+    FillRect(
+        hdc,
+        &header,
+        headerBrush
+    );
+
+
+    FillRect(
+        hdc,
+        &settings,
+        g_blBspBrushPanel
+    );
+
+
+    FillRect(
+        hdc,
+        &behavior,
+        g_blBspBrushPanel
+    );
+
+
+    FillRect(
+        hdc,
+        &categories,
+        g_blBspBrushPanel
+    );
+
+
+    FillRect(
+        hdc,
+        &footer,
+        footerBrush
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        outer,
+        RGB(
+            103,
+            96,
+            77
+        )
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        header,
+        RGB(
+            80,
+            78,
+            67
+        )
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        settings,
+        RGB(
+            80,
+            78,
+            67
+        )
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        behavior,
+        RGB(
+            80,
+            78,
+            67
+        )
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        categories,
+        RGB(
+            80,
+            78,
+            67
+        )
+    );
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        footer,
+        RGB(
+            80,
+            78,
+            67
+        )
+    );
+
+
+    HPEN dividerPen =
+        CreatePen(
+            PS_SOLID,
+            1,
+            RGB(
+                72,
+                70,
+                60
+            )
+        );
+
+
+    HGDIOBJ oldDividerPen =
+        SelectObject(
+            hdc,
+            dividerPen
+        );
+
+
+    MoveToEx(
+        hdc,
+        512,
+        380,
+        NULL
+    );
+
+
+    LineTo(
+        hdc,
+        936,
+        380
+    );
+
+
+    MoveToEx(
+        hdc,
+        512,
+        444,
+        NULL
+    );
+
+
+    LineTo(
+        hdc,
+        936,
+        444
+    );
+
+
+    SelectObject(
+        hdc,
+        oldDividerPen
+    );
+
+
+    DeleteObject(
+        dividerPen
+    );
+
+
+    HPEN accentPen =
+        CreatePen(
+            PS_SOLID,
+            2,
+            RGB(
+                171,
+                125,
+                58
+            )
+        );
+
+
+    HGDIOBJ oldPen =
+        SelectObject(
+            hdc,
+            accentPen
+        );
+
+
+    MoveToEx(
+        hdc,
+        58,
+        62,
+        NULL
+    );
+
+
+    LineTo(
+        hdc,
+        client.right - 58,
+        62
+    );
+
+
+    SelectObject(
+        hdc,
+        oldPen
+    );
+
+
+    DeleteObject(
+        accentPen
+    );
+
+
+    DeleteObject(
+        headerBrush
+    );
+
+
+    DeleteObject(
+        footerBrush
+    );
+}
+
+
+static COLORREF BetterLooting611ButtonFill(
+    UINT id,
+    UINT state
+)
+{
+    const bool pressed =
+        (
+            state &
+            ODS_SELECTED
+        ) !=
+        0;
+
+
+    const bool disabled =
+        (
+            state &
+            ODS_DISABLED
+        ) !=
+        0;
+
+
+    if (disabled)
+    {
+        return
+            RGB(
+                47,
+                47,
+                43
+            );
+    }    if (
+        id == BL_UI_611_ID_LANG_ES ||
+        id == BL_UI_611_ID_LANG_EN
+    )
+    {
+        const bool active =
+            id == BL_UI_611_ID_LANG_ES
+                ? g_blBspSpanish
+                : !g_blBspSpanish;
+
+
+        if (pressed)
+        {
+            return
+                active
+                    ? RGB(96, 68, 33)
+                    : RGB(45, 46, 42);
+        }
+
+
+        return
+            active
+                ? RGB(126, 88, 40)
+                : RGB(50, 51, 47);
+    }
+
+
+
+
+
+
+
+        if (
+        id == BL_UI_611J_ID_BALANCED ||
+        id == BL_UI_611J_ID_MONEY ||
+        id == BL_UI_611J_ID_RESOURCES
+    )
+    {
+        const bool active =
+            id ==
+            g_bl611KActivePresetId;
+
+
+        if (pressed)
+        {
+            return
+                active
+                    ? RGB(104, 73, 33)
+                    : RGB(48, 49, 44);
+        }
+
+
+        return
+            active
+                ? RGB(139, 96, 42)
+                : RGB(62, 63, 57);
+    }
+
+
+    if (id == BL_UI_611_ID_CLOSE_X)
+    {
+        return
+            pressed
+                ? RGB(82, 48, 35)
+                : RGB(105, 63, 42);
+    }
+
+
+    if (id == BL_BSP_ID_SAVE)
+    {
+        if (g_bl611KDirty)
+        {
+            return
+                pressed
+                    ? RGB(104, 69, 33)
+                    : RGB(139, 91, 42);
+        }
+
+
+        return
+            pressed
+                ? RGB(48, 49, 44)
+                : RGB(62, 63, 57);
+    }
+
+
+    if (id == BL_BSP_ID_STORE_ALL)
+    {
+        return
+            pressed
+                ? RGB(104, 73, 33)
+                : RGB(139, 96, 42);
+    }
+
+
+    if (id == BL_BSP_ID_CLOSE)
+    {
+        return
+            pressed
+                ? RGB(54, 45, 41)
+                : RGB(72, 60, 55);
+    }
+
+
+    if (id == BL_BSP_ID_DEFAULTS)
+    {
+        return
+            pressed
+                ? RGB(44, 45, 41)
+                : RGB(58, 59, 54);
+    }
+
+
+    return
+        pressed
+            ? RGB(48, 49, 44)
+            : RGB(62, 63, 57);
+}
+
+
+static void BetterLooting611FDrawFlag(
+    HDC hdc,
+    const RECT& flagRect,
+    bool spanish
+)
+{
+    if (spanish)
+    {
+        const int height =
+            flagRect.bottom -
+            flagRect.top;
+
+
+        const int redBand =
+            height / 4;
+
+
+        HBRUSH redBrush =
+            CreateSolidBrush(
+                RGB(159, 45, 42)
+            );
+
+
+        HBRUSH yellowBrush =
+            CreateSolidBrush(
+                RGB(218, 164, 61)
+            );
+
+
+        RECT top =
+        {
+            flagRect.left,
+            flagRect.top,
+            flagRect.right,
+            flagRect.top + redBand
+        };
+
+
+        RECT middle =
+        {
+            flagRect.left,
+            flagRect.top + redBand,
+            flagRect.right,
+            flagRect.bottom - redBand
+        };
+
+
+        RECT bottom =
+        {
+            flagRect.left,
+            flagRect.bottom - redBand,
+            flagRect.right,
+            flagRect.bottom
+        };
+
+
+        FillRect(
+            hdc,
+            &top,
+            redBrush
+        );
+
+
+        FillRect(
+            hdc,
+            &middle,
+            yellowBrush
+        );
+
+
+        FillRect(
+            hdc,
+            &bottom,
+            redBrush
+        );
+
+
+        DeleteObject(
+            redBrush
+        );
+
+
+        DeleteObject(
+            yellowBrush
+        );
+    }
+    else
+    {
+        HBRUSH redBrush =
+            CreateSolidBrush(
+                RGB(164, 53, 50)
+            );
+
+
+        HBRUSH whiteBrush =
+            CreateSolidBrush(
+                RGB(229, 225, 211)
+            );
+
+
+        HBRUSH blueBrush =
+            CreateSolidBrush(
+                RGB(55, 71, 107)
+            );
+
+
+        const int height =
+            flagRect.bottom -
+            flagRect.top;
+
+
+        for (
+            int stripe = 0;
+            stripe < 7;
+            ++stripe
+        )
+        {
+            RECT stripeRect =
+            {
+                flagRect.left,
+                flagRect.top +
+                    (
+                        stripe *
+                        height /
+                        7
+                    ),
+                flagRect.right,
+                flagRect.top +
+                    (
+                        (stripe + 1) *
+                        height /
+                        7
+                    )
+            };
+
+
+            FillRect(
+                hdc,
+                &stripeRect,
+                (stripe % 2) == 0
+                    ? redBrush
+                    : whiteBrush
+            );
+        }
+
+
+        RECT canton =
+        {
+            flagRect.left,
+            flagRect.top,
+            flagRect.left +
+                (
+                    (
+                        flagRect.right -
+                        flagRect.left
+                    ) *
+                    2 /
+                    5
+                ),
+            flagRect.top +
+                (
+                    height *
+                    4 /
+                    7
+                )
+        };
+
+
+        FillRect(
+            hdc,
+            &canton,
+            blueBrush
+        );
+
+
+        DeleteObject(
+            redBrush
+        );
+
+
+        DeleteObject(
+            whiteBrush
+        );
+
+
+        DeleteObject(
+            blueBrush
+        );
+    }
+
+
+    BetterLooting611FrameRect(
+        hdc,
+        flagRect,
+        RGB(119, 116, 98)
+    );
+}
+
+
+
+
+static void BetterLooting611DrawButton(
+    const DRAWITEMSTRUCT* drawItem
+)
+{
+    if (!drawItem)
+    {
+        return;
+    }
+
+
+    RECT rect =
+        drawItem->rcItem;
+
+
+    HBRUSH fill =
+        CreateSolidBrush(
+            BetterLooting611ButtonFill(
+                drawItem->CtlID,
+                drawItem->itemState
+            )
+        );
+
+
+    FillRect(
+        drawItem->hDC,
+        &rect,
+        fill
+    );
+
+
+    DeleteObject(
+        fill
+    );
+
+
+    const bool activePreset =
+        drawItem->CtlID ==
+            static_cast<UINT>(
+                g_bl611KActivePresetId
+            ) &&
+        (
+            drawItem->CtlID == BL_UI_611J_ID_BALANCED ||
+            drawItem->CtlID == BL_UI_611J_ID_MONEY ||
+            drawItem->CtlID == BL_UI_611J_ID_RESOURCES
+        );
+
+
+    const bool activeLanguage =
+        (
+            drawItem->CtlID == BL_UI_611_ID_LANG_ES &&
+            g_blBspSpanish
+        ) ||
+        (
+            drawItem->CtlID == BL_UI_611_ID_LANG_EN &&
+            !g_blBspSpanish
+        );
+
+
+    const COLORREF borderColor =
+        activePreset
+            ? RGB(218, 164, 61)
+            : (
+                activeLanguage
+                    ? RGB(196, 151, 78)
+                    : (
+                        drawItem->CtlID ==
+                            BL_BSP_ID_SAVE
+                                ? (
+                                    g_bl611KDirty
+                                        ? RGB(211, 151, 73)
+                                        : RGB(119, 116, 98)
+                                )
+                                : (
+                                    drawItem->CtlID ==
+                                        BL_UI_611_ID_CLOSE_X
+                                            ? RGB(151, 104, 68)
+                                            : (
+                                                drawItem->CtlID ==
+                                                    BL_BSP_ID_STORE_ALL
+                                                        ? RGB(211, 151, 73)
+                                                        : (
+                                                            drawItem->CtlID ==
+                                                                BL_BSP_ID_CLOSE
+                                                                    ? RGB(136, 98, 84)
+                                                                    : (
+                                                                        drawItem->CtlID ==
+                                                                            BL_BSP_ID_DEFAULTS
+                                                                                ? RGB(104, 102, 88)
+                                                                                : RGB(119, 116, 98)
+                                                                    )
+                                                        )
+                                            )
+                                )
+                    )
+            );
+
+
+    BetterLooting611FrameRect(
+        drawItem->hDC,
+        rect,
+        borderColor
+    );
+
+
+    RECT inner =
+        rect;
+
+
+    InflateRect(
+        &inner,
+        -3,
+        -3
+    );
+
+
+    const COLORREF innerBorderColor =
+        activePreset
+            ? RGB(126, 88, 43)
+            : (
+                activeLanguage
+                    ? RGB(104, 77, 41)
+                    : (
+                        drawItem->CtlID == BL_BSP_ID_STORE_ALL
+                            ? RGB(126, 88, 43)
+                            : (
+                                drawItem->CtlID == BL_BSP_ID_CLOSE
+                                    ? RGB(95, 77, 69)
+                                    : RGB(76, 74, 63)
+                            )
+                    )
+            );
+
+
+    BetterLooting611FrameRect(
+        drawItem->hDC,
+        inner,
+        innerBorderColor
+    );    if (
+        drawItem->CtlID == BL_UI_611_ID_LANG_ES ||
+        drawItem->CtlID == BL_UI_611_ID_LANG_EN
+    )
+    {
+        const bool spanish =
+            drawItem->CtlID ==
+            BL_UI_611_ID_LANG_ES;
+
+
+        RECT flagRect =
+        {
+            rect.left + 8,
+            rect.top + 9,
+            rect.left + 34,
+            rect.bottom - 9
+        };
+
+
+        BetterLooting611FDrawFlag(
+            drawItem->hDC,
+            flagRect,
+            spanish
+        );
+
+
+        RECT languageText =
+        {
+            rect.left + 40,
+            rect.top,
+            rect.right - 5,
+            rect.bottom
+        };
+
+
+        HGDIOBJ oldFont =
+            SelectObject(
+                drawItem->hDC,
+                g_blBspFontButton
+            );
+
+
+        SetBkMode(
+            drawItem->hDC,
+            TRANSPARENT
+        );
+
+
+        SetTextColor(
+            drawItem->hDC,
+            RGB(
+                241,
+                234,
+                214
+            )
+        );
+
+
+        DrawTextA(
+            drawItem->hDC,
+            spanish
+                ? "RU"
+                : "EN",
+            -1,
+            &languageText,
+            DT_CENTER |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_NOPREFIX
+        );
+
+
+        SelectObject(
+            drawItem->hDC,
+            oldFont
+        );
+
+
+        
+
+
+        return;
+    }
+
+
+
+
+
+
+
+    char caption[128] = {};
+
+
+    GetWindowTextA(
+        drawItem->hwndItem,
+        caption,
+        sizeof(caption)
+    );
+
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            drawItem->hDC,
+            g_blBspFontButton
+        );
+
+
+    SetBkMode(
+        drawItem->hDC,
+        TRANSPARENT
+    );
+
+
+    SetTextColor(
+        drawItem->hDC,
+        RGB(
+            241,
+            234,
+            214
+        )
+    );
+
+
+    DrawTextA(
+        drawItem->hDC,
+        caption,
+        -1,
+        &rect,
+        DT_CENTER |
+            DT_VCENTER |
+            DT_SINGLELINE |
+            DT_NOPREFIX
+    );
+
+
+    SelectObject(
+        drawItem->hDC,
+        oldFont
+    );
+
+
+    
+}
+
+
+static void BetterLooting611DrawCombo(
+    const DRAWITEMSTRUCT* drawItem
+)
+{
+    if (!drawItem)
+    {
+        return;
+    }
+
+
+    RECT rect =
+        drawItem->rcItem;
+
+
+    const bool selected =
+        (
+            drawItem->itemState &
+            ODS_SELECTED
+        ) !=
+        0;
+
+
+    const bool focused =
+        (
+            drawItem->itemState &
+            ODS_FOCUS
+        ) !=
+        0;
+
+
+    const COLORREF fillColor =
+        selected
+            ? RGB(92, 72, 40)
+            : (
+                focused
+                    ? RGB(32, 33, 29)
+                    : BL_BSP_COLOR_EDIT
+            );
+
+
+    HBRUSH background =
+        CreateSolidBrush(
+            fillColor
+        );
+
+
+    FillRect(
+        drawItem->hDC,
+        &rect,
+        background
+    );
+
+
+    DeleteObject(
+        background
+    );
+
+
+    RECT textRect =
+        rect;
+
+
+    textRect.left += 10;
+    textRect.right -= 6;
+
+
+    SetBkMode(
+        drawItem->hDC,
+        TRANSPARENT
+    );
+
+
+    SetTextColor(
+        drawItem->hDC,
+        selected
+            ? RGB(245, 236, 211)
+            : BL_BSP_COLOR_TEXT
+    );
+
+
+    HGDIOBJ oldFont =
+        SelectObject(
+            drawItem->hDC,
+            g_blBspFontNormal
+        );
+
+
+    if (
+        drawItem->itemID !=
+        static_cast<UINT>(-1)
+    )
+    {
+        if (
+            drawItem->hwndItem ==
+            g_blBspComboLanguage
+        )
+        {
+            wchar_t text[128] = {};
+
+
+            SendMessageW(
+                drawItem->hwndItem,
+                CB_GETLBTEXT,
+                drawItem->itemID,
+                reinterpret_cast<LPARAM>(
+                    text
+                )
+            );
+
+
+            DrawTextW(
+                drawItem->hDC,
+                text,
+                -1,
+                &textRect,
+                DT_LEFT |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_NOPREFIX
+            );
+        }
+        else
+        {
+            char text[128] = {};
+
+
+            SendMessageA(
+                drawItem->hwndItem,
+                CB_GETLBTEXT,
+                drawItem->itemID,
+                reinterpret_cast<LPARAM>(
+                    text
+                )
+            );
+
+
+            DrawTextA(
+                drawItem->hDC,
+                text,
+                -1,
+                &textRect,
+                DT_LEFT |
+                    DT_VCENTER |
+                    DT_SINGLELINE |
+                    DT_NOPREFIX
+            );
+        }
+    }
+
+
+    SelectObject(
+        drawItem->hDC,
+        oldFont
+    );
+
+
+    const COLORREF borderColor =
+        selected
+            ? RGB(211, 151, 73)
+            : (
+                focused
+                    ? RGB(171, 125, 58)
+                    : RGB(104, 101, 86)
+            );
+
+
+    BetterLooting611FrameRect(
+        drawItem->hDC,
+        rect,
+        borderColor
+    );
+}
+
+static BOOL CALLBACK BetterLootingBspEnumMainWindowProc(
+    HWND hwnd,
+    LPARAM lParam
+)
+{
+    BetterLootingBspEnumWindowData* data =
+        reinterpret_cast<BetterLootingBspEnumWindowData*>(
+            lParam
+        );
+
+
+    DWORD windowProcessId = 0;
+
+    GetWindowThreadProcessId(
+        hwnd,
+        &windowProcessId
+    );
+
+
+    if (windowProcessId != data->processId)
+    {
+        return TRUE;
+    }
+
+
+    if (!IsWindowVisible(hwnd))
+    {
+        return TRUE;
+    }
+
+
+    if (GetWindow(hwnd, GW_OWNER) != NULL)
+    {
+        return TRUE;
+    }
+
+
+    char title[256] = {};
+
+    GetWindowTextA(
+        hwnd,
+        title,
+        sizeof(title)
+    );
+
+
+    if (strlen(title) == 0)
+    {
+        return TRUE;
+    }
+
+
+    char className[256] = {};
+
+    GetClassNameA(
+        hwnd,
+        className,
+        sizeof(className)
+    );
+
+
+    if (
+        strcmp(
+            className,
+            "BetterLootingBspWindowClass"
+        ) == 0
+    )
+    {
+        return TRUE;
+    }
+
+
+    data->hwnd =
+        hwnd;
+
+    return FALSE;
+}
+
+
+static HWND BetterLootingBspGetKenshiMainWindow()
+{
+    if (
+        g_blBspGameWindow &&
+        IsWindow(
+            g_blBspGameWindow
+        )
+    )
+    {
+        return g_blBspGameWindow;
+    }
+
+
+    BetterLootingBspEnumWindowData data;
+
+    data.processId =
+        GetCurrentProcessId();
+
+    data.hwnd =
+        NULL;
+
+
+    EnumWindows(
+        BetterLootingBspEnumMainWindowProc,
+        reinterpret_cast<LPARAM>(
+            &data
+        )
+    );
+
+
+    g_blBspGameWindow =
+        data.hwnd;
+
+
+    if (g_blBspGameWindow)
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI Kenshi main window found"
+        );
+    }
+    else
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI Kenshi main window not found"
+        );
+    }
+
+
+    return g_blBspGameWindow;
+}
+
+
+static bool BetterLootingBspIsKenshiProcessInForeground()
+{
+    HWND foreground =
+        GetForegroundWindow();
+
+
+    if (!foreground)
+    {
+        return false;
+    }
+
+
+    DWORD foregroundProcessId = 0;
+
+    GetWindowThreadProcessId(
+        foreground,
+        &foregroundProcessId
+    );
+
+
+    return
+        foregroundProcessId ==
+        GetCurrentProcessId();
+}
+
+
+static std::string BetterLootingBspGetIniPath()
 {
     char modulePath[MAX_PATH] = {};
+
 
     const DWORD length =
         GetModuleFileNameA(
@@ -7915,6 +9481,7 @@ static std::string BetterLootingIniPath()
             MAX_PATH
         );
 
+
     if (
         length == 0 ||
         length >= MAX_PATH
@@ -7923,18 +9490,24 @@ static std::string BetterLootingIniPath()
         return "BetterLooting.ini";
     }
 
+
     std::string path(
         modulePath,
         length
     );
 
+
     const std::string::size_type separator =
-        path.find_last_of("\\/");
+        path.find_last_of(
+            "\\/"
+        );
+
 
     if (separator == std::string::npos)
     {
         return "BetterLooting.ini";
     }
+
 
     return
         path.substr(
@@ -7945,8 +9518,394 @@ static std::string BetterLootingIniPath()
 }
 
 
-static void BetterLootingWriteBool(
-    const std::string& path,
+
+// BL_FIX_SOFTWARE_MOUSE_CURSOR_POPUP
+
+static bool BetterLootingBspQueryCursorVisible(
+    bool& visible
+)
+{
+    CURSORINFO cursorInfo = {};
+
+    cursorInfo.cbSize =
+        sizeof(cursorInfo);
+
+
+    if (
+        GetCursorInfo(
+            &cursorInfo
+        ) == FALSE
+    )
+    {
+        return false;
+    }
+
+
+    visible =
+        (
+            cursorInfo.flags &
+            CURSOR_SHOWING
+        ) != 0;
+
+
+    return true;
+}
+
+
+static void BetterLootingBspEnsureMenuCursor()
+{
+    if (!g_blBspArrowCursor)
+    {
+        g_blBspArrowCursor =
+            LoadCursor(
+                NULL,
+                IDC_ARROW
+            );
+    }
+
+
+    bool visible =
+        false;
+
+
+    if (
+        BetterLootingBspQueryCursorVisible(
+            visible
+        ) &&
+        !visible
+    )
+    {
+        int attempts =
+            0;
+
+
+        while (
+            !visible &&
+            attempts < 64
+        )
+        {
+            ShowCursor(
+                TRUE
+            );
+
+            ++attempts;
+
+
+            if (
+                !BetterLootingBspQueryCursorVisible(
+                    visible
+                )
+            )
+            {
+                break;
+            }
+        }
+
+
+        if (attempts > 0)
+        {
+            char message[256];
+
+            sprintf_s(
+                message,
+                "BetterLooting: BSP_UI CURSOR_SHOW attempts=%d visible=%d",
+                attempts,
+                visible ? 1 : 0
+            );
+
+            ErrorLog(
+                message
+            );
+        }
+    }
+
+
+    if (g_blBspArrowCursor)
+    {
+        SetCursor(
+            g_blBspArrowCursor
+        );
+    }
+}
+
+
+static void BetterLootingBspBeginMenuCursorSession()
+{
+    if (!g_blBspCursorSessionCaptured)
+    {
+        bool visible =
+            false;
+
+
+        if (
+            BetterLootingBspQueryCursorVisible(
+                visible
+            )
+        )
+        {
+            g_blBspCursorSessionCaptured =
+                true;
+
+            g_blBspCursorWasVisible =
+                visible;
+
+
+            ErrorLog(
+                visible
+                    ? "BetterLooting: BSP_UI CURSOR_SESSION_BEGIN initialVisible=1"
+                    : "BetterLooting: BSP_UI CURSOR_SESSION_BEGIN initialVisible=0"
+            );
+        }
+        else
+        {
+            ErrorLog(
+                "BetterLooting: BSP_UI CURSOR_SESSION_BEGIN query_failed"
+            );
+        }
+    }
+
+
+    BetterLootingBspEnsureMenuCursor();
+}
+
+
+static void BetterLootingBspEndMenuCursorSession()
+{
+    if (!g_blBspCursorSessionCaptured)
+    {
+        return;
+    }
+
+
+    int hideAttempts =
+        0;
+
+
+    if (!g_blBspCursorWasVisible)
+    {
+        bool visible =
+            false;
+
+
+        while (
+            hideAttempts < 64 &&
+            BetterLootingBspQueryCursorVisible(
+                visible
+            ) &&
+            visible
+        )
+        {
+            ShowCursor(
+                FALSE
+            );
+
+            ++hideAttempts;
+        }
+    }
+
+
+    char message[256];
+
+    sprintf_s(
+        message,
+        "BetterLooting: BSP_UI CURSOR_SESSION_END initialVisible=%d hideAttempts=%d",
+        g_blBspCursorWasVisible ? 1 : 0,
+        hideAttempts
+    );
+
+    ErrorLog(
+        message
+    );
+
+
+    g_blBspCursorSessionCaptured =
+        false;
+
+    g_blBspCursorWasVisible =
+        false;
+}
+
+static const char* BetterLootingBspText(
+    const char* spanishText,
+    const char* englishText
+)
+{
+    return
+        g_blBspSpanish
+            ? spanishText
+            : englishText;
+}
+
+
+static void BetterLootingBspLoadLanguage()
+{
+    const std::string iniPath =
+        BetterLootingBspGetIniPath();
+
+
+    char language[16] = {};
+
+
+    GetPrivateProfileStringA(
+        "UI",
+        "Language",
+        "ru",
+        language,
+        sizeof(language),
+        iniPath.c_str()
+    );
+
+
+    g_blBspSpanish =
+        !(
+            language[0] == 'e' &&
+            language[1] == 'n'
+        );
+
+
+    if (g_blBspSpanish)
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI language=ru"
+        );
+    }
+    else
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI language=en"
+        );
+    }
+}
+
+
+static void BetterLootingBspSetCheck(
+    HWND hwnd,
+    bool checked
+)
+{
+    if (!hwnd)
+    {
+        return;
+    }
+
+
+    SendMessageA(
+        hwnd,
+        BM_SETCHECK,
+        checked ? BST_CHECKED : BST_UNCHECKED,
+        0
+    );
+}
+
+
+static bool BetterLootingBspGetCheck(
+    HWND hwnd
+)
+{
+    if (!hwnd)
+    {
+        return false;
+    }
+
+
+    return
+        SendMessageA(
+            hwnd,
+            BM_GETCHECK,
+            0,
+            0
+        ) ==
+        BST_CHECKED;
+}
+
+
+static void BetterLootingBspSyncFromRules()
+{
+    char value[64] = {};
+
+
+    sprintf_s(
+        value,
+        "%.2f",
+        g_betterLootingRules.lootRadius
+    );
+
+    SetWindowTextA(
+        g_blBspEditRadius,
+        value
+    );
+
+
+    sprintf_s(
+        value,
+        "%d",
+        g_betterLootingRules.minValue
+    );
+
+    SetWindowTextA(
+        g_blBspEditMinValue,
+        value
+    );
+
+
+    sprintf_s(
+        value,
+        "%.2f",
+        g_betterLootingRules.minValuePerKg
+    );
+
+    SetWindowTextA(
+        g_blBspEditMinValuePerKg,
+        value
+    );
+
+
+    if (g_blBspComboActivationKey)
+    {
+        SendMessageA(
+            g_blBspComboActivationKey,
+            CB_SETCURSEL,
+            BetterLootingBspFindHotkeyIndex(
+                g_betterLootingRules.activationVirtualKey
+            ),
+            0
+        );
+    }
+
+
+    BetterLootingBspSetCheck(g_blBspCheckWeapons, g_betterLootingRules.lootWeapons);
+    BetterLootingBspSetCheck(g_blBspCheckArmour, g_betterLootingRules.lootArmour);
+    BetterLootingBspSetCheck(g_blBspCheckMaterials, g_betterLootingRules.lootMaterials);
+    BetterLootingBspSetCheck(g_blBspCheckFood, g_betterLootingRules.lootFood);
+    BetterLootingBspSetCheck(g_blBspCheckMedicine, g_betterLootingRules.lootMedicine);
+    BetterLootingBspSetCheck(g_blBspCheckTools, g_betterLootingRules.lootTools);
+    BetterLootingBspSetCheck(g_blBspCheckAmmo, g_betterLootingRules.lootAmmo);
+    BetterLootingBspSetCheck(g_blBspCheckBlueprints, g_betterLootingRules.lootBlueprints);
+    BetterLootingBspSetCheck(g_blBspCheckBooks, g_betterLootingRules.lootBooks);
+    BetterLootingBspSetCheck(g_blBspCheckRobotics, g_betterLootingRules.lootRobotics);
+    BetterLootingBspSetCheck(g_blBspCheckNarcotics, g_betterLootingRules.lootNarcotics);
+    BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, g_betterLootingRules.lootSeveredLimbs);
+    BetterLootingBspSetCheck(g_blBspCheckOther, g_betterLootingRules.lootOther);
+
+    BetterLootingBspSetCheck(g_blBspCheckAllowStolen, g_betterLootingRules.allowStolen);
+    BetterLootingBspSetCheck(g_blBspCheckBestItemsFirst, g_betterLootingRules.bestItemsFirst);
+    BetterLootingBspSetCheck(g_blBspCheckPreferBackpack, g_betterLootingRules.preferBackpack);
+
+
+    if (g_blBspComboLanguage)
+    {
+        SendMessageA(
+            g_blBspComboLanguage,
+            CB_SETCURSEL,
+            g_blBspSpanish ? 0 : 1,
+            0
+        );
+    }
+}
+
+
+static void BetterLootingBspWriteBool(
+    const std::string& iniPath,
     const char* section,
     const char* key,
     bool value
@@ -7956,20 +9915,209 @@ static void BetterLootingWriteBool(
         section,
         key,
         value ? "1" : "0",
-        path.c_str()
+        iniPath.c_str()
     );
 }
 
 
-void BetterLootingSaveRules()
+static void BetterLootingBspSave()
 {
-    const std::string path =
-        BetterLootingIniPath();
+    char textBuffer[64] = {};
+    char* endPointer = NULL;
 
-    char buffer[64] = {};
+
+    GetWindowTextA(
+        g_blBspEditRadius,
+        textBuffer,
+        sizeof(textBuffer)
+    );
+
+
+    float radius =
+        strtof(
+            textBuffer,
+            &endPointer
+        );
+
+
+    if (
+        endPointer == textBuffer ||
+        radius != radius
+    )
+    {
+        radius = 20.0f;
+    }
+
+
+    if (radius < 1.0f)
+    {
+        radius = 1.0f;
+    }
+
+
+    if (radius > 100.0f)
+    {
+        radius = 100.0f;
+    }
+
+
+    ZeroMemory(
+        textBuffer,
+        sizeof(textBuffer)
+    );
+
+
+    GetWindowTextA(
+        g_blBspEditMinValue,
+        textBuffer,
+        sizeof(textBuffer)
+    );
+
+
+    long minValue =
+        strtol(
+            textBuffer,
+            &endPointer,
+            10
+        );
+
+
+    if (endPointer == textBuffer)
+    {
+        minValue = 0;
+    }
+
+
+    if (minValue < 0)
+    {
+        minValue = 0;
+    }
+
+
+    ZeroMemory(
+        textBuffer,
+        sizeof(textBuffer)
+    );
+
+
+    GetWindowTextA(
+        g_blBspEditMinValuePerKg,
+        textBuffer,
+        sizeof(textBuffer)
+    );
+
+
+    float minValuePerKg =
+        strtof(
+            textBuffer,
+            &endPointer
+        );
+
+
+    if (
+        endPointer == textBuffer ||
+        minValuePerKg != minValuePerKg
+    )
+    {
+        minValuePerKg = 0.0f;
+    }
+
+
+    if (minValuePerKg < 0.0f)
+    {
+        minValuePerKg = 0.0f;
+    }
+
+
+    LRESULT hotkeySelection =
+        SendMessageA(
+            g_blBspComboActivationKey,
+            CB_GETCURSEL,
+            0,
+            0
+        );
+
+
+    if (
+        hotkeySelection < 0 ||
+        hotkeySelection >= g_blBspHotkeyCount
+    )
+    {
+        hotkeySelection = 0;
+    }
+
+
+    const int activationKey =
+        g_blBspHotkeyValues[
+            static_cast<int>(
+                hotkeySelection
+            )
+        ];
+
+
+    const LRESULT languageSelection =
+        SendMessageA(
+            g_blBspComboLanguage,
+            CB_GETCURSEL,
+            0,
+            0
+        );
+
+
+    g_blBspSpanish =
+        languageSelection != 1;
+
+
+    g_betterLootingRules.lootRadius =
+        radius;
+
+    g_betterLootingRules.minValue =
+        static_cast<int>(
+            minValue
+        );
+
+    g_betterLootingRules.minValuePerKg =
+        minValuePerKg;
+
+    g_betterLootingRules.activationVirtualKey = activationKey;
+
+
+    g_betterLootingRules.lootWeapons = BetterLootingBspGetCheck(g_blBspCheckWeapons);
+    g_betterLootingRules.lootArmour = BetterLootingBspGetCheck(g_blBspCheckArmour);
+    g_betterLootingRules.lootMaterials = BetterLootingBspGetCheck(g_blBspCheckMaterials);
+    g_betterLootingRules.lootFood = BetterLootingBspGetCheck(g_blBspCheckFood);
+    g_betterLootingRules.lootMedicine = BetterLootingBspGetCheck(g_blBspCheckMedicine);
+    g_betterLootingRules.lootTools = BetterLootingBspGetCheck(g_blBspCheckTools);
+    g_betterLootingRules.lootAmmo = BetterLootingBspGetCheck(g_blBspCheckAmmo);
+    g_betterLootingRules.lootBlueprints = BetterLootingBspGetCheck(g_blBspCheckBlueprints);
+    g_betterLootingRules.lootBooks = BetterLootingBspGetCheck(g_blBspCheckBooks);
+    g_betterLootingRules.lootRobotics = BetterLootingBspGetCheck(g_blBspCheckRobotics);
+    g_betterLootingRules.lootNarcotics = BetterLootingBspGetCheck(g_blBspCheckNarcotics);
+    g_betterLootingRules.lootSeveredLimbs = BetterLootingBspGetCheck(g_blBspCheckSeveredLimbs);
+    g_betterLootingRules.lootOther = BetterLootingBspGetCheck(g_blBspCheckOther);
+
+    g_betterLootingRules.allowStolen = BetterLootingBspGetCheck(g_blBspCheckAllowStolen);
+    g_betterLootingRules.bestItemsFirst = BetterLootingBspGetCheck(g_blBspCheckBestItemsFirst);
+    g_betterLootingRules.preferBackpack = BetterLootingBspGetCheck(g_blBspCheckPreferBackpack);
+
+
+    const std::string iniPath =
+        BetterLootingBspGetIniPath();
+
+
+    WritePrivateProfileStringA(
+        "UI",
+        "Language",
+        g_blBspSpanish ? "ru" : "en",
+        iniPath.c_str()
+    );
+
+
+    char valueBuffer[64] = {};
+
 
     sprintf_s(
-        buffer,
+        valueBuffer,
         "%.2f",
         g_betterLootingRules.lootRadius
     );
@@ -7977,12 +10125,13 @@ void BetterLootingSaveRules()
     WritePrivateProfileStringA(
         "General",
         "LootRadius",
-        buffer,
-        path.c_str()
+        valueBuffer,
+        iniPath.c_str()
     );
 
+
     sprintf_s(
-        buffer,
+        valueBuffer,
         "%d",
         g_betterLootingRules.minValue
     );
@@ -7990,12 +10139,13 @@ void BetterLootingSaveRules()
     WritePrivateProfileStringA(
         "Rules",
         "MinValue",
-        buffer,
-        path.c_str()
+        valueBuffer,
+        iniPath.c_str()
     );
 
+
     sprintf_s(
-        buffer,
+        valueBuffer,
         "%.2f",
         g_betterLootingRules.minValuePerKg
     );
@@ -8003,31 +10153,33 @@ void BetterLootingSaveRules()
     WritePrivateProfileStringA(
         "Rules",
         "MinValuePerKg",
-        buffer,
-        path.c_str()
+        valueBuffer,
+        iniPath.c_str()
     );
 
-    BetterLootingWriteBool(path, "Rules", "AllowStolen", g_betterLootingRules.allowStolen);
 
-    BetterLootingWriteBool(path, "Categories", "Weapons", g_betterLootingRules.lootWeapons);
-    BetterLootingWriteBool(path, "Categories", "Armour", g_betterLootingRules.lootArmour);
-    BetterLootingWriteBool(path, "Categories", "Materials", g_betterLootingRules.lootMaterials);
-    BetterLootingWriteBool(path, "Categories", "Food", g_betterLootingRules.lootFood);
-    BetterLootingWriteBool(path, "Categories", "Medicine", g_betterLootingRules.lootMedicine);
-    BetterLootingWriteBool(path, "Categories", "Tools", g_betterLootingRules.lootTools);
-    BetterLootingWriteBool(path, "Categories", "Ammo", g_betterLootingRules.lootAmmo);
-    BetterLootingWriteBool(path, "Categories", "Blueprints", g_betterLootingRules.lootBlueprints);
-    BetterLootingWriteBool(path, "Categories", "Books", g_betterLootingRules.lootBooks);
-    BetterLootingWriteBool(path, "Categories", "Robotics", g_betterLootingRules.lootRobotics);
-    BetterLootingWriteBool(path, "Categories", "Narcotics", g_betterLootingRules.lootNarcotics);
-    BetterLootingWriteBool(path, "Categories", "SeveredLimbs", g_betterLootingRules.lootSeveredLimbs);
-    BetterLootingWriteBool(path, "Categories", "Other", g_betterLootingRules.lootOther);
+    BetterLootingBspWriteBool(iniPath, "Rules", "AllowStolen", g_betterLootingRules.allowStolen);
 
-    BetterLootingWriteBool(path, "Behavior", "BestItemsFirst", g_betterLootingRules.bestItemsFirst);
-    BetterLootingWriteBool(path, "Behavior", "PreferBackpack", g_betterLootingRules.preferBackpack);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Weapons", g_betterLootingRules.lootWeapons);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Armour", g_betterLootingRules.lootArmour);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Materials", g_betterLootingRules.lootMaterials);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Food", g_betterLootingRules.lootFood);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Medicine", g_betterLootingRules.lootMedicine);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Tools", g_betterLootingRules.lootTools);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Ammo", g_betterLootingRules.lootAmmo);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Blueprints", g_betterLootingRules.lootBlueprints);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Books", g_betterLootingRules.lootBooks);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Robotics", g_betterLootingRules.lootRobotics);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Narcotics", g_betterLootingRules.lootNarcotics);
+    BetterLootingBspWriteBool(iniPath, "Categories", "SeveredLimbs", g_betterLootingRules.lootSeveredLimbs);
+    BetterLootingBspWriteBool(iniPath, "Categories", "Other", g_betterLootingRules.lootOther);
+
+    BetterLootingBspWriteBool(iniPath, "Behavior", "BestItemsFirst", g_betterLootingRules.bestItemsFirst);
+    BetterLootingBspWriteBool(iniPath, "Behavior", "PreferBackpack", g_betterLootingRules.preferBackpack);
+
 
     sprintf_s(
-        buffer,
+        valueBuffer,
         "%d",
         g_betterLootingRules.activationVirtualKey
     );
@@ -8035,86 +10187,3914 @@ void BetterLootingSaveRules()
     WritePrivateProfileStringA(
         "Behavior",
         "ActivationVirtualKey",
+        valueBuffer,
+        iniPath.c_str()
+    );
+
+
+    BetterLootingBspSyncFromRules();
+
+
+    ErrorLog(
+        "BetterLooting: BSP_UI settings saved"
+    );
+}
+
+
+static void BetterLootingBspApplyDefaults()
+{
+    g_betterLootingRules.lootRadius = 20.00f;
+    g_betterLootingRules.minValue = 0;
+    g_betterLootingRules.minValuePerKg = 0.00f;
+    g_betterLootingRules.allowStolen = true;
+
+    g_betterLootingRules.lootWeapons = true;
+    g_betterLootingRules.lootArmour = true;
+    g_betterLootingRules.lootMaterials = true;
+    g_betterLootingRules.lootFood = true;
+    g_betterLootingRules.lootMedicine = true;
+    g_betterLootingRules.lootTools = true;
+    g_betterLootingRules.lootAmmo = true;
+    g_betterLootingRules.lootBlueprints = true;
+    g_betterLootingRules.lootBooks = true;
+    g_betterLootingRules.lootRobotics = true;
+    g_betterLootingRules.lootNarcotics = true;
+    g_betterLootingRules.lootSeveredLimbs = true;
+    g_betterLootingRules.lootOther = true;
+
+    g_betterLootingRules.bestItemsFirst = true;
+    g_betterLootingRules.preferBackpack = true;
+    g_betterLootingRules.activationVirtualKey = VK_INSERT;
+
+    BetterLootingBspSyncFromRules();
+    BetterLootingBspSave();
+
+    ErrorLog(
+        "BetterLooting: BSP_UI checkpoint defaults restored and saved"
+    );
+}
+
+
+static HWND BetterLootingBspCreateLabel(
+    HWND parent,
+    const char* text,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    HWND control =
+        CreateWindowExA(
+            0,
+            "STATIC",
+            text,
+            WS_CHILD | WS_VISIBLE,
+            x,
+            y,
+            width,
+            height,
+            parent,
+            NULL,
+            reinterpret_cast<HINSTANCE>(
+                &__ImageBase
+            ),
+            NULL
+        );
+
+
+    BetterLootingBspSetControlFont(
+        control,
+        g_blBspFontNormal
+    );
+
+
+    return control;
+}
+
+
+static HWND BetterLootingBspCreateEdit(
+    HWND parent,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    HWND control =
+        CreateWindowExA(
+            WS_EX_STATICEDGE,
+            "EDIT",
+            "",
+            WS_CHILD |
+                WS_VISIBLE |
+                WS_TABSTOP |
+                ES_AUTOHSCROLL,
+            x,
+            y,
+            width,
+            height,
+            parent,
+            NULL,
+            reinterpret_cast<HINSTANCE>(
+                &__ImageBase
+            ),
+            NULL
+        );
+
+
+    BetterLootingBspSetControlFont(
+        control,
+        g_blBspFontNormal
+    );
+
+
+    if (control)
+    {
+        SendMessageA(
+            control,
+            EM_SETMARGINS,
+            EC_LEFTMARGIN |
+                EC_RIGHTMARGIN,
+            MAKELPARAM(
+                8,
+                8
+            )
+        );
+    }
+
+
+    return control;
+}
+
+
+static bool BetterLooting611HOnlyTrailingWhitespace(
+    const char* text
+)
+{
+    if (!text)
+    {
+        return true;
+    }
+
+
+    while (*text)
+    {
+        if (
+            *text != ' ' &&
+            *text != '\t' &&
+            *text != '\r' &&
+            *text != '\n'
+        )
+        {
+            return false;
+        }
+
+
+        ++text;
+    }
+
+
+    return true;
+}
+
+
+static bool BetterLooting611HValidateFloatEdit(
+    HWND edit,
+    float minimum,
+    float maximum
+)
+{
+    if (!edit)
+    {
+        return false;
+    }
+
+
+    char buffer[64] = {};
+
+
+    GetWindowTextA(
+        edit,
         buffer,
-        path.c_str()
+        sizeof(buffer)
     );
 
-    BlTrace(
-        "BetterLooting: PANEL settings saved"
+
+    char* endPointer =
+        NULL;
+
+
+    const float value =
+        strtof(
+            buffer,
+            &endPointer
+        );
+
+
+    if (
+        endPointer == buffer ||
+        value != value ||
+        !BetterLooting611HOnlyTrailingWhitespace(
+            endPointer
+        )
+    )
+    {
+        return false;
+    }
+
+
+    return
+        value >= minimum &&
+        value <= maximum;
+}
+
+
+static bool BetterLooting611HValidateIntegerEdit(
+    HWND edit,
+    long minimum,
+    long maximum
+)
+{
+    if (!edit)
+    {
+        return false;
+    }
+
+
+    char buffer[64] = {};
+
+
+    GetWindowTextA(
+        edit,
+        buffer,
+        sizeof(buffer)
+    );
+
+
+    char* endPointer =
+        NULL;
+
+
+    const long value =
+        strtol(
+            buffer,
+            &endPointer,
+            10
+        );
+
+
+    if (
+        endPointer == buffer ||
+        !BetterLooting611HOnlyTrailingWhitespace(
+            endPointer
+        )
+    )
+    {
+        return false;
+    }
+
+
+    return
+        value >= minimum &&
+        value <= maximum;
+}
+
+
+static void BetterLooting611HRefreshEdit(
+    HWND edit
+)
+{
+    if (!edit)
+    {
+        return;
+    }
+
+
+    RedrawWindow(
+        edit,
+        NULL,
+        NULL,
+        RDW_INVALIDATE |
+            RDW_ERASE |
+            RDW_FRAME |
+            RDW_UPDATENOW
     );
 }
 
 
-// ============================================================
-// Страница в ModConfigMenu (вкладка MCM окна «Настройки»). Без MCM мод
-// работает как раньше: настройки в BetterLooting.ini и в своей панели.
-// MCM пишет ini и зовёт McmReload - правила перечитываются на ходу.
-// ============================================================
-#define KLOC_DOMAIN "better_looting"
-#include <Localization.h>
-#include <ModConfigMenu.h>
-
-static void __cdecl McmReload()
+static bool BetterLooting611HValidateInputs()
 {
-    LoadBetterLootingRules();
+    g_bl611HRadiusInvalid =
+        !BetterLooting611HValidateFloatEdit(
+            g_blBspEditRadius,
+            1.0f,
+            100.0f
+        );
+
+
+    g_bl611HMinValueInvalid =
+        !BetterLooting611HValidateIntegerEdit(
+            g_blBspEditMinValue,
+            0L,
+            2147483647L
+        );
+
+
+    g_bl611HMinValuePerKgInvalid =
+        !BetterLooting611HValidateFloatEdit(
+            g_blBspEditMinValuePerKg,
+            0.0f,
+            1000000000.0f
+        );
+
+
+    BetterLooting611HRefreshEdit(
+        g_blBspEditRadius
+    );
+
+
+    BetterLooting611HRefreshEdit(
+        g_blBspEditMinValue
+    );
+
+
+    BetterLooting611HRefreshEdit(
+        g_blBspEditMinValuePerKg
+    );
+
+
+    return
+        !g_bl611HRadiusInvalid &&
+        !g_bl611HMinValueInvalid &&
+        !g_bl611HMinValuePerKgInvalid;
 }
 
-extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
+
+static void BetterLooting611HShowStatus(
+    HWND parent,
+    const char* spanishText,
+    const char* englishText,
+    UINT durationMs
+)
 {
-    const std::string ini = BetterLootingIniPath();
-    api->beginMod(api, "BetterLooting", "Better Looting", ini.c_str(), &McmReload);
-    if (api->version >= 2)
-        api->info(api, Tr("Collects loot around the selected character with one key and puts it away by your rules."));
+    if (!g_bl611HStatus)
+    {
+        return;
+    }
 
-    static const char* const keyValues[] = {
-        "45", "36", "35", "46", "33", "34",
-        "112", "113", "114", "115", "116", "117", "118", "119", "120", "121", "122", "123" };
-    static const char* const keyLabels[] = {
-        "Insert", "Home", "End", "Delete", "PageUp", "PageDown",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
 
-    api->section(api, Tr("Looting"));
-    api->choice(api, "Behavior", "ActivationVirtualKey", Tr("Looting key"),
-                Tr("Key that collects loot around the selected character."),
-                "45", keyValues, keyLabels, 18, 0);
-    api->number(api, "General", "LootRadius", Tr("Loot radius (m)"),
-                Tr("How far around the character the mod looks for loot."),
-                20.0f, 1.0f, 100.0f, 1, 0);
-    api->toggle(api, "Behavior", "BestItemsFirst", Tr("Best items first"),
-                Tr("Sort by value, so a full backpack holds the best finds."), 1, 0);
-    api->toggle(api, "Behavior", "PreferBackpack", Tr("Prefer backpack"),
-                Tr("Fill the backpack before the character's own inventory."), 1, 0);
+    SetWindowTextA(
+        g_bl611HStatus,
+        g_blBspSpanish
+            ? spanishText
+            : englishText
+    );
 
-    api->section(api, Tr("Rules"));
-    api->integer(api, "Rules", "MinValue", Tr("Minimum value"),
-                 Tr("Items cheaper than this are left where they are."), 0, 0, 5000, 0);
-    api->number(api, "Rules", "MinValuePerKg", Tr("Minimum value per kg"),
-                Tr("Cuts off heavy items with a poor value to weight ratio."),
-                0.0f, 0.0f, 2000.0f, 1, 0);
-    api->toggle(api, "Rules", "AllowStolen", Tr("Allow stolen items"),
-                Tr("Pick up goods that still belong to someone else."), 1, 0);
 
-    struct Category { const char* key; const char* label; int def; };
-    static const Category categories[] = {
-        { "Weapons", "Weapons", 1 }, { "Armour", "Armour", 1 },
-        { "Materials", "Materials and resources", 1 }, { "Food", "Food", 1 },
-        { "Medicine", "Medicine", 1 }, { "Tools", "Tools", 1 }, { "Ammo", "Ammo", 1 },
-        { "Blueprints", "Blueprints", 1 }, { "Books", "Books", 1 },
-        { "Robotics", "Robotics", 1 }, { "Narcotics", "Narcotics", 1 },
-        { "SeveredLimbs", "Severed limbs", 1 }, { "Other", "Other", 1 } };
-    api->section(api, Tr("Categories"));
-    for (size_t i = 0; i < sizeof(categories) / sizeof(categories[0]); ++i)
-        api->toggle(api, "Categories", categories[i].key, Tr(categories[i].label),
-                    Tr("Collect items of this kind"), categories[i].def, 0);
+    InvalidateRect(
+        g_bl611HStatus,
+        NULL,
+        TRUE
+    );
 
-    api->section(api, Tr("Advanced"));
-    api->toggle(api, "Debug", "Log", Tr("Debug logging"),
-                Tr("Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"), 0, 0);
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    SetTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS,
+        durationMs,
+        NULL
+    );
+}
+
+typedef BOOL (
+    WINAPI*
+    BetterLooting611IInitCommonControlsExFn
+)(
+    const INITCOMMONCONTROLSEX*
+);
+
+
+static bool BetterLooting611IEnsureCommonControls()
+{
+    if (!g_bl611IComCtlModule)
+    {
+        g_bl611IComCtlModule =
+            LoadLibraryA(
+                "comctl32.dll"
+            );
+    }
+
+
+    if (!g_bl611IComCtlModule)
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI tooltip comctl32 load failed"
+        );
+
+        return false;
+    }
+
+
+    BetterLooting611IInitCommonControlsExFn initFn =
+        reinterpret_cast<BetterLooting611IInitCommonControlsExFn>(
+            GetProcAddress(
+                g_bl611IComCtlModule,
+                "InitCommonControlsEx"
+            )
+        );
+
+
+    if (initFn)
+    {
+        INITCOMMONCONTROLSEX init = {};
+
+
+        init.dwSize =
+            sizeof(init);
+
+
+        init.dwICC =
+            ICC_WIN95_CLASSES;
+
+
+        initFn(
+            &init
+        );
+    }
+
+
+    return true;
+}
+
+
+static void BetterLooting611LApplyDarkTooltipTheme(
+    HWND tooltip
+);
+
+
+static bool BetterLooting611ICreateTooltip(
+    HWND parent
+)
+{
+    if (
+        !parent ||
+        !BetterLooting611IEnsureCommonControls()
+    )
+    {
+        return false;
+    }
+
+
+    if (
+        g_bl611ITooltip &&
+        IsWindow(
+            g_bl611ITooltip
+        )
+    )
+    {
+        return true;
+    }
+
+
+    g_bl611ITooltip =
+        CreateWindowExA(
+            WS_EX_TOPMOST,
+            TOOLTIPS_CLASSA,
+            NULL,
+            WS_POPUP |
+                TTS_ALWAYSTIP |
+                TTS_NOPREFIX,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            parent,
+            NULL,
+            NULL,
+            NULL
+        );
+
+
+    if (!g_bl611ITooltip)
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI tooltip window create failed"
+        );
+
+        return false;
+    }
+
+
+    BetterLooting611LApplyDarkTooltipTheme(
+        g_bl611ITooltip
+    );
+
+
+    SetWindowPos(
+        g_bl611ITooltip,
+        HWND_TOPMOST,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE |
+            SWP_NOSIZE |
+            SWP_NOACTIVATE
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETMAXTIPWIDTH,
+        0,
+        380
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETDELAYTIME,
+        TTDT_INITIAL,
+        500
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETDELAYTIME,
+        TTDT_RESHOW,
+        100
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETDELAYTIME,
+        TTDT_AUTOPOP,
+        9000
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETTIPBKCOLOR,
+        RGB(31, 32, 28),
+        0
+    );
+
+
+    SendMessageA(
+        g_bl611ITooltip,
+        TTM_SETTIPTEXTCOLOR,
+        BL_BSP_COLOR_TEXT,
+        0
+    );
+
+
+    return true;
+}
+
+
+typedef HRESULT (
+    WINAPI*
+    BetterLooting611LSetWindowThemeFn
+)(
+    HWND,
+    LPCWSTR,
+    LPCWSTR
+);
+
+
+static void BetterLooting611LApplyDarkTooltipTheme(
+    HWND tooltip
+)
+{
+    if (!tooltip)
+    {
+        return;
+    }
+
+
+    if (!g_bl611LUxThemeModule)
+    {
+        g_bl611LUxThemeModule =
+            LoadLibraryA(
+                "uxtheme.dll"
+            );
+    }
+
+
+    if (g_bl611LUxThemeModule)
+    {
+        BetterLooting611LSetWindowThemeFn setTheme =
+            reinterpret_cast<BetterLooting611LSetWindowThemeFn>(
+                GetProcAddress(
+                    g_bl611LUxThemeModule,
+                    "SetWindowTheme"
+                )
+            );
+
+
+        if (setTheme)
+        {
+            setTheme(
+                tooltip,
+                L"",
+                L""
+            );
+        }
+    }
+
+
+    SendMessageW(
+        tooltip,
+        CCM_SETUNICODEFORMAT,
+        TRUE,
+        0
+    );
+
+
+    SendMessageA(
+        tooltip,
+        WM_SETFONT,
+        reinterpret_cast<WPARAM>(
+            g_blBspFontNormal
+        ),
+        TRUE
+    );
+
+
+    SendMessageA(
+        tooltip,
+        TTM_SETTIPBKCOLOR,
+        RGB(31, 32, 28),
+        0
+    );
+
+
+    SendMessageA(
+        tooltip,
+        TTM_SETTIPTEXTCOLOR,
+        RGB(232, 226, 207),
+        0
+    );
+}
+
+
+static const wchar_t* BetterLooting611LText(
+    const wchar_t* spanishText,
+    const wchar_t* englishText
+)
+{
+    return
+        g_blBspSpanish
+            ? spanishText
+            : englishText;
+}
+
+static bool BetterLooting611IAddTooltip(
+    HWND parent,
+    HWND control,
+    const wchar_t* text
+)
+{
+    if (
+        !parent ||
+        !control ||
+        !text ||
+        !g_bl611ITooltip
+    )
+    {
+        return false;
+    }
+
+
+    TOOLINFOW tool = {};
+
+
+    tool.cbSize =
+        sizeof(tool);
+
+
+    tool.uFlags =
+        TTF_IDISHWND |
+        TTF_SUBCLASS;
+
+
+    tool.hwnd =
+        parent;
+
+
+    tool.uId =
+        reinterpret_cast<UINT_PTR>(
+            control
+        );
+
+
+    tool.lpszText =
+        const_cast<LPWSTR>(
+            text
+        );
+
+
+    return
+        SendMessageW(
+            g_bl611ITooltip,
+            TTM_ADDTOOLW,
+            0,
+            reinterpret_cast<LPARAM>(
+                &tool
+            )
+        ) !=
+        FALSE;
+}
+
+static void BetterLooting611JSetVisibleNumbers(
+    const char* radius,
+    const char* minValue,
+    const char* minValuePerKg
+)
+{
+    SetWindowTextA(
+        g_blBspEditRadius,
+        radius
+    );
+
+
+    SetWindowTextA(
+        g_blBspEditMinValue,
+        minValue
+    );
+
+
+    SetWindowTextA(
+        g_blBspEditMinValuePerKg,
+        minValuePerKg
+    );
+}
+
+
+static void BetterLooting611JApplyBalancedPreset()
+{
+    BetterLooting611JSetVisibleNumbers(
+        "20.00",
+        "500",
+        "300.00"
+    );
+
+
+    BetterLootingBspSetCheck(g_blBspCheckWeapons, true);
+    BetterLootingBspSetCheck(g_blBspCheckArmour, true);
+    BetterLootingBspSetCheck(g_blBspCheckMaterials, true);
+    BetterLootingBspSetCheck(g_blBspCheckFood, true);
+    BetterLootingBspSetCheck(g_blBspCheckMedicine, true);
+    BetterLootingBspSetCheck(g_blBspCheckTools, true);
+    BetterLootingBspSetCheck(g_blBspCheckAmmo, true);
+    BetterLootingBspSetCheck(g_blBspCheckBlueprints, true);
+    BetterLootingBspSetCheck(g_blBspCheckBooks, true);
+    BetterLootingBspSetCheck(g_blBspCheckRobotics, true);
+    BetterLootingBspSetCheck(g_blBspCheckNarcotics, false);
+    BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, false);
+    BetterLootingBspSetCheck(g_blBspCheckOther, true);
+}
+
+
+static void BetterLooting611JApplyMoneyPreset()
+{
+    BetterLooting611JSetVisibleNumbers(
+        "25.00",
+        "1000",
+        "500.00"
+    );
+
+
+    BetterLootingBspSetCheck(g_blBspCheckWeapons, true);
+    BetterLootingBspSetCheck(g_blBspCheckArmour, true);
+    BetterLootingBspSetCheck(g_blBspCheckMaterials, false);
+    BetterLootingBspSetCheck(g_blBspCheckFood, false);
+    BetterLootingBspSetCheck(g_blBspCheckMedicine, false);
+    BetterLootingBspSetCheck(g_blBspCheckTools, false);
+    BetterLootingBspSetCheck(g_blBspCheckAmmo, false);
+    BetterLootingBspSetCheck(g_blBspCheckBlueprints, true);
+    BetterLootingBspSetCheck(g_blBspCheckBooks, true);
+    BetterLootingBspSetCheck(g_blBspCheckRobotics, true);
+    BetterLootingBspSetCheck(g_blBspCheckNarcotics, true);
+    BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, false);
+    BetterLootingBspSetCheck(g_blBspCheckOther, true);
+}
+
+
+static void BetterLooting611JApplyResourcesPreset()
+{
+    BetterLooting611JSetVisibleNumbers(
+        "30.00",
+        "0",
+        "0.00"
+    );
+
+
+    BetterLootingBspSetCheck(g_blBspCheckWeapons, false);
+    BetterLootingBspSetCheck(g_blBspCheckArmour, false);
+    BetterLootingBspSetCheck(g_blBspCheckMaterials, true);
+    BetterLootingBspSetCheck(g_blBspCheckFood, true);
+    BetterLootingBspSetCheck(g_blBspCheckMedicine, true);
+    BetterLootingBspSetCheck(g_blBspCheckTools, true);
+    BetterLootingBspSetCheck(g_blBspCheckAmmo, true);
+    BetterLootingBspSetCheck(g_blBspCheckBlueprints, false);
+    BetterLootingBspSetCheck(g_blBspCheckBooks, false);
+    BetterLootingBspSetCheck(g_blBspCheckRobotics, true);
+    BetterLootingBspSetCheck(g_blBspCheckNarcotics, false);
+    BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, false);
+    BetterLootingBspSetCheck(g_blBspCheckOther, false);
+}
+
+static void BetterLooting611KInvalidatePresetButtons(
+    HWND parent
+)
+{
+    if (!parent)
+    {
+        return;
+    }
+
+
+    const int ids[] =
+    {
+        BL_UI_611J_ID_BALANCED,
+        BL_UI_611J_ID_MONEY,
+        BL_UI_611J_ID_RESOURCES
+    };
+
+
+    for (
+        int i = 0;
+        i < 3;
+        ++i
+    )
+    {
+        HWND button =
+            GetDlgItem(
+                parent,
+                ids[i]
+            );
+
+
+        if (button)
+        {
+            InvalidateRect(
+                button,
+                NULL,
+                FALSE
+            );
+        }
+    }
+
+
+    HWND saveButton =
+        GetDlgItem(
+            parent,
+            BL_BSP_ID_SAVE
+        );
+
+
+    if (saveButton)
+    {
+        InvalidateRect(
+            saveButton,
+            NULL,
+            FALSE
+        );
+    }
+}
+
+
+static void BetterLooting6121RefreshRealSummary()
+{
+    if (
+        !g_bl611HStatus ||
+        !g_blBspEditRadius ||
+        !g_blBspEditMinValue ||
+        !g_blBspEditMinValuePerKg ||
+        !g_blBspComboActivationKey
+    )
+    {
+        return;
+    }
+
+
+    char radius[32] = {};
+    char minValue[32] = {};
+    char minValuePerKg[32] = {};
+
+
+    GetWindowTextA(
+        g_blBspEditRadius,
+        radius,
+        sizeof(radius)
+    );
+
+
+    GetWindowTextA(
+        g_blBspEditMinValue,
+        minValue,
+        sizeof(minValue)
+    );
+
+
+    GetWindowTextA(
+        g_blBspEditMinValuePerKg,
+        minValuePerKg,
+        sizeof(minValuePerKg)
+    );
+
+
+    LRESULT hotkeySelection =
+        SendMessageA(
+            g_blBspComboActivationKey,
+            CB_GETCURSEL,
+            0,
+            0
+        );
+
+
+    if (
+        hotkeySelection < 0 ||
+        hotkeySelection >= g_blBspHotkeyCount
+    )
+    {
+        hotkeySelection =
+            BetterLootingBspFindHotkeyIndex(
+                g_betterLootingRules.activationVirtualKey
+            );
+    }
+
+
+    const char* hotkeyName =
+        g_blBspHotkeyNames[
+            static_cast<int>(
+                hotkeySelection
+            )
+        ];
+
+
+    char summary[256] = {};
+
+
+    if (g_blBspSpanish)
+    {
+        sprintf_s(
+            summary,
+            "RADIO %s m  |  VALOR >= %s  |  >= %s/kg  |  TECLA %s",
+            radius,
+            minValue,
+            minValuePerKg,
+            hotkeyName
+        );
+    }
+    else
+    {
+        sprintf_s(
+            summary,
+            "RADIUS %s m  |  VALUE >= %s  |  >= %s/kg  |  KEY %s",
+            radius,
+            minValue,
+            minValuePerKg,
+            hotkeyName
+        );
+    }
+
+
+    SetWindowTextA(
+        g_bl611HStatus,
+        summary
+    );
+}
+
+
+static void BetterLooting611KRefreshDirtyStatus(
+    HWND parent
+)
+{
+    if (!g_bl611HStatus)
+    {
+        return;
+    }
+
+
+    if (g_bl611KDirty)
+    {
+        SetWindowTextW(
+            g_bl611HStatus,
+            g_blBspSpanish
+                ? L"\u25CF CAMBIOS SIN GUARDAR"
+                : L"\u25CF UNSAVED CHANGES"
+        );
+    }
+    else
+    {
+        BetterLooting6121RefreshRealSummary();
+    }
+
+
+    InvalidateRect(
+        g_bl611HStatus,
+        NULL,
+        TRUE
+    );
+
+
+    BetterLooting611KInvalidatePresetButtons(
+        parent
+    );
+}
+
+
+static void BetterLooting611KMarkCustomDirty(
+    HWND parent
+)
+{
+    if (g_bl611KSuppressTracking)
+    {
+        return;
+    }
+
+
+    g_bl611KActivePresetId =
+        0;
+
+
+    g_bl611KDirty =
+        true;
+
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    BetterLooting611KRefreshDirtyStatus(
+        parent
+    );
+}
+
+
+static void BetterLooting611KSelectPreset(
+    HWND parent,
+    int presetId
+)
+{
+    if (g_bl611KSuppressTracking)
+    {
+        return;
+    }
+
+
+    g_bl611KActivePresetId =
+        presetId;
+
+
+    g_bl611KDirty =
+        true;
+
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    BetterLooting611KRefreshDirtyStatus(
+        parent
+    );
+}
+
+
+static void BetterLooting611KMarkSaved(
+    HWND parent
+)
+{
+    g_bl611KDirty =
+        false;
+
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    BetterLooting611KRefreshDirtyStatus(
+        parent
+    );
+}
+
+
+static void BetterLooting611KDiscardPendingState(
+    HWND parent
+)
+{
+    g_bl611KDirty =
+        false;
+
+
+    g_bl611KActivePresetId =
+        0;
+
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    if (g_bl611HStatus)
+    {
+        SetWindowTextW(
+            g_bl611HStatus,
+            L""
+        );
+
+
+        InvalidateRect(
+            g_bl611HStatus,
+            NULL,
+            TRUE
+        );
+    }
+
+
+    BetterLooting611KInvalidatePresetButtons(
+        parent
+    );
+}
+
+static void BetterLooting611KShowSavedStatus(
+    HWND parent
+)
+{
+    if (!g_bl611HStatus)
+    {
+        return;
+    }
+
+
+    SetWindowTextW(
+        g_bl611HStatus,
+        g_blBspSpanish
+            ? L"\u2713 CONFIGURACI\u00D3N GUARDADA"
+            : L"\u2713 SETTINGS SAVED"
+    );
+
+
+    InvalidateRect(
+        g_bl611HStatus,
+        NULL,
+        TRUE
+    );
+
+
+    KillTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS
+    );
+
+
+    SetTimer(
+        parent,
+        BL_UI_611H_TIMER_STATUS,
+        2400,
+        NULL
+    );
+}
+
+
+static bool BetterLooting611KIsTrackedCheck(
+    HWND control
+)
+{
+    return
+        control == g_blBspCheckWeapons ||
+        control == g_blBspCheckArmour ||
+        control == g_blBspCheckMaterials ||
+        control == g_blBspCheckFood ||
+        control == g_blBspCheckMedicine ||
+        control == g_blBspCheckTools ||
+        control == g_blBspCheckAmmo ||
+        control == g_blBspCheckBlueprints ||
+        control == g_blBspCheckBooks ||
+        control == g_blBspCheckRobotics ||
+        control == g_blBspCheckNarcotics ||
+        control == g_blBspCheckSeveredLimbs ||
+        control == g_blBspCheckOther ||
+        control == g_blBspCheckAllowStolen ||
+        control == g_blBspCheckBestItemsFirst ||
+        control == g_blBspCheckPreferBackpack;
+}
+
+static LRESULT CALLBACK BetterLooting611BCheckProc(
+    HWND hwnd,
+    UINT msg,
+    WPARAM wParam,
+    LPARAM lParam
+)
+{
+    if (
+        msg == WM_PAINT
+    )
+    {
+        PAINTSTRUCT paint = {};
+
+
+        HDC hdc =
+            BeginPaint(
+                hwnd,
+                &paint
+            );
+
+
+        RECT client = {};
+
+
+        GetClientRect(
+            hwnd,
+            &client
+        );
+
+
+        FillRect(
+            hdc,
+            &client,
+            g_blBspBrushPanel
+        );
+
+
+        const bool checked =
+            SendMessageA(
+                hwnd,
+                BM_GETCHECK,
+                0,
+                0
+            ) ==
+            BST_CHECKED;
+
+
+        RECT box =
+        {
+            2,
+            (client.bottom - 18) / 2,
+            20,
+            ((client.bottom - 18) / 2) + 18
+        };
+
+
+        HBRUSH boxBrush =
+            CreateSolidBrush(
+                checked
+                    ? RGB(152, 103, 45)
+                    : RGB(24, 25, 22)
+            );
+
+
+        FillRect(
+            hdc,
+            &box,
+            boxBrush
+        );
+
+
+        DeleteObject(
+            boxBrush
+        );
+
+
+        HBRUSH borderBrush =
+            CreateSolidBrush(
+                checked
+                    ? RGB(210, 157, 82)
+                    : RGB(105, 102, 87)
+            );
+
+
+        FrameRect(
+            hdc,
+            &box,
+            borderBrush
+        );
+
+
+        DeleteObject(
+            borderBrush
+        );
+
+
+        if (checked)
+        {
+            HPEN checkPen =
+                CreatePen(
+                    PS_SOLID,
+                    2,
+                    RGB(244, 236, 211)
+                );
+
+
+            HGDIOBJ oldPen =
+                SelectObject(
+                    hdc,
+                    checkPen
+                );
+
+
+            MoveToEx(
+                hdc,
+                box.left + 4,
+                box.top + 9,
+                NULL
+            );
+
+
+            LineTo(
+                hdc,
+                box.left + 8,
+                box.top + 13
+            );
+
+
+            LineTo(
+                hdc,
+                box.left + 15,
+                box.top + 5
+            );
+
+
+            SelectObject(
+                hdc,
+                oldPen
+            );
+
+
+            DeleteObject(
+                checkPen
+            );
+        }
+
+
+        char caption[256] = {};
+
+
+        GetWindowTextA(
+            hwnd,
+            caption,
+            sizeof(caption)
+        );
+
+
+        RECT textRect =
+        {
+            30,
+            0,
+            client.right,
+            client.bottom
+        };
+
+
+        SetBkMode(
+            hdc,
+            TRANSPARENT
+        );
+
+
+        SetTextColor(
+            hdc,
+            IsWindowEnabled(hwnd)
+                ? RGB(232, 226, 207)
+                : RGB(128, 125, 112)
+        );
+
+
+        HGDIOBJ oldFont =
+            SelectObject(
+                hdc,
+                g_blBspFontNormal
+            );
+
+
+        DrawTextA(
+            hdc,
+            caption,
+            -1,
+            &textRect,
+            DT_LEFT |
+                DT_VCENTER |
+                DT_SINGLELINE |
+                DT_NOPREFIX |
+                DT_END_ELLIPSIS
+        );
+
+
+        SelectObject(
+            hdc,
+            oldFont
+        );
+
+
+        if (GetFocus() == hwnd)
+        {
+            RECT focusRect =
+            {
+                27,
+                2,
+                client.right - 2,
+                client.bottom - 2
+            };
+
+
+            DrawFocusRect(
+                hdc,
+                &focusRect
+            );
+        }
+
+
+        EndPaint(
+            hwnd,
+            &paint
+        );
+
+
+        return 0;
+    }
+
+
+    if (
+        msg == BM_SETCHECK ||
+        msg == WM_LBUTTONUP ||
+        msg == WM_KEYUP ||
+        msg == WM_ENABLE ||
+        msg == WM_SETFOCUS ||
+        msg == WM_KILLFOCUS
+    )
+    {
+        const LRESULT result =
+            g_bl611BOriginalCheckProc
+                ? CallWindowProcA(
+                    g_bl611BOriginalCheckProc,
+                    hwnd,
+                    msg,
+                    wParam,
+                    lParam
+                )
+                : DefWindowProcA(
+                    hwnd,
+                    msg,
+                    wParam,
+                    lParam
+                );
+
+
+        InvalidateRect(
+            hwnd,
+            NULL,
+            FALSE
+        );
+
+
+        return result;
+    }
+
+
+    return
+        g_bl611BOriginalCheckProc
+            ? CallWindowProcA(
+                g_bl611BOriginalCheckProc,
+                hwnd,
+                msg,
+                wParam,
+                lParam
+            )
+            : DefWindowProcA(
+                hwnd,
+                msg,
+                wParam,
+                lParam
+            );
+}
+
+
+static HWND BetterLootingBspCreateCheck(
+    HWND parent,
+    const char* text,
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+    HWND control =
+        CreateWindowExA(
+            0,
+            "BUTTON",
+            text,
+            WS_CHILD |
+                WS_VISIBLE |
+                WS_TABSTOP |
+                BS_AUTOCHECKBOX,
+            x,
+            y,
+            width,
+            height,
+            parent,
+            NULL,
+            reinterpret_cast<HINSTANCE>(
+                &__ImageBase
+            ),
+            NULL
+        );
+
+
+    BetterLootingBspSetControlFont(
+        control,
+        g_blBspFontNormal
+    );
+
+
+    if (control)
+    {
+        if (!g_bl611BOriginalCheckProc)
+        {
+            g_bl611BOriginalCheckProc =
+                reinterpret_cast<WNDPROC>(
+                    GetWindowLongPtrA(
+                        control,
+                        GWLP_WNDPROC
+                    )
+                );
+        }
+
+
+        SetWindowLongPtrA(
+            control,
+            GWLP_WNDPROC,
+            reinterpret_cast<LONG_PTR>(
+                BetterLooting611BCheckProc
+            )
+        );
+    }
+
+
+    return control;
+}
+
+static void CreateBetterLootingBspWindow();
+
+
+static LRESULT CALLBACK BetterLootingBspWndProc(
+    HWND hwnd,
+    UINT msg,
+    WPARAM wParam,
+    LPARAM lParam
+)
+{
+    switch (msg)
+    {
+        case WM_SETCURSOR:
+        {
+            BetterLootingBspEnsureMenuCursor();
+
+            return TRUE;
+        }
+
+
+        case WM_CREATE:
+        {
+            BetterLootingBspCreateGuiResources();
+            BetterLootingBspLoadLanguage();
+
+
+            g_bl611Title =
+                CreateWindowExA(
+                    0,
+                    "STATIC",
+                    BetterLootingBspText("ЛУЧШИЙ СБОР ДОБЫЧИ", "BETTER LOOTING"),
+                    WS_CHILD | WS_VISIBLE | SS_CENTER,
+                    258, 20, 466, 40,
+                    hwnd,
+                    NULL,
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                g_bl611Title,
+                g_blBspFontTitle
+            );
+
+
+            g_bl611SectionSettings =
+                BetterLooting611CreateSectionLabel(
+                    hwnd,
+                    BetterLootingBspText(
+                        "НАСТРОЙКИ",
+                        "SETTINGS"
+                    ),
+                    44, 96, 396, 28
+                );
+
+
+            BetterLootingBspCreateLabel(hwnd, BetterLootingBspText("Радиус сбора (м)", "Loot radius (m)"), 44, 132, 208, 30);
+            g_blBspEditRadius = BetterLootingBspCreateEdit(hwnd, 274, 126, 186, 34);
+
+            BetterLootingBspCreateLabel(hwnd, BetterLootingBspText("Минимальная цена", "Minimum value"), 44, 182, 208, 30);
+            g_blBspEditMinValue = BetterLootingBspCreateEdit(hwnd, 274, 176, 186, 34);
+
+            BetterLootingBspCreateLabel(hwnd, BetterLootingBspText("Минимальная цена за кг", "Minimum value / kg"), 44, 232, 208, 30);
+            g_blBspEditMinValuePerKg = BetterLootingBspCreateEdit(hwnd, 274, 226, 186, 34);
+
+            BetterLootingBspCreateLabel(
+                hwnd,
+                BetterLootingBspText(
+                    "Клавиша сбора",
+                    "Activation key"
+                ),
+                44, 282, 208, 30
+            );
+
+
+            g_blBspComboActivationKey =
+                CreateWindowExA(
+                    0,
+                    "COMBOBOX",
+                    "",
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        WS_TABSTOP |
+                        CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL | CBS_NOINTEGRALHEIGHT,
+                    274, 276, 186, 260,
+                    hwnd,
+                    NULL,
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                g_blBspComboActivationKey,
+                g_blBspFontNormal
+            );
+
+
+            if (g_blBspComboActivationKey)
+            {
+                SendMessageA(
+                    g_blBspComboActivationKey,
+                    CB_SETITEMHEIGHT,
+                    static_cast<WPARAM>(-1),
+                    30
+                );
+
+
+                SendMessageA(
+                    g_blBspComboActivationKey,
+                    CB_SETITEMHEIGHT,
+                    0,
+                    28
+                );
+            }
+
+
+            for (
+                int i = 0;
+                i < g_blBspHotkeyCount;
+                ++i
+            )
+            {
+                SendMessageA(
+                    g_blBspComboActivationKey,
+                    CB_ADDSTRING,
+                    0,
+                    reinterpret_cast<LPARAM>(
+                        g_blBspHotkeyNames[i]
+                    )
+                );
+            }
+
+
+            g_bl611SectionCategories =
+                BetterLooting611CreateSectionLabel(
+                    hwnd,
+                    BetterLootingBspText(
+                        "КАТЕГОРИИ",
+                        "CATEGORIES"
+                    ),
+                    512,
+                    96,
+                    420,
+                    28
+                );
+
+
+            g_blBspCheckWeapons =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Оружие", "Weapons"),
+                    512, 130, 206, 32
+                );
+
+            g_blBspCheckArmour =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Броня", "Armour"),
+                    730, 130, 206, 32
+                );
+
+            g_blBspCheckMaterials =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText(
+                        "Материалы и ресурсы",
+                        "Materials and resources"
+                    ),
+                    512, 166, 424, 32
+                );
+
+            g_blBspCheckFood =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Еда", "Food"),
+                    512, 202, 206, 32
+                );
+
+            g_blBspCheckMedicine =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Медикаменты", "Medicine"),
+                    730, 202, 206, 32
+                );
+
+            g_blBspCheckTools =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Инструменты", "Tools"),
+                    512, 238, 206, 32
+                );
+
+            g_blBspCheckAmmo =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Боеприпасы", "Ammo"),
+                    730, 238, 206, 32
+                );
+
+            g_blBspCheckBlueprints =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Чертежи", "Blueprints"),
+                    512, 274, 206, 32
+                );
+
+            g_blBspCheckBooks =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Книги", "Books"),
+                    730, 274, 206, 32
+                );
+
+            g_blBspCheckRobotics =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Робототехника", "Robotics"),
+                    512, 310, 206, 32
+                );
+
+            g_blBspCheckNarcotics =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Наркотики", "Narcotics"),
+                    730, 310, 206, 32
+                );
+
+            g_blBspCheckSeveredLimbs =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText(
+                        "Отрубленные конечности",
+                        "Severed limbs"
+                    ),
+                    512, 346, 206, 32
+                );
+
+            g_blBspCheckOther =
+                BetterLootingBspCreateCheck(
+                    hwnd,
+                    BetterLootingBspText("Прочее", "Other"),
+                    730, 346, 206, 32
+                );
+
+
+            HWND categoriesAllButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "ВСЁ",
+                        "ALL"
+                    ),
+                    WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                    512, 390, 206, 44,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_CATEGORIES_ALL
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                categoriesAllButton,
+                g_blBspFontButton
+            );
+
+
+            HWND categoriesNoneButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "НИЧЕГО",
+                        "NONE"
+                    ),
+                    WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+                    730, 390, 206, 44,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_CATEGORIES_NONE
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                categoriesNoneButton,
+                g_blBspFontButton
+            );
+
+
+            g_bl611NProfileLabel =
+                BetterLooting611CreateSectionLabel(
+                    hwnd,
+                    BetterLootingBspText(
+                        "ПРОФИЛЬ",
+                        "PROFILE"
+                    ),
+                    512, 470, 70, 30
+                );
+
+
+            HWND presetBalancedButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "СБАЛАНСИРОВАННЫЙ",
+                        "BALANCED"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    588, 466, 118, 40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611J_ID_BALANCED
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                presetBalancedButton,
+                g_blBspFontButton
+            );
+
+
+            HWND presetMoneyButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "ДЕНЬГИ",
+                        "MONEY"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    716, 466, 102, 40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611J_ID_MONEY
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                presetMoneyButton,
+                g_blBspFontButton
+            );
+
+
+            HWND presetResourcesButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "РЕСУРСЫ",
+                        "RESOURCES"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    828, 466, 108, 40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611J_ID_RESOURCES
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                presetResourcesButton,
+                g_blBspFontButton
+            );
+
+
+            g_bl611SectionBehavior = BetterLooting611CreateSectionLabel(hwnd, BetterLootingBspText("ПОВЕДЕНИЕ", "BEHAVIOR"), 44, 348, 396, 28);
+
+            g_blBspCheckAllowStolen = BetterLootingBspCreateCheck(hwnd, BetterLootingBspText("Брать краденое", "Allow stolen items"), 44, 390, 396, 30);
+            g_blBspCheckBestItemsFirst = BetterLootingBspCreateCheck(hwnd, BetterLootingBspText("Сначала лучшее", "Best items first"), 44, 430, 396, 30);
+            g_blBspCheckPreferBackpack = BetterLootingBspCreateCheck(hwnd, BetterLootingBspText("Сначала в рюкзак", "Prefer backpack"), 44, 470, 396, 30);
+
+
+            g_bl611BehaviorHelp =
+                BetterLootingBspCreateLabel(
+                    hwnd,
+                    BetterLootingBspText(
+                        "INSERT: СОБРАТЬ  |  РАЗЛОЖИТЬ ВСЁ: В ХРАНИЛИЩА",
+                        "INSERT: LOOT  |  DEPOSIT EVERYTHING: STORE"
+                    ),
+                    44,
+                    500,
+                    414,
+                    18
+                );
+
+
+            // Language label removed: language buttons live in the header.
+
+            g_blBspComboLanguage =
+                CreateWindowExW(
+                    0,
+                    L"COMBOBOX",
+                    L"",
+                    WS_CHILD | CBS_DROPDOWNLIST | CBS_HASSTRINGS,
+                    -200, -200, 1, 120,
+                    hwnd,
+                    NULL,
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                g_blBspComboLanguage,
+                g_blBspFontNormal
+            );
+
+
+            SendMessageW(
+                g_blBspComboLanguage,
+                CB_ADDSTRING,
+                0,
+                reinterpret_cast<LPARAM>(
+                    L"\xD83C\xDDEA\xD83C\xDDF8  Espa\x00F1ol"
+                )
+            );
+
+
+            SendMessageW(
+                g_blBspComboLanguage,
+                CB_ADDSTRING,
+                0,
+                reinterpret_cast<LPARAM>(
+                    L"\xD83C\xDDFA\xD83C\xDDF8  English"
+                )
+            );
+
+
+            SendMessageW(
+                g_blBspComboLanguage,
+                CB_SETCURSEL,
+                g_blBspSpanish ? 0 : 1,
+                0
+            );
+
+
+            HWND languageSpanishButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    "RU",
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    740, 22, 78, 30,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611_ID_LANG_ES
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                languageSpanishButton,
+                g_blBspFontButton
+            );
+
+
+            HWND languageEnglishButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    "EN",
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    826, 22, 82, 30,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611_ID_LANG_EN
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                languageEnglishButton,
+                g_blBspFontButton
+            );
+
+
+            HWND defaultsButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "ПО УМОЛЧАНИЮ",
+                        "DEFAULTS"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        WS_TABSTOP |
+                        BS_OWNERDRAW,
+                    54,
+                    566,
+                    198,
+                    40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_DEFAULTS
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                defaultsButton,
+                g_blBspFontButton
+            );
+
+
+            HWND saveButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "СОХРАНИТЬ",
+                        "SAVE"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        WS_TABSTOP |
+                        BS_OWNERDRAW,
+                    270,
+                    566,
+                    198,
+                    40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_SAVE
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                saveButton,
+                g_blBspFontButton
+            );
+
+
+            HWND storeAllButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "РАЗЛОЖИТЬ ВСЁ",
+                        "DEPOSIT EVERYTHING"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        WS_TABSTOP |
+                        BS_OWNERDRAW,
+                    486,
+                    566,
+                    226,
+                    40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_STORE_ALL
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                storeAllButton,
+                g_blBspFontButton
+            );
+
+
+            HWND closeButton =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    BetterLootingBspText(
+                        "ЗАКРЫТЬ",
+                        "CLOSE"
+                    ),
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        WS_TABSTOP |
+                        BS_OWNERDRAW,
+                    730,
+                    566,
+                    194,
+                    40,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_BSP_ID_CLOSE
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                closeButton,
+                g_blBspFontButton
+            );
+
+
+            g_bl611HStatus =
+                CreateWindowExA(
+                    0,
+                    "STATIC",
+                    "",
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        SS_CENTER,
+                    54,
+                    536,
+                    870,
+                    18,
+                    hwnd,
+                    NULL,
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                g_bl611HStatus,
+                g_blBspFontNormal
+            );
+
+
+            HWND closeX =
+                CreateWindowExA(
+                    0,
+                    "BUTTON",
+                    "X",
+                    WS_CHILD |
+                        WS_VISIBLE |
+                        BS_OWNERDRAW,
+                    924,
+                    22,
+                    30,
+                    30,
+                    hwnd,
+                    reinterpret_cast<HMENU>(
+                        static_cast<INT_PTR>(
+                            BL_UI_611_ID_CLOSE_X
+                        )
+                    ),
+                    reinterpret_cast<HINSTANCE>(
+                        &__ImageBase
+                    ),
+                    NULL
+                );
+
+
+            BetterLootingBspSetControlFont(
+                closeX,
+                g_blBspFontButton
+            );
+
+
+            if (
+                BetterLooting611ICreateTooltip(
+                    hwnd
+                )
+            )
+            {
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspEditRadius,
+                    BetterLooting611LText(
+                        L"Наибольшее расстояние вокруг персонажа, на котором ищутся цели для сбора. Допустимо от 1 до 100 м.",
+                        L"Maximum distance around the character used to search for loot targets. Valid range: 1-100 m."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspEditMinValue,
+                    BetterLooting611LText(
+                        L"Пропускать предметы дешевле указанной суммы.",
+                        L"Ignores items whose value is below the specified number."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspEditMinValuePerKg,
+                    BetterLooting611LText(
+                        L"Пропускать предметы, у которых отношение цены к весу ниже этого предела.",
+                        L"Ignores items whose value-to-weight ratio is below this limit."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspComboActivationKey,
+                    BetterLooting611LText(
+                        L"Клавиша запуска сбора. По умолчанию INSERT.",
+                        L"Key used to activate Better Looting. INSERT is the default."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspCheckAllowStolen,
+                    BetterLooting611LText(
+                        L"Разрешить брать предметы, помеченные как краденые.",
+                        L"Allows looting items marked as stolen."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspCheckBestItemsFirst,
+                    BetterLooting611LText(
+                        L"Сортировать сначала по отношению цены к весу, затем по цене.",
+                        L"Sorts items by best value-to-weight ratio first, then by value."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    g_blBspCheckPreferBackpack,
+                    BetterLooting611LText(
+                        L"Порядок заполнения: включено — рюкзак, затем инвентарь; выключено — наоборот. Пробуются в любом случае оба.",
+                        L"Sets the fill order: enabled = backpack → main inventory; disabled = main inventory → backpack. Both are always attempted."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    categoriesAllButton,
+                    BetterLooting611LText(
+                        L"Включить все категории сбора.",
+                        L"Enables every loot category."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    categoriesNoneButton,
+                    BetterLooting611LText(
+                        L"Выключить все категории сбора.",
+                        L"Disables every loot category."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    languageSpanishButton,
+                    BetterLooting611LText(
+                        L"Переключить интерфейс на русский и сохранить текущие настройки.",
+                        L"Switches the interface to Spanish and saves the current settings."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    languageEnglishButton,
+                    BetterLooting611LText(
+                        L"Переключить интерфейс на английский и сохранить текущие настройки.",
+                        L"Switches the interface to English and saves the current settings."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    defaultsButton,
+                    BetterLooting611LText(
+                        L"Вернуть значения по умолчанию и сразу сохранить.",
+                        L"Restores and immediately saves the default values."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    saveButton,
+                    BetterLooting611LText(
+                        L"Проверить и сохранить текущие настройки.",
+                        L"Validates and saves the current settings."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    storeAllButton,
+                    BetterLooting611LText(
+                        L"Быстро разложить по ближайшим своим хранилищам вещи из рюкзака и инвентаря, подходящие под текущие фильтры и категории.",
+                        L"Quickly deposits backpack and main-inventory items matching the current filters and categories into nearby player-owned storage."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    closeButton,
+                    BetterLooting611LText(
+                        L"Закрыть окно и отбросить несохранённые изменения.",
+                        L"Hides the window and discards pending changes."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    closeX,
+                    BetterLooting611LText(
+                        L"Закрыть окно и отбросить несохранённые изменения.",
+                        L"Hides the window and discards pending changes."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    presetBalancedButton,
+                    BetterLooting611LText(
+                        L"20 м, минимальная цена 500 и 300 за кг. Включает основные категории. Не сохраняется, пока не нажать СОХРАНИТЬ.",
+                        L"20 m, minimum value 500 and 300 value/kg. Enables general categories. It is not saved until SAVE is pressed."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    presetMoneyButton,
+                    BetterLooting611LText(
+                        L"25 м, минимальная цена 1000 и 500 за кг. Упор на дорогие категории. Не сохраняется, пока не нажать СОХРАНИТЬ.",
+                        L"25 m, minimum value 1000 and 500 value/kg. Prioritizes high-value categories. It is not saved until SAVE is pressed."
+                    )
+                );
+
+
+                BetterLooting611IAddTooltip(
+                    hwnd,
+                    presetResourcesButton,
+                    BetterLooting611LText(
+                        L"30 м без ценовых фильтров. Упор на материалы, еду, медикаменты, инструменты, боеприпасы и робототехнику. Автоматически не сохраняется.",
+                        L"30 m with no value filters. Prioritizes materials, food, medicine, tools, ammo and robotics. It is not saved automatically."
+                    )
+                );
+
+
+                ErrorLog(
+                    "BetterLooting: BSP_UI dark Unicode tooltips ready"
+                );
+            }
+            else
+            {
+                ErrorLog(
+                    "BetterLooting: BSP_UI dark Unicode tooltips unavailable"
+                );
+            }
+
+
+            SendMessageA(
+                g_blBspComboActivationKey,
+                CB_SETITEMHEIGHT,
+                static_cast<WPARAM>(-1),
+                28
+            );
+
+
+            SendMessageA(
+                g_blBspComboActivationKey,
+                CB_SETITEMHEIGHT,
+                0,
+                28
+            );
+
+
+            SendMessageW(
+                g_blBspComboLanguage,
+                CB_SETITEMHEIGHT,
+                static_cast<WPARAM>(-1),
+                28
+            );
+
+
+            SendMessageW(
+                g_blBspComboLanguage,
+                CB_SETITEMHEIGHT,
+                0,
+                28
+            );
+
+
+            BetterLootingBspSyncFromRules();
+
+
+            BetterLooting611KRefreshDirtyStatus(
+                hwnd
+            );
+
+
+            ErrorLog(
+                "BetterLooting: BSP_UI WM_CREATE complete"
+            );
+
+            return 0;
+        }
+
+
+        case WM_PAINT:
+        {
+            PAINTSTRUCT paint = {};
+
+
+            HDC hdc =
+                BeginPaint(
+                    hwnd,
+                    &paint
+                );
+
+
+            BetterLooting611PaintBackground(
+                hwnd,
+                hdc
+            );
+
+
+            EndPaint(
+                hwnd,
+                &paint
+            );
+
+
+            return 0;
+        }
+
+
+        case WM_ERASEBKGND:
+        {
+            return 1;
+        }
+
+
+        case WM_CTLCOLORSTATIC:
+        {
+            HDC hdc =
+                reinterpret_cast<HDC>(
+                    wParam
+                );
+
+
+            HWND control =
+                reinterpret_cast<HWND>(
+                    lParam
+                );
+
+
+            const bool isTitle =
+                control ==
+                g_bl611Title;
+
+
+            const bool isSection =
+                control == g_bl611SectionSettings ||
+                control == g_bl611SectionBehavior ||
+                control == g_bl611SectionCategories ||
+                control == g_bl611NProfileLabel;
+
+
+            const bool isStatus =
+                control ==
+                g_bl611HStatus;
+
+
+            const bool isBehaviorHelp =
+                control ==
+                g_bl611BehaviorHelp;
+
+
+            const COLORREF background =
+                isTitle
+                    ? RGB(28, 29, 26)
+                    : (
+                        isStatus
+                            ? RGB(29, 30, 27)
+                            : BL_BSP_COLOR_PANEL
+                    );
+
+
+            SetBkMode(
+                hdc,
+                OPAQUE
+            );
+
+
+            SetBkColor(
+                hdc,
+                background
+            );
+
+
+            SetTextColor(
+                hdc,
+                isSection
+                    ? RGB(211, 157, 78)
+                    : (
+                        isStatus
+                            ? (
+                                g_bl611KDirty
+                                    ? RGB(229, 179, 74)
+                                    : RGB(196, 220, 154)
+                            )
+                            : (
+                                isBehaviorHelp
+                                    ? RGB(164, 174, 151)
+                                    : BL_BSP_COLOR_TEXT
+                            )
+                    )
+            );
+
+
+            SetDCBrushColor(
+                hdc,
+                background
+            );
+
+
+            return
+                reinterpret_cast<LRESULT>(
+                    GetStockObject(
+                        DC_BRUSH
+                    )
+                );
+        }
+
+
+        case WM_CTLCOLOREDIT:
+        {
+            HDC hdc =
+                reinterpret_cast<HDC>(
+                    wParam
+                );
+
+
+            HWND control =
+                reinterpret_cast<HWND>(
+                    lParam
+                );
+
+
+            const bool invalid =
+                (
+                    control == g_blBspEditRadius &&
+                    g_bl611HRadiusInvalid
+                ) ||
+                (
+                    control == g_blBspEditMinValue &&
+                    g_bl611HMinValueInvalid
+                ) ||
+                (
+                    control == g_blBspEditMinValuePerKg &&
+                    g_bl611HMinValuePerKgInvalid
+                );
+
+
+            const bool focused =
+                GetFocus() ==
+                control;
+
+
+            const COLORREF background =
+                invalid
+                    ? RGB(61, 31, 28)
+                    : (
+                        focused
+                            ? RGB(31, 32, 28)
+                            : BL_BSP_COLOR_EDIT
+                    );
+
+
+            SetTextColor(
+                hdc,
+                invalid
+                    ? RGB(246, 220, 207)
+                    : BL_BSP_COLOR_TEXT
+            );
+
+
+            SetBkColor(
+                hdc,
+                background
+            );
+
+
+            SetDCBrushColor(
+                hdc,
+                background
+            );
+
+
+            return
+                reinterpret_cast<LRESULT>(
+                    GetStockObject(
+                        DC_BRUSH
+                    )
+                );
+        }
+
+
+        case WM_CTLCOLORBTN:
+        {
+            HDC hdc =
+                reinterpret_cast<HDC>(
+                    wParam
+                );
+
+
+            SetBkMode(
+                hdc,
+                OPAQUE
+            );
+
+
+            SetBkColor(
+                hdc,
+                BL_BSP_COLOR_PANEL
+            );
+
+
+            SetTextColor(
+                hdc,
+                BL_BSP_COLOR_TEXT
+            );
+
+
+            return
+                reinterpret_cast<LRESULT>(
+                    g_blBspBrushPanel
+                );
+        }
+
+
+        case WM_CTLCOLORLISTBOX:
+        {
+            HDC hdc =
+                reinterpret_cast<HDC>(
+                    wParam
+                );
+
+
+            SetTextColor(
+                hdc,
+                BL_BSP_COLOR_TEXT
+            );
+
+
+            SetBkColor(
+                hdc,
+                BL_BSP_COLOR_EDIT
+            );
+
+
+            return
+                reinterpret_cast<LRESULT>(
+                    g_blBspBrushEdit
+                );
+        }
+
+
+        case WM_DRAWITEM:
+        {
+            const DRAWITEMSTRUCT* drawItem =
+                reinterpret_cast<DRAWITEMSTRUCT*>(
+                    lParam
+                );
+
+
+            if (!drawItem)
+            {
+                break;
+            }
+
+
+            if (
+                drawItem->CtlType ==
+                ODT_BUTTON
+            )
+            {
+                BetterLooting611DrawButton(
+                    drawItem
+                );
+
+
+                return TRUE;
+            }
+
+
+            if (
+                drawItem->CtlType ==
+                ODT_COMBOBOX
+            )
+            {
+                BetterLooting611DrawCombo(
+                    drawItem
+                );
+
+
+                return TRUE;
+            }
+
+
+            break;
+        }
+
+
+        case WM_TIMER:
+        {
+            if (
+                wParam ==
+                BL_UI_611H_TIMER_STATUS
+            )
+            {
+                KillTimer(
+                    hwnd,
+                    BL_UI_611H_TIMER_STATUS
+                );
+
+
+                BetterLooting611KRefreshDirtyStatus(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            break;
+        }
+
+
+        case WM_COMMAND:
+        {
+            if (
+                reinterpret_cast<HWND>(
+                    lParam
+                ) ==
+                    g_blBspComboLanguage &&
+                HIWORD(
+                    wParam
+                ) ==
+                    CBN_SELCHANGE
+            )
+            {
+                BetterLootingBspSave();
+
+
+                ErrorLog(
+                    "BetterLooting: BSP_UI language changed, refreshing window"
+                );
+
+
+                DestroyWindow(
+                    hwnd
+                );
+
+
+                CreateBetterLootingBspWindow();
+
+
+                if (g_blBspWindow)
+                {
+                    BetterLootingBspBeginMenuCursorSession();
+
+                    ShowWindow(
+                        g_blBspWindow,
+                        SW_SHOWNORMAL
+                    );
+
+
+                    SetWindowPos(
+                        g_blBspWindow,
+                        HWND_TOP,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE |
+                            SWP_NOSIZE
+                    );
+
+
+                    SetForegroundWindow(
+                        g_blBspWindow
+                    );
+                }
+
+
+                return 0;
+            }
+
+
+            const int id =
+                LOWORD(
+                    wParam
+                );
+
+
+            const int notification =
+                HIWORD(
+                    wParam
+                );
+
+
+            HWND commandSource =
+                reinterpret_cast<HWND>(
+                    lParam
+                );
+
+
+            if (
+                notification == EN_CHANGE &&
+                (
+                    commandSource == g_blBspEditRadius ||
+                    commandSource == g_blBspEditMinValue ||
+                    commandSource == g_blBspEditMinValuePerKg
+                )
+            )
+            {
+                BetterLooting611HValidateInputs();
+
+
+                if (
+                    !g_bl611KSuppressTracking &&
+                    IsWindowVisible(
+                        hwnd
+                    )
+                )
+                {
+                    BetterLooting611KMarkCustomDirty(
+                        hwnd
+                    );
+                }
+
+
+                return 0;
+            }
+
+
+            if (
+                notification == CBN_SELCHANGE &&
+                commandSource ==
+                    g_blBspComboActivationKey
+            )
+            {
+                BetterLooting611KMarkCustomDirty(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            if (
+                notification == BN_CLICKED &&
+                BetterLooting611KIsTrackedCheck(
+                    commandSource
+                )
+            )
+            {
+                BetterLooting611KMarkCustomDirty(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            if (
+                id == BL_UI_611_ID_LANG_ES ||
+                id == BL_UI_611_ID_LANG_EN
+            )
+            {
+                g_blBspSpanish =
+                    id ==
+                    BL_UI_611_ID_LANG_ES;
+
+
+                if (g_blBspComboLanguage)
+                {
+                    SendMessageA(
+                        g_blBspComboLanguage,
+                        CB_SETCURSEL,
+                        g_blBspSpanish
+                            ? 0
+                            : 1,
+                        0
+                    );
+                }
+
+
+                g_bl611KSuppressTracking =
+                    true;
+
+
+                BetterLootingBspSave();
+
+
+                g_bl611KSuppressTracking =
+                    false;
+
+
+                BetterLooting611KMarkSaved(
+                    hwnd
+                );
+
+
+ErrorLog(
+                    g_blBspSpanish
+                        ? "BetterLooting: BSP_UI language button=es"
+                        : "BetterLooting: BSP_UI language button=en"
+                );
+
+
+                DestroyWindow(
+                    hwnd
+                );
+
+
+                CreateBetterLootingBspWindow();
+
+
+                if (g_blBspWindow)
+                {
+                    BetterLootingBspBeginMenuCursorSession();
+
+                    ShowWindow(
+                        g_blBspWindow,
+                        SW_SHOWNORMAL
+                    );
+
+
+                    SetWindowPos(
+                        g_blBspWindow,
+                        HWND_TOP,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE |
+                            SWP_NOSIZE
+                    );
+
+
+                    SetForegroundWindow(
+                        g_blBspWindow
+                    );
+                }
+
+
+                return 0;
+            }            if (id == BL_UI_611J_ID_BALANCED)
+            {
+                BetterLooting611JApplyBalancedPreset();
+
+
+                BetterLooting611KSelectPreset(
+                    hwnd,
+                    BL_UI_611J_ID_BALANCED
+                );
+
+
+                BetterLooting611HValidateInputs();
+
+
+                BetterLooting611HShowStatus(
+                    hwnd,
+                    "СБАЛАНСИРОВАННЫЙ ГОТОВ — НАЖМИТЕ СОХРАНИТЬ",
+                    "BALANCED READY - PRESS SAVE",
+                    3200
+                );
+
+
+                ErrorLog(
+                    "BetterLooting: BSP_UI preset balanced loaded not saved"
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_UI_611J_ID_MONEY)
+            {
+                BetterLooting611JApplyMoneyPreset();
+
+
+                BetterLooting611KSelectPreset(
+                    hwnd,
+                    BL_UI_611J_ID_MONEY
+                );
+
+
+                BetterLooting611HValidateInputs();
+
+
+                BetterLooting611HShowStatus(
+                    hwnd,
+                    "ДЕНЬГИ ГОТОВ — НАЖМИТЕ СОХРАНИТЬ",
+                    "MONEY READY - PRESS SAVE",
+                    3200
+                );
+
+
+                ErrorLog(
+                    "BetterLooting: BSP_UI preset money loaded not saved"
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_UI_611J_ID_RESOURCES)
+            {
+                BetterLooting611JApplyResourcesPreset();
+
+
+                BetterLooting611KSelectPreset(
+                    hwnd,
+                    BL_UI_611J_ID_RESOURCES
+                );
+
+
+                BetterLooting611HValidateInputs();
+
+
+                BetterLooting611HShowStatus(
+                    hwnd,
+                    "РЕСУРСЫ ГОТОВ — НАЖМИТЕ СОХРАНИТЬ",
+                    "RESOURCES READY - PRESS SAVE",
+                    3200
+                );
+
+
+                ErrorLog(
+                    "BetterLooting: BSP_UI preset resources loaded not saved"
+                );
+
+
+                return 0;
+            }
+
+
+
+
+
+            if (id == BL_BSP_ID_DEFAULTS)
+            {
+                g_bl611KSuppressTracking =
+                    true;
+
+
+                BetterLootingBspApplyDefaults();
+
+
+                g_bl611KSuppressTracking =
+                    false;
+
+
+                g_bl611KActivePresetId =
+                    0;
+
+
+                BetterLooting611KMarkSaved(
+                    hwnd
+                );
+
+
+                BetterLooting611HValidateInputs();
+
+
+                BetterLooting611HShowStatus(
+                    hwnd,
+                    "ЗНАЧЕНИЯ СБРОШЕНЫ",
+                    "DEFAULTS RESTORED",
+                    2400
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_BSP_ID_CATEGORIES_ALL)
+            {
+                BetterLootingBspSetCheck(g_blBspCheckWeapons, true);
+                BetterLootingBspSetCheck(g_blBspCheckArmour, true);
+                BetterLootingBspSetCheck(g_blBspCheckMaterials, true);
+                BetterLootingBspSetCheck(g_blBspCheckFood, true);
+                BetterLootingBspSetCheck(g_blBspCheckMedicine, true);
+                BetterLootingBspSetCheck(g_blBspCheckTools, true);
+                BetterLootingBspSetCheck(g_blBspCheckAmmo, true);
+                BetterLootingBspSetCheck(g_blBspCheckBlueprints, true);
+                BetterLootingBspSetCheck(g_blBspCheckBooks, true);
+                BetterLootingBspSetCheck(g_blBspCheckRobotics, true);
+                BetterLootingBspSetCheck(g_blBspCheckNarcotics, true);
+                BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, true);
+                BetterLootingBspSetCheck(g_blBspCheckOther, true);
+
+                BetterLooting611KMarkCustomDirty(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_BSP_ID_CATEGORIES_NONE)
+            {
+                BetterLootingBspSetCheck(g_blBspCheckWeapons, false);
+                BetterLootingBspSetCheck(g_blBspCheckArmour, false);
+                BetterLootingBspSetCheck(g_blBspCheckMaterials, false);
+                BetterLootingBspSetCheck(g_blBspCheckFood, false);
+                BetterLootingBspSetCheck(g_blBspCheckMedicine, false);
+                BetterLootingBspSetCheck(g_blBspCheckTools, false);
+                BetterLootingBspSetCheck(g_blBspCheckAmmo, false);
+                BetterLootingBspSetCheck(g_blBspCheckBlueprints, false);
+                BetterLootingBspSetCheck(g_blBspCheckBooks, false);
+                BetterLootingBspSetCheck(g_blBspCheckRobotics, false);
+                BetterLootingBspSetCheck(g_blBspCheckNarcotics, false);
+                BetterLootingBspSetCheck(g_blBspCheckSeveredLimbs, false);
+                BetterLootingBspSetCheck(g_blBspCheckOther, false);
+
+                BetterLooting611KMarkCustomDirty(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_BSP_ID_STORE_ALL)
+            {
+                if (!BetterLooting611HValidateInputs())
+                {
+                    BetterLooting611HShowStatus(
+                        hwnd,
+                        "ПРОВЕРЬТЕ ОТМЕЧЕННЫЕ ПОЛЯ",
+                        "CHECK THE HIGHLIGHTED FIELDS",
+                        3200
+                    );
+
+
+                    return 0;
+                }
+
+
+                g_bl611KSuppressTracking =
+                    true;
+
+
+                BetterLootingBspSave();
+
+
+                g_bl611KSuppressTracking =
+                    false;
+
+
+                BetterLooting611KMarkSaved(
+                    hwnd
+                );
+
+
+                const LONG previousRequest =
+                    InterlockedExchange(
+                        &g_storeAllRequested,
+                        1
+                    );
+
+
+                BetterLooting611HShowStatus(
+                    hwnd,
+                    previousRequest == 0
+                        ? "РАЗЛОЖИТЬ ВСЁ — В ОЧЕРЕДИ"
+                        : "РАЗЛОЖИТЬ ВСЁ — УЖЕ В ОЧЕРЕДИ",
+                    previousRequest == 0
+                        ? "DEPOSIT EVERYTHING QUEUED"
+                        : "DEPOSIT EVERYTHING ALREADY QUEUED",
+                    3200
+                );
+
+
+                ErrorLog(
+                    previousRequest == 0
+                        ? "BetterLooting: STORE_ALL REQUESTED"
+                        : "BetterLooting: STORE_ALL REQUEST_ALREADY_PENDING"
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_BSP_ID_SAVE)
+            {
+                if (!BetterLooting611HValidateInputs())
+                {
+                    BetterLooting611HShowStatus(
+                        hwnd,
+                        "ПРОВЕРЬТЕ ОТМЕЧЕННЫЕ ПОЛЯ",
+                        "CHECK THE HIGHLIGHTED FIELDS",
+                        3200
+                    );
+
+
+                    return 0;
+                }
+
+
+                g_bl611KSuppressTracking =
+                    true;
+
+
+                BetterLootingBspSave();
+
+
+                g_bl611KSuppressTracking =
+                    false;
+
+
+                BetterLooting611KMarkSaved(
+                    hwnd
+                );
+
+
+                BetterLooting611KShowSavedStatus(
+                    hwnd
+                );
+
+
+                return 0;
+            }
+
+
+            if (id == BL_UI_611_ID_CLOSE_X || id == BL_BSP_ID_CLOSE)
+            {
+                BetterLooting611KDiscardPendingState(
+                    hwnd
+                );
+
+
+                ShowWindow(
+                    hwnd,
+                    SW_HIDE
+                );
+
+                BetterLootingBspEndMenuCursorSession();
+
+                return 0;
+            }
+
+
+            break;
+        }
+
+
+        case WM_NCHITTEST:
+        {
+            const LRESULT hit =
+                DefWindowProcA(
+                    hwnd,
+                    msg,
+                    wParam,
+                    lParam
+                );
+
+
+            if (hit == HTCLIENT)
+            {
+                POINT point = {};
+
+
+                point.x =
+                    static_cast<short>(
+                        LOWORD(
+                            lParam
+                        )
+                    );
+
+
+                point.y =
+                    static_cast<short>(
+                        HIWORD(
+                            lParam
+                        )
+                    );
+
+
+                ScreenToClient(
+                    hwnd,
+                    &point
+                );
+
+
+                if (
+                    point.y >= 16 &&
+                    point.y < 68 &&
+                    point.x >= 18 &&
+                    point.x < 912
+                )
+                {
+                    return HTCAPTION;
+                }
+            }
+
+
+            return hit;
+        }
+
+
+        case WM_CLOSE:
+        {
+            BetterLooting611KDiscardPendingState(
+                hwnd
+            );
+
+
+            ShowWindow(
+                hwnd,
+                SW_HIDE
+            );
+
+            BetterLootingBspEndMenuCursorSession();
+
+            return 0;
+        }
+
+
+        case WM_DESTROY:
+        {
+            if (
+                g_bl611ITooltip &&
+                IsWindow(
+                    g_bl611ITooltip
+                )
+            )
+            {
+                DestroyWindow(
+                    g_bl611ITooltip
+                );
+            }
+
+
+            g_bl611ITooltip =
+                NULL;
+
+
+            if (g_bl611LUxThemeModule)
+            {
+                FreeLibrary(
+                    g_bl611LUxThemeModule
+                );
+
+                g_bl611LUxThemeModule =
+                    NULL;
+            }
+
+
+            if (g_bl611IComCtlModule)
+            {
+                FreeLibrary(
+                    g_bl611IComCtlModule
+                );
+
+                g_bl611IComCtlModule =
+                    NULL;
+            }
+
+
+KillTimer(
+                hwnd,
+                BL_UI_611H_TIMER_STATUS
+            );
+
+
+            g_bl611HStatus =
+                NULL;
+
+
+            g_bl611BehaviorHelp =
+                NULL;
+
+
+            g_bl611HRadiusInvalid =
+                false;
+
+
+            g_bl611HMinValueInvalid =
+                false;
+
+
+            g_bl611HMinValuePerKgInvalid =
+                false;
+
+
+g_blBspWindow =
+                NULL;
+
+            g_blBspComboActivationKey =
+                NULL;
+
+            g_blBspComboLanguage =
+                NULL;
+
+            return 0;
+        }
+    }
+
+
+    return
+        DefWindowProcA(
+            hwnd,
+            msg,
+            wParam,
+            lParam
+        );
+}
+
+
+static void CreateBetterLootingBspWindow()
+{
+    if (g_blBspWindow)
+    {
+        return;
+    }
+
+
+    BetterLootingBspCreateGuiResources();
+
+
+    HWND ownerWindow =
+        BetterLootingBspGetKenshiMainWindow();
+
+
+    WNDCLASSEXA wc;
+
+    ZeroMemory(
+        &wc,
+        sizeof(wc)
+    );
+
+
+    wc.cbSize =
+        sizeof(wc);
+
+    wc.lpfnWndProc =
+        BetterLootingBspWndProc;
+
+    wc.hInstance =
+        reinterpret_cast<HINSTANCE>(
+            &__ImageBase
+        );
+
+    wc.lpszClassName =
+        "BetterLootingBspWindowClass";
+
+    wc.hCursor =
+        LoadCursor(
+            NULL,
+            IDC_ARROW
+        );
+
+    wc.hbrBackground =
+        g_blBspBrushBackground;
+
+
+    RegisterClassExA(
+        &wc
+    );
+
+
+    const int width =
+        980;
+
+
+    const int height =
+        640;
+
+
+    int x =
+        (
+            GetSystemMetrics(
+                SM_CXSCREEN
+            ) -
+            width
+        ) /
+        2;
+
+
+    int y =
+        (
+            GetSystemMetrics(
+                SM_CYSCREEN
+            ) -
+            height
+        ) /
+        2;
+
+
+    if (ownerWindow)
+    {
+        RECT rect;
+
+        GetWindowRect(
+            ownerWindow,
+            &rect
+        );
+
+
+        x =
+            rect.left +
+            (
+                (
+                    rect.right -
+                    rect.left
+                ) -
+                width
+            ) /
+            2;
+
+
+        y =
+            rect.top +
+            (
+                (
+                    rect.bottom -
+                    rect.top
+                ) -
+                height
+            ) /
+            2;
+    }
+
+
+    g_blBspWindow =
+        CreateWindowExA(
+            WS_EX_TOOLWINDOW,
+            "BetterLootingBspWindowClass",
+            "Better Looting",
+            WS_POPUP |
+                WS_CLIPCHILDREN,
+            x,
+            y,
+            width,
+            height,
+            ownerWindow,
+            NULL,
+            reinterpret_cast<HINSTANCE>(
+                &__ImageBase
+            ),
+            NULL
+        );
+
+
+    if (!g_blBspWindow)
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI could not create Win32 window"
+        );
+
+        return;
+    }
+
+
+    ErrorLog(
+        "BetterLooting: BSP_UI window created"
+    );
+}
+
+
+static void ToggleBetterLootingBspWindow()
+{
+    if (
+        !BetterLootingBspIsKenshiProcessInForeground()
+    )
+    {
+        return;
+    }
+
+
+    if (!g_blBspWindow)
+    {
+        CreateBetterLootingBspWindow();
+    }
+
+
+    if (!g_blBspWindow)
+    {
+        return;
+    }
+
+
+    if (
+        IsWindowVisible(
+            g_blBspWindow
+        )
+    )
+    {
+        ShowWindow(
+            g_blBspWindow,
+            SW_HIDE
+        );
+
+        BetterLootingBspEndMenuCursorSession();
+    }
+    else
+    {
+        BetterLootingBspSyncFromRules();
+
+
+        BetterLooting611KRefreshDirtyStatus(
+            g_blBspWindow
+        );
+
+
+        BetterLootingBspBeginMenuCursorSession();
+
+        ShowWindow(
+            g_blBspWindow,
+            SW_SHOWNORMAL
+        );
+
+
+        SetWindowPos(
+            g_blBspWindow,
+            HWND_TOP,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE |
+                SWP_NOSIZE
+        );
+
+
+        SetForegroundWindow(
+            g_blBspWindow
+        );
+    }
+}
+
+
+static DWORD WINAPI BetterLootingBspUiThread(
+    LPVOID
+)
+{
+    ErrorLog(
+        "BetterLooting: BSP_UI input thread started"
+    );
+
+
+    bool wasDown =
+        false;
+
+
+    while (true)
+    {
+        MSG msg;
+
+
+        while (
+            PeekMessageA(
+                &msg,
+                NULL,
+                0,
+                0,
+                PM_REMOVE
+            )
+        )
+        {
+            TranslateMessage(
+                &msg
+            );
+
+            DispatchMessageA(
+                &msg
+            );
+        }
+
+
+        if (
+            g_blBspWindow &&
+            IsWindowVisible(
+                g_blBspWindow
+            ) &&
+            !BetterLootingBspIsKenshiProcessInForeground()
+        )
+        {
+            ShowWindow(
+                g_blBspWindow,
+                SW_HIDE
+            );
+
+            BetterLootingBspEndMenuCursorSession();
+        }
+
+
+        const bool isDown =
+            (
+                GetAsyncKeyState(
+                    VK_SHIFT
+                ) &
+                0x8000
+            ) != 0 &&
+            (
+                GetAsyncKeyState(
+                    'P'
+                ) &
+                0x8000
+            ) != 0;
+
+
+        if (
+            isDown &&
+            !wasDown
+        )
+        {
+            ErrorLog(
+                "BetterLooting: BSP_UI SHIFT_P pressed"
+            );
+
+            ToggleBetterLootingBspWindow();
+        }
+
+
+        wasDown =
+            isDown;
+
+
+        Sleep(
+            25
+        );
+    }
+
+
+    return 0;
 }
 
 __declspec(dllexport) void startPlugin()
 {
-    BlTrace(
+    ErrorLog(
         "BetterLooting: startPlugin called"
     );
 
@@ -8131,13 +14111,13 @@ __declspec(dllexport) void startPlugin()
         )
     )
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: AUTODEPOSIT_HOOK_FAILED getExcessLoot"
         );
     }
     else
     {
-        BlTrace(
+        ErrorLog(
             "BetterLooting: selective auto-deposit protection hook installed"
         );
     }
@@ -8183,11 +14163,35 @@ __declspec(dllexport) void startPlugin()
         &g_origShowTraderInventory
     );
 
-    BlTrace(
+    ErrorLog(
         "BetterLooting: classifier hooks installed"
     );
 
-    // Окно настроек теперь на интерфейсе игры: вместо своего
-    // потока ставим хук на покадровое обновление главной панели.
-    BetterLootingPanelInstallHooks();
+    HANDLE betterLootingBspUiThreadHandle =
+        CreateThread(
+            NULL,
+            0,
+            BetterLootingBspUiThread,
+            NULL,
+            0,
+            NULL
+        );
+
+
+    if (betterLootingBspUiThreadHandle)
+    {
+        CloseHandle(
+            betterLootingBspUiThreadHandle
+        );
+
+        ErrorLog(
+            "BetterLooting: BSP_UI thread created"
+        );
+    }
+    else
+    {
+        ErrorLog(
+            "BetterLooting: BSP_UI thread creation failed"
+        );
+    }
 }

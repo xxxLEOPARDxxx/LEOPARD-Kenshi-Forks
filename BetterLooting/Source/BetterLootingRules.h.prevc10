@@ -28,9 +28,7 @@ struct BetterLootingRules
 };
 
 
-// v100 не знает scoped enum. Имя типа и запись Enum::VALUE сохраняются,
-// см. fix_bl_vc10.py.
-enum BetterLootingDecision
+enum class BetterLootingDecision
 {
     LOOT,
     SKIP_CATEGORY,
@@ -40,11 +38,29 @@ enum BetterLootingDecision
 };
 
 
-// Определение уехало в BetterLooting.cpp. Здесь был `static`, и пока
-// файл мода был один, это сходило с рук. С появлением второго .cpp
-// (окно настроек) каждый получил бы собственную копию структуры: панель
-// правила бы одну, а сбор смотрел в другую.
-extern BetterLootingRules g_betterLootingRules;
+static BetterLootingRules g_betterLootingRules =
+{
+    20.0f,
+    500,
+    300.0f,
+    false,
+
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    true,    true,
+    true,
+    45,
+    true
+};
 
 
 inline bool IsAllowedLootCategory(

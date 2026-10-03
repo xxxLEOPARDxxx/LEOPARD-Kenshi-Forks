@@ -17,3 +17,9 @@ Build the project in Release x64 with the compatible MSVC toolchain and the RE_K
 ## License
 
 This project is distributed under the GNU General Public License version 3. See LICENSE.txt.
+
+## Изменения форка: MCM и журнал (04.10.2026)
+- Настройки — ещё и во вкладке MCM окна «Настройки» (мод ModConfigMenu): клавиша сбора, радиус, правила, категории. Пишутся в тот же BetterLooting.ini и применяются сразу; своя панель (SHIFT+L) работает как раньше.
+- Журнал: сбои (FAIL, ERROR, fault, failed) пишутся всегда, остальные подробности — только при `[Debug] Log=1` в BetterLooting.ini или «Подробный журнал» в MCM. Раньше на каждое открытие инвентаря в журнал шла строка «Error … CLASS source=…».
+- Ini читается тем же путём, что и пишется: рядом с DLL.
+- Перевод: en/ru/zh (locale в папке мода).
