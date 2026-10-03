@@ -1,0 +1,87 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Read\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "State icons on squad portraits: unconscious, coma, dying, playing dead, starving, crippled limbs."
+msgstr "State icons on squad portraits: unconscious, coma, dying, playing dead, starving, crippled limbs."
+
+msgid "Core"
+msgstr "General"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Vital Read runtime probes and overlays"
+msgstr "Turns the whole mod on and off"
+
+msgid "Show icons"
+msgstr "Show icons"
+
+msgid "Show portrait state icon overlays"
+msgstr "State icons on the portraits"
+
+msgid "Show text"
+msgstr "Show text"
+
+msgid "Show portrait state text badges"
+msgstr "Short state text on the portraits"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "Debug logging"
+msgstr "Detailed log"
+
+msgid "Enable general Vital Read debug logs"
+msgstr "Writes details to RE_Kenshi_log.txt"
+
+msgid "Icon size"
+msgstr "Icon size"
+
+msgid "Set portrait state icon display size in pixels (0 keeps automatic sizing)"
+msgstr "Size of the state icon, px. 0 - automatic"
+
+msgid "Text size"
+msgstr "Text size"
+
+msgid "Set portrait state text badge font height"
+msgstr "Font height of the state text"
+
+msgid "Overlay X margin"
+msgstr "Horizontal margin"
+
+msgid "Set horizontal edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "Distance of the icon and text from the side edge of the portrait: plus - inward, minus - outward"
+
+msgid "Overlay Y margin"
+msgstr "Vertical margin"
+
+msgid "Set vertical edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "Distance of the icon and text from the top or bottom edge of the portrait: plus - inward, minus - outward"
+
+msgid "Icon corner"
+msgstr "Icon corner"
+
+msgid "Set portrait icon corner"
+msgstr "Which corner of the portrait the icon goes in"
+
+msgid "Bottom left"
+msgstr "Bottom left"
+
+msgid "Bottom right"
+msgstr "Bottom right"
+
+msgid "Top left"
+msgstr "Top left"
+
+msgid "Top right"
+msgstr "Top right"
+
+msgid "Text corner"
+msgstr "Text corner"
+
+msgid "Set portrait text corner"
+msgstr "Which corner of the portrait the text goes in"

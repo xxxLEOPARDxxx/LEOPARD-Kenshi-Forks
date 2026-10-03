@@ -1,0 +1,87 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Read\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "State icons on squad portraits: unconscious, coma, dying, playing dead, starving, crippled limbs."
+msgstr "在小队头像上显示状态图标：昏迷、深度昏迷、濒死、装死、饥饿、肢体残废。"
+
+msgid "Core"
+msgstr "常规"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Vital Read runtime probes and overlays"
+msgstr "开启或关闭整个模组"
+
+msgid "Show icons"
+msgstr "显示图标"
+
+msgid "Show portrait state icon overlays"
+msgstr "在头像上显示状态图标"
+
+msgid "Show text"
+msgstr "显示文字"
+
+msgid "Show portrait state text badges"
+msgstr "在头像上显示简短的状态文字"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Enable general Vital Read debug logs"
+msgstr "将详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Icon size"
+msgstr "图标大小"
+
+msgid "Set portrait state icon display size in pixels (0 keeps automatic sizing)"
+msgstr "状态图标大小（像素）。0 - 自动"
+
+msgid "Text size"
+msgstr "文字大小"
+
+msgid "Set portrait state text badge font height"
+msgstr "状态文字的字体高度"
+
+msgid "Overlay X margin"
+msgstr "水平边距"
+
+msgid "Set horizontal edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "图标和文字距头像侧边的距离：正值向内，负值向外"
+
+msgid "Overlay Y margin"
+msgstr "垂直边距"
+
+msgid "Set vertical edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "图标和文字距头像上下边的距离：正值向内，负值向外"
+
+msgid "Icon corner"
+msgstr "图标位置"
+
+msgid "Set portrait icon corner"
+msgstr "图标位于头像的哪个角"
+
+msgid "Bottom left"
+msgstr "左下"
+
+msgid "Bottom right"
+msgstr "右下"
+
+msgid "Top left"
+msgstr "左上"
+
+msgid "Top right"
+msgstr "右上"
+
+msgid "Text corner"
+msgstr "文字位置"
+
+msgid "Set portrait text corner"
+msgstr "文字位于头像的哪个角"
