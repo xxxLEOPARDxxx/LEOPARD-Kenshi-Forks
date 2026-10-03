@@ -360,6 +360,8 @@ bool EnsureWidgetMode(
         (*widgets)[index] = 0;
     }
 
+    // Слой Back - как у имён над головами и полос прогресса самой игры: под
+    // окнами и панелями. На слое Top значки просвечивали сквозь интерфейс.
     if (widget == 0)
     {
         std::stringstream name;
@@ -373,7 +375,7 @@ bool EnsureWidgetMode(
                     "ImageBox",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Top",
+                    "Back",
                     name.str());
             }
             else if (desiredMode == WIDGET_MODE_TEXT)
@@ -382,7 +384,7 @@ bool EnsureWidgetMode(
                     "Kenshi_TextboxStandardText",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Top",
+                    "Back",
                     name.str());
                 if (widget == 0)
                 {
@@ -390,7 +392,7 @@ bool EnsureWidgetMode(
                         "TextBox",
                         MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                         MyGUI::Align::Left | MyGUI::Align::Top,
-                        "Top",
+                        "Back",
                         name.str() + "_fallback");
                 }
             }
@@ -400,7 +402,7 @@ bool EnsureWidgetMode(
                     style.fallbackSkin != 0 ? style.fallbackSkin : "Kenshi_Button1",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Top",
+                    "Back",
                     name.str());
             }
         }

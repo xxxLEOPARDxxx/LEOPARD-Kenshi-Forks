@@ -3470,7 +3470,7 @@ bool EnsureHoveredMarkerWidget()
             kProbeMarkerSkin,
             MyGUI::IntCoord(0, 0, kHoveredMarkerMinSizePx, kHoveredMarkerMinSizePx),
             MyGUI::Align::Left | MyGUI::Align::Top,
-            "Top",
+            "Back",
             kProbeMarkerWidgetName);
     }
 
