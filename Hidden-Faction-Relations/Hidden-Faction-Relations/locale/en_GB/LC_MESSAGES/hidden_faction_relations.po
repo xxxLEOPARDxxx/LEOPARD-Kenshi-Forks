@@ -52,3 +52,93 @@ msgstr "Height of the search field and buttons, px"
 
 msgid "Your relations toward the hidden factions, with search and sorting."
 msgstr "Your relations toward the hidden factions, with search and sorting."
+
+msgid "Load or resume a game, then open this tab to inspect hidden faction relations."
+msgstr "Load or continue a game to see the relations with the hidden factions."
+
+msgid "Hidden faction relations could not be prepared for display."
+msgstr "Hidden faction relations could not be prepared for display."
+
+msgid "Failed to create the hidden faction scroll view."
+msgstr "Failed to create the hidden faction scroll view."
+
+msgid "No factions match the current view."
+msgstr "No factions match the current view."
+
+msgid "No hidden factions match the current view."
+msgstr "No hidden factions match the current view."
+
+msgid "No factions with relation data were available in the current world."
+msgstr "No factions with relation data were available in the current world."
+
+msgid "No hidden factions were available in the current world."
+msgstr "No hidden factions were available in the current world."
+
+msgid "Showing %d of %d hidden factions"
+msgstr "Showing %d of %d hidden factions"
+
+msgid "Showing %d of %d factions"
+msgstr "Showing %d of %d factions"
+
+msgid "Player faction:"
+msgstr "Player faction:"
+
+msgid "TOTAL HIDDEN"
+msgstr "TOTAL HIDDEN"
+
+msgid "TOTAL SHOWN"
+msgstr "TOTAL SHOWN"
+
+msgid "HOSTILE"
+msgstr "HOSTILE"
+
+msgid "FRIENDLY"
+msgstr "FRIENDLY"
+
+msgid "NEUTRAL"
+msgstr "NEUTRAL"
+
+msgid "HATED"
+msgstr "HATED"
+
+msgid "ALLIED"
+msgstr "ALLIED"
+
+msgid "Unknown origin"
+msgstr "Unknown origin"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Sort"
+msgstr "Sort"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Scope"
+msgstr "Factions"
+
+msgid "Relation ascending"
+msgstr "Worst relations first"
+
+msgid "Relation descending"
+msgstr "Best relations first"
+
+msgid "Name A-Z"
+msgstr "Name A-Z"
+
+msgid "Name Z-A"
+msgstr "Name Z-A"
+
+msgid "Non-zero only"
+msgstr "Non-zero only"
+
+msgid "All values"
+msgstr "All values"
+
+msgid "Hidden only"
+msgstr "Hidden only"
+
+msgid "All factions"
+msgstr "All factions"

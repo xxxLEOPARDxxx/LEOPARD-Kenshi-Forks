@@ -52,3 +52,93 @@ msgstr "搜索框和按钮的高度（像素）"
 
 msgid "Your relations toward the hidden factions, with search and sorting."
 msgstr "你与隐藏派系的关系，可搜索和排序。"
+
+msgid "Load or resume a game, then open this tab to inspect hidden faction relations."
+msgstr "请载入或继续游戏以查看与隐藏派系的关系。"
+
+msgid "Hidden faction relations could not be prepared for display."
+msgstr "无法准备隐藏派系关系的显示。"
+
+msgid "Failed to create the hidden faction scroll view."
+msgstr "无法创建隐藏派系列表。"
+
+msgid "No factions match the current view."
+msgstr "没有符合当前筛选的派系。"
+
+msgid "No hidden factions match the current view."
+msgstr "没有符合当前筛选的隐藏派系。"
+
+msgid "No factions with relation data were available in the current world."
+msgstr "当前世界中没有带有关系数据的派系。"
+
+msgid "No hidden factions were available in the current world."
+msgstr "当前世界中没有隐藏派系。"
+
+msgid "Showing %d of %d hidden factions"
+msgstr "显示 %d / %d 个隐藏派系"
+
+msgid "Showing %d of %d factions"
+msgstr "显示 %d / %d 个派系"
+
+msgid "Player faction:"
+msgstr "玩家派系："
+
+msgid "TOTAL HIDDEN"
+msgstr "隐藏总数"
+
+msgid "TOTAL SHOWN"
+msgstr "显示总数"
+
+msgid "HOSTILE"
+msgstr "敌对"
+
+msgid "FRIENDLY"
+msgstr "友好"
+
+msgid "NEUTRAL"
+msgstr "中立"
+
+msgid "HATED"
+msgstr "仇恨"
+
+msgid "ALLIED"
+msgstr "同盟"
+
+msgid "Unknown origin"
+msgstr "来源未知"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Sort"
+msgstr "排序"
+
+msgid "Filter"
+msgstr "筛选"
+
+msgid "Scope"
+msgstr "范围"
+
+msgid "Relation ascending"
+msgstr "关系从差到好"
+
+msgid "Relation descending"
+msgstr "关系从好到差"
+
+msgid "Name A-Z"
+msgstr "名称 A-Z"
+
+msgid "Name Z-A"
+msgstr "名称 Z-A"
+
+msgid "Non-zero only"
+msgstr "仅非零"
+
+msgid "All values"
+msgstr "全部数值"
+
+msgid "Hidden only"
+msgstr "仅隐藏"
+
+msgid "All factions"
+msgstr "全部派系"

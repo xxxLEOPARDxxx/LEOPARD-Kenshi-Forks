@@ -1,3 +1,7 @@
+// Тексты панели - через Tr (каталоги locale/<язык>/hidden_faction_relations.po).
+#define KLOC_DOMAIN "hidden_faction_relations"
+#include <Localization.h>
+
 #include "HiddenFactionRelationsPanel.h"
 
 #include "HiddenFactionRelations.h"
@@ -510,27 +514,33 @@ const char* GetSortLabel(HiddenFactionRelationsUiSortMode sortMode)
     switch (sortMode)
     {
     case HiddenFactionRelationsUiSort_RelationDescending:
-        return "Relation descending";
+        return Tr("Relation descending");
     case HiddenFactionRelationsUiSort_NameAscending:
-        return "Name A-Z";
+        return Tr("Name A-Z");
     case HiddenFactionRelationsUiSort_NameDescending:
-        return "Name Z-A";
+        return Tr("Name Z-A");
     case HiddenFactionRelationsUiSort_RelationAscending:
     default:
-        return "Relation ascending";
+        return Tr("Relation ascending");
     }
 }
 
+// На кнопке - текущий охват (раньше было «Scope: hidden», не влезало).
 const char* GetScopeLabel(HiddenFactionRelationsUiScopeMode scopeMode)
 {
     switch (scopeMode)
     {
     case HiddenFactionRelationsUiScope_AllFactions:
-        return "Scope: all";
+        return Tr("All factions");
     case HiddenFactionRelationsUiScope_HiddenOnly:
     default:
-        return "Scope: hidden";
+        return Tr("Hidden only");
     }
+}
+
+const char* GetNonZeroLabel(bool nonZeroOnly)
+{
+    return nonZeroOnly ? Tr("Non-zero only") : Tr("All values");
 }
 
 void OnSearchTextChanged(MyGUI::EditBox* sender)
@@ -595,6 +605,7 @@ void OnNonZeroToggleClick(MyGUI::Widget* sender)
 
     g_uiOptions.nonZeroOnly = !g_uiOptions.nonZeroOnly;
     button->setStateSelected(g_uiOptions.nonZeroOnly);
+    button->setCaption(GetNonZeroLabel(g_uiOptions.nonZeroOnly));
     RequestPanelRefresh();
 }
 
@@ -631,11 +642,11 @@ void BuildUnavailableState(const std::string& message)
 
     MyGUI::TextBox* messageText = CreateTrackedTextBox(
         g_activePanelWidget,
-        MyGUI::IntCoord(12, 44, panelWidth - 24, 48));
+        MyGUI::IntCoord(12, 8, panelWidth - 24, 48));
     if (messageText != 0)
     {
         messageText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::Top);
-        messageText->setCaption(message);
+        messageText->setCaption(Tr(message.c_str()));
         messageText->setNeedMouseFocus(false);
     }
 }
@@ -680,7 +691,7 @@ void BuildSummaryCard(
     if (labelText != 0)
     {
         labelText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
-        labelText->setCaption(label);
+        labelText->setCaption(Tr(label));
         labelText->setTextColour(MyGUI::Colour(0.72f, 0.72f, 0.72f, 1.0f));
         labelText->setNeedMouseFocus(false);
     }
@@ -704,30 +715,32 @@ MyGUI::Colour ResolveRelationToneColour(HiddenFactionRelationsUiTone tone)
 
 void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
 {
-    int searchWidth = HiddenFactionRelationsConfig_GetSearchInputWidth();
-    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
-    const int sortWidth = width > 700 ? 180 : 160;
-    const int toggleWidth = 138;
-    const int scopeWidth = 112;
-    const int minSearchWidth = 120;
+    // Ширины - долями от области (страница MCM уже прежней вкладки), поиск
+    // не шире, чем задано в настройках.
     const int gap = 8;
+    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
+    const int usable = width - gap * 3;
+    int searchWidth = usable * 30 / 100;
+    if (searchWidth > HiddenFactionRelationsConfig_GetSearchInputWidth())
+    {
+        searchWidth = HiddenFactionRelationsConfig_GetSearchInputWidth();
+    }
+    if (searchWidth < 120)
+    {
+        searchWidth = 120;
+    }
+    const int rest = usable - searchWidth;
+    const int sortWidth = rest * 38 / 100;
+    const int toggleWidth = rest * 31 / 100;
+    const int scopeWidth = rest - sortWidth - toggleWidth;
     const int labelTop = top;
     const int controlTop = top + 16;
-    const int maxSearchWidth = width - sortWidth - toggleWidth - scopeWidth - (gap * 3);
-    if (maxSearchWidth > 0 && searchWidth > maxSearchWidth)
-    {
-        searchWidth = maxSearchWidth;
-    }
-    if (searchWidth < minSearchWidth)
-    {
-        searchWidth = minSearchWidth;
-    }
 
     MyGUI::TextBox* searchLabel = CreateTrackedTextBox(parent, MyGUI::IntCoord(left, labelTop, searchWidth, 14));
     if (searchLabel != 0)
     {
         searchLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        searchLabel->setCaption("Search");
+        searchLabel->setCaption(Tr("Search"));
         searchLabel->setNeedMouseFocus(false);
     }
 
@@ -752,7 +765,7 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
     if (sortLabel != 0)
     {
         sortLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        sortLabel->setCaption("Sort");
+        sortLabel->setCaption(Tr("Sort"));
         sortLabel->setNeedMouseFocus(false);
     }
 
@@ -760,10 +773,10 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
     if (sortCombo != 0)
     {
         sortCombo->setComboModeDrop(true);
-        sortCombo->addItem("Relation ascending");
-        sortCombo->addItem("Relation descending");
-        sortCombo->addItem("Name A-Z");
-        sortCombo->addItem("Name Z-A");
+        sortCombo->addItem(Tr("Relation ascending"));
+        sortCombo->addItem(Tr("Relation descending"));
+        sortCombo->addItem(Tr("Name A-Z"));
+        sortCombo->addItem(Tr("Name Z-A"));
         sortCombo->setIndexSelected(static_cast<size_t>(g_uiOptions.sortMode));
         sortCombo->setOnlyText(GetSortLabel(g_uiOptions.sortMode));
         sortCombo->eventComboChangePosition += MyGUI::newDelegate(&OnSortChanged);
@@ -774,7 +787,7 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
     if (toggleLabel != 0)
     {
         toggleLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        toggleLabel->setCaption("Filter");
+        toggleLabel->setCaption(Tr("Filter"));
         toggleLabel->setNeedMouseFocus(false);
     }
 
@@ -782,7 +795,7 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
     if (toggleButton != 0)
     {
         toggleButton->setStateSelected(g_uiOptions.nonZeroOnly);
-        toggleButton->setCaption(g_uiOptions.nonZeroOnly ? "Non-zero only: on" : "Non-zero only: off");
+        toggleButton->setCaption(GetNonZeroLabel(g_uiOptions.nonZeroOnly));
         toggleButton->setNeedMouseFocus(true);
         toggleButton->eventMouseButtonClick += MyGUI::newDelegate(&OnNonZeroToggleClick);
     }
@@ -792,7 +805,7 @@ void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
     if (scopeLabel != 0)
     {
         scopeLabel->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        scopeLabel->setCaption("Scope");
+        scopeLabel->setCaption(Tr("Scope"));
         scopeLabel->setNeedMouseFocus(false);
     }
 
@@ -827,7 +840,7 @@ void BuildEmptyResultsState(
     if (emptyText != 0)
     {
         emptyText->setTextAlign(MyGUI::Align::HCenter | MyGUI::Align::VCenter);
-        emptyText->setCaption(message);
+        emptyText->setCaption(Tr(message));
         emptyText->setNeedMouseFocus(false);
     }
     rowY = 28;
@@ -845,52 +858,36 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     const int panelHeight = panelCoord.height > 0 ? panelCoord.height : 520;
     const int contentLeft = 12;
     const int contentWidth = panelWidth - 24;
-    const int rowValueWidth = 112;
-    const int rowRightPadding = 16;
+    const int rowValueWidth = 56;            // «-100» помещается
+    const int rowRightPadding = 4;
 
-    MyGUI::TextBox* titleText = CreateTrackedTextBox(
-        g_activePanelWidget,
-        MyGUI::IntCoord(contentLeft, 10, contentWidth, 24));
-    if (titleText != 0)
-    {
-        titleText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        titleText->setCaption("HIDDEN FACTION RELATIONS");
-        titleText->setNeedMouseFocus(false);
-    }
-
-    std::stringstream subtitleText;
-    subtitleText << "Showing " << view.summary.shownFactionCount
-                 << " / " << view.summary.scannedFactionCount
-                 << (view.showingAllFactions ? " factions" : " hidden factions");
+    // Название - у страницы MCM; здесь только сводка в две строки.
+    char subtitleText[256];
+    sprintf_s(subtitleText,
+              view.showingAllFactions ? Tr("Showing %d of %d factions") : Tr("Showing %d of %d hidden factions"),
+              static_cast<int>(view.summary.shownFactionCount), static_cast<int>(view.summary.scannedFactionCount));
     MyGUI::TextBox* subtitle = CreateTrackedTextBox(
         g_activePanelWidget,
-        MyGUI::IntCoord(contentLeft, 34, contentWidth, 20));
+        MyGUI::IntCoord(contentLeft, 2, contentWidth, 20));
     if (subtitle != 0)
     {
         subtitle->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        subtitle->setCaption(subtitleText.str());
+        subtitle->setCaption(subtitleText);
         subtitle->setNeedMouseFocus(false);
-    }
-
-    std::stringstream playerText;
-    playerText << "Player faction: " << view.playerFactionName;
-    if (!view.playerFactionId.empty())
-    {
-        playerText << " [" << view.playerFactionId << "]";
     }
 
     MyGUI::TextBox* playerContextText = CreateTrackedTextBox(
         g_activePanelWidget,
-        MyGUI::IntCoord(contentLeft, 52, contentWidth, 20));
+        MyGUI::IntCoord(contentLeft, 20, contentWidth, 20));
     if (playerContextText != 0)
     {
         playerContextText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-        playerContextText->setCaption(playerText.str());
+        playerContextText->setCaption(std::string(Tr("Player faction:")) + " " + view.playerFactionName);
         playerContextText->setNeedMouseFocus(false);
     }
 
     const int summaryGap = 6;
-    const int summaryTop = 76;
+    const int summaryTop = 40;
     const int summaryWidth = (contentWidth - (summaryGap * 3)) / 4;
     BuildSummaryCard(
         g_activePanelWidget,
@@ -925,10 +922,10 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         view.summary.neutralCount,
         HiddenFactionRelationsUiTone_Neutral);
 
-    const int controlsTop = 124;
+    const int controlsTop = 88;
     const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
     const int scrollTop = controlsTop + 16 + searchHeight + 16;
-    int scrollHeight = panelHeight - (scrollTop + 12);
+    int scrollHeight = panelHeight - (scrollTop + 4);
     if (scrollHeight < 120)
     {
         scrollHeight = 120;
@@ -946,6 +943,10 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     }
 
     scrollView->setCanvasAlign(MyGUI::Align::Left | MyGUI::Align::Top);
+    // Только вертикальная прокрутка: ширину строк считаем от видимой ширины
+    // за вычетом полосы - раньше её считали до появления полосы, строки
+    // выходили шире окна, правый край (число отношения) обрезался.
+    scrollView->setVisibleHScroll(false);
 
     MyGUI::Widget* contentParent = scrollView->getClientWidget();
     if (contentParent == 0)
@@ -953,11 +954,10 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         contentParent = scrollView;
     }
 
-    const MyGUI::IntCoord clientCoord = scrollView->getClientCoord();
-    int clientWidth = clientCoord.width > 0 ? clientCoord.width : panelWidth - 48;
+    int clientWidth = contentWidth - 24;      // минус вертикальная полоса
     if (clientWidth < 240)
     {
-        clientWidth = panelWidth - 48;
+        clientWidth = 240;
     }
 
     int rowY = 0;
@@ -965,8 +965,8 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
     {
         const HiddenFactionRelationsUiRow& row = view.rows[i];
         const int relationLeft = clientWidth - rowValueWidth - rowRightPadding;
-        const int originWidth = relationLeft > 220 ? 150 : 120;
-        const int badgeWidth = 64;
+        const int originWidth = clientWidth * 26 / 100;
+        const int badgeWidth = 110;              // НЕНАВИСТЬ, ДРУЖЕЛЮБНЫ
         const int originLeft = relationLeft - originWidth;
         const int badgeLeft = originLeft - 8 - badgeWidth;
         const int nameWidth = badgeLeft > 96 ? badgeLeft - 8 : 96;
@@ -998,7 +998,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         if (badgeText != 0)
         {
             badgeText->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
-            badgeText->setCaption(row.relationBadgeText);
+            badgeText->setCaption(Tr(row.relationBadgeText.c_str()));
             badgeText->setTextColour(ResolveRelationToneColour(row.relationTone));
             badgeText->setNeedMouseFocus(false);
         }
@@ -1009,7 +1009,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         if (originText != 0)
         {
             originText->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-            originText->setCaption(row.originText);
+            originText->setCaption(Tr(row.originText.c_str()));
             originText->setTextColour(MyGUI::Colour(0.48f, 0.48f, 0.48f, 1.0f));
             originText->setNeedMouseFocus(false);
         }

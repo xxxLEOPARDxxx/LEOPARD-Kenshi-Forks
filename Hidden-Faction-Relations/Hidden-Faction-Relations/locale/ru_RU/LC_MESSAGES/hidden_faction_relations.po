@@ -52,3 +52,93 @@ msgstr "Высота поля поиска и кнопок в пикселях"
 
 msgid "Your relations toward the hidden factions, with search and sorting."
 msgstr "Ваши отношения со скрытыми фракциями, с поиском и сортировкой."
+
+msgid "Load or resume a game, then open this tab to inspect hidden faction relations."
+msgstr "Загрузите или продолжите игру, чтобы увидеть отношения со скрытыми фракциями."
+
+msgid "Hidden faction relations could not be prepared for display."
+msgstr "Не удалось подготовить отношения со скрытыми фракциями."
+
+msgid "Failed to create the hidden faction scroll view."
+msgstr "Не удалось создать список скрытых фракций."
+
+msgid "No factions match the current view."
+msgstr "Ни одна фракция не подходит под отбор."
+
+msgid "No hidden factions match the current view."
+msgstr "Ни одна скрытая фракция не подходит под отбор."
+
+msgid "No factions with relation data were available in the current world."
+msgstr "В этом мире нет фракций с данными об отношениях."
+
+msgid "No hidden factions were available in the current world."
+msgstr "В этом мире нет скрытых фракций."
+
+msgid "Showing %d of %d hidden factions"
+msgstr "Показано %d из %d скрытых фракций"
+
+msgid "Showing %d of %d factions"
+msgstr "Показано %d из %d фракций"
+
+msgid "Player faction:"
+msgstr "Фракция игрока:"
+
+msgid "TOTAL HIDDEN"
+msgstr "ВСЕГО СКРЫТЫХ"
+
+msgid "TOTAL SHOWN"
+msgstr "ВСЕГО ПОКАЗАНО"
+
+msgid "HOSTILE"
+msgstr "ВРАЖДЕБНЫ"
+
+msgid "FRIENDLY"
+msgstr "ДРУЖЕЛЮБНЫ"
+
+msgid "NEUTRAL"
+msgstr "НЕЙТРАЛЬНЫ"
+
+msgid "HATED"
+msgstr "НЕНАВИСТЬ"
+
+msgid "ALLIED"
+msgstr "СОЮЗНИКИ"
+
+msgid "Unknown origin"
+msgstr "Источник неизвестен"
+
+msgid "Search"
+msgstr "Поиск"
+
+msgid "Sort"
+msgstr "Сортировка"
+
+msgid "Filter"
+msgstr "Отбор"
+
+msgid "Scope"
+msgstr "Какие фракции"
+
+msgid "Relation ascending"
+msgstr "Сначала худшие"
+
+msgid "Relation descending"
+msgstr "Сначала лучшие"
+
+msgid "Name A-Z"
+msgstr "Имя А-Я"
+
+msgid "Name Z-A"
+msgstr "Имя Я-А"
+
+msgid "Non-zero only"
+msgstr "Без нулевых"
+
+msgid "All values"
+msgstr "Все значения"
+
+msgid "Hidden only"
+msgstr "Только скрытые"
+
+msgid "All factions"
+msgstr "Все фракции"
