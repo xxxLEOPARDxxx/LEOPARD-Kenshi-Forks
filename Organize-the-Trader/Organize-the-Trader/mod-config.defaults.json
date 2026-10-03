@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "showSearchEntryCount": true,
+  "showSearchQuantityCount": true,
+  "showSearchClearButton": true,
+  "autoFocusSearchInput": true,
+  "debugLogging": false,
+  "debugSearchLogging": false,
+  "debugBindingLogging": false,
+  "searchInputWidth": 372,
+  "searchInputHeight": 26,
+  "searchInputPositionCustomized": false,
+  "searchInputLeft": 0,
+  "searchInputTop": 0,
+  "sortPanelWidth": 372,
+  "sortPanelHeight": 26,
+  "sortPanelPositionCustomized": false,
+  "sortPanelLeft": 0,
+  "sortPanelTop": 0
+}
