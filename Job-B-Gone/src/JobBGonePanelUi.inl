@@ -2855,6 +2855,24 @@ static void TickJobBGonePanelDrag()
     }
 }
 
+// Панель обновляется каждый кадр, а подпись MyGUI при каждом setCaption
+// раскладывает заново, даже если текст тот же. Ставим только изменившийся.
+// Только для подписей, которые больше нигде не меняются.
+static void SetCaptionIfChanged(MyGUI::TextBox* widget, const std::string& text)
+{
+    if (widget == 0)
+    {
+        return;
+    }
+    static const std::string kKey = "JobBGoneShownCaption";
+    if (widget->isUserString(kKey) && widget->getUserString(kKey) == text)
+    {
+        return;
+    }
+    widget->setUserString(kKey, text);
+    widget->setCaption(text);
+}
+
 static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 {
     g_lastPlayerInterface = thisptr;
@@ -3285,7 +3303,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
     std::stringstream headerCaption;
     headerCaption << (g_jobBGonePanelCollapsed ? "[+] " : "[-] ") << "Job-B-Gone";
-    g_jobBGoneHeaderButton->setCaption(headerCaption.str());
+    SetCaptionIfChanged(g_jobBGoneHeaderButton, headerCaption.str());
 
     const bool topActionsEnabled = g_config.enableDeleteAllJobsTopActions;
     const bool topActionsVisible = topActionsEnabled && !g_jobBGonePanelCollapsed;
@@ -3363,7 +3381,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     {
         statusCaption << Tr("Selected members:") << " 0";
     }
-    g_jobBGoneStatusText->setCaption(statusCaption.str());
+    SetCaptionIfChanged(g_jobBGoneStatusText, statusCaption.str());
 
     g_jobBGoneBodyFrame->setVisible(!g_jobBGonePanelCollapsed);
     g_jobBGoneStatusText->setVisible(!g_jobBGonePanelCollapsed);
@@ -3372,11 +3390,11 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
     {
         if (selectedMemberCount > 1)
         {
-            g_jobBGoneEmptyStateText->setCaption(Tr("Selected members have no queued jobs."));
+            SetCaptionIfChanged(g_jobBGoneEmptyStateText, Tr("Selected members have no queued jobs."));
         }
         else
         {
-            g_jobBGoneEmptyStateText->setCaption(Tr("Selected member has no queued jobs."));
+            SetCaptionIfChanged(g_jobBGoneEmptyStateText, Tr("Selected member has no queued jobs."));
         }
     }
     g_jobBGoneHoverHintText->setVisible(!g_jobBGonePanelCollapsed && !confirmationOverlayVisible);
@@ -3561,7 +3579,7 @@ static void EnsureSelectedMemberJobPanelButton(PlayerInterface* thisptr)
 
         if (rowWidgets.label)
         {
-            rowWidgets.label->setCaption(rowLabel.str());
+            SetCaptionIfChanged(rowWidgets.label, rowLabel.str());
             std::stringstream hoverHintCaption;
             if (!hoverTaskName.empty())
             {
