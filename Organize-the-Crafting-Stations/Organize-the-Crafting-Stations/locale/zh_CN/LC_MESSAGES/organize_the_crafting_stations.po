@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Crafting-Stations\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar in crafting and research windows that filters recipes and blueprints."
+msgstr "制作和研究窗口中的搜索框，筛选配方和蓝图。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Organize the Crafting Stations search controls"
+msgstr "开启或关闭整个模组"
+
+msgid "Show entry count"
+msgstr "显示条目数"
+
+msgid "Show visible and total entry counts in the search bar"
+msgstr "在搜索框旁显示可见条目数和总条目数"
+
+msgid "Show clear button"
+msgstr "清除按钮"
+
+msgid "Show the clear button inside the search bar"
+msgstr "搜索框内的清除按钮"
+
+msgid "Auto-focus search"
+msgstr "自动聚焦搜索框"
+
+msgid "Focus the crafting search input automatically when controls are injected"
+msgstr "打开制作窗口时自动将光标放入搜索框"
+
+msgid "Search input width"
+msgstr "搜索框宽度"
+
+msgid "Desired search input width in pixels"
+msgstr "搜索框宽度（像素）"
+
+msgid "Search input height"
+msgstr "搜索框高度"
+
+msgid "Desired search input height in pixels"
+msgstr "搜索框高度（像素）"

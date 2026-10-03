@@ -1,0 +1,45 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Crafting-Stations\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar in crafting and research windows that filters recipes and blueprints."
+msgstr "A search bar in crafting and research windows that filters recipes and blueprints."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Organize the Crafting Stations search controls"
+msgstr "Turns the whole mod on and off"
+
+msgid "Show entry count"
+msgstr "Show entry count"
+
+msgid "Show visible and total entry counts in the search bar"
+msgstr "Shows how many entries are visible out of the total, next to the search"
+
+msgid "Show clear button"
+msgstr "Show clear button"
+
+msgid "Show the clear button inside the search bar"
+msgstr "A button inside the search field that clears it"
+
+msgid "Auto-focus search"
+msgstr "Auto-focus search"
+
+msgid "Focus the crafting search input automatically when controls are injected"
+msgstr "Puts the cursor into the search field when a crafting window opens"
+
+msgid "Search input width"
+msgstr "Search input width"
+
+msgid "Desired search input width in pixels"
+msgstr "Width of the search field, px"
+
+msgid "Search input height"
+msgstr "Search input height"
+
+msgid "Desired search input height in pixels"
+msgstr "Height of the search field, px"
