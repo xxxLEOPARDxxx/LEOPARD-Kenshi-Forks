@@ -1,0 +1,102 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Container-Highlight\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights nearby containers with a marker and a tint while the highlight key is held."
+msgstr "Подсвечивает ближние сундуки и ящики меткой и цветом, пока зажата клавиша подсветки."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable Container Highlight runtime behavior"
+msgstr "Включает и выключает весь мод"
+
+msgid "Highlight key"
+msgstr "Клавиша подсветки"
+
+msgid "Primary key that gates container highlighting; set Unbound and use modifier toggles for Shift/Alt alone"
+msgstr "Пока зажата эта клавиша, сундуки подсвечены. NONE вместе с Нужен Shift или Alt ниже - подсветка по одному Shift или Alt"
+
+msgid "Require Ctrl"
+msgstr "Нужен Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Ctrl"
+
+msgid "Require Shift"
+msgstr "Нужен Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Shift"
+
+msgid "Require Alt"
+msgstr "Нужен Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Alt"
+
+msgid "Max highlight distance"
+msgstr "Наибольшее расстояние подсветки"
+
+msgid "Maximum scan radius in meters for nearby container detection"
+msgstr "На каком расстоянии искать сундуки, метров"
+
+msgid "Show icons"
+msgstr "Показывать значки"
+
+msgid "Show screen-space icon markers above matched containers"
+msgstr "Значок над каждым подсвеченным сундуком"
+
+msgid "Show text"
+msgstr "Показывать текст"
+
+msgid "Show screen-space text markers above matched containers"
+msgstr "Текст над каждым подсвеченным сундуком"
+
+msgid "Marker text"
+msgstr "Текст метки"
+
+msgid "Text shown above matched containers when Show text is enabled"
+msgstr "Текст над сундуками, если включено Показывать текст"
+
+msgid "Marker color"
+msgstr "Цвет метки"
+
+msgid "RGB color for marker text and icon"
+msgstr "Цвет текста и значка метки, #RRGGBB"
+
+msgid "Enable tint"
+msgstr "Окрашивать"
+
+msgid "Apply model tint to matched containers when the highlight gate is active"
+msgstr "Окрашивает сами сундуки, пока подсветка включена"
+
+msgid "Tint color"
+msgstr "Цвет окраски"
+
+msgid "RGB tint color for highlighted containers; JSON alpha is preserved"
+msgstr "Цвет окраски сундуков, #RRGGBB. Прозрачность остаётся той, что в mod-config.json"
+
+msgid "Advanced"
+msgstr "Дополнительно"
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Write probe summaries and diagnostics to RE_Kenshi_log.txt"
+msgstr "Пишет подробности в RE_Kenshi_log.txt"
+
+msgid "Log nearby probe snapshot"
+msgstr "Журнал ближних предметов"
+
+msgid "Dump nearby scanned objects and filter decisions into RE_Kenshi_log.txt for barrel/container debugging"
+msgstr "Пишет в RE_Kenshi_log.txt все ближние предметы и почему они подсвечены или нет. Только для поиска ошибок"
+
+msgid "Log render trace"
+msgstr "Журнал отрисовки"
+
+msgid "Capture the recent D3D11 bind/update path that feeds the known instanced container draw into RE_Kenshi_log.txt"
+msgstr "Пишет вызовы графики при рисовании сундуков в RE_Kenshi_log.txt. Только для поиска ошибок, замедляет игру"

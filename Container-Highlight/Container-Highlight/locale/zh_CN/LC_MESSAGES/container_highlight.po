@@ -1,0 +1,102 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Container-Highlight\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights nearby containers with a marker and a tint while the highlight key is held."
+msgstr "按住高亮按键时，用标记和颜色高亮附近的容器。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Container Highlight runtime behavior"
+msgstr "开启或关闭整个模组"
+
+msgid "Highlight key"
+msgstr "高亮按键"
+
+msgid "Primary key that gates container highlighting; set Unbound and use modifier toggles for Shift/Alt alone"
+msgstr "按住此键时高亮容器。设为 NONE 并勾选下方的需要 Shift 或 Alt - 仅按 Shift 或 Alt 即可高亮"
+
+msgid "Require Ctrl"
+msgstr "需要 Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "需要同时按住 Ctrl 和高亮按键"
+
+msgid "Require Shift"
+msgstr "需要 Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "需要同时按住 Shift 和高亮按键"
+
+msgid "Require Alt"
+msgstr "需要 Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "需要同时按住 Alt 和高亮按键"
+
+msgid "Max highlight distance"
+msgstr "最大高亮距离"
+
+msgid "Maximum scan radius in meters for nearby container detection"
+msgstr "搜索容器的最大距离（米）"
+
+msgid "Show icons"
+msgstr "显示图标"
+
+msgid "Show screen-space icon markers above matched containers"
+msgstr "在每个高亮的容器上方显示图标"
+
+msgid "Show text"
+msgstr "显示文字"
+
+msgid "Show screen-space text markers above matched containers"
+msgstr "在每个高亮的容器上方显示文字"
+
+msgid "Marker text"
+msgstr "标记文字"
+
+msgid "Text shown above matched containers when Show text is enabled"
+msgstr "开启显示文字时，容器上方显示的文字"
+
+msgid "Marker color"
+msgstr "标记颜色"
+
+msgid "RGB color for marker text and icon"
+msgstr "标记文字和图标的颜色，#RRGGBB"
+
+msgid "Enable tint"
+msgstr "启用着色"
+
+msgid "Apply model tint to matched containers when the highlight gate is active"
+msgstr "高亮时为容器模型着色"
+
+msgid "Tint color"
+msgstr "着色颜色"
+
+msgid "RGB tint color for highlighted containers; JSON alpha is preserved"
+msgstr "高亮容器的着色颜色，#RRGGBB。透明度保持 mod-config.json 中的设置"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Write probe summaries and diagnostics to RE_Kenshi_log.txt"
+msgstr "将详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Log nearby probe snapshot"
+msgstr "记录附近物体"
+
+msgid "Dump nearby scanned objects and filter decisions into RE_Kenshi_log.txt for barrel/container debugging"
+msgstr "将附近所有物体及其是否被高亮的原因写入 RE_Kenshi_log.txt。仅用于排查问题"
+
+msgid "Log render trace"
+msgstr "记录渲染过程"
+
+msgid "Capture the recent D3D11 bind/update path that feeds the known instanced container draw into RE_Kenshi_log.txt"
+msgstr "将绘制容器时的图形调用写入 RE_Kenshi_log.txt。仅用于排查问题，会降低游戏速度"
