@@ -1,8 +1,15 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "map_markers"
+#include <Localization.h>
+
 #include <Debug.h>
 
 #include "MapMarkersModHub.h"
 
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#define MCM_BRIDGE_HAS_INT_V2
+#include <McmModHubBridge.h>
 
 #include <Windows.h>
 
@@ -311,7 +318,7 @@ void EnsureModHubClientConfigured()
         static_cast<uint32_t>(sizeof(kModHubRows) / sizeof(kModHubRows[0])) };
 
     emc::ModHubClient::Config config;
-    config.table_registration = &kModHubRegistration;
+    config.table_registration = mcm_bridge::Capture(&kModHubRegistration);
     g_modHubClient.SetConfig(config);
     g_modHubClientConfigured = true;
 }
@@ -321,6 +328,9 @@ void MapMarkersModHub_OnStartup()
 {
     EnsureModHubClientConfigured();
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_SUCCESS)
     {
@@ -345,3 +355,6 @@ void MapMarkersModHub_OnStartup()
     LogModHubStartupMessage(true, "Mod Hub client configuration invalid; continuing with file-only settings");
     LogModHubMessage("fallback", "invalid_client_configuration");
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE("Your own markers on the world map, kept in the save.")
