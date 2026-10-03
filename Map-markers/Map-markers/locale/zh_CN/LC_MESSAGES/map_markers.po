@@ -1,0 +1,33 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Map-markers\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Your own markers on the world map, kept in the save."
+msgstr "在世界地图上添加自己的标记，随存档保存。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Map-markers map UI and runtime behavior"
+msgstr "开启或关闭整个模组"
+
+msgid "Close editor on map close"
+msgstr "关闭地图时关闭编辑器"
+
+msgid "Clear selection and close the marker editor when the world map closes"
+msgstr "关闭地图时关闭标记编辑器并取消选择"
+
+msgid "Show hover labels"
+msgstr "悬停时显示标签"
+
+msgid "Show marker type and label text when hovering a marker on the world map"
+msgstr "鼠标悬停时显示标记类型和文字"
+
+msgid "Default marker type"
+msgstr "默认标记类型"
+
+msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
+msgstr "0 笔记，1 危险，2 藏匿处，3 废墟，4 矿，5 基地，6 商人，7 安全点，8 任务，9 待办"

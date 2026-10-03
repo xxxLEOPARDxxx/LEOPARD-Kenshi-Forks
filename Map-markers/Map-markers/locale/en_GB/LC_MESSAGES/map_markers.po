@@ -1,0 +1,33 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Map-markers\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Your own markers on the world map, kept in the save."
+msgstr "Your own markers on the world map, kept in the save."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Map-markers map UI and runtime behavior"
+msgstr "Turns the whole mod on and off"
+
+msgid "Close editor on map close"
+msgstr "Close editor on map close"
+
+msgid "Clear selection and close the marker editor when the world map closes"
+msgstr "Closes the marker editor and clears the selection when the map closes"
+
+msgid "Show hover labels"
+msgstr "Show hover labels"
+
+msgid "Show marker type and label text when hovering a marker on the world map"
+msgstr "Shows the marker type and its text when the mouse is over it"
+
+msgid "Default marker type"
+msgstr "Default marker type"
+
+msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
+msgstr "0 note, 1 danger, 2 stash, 3 ruin, 4 mine, 5 base, 6 trader, 7 safe spot, 8 quest, 9 to do"
