@@ -1,5 +1,7 @@
 #include "emc/mod_hub_api.h"
 #include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#include <McmModHubBridge.h>
 
 const char* kModHubNamespaceId = "emkej.qol";
 const char* kModHubNamespaceDisplayName = "Emkej QoL";
@@ -650,6 +652,9 @@ static void ModHub_OnPluginStart()
     ConfigureModHubClient();
     g_modHubLoggedRegisterFallback = false;
 
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
     const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
     if (result == emc::ModHubClient::ATTACH_FAILED)
     {
@@ -698,3 +703,6 @@ static EMC_Result ModHub_LastAttachFailureResult()
 
     return g_modHubClient.LastAttemptFailureResult();
 }
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE_TABLE(GetModHubTableRegistration(), "Adds an Execute action for downed enemies to the right-click menu.")
