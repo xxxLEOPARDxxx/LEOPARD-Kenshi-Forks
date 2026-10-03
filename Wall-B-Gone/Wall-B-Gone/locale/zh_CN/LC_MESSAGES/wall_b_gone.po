@@ -1,0 +1,42 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Wall-B-Gone\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Dismantles the selected wall, bed or furniture with a hotkey and returns the materials."
+msgstr "按快捷键拆除所选的墙、床或家具，并返还材料。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Wall-B-Gone features"
+msgstr "开启或关闭整个模组"
+
+msgid "Allow bed and furniture dismantle"
+msgstr "允许拆除床和家具"
+
+msgid "Allow dismantle behavior for beds and common furniture"
+msgstr "也可拆除床和普通家具；床仅在无人躺卧时可拆"
+
+msgid "Dismantle hotkey"
+msgstr "拆除快捷键"
+
+msgid "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo."
+msgstr "拆除所选墙、床或家具的按键。以文字填写：X、CTRL+X、SHIFT+ALT+X；NONE - 不设按键"
+
+msgid "Reset hotkey default"
+msgstr "恢复默认快捷键"
+
+msgid "Reset dismantle hotkey and modifier requirements to defaults"
+msgstr "将拆除快捷键恢复为 X（不带 Ctrl、Shift 或 Alt）"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Write extra runtime diagnostics to the RE_Kenshi log"
+msgstr "将额外的详细信息写入 RE_Kenshi_log.txt"

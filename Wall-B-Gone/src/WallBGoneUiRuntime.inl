@@ -83,11 +83,10 @@ static void OptionsWindowInitHook(OptionsWindow* self)
         return;
     }
 
-    OnOptionsWindowInitForModHub();
-    if (ShouldUseHubUiFromModHub())
-    {
-        return;
-    }
+    // Настройки Wall-B-Gone - во вкладке MCM (McmModHubBridge.h). Своя
+    // запасная вкладка не нужна: она вставала последней и забирала кнопки
+    // RE_Kenshi, которые тот вешает на последнюю вкладку окна.
+    return;
 
     if (self->optionsTab->findItemWith(kWallBGoneTabName))
     {
