@@ -954,7 +954,18 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         contentParent = scrollView;
     }
 
-    int clientWidth = contentWidth - 24;      // минус вертикальная полоса
+    // Ширину строк берём у самого ScrollView: сначала задаём холст нужной
+    // высоты, MyGUI показывает полосу и сужает клиентскую часть на её
+    // ширину - её и читаем. Прежний расчёт «минус 24» был меньше полосы игры,
+    // число отношения уходило под неё.
+    scrollView->setCanvasSize(contentWidth / 2, static_cast<int>(view.rows.size()) * 28 + 4);
+    const int viewWidth = scrollView->getViewCoord().width;
+    int clientWidth = (viewWidth < contentWidth - 24 ? viewWidth : contentWidth - 24) - 8;
+    {
+        std::ostringstream note;
+        note << "rows layout: content=" << contentWidth << " view=" << viewWidth << " client=" << clientWidth;
+        LogInfoLine(note.str());
+    }
     if (clientWidth < 240)
     {
         clientWidth = 240;
