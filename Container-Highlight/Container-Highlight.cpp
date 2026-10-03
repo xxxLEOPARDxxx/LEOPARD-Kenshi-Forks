@@ -2,7 +2,7 @@
 
 #include <core/Functions.h>
 #include "emc/mod_hub_client.h"
-#include <kenshi/Building.h>
+#include <kenshi/Building/Building.h>
 #include <kenshi/Character.h>
 #include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>
@@ -12,6 +12,8 @@
 #include <kenshi/Kenshi.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
+#include <kenshi/SaveInfo.h>
+#include <kenshi/SaveManager.h>
 
 #include <mygui/MyGUI_Colour.h>
 #include <mygui/MyGUI_Gui.h>
@@ -96,6 +98,7 @@ const float kHubMaxHighlightDistance = 5000.0f;
 const uint32_t kHubMarkerTextMaxLength = 24u;
 const DWORD kDebugSummaryIntervalMs = 5000;
 const DWORD kDebugInvestigationIntervalMs = 5000;
+const DWORD kSaveLoadHighlightCooldownMs = 5000;
 const char* kHubNamespaceId = "emkej.qol";
 const char* kHubNamespaceDisplayName = "Emkej QoL";
 const char* kHubModId = "container_highlight";
@@ -389,8 +392,11 @@ RuntimeState g_state;
 D3D11TraceState g_d3d11Trace;
 PlayerInterfaceUpdateUTFn* g_playerInterfaceUpdateUTOrig = 0;
 void (*g_gameWorldMainLoopGPUSensitiveStuffOrig)(GameWorld* thisptr, float time) = 0;
+void (*g_saveManagerLoadByNameOrig)(SaveManager* thisptr, const std::string& name) = 0;
+void (*g_saveManagerLoadByInfoOrig)(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos) = 0;
 emc::ModHubClient g_modHubClient;
 bool g_probeSnapshotRequested = false;
+DWORD g_saveLoadHighlightCooldownUntilMs = 0;
 typedef void (STDMETHODCALLTYPE* D3D11VSSetConstantBuffersFn)(
     ID3D11DeviceContextN*,
     UINT,
@@ -507,13 +513,63 @@ PluginConfig MakeDefaultConfig()
     return config;
 }
 
+bool ParseVersionTriplet(const std::string& version, unsigned int* majorOut, unsigned int* minorOut, unsigned int* patchOut)
+{
+    if (majorOut == 0 || minorOut == 0 || patchOut == 0)
+    {
+        return false;
+    }
+
+    std::stringstream stream(version);
+    unsigned int major = 0;
+    unsigned int minor = 0;
+    unsigned int patch = 0;
+    char dotOne = 0;
+    char dotTwo = 0;
+    char trailing = 0;
+
+    if (!(stream >> major >> dotOne >> minor >> dotTwo >> patch)
+        || dotOne != '.'
+        || dotTwo != '.'
+        || (stream >> trailing))
+    {
+        return false;
+    }
+
+    *majorOut = major;
+    *minorOut = minor;
+    *patchOut = patch;
+    return true;
+}
+
+bool IsVersionAtLeast(const std::string& version, unsigned int requiredMajor, unsigned int requiredMinor, unsigned int requiredPatch)
+{
+    unsigned int major = 0;
+    unsigned int minor = 0;
+    unsigned int patch = 0;
+    if (!ParseVersionTriplet(version, &major, &minor, &patch))
+    {
+        return false;
+    }
+
+    if (major != requiredMajor)
+    {
+        return major > requiredMajor;
+    }
+    if (minor != requiredMinor)
+    {
+        return minor > requiredMinor;
+    }
+    return patch >= requiredPatch;
+}
+
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
     const unsigned int platform = versionInfo.GetPlatform();
     const std::string version = versionInfo.GetVersion();
 
     return platform != KenshiLib::BinaryVersion::UNKNOWN
-        && (version == "1.0.65" || version == "1.0.68");
+        && IsVersionAtLeast(version, 1, 0, 65);
 }
 
 void LogInfoLine(const std::string& message)
@@ -1745,6 +1801,22 @@ ID3D11DeviceN* TryResolveOgreD3D11Device()
         return 0;
     }
 
+    // Если окно не в фокусе (свёрнуто или неактивно) и не actively rendering
+    Ogre::RenderWindow* window = root->getAutoCreatedWindow();
+    if (window != 0)
+    {
+        size_t hwndValue = 0;
+        window->getCustomAttribute("WINDOW", &hwndValue);
+        if (hwndValue != 0)
+        {
+            HWND hWnd = reinterpret_cast<HWND>(hwndValue);
+            if (GetForegroundWindow() != hWnd || IsIconic(hWnd))
+            {
+                return 0;
+            }
+        }
+    }
+
     Ogre::RenderSystem* renderSystem = root->getRenderSystem();
     if (renderSystem == 0)
     {
@@ -1767,7 +1839,6 @@ ID3D11DeviceN* TryResolveOgreD3D11Device()
         }
     }
 
-    Ogre::RenderWindow* window = root->getAutoCreatedWindow();
     if (window == 0)
     {
         return 0;
@@ -6196,7 +6267,7 @@ void TickMarkerRender()
         Ogre::Vector3 worldPos = g_state.targetCache[i].worldPos;
         if (!TryGetTargetWorldPosition(g_state.targetCache[i].targetHandle, &worldPos))
         {
-            worldPos = g_state.targetCache[i].worldPos;
+            continue;
         }
 
         Ogre::Vector3 markerAnchor = worldPos;
@@ -6316,7 +6387,7 @@ void TickScreenHighlightRender()
         Ogre::Vector3 worldPos = g_state.targetCache[i].worldPos;
         if (!TryGetTargetWorldPosition(g_state.targetCache[i].targetHandle, &worldPos))
         {
-            worldPos = g_state.targetCache[i].worldPos;
+            continue;
         }
 
         Building* building = g_state.targetCache[i].targetHandle.getBuilding();
@@ -6335,27 +6406,27 @@ void TickScreenHighlightRender()
         {
             rootNode = TryGetBuildingRootNode(building);
             hasRootPositions = TryGetSceneNodePositions(rootNode, &rootLocalPos, &rootDerivedPos);
-            Ogre::Vector3 center;
-            Ogre::Vector3 size;
-            Ogre::SceneManager* sceneManager = 0;
-            if (TryGetTintOverlayBoundsForTarget(g_state.targetCache[i].targetHandle, &sceneManager, &center, &size))
+        }
+        Ogre::Vector3 center;
+        Ogre::Vector3 size;
+        Ogre::SceneManager* sceneManager = 0;
+        if (TryGetTintOverlayBoundsForTarget(g_state.targetCache[i].targetHandle, &sceneManager, &center, &size))
+        {
+            Ogre::Vector3 translatedCenter = center;
+            if (TryTranslateDerivedPointToTargetWorldSpace(rootNode, center, &translatedCenter))
             {
-                Ogre::Vector3 translatedCenter = center;
-                if (TryTranslateDerivedPointToTargetWorldSpace(rootNode, center, &translatedCenter))
-                {
-                    worldPos = translatedCenter;
-                }
-                else
-                {
-                    worldPos = center;
-                }
-                worldSizeX = size.x;
-                worldSizeY = size.y;
-                worldSizeZ = size.z;
-                boundsCenter = worldPos;
-                boundsSize = size;
-                usedBoundsCenter = true;
+                worldPos = translatedCenter;
             }
+            else
+            {
+                worldPos = center;
+            }
+            worldSizeX = size.x;
+            worldSizeY = size.y;
+            worldSizeZ = size.z;
+            boundsCenter = worldPos;
+            boundsSize = size;
+            usedBoundsCenter = true;
         }
 
         float paddingWorld = 0.3f;
@@ -6795,6 +6866,68 @@ bool ApplyContainerHighlightProgramsToPass(Ogre::Pass* pass, TintProgramSwapInfo
     }
 }
 
+bool GpuParamsHaveNamedConstant(Ogre::GpuProgramParametersSharedPtr& params, const char* paramName)
+{
+    if (params.isNull() || paramName == 0)
+    {
+        return false;
+    }
+
+    bool hasConstant = false;
+    try
+    {
+        hasConstant = params->hasNamedParameters()
+            && params->_findNamedConstantDefinition(paramName, false) != 0;
+    }
+    catch (...)
+    {
+        hasConstant = false;
+    }
+    return hasConstant;
+}
+
+bool SetColourConstantIfPresent(
+    Ogre::GpuProgramParametersSharedPtr& params,
+    const char* paramName,
+    const Ogre::ColourValue& colour)
+{
+    if (!GpuParamsHaveNamedConstant(params, paramName))
+    {
+        return false;
+    }
+
+    try
+    {
+        params->setNamedConstant(paramName, colour);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool SetBoolConstantIfPresent(
+    Ogre::GpuProgramParametersSharedPtr& params,
+    const char* paramName,
+    bool value)
+{
+    if (!GpuParamsHaveNamedConstant(params, paramName))
+    {
+        return false;
+    }
+
+    try
+    {
+        params->setNamedConstant(paramName, value ? 1 : 0);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 bool ApplyTintConstantsToPass(
     Ogre::Pass* pass,
     const Ogre::ColourValue& colour,
@@ -6825,16 +6958,15 @@ bool ApplyTintConstantsToPass(
                     applyInfo->fragmentHasNamedParameters = hasNamedParameters;
                 }
 
-                if (hasNamedParameters)
+                if (GpuParamsHaveNamedConstant(fragmentParams, kColorOverrideParam))
                 {
                     if (applyInfo)
                     {
                         applyInfo->fragmentHasColourConstant = true;
                     }
 
-                    try
+                    if (SetColourConstantIfPresent(fragmentParams, kColorOverrideParam, colour))
                     {
-                        fragmentParams->setNamedConstant(kColorOverrideParam, colour);
                         appliedAny = true;
                         appliedColour = true;
                         if (applyInfo)
@@ -6842,9 +6974,6 @@ bool ApplyTintConstantsToPass(
                             applyInfo->appliedColour = true;
                             applyInfo->appliedColourParamName = kColorOverrideParam;
                         }
-                    }
-                    catch (...)
-                    {
                     }
                 }
             }
@@ -6867,25 +6996,21 @@ bool ApplyTintConstantsToPass(
                     applyInfo->vertexHasNamedParameters = hasNamedParameters;
                 }
 
-                if (hasNamedParameters)
+                if (GpuParamsHaveNamedConstant(vertexParams, kDepthOverrideParam))
                 {
                     if (applyInfo)
                     {
                         applyInfo->vertexHasDepthConstant = true;
                     }
 
-                    try
+                    if (SetBoolConstantIfPresent(vertexParams, kDepthOverrideParam, depthOverride))
                     {
-                        vertexParams->setNamedConstant(kDepthOverrideParam, depthOverride ? 1 : 0);
                         appliedAny = true;
                         if (applyInfo)
                         {
                             applyInfo->appliedDepth = true;
                             applyInfo->appliedDepthParamName = kDepthOverrideParam;
                         }
-                    }
-                    catch (...)
-                    {
                     }
                 }
             }
@@ -7963,6 +8088,38 @@ void ClearAllTint()
     g_state.tintEntries.clear();
 }
 
+void DropAllTintWithoutTouchingOgre()
+{
+    g_state.tintEntries.clear();
+}
+
+bool IsSaveLoadHighlightCooldownActive()
+{
+    return g_saveLoadHighlightCooldownUntilMs != 0
+        && GetTickCount() < g_saveLoadHighlightCooldownUntilMs;
+}
+
+void ResetHighlightRuntimeWithoutTouchingOgre()
+{
+    g_state.highlightRuntimeActive = false;
+    g_state.targetCache.clear();
+    g_state.lastProbeTickMs = 0;
+    g_state.currentProbeIntervalMs = g_state.config.updateIntervalMs > 0
+        ? g_state.config.updateIntervalMs
+        : kDefaultUpdateIntervalMs;
+    g_state.lastProbeScannedObjects = 0;
+    g_state.lastTintDebugLogTickMs = 0;
+    HideAllMarkerWidgetsInternal();
+    HideAllScreenHighlightWidgetsInternal();
+    DropAllTintWithoutTouchingOgre();
+}
+
+void BeginSaveLoadHighlightCooldown()
+{
+    ResetHighlightRuntimeWithoutTouchingOgre();
+    g_saveLoadHighlightCooldownUntilMs = GetTickCount() + kSaveLoadHighlightCooldownMs;
+}
+
 void SyncTint()
 {
     if (!g_state.config.enableTint || !g_state.highlightRuntimeActive || g_state.targetCache.empty())
@@ -8060,7 +8217,7 @@ void SyncTint()
 
         bool overlayApplied = false;
         const char* overlayOutcome = "not_attempted";
-        if (!appliedAny && hasOverlayBounds)
+        if (false && hasOverlayBounds) // overlay disabled: GPU driver crash on rapid target cycling
         {
             overlayApplied = ApplyTintOverlayBinding(
                 overlaySceneManager,
@@ -8136,6 +8293,12 @@ void ResetHighlightRuntime()
 
 void TickContainerHighlightRuntime()
 {
+    if (IsSaveLoadHighlightCooldownActive())
+    {
+        ResetHighlightRuntimeWithoutTouchingOgre();
+        return;
+    }
+
     if (!g_state.config.enabled || ou == 0 || ou->player == 0)
     {
         ResetHighlightRuntime();
@@ -8192,6 +8355,13 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
         g_gameWorldMainLoopGPUSensitiveStuffOrig(thisptr, time);
     }
 
+    if (IsSaveLoadHighlightCooldownActive())
+    {
+        ResetHighlightRuntimeWithoutTouchingOgre();
+        TickD3D11TraceLifecycle();
+        return;
+    }
+
     if (g_state.highlightRuntimeActive)
     {
         SyncTint();
@@ -8201,6 +8371,26 @@ void GameWorld_mainLoopGPUSensitiveStuff_hook(GameWorld* thisptr, float time)
         ClearAllTint();
     }
     TickD3D11TraceLifecycle();
+}
+
+void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& name)
+{
+    BeginSaveLoadHighlightCooldown();
+    if (g_saveManagerLoadByNameOrig)
+    {
+        g_saveManagerLoadByNameOrig(thisptr, name);
+    }
+    BeginSaveLoadHighlightCooldown();
+}
+
+void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
+{
+    BeginSaveLoadHighlightCooldown();
+    if (g_saveManagerLoadByInfoOrig)
+    {
+        g_saveManagerLoadByInfoOrig(thisptr, saveInfo, resetPos);
+    }
+    BeginSaveLoadHighlightCooldown();
 }
 }
 
@@ -8246,7 +8436,25 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    LogInfoLine("update and gpu hooks installed");
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
+        SaveManager_loadByName_hook,
+        &g_saveManagerLoadByNameOrig))
+    {
+        LogErrorLine("could not hook SaveManager::load(name)");
+        return;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
+        SaveManager_loadByInfo_hook,
+        &g_saveManagerLoadByInfoOrig))
+    {
+        LogErrorLine("could not hook SaveManager::load(info)");
+        return;
+    }
+
+    LogInfoLine("update, gpu, and save-load hooks installed");
     StartModHubClient();
 }
 
