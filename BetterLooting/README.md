@@ -23,3 +23,4 @@ This project is distributed under the GNU General Public License version 3. See 
 - Журнал: сбои (FAIL, ERROR, fault, failed) пишутся всегда, остальные подробности — только при `[Debug] Log=1` в BetterLooting.ini или «Подробный журнал» в MCM. Раньше на каждое открытие инвентаря в журнал шла строка «Error … CLASS source=…».
 - Ini читается тем же путём, что и пишется: рядом с DLL.
 - Перевод: en/ru/zh (locale в папке мода).
+- На странице MCM - кнопки профилей (баланс, деньги, ресурсы) и «Все категории» / «Ни одной», как в своей панели; применяются и сохраняются сразу.

@@ -8059,6 +8059,13 @@ static void __cdecl McmReload()
     LoadBetterLootingRules();
 }
 
+// Кнопки пресетов. После нажатия MCM перечитывает страницу из ini.
+static int __cdecl McmPreset(void* ud, char*, unsigned)
+{
+    BetterLootingApplyPreset(static_cast<int>(reinterpret_cast<intptr_t>(ud)));
+    return 0;
+}
+
 extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
 {
     const std::string ini = BetterLootingIniPath();
@@ -8072,6 +8079,24 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     static const char* const keyLabels[] = {
         "Insert", "Home", "End", "Delete", "PageUp", "PageDown",
         "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
+
+    if (api->version >= 3)
+    {
+        api->section(api, Tr("Profiles"));
+        api->action(api, Tr("Profile: balanced"),
+                    Tr("Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"),
+                    &McmPreset, reinterpret_cast<void*>(0), 0);
+        api->action(api, Tr("Profile: money"),
+                    Tr("Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"),
+                    &McmPreset, reinterpret_cast<void*>(1), 0);
+        api->action(api, Tr("Profile: resources"),
+                    Tr("Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"),
+                    &McmPreset, reinterpret_cast<void*>(2), 0);
+        api->action(api, Tr("All categories"), Tr("Turn every category below on"),
+                    &McmPreset, reinterpret_cast<void*>(3), 0);
+        api->action(api, Tr("No categories"), Tr("Turn every category below off"),
+                    &McmPreset, reinterpret_cast<void*>(4), 0);
+    }
 
     api->section(api, Tr("Looting"));
     api->choice(api, "Behavior", "ActivationVirtualKey", Tr("Looting key"),

@@ -29,3 +29,7 @@ void BetterLootingRequestStoreAll();
 
 // Записать текущие правила в BetterLooting.ini.
 void BetterLootingSaveRules();
+
+// Пресет из MCM и сразу в ini: 0 баланс, 1 деньги, 2 ресурсы,
+// 3 все категории, 4 ни одной.
+void BetterLootingApplyPreset(int which);

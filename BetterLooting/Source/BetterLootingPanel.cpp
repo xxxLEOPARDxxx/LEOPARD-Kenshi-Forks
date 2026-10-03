@@ -181,6 +181,22 @@ public:
         }
     }
 
+    // Пресеты из MCM: те же наборы, что у кнопок панели, и сразу в ini -
+    // у страницы MCM кнопки «Сохранить» нет. Открытая панель обновится.
+    void applyPresetFromMcm(int which)
+    {
+        switch (which)
+        {
+        case 0: onPresetBalanced(NULL); break;
+        case 1: onPresetMoney(NULL); break;
+        case 2: onPresetResources(NULL); break;
+        case 3: onAll(NULL); break;
+        case 4: onNone(NULL); break;
+        default: return;
+        }
+        BetterLootingSaveRules();
+    }
+
 private:
     BetterLootingPanel()
         : _settings(NULL), _categories(NULL)
@@ -586,6 +602,12 @@ namespace
 
         g_hotkeyWasDown = down;
     }
+}
+
+
+void BetterLootingApplyPreset(int which)
+{
+    BetterLootingPanel::getSingletonPtr()->applyPresetFromMcm(which);
 }
 
 
