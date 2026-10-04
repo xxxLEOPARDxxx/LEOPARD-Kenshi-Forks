@@ -1208,13 +1208,26 @@ bool TryResolveOrderedEntryItemsFromInventory(
         const int heightCells =
             ResolveEntrySpanCells(entry.coord.height, entry.heightCells, gridMetrics.cellHeight);
 
-        Item* item = FindInventoryItemByTopLeftCell(
-            inventory,
-            leftCell,
-            topCell,
-            widthCells,
-            heightCells,
-            usedItems);
+        // Вещь - прежде всего у самой картинки: сопоставление по ячейке
+        // ломалось (inventory_item_not_found), и раскладка отменялась.
+        // По ячейке - только если картинка вещь не отдала.
+        Item* item = ResolveWidgetItemPointer(entry.widget);
+        if (item != 0
+            && (!InventoryContainsItemPointer(inventory, item)
+                || std::find(usedItems.begin(), usedItems.end(), item) != usedItems.end()))
+        {
+            item = 0;
+        }
+        if (item == 0)
+        {
+            item = FindInventoryItemByTopLeftCell(
+                inventory,
+                leftCell,
+                topCell,
+                widthCells,
+                heightCells,
+                usedItems);
+        }
         if (item == 0)
         {
             if (outFailureReason != 0)
