@@ -8212,7 +8212,5 @@ __declspec(dllexport) void startPlugin()
         "BetterLooting: classifier hooks installed"
     );
 
-    // Окно настроек теперь на интерфейсе игры: вместо своего
-    // потока ставим хук на покадровое обновление главной панели.
-    BetterLootingPanelInstallHooks();
+    // Окна настроек и SHIFT+L больше нет: настройки - во вкладке MCM.
 }
