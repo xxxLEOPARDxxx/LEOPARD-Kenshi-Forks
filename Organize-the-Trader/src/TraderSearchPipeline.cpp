@@ -18,6 +18,7 @@
 #include <cctype>
 #include <limits>
 #include <sstream>
+#include <map>
 #include <vector>
 
 namespace {
@@ -1173,6 +1174,32 @@ bool TryResolveOrderedEntryItemsFromInventory(
     std::vector<Item*> usedItems;
     usedItems.reserve(orderedEntries.size());
 
+    // Картинка -> вещь по иконкам самого окна инвентаря: та же связь, по
+    // которой игра рисует вещь. Сопоставление по ячейке не находило часть
+    // вещей торговца (inventory_item_not_found), и раскладка отменялась.
+    std::map<MyGUI::Widget*, Item*> iconItems;
+    InventoryGUI* const inventoryGui = inventory->getInventoryGUI();
+    if (inventoryGui != 0)
+    {
+        for (Ogre::map<std::string, InventorySectionGUI*>::type::iterator it = inventoryGui->inventorySections.begin();
+             it != inventoryGui->inventorySections.end(); ++it)
+        {
+            InventorySectionGUI* const section = it->second;
+            if (section == 0)
+            {
+                continue;
+            }
+            for (std::size_t i = 0; i < section->itemsIcons.size(); ++i)
+            {
+                InventoryIcon* const icon = section->itemsIcons[i];
+                if (icon != 0 && icon->item != 0 && icon->getWidget() != 0)
+                {
+                    iconItems[icon->getWidget()] = icon->item;
+                }
+            }
+        }
+    }
+
     for (std::size_t index = 0; index < orderedEntries.size(); ++index)
     {
         const OrderedEntry& entry = orderedEntries[index];
@@ -1211,7 +1238,16 @@ bool TryResolveOrderedEntryItemsFromInventory(
         // Вещь - прежде всего у самой картинки: сопоставление по ячейке
         // ломалось (inventory_item_not_found), и раскладка отменялась.
         // По ячейке - только если картинка вещь не отдала.
-        Item* item = ResolveWidgetItemPointer(entry.widget);
+        Item* item = 0;
+        const std::map<MyGUI::Widget*, Item*>::const_iterator iconIt = iconItems.find(entry.widget);
+        if (iconIt != iconItems.end())
+        {
+            item = iconIt->second;
+        }
+        if (item == 0)
+        {
+            item = ResolveWidgetItemPointer(entry.widget);
+        }
         if (item != 0
             && (!InventoryContainsItemPointer(inventory, item)
                 || std::find(usedItems.begin(), usedItems.end(), item) != usedItems.end()))
@@ -1233,9 +1269,14 @@ bool TryResolveOrderedEntryItemsFromInventory(
             if (outFailureReason != 0)
             {
                 std::stringstream line;
+                Item* const iconItem = iconIt != iconItems.end() ? iconIt->second : 0;
                 line << "inventory_item_not_found:index=" << index
                      << ",cell=" << leftCell << "," << topCell
-                     << ",size=" << widthCells << "," << heightCells;
+                     << ",size=" << widthCells << "," << heightCells
+                     << ",icons=" << iconItems.size()
+                     << ",icon_item=" << (iconItem != 0 ? 1 : 0)
+                     << ",icon_item_in_inventory=" << (iconItem != 0 && InventoryContainsItemPointer(inventory, iconItem) ? 1 : 0)
+                     << ",inventory_items=" << (inventory->getAllItems().valid() ? static_cast<int>(inventory->getAllItems().size()) : -1);
                 *outFailureReason = line.str();
             }
             return false;
