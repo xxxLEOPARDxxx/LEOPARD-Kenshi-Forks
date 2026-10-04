@@ -131,7 +131,9 @@ struct OrderedEntryCoordLess
     }
 };
 
-const int kSortedShelfGapRows = 1;
+// Пустых рядов между полками нет: найденное и отсортированное лежит
+// плотно, как просил пользователь («есть пробелы между»).
+const int kSortedShelfGapRows = 0;
 
 bool ApplySortedInventoryTargetCells(
     Inventory* inventory,
