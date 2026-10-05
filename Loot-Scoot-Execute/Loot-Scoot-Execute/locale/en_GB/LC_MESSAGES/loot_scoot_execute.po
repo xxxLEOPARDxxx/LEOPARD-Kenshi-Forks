@@ -85,3 +85,9 @@ msgstr "Default button size and place"
 
 msgid "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0"
 msgstr "Sets the button back to width 310, height 56, gap -8, offsets 0"
+
+msgid "Execute"
+msgstr "Execute"
+
+msgid "Execute All"
+msgstr "Execute All"

@@ -85,3 +85,9 @@ msgstr "Кнопка по умолчанию"
 
 msgid "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0"
 msgstr "Возвращает кнопке ширину 310, высоту 56, зазор -8 и сдвиги 0"
+
+msgid "Execute"
+msgstr "Добить"
+
+msgid "Execute All"
+msgstr "Добить всех"

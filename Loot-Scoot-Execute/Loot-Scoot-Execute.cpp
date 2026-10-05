@@ -4665,14 +4665,15 @@ static bool EnsureCustomExecutePanelOverlayWidgets()
             return false;
         }
 
-        g_customExecutePanelButton->setCaption("Execute");
+        // Подписи - через перевод (раньше были только английские).
+        g_customExecutePanelButton->setCaption(Tr("Execute"));
         g_customExecutePanelButton->setNeedMouseFocus(true);
         g_customExecutePanelButton->setNeedKeyFocus(true);
         g_customExecutePanelButton->setEnabled(true);
         g_customExecutePanelButton->eventMouseButtonPressed += MyGUI::newDelegate(&OnCustomExecutePanelButtonPressed);
         g_customExecutePanelButton->eventMouseButtonClick += MyGUI::newDelegate(&OnCustomExecutePanelButtonClick);
 
-        g_customExecuteAllPanelButton->setCaption("Execute All");
+        g_customExecuteAllPanelButton->setCaption(Tr("Execute All"));
         g_customExecuteAllPanelButton->setNeedMouseFocus(true);
         g_customExecuteAllPanelButton->setNeedKeyFocus(true);
         g_customExecuteAllPanelButton->setEnabled(true);

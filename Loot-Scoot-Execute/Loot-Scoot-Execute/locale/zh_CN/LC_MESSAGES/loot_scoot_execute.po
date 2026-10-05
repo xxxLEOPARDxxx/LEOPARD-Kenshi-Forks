@@ -85,3 +85,9 @@ msgstr "恢复按钮默认值"
 
 msgid "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0"
 msgstr "将按钮恢复为宽 310、高 56、间距 -8、偏移 0"
+
+msgid "Execute"
+msgstr "处决"
+
+msgid "Execute All"
+msgstr "全部处决"

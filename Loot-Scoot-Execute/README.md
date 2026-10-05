@@ -100,6 +100,10 @@ If config is missing or unreadable, defaults are used and written back.
 
 For faction-specific execute failures, set `debug_execute_logging` to `true`, reproduce the issue once, then attach the updated `RE_Kenshi_log.txt`. Look for lines starting with `[investigate][execute]`.
 
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- v2: подписи кнопок Execute / Execute All идут через перевод (Tr) - en/ru/zh в locale.
+
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
