@@ -83,6 +83,16 @@ static EMC_Result __cdecl HubSetAnyOwnBuildingSetting(void* user_data, int32_t v
     return HubSetBoolSetting(user_data, value, &g_dismantleAnyOwnBuilding, err_buf, err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetDropItemsSetting(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolSetting(user_data, g_dismantleDropItems, out_value);
+}
+
+static EMC_Result __cdecl HubSetDropItemsSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolSetting(user_data, value, &g_dismantleDropItems, err_buf, err_buf_size);
+}
+
 static EMC_Result __cdecl HubGetDebugLoggingSetting(void* user_data, int32_t* out_value)
 {
     return HubGetBoolSetting(user_data, g_debugLogging, out_value);
@@ -300,6 +310,14 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetAnyOwnBuildingSetting,
         &HubSetAnyOwnBuildingSetting };
 
+    static const EMC_BoolSettingDefV1 kDropItemsSettingDef = {
+        kHubSettingDropItemsId,
+        "Unload items when dismantling",
+        "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first",
+        &g_modHubClient,
+        &HubGetDropItemsSetting,
+        &HubSetDropItemsSetting };
+
     static const EMC_BoolSettingDefV1 kDebugLoggingSettingDef = {
         "debug_logging",
         "Debug logging",
@@ -330,6 +348,7 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingEnabledId, &kEnabledSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingSleepingBagEnabledId, &kSleepingBagEnabledSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingAnyOwnBuildingId, &kAnyOwnBuildingSettingDef, 0, 0 },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDropItemsId, &kDropItemsSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2, kHubSettingHotkeyId, &kHotkeySettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2, kHubActionResetHotkeyId, &kResetHotkeyActionDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kDebugLoggingSettingDef.setting_id, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }

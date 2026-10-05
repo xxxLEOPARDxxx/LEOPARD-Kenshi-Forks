@@ -46,3 +46,9 @@ msgstr "Разбирать любые свои постройки"
 
 msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
 msgstr "Клавиша разбирает любую выделенную постройку вашей фракции, не только стены и мебель. Хранилище или станок должны быть пусты, внутри никого, внутри и на ней ничего не построено"
+
+msgid "Unload items when dismantling"
+msgstr "Выгружать вещи при разборке"
+
+msgid "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"
+msgstr "Вместе с \"Разбирать любые свои постройки\": хранилище или станок с вещами тоже разбирается - вещи сначала выкладываются на землю"

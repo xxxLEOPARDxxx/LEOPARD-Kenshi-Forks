@@ -493,6 +493,64 @@ static bool HasItemsSafely(Building* b)
     return hasItems;
 }
 
+// Настройка «Выгружать вещи при разборке»: всё из хранилища или станка -
+// на землю, тем же Inventory::dropItem, что и выбрасывание вещи игроком.
+// Список копируем: dropItem убирает вещь из инвентаря на ходу.
+static void UnsafeDropAllItems(Building* b, int* droppedOut)
+{
+    Inventory* const inventory = b->getInventory();
+    if (!inventory)
+    {
+        return;
+    }
+    const lektor<Item*>& all = inventory->getAllItems();
+    std::vector<Item*> items;
+    for (uint32_t i = 0; i < all.size(); ++i)
+    {
+        if (all.stuff[i])
+        {
+            items.push_back(all.stuff[i]);
+        }
+    }
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+        inventory->dropItem(items[i]);
+        ++*droppedOut;
+    }
+}
+
+// __try - в отдельной функции: в ней не должно быть объектов с деструкторами.
+static bool TryDropAllItems(Building* b, int* droppedOut)
+{
+    __try
+    {
+        UnsafeDropAllItems(b, droppedOut);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+// true - вещей в постройке больше нет (выгрузили или их и не было).
+static bool DropAllItemsSafely(Building* b)
+{
+    int dropped = 0;
+    if (!TryDropAllItems(b, &dropped))
+    {
+        WallBGoneDebugLog("Hotkey action: CRASH AVERTED while unloading items");
+        return false;
+    }
+    if (g_debugLogging && dropped > 0)
+    {
+        std::stringstream note;
+        note << "Hotkey action: unloaded " << dropped << " item(s) onto the ground";
+        DebugLog(note.str().c_str());
+    }
+    return !HasItemsSafely(b);
+}
+
 // Кто-то лежит в кровати / сидит в клетке этой постройки или находится
 // внутри неё (дом, лачуга).
 static bool UnsafeAnyoneInside(Building* b)
@@ -635,7 +693,8 @@ static const char* GetDismantleBlockReason(Building* b, bool isWallTarget)
     {
         return "Hotkey action: skipped - something is mounted on this building";
     }
-    if (HasItemsSafely(b))
+    // С настройкой «Выгружать вещи» вещи не помеха - их выложат перед сносом.
+    if (!g_dismantleDropItems && HasItemsSafely(b))
     {
         return "Hotkey action: skipped - it still holds items; empty it first";
     }
@@ -684,6 +743,14 @@ static void TryDismantleSelectedBuilding(Building* b, const hand& sel, bool isWa
         if (buildState && !buildState->isComplete)
         {
             WallBGoneDebugLog("Hotkey action: skipped - construction is not complete");
+            return;
+        }
+
+        // Вещи - на землю, и только если ушли все, сносим: иначе разбор мимо
+        // игры унёс бы оставшиеся вместе с постройкой.
+        if (!isWallTarget && g_dismantleDropItems && HasItemsSafely(b) && !DropAllItemsSafely(b))
+        {
+            WallBGoneDebugLog("Hotkey action: skipped - could not unload all items");
             return;
         }
 

@@ -46,3 +46,9 @@ msgstr "Dismantle any own building"
 
 msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
 msgstr "Dismantle any selected building of yours, not only walls and furniture. Storage and machines must be empty, nobody may be inside, nothing may stand inside or be mounted on it"
+
+msgid "Unload items when dismantling"
+msgstr "Unload items when dismantling"
+
+msgid "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"
+msgstr "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"

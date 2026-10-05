@@ -34,6 +34,7 @@
 #include <Windows.h>
 #include <fstream>
 #include <stdint.h>
+#include <vector>
 
 // Track last failed dismantle to prevent rapid retries causing game corruption
 static DWORD g_lastFailedDismantleTime = 0;
@@ -77,6 +78,8 @@ static bool g_modEnabled = true;
 static bool g_sleepingBagDismantleEnabled = true;
 // Разбирать любую выделенную постройку игрока, а не только стены и мебель.
 static bool g_dismantleAnyOwnBuilding = false;
+// К ней: постройку с вещами не пропускать, а сперва выложить вещи на землю.
+static bool g_dismantleDropItems = false;
 static bool g_debugLogging = false;
 static std::string g_settingsPath;
 static const char* kWallBGoneTabName = "Wall-B-Gone";
@@ -89,6 +92,7 @@ static const char* kHubModDisplayName = "Wall-B-Gone";
 static const char* kHubSettingEnabledId = "enabled";
 static const char* kHubSettingSleepingBagEnabledId = "sleeping_bag_dismantle_enabled";
 static const char* kHubSettingAnyOwnBuildingId = "dismantle_any_own_building";
+static const char* kHubSettingDropItemsId = "dismantle_drop_items";
 static const char* kHubSettingHotkeyId = "dismantle_hotkey";
 static const char* kHubSettingHotkeyRequireCtrlId = "dismantle_hotkey_require_ctrl";
 static const char* kHubSettingHotkeyRequireShiftId = "dismantle_hotkey_require_shift";
