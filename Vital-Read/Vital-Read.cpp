@@ -1024,12 +1024,18 @@ bool TryResolveMemberStateSnapshot(Character* candidate, MemberStateSnapshot* ou
         && !snapshot.bloodlossTrauma
         && !hasActiveBleed;
 
+    // Как у самой игры: статус «Умирает» в окне персонажа (stats.cpp) -
+    // кровопотеря после тяжёлых ран или «без медпомощи погибнет», без
+    // требования кровотечения. Раньше нужно было ещё и кровотечение, и у
+    // скелетов (крови нет) и перевязанных значка не было, хотя игра пишет
+    // «Умирает» (05.10.2026).
+    (void)dyingByTrauma;
+    (void)dyingByProbablyBleeding;
     snapshot.dying =
         !snapshot.dead
-        && snapshot.unconscious
         && !snapshot.playingDead
         && !snapshot.recoveryComa
-        && (dyingByBloodThreshold || dyingByTrauma || dyingByProbablyBleeding);
+        && (snapshot.bloodlossTrauma || snapshot.probablyDying || dyingByBloodThreshold);
 
     if (snapshot.dead)
     {
@@ -3885,6 +3891,7 @@ void RenderPortraitOverlayMatches(
     size_t visibleWidgetCount = 0u;
     for (size_t index = 0u; index < matches.size(); ++index)
     {
+        vr_marker_ui::SetOverlayLayerFromWidget(matches[index].target.widget);
         if (!vr_marker_ui::ShowOverlayMarker(
                 &overlayRuntime->widgets,
                 visibleWidgetCount,
@@ -3925,6 +3932,7 @@ void RenderPortraitTextLabelMatches(
     for (size_t index = 0u; index < matches.size(); ++index)
     {
         const vr_marker_ui::OverlayStyle style = BuildPortraitTextLabelStyle(matches[index].labelState);
+        vr_marker_ui::SetOverlayLayerFromWidget(matches[index].target.widget);
         if (!vr_marker_ui::ShowOverlayMarker(
                 &g_portraitTextLabelRuntime.widgets,
                 visibleWidgetCount,

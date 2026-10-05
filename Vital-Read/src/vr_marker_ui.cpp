@@ -2,7 +2,9 @@
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_ILayer.h>
 #include <mygui/MyGUI_ImageBox.h>
+#include <mygui/MyGUI_LayerManager.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
@@ -78,6 +80,24 @@ struct ImageTextureCacheEntry
 };
 
 OverlayPerfStats g_overlayPerfStats;
+
+// Слой значков. 04.10 их перенесли с Top на Back, чтобы не просвечивали
+// сквозь окна, - но панель портретов выше Back, и значки оказались под
+// портретами (05.10: «ни на одном аватаре нет значков»). Теперь слой берётся
+// у самой панели портретов: значки над портретом, а окна - над ними.
+std::string g_overlayLayerName = "Main";
+
+const std::string& WidgetLayerName(MyGUI::Widget* widget)
+{
+    static const std::string kNone;
+    MyGUI::Widget* root = widget;
+    while (root != 0 && root->getParent() != 0)
+    {
+        root = root->getParent();
+    }
+    MyGUI::ILayer* const layer = root == 0 ? 0 : root->getLayer();
+    return layer == 0 ? kNone : layer->getName();
+}
 std::map<MyGUI::Widget*, ImageTextureCacheEntry> g_imageTextureCache;
 
 std::string BuildImageTextureCacheKey(const char* pluginName, const std::string& textureName, int textureSizePx)
@@ -360,8 +380,17 @@ bool EnsureWidgetMode(
         (*widgets)[index] = 0;
     }
 
-    // Слой Back - как у имён над головами и полос прогресса самой игры: под
-    // окнами и панелями. На слое Top значки просвечивали сквозь интерфейс.
+    // Слой сменился (панель портретов на другом) - переложить значок туда.
+    if (widget != 0 && WidgetLayerName(widget) != g_overlayLayerName)
+    {
+        MyGUI::LayerManager* const layers = MyGUI::LayerManager::getInstancePtr();
+        if (layers != 0 && layers->isExist(g_overlayLayerName))
+        {
+            layers->attachToLayerNode(g_overlayLayerName, widget);
+        }
+    }
+
+    // Слой - g_overlayLayerName (у панели портретов): над портретом, под окнами.
     if (widget == 0)
     {
         std::stringstream name;
@@ -375,7 +404,7 @@ bool EnsureWidgetMode(
                     "ImageBox",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Back",
+                    g_overlayLayerName,
                     name.str());
             }
             else if (desiredMode == WIDGET_MODE_TEXT)
@@ -384,7 +413,7 @@ bool EnsureWidgetMode(
                     "Kenshi_TextboxStandardText",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Back",
+                    g_overlayLayerName,
                     name.str());
                 if (widget == 0)
                 {
@@ -392,7 +421,7 @@ bool EnsureWidgetMode(
                         "TextBox",
                         MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                         MyGUI::Align::Left | MyGUI::Align::Top,
-                        "Back",
+                        g_overlayLayerName,
                         name.str() + "_fallback");
                 }
             }
@@ -402,7 +431,7 @@ bool EnsureWidgetMode(
                     style.fallbackSkin != 0 ? style.fallbackSkin : "Kenshi_Button1",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
                     MyGUI::Align::Left | MyGUI::Align::Top,
-                    "Back",
+                    g_overlayLayerName,
                     name.str());
             }
         }
@@ -418,6 +447,8 @@ bool EnsureWidgetMode(
 
         ++g_overlayPerfStats.widgetsCreated;
         widget->setNeedMouseFocus(false);
+        // Новый корневой виджет ложится поверх уже созданных на слое - то
+        // есть поверх панели портретов.
         widget->setVisible(false);
         (*widgets)[index] = widget;
     }
@@ -718,6 +749,15 @@ bool ShowOverlayMarker(
         style.fixedSizePx,
         style.anchor,
         0);
+}
+
+void SetOverlayLayerFromWidget(MyGUI::Widget* target)
+{
+    const std::string& name = WidgetLayerName(target);
+    if (!name.empty() && name != g_overlayLayerName)
+    {
+        g_overlayLayerName = name;
+    }
 }
 
 void HideWidgets(std::vector<MyGUI::Widget*>* widgets)
