@@ -1,3 +1,5 @@
+#define KLOC_DOMAIN "map_markers"   // подписи - через перевод (locale/<язык>)
+#include <Localization.h>
 #include <Debug.h>
 
 #include "src/MapMarkersInternal.h"
@@ -24,6 +26,8 @@
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_ImageBox.h>
 #include <mygui/MyGUI_InputManager.h>
+#include <mygui/MyGUI_LayerManager.h>
+#include <WidgetRef.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
@@ -48,17 +52,17 @@ const DWORD kPendingSaveTransitionTimeoutMs = 15000u;
 const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
-const int kMarkerEditorPanelWidth = 344;
-const int kMarkerEditorPanelHeight = 144;
+const int kMarkerEditorPanelWidth = 510;   // было 344: русские подписи обрезались
+const int kMarkerEditorPanelHeight = 166;   // подсказка - в две строки
 const int kMarkerEditorPanelDepth = -1000;
 const int kMarkerEditorBackgroundInset = 0;
 const int kMarkerEditorOuterPadding = 16;
 const int kMarkerEditorHeaderHeight = 18;
 const int kMarkerEditorControlHeight = 24;
-const int kMarkerEditorLabelTitleWidth = 42;
+const int kMarkerEditorLabelTitleWidth = 80;
 const int kMarkerEditorLabelGap = 12;
 const int kMarkerEditorRowGap = 8;
-const int kMarkerEditorHintHeight = 20;
+const int kMarkerEditorHintHeight = 40;
 const int kMarkerEditorDefaultTop = 48;
 const int kMarkerEditorRightMargin = 18;
 const int kMarkerToggleButtonWidth = 108;
@@ -70,7 +74,9 @@ const int kMarkerHoverLabelHorizontalPadding = 8;
 const int kMarkerHoverLabelVerticalOffset = 1;
 const int kMarkerHoverLabelMinimumWidth = 40;
 const int kMarkerHoverLabelMaximumWidth = 320;
-const char* kMarkerEditorHintCaption = "MMB add | LMB move | Enter save | Del | RMB deselect";
+const char* kMarkerEditorHintCaption = "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect";
+const char* kMarkerEditorDeleteButtonName = "MapMarkers_EditorDeleteButton";
+const int kMarkerEditorDeleteButtonWidth = 120;
 const char* kModConfigFileName = "mod-config.json";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
 const char* kMarkerWidgetNamePrefix = "MapMarkers_Marker_";
@@ -167,7 +173,38 @@ MyGUI::Widget* FindMarkerEditorParent(MyGUI::ImageBox* mapImage);
 MyGUI::Widget* FindAnyWidgetByName(const std::string& name);
 bool TryParseMarkerWidgetId(const std::string& widgetName, int& markerIdOut);
 void StopMarkerEditorDrag();
+void OnMarkerDeleteButtonClicked(MyGUI::Widget*);
+// Окно редактора - корневой виджет на слое Popup (поверх значков поселений и
+// меток других модов, которые сквозь него просвечивали). Ищется не среди
+// детей вкладки карты, а по этой ссылке: Overlapped-попытка 05.10 без неё
+// создавала окно каждый кадр. Координаты по-прежнему считаются от вкладки
+// карты и переводятся в экранные при установке.
+WidgetRef* g_markerEditorPanelRef = new WidgetRef();   // не удаляется: см. WidgetRef.h
+
+// Кнопка «Метки» и подпись при наведении - тоже по ссылкам. Раньше кнопка
+// каждый кадр обходила весь интерфейс игры (прятала свои копии в других
+// окнах), а подпись искалась среди сотен значков карты.
+WidgetRef* g_markerToggleButtonRef = new WidgetRef();
+WidgetRef* g_markerHoverLabelRef = new WidgetRef();
+
+// Виджет каждой метки и то, что ему уже выставлено. Раньше каждый кадр для
+// каждой метки: поиск по имени среди всех значков карты и заново надпись,
+// цвет и место - игра перестраивала их отрисовку, и 20 меток стоили
+// 10-15 кадров (05.10.2026). Теперь трогаем только то, что поменялось.
+struct MarkerWidgetSlot
+{
+    int markerId;
+    WidgetRef* ref;
+    int appliedType;        // -1 - ещё не выставлялось
+    bool appliedSelected;
+};
+std::vector<MarkerWidgetSlot> g_markerWidgetSlots;
+// WidgetRef из списка MyGUI не выписывается - освободившиеся идут в запас.
+std::vector<WidgetRef*> g_freeMarkerWidgetRefs;
+MyGUI::ImageBox* g_markerWidgetsParent = 0;
 void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible);
+void SetCaptionIfChanged(MyGUI::Widget* widget, const MyGUI::UString& caption);
+void HideMarkerToggleButton();
 void ClearSelectedMarker(const char* reason);
 void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
@@ -256,7 +293,7 @@ void ResetPendingMarkerLabelShortcut()
 
 const char* BuildMarkerToggleButtonCaption()
 {
-    return g_markersVisible ? "Markers: On" : "Markers: Off";
+    return g_markersVisible ? Tr("Markers: On") : Tr("Markers: Off");
 }
 
 std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName)
@@ -413,7 +450,7 @@ void HideMapMarkersUi()
         panel->setVisible(false);
     }
 
-    if (MyGUI::Widget* toggleButton = FindAnyWidgetByName(kMarkerToggleButtonName))
+    if (MyGUI::Widget* toggleButton = g_markerToggleButtonRef->get())
     {
         toggleButton->setVisible(false);
     }
@@ -1153,7 +1190,45 @@ MyGUI::ImageBox* FindActiveMapImage()
     return g_mapImageTickCache;
 }
 
+MyGUI::ImageBox* FindActiveMapImageFullScan();
+
+// Картинка карты - запоминается (WidgetRef сам обнулится, если её удалят)
+// и, пока жива и видна, обхода всего интерфейса нет. Раньше обход шёл
+// каждый кадр при открытой карте - по пользователю, минус 30 кадров
+// (05.10.2026). Не нашли - повторяем не чаще 4 раз в секунду.
 MyGUI::ImageBox* FindActiveMapImageScan()
+{
+    static WidgetRef* s_mapImage = new WidgetRef();   // не удаляется: см. WidgetRef.h
+    static DWORD s_lastMissMs = 0;
+
+    if (MyGUI::Widget* cached = s_mapImage->get())
+    {
+        if (cached->getInheritedVisible())
+        {
+            return static_cast<MyGUI::ImageBox*>(cached);
+        }
+    }
+
+    const DWORD now = GetTickCount();
+    if (s_lastMissMs != 0 && now - s_lastMissMs < 250)
+    {
+        return 0;
+    }
+
+    MyGUI::ImageBox* found = FindActiveMapImageFullScan();
+    if (found != 0)
+    {
+        s_mapImage->set(found);
+        s_lastMissMs = 0;
+    }
+    else
+    {
+        s_lastMissMs = now;
+    }
+    return found;
+}
+
+MyGUI::ImageBox* FindActiveMapImageFullScan()
 {
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
@@ -1231,6 +1306,16 @@ int FindHoveredMarkerId()
     }
 
     return FindMarkerWidgetIdInChain(inputManager->getMouseFocusWidget());
+}
+
+// setCaption заставляет игру заново раскладывать текст - и одинаковый тоже.
+void SetCaptionIfChanged(MyGUI::Widget* widget, const MyGUI::UString& caption)
+{
+    MyGUI::TextBox* text = widget == 0 ? 0 : widget->castType<MyGUI::TextBox>(false);
+    if (text != 0 && text->getCaption() != caption)
+    {
+        text->setCaption(caption);
+    }
 }
 
 MyGUI::Widget* FindDirectChildByName(MyGUI::Widget* parent, const std::string& name)
@@ -1728,10 +1813,49 @@ bool TryResolveMarkerToggleFooterPlacement(
         return false;
     }
 
+    // Кнопки масштаба окна карты - запоминаются (WidgetRef), а не ищутся
+    // тремя обходами всего окна каждый кадр (в нём сотни значков и меток).
+    // Ищем заново, только если окно другое или какая-то кнопка пропала.
+    static const int kMaxZoomControls = 8;
+    static WidgetRef* s_zoomControls[kMaxZoomControls] = { 0 };
+    static int s_zoomControlCount = 0;
+    static MyGUI::Window* s_zoomWindow = 0;
+    static DWORD s_zoomScanMs = 0;
+
+    bool cacheValid = s_zoomWindow == window && s_zoomControlCount > 0;
+    for (int index = 0; cacheValid && index < s_zoomControlCount; ++index)
+    {
+        cacheValid = s_zoomControls[index]->get() != 0;
+    }
+    const DWORD nowMs = GetTickCount();
+    if (!cacheValid && (s_zoomWindow != window || nowMs - s_zoomScanMs >= 500))
+    {
+        std::vector<MyGUI::Widget*> found;
+        CollectWidgetsByNameTokenRecursive(window, "mapzoominbutton", found);
+        CollectWidgetsByNameTokenRecursive(window, "mapzoomoutbutton", found);
+        CollectWidgetsByNameTokenRecursive(window, "mapcenterbutton", found);
+        s_zoomWindow = window;
+        s_zoomScanMs = nowMs;
+        s_zoomControlCount = 0;
+        for (std::size_t index = 0; index < found.size() && s_zoomControlCount < kMaxZoomControls; ++index)
+        {
+            if (s_zoomControls[s_zoomControlCount] == 0)
+            {
+                s_zoomControls[s_zoomControlCount] = new WidgetRef();   // не удаляются
+            }
+            s_zoomControls[s_zoomControlCount]->set(found[index]);
+            ++s_zoomControlCount;
+        }
+    }
+
     std::vector<MyGUI::Widget*> namedControls;
-    CollectWidgetsByNameTokenRecursive(window, "mapzoominbutton", namedControls);
-    CollectWidgetsByNameTokenRecursive(window, "mapzoomoutbutton", namedControls);
-    CollectWidgetsByNameTokenRecursive(window, "mapcenterbutton", namedControls);
+    for (int index = 0; index < s_zoomControlCount; ++index)
+    {
+        if (MyGUI::Widget* control = s_zoomControls[index]->get())
+        {
+            namedControls.push_back(control);
+        }
+    }
 
     MyGUI::Widget* namedParent = 0;
     int namedCount = 0;
@@ -1894,22 +2018,7 @@ bool IsWidgetKeyFocused(MyGUI::Widget* widget)
 
 MyGUI::Widget* FindMarkerEditorPanel()
 {
-    MyGUI::ImageBox* mapImage = FindActiveMapImage();
-    if (mapImage == 0)
-    {
-        return FindAnyWidgetByName(kMarkerEditorPanelName);
-    }
-
-    MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
-    if (panelParent != 0)
-    {
-        if (MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName))
-        {
-            return panel;
-        }
-    }
-
-    return FindAnyWidgetByName(kMarkerEditorPanelName);
+    return g_markerEditorPanelRef->get();
 }
 
 void StopMarkerEditorDrag()
@@ -1925,19 +2034,26 @@ void StopMarkerEditorDrag()
 void MoveMarkerEditorByDelta(int deltaX, int deltaY)
 {
     MyGUI::Widget* panel = FindMarkerEditorPanel();
-    if (panel == 0 || panel->getParent() == 0)
+    MyGUI::ImageBox* mapImage = FindActiveMapImage();
+    MyGUI::Widget* panelParent = mapImage == 0 ? 0 : FindMarkerEditorParent(mapImage);
+    if (panel == 0 || panelParent == 0)
     {
         return;
     }
 
-    const MyGUI::IntCoord panelCoord = panel->getCoord();
-    const MyGUI::IntCoord parentCoord = panel->getParent()->getCoord();
+    // Окно - корневое (слой Popup): позиция в ini и в расчётах - от вкладки
+    // карты, на экран - через её экранные координаты.
+    const MyGUI::IntCoord panelAbsolute = panel->getAbsoluteCoord();
+    const MyGUI::IntCoord parentAbsolute = panelParent->getAbsoluteCoord();
+    const MyGUI::IntCoord panelCoord(panelAbsolute.left - parentAbsolute.left, panelAbsolute.top - parentAbsolute.top,
+                                     panelAbsolute.width, panelAbsolute.height);
+    const MyGUI::IntCoord parentCoord = panelParent->getCoord();
     const int maxLeft = parentCoord.width > panelCoord.width ? parentCoord.width - panelCoord.width : 0;
     const int maxTop = parentCoord.height > panelCoord.height ? parentCoord.height - panelCoord.height : 0;
     const int nextLeft = ClampInt(panelCoord.left + deltaX, 0, maxLeft);
     const int nextTop = ClampInt(panelCoord.top + deltaY, 0, maxTop);
 
-    panel->setCoord(nextLeft, nextTop, panelCoord.width, panelCoord.height);
+    panel->setCoord(parentAbsolute.left + nextLeft, parentAbsolute.top + nextTop, panelCoord.width, panelCoord.height);
     g_markerEditorPositionCustomized = true;
     g_markerEditorPositionDirty = true;
     g_markerEditorCustomLeft = nextLeft;
@@ -2435,10 +2551,22 @@ bool BuildMarkerToggleButtonUi(MyGUI::Widget* buttonParent)
         return false;
     }
 
+    g_markerToggleButtonRef->set(button);
     button->setNeedMouseFocus(true);
     button->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerToggleButtonClicked);
     button->setCaption(BuildMarkerToggleButtonCaption());
     return true;
+}
+
+void HideMarkerToggleButton()
+{
+    if (MyGUI::Widget* button = g_markerToggleButtonRef->get())
+    {
+        if (button->getVisible())
+        {
+            button->setVisible(false);
+        }
+    }
 }
 
 void EnsureMarkerToggleButtonUi()
@@ -2446,7 +2574,7 @@ void EnsureMarkerToggleButtonUi()
     MyGUI::ImageBox* mapImage = FindActiveMapImage();
     if (mapImage == 0 || !mapImage->getInheritedVisible())
     {
-        SetAllWidgetsVisibleByName(kMarkerToggleButtonName, false);
+        HideMarkerToggleButton();
         if (!g_lastToggleButtonSignature.empty())
         {
             g_lastToggleButtonSignature.clear();
@@ -2459,7 +2587,7 @@ void EnsureMarkerToggleButtonUi()
     MyGUI::Widget* buttonParent = FindMarkerToggleParent(mapImage);
     if (buttonParent == 0 || !buttonParent->getInheritedVisible())
     {
-        SetAllWidgetsVisibleByName(kMarkerToggleButtonName, false);
+        HideMarkerToggleButton();
         if (!g_lastToggleButtonSignature.empty())
         {
             g_lastToggleButtonSignature.clear();
@@ -2492,20 +2620,26 @@ void EnsureMarkerToggleButtonUi()
         buttonParent = footerParent;
     }
 
-    MyGUI::Widget* buttonWidget = FindDirectChildByName(buttonParent, kMarkerToggleButtonName);
-    MyGUI::Button* button = buttonWidget == 0 ? 0 : buttonWidget->castType<MyGUI::Button>(false);
-    if (button == 0)
+    // Кнопка одна: сменился родитель - старую удаляем и строим заново
+    // (раньше старая пряталась обходом всего интерфейса каждый кадр).
+    MyGUI::Widget* buttonWidget = g_markerToggleButtonRef->get();
+    if (buttonWidget != 0 && buttonWidget->getParent() != buttonParent)
+    {
+        gui->destroyWidget(buttonWidget);
+        buttonWidget = 0;
+    }
+    if (buttonWidget == 0)
     {
         if (!BuildMarkerToggleButtonUi(buttonParent))
         {
             return;
         }
-        buttonWidget = FindDirectChildByName(buttonParent, kMarkerToggleButtonName);
-        button = buttonWidget == 0 ? 0 : buttonWidget->castType<MyGUI::Button>(false);
-        if (button == 0)
-        {
-            return;
-        }
+        buttonWidget = g_markerToggleButtonRef->get();
+    }
+    MyGUI::Button* button = buttonWidget == 0 ? 0 : buttonWidget->castType<MyGUI::Button>(false);
+    if (button == 0)
+    {
+        return;
     }
 
     MyGUI::Widget* anchorWidget = FindOwningWindow(mapImage);
@@ -2532,10 +2666,21 @@ void EnsureMarkerToggleButtonUi()
             maxTop);
     }
 
-    SetAllWidgetsVisibleByNameExcept(kMarkerToggleButtonName, false, button);
-    button->setVisible(true);
-    button->setCaption(BuildMarkerToggleButtonCaption());
-    button->setCoord(buttonLeft, buttonTop, kMarkerToggleButtonWidth, kMarkerToggleButtonHeight);
+    if (!button->getVisible())
+    {
+        button->setVisible(true);
+    }
+    SetCaptionIfChanged(button, BuildMarkerToggleButtonCaption());
+    const MyGUI::IntCoord buttonCoord(buttonLeft, buttonTop, kMarkerToggleButtonWidth, kMarkerToggleButtonHeight);
+    if (button->getCoord() != buttonCoord)
+    {
+        button->setCoord(buttonCoord);
+    }
+
+    if (!ShouldEmitProbeLogs())
+    {
+        return;                         // дальше только журнал
+    }
 
     std::stringstream signature;
     signature << SafeWidgetName(buttonParent)
@@ -2594,15 +2739,20 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         return false;
     }
 
-    MyGUI::Widget* panel = panelParent->createWidget<MyGUI::Widget>(
+    // Корневой виджет на слое Popup - поверх значков карты (см.
+    // g_markerEditorPanelRef). Overlapped (05.10) не годился: его не находил
+    // поиск среди детей, и окно создавалось каждый кадр.
+    MyGUI::Widget* panel = gui->createWidget<MyGUI::Widget>(
         "Kenshi_GenericTextBoxFlatSkin",
         MyGUI::IntCoord(0, 0, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
+        "Popup",
         kMarkerEditorPanelName);
     if (panel == 0)
     {
         return false;
     }
+    g_markerEditorPanelRef->set(panel);
 
     panel->setAlpha(1.0f);
     panel->setDepth(kMarkerEditorPanelDepth);
@@ -2654,7 +2804,9 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
 
     MyGUI::Button* typeButton = panel->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
-        MyGUI::IntCoord(kMarkerEditorOuterPadding, typeTop, contentWidth, kMarkerEditorControlHeight),
+        MyGUI::IntCoord(kMarkerEditorOuterPadding, typeTop,
+                        contentWidth - kMarkerEditorDeleteButtonWidth - kMarkerEditorLabelGap,
+                        kMarkerEditorControlHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorTypeButtonName);
     if (typeButton == 0)
@@ -2664,6 +2816,20 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
     }
     typeButton->setNeedMouseFocus(true);
     typeButton->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerTypeButtonClicked);
+
+    // Удалить - кнопкой, а не только клавишей Del: игроки не находили, как.
+    MyGUI::Button* deleteButton = panel->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(kMarkerEditorPanelWidth - kMarkerEditorOuterPadding - kMarkerEditorDeleteButtonWidth,
+                        typeTop, kMarkerEditorDeleteButtonWidth, kMarkerEditorControlHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorDeleteButtonName);
+    if (deleteButton != 0)
+    {
+        deleteButton->setCaption(Tr("Delete"));
+        deleteButton->setNeedMouseFocus(true);
+        deleteButton->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerDeleteButtonClicked);
+    }
 
     MyGUI::TextBox* labelTitle = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -2675,7 +2841,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         gui->destroyWidget(panel);
         return false;
     }
-    labelTitle->setCaption("Label");
+    labelTitle->setCaption(Tr("Label"));
     labelTitle->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
 
     MyGUI::EditBox* labelEdit = panel->createWidget<MyGUI::EditBox>(
@@ -2706,7 +2872,7 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
         return false;
     }
     hint->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-    hint->setCaption(kMarkerEditorHintCaption);
+    hint->setCaption(Tr(kMarkerEditorHintCaption));
 
     return true;
 }
@@ -2747,7 +2913,7 @@ void EnsureMarkerEditorUi()
         return;
     }
 
-    MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
+    MyGUI::Widget* panel = g_markerEditorPanelRef->get();
     MarkerState* selectedMarker = FindMarkerById(g_selectedMarkerId);
     if (!g_markersVisible || selectedMarker == 0)
     {
@@ -2771,7 +2937,7 @@ void EnsureMarkerEditorUi()
         {
             return;
         }
-        panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
+        panel = g_markerEditorPanelRef->get();
         if (panel == 0)
         {
             return;
@@ -2794,8 +2960,13 @@ void EnsureMarkerEditorUi()
     g_markerEditorCustomTop = panelTop;
 
     panel->setVisible(true);
-    panel->setDepth(kMarkerEditorPanelDepth);
-    panel->setCoord(panelLeft, panelTop, kMarkerEditorPanelWidth, kMarkerEditorPanelHeight);
+    const MyGUI::IntPoint parentOrigin = panelParent->getAbsolutePosition();
+    const MyGUI::IntCoord wanted(parentOrigin.left + panelLeft, parentOrigin.top + panelTop,
+                                 kMarkerEditorPanelWidth, kMarkerEditorPanelHeight);
+    if (panel->getCoord() != wanted)
+    {
+        panel->setCoord(wanted);
+    }
 
     std::stringstream panelSignature;
     panelSignature << SafeWidgetName(panelParent)
@@ -2834,15 +3005,15 @@ void EnsureMarkerEditorUi()
 
     if (header != 0)
     {
-        header->setCaption(BuildMarkerEditorHeader(*selectedMarker));
+        SetCaptionIfChanged(header, BuildMarkerEditorHeader(*selectedMarker));
     }
 
     if (typeButton != 0)
     {
         std::stringstream caption;
-        caption << "Type: " << MarkerTypeToDisplayName(selectedMarker->type);
-        typeButton->setCaption(caption.str());
-        typeButton->setColour(BuildMarkerColour(selectedMarker->type, true));
+        caption << Tr("Type:") << " " << MarkerTypeToDisplayName(selectedMarker->type);
+        SetCaptionIfChanged(typeButton, caption.str());
+        typeButton->setColour(BuildMarkerColour(selectedMarker->type, true));   // getColour в MyGUI нет; окно одно
     }
 
     if (labelEdit != 0 && !IsWidgetKeyFocused(labelEdit))
@@ -2878,66 +3049,83 @@ void EnsureMarkerEditorUi()
 
     if (hint != 0)
     {
-        hint->setCaption(kMarkerEditorHintCaption);
+        SetCaptionIfChanged(hint, Tr(kMarkerEditorHintCaption));
     }
 }
 
+void ReleaseMarkerWidgetSlot(std::size_t slotIndex)
+{
+    MarkerWidgetSlot& slot = g_markerWidgetSlots[slotIndex];
+    if (MyGUI::Widget* widget = slot.ref->get())
+    {
+        if (MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr())
+        {
+            gui->destroyWidget(widget);
+        }
+    }
+    slot.ref->reset();
+    g_freeMarkerWidgetRefs.push_back(slot.ref);
+    g_markerWidgetSlots.erase(g_markerWidgetSlots.begin() + slotIndex);
+}
+
+// Виджеты удалённых меток (и все - если сменилась картинка карты).
 void DestroyStaleMarkerWidgets(MyGUI::ImageBox* mapImage)
 {
-    if (mapImage == 0)
+    const bool parentChanged = mapImage != g_markerWidgetsParent;
+    g_markerWidgetsParent = mapImage;
+    for (std::size_t index = g_markerWidgetSlots.size(); index > 0; --index)
     {
-        return;
+        const MarkerWidgetSlot& slot = g_markerWidgetSlots[index - 1];
+        if (parentChanged || FindMarkerById(slot.markerId) == 0)
+        {
+            ReleaseMarkerWidgetSlot(index - 1);
+        }
+    }
+}
+
+MarkerWidgetSlot& FindOrAddMarkerWidgetSlot(int markerId)
+{
+    for (std::size_t index = 0; index < g_markerWidgetSlots.size(); ++index)
+    {
+        if (g_markerWidgetSlots[index].markerId == markerId)
+        {
+            return g_markerWidgetSlots[index];
+        }
     }
 
-    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    if (gui == 0)
+    MarkerWidgetSlot slot;
+    slot.markerId = markerId;
+    if (!g_freeMarkerWidgetRefs.empty())
     {
-        return;
+        slot.ref = g_freeMarkerWidgetRefs.back();
+        g_freeMarkerWidgetRefs.pop_back();
     }
-
-    for (std::size_t index = mapImage->getChildCount(); index > 0; --index)
+    else
     {
-        MyGUI::Widget* child = mapImage->getChildAt(index - 1);
-        if (child == 0)
-        {
-            continue;
-        }
+        slot.ref = new WidgetRef();     // не удаляется: см. WidgetRef.h
+    }
+    slot.appliedType = -1;
+    slot.appliedSelected = false;
+    g_markerWidgetSlots.push_back(slot);
+    return g_markerWidgetSlots.back();
+}
 
-        int markerId = 0;
-        if (!TryParseMarkerWidgetId(SafeWidgetName(child), markerId))
-        {
-            continue;
-        }
-
-        if (FindMarkerById(markerId) == 0)
-        {
-            gui->destroyWidget(child);
-        }
+void SetWidgetVisibleIfChanged(MyGUI::Widget* widget, bool visible)
+{
+    if (widget != 0 && widget->getVisible() != visible)
+    {
+        widget->setVisible(visible);
     }
 }
 
 void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible)
 {
-    if (mapImage == 0)
+    (void)mapImage;
+    for (std::size_t index = 0; index < g_markerWidgetSlots.size(); ++index)
     {
-        return;
+        SetWidgetVisibleIfChanged(g_markerWidgetSlots[index].ref->get(), visible);
     }
-
-    for (std::size_t index = 0; index < mapImage->getChildCount(); ++index)
-    {
-        MyGUI::Widget* child = mapImage->getChildAt(index);
-        if (child == 0)
-        {
-            continue;
-        }
-
-        int markerId = 0;
-        if (TryParseMarkerWidgetId(SafeWidgetName(child), markerId)
-            || SafeWidgetName(child) == kMarkerHoverLabelName)
-        {
-            child->setVisible(visible);
-        }
-    }
+    SetWidgetVisibleIfChanged(g_markerHoverLabelRef->get(), visible);
 }
 
 void ComputeMarkerLocalCoord(
@@ -2974,15 +3162,17 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         return;
     }
 
-    MyGUI::Widget* hoverLabel = FindDirectChildByName(mapImage, kMarkerHoverLabelName);
+    MyGUI::Widget* hoverLabel = g_markerHoverLabelRef->get();
+    if (hoverLabel != 0 && hoverLabel->getParent() != mapImage)
+    {
+        gui->destroyWidget(hoverLabel);
+        hoverLabel = 0;
+    }
     const int hoveredMarkerId = FindHoveredMarkerId();
     MarkerState* hoveredMarker = FindMarkerById(hoveredMarkerId);
     if (!g_markersVisible || !g_showHoverLabels || hoveredMarker == 0)
     {
-        if (hoverLabel != 0)
-        {
-            hoverLabel->setVisible(false);
-        }
+        SetWidgetVisibleIfChanged(hoverLabel, false);
         if (!g_lastHoverLabelSignature.empty())
         {
             g_lastHoverLabelSignature.clear();
@@ -3002,6 +3192,7 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         {
             return;
         }
+        g_markerHoverLabelRef->set(hoverLabel);
 
         hoverLabel->setAlpha(0.88f);
         hoverLabel->setNeedMouseFocus(false);
@@ -3027,7 +3218,7 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         text->setTextColour(g_hoverLabelTextColour);
     }
 
-    MyGUI::Widget* hoverLabelTextWidget = FindDirectChildByName(hoverLabel, kMarkerHoverLabelTextName);
+    MyGUI::Widget* hoverLabelTextWidget = hoverLabel->getChildCount() == 0 ? 0 : hoverLabel->getChildAt(0);
     MyGUI::TextBox* hoverLabelText =
         hoverLabelTextWidget == 0 ? 0 : hoverLabelTextWidget->castType<MyGUI::TextBox>(false);
     if (hoverLabelText == 0)
@@ -3071,16 +3262,31 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         0,
         maxTop);
 
-    hoverLabel->setVisible(true);
-    hoverLabel->setColour(g_hoverLabelBackgroundColour);
-    hoverLabel->setCoord(labelLeft, labelTop, labelWidth, kMarkerHoverLabelHeight);
-    hoverLabelText->setCoord(
+    SetWidgetVisibleIfChanged(hoverLabel, true);
+    const MyGUI::IntCoord labelCoord(labelLeft, labelTop, labelWidth, kMarkerHoverLabelHeight);
+    if (hoverLabel->getCoord() != labelCoord)
+    {
+        hoverLabel->setCoord(labelCoord);
+    }
+    const MyGUI::IntCoord textCoord(
         kMarkerHoverLabelHorizontalPadding,
         3,
         labelWidth - (kMarkerHoverLabelHorizontalPadding * 2),
         kMarkerHoverLabelHeight - 6);
-    hoverLabelText->setTextColour(g_hoverLabelTextColour);
-    hoverLabelText->setCaption(hoverDisplayText);
+    if (hoverLabelText->getCoord() != textCoord)
+    {
+        hoverLabelText->setCoord(textCoord);
+    }
+    if (hoverLabelText->getTextColour() != g_hoverLabelTextColour)
+    {
+        hoverLabelText->setTextColour(g_hoverLabelTextColour);
+    }
+    SetCaptionIfChanged(hoverLabelText, hoverDisplayText);
+
+    if (!ShouldEmitProbeLogs())
+    {
+        return;
+    }
 
     std::stringstream hoverSignature;
     hoverSignature << hoveredMarker->id
@@ -3128,26 +3334,8 @@ void EnsureMarkerWidgetsAttached()
         return;
     }
 
-    std::stringstream signature;
-    signature << SafeWidgetName(mapImage)
-              << "|" << imageCoord.width << "x" << imageCoord.height
-              << "|selected=" << g_selectedMarkerId
-              << "|count=" << g_markers.size();
-
-    MyGUI::Widget* editorPanel = FindMarkerEditorPanel();
-    const bool editorPanelVisible =
-        editorPanel != 0 && editorPanel->getVisible() && editorPanel->getInheritedVisible();
-    const MyGUI::IntCoord editorPanelAbsolute =
-        editorPanelVisible ? editorPanel->getAbsoluteCoord() : MyGUI::IntCoord();
-    std::stringstream occlusionSignature;
-    occlusionSignature << "editor_visible=" << (editorPanelVisible ? "true" : "false");
-
-    std::stringstream line;
-    line << "markers rendered"
-         << " parent=" << BuildWidgetDescriptor(mapImage)
-         << " count=" << g_markers.size()
-         << " selected=" << g_selectedMarkerId;
-
+    // Окно редактора - на слое Popup, выше значков карты: метки под ним он
+    // закрывает сам, прятать их (как раньше) не нужно.
     for (std::size_t index = 0; index < g_markers.size(); ++index)
     {
         const MarkerState& marker = g_markers[index];
@@ -3157,67 +3345,70 @@ void EnsureMarkerWidgetsAttached()
         int markerSize = 0;
         ComputeMarkerLocalCoord(imageCoord, marker, isSelected, markerLeft, markerTop, markerSize);
 
-        const std::string widgetName = BuildMarkerWidgetName(marker.id);
-        MyGUI::Widget* widgetBase = FindDirectChildByName(mapImage, widgetName);
+        MarkerWidgetSlot& slot = FindOrAddMarkerWidgetSlot(marker.id);
+        MyGUI::Widget* widgetBase = slot.ref->get();
         MyGUI::Button* widget = widgetBase == 0 ? 0 : widgetBase->castType<MyGUI::Button>(false);
         if (widget == 0)
         {
             widget = mapImage->createWidget<MyGUI::Button>(
                 "Kenshi_Button1",
-                MyGUI::IntCoord(0, 0, markerSize, markerSize),
+                MyGUI::IntCoord(markerLeft, markerTop, markerSize, markerSize),
                 MyGUI::Align::Default,
-                widgetName);
+                BuildMarkerWidgetName(marker.id));
+            if (widget == 0)
+            {
+                continue;
+            }
+            widget->setNeedMouseFocus(true);
+            slot.ref->set(widget);
+            slot.appliedType = -1;
         }
 
-        widget->setNeedMouseFocus(true);
-        widget->setAlpha(isSelected ? 1.0f : 0.92f);
-        widget->setColour(BuildMarkerColour(marker.type, isSelected));
-        widget->setCaption(MarkerTypeToGlyph(marker.type));
-        widget->setCoord(markerLeft, markerTop, markerSize, markerSize);
-
-        bool occludedByEditor = false;
-        if (editorPanelVisible)
+        if (slot.appliedType != static_cast<int>(marker.type) || slot.appliedSelected != isSelected)
         {
-            occludedByEditor = RectanglesIntersect(widget->getAbsoluteCoord(), editorPanelAbsolute);
+            widget->setAlpha(isSelected ? 1.0f : 0.92f);
+            widget->setColour(BuildMarkerColour(marker.type, isSelected));
+            widget->setCaption(MarkerTypeToGlyph(marker.type));
+            slot.appliedType = static_cast<int>(marker.type);
+            slot.appliedSelected = isSelected;
         }
 
-        widget->setVisible(!occludedByEditor);
-        occlusionSignature << "|" << marker.id << ":" << (occludedByEditor ? "hidden" : "shown");
-
-        signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize
-                  << ":" << MarkerTypeToJsonValue(marker.type);
-        line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")"
-             << ":" << MarkerTypeToJsonValue(marker.type);
+        const MyGUI::IntCoord markerCoord(markerLeft, markerTop, markerSize, markerSize);
+        if (widget->getCoord() != markerCoord)
+        {
+            widget->setCoord(markerCoord);
+        }
+        SetWidgetVisibleIfChanged(widget, true);
     }
 
     EnsureMarkerHoverLabelAttached(mapImage, imageCoord);
 
-    const std::string occlusionSignatureString = occlusionSignature.str();
-    if (occlusionSignatureString != g_lastMarkerOcclusionSignature)
+    if (!ShouldEmitProbeLogs())
     {
-        g_lastMarkerOcclusionSignature = occlusionSignatureString;
+        return;                         // дальше только журнал
+    }
 
-        std::stringstream occlusionLine;
-        occlusionLine << "marker_editor_occlusion"
-                      << " editor_visible=" << (editorPanelVisible ? "true" : "false");
-        if (editorPanelVisible)
-        {
-            occlusionLine << " editor_abs=("
-                          << editorPanelAbsolute.left << ","
-                          << editorPanelAbsolute.top << ","
-                          << editorPanelAbsolute.width << ","
-                          << editorPanelAbsolute.height << ")";
-        }
-
-        for (std::size_t index = 0; index < g_markers.size(); ++index)
-        {
-            const MarkerState& marker = g_markers[index];
-            const std::string widgetName = BuildMarkerWidgetName(marker.id);
-            MyGUI::Widget* widget = FindDirectChildByName(mapImage, widgetName);
-            occlusionLine << " marker[" << marker.id << "]="
-                          << ((widget != 0 && widget->getVisible()) ? "shown" : "hidden");
-        }
-        LogProbeLine(occlusionLine.str());
+    std::stringstream signature;
+    signature << SafeWidgetName(mapImage)
+              << "|" << imageCoord.width << "x" << imageCoord.height
+              << "|selected=" << g_selectedMarkerId
+              << "|count=" << g_markers.size();
+    std::stringstream line;
+    line << "markers rendered"
+         << " parent=" << BuildWidgetDescriptor(mapImage)
+         << " count=" << g_markers.size()
+         << " selected=" << g_selectedMarkerId;
+    for (std::size_t index = 0; index < g_markers.size(); ++index)
+    {
+        const MarkerState& marker = g_markers[index];
+        int markerLeft = 0;
+        int markerTop = 0;
+        int markerSize = 0;
+        ComputeMarkerLocalCoord(imageCoord, marker, marker.id == g_selectedMarkerId, markerLeft, markerTop, markerSize);
+        signature << "|" << marker.id << ":" << markerLeft << "," << markerTop << "," << markerSize
+                  << ":" << MarkerTypeToJsonValue(marker.type);
+        line << " marker[" << marker.id << "]=(" << markerLeft << "," << markerTop << "," << markerSize << ")"
+             << ":" << MarkerTypeToJsonValue(marker.type);
     }
 
     const std::string signatureString = signature.str();
@@ -3608,20 +3799,43 @@ MyGUI::EditBox* FindActiveMarkerLabelEdit()
         return 0;
     }
 
-    MyGUI::Widget* panelParent = FindMarkerEditorParent(mapImage);
-    if (panelParent == 0)
-    {
-        return 0;
-    }
-
-    MyGUI::Widget* panel = FindDirectChildByName(panelParent, kMarkerEditorPanelName);
-    if (panel == 0)
+    MyGUI::Widget* panel = g_markerEditorPanelRef->get();
+    if (panel == 0 || !panel->getVisible())
     {
         return 0;
     }
 
     MyGUI::Widget* labelEditWidget = FindDirectChildByName(panel, kMarkerEditorLabelEditName);
     return labelEditWidget == 0 ? 0 : labelEditWidget->castType<MyGUI::EditBox>(false);
+}
+
+// Удалить выбранную метку: клавиша Del или кнопка «Удалить» в редакторе.
+void DeleteSelectedMarker(const char* trigger)
+{
+    const int markerIndex = FindMarkerIndexById(g_selectedMarkerId);
+    if (markerIndex < 0)
+    {
+        ClearSelectedMarker("delete_missing_selection");
+        return;
+    }
+
+    const int deletedMarkerId = g_selectedMarkerId;
+    g_markers.erase(g_markers.begin() + markerIndex);
+    g_selectedMarkerId = 0;
+    RefreshNextMarkerId();
+    g_lastMarkerRenderSignature.clear();
+    SaveMarkersForActiveSave();
+
+    std::stringstream line;
+    line << "marker deleted trigger=" << trigger
+         << " marker_id=" << deletedMarkerId
+         << " remaining=" << g_markers.size();
+    LogProbeLine(line.str());
+}
+
+void OnMarkerDeleteButtonClicked(MyGUI::Widget*)
+{
+    DeleteSelectedMarker("BUTTON");
 }
 
 bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
@@ -3641,25 +3855,7 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
         return false;
     }
 
-    const int markerIndex = FindMarkerIndexById(g_selectedMarkerId);
-    if (markerIndex < 0)
-    {
-        ClearSelectedMarker("delete_missing_selection");
-        return true;
-    }
-
-    const int deletedMarkerId = g_selectedMarkerId;
-    g_markers.erase(g_markers.begin() + markerIndex);
-    g_selectedMarkerId = 0;
-    RefreshNextMarkerId();
-    g_lastMarkerRenderSignature.clear();
-    SaveMarkersForActiveSave();
-
-    std::stringstream line;
-    line << "marker deleted trigger=DELETE"
-         << " marker_id=" << deletedMarkerId
-         << " remaining=" << g_markers.size();
-    LogProbeLine(line.str());
+    DeleteSelectedMarker("DELETE");
     return true;
 }
 

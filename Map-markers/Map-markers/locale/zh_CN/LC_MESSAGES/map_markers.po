@@ -31,3 +31,57 @@ msgstr "默认标记类型"
 
 msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
 msgstr "0 笔记，1 危险，2 藏匿处，3 废墟，4 矿，5 基地，6 商人，7 安全点，8 任务，9 待办"
+
+msgid "Markers: On"
+msgstr "标记：开"
+
+msgid "Markers: Off"
+msgstr "标记：关"
+
+msgid "Label"
+msgstr "标签"
+
+msgid "Type:"
+msgstr "类型："
+
+msgid "Marker"
+msgstr "标记"
+
+msgid "MMB add | LMB move | Enter save | Del | RMB deselect"
+msgstr "中键添加 | 左键移动 | Enter保存 | Del删除 | 右键取消选择"
+
+msgid "Danger"
+msgstr "危险"
+
+msgid "Stash"
+msgstr "藏匿处"
+
+msgid "Ruin"
+msgstr "废墟"
+
+msgid "Mine / Resource"
+msgstr "矿场 / 资源"
+
+msgid "Base / Outpost"
+msgstr "基地 / 前哨"
+
+msgid "Trader / Shop"
+msgstr "商人 / 商店"
+
+msgid "Safe Spot / Bed / Recovery"
+msgstr "安全点 / 床 / 恢复"
+
+msgid "Quest"
+msgstr "任务"
+
+msgid "Todo"
+msgstr "待办"
+
+msgid "Note"
+msgstr "笔记"
+
+msgid "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+msgstr "中键新建标记 | 左键移动 | Enter保存\nDel或按钮删除 | 右键取消选择"
+
+msgid "Delete"
+msgstr "删除"

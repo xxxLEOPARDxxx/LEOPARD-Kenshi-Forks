@@ -31,3 +31,57 @@ msgstr "Тип новой метки"
 
 msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
 msgstr "0 заметка, 1 опасность, 2 тайник, 3 руины, 4 шахта, 5 база, 6 торговец, 7 безопасное место, 8 задание, 9 сделать"
+
+msgid "Markers: On"
+msgstr "Метки: вкл."
+
+msgid "Markers: Off"
+msgstr "Метки: выкл."
+
+msgid "Label"
+msgstr "Подпись"
+
+msgid "Type:"
+msgstr "Тип:"
+
+msgid "Marker"
+msgstr "Метка"
+
+msgid "MMB add | LMB move | Enter save | Del | RMB deselect"
+msgstr "СКМ - новая | ЛКМ - перенести | Enter - сохранить | Del - удалить | ПКМ - снять выбор"
+
+msgid "Danger"
+msgstr "Опасность"
+
+msgid "Stash"
+msgstr "Тайник"
+
+msgid "Ruin"
+msgstr "Руины"
+
+msgid "Mine / Resource"
+msgstr "Шахта / ресурсы"
+
+msgid "Base / Outpost"
+msgstr "База / форпост"
+
+msgid "Trader / Shop"
+msgstr "Торговец / лавка"
+
+msgid "Safe Spot / Bed / Recovery"
+msgstr "Укрытие / кровать / лечение"
+
+msgid "Quest"
+msgstr "Задание"
+
+msgid "Todo"
+msgstr "Сделать"
+
+msgid "Note"
+msgstr "Заметка"
+
+msgid "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+msgstr "СКМ - новая метка | ЛКМ - перенести | Enter - сохранить\nDel или кнопка - удалить | ПКМ - снять выбор"
+
+msgid "Delete"
+msgstr "Удалить"

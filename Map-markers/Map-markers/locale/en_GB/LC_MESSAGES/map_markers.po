@@ -31,3 +31,57 @@ msgstr "Default marker type"
 
 msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
 msgstr "0 note, 1 danger, 2 stash, 3 ruin, 4 mine, 5 base, 6 trader, 7 safe spot, 8 quest, 9 to do"
+
+msgid "Markers: On"
+msgstr "Markers: On"
+
+msgid "Markers: Off"
+msgstr "Markers: Off"
+
+msgid "Label"
+msgstr "Label"
+
+msgid "Type:"
+msgstr "Type:"
+
+msgid "Marker"
+msgstr "Marker"
+
+msgid "MMB add | LMB move | Enter save | Del | RMB deselect"
+msgstr "MMB add | LMB move | Enter save | Del | RMB deselect"
+
+msgid "Danger"
+msgstr "Danger"
+
+msgid "Stash"
+msgstr "Stash"
+
+msgid "Ruin"
+msgstr "Ruin"
+
+msgid "Mine / Resource"
+msgstr "Mine / Resource"
+
+msgid "Base / Outpost"
+msgstr "Base / Outpost"
+
+msgid "Trader / Shop"
+msgstr "Trader / Shop"
+
+msgid "Safe Spot / Bed / Recovery"
+msgstr "Safe Spot / Bed / Recovery"
+
+msgid "Quest"
+msgstr "Quest"
+
+msgid "Todo"
+msgstr "Todo"
+
+msgid "Note"
+msgstr "Note"
+
+msgid "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+msgstr "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+
+msgid "Delete"
+msgstr "Delete"

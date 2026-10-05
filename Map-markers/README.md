@@ -20,14 +20,14 @@ Current status: alpha MVP (`0.1.0-alpha.2`). The core marker flow is working, sa
 - `Markers: On/Off` toggle button on the map footer
 - Remembered UI settings in `mod-config.json`
 - Optional Emkejs Mod Hub integration for key marker UI settings
-- Editor overlap masking so markers do not draw through the editor
+- Editor drawn above the map icons (Popup layer), so markers and town icons do not show through it
 
 ## Controls
 
 - Middle-click empty map: add marker
 - Left-click marker: select marker
 - Left-click empty map with a selection: move selected marker
-- `Delete`: remove selected marker
+- `Delete` or the Delete button in the editor: remove selected marker
 - Right-click map: deselect marker
 - Type button in the editor: cycle marker type
 - Label field in the editor: edit marker label
@@ -122,7 +122,7 @@ After deploy, expected files are:
 ## Known limits
 
 - The editor currently stays within the map UI area.
-- Markers that overlap the editor are hidden while the editor is open.
+- The editor is a separate window on the Popup layer; its position is still stored relative to the map tab.
 - Drag-to-move markers is not implemented yet.
 - Marker visuals still use the current square MyGUI button skin.
 - Compatible Mod Hub builds currently expose hover label, map-close, default-type, and master enable settings.
@@ -134,3 +134,11 @@ It uses KenshiLib, which is released under GPLv3.
 ## Изменения форка (ветка leopard)
 - Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
 - Производительность: пока карта закрыта, мод ничего не делает (признак открытой карты - вызовы MapScreen::update). Раньше он каждый кадр по нескольку раз обходил весь интерфейс в поисках карты. При открытой карте картинка карты ищется один раз за кадр, смена сохранения проверяется раз в секунду.
+- v2: перевод всех подписей (кнопка «Метки», окно метки, типы меток) - en/ru/zh в locale.
+- v2: окно метки шире (510x166), подсказка в две строки, кнопка «Удалить» рядом с кнопкой типа.
+- v2: окно метки - отдельный корневой виджет на слое Popup (поверх значков поселений и меток других модов), найденный один раз и хранимый в WidgetRef. Не Overlapped: такой виджет не находился поиском и создавался каждый кадр.
+- v2: производительность при открытой карте. Картинка карты, кнопки масштаба, кнопка «Метки», подпись при наведении и виджеты меток запоминаются (WidgetRef) - без обходов интерфейса и поиска по имени среди значков карты каждый кадр. Надпись, цвет, место и видимость меток выставляются только при изменении (setCaption одинакового текста тоже перестраивает отрисовку). Строки журнала собираются только при включённом журнале.
+
+### Если не работает
+- `Ctrl+Alt+F8` - включить/выключить подробный журнал (в `RE_Kenshi_log.txt`, строки `PROBE`).
+- `Ctrl+Alt+F7` - один снимок состояния интерфейса карты в тот же журнал.

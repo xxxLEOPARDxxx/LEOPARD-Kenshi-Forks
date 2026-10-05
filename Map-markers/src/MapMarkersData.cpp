@@ -1,3 +1,5 @@
+#define KLOC_DOMAIN "map_markers"   // подписи - через перевод (locale/<язык>)
+#include <Localization.h>
 #include "MapMarkersInternal.h"
 
 #include <mygui/MyGUI_Button.h>
@@ -275,26 +277,26 @@ const char* MarkerTypeToDisplayName(MarkerType type)
     switch (type)
     {
     case MarkerType_Danger:
-        return "Danger";
+        return Tr("Danger");
     case MarkerType_Stash:
-        return "Stash";
+        return Tr("Stash");
     case MarkerType_Ruin:
-        return "Ruin";
+        return Tr("Ruin");
     case MarkerType_Mine:
-        return "Mine / Resource";
+        return Tr("Mine / Resource");
     case MarkerType_Base:
-        return "Base / Outpost";
+        return Tr("Base / Outpost");
     case MarkerType_Trader:
-        return "Trader / Shop";
+        return Tr("Trader / Shop");
     case MarkerType_SafeSpot:
-        return "Safe Spot / Bed / Recovery";
+        return Tr("Safe Spot / Bed / Recovery");
     case MarkerType_Quest:
-        return "Quest";
+        return Tr("Quest");
     case MarkerType_Todo:
-        return "Todo";
+        return Tr("Todo");
     case MarkerType_Note:
     default:
-        return "Note";
+        return Tr("Note");
     }
 }
 
@@ -463,7 +465,7 @@ MyGUI::Colour BuildMarkerColour(MarkerType type, bool selected)
 std::string BuildMarkerEditorHeader(const MarkerState& marker)
 {
     std::stringstream caption;
-    caption << "Marker " << marker.id;
+    caption << Tr("Marker") << " " << marker.id;
     if (!marker.label.empty())
     {
         caption << ": " << marker.label;
