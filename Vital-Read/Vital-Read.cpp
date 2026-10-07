@@ -3911,7 +3911,6 @@ void RenderPortraitOverlayMatches(
     }
 
     vr_marker_ui::HideWidgetsFrom(&overlayRuntime->widgets, visibleWidgetCount);
-    vr_marker_ui::KeepOverlaysAboveTarget(matches[0].target.widget, &overlayRuntime->widgets, visibleWidgetCount);
 
     if (visibleWidgetCount == 0u)
     {
@@ -3953,7 +3952,6 @@ void RenderPortraitTextLabelMatches(
     }
 
     vr_marker_ui::HideWidgetsFrom(&g_portraitTextLabelRuntime.widgets, visibleWidgetCount);
-    vr_marker_ui::KeepOverlaysAboveTarget(matches[0].target.widget, &g_portraitTextLabelRuntime.widgets, visibleWidgetCount);
     if (visibleWidgetCount == 0u)
     {
         HidePortraitOverlay(&g_portraitTextLabelRuntime);

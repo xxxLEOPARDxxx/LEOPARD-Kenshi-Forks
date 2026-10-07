@@ -5,10 +5,13 @@
 #include <mygui/MyGUI_ILayer.h>
 #include <mygui/MyGUI_ImageBox.h>
 #include <mygui/MyGUI_LayerManager.h>
+#include <mygui/MyGUI_IUnlinkWidget.h>
+#include <mygui/MyGUI_WidgetManager.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 
 #include <cstring>
+#include <algorithm>
 #include <map>
 #include <sstream>
 
@@ -99,6 +102,80 @@ const std::string& WidgetLayerName(MyGUI::Widget* widget)
     return layer == 0 ? kNone : layer->getName();
 }
 std::map<MyGUI::Widget*, ImageTextureCacheEntry> g_imageTextureCache;
+
+// 08.10.2026: значки - ДОЧЕРНИЕ виджеты панели портретов, а не корневые на
+// её слое. Корневые на перекрывающемся слое панель закрывала, как только
+// поднималась наверх (значки появлялись и через время пропадали). Дочерние
+// с глубиной kOverlayDepth рисуются поверх всех соседей по панели, а окна
+// выше панели закрывают и их. Панель удалили - MyGUI сообщает о каждом
+// удаляемом виджете (IUnlinkWidget), и ссылки на наши значки обнуляются.
+MyGUI::Widget* g_overlayParent = 0;
+const int kOverlayDepth = -1000;
+std::vector<std::vector<MyGUI::Widget*>*> g_trackedWidgetLists;
+
+class OverlayUnlinker : public MyGUI::IUnlinkWidget
+{
+public:
+    virtual void _unlinkWidget(MyGUI::Widget* widget)
+    {
+        if (widget == 0)
+        {
+            return;
+        }
+        if (widget == g_overlayParent)
+        {
+            g_overlayParent = 0;
+        }
+        for (size_t list = 0u; list < g_trackedWidgetLists.size(); ++list)
+        {
+            std::vector<MyGUI::Widget*>& widgets = *g_trackedWidgetLists[list];
+            for (size_t index = 0u; index < widgets.size(); ++index)
+            {
+                if (widgets[index] == widget)
+                {
+                    widgets[index] = 0;
+                }
+            }
+        }
+        g_imageTextureCache.erase(widget);
+    }
+};
+
+OverlayUnlinker* g_overlayUnlinker = 0;   // не удаляется: живёт, пока жива DLL
+
+void TrackWidgetList(std::vector<MyGUI::Widget*>* widgets)
+{
+    if (g_overlayUnlinker == 0)
+    {
+        MyGUI::WidgetManager* const manager = MyGUI::WidgetManager::getInstancePtr();
+        if (manager == 0)
+        {
+            return;
+        }
+        g_overlayUnlinker = new OverlayUnlinker();
+        manager->registerUnlinker(g_overlayUnlinker);
+    }
+    if (std::find(g_trackedWidgetLists.begin(), g_trackedWidgetLists.end(), widgets) == g_trackedWidgetLists.end())
+    {
+        g_trackedWidgetLists.push_back(widgets);
+    }
+}
+
+template <typename T>
+T* CreateOverlayWidget(MyGUI::Gui* gui, const std::string& skin, const MyGUI::IntCoord& coord,
+                       const std::string& layer, const std::string& name)
+{
+    if (g_overlayParent != 0 && g_overlayUnlinker != 0)
+    {
+        T* const widget = g_overlayParent->createWidget<T>(skin, coord, MyGUI::Align::Left | MyGUI::Align::Top, name);
+        if (widget != 0)
+        {
+            widget->setDepth(kOverlayDepth);
+        }
+        return widget;
+    }
+    return gui->createWidget<T>(skin, coord, MyGUI::Align::Left | MyGUI::Align::Top, layer, name);
+}
 
 std::string BuildImageTextureCacheKey(const char* pluginName, const std::string& textureName, int textureSizePx)
 {
@@ -354,6 +431,7 @@ bool EnsureWidgetMode(
     {
         widgets->resize(index + 1u, 0);
     }
+    TrackWidgetList(widgets);
 
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (gui == 0)
@@ -380,8 +458,24 @@ bool EnsureWidgetMode(
         (*widgets)[index] = 0;
     }
 
-    // Слой сменился (панель портретов на другом) - переложить значок туда.
-    if (widget != 0 && WidgetLayerName(widget) != g_overlayLayerName)
+    // Значок не на той панели (панель пересоздали, или он корневой, а панель
+    // уже известна) - пересоздать на нужной.
+    if (widget != 0 && g_overlayParent != 0 && g_overlayUnlinker != 0 && widget->getParent() != g_overlayParent)
+    {
+        ClearImageTextureCache(widget);
+        try
+        {
+            gui->destroyWidget(widget);
+        }
+        catch (...)
+        {
+        }
+        widget = 0;
+        (*widgets)[index] = 0;
+    }
+
+    // Корневой значок (панели нет): слой сменился - переложить его туда.
+    if (widget != 0 && widget->getParent() == 0 && WidgetLayerName(widget) != g_overlayLayerName)
     {
         MyGUI::LayerManager* const layers = MyGUI::LayerManager::getInstancePtr();
         if (layers != 0 && layers->isExist(g_overlayLayerName))
@@ -400,37 +494,33 @@ bool EnsureWidgetMode(
         {
             if (desiredMode == WIDGET_MODE_IMAGE)
             {
-                widget = gui->createWidget<MyGUI::ImageBox>(
+                widget = CreateOverlayWidget<MyGUI::ImageBox>(gui,
                     "ImageBox",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
-                    MyGUI::Align::Left | MyGUI::Align::Top,
                     g_overlayLayerName,
                     name.str());
             }
             else if (desiredMode == WIDGET_MODE_TEXT)
             {
-                widget = gui->createWidget<MyGUI::TextBox>(
+                widget = CreateOverlayWidget<MyGUI::TextBox>(gui,
                     "Kenshi_TextboxStandardText",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
-                    MyGUI::Align::Left | MyGUI::Align::Top,
                     g_overlayLayerName,
                     name.str());
                 if (widget == 0)
                 {
-                    widget = gui->createWidget<MyGUI::TextBox>(
+                    widget = CreateOverlayWidget<MyGUI::TextBox>(gui,
                         "TextBox",
                         MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
-                        MyGUI::Align::Left | MyGUI::Align::Top,
                         g_overlayLayerName,
                         name.str() + "_fallback");
                 }
             }
             else
             {
-                widget = gui->createWidget<MyGUI::Button>(
+                widget = CreateOverlayWidget<MyGUI::Button>(gui,
                     style.fallbackSkin != 0 ? style.fallbackSkin : "Kenshi_Button1",
                     MyGUI::IntCoord(0, 0, style.minSizePx, style.minSizePx),
-                    MyGUI::Align::Left | MyGUI::Align::Top,
                     g_overlayLayerName,
                     name.str());
             }
@@ -447,8 +537,6 @@ bool EnsureWidgetMode(
 
         ++g_overlayPerfStats.widgetsCreated;
         widget->setNeedMouseFocus(false);
-        // Новый корневой виджет ложится поверх уже созданных на слое - то
-        // есть поверх панели портретов.
         widget->setVisible(false);
         (*widgets)[index] = widget;
     }
@@ -625,7 +713,17 @@ bool TryPlaceOverlayWidget(
     }
 
     const Rect markerBounds(markerLeft, markerTop, markerWidth, markerHeight);
-    widget->setCoord(ToMyGuiCoord(markerBounds));
+    MyGUI::IntCoord coord = ToMyGuiCoord(markerBounds);
+    if (MyGUI::Widget* const parent = widget->getParent())
+    {
+        const MyGUI::IntPoint origin = parent->getAbsolutePosition();
+        coord.left -= origin.left;
+        coord.top -= origin.top;
+    }
+    if (widget->getCoord() != coord)
+    {
+        widget->setCoord(coord);
+    }
     widget->setVisible(true);
 
     if (outMarkerBounds != 0)
@@ -758,63 +856,15 @@ void SetOverlayLayerFromWidget(MyGUI::Widget* target)
     {
         g_overlayLayerName = name;
     }
-}
-
-// Значки лежат на слое панели портретов (над портретом, под окнами). Но на
-// перекрывающемся слое панель поднимается наверх - щелчком по портретам или
-// когда её перестраивает игра/другой плагин - и закрывала значки целиком
-// (08.10.2026: «иконки не появляются», в оригинале на слое Top - видны).
-// Если панель оказалась выше значков - поднимаем значки над ней. Окна,
-// которые выше панели, остаются выше и значков: просвечивания нет.
-void KeepOverlaysAboveTarget(MyGUI::Widget* target, std::vector<MyGUI::Widget*>* widgets, size_t count)
-{
-    if (target == 0 || widgets == 0 || count == 0u)
-    {
-        return;
-    }
+    // Родитель значков - корень панели портретов (см. g_overlayParent).
     MyGUI::Widget* root = target;
-    while (root->getParent() != 0)
+    while (root != 0 && root->getParent() != 0)
     {
         root = root->getParent();
     }
-    MyGUI::ILayer* const layer = root->getLayer();
-    MyGUI::ILayerNode* const rootNode = root->getLayerNode();
-    if (layer == 0 || rootNode == 0)
+    if (root != 0)
     {
-        return;
-    }
-
-    // Порядок узлов слоя: первый рисуется первым (ниже всех).
-    std::map<MyGUI::ILayerNode*, size_t> order;
-    size_t position = 0u;
-    MyGUI::EnumeratorILayerNode nodes = layer->getEnumerator();
-    while (nodes.next())
-    {
-        order[nodes.current()] = position++;
-    }
-    const std::map<MyGUI::ILayerNode*, size_t>::const_iterator rootAt = order.find(rootNode);
-    if (rootAt == order.end())
-    {
-        return;
-    }
-
-    MyGUI::LayerManager* const layers = MyGUI::LayerManager::getInstancePtr();
-    if (layers == 0)
-    {
-        return;
-    }
-    for (size_t index = 0u; index < count && index < widgets->size(); ++index)
-    {
-        MyGUI::Widget* const widget = (*widgets)[index];
-        if (widget == 0 || widget->getLayer() != layer)
-        {
-            continue;
-        }
-        const std::map<MyGUI::ILayerNode*, size_t>::const_iterator at = order.find(widget->getLayerNode());
-        if (at != order.end() && at->second < rootAt->second)
-        {
-            layers->upLayerItem(widget);
-        }
+        g_overlayParent = root;
     }
 }
 
