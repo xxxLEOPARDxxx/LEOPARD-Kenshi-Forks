@@ -25,6 +25,11 @@
 
 #include <sstream>
 
+// Подсказка в пустом поле - через перевод мода (08.10.2026). После
+// Ogre/MyGUI: Localization.h тянет Windows.h с макросами min/max.
+#define KLOC_DOMAIN "organize_the_crafting_stations"
+#include <Localization.h>
+
 namespace
 {
 const char* kControlsContainerName = "OTCS_ControlsContainer";
@@ -34,6 +39,9 @@ const char* kSearchClearButtonName = "OTCS_SearchClearButton";
 const char* kSearchDragHandleName = "OTCS_SearchDragHandle";
 const char* kSearchCountTextName = "OTCS_SearchCountText";
 const int kSearchCountGap = 2;
+// Отступ счётчика от правого края: у рамки тёмных интерфейсов кайма
+// нарисована внутрь, и «7 / 27» налезал на неё (08.10.2026).
+const int kSearchCountRightInset = 8;
 
 struct PendingSearchEditShortcut
 {
@@ -1142,7 +1150,8 @@ bool BuildControlsScaffold(
         + g_searchInputConfiguredWidth
         + outerPadding
         + preferredCountWidth
-        + preferredCountGap;
+        + preferredCountGap
+        + (preferredCountWidth > 0 ? kSearchCountRightInset : 0);
     const int maxContainerWidth =
         parent->getWidth() > 8 ? parent->getWidth() - 8 : parent->getWidth();
     int containerWidth = desiredContainerWidth;
@@ -1216,7 +1225,8 @@ bool BuildControlsScaffold(
     const int searchInputAvailableWidth = containerWidth - searchInputLeft - outerPadding;
     int countWidth = ResolveSearchCountTextWidth(searchInputAvailableWidth);
     int countGap = countWidth > 0 ? kSearchCountGap : 0;
-    int searchAreaWidth = searchInputAvailableWidth - countWidth - countGap;
+    const int countInset = countWidth > 0 ? kSearchCountRightInset : 0;
+    int searchAreaWidth = searchInputAvailableWidth - countWidth - countGap - countInset;
     if (searchAreaWidth < 120)
     {
         searchAreaWidth = 120;
@@ -1254,7 +1264,7 @@ bool BuildControlsScaffold(
     {
         MyGUI::TextBox* countText = container->createWidget<MyGUI::TextBox>(
             "Kenshi_TextboxStandardText",
-            MyGUI::IntCoord(containerWidth - outerPadding - countWidth, outerPadding, countWidth, rowHeight),
+            MyGUI::IntCoord(containerWidth - outerPadding - countInset - countWidth, outerPadding, countWidth, rowHeight),
             MyGUI::Align::Left | MyGUI::Align::Top,
             kSearchCountTextName);
         if (countText == 0)
@@ -1296,7 +1306,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
-    placeholder->setCaption("Search items...");
+    placeholder->setCaption(Tr("Search items..."));
     placeholder->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
     placeholder->setNeedMouseFocus(true);
     placeholder->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchPlaceholderClicked);

@@ -49,3 +49,6 @@ msgstr "Подробный журнал"
 
 msgid "Write detailed logs to RE_Kenshi_log.txt"
 msgstr "Писать подробности в RE_Kenshi_log.txt"
+
+msgid "Search items..."
+msgstr "Поиск предметов..."
