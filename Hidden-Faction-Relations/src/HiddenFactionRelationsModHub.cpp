@@ -163,6 +163,16 @@ EMC_Result SetHubIntSetting(
     return EMC_OK;
 }
 
+EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &HiddenFactionRelationsConfigSnapshot::debugLogging);
+}
+
+EMC_Result __cdecl SetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(user_data, value, err_buf, err_buf_size, &HiddenFactionRelationsConfigSnapshot::debugLogging);
+}
+
 EMC_Result __cdecl GetAutoFocusSearchOnOpenSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(
@@ -439,12 +449,20 @@ void EnsureModHubClientConfigured()
         &SetSearchInputHeightSetting
     };
 
+    // «Подробный журнал» - во всех модах (08.10.2026, leopard).
+    static const EMC_BoolSettingDefV1 kDebugLoggingSetting = {
+        "debug_logging",
+        "Debug logging",
+        "Write detailed logs to RE_Kenshi_log.txt",
+        &g_modHubClient,
+        &GetDebugLoggingSetting,
+        &SetDebugLoggingSetting };
+
     static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchOnOpenSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, &kOpenMenuKeybindSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kOpenMenuRequireCtrlSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kOpenMenuRequireShiftSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kOpenMenuRequireAltSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugLoggingSetting },
+        // Клавиша открытия (Ctrl+Alt+G) убрана 07.10.2026: список и так на
+        // странице MCM, а клавиша у игроков не срабатывала.
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
     };

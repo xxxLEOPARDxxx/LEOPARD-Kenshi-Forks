@@ -1213,6 +1213,11 @@ bool OpenOptionsWindowForHiddenFactionsUnsafe()
 
 bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
 {
+    // Клавиша открытия убрана (07.10.2026): список - на странице MCM, а
+    // клавиша у игроков не срабатывала. Код ниже оставлен на случай возврата.
+    (void)inputHandler;
+    (void)keyCode;
+    return false;
     if (inputHandler == 0
         || HiddenFactionRelationsConfig_GetOpenMenuKeycode() < 0
         || static_cast<int>(keyCode) != HiddenFactionRelationsConfig_GetOpenMenuKeycode()

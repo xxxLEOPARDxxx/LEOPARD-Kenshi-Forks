@@ -92,8 +92,13 @@ Controls:
 - **Scope toggle**: show all factions or hidden-only.
 - **Non-zero filter**: toggle between showing all and only factions with non-zero relation.
 
-Keyboard shortcut to open the panel: configurable keycode with required modifiers (default: Ctrl+Alt+G).
+Keyboard shortcut to open the panel: removed in the leopard fork (07.10.2026) - the list lives on its MCM page, the shortcut did not work for players.
 
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+
+## Изменения форка (ветка leopard)
+- Настройки - во вкладке MCM окна «Настройки»; список фракций - на странице мода там же.
+- v2: убрана клавиша открытия (Ctrl+Alt+G) и её три флажка модификаторов: у игроков не срабатывала, а список и так открывается на странице MCM.
+- v2: «Подробный журнал» в MCM (debugLogging).

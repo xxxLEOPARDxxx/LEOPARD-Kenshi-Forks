@@ -142,3 +142,9 @@ msgstr "Hidden only"
 
 msgid "All factions"
 msgstr "All factions"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"
