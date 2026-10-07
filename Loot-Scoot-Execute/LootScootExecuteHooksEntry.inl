@@ -189,6 +189,26 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
     TickQueuedExecuteAction(thisptr);
 }
 
+// Приказы игрока выделенным - снимают их добивание (CancelExecuteForSelectedCharacters).
+static void (*PlayerInterface_newPlayerTask_orig)(PlayerInterface*, TaskType, const hand&, Building*, const Ogre::Vector3&, bool) = 0;
+static void (*PlayerInterface_moveWaypoint_orig)(PlayerInterface*, const Ogre::Vector3&, Building*) = 0;
+
+static void PlayerInterface_newPlayerTask_hook(PlayerInterface* thisptr, TaskType t, const hand& target,
+                                               Building* indoors, const Ogre::Vector3& clickpos, bool addDontClear)
+{
+    if (static_cast<int>(t) != kContextMenuOrderIdExecuteProxy)
+    {
+        CancelExecuteForSelectedCharacters("player_order");
+    }
+    PlayerInterface_newPlayerTask_orig(thisptr, t, target, indoors, clickpos, addDontClear);
+}
+
+static void PlayerInterface_moveWaypoint_hook(PlayerInterface* thisptr, const Ogre::Vector3& location, Building* dest)
+{
+    CancelExecuteForSelectedCharacters("player_move");
+    PlayerInterface_moveWaypoint_orig(thisptr, location, dest);
+}
+
 __declspec(dllexport) void startPlugin()
 {
     PluginLog("Loot-Scoot-Execute: startPlugin()");
@@ -231,6 +251,21 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Loot-Scoot-Execute: Could not hook PlayerInterface::updateUT");
         return;
+    }
+
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&PlayerInterface::newPlayerTaskSelectedCharacters),
+        PlayerInterface_newPlayerTask_hook,
+        &PlayerInterface_newPlayerTask_orig))
+    {
+        ErrorLog("Loot-Scoot-Execute WARN: could not hook newPlayerTaskSelectedCharacters - orders will not cancel executes");
+    }
+    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&PlayerInterface::updateLastMoveWaypointSelectedCharacters),
+        PlayerInterface_moveWaypoint_hook,
+        &PlayerInterface_moveWaypoint_orig))
+    {
+        ErrorLog("Loot-Scoot-Execute WARN: could not hook move orders - a ground click will not cancel executes");
     }
 
     bool contextMenuShowHookInstalled = false;

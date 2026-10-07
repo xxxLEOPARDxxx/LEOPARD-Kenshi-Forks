@@ -602,8 +602,9 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonGapSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonYSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kResetExecuteButtonDefaultsActionDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonYSettingDef }
+        // «Кнопка по умолчанию» убрана (08.10.2026): в MCM есть «Сбросить
+        // по умолчанию» на всю страницу.
     };
 
     static const emc::ModHubClientTableRegistrationV1 kRegistration = {

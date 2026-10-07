@@ -107,3 +107,7 @@ For faction-specific execute failures, set `debug_execute_logging` to `true`, re
 ## License
 This project is licensed under the GNU General Public License v3.0.
 It uses KenshiLib, which is released under GPLv3.
+- v3: задания добивания - массив на исполнителя (до 16, ExecuteJob; старые имена g_queuedExecute*/g_executeAllBatch* - макросы на текущее задание). «Добить всех» берёт всех выделенных своих; цели - общий пул, каждый берёт ближайшую свободную к себе (раньше - по порядку сбора, один исполнитель).
+- v3: приказ игрока выделенным (newPlayerTaskSelectedCharacters, кроме прокси-приказа добивания, и updateLastMoveWaypointSelectedCharacters - ПКМ по земле) снимает их добивание; задание моложе 500 мс не трогается.
+- v3: подход к цели - раз в 1 с вместо 200 мс, clearAllAIGoals только первым приказом (раньше задача персонажа мелькала).
+- v3: убрана строка «Кнопка по умолчанию» (MCM сбрасывает всю страницу).

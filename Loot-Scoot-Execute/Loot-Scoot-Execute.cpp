@@ -52,7 +52,7 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
 static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
-static const DWORD kQueuedExecuteRepathIntervalMs = 200;
+static const DWORD kQueuedExecuteRepathIntervalMs = 1000;   // было 200: задача персонажа мелькала
 static const DWORD kQueuedExecuteAttackWindupMs = 180;
 static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
 static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
@@ -283,25 +283,84 @@ static DWORD g_lastCanExecuteDecisionLogMs = 0;
 static uintptr_t g_lastCanExecuteDecisionTargetPtr = 0;
 static bool g_hasLastCanExecuteDecision = false;
 static bool g_lastCanExecuteDecisionResult = false;
-static bool g_queuedExecuteActive = false;
-static hand g_queuedExecuteActorHandle;
-static hand g_queuedExecuteTargetHandle;
-static uintptr_t g_queuedExecuteActorPtr = 0;
-static uintptr_t g_queuedExecuteTargetPtr = 0;
-static DWORD g_queuedExecuteArmedMs = 0;
-static DWORD g_queuedExecuteLastApproachCommandMs = 0;
-static bool g_queuedExecuteAttackTriggered = false;
-static DWORD g_queuedExecuteAttackTriggeredMs = 0;
-static DWORD g_queuedExecuteInRangeSinceMs = 0;
-static const char* g_queuedExecuteAnimationMode = "none";
-static bool g_queuedExecuteSlaveAnimPlaying = false;
-static bool g_executeAllBatchActive = false;
-static hand g_executeAllBatchActorHandle;
-static uintptr_t g_executeAllBatchActorPtr = 0;
+// Задания добивания - по одному на исполнителя (leopard, 08.10.2026: раньше
+// очередь была одна на весь мод, и «Добить всех» вёл один персонаж). Имена
+// прежних глобальных переменных - макросы на поля ТЕКУЩЕГО задания
+// (g_executeJobIndex): весь код очереди ниже работает с одним заданием, как
+// и раньше, а покадровый проход и постановка выбирают задание сами.
+struct ExecuteJob
+{
+    bool queuedActive;
+    hand actorHandle;
+    hand targetHandle;
+    uintptr_t actorPtr;
+    uintptr_t targetPtr;
+    DWORD armedMs;
+    DWORD lastApproachCommandMs;
+    bool attackTriggered;
+    DWORD attackTriggeredMs;
+    DWORD inRangeSinceMs;
+    const char* animationMode;
+    bool slaveAnimPlaying;
+    bool batchActive;               // «Добить всех»: после цели - следующая из общего пула
+    hand batchActorHandle;
+    uintptr_t batchActorPtr;
+
+    ExecuteJob()
+        : queuedActive(false), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
+          attackTriggered(false), attackTriggeredMs(0), inRangeSinceMs(0), animationMode("none"),
+          slaveAnimPlaying(false), batchActive(false), batchActorPtr(0)
+    {
+    }
+};
+static const size_t kExecuteJobMax = 16;
+static ExecuteJob g_executeJobs[kExecuteJobMax];
+static size_t g_executeJobIndex = 0;
+#define g_queuedExecuteActive (g_executeJobs[g_executeJobIndex].queuedActive)
+#define g_queuedExecuteActorHandle (g_executeJobs[g_executeJobIndex].actorHandle)
+#define g_queuedExecuteTargetHandle (g_executeJobs[g_executeJobIndex].targetHandle)
+#define g_queuedExecuteActorPtr (g_executeJobs[g_executeJobIndex].actorPtr)
+#define g_queuedExecuteTargetPtr (g_executeJobs[g_executeJobIndex].targetPtr)
+#define g_queuedExecuteArmedMs (g_executeJobs[g_executeJobIndex].armedMs)
+#define g_queuedExecuteLastApproachCommandMs (g_executeJobs[g_executeJobIndex].lastApproachCommandMs)
+#define g_queuedExecuteAttackTriggered (g_executeJobs[g_executeJobIndex].attackTriggered)
+#define g_queuedExecuteAttackTriggeredMs (g_executeJobs[g_executeJobIndex].attackTriggeredMs)
+#define g_queuedExecuteInRangeSinceMs (g_executeJobs[g_executeJobIndex].inRangeSinceMs)
+#define g_queuedExecuteAnimationMode (g_executeJobs[g_executeJobIndex].animationMode)
+#define g_queuedExecuteSlaveAnimPlaying (g_executeJobs[g_executeJobIndex].slaveAnimPlaying)
+#define g_executeAllBatchActive (g_executeJobs[g_executeJobIndex].batchActive)
+#define g_executeAllBatchActorHandle (g_executeJobs[g_executeJobIndex].batchActorHandle)
+#define g_executeAllBatchActorPtr (g_executeJobs[g_executeJobIndex].batchActorPtr)
+
+// Задание этого исполнителя (или свободное). false - все 16 заняты.
+static bool SelectExecuteJobForActor(uintptr_t actorPtr)
+{
+    for (size_t i = 0; i < kExecuteJobMax; ++i)
+    {
+        const ExecuteJob& job = g_executeJobs[i];
+        if ((job.queuedActive && job.actorPtr == actorPtr) || (job.batchActive && job.batchActorPtr == actorPtr))
+        {
+            g_executeJobIndex = i;
+            return true;
+        }
+    }
+    for (size_t i = 0; i < kExecuteJobMax; ++i)
+    {
+        if (!g_executeJobs[i].queuedActive && !g_executeJobs[i].batchActive)
+        {
+            g_executeJobs[i] = ExecuteJob();
+            g_executeJobIndex = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Общий пул целей «Добить всех» и какие уже взяты исполнителями.
 static hand g_executeAllBatchTargetHandles[kExecuteAllBatchMaxTargets];
 static uintptr_t g_executeAllBatchTargetPtrs[kExecuteAllBatchMaxTargets];
+static bool g_executeAllBatchTargetClaimed[kExecuteAllBatchMaxTargets];
 static size_t g_executeAllBatchTargetCount = 0;
-static size_t g_executeAllBatchNextTargetIndex = 0;
 static bool g_executeAllHoverTintActive = false;
 static hand g_executeAllHoverTintTargetHandles[kExecuteAllBatchMaxTargets];
 static size_t g_executeAllHoverTintTargetCount = 0;
@@ -399,6 +458,7 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryResolvePlayerInterface(PlayerInterface** playerOut);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
+static float ComputeSquaredDistanceXZ(const Ogre::Vector3& a, const Ogre::Vector3& b);
 static bool TryGetRootObjectHandleSafe(RootObject* object, hand* handleOut);
 static RootObject* TryResolveRootObjectFromHandleSafe(const hand& rootObjectHandle);
 static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
@@ -1487,13 +1547,21 @@ static void ResetExecuteAllBatchState()
     g_executeAllBatchActive = false;
     g_executeAllBatchActorHandle.setNull();
     g_executeAllBatchActorPtr = 0;
+    // Пул общий: чистим, только когда «Добить всех» не ведёт больше никто.
+    for (size_t i = 0; i < kExecuteJobMax; ++i)
+    {
+        if (g_executeJobs[i].batchActive)
+        {
+            return;
+        }
+    }
     for (size_t i = 0; i < kExecuteAllBatchMaxTargets; ++i)
     {
         g_executeAllBatchTargetHandles[i].setNull();
         g_executeAllBatchTargetPtrs[i] = 0;
+        g_executeAllBatchTargetClaimed[i] = false;
     }
     g_executeAllBatchTargetCount = 0;
-    g_executeAllBatchNextTargetIndex = 0;
 }
 
 static bool IsExecuteAllBatchContinuationReason(const char* reason)
@@ -1526,10 +1594,40 @@ static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
         return false;
     }
 
-    while (g_executeAllBatchNextTargetIndex < g_executeAllBatchTargetCount)
+    // Следующая цель - БЛИЖАЙШАЯ к исполнителю из ещё не взятых (раньше - по
+    // порядку сбора, и персонаж бегал по куче от дальнего к дальнему). Взятую
+    // другим исполнителем не трогаем - каждый идёт к своей.
+    while (true)
     {
-        const size_t targetIndex = g_executeAllBatchNextTargetIndex;
-        ++g_executeAllBatchNextTargetIndex;
+        Ogre::Vector3 actorPos;
+        const bool haveActorPos = TryReadRootObjectPosition(actor, &actorPos);
+        size_t targetIndex = g_executeAllBatchTargetCount;
+        float bestDistanceSq = 0.0f;
+        for (size_t i = 0; i < g_executeAllBatchTargetCount; ++i)
+        {
+            if (g_executeAllBatchTargetClaimed[i])
+            {
+                continue;
+            }
+            RootObject* candidate = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[i]);
+            Ogre::Vector3 candidatePos;
+            if (!candidate || !TryReadRootObjectPosition(candidate, &candidatePos))
+            {
+                g_executeAllBatchTargetClaimed[i] = true;
+                continue;
+            }
+            const float d = haveActorPos ? ComputeSquaredDistanceXZ(actorPos, candidatePos) : 0.0f;
+            if (targetIndex == g_executeAllBatchTargetCount || d < bestDistanceSq)
+            {
+                targetIndex = i;
+                bestDistanceSq = d;
+            }
+        }
+        if (targetIndex == g_executeAllBatchTargetCount)
+        {
+            break;
+        }
+        g_executeAllBatchTargetClaimed[targetIndex] = true;
 
         RootObject* target = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[targetIndex]);
         if (!target)
@@ -1960,9 +2058,16 @@ static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
     }
 
     bool moveIssued = false;
+    // Задачи ИИ сбрасываем только первым приказом: на каждом повторе (раз в
+    // 200 мс) сброс давал мелькание «цель / двигаюсь к цели» - ИИ возвращал
+    // свою задачу, мы снова её снимали.
+    const bool firstApproach = g_queuedExecuteLastApproachCommandMs == 0;
     __try
     {
-        actor->clearAllAIGoals();
+        if (firstApproach)
+        {
+            actor->clearAllAIGoals();
+        }
         actor->setDestination(approachPos, false);
         moveIssued = true;
     }
@@ -3849,21 +3954,40 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
         return false;
     }
 
-    if (g_queuedExecuteActive)
+    // Исполнители - все выделенные свои персонажи (и тот, кого выбрала игра).
+    std::vector<Character*> actors;
+    actors.push_back(actor);
+    if (ou != 0 && ou->player != 0)
     {
-        DisarmQueuedExecuteAction("queue_replaced", false);
+        for (ogre_unordered_set<hand>::type::const_iterator it = ou->player->selectedCharacters.begin();
+             it != ou->player->selectedCharacters.end(); ++it)
+        {
+            Character* const selected = TryResolveCharacterFromHandleSafe(*it);
+            if (selected != 0 && std::find(actors.begin(), actors.end(), selected) == actors.end())
+            {
+                actors.push_back(selected);
+            }
+        }
     }
+
+    // Прежние «Добить всех» этих персонажей - снять; пул - собрать заново.
+    for (size_t a = 0; a < actors.size(); ++a)
+    {
+        if (SelectExecuteJobForActor(reinterpret_cast<uintptr_t>(actors[a])))
+        {
+            if (g_queuedExecuteActive)
+            {
+                DisarmQueuedExecuteAction("queue_replaced", false);
+            }
+            ResetExecuteAllBatchState();
+        }
+    }
+    for (size_t i = 0; i < kExecuteJobMax; ++i)
+    {
+        g_executeJobs[i].batchActive = false;   // пул пересобирается - старые очереди тоже
+    }
+    g_executeJobIndex = 0;
     ResetExecuteAllBatchState();
-
-    hand actorHandle;
-    if (!TryGetRootObjectHandleSafe(actor, &actorHandle))
-    {
-        return false;
-    }
-
-    g_executeAllBatchActive = true;
-    g_executeAllBatchActorHandle = actorHandle;
-    g_executeAllBatchActorPtr = reinterpret_cast<uintptr_t>(actor);
     g_executeAllBatchTargetCount = CollectExecuteAllTargets(
         actor,
         target,
@@ -3871,31 +3995,49 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
         g_executeAllBatchTargetHandles,
         g_executeAllBatchTargetPtrs,
         kExecuteAllBatchMaxTargets);
+    for (size_t i = 0; i < kExecuteAllBatchMaxTargets; ++i)
+    {
+        g_executeAllBatchTargetClaimed[i] = false;
+    }
     if (g_executeAllBatchTargetCount == 0)
     {
-        ResetExecuteAllBatchState();
         return false;
+    }
+
+    // Каждому - ближайшая к нему свободная цель.
+    bool anyQueued = false;
+    for (size_t a = 0; a < actors.size(); ++a)
+    {
+        hand actorHandle;
+        if (!TryGetRootObjectHandleSafe(actors[a], &actorHandle)
+            || !SelectExecuteJobForActor(reinterpret_cast<uintptr_t>(actors[a])))
+        {
+            continue;
+        }
+        g_executeAllBatchActive = true;
+        g_executeAllBatchActorHandle = actorHandle;
+        g_executeAllBatchActorPtr = reinterpret_cast<uintptr_t>(actors[a]);
+        if (TryQueueNextExecuteAllBatchTarget(verboseLog))
+        {
+            anyQueued = true;
+        }
+        else
+        {
+            g_executeAllBatchActive = false;
+        }
     }
 
     if (ShouldLogExecuteDebug())
     {
         std::stringstream line;
         line << "Loot-Scoot-Execute DEBUG: execute_all_batch_armed"
-             << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-             << " target=0x" << reinterpret_cast<uintptr_t>(target)
-             << std::dec
+             << " actors=" << actors.size()
              << " radius_units=" << ComputeExecuteAllRadiusUnits()
-             << " target_count=" << g_executeAllBatchTargetCount;
+             << " target_count=" << g_executeAllBatchTargetCount
+             << " queued=" << (anyQueued ? "true" : "false");
         PluginLog(line.str().c_str());
     }
-
-    if (!TryQueueNextExecuteAllBatchTarget(verboseLog))
-    {
-        ResetExecuteAllBatchState();
-        return false;
-    }
-
-    return true;
+    return anyQueued;
 }
 
 static bool QueueExecuteTarget(
@@ -3925,6 +4067,10 @@ static bool QueueExecuteTarget(
 
     const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
     const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
+    if (!SelectExecuteJobForActor(actorPtr))
+    {
+        return false;               // все задания заняты
+    }
     if (g_queuedExecuteActive
         && g_queuedExecuteActorPtr == actorPtr
         && g_queuedExecuteTargetPtr == targetPtr)
@@ -4032,7 +4178,61 @@ static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* ta
     return QueueExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
 }
 
+static void TickQueuedExecuteJob(PlayerInterface* player);
+
 static void TickQueuedExecuteAction(PlayerInterface* player)
+{
+    for (size_t i = 0; i < kExecuteJobMax; ++i)
+    {
+        if (g_executeJobs[i].queuedActive)
+        {
+            g_executeJobIndex = i;
+            TickQueuedExecuteJob(player);
+        }
+    }
+}
+
+// Приказ игрока выделенным (идти, атаковать, подобрать...) - их добивание
+// снимается: раньше отменить было нельзя, и персонаж бежал добивать под
+// ударами.
+static void CancelExecuteForSelectedCharacters(const char* reason)
+{
+    if (ou == 0 || ou->player == 0)
+    {
+        return;
+    }
+    for (ogre_unordered_set<hand>::type::const_iterator it = ou->player->selectedCharacters.begin();
+         it != ou->player->selectedCharacters.end(); ++it)
+    {
+        Character* const selected = TryResolveCharacterFromHandleSafe(*it);
+        if (selected == 0)
+        {
+            continue;
+        }
+        const uintptr_t ptr = reinterpret_cast<uintptr_t>(selected);
+        for (size_t i = 0; i < kExecuteJobMax; ++i)
+        {
+            ExecuteJob& job = g_executeJobs[i];
+            // Только что выданное добивание не снимаем: приказ мог прийти от
+            // того же щелчка меню.
+            if (job.queuedActive && job.armedMs != 0 && GetTickCount() - job.armedMs < 500)
+            {
+                continue;
+            }
+            if ((job.queuedActive && job.actorPtr == ptr) || (job.batchActive && job.batchActorPtr == ptr))
+            {
+                g_executeJobIndex = i;
+                if (g_queuedExecuteActive)
+                {
+                    DisarmQueuedExecuteAction(reason, true);    // не продолжение - пул этого не берёт
+                }
+                ResetExecuteAllBatchState();
+            }
+        }
+    }
+}
+
+static void TickQueuedExecuteJob(PlayerInterface* player)
 {
     if (!player || !g_queuedExecuteActive)
     {
