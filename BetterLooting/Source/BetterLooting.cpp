@@ -6,6 +6,7 @@
 #define NOMINMAX
 
 #include <Windows.h>
+#include <HoldKey.h>
 #include <CommCtrl.h>
 #include <cstdint>
 #include <cstdio>
@@ -4117,6 +4118,21 @@ static bool LoadBetterLootingRules()
             configPath.c_str()
         );
 
+    // Клавиша по имени (ActivationKey) - её назначают в MCM нажатием
+    // (07.10.2026: выпадающий список MCM в игре выбор не отдавал). Есть -
+    // она главнее старого числового ActivationVirtualKey.
+    {
+        char keyName[64] = {};
+        GetPrivateProfileStringA("Behavior", "ActivationKey", "", keyName,
+                                 sizeof(keyName), configPath.c_str());
+        if (keyName[0] != 0)
+        {
+            const HoldKey::Key named = HoldKey::Parse(keyName);
+            if (named.vk != 0)
+                g_betterLootingRules.activationVirtualKey = named.vk;
+        }
+    }
+
     if (
         g_betterLootingRules.activationVirtualKey < 1 ||
         g_betterLootingRules.activationVirtualKey > 255
@@ -8099,9 +8115,9 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     }
 
     api->section(api, Tr("Looting"));
-    api->choice(api, "Behavior", "ActivationVirtualKey", Tr("Looting key"),
-                Tr("Key that collects loot around the selected character."),
-                "45", keyValues, keyLabels, 18, 0);
+    api->hotkey(api, "Behavior", "ActivationKey", Tr("Looting key"),
+                Tr("Key that collects loot around the selected character. Click and press a key."),
+                "INSERT", 0);
     api->number(api, "General", "LootRadius", Tr("Loot radius (m)"),
                 Tr("How far around the character the mod looks for loot."),
                 20.0f, 1.0f, 100.0f, 1, 0);

@@ -29,5 +29,6 @@ This project is distributed under the GNU General Public License version 3. See 
 ## Выкладка форка (05.10.2026)
 - Версия 1 этого форка - для Steam и Nexus («Better Looting (MCM fork) (QoL)»). Оригинал - XxAtreuSSxX (страница в Steam снята автором), GPLv3.
 - В проект `BetterLooting.vcxproj` добавлены `BetterLootingPanel.cpp` и заголовки - раньше в нём был только `BetterLooting.cpp`, и сборка по проекту не находила пресеты.
+- Клавиша сбора в MCM назначается нажатием: ключ `[Behavior] ActivationKey` (имя клавиши, `shared/HoldKey.h`); если он есть - главнее старого числового `ActivationVirtualKey`.
 - В раздачу не идёт `BetterLooting.ini` (личные настройки): без него действуют значения по умолчанию (Insert, 20 м, от 500 и от 300 за кг), файл появится при первом сохранении настроек.
 - Исходники - архив `BetterLooting-source.zip` в папке мода (без файлов-бэкапов `*.pre*` наших патчей) и папка `shared` с общими заголовками (Localization.h, ModConfigMenu.h).
