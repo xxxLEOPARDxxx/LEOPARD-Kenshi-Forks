@@ -1087,7 +1087,20 @@ void UpdateSearchCountText(
         BuildSearchCountCaption(visibleEntryCount, totalEntryCount, visibleQuantity);
     countText->setCaption(caption);
     const MyGUI::IntCoord countCoord = countText->getCoord();
-    const int desiredWidth = ResolveSearchCountCaptionWidth(caption, countCoord.width);
+    // Ширина - по настоящему тексту, предел - всё место под счётчик. Раньше
+    // считалось 5 px на символ, а пределом была текущая ширина: счётчик
+    // ужимался до 44 px и обратно не рос, «2 / 32» обрезался (08.10.2026).
+    int desiredWidth = ResolveSearchCountCaptionWidth(caption, ResolvePreferredSearchCountTextWidth());
+    if (!caption.empty())
+    {
+        const int measured = countText->getTextSize().width + 8;
+        const int limit = ResolvePreferredSearchCountTextWidth();
+        desiredWidth = measured > desiredWidth ? measured : desiredWidth;
+        if (limit > 0 && desiredWidth > limit)
+        {
+            desiredWidth = limit;
+        }
+    }
     if (desiredWidth > 0 && desiredWidth != countCoord.width)
     {
         const int countRight = countCoord.left + countCoord.width;
