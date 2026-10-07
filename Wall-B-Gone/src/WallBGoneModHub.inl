@@ -350,7 +350,8 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingAnyOwnBuildingId, &kAnyOwnBuildingSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kHubSettingDropItemsId, &kDropItemsSettingDef, 0, 0 },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND_V2, kHubSettingHotkeyId, &kHotkeySettingDef, 0, 0 },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION_V2, kHubActionResetHotkeyId, &kResetHotkeyActionDef, 0, 0 },
+        // «Клавиша по умолчанию» убрана (08.10.2026): в MCM есть «Сбросить по
+        // умолчанию» на всю страницу.
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, kDebugLoggingSettingDef.setting_id, &kDebugLoggingSettingDef, kHubSectionAdvancedId, kHubSectionAdvancedLabel }
     };
 
