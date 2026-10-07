@@ -61,3 +61,9 @@ msgstr "Sort panel height"
 
 msgid "Desired sort panel height in pixels"
 msgstr "Height of the sorting panel, px"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"

@@ -217,6 +217,16 @@ EMC_Result __cdecl SetShowSearchClearButtonSetting(
         &TraderConfigSnapshot::showSearchClearButton);
 }
 
+EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::debugLogging);
+}
+
+EMC_Result __cdecl SetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(user_data, value, err_buf, err_buf_size, &TraderConfigSnapshot::debugLogging);
+}
+
 EMC_Result __cdecl GetAutoFocusSearchInputSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::autoFocusSearchInput);
@@ -427,12 +437,22 @@ void EnsureModHubClientConfigured()
         &GetSortPanelHeightSetting,
         &SetSortPanelHeightSetting };
 
+    // «Подробный журнал» - во всех модах (08.10.2026, leopard).
+    static const EMC_BoolSettingDefV1 kDebugLoggingSetting = {
+        "debug_logging",
+        "Debug logging",
+        "Write detailed logs to RE_Kenshi_log.txt",
+        &g_modHubClient,
+        &GetDebugLoggingSetting,
+        &SetDebugLoggingSetting };
+
     static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugLoggingSetting }
         // Ширина и высота поиска и сортировки убраны со страницы (07.10.2026):
         // панели встроены в окно торговца (InlineSearchCoord /
         // PositionInlineControls) и берут размер у места в нём, так что

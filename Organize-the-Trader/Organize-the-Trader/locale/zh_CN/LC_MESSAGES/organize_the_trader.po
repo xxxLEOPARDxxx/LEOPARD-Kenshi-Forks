@@ -61,3 +61,9 @@ msgstr "排序面板高度"
 
 msgid "Desired sort panel height in pixels"
 msgstr "排序面板高度（像素）"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "将详细日志写入 RE_Kenshi_log.txt"
