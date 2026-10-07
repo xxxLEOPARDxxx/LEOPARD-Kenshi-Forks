@@ -9,12 +9,6 @@ struct HiddenFactionRelationsConfigSnapshot
     bool debugSearchLogging;
     bool debugBindingLogging;
     bool autoFocusSearchOnOpen;
-    bool openMenuRequireCtrl;
-    bool openMenuRequireShift;
-    bool openMenuRequireAlt;
-    int searchInputWidth;
-    int searchInputHeight;
-    int openMenuKeycode;
 
     HiddenFactionRelationsConfigSnapshot();
 };
@@ -34,11 +28,5 @@ bool HiddenFactionRelationsConfig_IsDebugLoggingEnabled();
 bool HiddenFactionRelationsConfig_IsDebugSearchLoggingEnabled();
 bool HiddenFactionRelationsConfig_IsDebugBindingLoggingEnabled();
 bool HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen();
-bool HiddenFactionRelationsConfig_ShouldRequireCtrlForOpenMenu();
-bool HiddenFactionRelationsConfig_ShouldRequireShiftForOpenMenu();
-bool HiddenFactionRelationsConfig_ShouldRequireAltForOpenMenu();
-int HiddenFactionRelationsConfig_GetSearchInputWidth();
-int HiddenFactionRelationsConfig_GetSearchInputHeight();
-int HiddenFactionRelationsConfig_GetOpenMenuKeycode();
 
 const char* HiddenFactionRelationsConfig_BoolToString(bool value);

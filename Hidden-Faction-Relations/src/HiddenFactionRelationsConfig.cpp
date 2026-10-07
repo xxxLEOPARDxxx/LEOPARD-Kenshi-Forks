@@ -8,13 +8,6 @@
 
 namespace
 {
-const int kSearchInputWidthMin = 120;
-const int kSearchInputWidthMax = 720;
-const int kSearchInputHeightMin = 22;
-const int kSearchInputHeightMax = 48;
-const int kSearchInputWidthDefault = 270;
-const int kSearchInputHeightDefault = 24;
-const int kOpenMenuKeycodeDefault = static_cast<int>(OIS::KC_G);
 
 std::string g_configPath;
 HiddenFactionRelationsConfigSnapshot g_config;
@@ -161,12 +154,6 @@ HiddenFactionRelationsConfigSnapshot::HiddenFactionRelationsConfigSnapshot()
     , debugSearchLogging(false)
     , debugBindingLogging(false)
     , autoFocusSearchOnOpen(true)
-    , openMenuRequireCtrl(true)
-    , openMenuRequireShift(false)
-    , openMenuRequireAlt(true)
-    , searchInputWidth(kSearchInputWidthDefault)
-    , searchInputHeight(kSearchInputHeightDefault)
-    , openMenuKeycode(kOpenMenuKeycodeDefault)
 {
 }
 
@@ -221,30 +208,6 @@ bool HiddenFactionRelationsConfig_Load(std::string* outError)
     {
         g_config.autoFocusSearchOnOpen = parsedBool;
     }
-    if (TryParseJsonBoolByKey(content, "openMenuRequireCtrl", &parsedBool))
-    {
-        g_config.openMenuRequireCtrl = parsedBool;
-    }
-    if (TryParseJsonBoolByKey(content, "openMenuRequireShift", &parsedBool))
-    {
-        g_config.openMenuRequireShift = parsedBool;
-    }
-    if (TryParseJsonBoolByKey(content, "openMenuRequireAlt", &parsedBool))
-    {
-        g_config.openMenuRequireAlt = parsedBool;
-    }
-    if (TryParseJsonIntByKey(content, "searchInputWidth", &parsedInt))
-    {
-        g_config.searchInputWidth = parsedInt;
-    }
-    if (TryParseJsonIntByKey(content, "searchInputHeight", &parsedInt))
-    {
-        g_config.searchInputHeight = parsedInt;
-    }
-    if (TryParseJsonIntByKey(content, "openMenuKeycode", &parsedInt))
-    {
-        g_config.openMenuKeycode = parsedInt;
-    }
 
     HiddenFactionRelationsConfig_Normalize(&g_config);
 
@@ -277,13 +240,7 @@ bool HiddenFactionRelationsConfig_Save(
             << "  \"debugLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugLogging) << ",\n"
             << "  \"debugSearchLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugSearchLogging) << ",\n"
             << "  \"debugBindingLogging\": " << HiddenFactionRelationsConfig_BoolToString(normalized.debugBindingLogging) << ",\n"
-            << "  \"autoFocusSearchOnOpen\": " << HiddenFactionRelationsConfig_BoolToString(normalized.autoFocusSearchOnOpen) << ",\n"
-            << "  \"openMenuRequireCtrl\": " << HiddenFactionRelationsConfig_BoolToString(normalized.openMenuRequireCtrl) << ",\n"
-            << "  \"openMenuRequireShift\": " << HiddenFactionRelationsConfig_BoolToString(normalized.openMenuRequireShift) << ",\n"
-            << "  \"openMenuRequireAlt\": " << HiddenFactionRelationsConfig_BoolToString(normalized.openMenuRequireAlt) << ",\n"
-            << "  \"searchInputWidth\": " << normalized.searchInputWidth << ",\n"
-            << "  \"searchInputHeight\": " << normalized.searchInputHeight << ",\n"
-            << "  \"openMenuKeycode\": " << normalized.openMenuKeycode << "\n"
+            << "  \"autoFocusSearchOnOpen\": " << HiddenFactionRelationsConfig_BoolToString(normalized.autoFocusSearchOnOpen) << "\n"
             << "}\n";
 
     if (!TryWriteTextFile(g_configPath, content.str()))
@@ -321,16 +278,6 @@ void HiddenFactionRelationsConfig_Normalize(HiddenFactionRelationsConfigSnapshot
         return;
     }
 
-    snapshot->searchInputWidth = std::max(
-        kSearchInputWidthMin,
-        std::min(kSearchInputWidthMax, snapshot->searchInputWidth));
-    snapshot->searchInputHeight = std::max(
-        kSearchInputHeightMin,
-        std::min(kSearchInputHeightMax, snapshot->searchInputHeight));
-    if (snapshot->openMenuKeycode < -1 || snapshot->openMenuKeycode > 255)
-    {
-        snapshot->openMenuKeycode = kOpenMenuKeycodeDefault;
-    }
 }
 
 bool HiddenFactionRelationsConfig_IsDebugLoggingEnabled()
@@ -351,36 +298,6 @@ bool HiddenFactionRelationsConfig_IsDebugBindingLoggingEnabled()
 bool HiddenFactionRelationsConfig_ShouldAutoFocusSearchOnOpen()
 {
     return g_config.autoFocusSearchOnOpen;
-}
-
-bool HiddenFactionRelationsConfig_ShouldRequireCtrlForOpenMenu()
-{
-    return g_config.openMenuRequireCtrl;
-}
-
-bool HiddenFactionRelationsConfig_ShouldRequireShiftForOpenMenu()
-{
-    return g_config.openMenuRequireShift;
-}
-
-bool HiddenFactionRelationsConfig_ShouldRequireAltForOpenMenu()
-{
-    return g_config.openMenuRequireAlt;
-}
-
-int HiddenFactionRelationsConfig_GetSearchInputWidth()
-{
-    return g_config.searchInputWidth;
-}
-
-int HiddenFactionRelationsConfig_GetSearchInputHeight()
-{
-    return g_config.searchInputHeight;
-}
-
-int HiddenFactionRelationsConfig_GetOpenMenuKeycode()
-{
-    return g_config.openMenuKeycode;
 }
 
 const char* HiddenFactionRelationsConfig_BoolToString(bool value)

@@ -713,17 +713,20 @@ MyGUI::Colour ResolveRelationToneColour(HiddenFactionRelationsUiTone tone)
     }
 }
 
+const int kSearchHeight = 34;     // было в настройках (searchInputHeight; в mod-config.defaults - 34)
+const int kSearchWidthCap = 270;  // было в настройках (searchInputWidth)
+
 void BuildControlsRow(MyGUI::Widget* parent, int left, int top, int width)
 {
     // Ширины - долями от области (страница MCM уже прежней вкладки), поиск
-    // не шире, чем задано в настройках.
+    // не шире kSearchWidthCap. Настройки размера поиска убраны 08.10.2026.
     const int gap = 8;
-    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
+    const int searchHeight = kSearchHeight;
     const int usable = width - gap * 3;
     int searchWidth = usable * 30 / 100;
-    if (searchWidth > HiddenFactionRelationsConfig_GetSearchInputWidth())
+    if (searchWidth > kSearchWidthCap)
     {
-        searchWidth = HiddenFactionRelationsConfig_GetSearchInputWidth();
+        searchWidth = kSearchWidthCap;
     }
     if (searchWidth < 120)
     {
@@ -923,7 +926,7 @@ void BuildRows(const HiddenFactionRelationsUiView& view)
         HiddenFactionRelationsUiTone_Neutral);
 
     const int controlsTop = 88;
-    const int searchHeight = HiddenFactionRelationsConfig_GetSearchInputHeight();
+    const int searchHeight = kSearchHeight;
     const int scrollTop = controlsTop + 16 + searchHeight + 16;
     int scrollHeight = panelHeight - (scrollTop + 4);
     if (scrollHeight < 120)
@@ -1142,31 +1145,6 @@ bool HandleSearchFocusShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
     return true;
 }
 
-bool AreOpenMenuShortcutModifiersSatisfied(InputHandler* inputHandler)
-{
-    if (inputHandler == 0)
-    {
-        return false;
-    }
-
-    if (HiddenFactionRelationsConfig_ShouldRequireCtrlForOpenMenu() && !inputHandler->ctrl)
-    {
-        return false;
-    }
-
-    if (HiddenFactionRelationsConfig_ShouldRequireShiftForOpenMenu() && !inputHandler->shift)
-    {
-        return false;
-    }
-
-    if (HiddenFactionRelationsConfig_ShouldRequireAltForOpenMenu() && !inputHandler->alt)
-    {
-        return false;
-    }
-
-    return true;
-}
-
 bool SelectHiddenFactionsTabUnsafe(MyGUI::TabControl* optionsTab)
 {
     if (optionsTab == 0)
@@ -1210,36 +1188,6 @@ bool OpenOptionsWindowForHiddenFactionsUnsafe()
     g_fnOpenOptionsWindow(optionsWindow);
     return true;
 }
-
-bool HandleOpenHiddenFactionsShortcut(InputHandler* inputHandler, OIS::KeyCode keyCode)
-{
-    // Клавиша открытия убрана (07.10.2026): список - на странице MCM, а
-    // клавиша у игроков не срабатывала. Код ниже оставлен на случай возврата.
-    (void)inputHandler;
-    (void)keyCode;
-    return false;
-    if (inputHandler == 0
-        || HiddenFactionRelationsConfig_GetOpenMenuKeycode() < 0
-        || static_cast<int>(keyCode) != HiddenFactionRelationsConfig_GetOpenMenuKeycode()
-        || !AreOpenMenuShortcutModifiersSatisfied(inputHandler))
-    {
-        return false;
-    }
-
-    // Окно настроек на странице этого мода во вкладке MCM.
-    typedef void (__cdecl *OpenPageFn)(const char*);
-    HMODULE mcm = GetModuleHandleA("ModConfigMenu.dll");
-    OpenPageFn openPage = mcm != 0 ? reinterpret_cast<OpenPageFn>(GetProcAddress(mcm, "MCM_OpenPage")) : 0;
-    if (openPage == 0)
-    {
-        LogErrorLine("ModConfigMenu is not installed: the hidden factions list lives on its MCM page");
-        return false;
-    }
-    openPage("hidden_faction_relations");
-    return true;
-}
-
-
 
 void BindGuiFrameStartBestEffort()
 {
@@ -1345,11 +1293,6 @@ void OptionsWindowSaveHook(OptionsWindow* self)
 
 void InputHandlerKeyDownHook(InputHandler* thisptr, OIS::KeyCode keyCode)
 {
-    if (HandleOpenHiddenFactionsShortcut(thisptr, keyCode))
-    {
-        return;
-    }
-
     if (HandleSearchFocusShortcut(thisptr, keyCode))
     {
         return;
