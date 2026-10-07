@@ -760,6 +760,64 @@ void SetOverlayLayerFromWidget(MyGUI::Widget* target)
     }
 }
 
+// Значки лежат на слое панели портретов (над портретом, под окнами). Но на
+// перекрывающемся слое панель поднимается наверх - щелчком по портретам или
+// когда её перестраивает игра/другой плагин - и закрывала значки целиком
+// (08.10.2026: «иконки не появляются», в оригинале на слое Top - видны).
+// Если панель оказалась выше значков - поднимаем значки над ней. Окна,
+// которые выше панели, остаются выше и значков: просвечивания нет.
+void KeepOverlaysAboveTarget(MyGUI::Widget* target, std::vector<MyGUI::Widget*>* widgets, size_t count)
+{
+    if (target == 0 || widgets == 0 || count == 0u)
+    {
+        return;
+    }
+    MyGUI::Widget* root = target;
+    while (root->getParent() != 0)
+    {
+        root = root->getParent();
+    }
+    MyGUI::ILayer* const layer = root->getLayer();
+    MyGUI::ILayerNode* const rootNode = root->getLayerNode();
+    if (layer == 0 || rootNode == 0)
+    {
+        return;
+    }
+
+    // Порядок узлов слоя: первый рисуется первым (ниже всех).
+    std::map<MyGUI::ILayerNode*, size_t> order;
+    size_t position = 0u;
+    MyGUI::EnumeratorILayerNode nodes = layer->getEnumerator();
+    while (nodes.next())
+    {
+        order[nodes.current()] = position++;
+    }
+    const std::map<MyGUI::ILayerNode*, size_t>::const_iterator rootAt = order.find(rootNode);
+    if (rootAt == order.end())
+    {
+        return;
+    }
+
+    MyGUI::LayerManager* const layers = MyGUI::LayerManager::getInstancePtr();
+    if (layers == 0)
+    {
+        return;
+    }
+    for (size_t index = 0u; index < count && index < widgets->size(); ++index)
+    {
+        MyGUI::Widget* const widget = (*widgets)[index];
+        if (widget == 0 || widget->getLayer() != layer)
+        {
+            continue;
+        }
+        const std::map<MyGUI::ILayerNode*, size_t>::const_iterator at = order.find(widget->getLayerNode());
+        if (at != order.end() && at->second < rootAt->second)
+        {
+            layers->upLayerItem(widget);
+        }
+    }
+}
+
 void HideWidgets(std::vector<MyGUI::Widget*>* widgets)
 {
     if (widgets == 0)
