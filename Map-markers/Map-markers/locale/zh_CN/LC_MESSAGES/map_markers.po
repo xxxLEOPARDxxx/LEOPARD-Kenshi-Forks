@@ -85,3 +85,9 @@ msgstr "中键新建标记 | 左键移动 | Enter保存\nDel或按钮删除 | �
 
 msgid "Delete"
 msgstr "删除"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "将详细日志写入 RE_Kenshi_log.txt"

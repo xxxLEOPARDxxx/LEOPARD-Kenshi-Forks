@@ -186,6 +186,16 @@ EMC_Result __cdecl SetCloseEditorOnMapCloseSetting(
         &MapMarkersModConfigSnapshot::closeEditorOnMapClose);
 }
 
+EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &MapMarkersModConfigSnapshot::debugLogging);
+}
+
+EMC_Result __cdecl SetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(user_data, value, err_buf, err_buf_size, &MapMarkersModConfigSnapshot::debugLogging);
+}
+
 EMC_Result __cdecl GetShowHoverLabelsSetting(void* user_data, int32_t* out_value)
 {
     return GetHubBoolSetting(user_data, out_value, &MapMarkersModConfigSnapshot::showHoverLabels);
@@ -292,6 +302,15 @@ void EnsureModHubClientConfigured()
         &GetShowHoverLabelsSetting,
         &SetShowHoverLabelsSetting };
 
+    // «Подробный журнал» - во всех модах (08.10.2026, leopard).
+    static const EMC_BoolSettingDefV1 kDebugLoggingSetting = {
+        "debug_logging",
+        "Debug logging",
+        "Write detailed logs to RE_Kenshi_log.txt",
+        &g_modHubClient,
+        &GetDebugLoggingSetting,
+        &SetDebugLoggingSetting };
+
     static const EMC_IntSettingDefV2 kDefaultMarkerTypeSetting = {
         "default_marker_type",
         "Default marker type",
@@ -309,6 +328,7 @@ void EnsureModHubClientConfigured()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kCloseEditorOnMapCloseSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowHoverLabelsSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugLoggingSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT_V2, &kDefaultMarkerTypeSetting }
     };
 

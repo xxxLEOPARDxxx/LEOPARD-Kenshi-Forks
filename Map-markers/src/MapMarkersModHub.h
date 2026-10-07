@@ -6,6 +6,7 @@ struct MapMarkersModConfigSnapshot
     bool markersVisible;
     bool closeEditorOnMapClose;
     bool showHoverLabels;
+    bool debugLogging;              // = подробный журнал (Ctrl+Alt+F8)
     int defaultMarkerType;
     bool editorPositionCustomized;
     int editorLeft;

@@ -27,6 +27,7 @@ bool SaveConfigFileData(const std::string& configPath, const MapMarkersConfigFil
            << "  \"markers_visible\": " << (data.snapshot.markersVisible ? "true" : "false") << ",\n"
            << "  \"close_editor_on_map_close\": " << (data.snapshot.closeEditorOnMapClose ? "true" : "false") << ",\n"
            << "  \"show_hover_labels\": " << (data.snapshot.showHoverLabels ? "true" : "false") << ",\n"
+           << "  \"debug_logging\": " << (data.snapshot.debugLogging ? "true" : "false") << ",\n"
            << "  \"" << kHoverLabelTextColorConfigKey << "\": \"" << data.hoverLabelTextColorHex << "\",\n"
            << "  \"" << kHoverLabelBackgroundColorConfigKey << "\": \"" << data.hoverLabelBackgroundColorHex << "\",\n"
            << "  \"default_marker_type\": \"" << MarkerTypeToJsonValue(MarkerTypeFromIndex(data.snapshot.defaultMarkerType)) << "\",\n"
@@ -75,6 +76,10 @@ bool LoadConfigFileData(
     if (ExtractJsonBoolField(contents, "show_hover_labels", boolValue))
     {
         dataOut.snapshot.showHoverLabels = boolValue;
+    }
+    if (ExtractJsonBoolField(contents, "debug_logging", boolValue))
+    {
+        dataOut.snapshot.debugLogging = boolValue;
     }
     if (ExtractJsonBoolField(contents, "editor_position_customized", boolValue))
     {

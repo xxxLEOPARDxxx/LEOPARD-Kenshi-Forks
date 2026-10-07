@@ -85,3 +85,9 @@ msgstr "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB
 
 msgid "Delete"
 msgstr "Delete"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"

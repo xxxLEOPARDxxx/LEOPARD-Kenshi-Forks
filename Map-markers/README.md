@@ -142,3 +142,4 @@ It uses KenshiLib, which is released under GPLv3.
 ### Если не работает
 - `Ctrl+Alt+F8` - включить/выключить подробный журнал (в `RE_Kenshi_log.txt`, строки `PROBE`).
 - `Ctrl+Alt+F7` - один снимок состояния интерфейса карты в тот же журнал.
+- v3: «Подробный журнал» в MCM (debug_logging в mod-config.json = тот же журнал, что Ctrl+Alt+F8).

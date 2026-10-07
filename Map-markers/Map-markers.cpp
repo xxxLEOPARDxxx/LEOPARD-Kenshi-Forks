@@ -464,6 +464,7 @@ void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot)
     g_markersVisible = snapshot.markersVisible;
     g_closeEditorOnMapClose = snapshot.closeEditorOnMapClose;
     g_showHoverLabels = snapshot.showHoverLabels;
+    g_probeLive = snapshot.debugLogging;
     g_markerEditorPositionCustomized = snapshot.editorPositionCustomized;
     g_markerEditorCustomLeft = snapshot.editorLeft;
     g_markerEditorCustomTop = snapshot.editorTop;
@@ -494,6 +495,7 @@ bool SaveModConfig(bool logSuccess = true)
     configData.snapshot.markersVisible = g_markersVisible;
     configData.snapshot.closeEditorOnMapClose = g_closeEditorOnMapClose;
     configData.snapshot.showHoverLabels = g_showHoverLabels;
+    configData.snapshot.debugLogging = g_probeLive;
     configData.snapshot.defaultMarkerType = MarkerTypeToIndex(g_defaultMarkerType);
     configData.snapshot.editorPositionCustomized = g_markerEditorPositionCustomized;
     configData.snapshot.editorLeft = g_markerEditorCustomLeft;
@@ -537,6 +539,7 @@ void LoadModConfig()
     defaults.snapshot.markersVisible = true;
     defaults.snapshot.closeEditorOnMapClose = true;
     defaults.snapshot.showHoverLabels = true;
+    defaults.snapshot.debugLogging = false;
     defaults.snapshot.editorPositionCustomized = false;
     defaults.snapshot.editorLeft = 0;
     defaults.snapshot.editorTop = 0;
@@ -4073,6 +4076,7 @@ MapMarkersModConfigSnapshot MapMarkers_CaptureModConfigSnapshot()
     snapshot.markersVisible = g_markersVisible;
     snapshot.closeEditorOnMapClose = g_closeEditorOnMapClose;
     snapshot.showHoverLabels = g_showHoverLabels;
+    snapshot.debugLogging = g_probeLive;
     snapshot.editorPositionCustomized = g_markerEditorPositionCustomized;
     snapshot.editorLeft = g_markerEditorCustomLeft;
     snapshot.editorTop = g_markerEditorCustomTop;
