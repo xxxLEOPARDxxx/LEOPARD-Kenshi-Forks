@@ -432,11 +432,11 @@ void EnsureModHubClientConfigured()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchQuantityCountSetting },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSortPanelWidthSetting },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSortPanelHeightSetting }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting }
+        // Ширина и высота поиска и сортировки убраны со страницы (07.10.2026):
+        // панели встроены в окно торговца (InlineSearchCoord /
+        // PositionInlineControls) и берут размер у места в нём, так что
+        // эти четыре числа ни на что не влияли - игрок жаловался.
     };
 
     static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {
