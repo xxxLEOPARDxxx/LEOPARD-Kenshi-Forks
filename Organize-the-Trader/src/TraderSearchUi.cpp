@@ -28,6 +28,12 @@
 
 #include <sstream>
 
+// Подсказка в пустом поле - через перевод мода (08.10.2026; раньше была
+// по-русски и в английской игре). После Ogre/MyGUI: Localization.h тянет
+// Windows.h с макросами min/max.
+#define KLOC_DOMAIN "organize_the_trader"
+#include <Localization.h>
+
 namespace
 {
 const char* kDockWindowName = "OTT_InlineTraderSearch";
@@ -1547,7 +1553,7 @@ bool BuildControlsScaffold(
         DestroyWidgetDirect(container);
         return false;
     }
-    placeholder->setCaption(MyGUI::UString(L"\u041f\u043e\u0438\u0441\u043a \u043f\u0440\u0435\u0434\u043c\u0435\u0442\u043e\u0432..."));
+    placeholder->setCaption(Tr("Search items..."));
     placeholder->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
     placeholder->setNeedMouseFocus(true);
     placeholder->eventMouseButtonClick += MyGUI::newDelegate(callbacks.onSearchPlaceholderClicked);
