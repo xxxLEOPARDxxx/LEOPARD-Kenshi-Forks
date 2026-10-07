@@ -91,6 +91,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BetterLooting.cpp" />
+    <ClCompile Include="BetterLootingPanel.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="BetterLootingPanel.h" />
+    <ClInclude Include="BetterLootingRules.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
