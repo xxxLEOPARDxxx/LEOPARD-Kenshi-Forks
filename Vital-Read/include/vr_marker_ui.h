@@ -96,6 +96,10 @@ bool ShowOverlayMarker(
 
 // Слой для значков - тот же, что у панели с портретом target (см. .cpp).
 void SetOverlayLayerFromWidget(MyGUI::Widget* target);
+// Сообщать о каждом удалённом виджете интерфейса (кеш портретов плагина).
+typedef void (*WidgetGoneFn)(MyGUI::Widget* widget);
+void SetWidgetGoneCallback(WidgetGoneFn fn);
+void EnsureUnlinker();
 void HideWidgets(std::vector<MyGUI::Widget*>* widgets);
 void HideWidgetsFrom(std::vector<MyGUI::Widget*>* widgets, size_t startIndex);
 OverlayPerfStats GetOverlayPerfStats();

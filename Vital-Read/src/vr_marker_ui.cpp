@@ -13,6 +13,7 @@
 #include <cstring>
 #include <algorithm>
 #include <map>
+#include <set>
 #include <sstream>
 
 namespace vr_marker_ui
@@ -113,6 +114,11 @@ std::map<MyGUI::Widget*, ImageTextureCacheEntry> g_imageTextureCache;
 MyGUI::Widget* g_overlayParent = 0;
 const int kOverlayDepth = -1000;
 std::vector<std::vector<MyGUI::Widget*>*> g_trackedWidgetLists;
+// Свои виджеты - быстрая проверка: MyGUI сообщает о КАЖДОМ удаляемом
+// виджете интерфейса, и перебирать на каждый все списки значков незачем
+// (ревью 08.10.2026: закрытие большого окна - тысячи виджетов).
+std::set<MyGUI::Widget*> g_ownWidgets;
+WidgetGoneFn g_widgetGone = 0;
 
 class OverlayUnlinker : public MyGUI::IUnlinkWidget
 {
@@ -123,9 +129,17 @@ public:
         {
             return;
         }
+        if (g_widgetGone != 0)
+        {
+            g_widgetGone(widget);
+        }
         if (widget == g_overlayParent)
         {
             g_overlayParent = 0;
+        }
+        if (g_ownWidgets.erase(widget) == 0)
+        {
+            return;
         }
         for (size_t list = 0u; list < g_trackedWidgetLists.size(); ++list)
         {
@@ -144,7 +158,7 @@ public:
 
 OverlayUnlinker* g_overlayUnlinker = 0;   // не удаляется: живёт, пока жива DLL
 
-void TrackWidgetList(std::vector<MyGUI::Widget*>* widgets)
+void EnsureUnlinkerImpl()
 {
     if (g_overlayUnlinker == 0)
     {
@@ -155,6 +169,15 @@ void TrackWidgetList(std::vector<MyGUI::Widget*>* widgets)
         }
         g_overlayUnlinker = new OverlayUnlinker();
         manager->registerUnlinker(g_overlayUnlinker);
+    }
+}
+
+void TrackWidgetList(std::vector<MyGUI::Widget*>* widgets)
+{
+    EnsureUnlinkerImpl();
+    if (g_overlayUnlinker == 0)
+    {
+        return;
     }
     if (std::find(g_trackedWidgetLists.begin(), g_trackedWidgetLists.end(), widgets) == g_trackedWidgetLists.end())
     {
@@ -175,10 +198,16 @@ T* CreateOverlayWidget(MyGUI::Gui* gui, const std::string& skin, const MyGUI::In
             // Игра делает портрет оглушённого полупрозрачным - значок не
             // должен меркнуть вместе с ним (08.10.2026).
             widget->setInheritsAlpha(false);
+            g_ownWidgets.insert(widget);
         }
         return widget;
     }
-    return gui->createWidget<T>(skin, coord, MyGUI::Align::Left | MyGUI::Align::Top, layer, name);
+    T* const widget = gui->createWidget<T>(skin, coord, MyGUI::Align::Left | MyGUI::Align::Top, layer, name);
+    if (widget != 0)
+    {
+        g_ownWidgets.insert(widget);
+    }
+    return widget;
 }
 
 std::string BuildImageTextureCacheKey(const char* pluginName, const std::string& textureName, int textureSizePx)
@@ -857,6 +886,16 @@ bool ShowOverlayMarker(
         style.fixedSizePx,
         style.anchor,
         0);
+}
+
+void EnsureUnlinker()
+{
+    EnsureUnlinkerImpl();
+}
+
+void SetWidgetGoneCallback(WidgetGoneFn fn)
+{
+    g_widgetGone = fn;
 }
 
 void SetOverlayLayerFromWidget(MyGUI::Widget* target)

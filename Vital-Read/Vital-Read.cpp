@@ -2458,6 +2458,25 @@ void CollectDisplayPortraitCandidates(
     std::stable_sort(outDisplayPortraits->begin(), outDisplayPortraits->end(), PortraitCandidateSortPredicate);
 }
 
+// Удалён закешированный портрет - кеш больше нельзя читать (раньше он
+// проверялся чтением уже удалённых виджетов; ревью 08.10.2026).
+void OnWidgetGone(MyGUI::Widget* widget)
+{
+    if (!g_portraitDisplayCache.valid)
+    {
+        return;
+    }
+    for (size_t index = 0u; index < g_portraitDisplayCache.displayPortraits.size(); ++index)
+    {
+        if (g_portraitDisplayCache.displayPortraits[index].widget == widget
+            || g_portraitDisplayCache.displayPortraits[index].parent == widget)
+        {
+            ClearPortraitDisplayCache();
+            return;
+        }
+    }
+}
+
 void ClearPortraitDisplayCache()
 {
     g_portraitDisplayCache.valid = false;
@@ -2733,6 +2752,8 @@ bool TryCollectPortraitRefreshContext(
     ++g_overlayPerfStats.contextsBuilt;
     g_overlayPerfStats.scopedMembersScanned += scopedMemberCount;
 
+    vr_marker_ui::EnsureUnlinker();
+    vr_marker_ui::SetWidgetGoneCallback(&OnWidgetGone);
     std::vector<PortraitCandidateRecord> displayPortraits;
     if (TryValidatePortraitDisplayCache(rosterSignature.str(), scopedMemberCount, &displayPortraits))
     {
