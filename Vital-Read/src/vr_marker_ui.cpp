@@ -103,7 +103,8 @@ const std::string& WidgetLayerName(MyGUI::Widget* widget)
 }
 std::map<MyGUI::Widget*, ImageTextureCacheEntry> g_imageTextureCache;
 
-// 08.10.2026: значки - ДОЧЕРНИЕ виджеты панели портретов, а не корневые на
+// 08.10.2026: значки - ДОЧЕРНИЕ виджеты портрета (сначала были корня панели),
+// а не корневые на
 // её слое. Корневые на перекрывающемся слое панель закрывала, как только
 // поднималась наверх (значки появлялись и через время пропадали). Дочерние
 // с глубиной kOverlayDepth рисуются поверх всех соседей по панели, а окна
@@ -719,6 +720,12 @@ bool TryPlaceOverlayWidget(
         const MyGUI::IntPoint origin = parent->getAbsolutePosition();
         coord.left -= origin.left;
         coord.top -= origin.top;
+        // Дочерний виджет обрезается по родителю - держим значок внутри
+        // портрета целиком.
+        const int maxLeft = parent->getWidth() - coord.width;
+        const int maxTop = parent->getHeight() - coord.height;
+        coord.left = ClampInt(coord.left, 0, maxLeft > 0 ? maxLeft : 0);
+        coord.top = ClampInt(coord.top, 0, maxTop > 0 ? maxTop : 0);
     }
     if (widget->getCoord() != coord)
     {
@@ -856,15 +863,13 @@ void SetOverlayLayerFromWidget(MyGUI::Widget* target)
     {
         g_overlayLayerName = name;
     }
-    // Родитель значков - корень панели портретов (см. g_overlayParent).
-    MyGUI::Widget* root = target;
-    while (root != 0 && root->getParent() != 0)
+    // Родитель значка - сам портрет (см. g_overlayParent): дочерний виджет
+    // рисуется поверх родителя и поднимается вместе с ним. На корне панели
+    // значки пропадали при наведении мыши на портрет - игра поднимала
+    // портрет над соседями (08.10.2026).
+    if (target != 0)
     {
-        root = root->getParent();
-    }
-    if (root != 0)
-    {
-        g_overlayParent = root;
+        g_overlayParent = target;
     }
 }
 
