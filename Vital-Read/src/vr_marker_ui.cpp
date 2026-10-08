@@ -172,6 +172,9 @@ T* CreateOverlayWidget(MyGUI::Gui* gui, const std::string& skin, const MyGUI::In
         if (widget != 0)
         {
             widget->setDepth(kOverlayDepth);
+            // Игра делает портрет оглушённого полупрозрачным - значок не
+            // должен меркнуть вместе с ним (08.10.2026).
+            widget->setInheritsAlpha(false);
         }
         return widget;
     }
