@@ -893,6 +893,11 @@ void EnsureUnlinker()
     EnsureUnlinkerImpl();
 }
 
+bool IsOwnWidget(MyGUI::Widget* widget)
+{
+    return g_ownWidgets.count(widget) != 0;
+}
+
 void SetWidgetGoneCallback(WidgetGoneFn fn)
 {
     g_widgetGone = fn;

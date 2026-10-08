@@ -100,6 +100,8 @@ void SetOverlayLayerFromWidget(MyGUI::Widget* target);
 typedef void (*WidgetGoneFn)(MyGUI::Widget* widget);
 void SetWidgetGoneCallback(WidgetGoneFn fn);
 void EnsureUnlinker();
+// Свой виджет (значок/подпись) - обход портретов его пропускает.
+bool IsOwnWidget(MyGUI::Widget* widget);
 void HideWidgets(std::vector<MyGUI::Widget*>* widgets);
 void HideWidgetsFrom(std::vector<MyGUI::Widget*>* widgets, size_t startIndex);
 OverlayPerfStats GetOverlayPerfStats();

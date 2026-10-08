@@ -86,7 +86,10 @@ const int kPortraitTextLabelMaxSizePx = 32;
 const size_t kHoveredChainDepthLimit = 8u;
 const size_t kPortraitTreeDepthLimit = 4u;
 const size_t kPortraitTreeNodeLimit = 160u;
-const size_t kPortraitCandidateScanLimit = 512u;
+// Было 512 на весь видимый интерфейс: при большом отряде (30 портретов) и
+// значках внутри портретов обход кончался на первом ряду - у второго не
+// было ни значков, ни подписей (08.10.2026). Обход - раз в 5 с (кеш).
+const size_t kPortraitCandidateScanLimit = 4096u;
 const size_t kPortraitCandidateLogLimit = 24u;
 const size_t kHoveredPortraitDescendantDepthLimit = 3u;
 const size_t kHoveredPortraitDescendantNodeLimit = 24u;
@@ -2340,6 +2343,11 @@ void CollectPortraitCandidatesRecursive(
     size_t* scannedNodes)
 {
     if (widget == 0 || outCandidates == 0 || scannedNodes == 0 || *scannedNodes >= kPortraitCandidateScanLimit)
+    {
+        return;
+    }
+    // Скрытые ветки и свои значки - не портреты, и в счёт не идут.
+    if (!widget->getVisible() || vr_marker_ui::IsOwnWidget(widget))
     {
         return;
     }
