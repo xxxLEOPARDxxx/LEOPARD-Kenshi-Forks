@@ -2590,8 +2590,14 @@ void TickPhase2ControlsScaffold()
         g_pendingSlashFocusTextSuppression = false;
     }
 
-    if (AreControlsScaffoldPresent())
+    // Проверка «изменились ли вещи» собирает подпись всего ассортимента
+    // (сортировка, строка на сотни вещей) - не каждый кадр, а раз в 150 мс
+    // (leopard, 08.10.2026: просадка FPS в окне торговца).
+    static DWORD s_lastObserveMs = 0;
+    const DWORD observeNow = GetTickCount();
+    if (AreControlsScaffoldPresent() && (g_searchFilterDirty || observeNow - s_lastObserveMs >= 150))
     {
+        s_lastObserveMs = observeNow;
         ObserveTraderEntriesStateForRefresh();
     }
 

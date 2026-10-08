@@ -2993,8 +2993,45 @@ void ApplySearchFilterFromControls(bool forceShowAll, bool logSummary)
         return;
     }
 
+    // Быстрый путь (leopard, 08.10.2026: при каждой продаже FPS 200 -> 90):
+    // поиск пуст, сортировки нет, и прошлый проход у этого окна был таким же
+    // - ничего не скрыто и не сдвинуто, перекладывать нечего. Пересчитать
+    // только счётчик «N / N».
+    static MyGUI::Widget* s_neutralParent = 0;
+    const ParsedSearchQuery parsed = ParseSearchQuery(g_searchQueryRaw);
+    const bool neutral = !forceShowAll && g_sortMode == TraderSortMode_None
+        && parsed.normalizedQuery.empty() && !parsed.blueprintOnly;
+    if (neutral && s_neutralParent == traderParent)
+    {
+        MyGUI::Widget* backpackContent = ResolveBestBackpackContentWidget(traderParent, false);
+        MyGUI::Widget* entriesRoot = backpackContent != 0 ? ResolveInventoryEntriesRoot(backpackContent) : 0;
+        if (entriesRoot != 0)
+        {
+            std::size_t occupied = 0;
+            std::size_t quantityTotal = 0;
+            const std::size_t childCount = entriesRoot->getChildCount();
+            for (std::size_t childIndex = 0; childIndex < childCount; ++childIndex)
+            {
+                int quantity = 0;
+                if (TryResolveItemQuantityFromWidget(entriesRoot->getChildAt(childIndex), &quantity) && quantity > 0)
+                {
+                    ++occupied;
+                    quantityTotal += static_cast<std::size_t>(quantity);
+                }
+            }
+            UpdateSearchCountText(occupied, occupied, quantityTotal);
+            g_searchFilterDirty = false;
+            return;
+        }
+    }
+
     if (ApplySearchFilterToTraderParent(traderParent, forceShowAll, logSummary))
     {
         g_searchFilterDirty = false;
+        s_neutralParent = neutral ? traderParent : 0;
+    }
+    else
+    {
+        s_neutralParent = 0;
     }
 }
