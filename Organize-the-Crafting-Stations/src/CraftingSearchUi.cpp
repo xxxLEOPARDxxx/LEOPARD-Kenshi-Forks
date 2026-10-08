@@ -2083,8 +2083,13 @@ void TickPhase2ControlsScaffold()
         g_pendingSlashFocusTextSuppression = false;
     }
 
-    if (FindControlsContainer() != 0)
+    // Проверка «изменились ли строки» - раз в 150 мс, а не каждый кадр
+    // (leopard, 08.10.2026; то же в Organize-the-Trader).
+    static DWORD s_lastObserveMs = 0;
+    const DWORD observeNow = GetTickCount();
+    if (FindControlsContainer() != 0 && (g_searchFilterDirty || observeNow - s_lastObserveMs >= 150))
     {
+        s_lastObserveMs = observeNow;
         ObserveTraderEntriesStateForRefresh();
     }
 
