@@ -53,7 +53,7 @@ const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
 const int kMarkerEditorPanelWidth = 510;   // было 344: русские подписи обрезались
-const int kMarkerEditorPanelHeight = 166;   // подсказка - в две строки
+const int kMarkerEditorPanelHeight = 166 + 32;   // подсказка - в две строки; +32 - строка цвета (08.10.2026)
 const int kMarkerEditorPanelDepth = -1000;
 const int kMarkerEditorBackgroundInset = 0;
 const int kMarkerEditorOuterPadding = 16;
@@ -65,7 +65,11 @@ const int kMarkerEditorRowGap = 8;
 const int kMarkerEditorHintHeight = 40;
 const int kMarkerEditorDefaultTop = 48;
 const int kMarkerEditorRightMargin = 18;
-const int kMarkerToggleButtonWidth = 108;
+const int kMarkerToggleButtonMinWidth = 108;
+// Ширина - по замеру обеих подписей шрифтом (08.10.2026, Khripunoff на Nexus:
+// «Markers: Off» обрезалось с обеих сторон). До замера - прежние 108.
+int g_markerToggleButtonWidth = kMarkerToggleButtonMinWidth;
+#define kMarkerToggleButtonWidth g_markerToggleButtonWidth
 const int kMarkerToggleButtonHeight = 24;
 const int kMarkerToggleButtonMargin = 12;
 const int kMarkerToggleButtonBottomMargin = 18;
@@ -73,9 +77,19 @@ const int kMarkerHoverLabelHeight = 30;
 const int kMarkerHoverLabelHorizontalPadding = 8;
 const int kMarkerHoverLabelVerticalOffset = 1;
 const int kMarkerHoverLabelMinimumWidth = 40;
-const int kMarkerHoverLabelMaximumWidth = 320;
+const int kMarkerHoverLabelMaximumWidth = 480;   // было 320; ширина - по замеру текста
 const char* kMarkerEditorHintCaption = "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect";
 const char* kMarkerEditorDeleteButtonName = "MapMarkers_EditorDeleteButton";
+const char* kMarkerEditorCloseButtonName = "MapMarkers_EditorCloseButton";
+const char* kMarkerEditorColourTitleName = "MapMarkers_EditorColourTitle";
+const int kMarkerEditorSwatchSize = 22;
+const int kMarkerEditorSwatchGap = 6;
+// Цвет подписи - код «#RRGGBB» в начале подписи: MyGUI красит им текст
+// (так и было в моде, но нигде не описано). Готовый выбор цветов -
+// просьба Khripunoff на Nexus (08.10.2026). Пусто - без цвета.
+const char* const kMarkerLabelColours[] = { "", "#FFFFFF", "#FF5A4E", "#FF9F45", "#FFD84D", "#7BE07B",
+                                            "#5CD6E8", "#6FA8FF", "#C38BFF", "#FF7FC8", "#A0A0A0" };
+const int kMarkerLabelColourCount = sizeof(kMarkerLabelColours) / sizeof(kMarkerLabelColours[0]);
 const int kMarkerEditorDeleteButtonWidth = 120;
 const char* kModConfigFileName = "mod-config.json";
 const char* kMarkerPersistenceFileName = "Map-markers.json";
@@ -206,6 +220,8 @@ void SetMarkerWidgetsVisible(MyGUI::ImageBox* mapImage, bool visible);
 void SetCaptionIfChanged(MyGUI::Widget* widget, const MyGUI::UString& caption);
 void HideMarkerToggleButton();
 void ClearSelectedMarker(const char* reason);
+void OnMarkerEditorCloseClicked(MyGUI::Widget*);
+void OnMarkerColourSwatchClicked(MyGUI::Widget* sender);
 void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
 void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
@@ -2557,6 +2573,18 @@ bool BuildMarkerToggleButtonUi(MyGUI::Widget* buttonParent)
     g_markerToggleButtonRef->set(button);
     button->setNeedMouseFocus(true);
     button->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerToggleButtonClicked);
+    {
+        // Замер обеих подписей тем шрифтом, что у кнопки, плюс поля скина.
+        button->setCaption(Tr("Markers: On"));
+        int widest = button->getTextSize().width;
+        button->setCaption(Tr("Markers: Off"));
+        if (button->getTextSize().width > widest)
+        {
+            widest = button->getTextSize().width;
+        }
+        g_markerToggleButtonWidth = std::max(kMarkerToggleButtonMinWidth, widest + 36);
+        button->setSize(g_markerToggleButtonWidth, kMarkerToggleButtonHeight);
+    }
     button->setCaption(BuildMarkerToggleButtonCaption());
     return true;
 }
@@ -2788,9 +2816,10 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
     const int labelEditWidth =
         kMarkerEditorPanelWidth - labelEditLeft - kMarkerEditorOuterPadding;
 
+    const int closeSize = kMarkerEditorControlHeight;
     MyGUI::TextBox* header = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
-        MyGUI::IntCoord(headerLeft, headerTop, contentWidth, kMarkerEditorHeaderHeight),
+        MyGUI::IntCoord(headerLeft, headerTop, contentWidth - closeSize - kMarkerEditorLabelGap, kMarkerEditorHeaderHeight),
         MyGUI::Align::Left | MyGUI::Align::Top,
         kMarkerEditorHeaderName);
     if (header == 0)
@@ -2804,6 +2833,19 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
     header->eventMouseMove += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseMove);
     header->eventMouseDrag += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseDrag);
     header->eventMouseButtonReleased += MyGUI::newDelegate(&OnMarkerEditorHeaderMouseReleased);
+
+    MyGUI::Button* closeButton = panel->createWidget<MyGUI::Button>(
+        "Kenshi_Button1",
+        MyGUI::IntCoord(kMarkerEditorPanelWidth - kMarkerEditorOuterPadding - closeSize,
+                        headerTop + (kMarkerEditorHeaderHeight - closeSize) / 2, closeSize, closeSize),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorCloseButtonName);
+    if (closeButton != 0)
+    {
+        closeButton->setCaption("x");
+        closeButton->setNeedMouseFocus(true);
+        closeButton->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerEditorCloseClicked);
+    }
 
     MyGUI::Button* typeButton = panel->createWidget<MyGUI::Button>(
         "Kenshi_Button1",
@@ -2863,6 +2905,66 @@ bool BuildMarkerEditorUi(MyGUI::Widget* panelParent)
     labelEdit->eventKeyLostFocus += MyGUI::newDelegate(&OnMarkerLabelFocusChanged);
     labelEdit->eventKeyButtonPressed += MyGUI::newDelegate(&OnMarkerLabelKeyPressed);
     labelEdit->eventKeyButtonReleased += MyGUI::newDelegate(&OnMarkerLabelKeyReleased);
+
+    const int colourTop = labelTop + kMarkerEditorControlHeight + kMarkerEditorRowGap;
+    MyGUI::TextBox* colourTitle = panel->createWidget<MyGUI::TextBox>(
+        "Kenshi_TextboxStandardText",
+        MyGUI::IntCoord(kMarkerEditorOuterPadding, colourTop, kMarkerEditorLabelTitleWidth, kMarkerEditorControlHeight),
+        MyGUI::Align::Left | MyGUI::Align::Top,
+        kMarkerEditorColourTitleName);
+    if (colourTitle != 0)
+    {
+        colourTitle->setCaption(Tr("Colour"));
+        colourTitle->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+    }
+    for (int k = 0; k < kMarkerLabelColourCount; ++k)
+    {
+        const int left = labelEditLeft + k * (kMarkerEditorSwatchSize + kMarkerEditorSwatchGap);
+        const int top = colourTop + (kMarkerEditorControlHeight - kMarkerEditorSwatchSize) / 2;
+        // Рамка - тёмный квадрат, внутри - цвет; «без цвета» - кнопка «-».
+        MyGUI::Widget* swatch = 0;
+        if (kMarkerLabelColours[k][0] == '\0')
+        {
+            MyGUI::Button* none = panel->createWidget<MyGUI::Button>(
+                "Kenshi_Button1",
+                MyGUI::IntCoord(left, top, kMarkerEditorSwatchSize, kMarkerEditorSwatchSize),
+                MyGUI::Align::Left | MyGUI::Align::Top);
+            if (none != 0)
+            {
+                none->setCaption("-");
+            }
+            swatch = none;
+        }
+        else
+        {
+            swatch = panel->createWidget<MyGUI::Widget>(
+                "WhiteSkin",
+                MyGUI::IntCoord(left, top, kMarkerEditorSwatchSize, kMarkerEditorSwatchSize),
+                MyGUI::Align::Left | MyGUI::Align::Top);
+            if (swatch != 0)
+            {
+                swatch->setColour(MyGUI::Colour(0.05f, 0.05f, 0.05f));
+                MyGUI::Widget* inner = swatch->createWidget<MyGUI::Widget>(
+                    "WhiteSkin",
+                    MyGUI::IntCoord(2, 2, kMarkerEditorSwatchSize - 4, kMarkerEditorSwatchSize - 4),
+                    MyGUI::Align::Default);
+                if (inner != 0)
+                {
+                    unsigned rgb = 0;
+                    sscanf_s(kMarkerLabelColours[k] + 1, "%x", &rgb);
+                    inner->setColour(MyGUI::Colour(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f,
+                                                   (rgb & 0xFF) / 255.0f));
+                    inner->setNeedMouseFocus(false);
+                }
+            }
+        }
+        if (swatch != 0)
+        {
+            swatch->setUserString("mm_colour", kMarkerLabelColours[k]);
+            swatch->setNeedMouseFocus(true);
+            swatch->eventMouseButtonClick += MyGUI::newDelegate(&OnMarkerColourSwatchClicked);
+        }
+    }
 
     MyGUI::TextBox* hint = panel->createWidget<MyGUI::TextBox>(
         "Kenshi_TextboxStandardText",
@@ -3249,11 +3351,18 @@ void EnsureMarkerHoverLabelAttached(MyGUI::ImageBox* mapImage, const MyGUI::IntC
         markerTop,
         markerSize);
 
-    const int labelWidth = BuildMarkerLabelDisplayWidth(
-        hoverDisplayText,
-        kMarkerHoverLabelMinimumWidth,
-        kMarkerHoverLabelMaximumWidth,
-        kMarkerHoverLabelHorizontalPadding);
+    // Ширина - по замеру текста шрифтом (08.10.2026: оценка по байтам давала
+    // мало, и подписи обрезались). Оценка - только если замер не вышел.
+    SetCaptionIfChanged(hoverLabelText, hoverDisplayText);
+    const int measuredText = hoverLabelText->getTextSize().width;
+    const int labelWidth = measuredText > 0
+        ? ClampInt(measuredText + (kMarkerHoverLabelHorizontalPadding * 2) + 6,
+                   kMarkerHoverLabelMinimumWidth, kMarkerHoverLabelMaximumWidth)
+        : BuildMarkerLabelDisplayWidth(
+              hoverDisplayText,
+              kMarkerHoverLabelMinimumWidth,
+              kMarkerHoverLabelMaximumWidth,
+              kMarkerHoverLabelHorizontalPadding);
     const int maxLeft = imageCoord.width > labelWidth ? imageCoord.width - labelWidth : 0;
     const int maxTop = imageCoord.height > kMarkerHoverLabelHeight ? imageCoord.height - kMarkerHoverLabelHeight : 0;
     const int labelLeft = ClampInt(
@@ -3834,6 +3943,50 @@ void DeleteSelectedMarker(const char* trigger)
          << " marker_id=" << deletedMarkerId
          << " remaining=" << g_markers.size();
     LogProbeLine(line.str());
+}
+
+// Крестик окна метки: сохранить подпись и закрыть. Раньше закрыть можно было
+// только Enter или правым щелчком - а тот ещё и отдавал отряду приказ идти.
+void OnMarkerEditorCloseClicked(MyGUI::Widget*)
+{
+    MyGUI::EditBox* const labelEdit = FindActiveMarkerLabelEdit();
+    if (labelEdit != 0)
+    {
+        CommitMarkerLabelEdit(labelEdit, true, "close_button");
+    }
+    ClearSelectedMarker("close_button");
+}
+
+// Подпись без цветового кода в начале («#RRGGBB»).
+std::string StripLeadingColourTag(const std::string& label)
+{
+    if (label.size() >= 7 && label[0] == '#' && (label.size() < 2 || label[1] != '#'))
+    {
+        bool hex = true;
+        for (int k = 1; k <= 6 && hex; ++k)
+        {
+            hex = std::isxdigit(static_cast<unsigned char>(label[k])) != 0;
+        }
+        if (hex)
+        {
+            return label.substr(7);
+        }
+    }
+    return label;
+}
+
+void OnMarkerColourSwatchClicked(MyGUI::Widget* sender)
+{
+    MyGUI::EditBox* const labelEdit = FindActiveMarkerLabelEdit();
+    if (labelEdit == 0 || sender == 0)
+    {
+        return;
+    }
+    const std::string colour = sender->getUserString("mm_colour");
+    const std::string text = StripLeadingColourTag(labelEdit->getOnlyText().asUTF8());
+    g_suppressNextMarkerLabelChangeEvent = true;
+    labelEdit->setOnlyText(colour + text);
+    CommitMarkerLabelEdit(labelEdit, false, "colour_swatch");
 }
 
 void OnMarkerDeleteButtonClicked(MyGUI::Widget*)

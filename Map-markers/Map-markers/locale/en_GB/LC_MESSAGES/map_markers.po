@@ -91,3 +91,6 @@ msgstr "Debug logging"
 
 msgid "Write detailed logs to RE_Kenshi_log.txt"
 msgstr "Write detailed logs to RE_Kenshi_log.txt"
+
+msgid "Colour"
+msgstr "Colour"
