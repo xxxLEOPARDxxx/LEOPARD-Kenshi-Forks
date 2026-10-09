@@ -1,0 +1,72 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Trader\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar and sorting in the trade window."
+msgstr "A search bar and sorting in the trade window."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Organize the Trader search controls"
+msgstr "Turns the whole mod on and off"
+
+msgid "Show entry count"
+msgstr "Show entry count"
+
+msgid "Show visible and total entry counts in the search bar"
+msgstr "Shows how many entries are visible out of the total, next to the search"
+
+msgid "Show quantity count"
+msgstr "Show quantity count"
+
+msgid "Show visible stack quantity in the search bar"
+msgstr "Shows the total quantity of the visible stacks next to the search"
+
+msgid "Show clear button"
+msgstr "Show clear button"
+
+msgid "Show the clear button inside the search bar"
+msgstr "A button inside the search field that clears it"
+
+msgid "Auto-focus search"
+msgstr "Auto-focus search"
+
+msgid "Focus the trader search input automatically when controls are injected"
+msgstr "Puts the cursor into the search field when the trade window opens"
+
+msgid "Search input width"
+msgstr "Search input width"
+
+msgid "Desired search input width in pixels"
+msgstr "Width of the search field, px"
+
+msgid "Search input height"
+msgstr "Search input height"
+
+msgid "Desired search input height in pixels"
+msgstr "Height of the search field, px"
+
+msgid "Sort panel width"
+msgstr "Sort panel width"
+
+msgid "Desired sort panel width in pixels"
+msgstr "Width of the sorting panel, px"
+
+msgid "Sort panel height"
+msgstr "Sort panel height"
+
+msgid "Desired sort panel height in pixels"
+msgstr "Height of the sorting panel, px"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"
+
+msgid "Search items..."
+msgstr "Search items..."

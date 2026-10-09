@@ -1,0 +1,78 @@
+# Run this script in your PowerShell terminal before opening Visual Studio:
+# . .\scripts\setup_env.ps1
+# The leading dot sources the script in the current scope.
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$CommonScript = Join-Path $scriptDir "kenshi-common.ps1"
+if (-not (Test-Path $CommonScript)) {
+    Write-Host "ERROR: Missing shared helper: $CommonScript" -ForegroundColor Red
+    return
+}
+. $CommonScript
+
+$ctx = Initialize-KenshiScriptContext -InvocationPath $MyInvocation.MyCommand.Path
+
+function Find-KenshiDepsDirFromRepo {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoDir
+    )
+
+    $current = [IO.Path]::GetFullPath($RepoDir)
+    while ($current) {
+        $candidate = Join-Path $current "_deps\KenshiLib_Examples_deps"
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+
+        $parent = Split-Path -Parent $current
+        if (-not $parent -or $parent -eq $current) {
+            break
+        }
+        $current = $parent
+    }
+
+    return ""
+}
+
+# Prefer explicit env override; otherwise use repo-relative defaults.
+if ($env:KENSHI_DEFAULT_DEPS_DIR) {
+    $defaultDepsDir = $env:KENSHI_DEFAULT_DEPS_DIR
+} else {
+    $defaultDepsDir = Find-KenshiDepsDirFromRepo -RepoDir $ctx.RepoDir
+    if (-not $defaultDepsDir) {
+        $workspaceRoot = Split-Path -Parent $ctx.RepoDir
+        $defaultDepsDir = Join-Path $workspaceRoot "_deps\KenshiLib_Examples_deps"
+    }
+}
+
+$expectedRoot = if ($env:KENSHI_DEPS_ROOT) {
+    $env:KENSHI_DEPS_ROOT
+} elseif ($defaultDepsDir) {
+    Split-Path -Parent $defaultDepsDir
+} else {
+    Join-Path (Split-Path -Parent $ctx.RepoDir) "_deps"
+}
+$needsDepsReset = -not $env:KENSHILIB_DEPS_DIR
+if (-not $needsDepsReset) {
+    $depsRoot = [IO.Path]::GetFullPath($env:KENSHILIB_DEPS_DIR)
+    $expectedRootFull = [IO.Path]::GetFullPath($expectedRoot)
+    if (-not $depsRoot.StartsWith($expectedRootFull, [StringComparison]::OrdinalIgnoreCase)) {
+        $needsDepsReset = $true
+    }
+}
+if ($needsDepsReset) {
+    $env:KENSHILIB_DEPS_DIR = $defaultDepsDir
+}
+
+$expectedKenshiLib = Join-Path $env:KENSHILIB_DEPS_DIR "KenshiLib"
+if (-not $env:KENSHILIB_DIR -or ($env:KENSHILIB_DIR -ne $expectedKenshiLib)) {
+    $env:KENSHILIB_DIR = $expectedKenshiLib
+}
+
+$expectedBoost = Join-Path $env:KENSHILIB_DEPS_DIR "boost_1_60_0"
+if (-not $env:BOOST_INCLUDE_PATH -or ($env:BOOST_INCLUDE_PATH -ne $expectedBoost)) {
+    $env:BOOST_INCLUDE_PATH = $expectedBoost
+}
+
+Write-Host "Environment variables set for this session:"
+Write-Host "KENSHILIB_DEPS_DIR = $env:KENSHILIB_DEPS_DIR"
