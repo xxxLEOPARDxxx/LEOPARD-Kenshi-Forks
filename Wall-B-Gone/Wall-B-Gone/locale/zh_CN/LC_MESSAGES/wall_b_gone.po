@@ -1,0 +1,54 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Wall-B-Gone\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Dismantles the selected wall, bed or furniture with a hotkey and returns the materials."
+msgstr "按快捷键拆除所选的墙、床或家具，并返还材料。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Wall-B-Gone features"
+msgstr "开启或关闭整个模组"
+
+msgid "Allow bed and furniture dismantle"
+msgstr "允许拆除床和家具"
+
+msgid "Allow dismantle behavior for beds and common furniture"
+msgstr "也可拆除床和普通家具；床仅在无人躺卧时可拆"
+
+msgid "Dismantle hotkey"
+msgstr "拆除快捷键"
+
+msgid "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo."
+msgstr "拆除所选墙、床或家具的按键。以文字填写：X、CTRL+X、SHIFT+ALT+X；NONE - 不设按键"
+
+msgid "Reset hotkey default"
+msgstr "恢复默认快捷键"
+
+msgid "Reset dismantle hotkey and modifier requirements to defaults"
+msgstr "将拆除快捷键恢复为 X（不带 Ctrl、Shift 或 Alt）"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Write extra runtime diagnostics to the RE_Kenshi log"
+msgstr "将额外的详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Dismantle any own building"
+msgstr "拆除自己的任何建筑"
+
+msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
+msgstr "热键可拆除你所选的任何己方建筑，而不仅是墙和家具。仓库或机器必须清空，里面不能有人，内部和上面不能有其他建筑"
+
+msgid "Unload items when dismantling"
+msgstr "拆除时卸下物品"
+
+msgid "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"
+msgstr "配合\"拆除自己的任何建筑\"：装有物品的储物箱或工作台也会被拆除--物品会先放到地上"

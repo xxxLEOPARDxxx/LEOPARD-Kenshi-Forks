@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "sleepingBagDismantleEnabled": true,
+  "dismantleAnyOwnBuilding": false,
+  "dismantleDropItems": false,
+  "debugLogging": false,
+  "hotkeyRequireCtrl": false,
+  "hotkeyRequireShift": false,
+  "hotkeyRequireAlt": false,
+  "hotkey": "X",
+  "dismantle_hotkey": "X"
+}

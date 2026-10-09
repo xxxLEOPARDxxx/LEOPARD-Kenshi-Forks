@@ -1,0 +1,54 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Wall-B-Gone\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Dismantles the selected wall, bed or furniture with a hotkey and returns the materials."
+msgstr "Dismantles the selected wall, bed or furniture with a hotkey and returns the materials."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Wall-B-Gone features"
+msgstr "Turns the whole mod on and off"
+
+msgid "Allow bed and furniture dismantle"
+msgstr "Allow bed and furniture dismantle"
+
+msgid "Allow dismantle behavior for beds and common furniture"
+msgstr "Beds and common furniture can be dismantled too; beds only when nobody lies in them"
+
+msgid "Dismantle hotkey"
+msgstr "Dismantle hotkey"
+
+msgid "Primary key used to dismantle the selected wall, bed, or furniture. Hold Ctrl, Shift, or Alt while capturing to store a combo."
+msgstr "Key that dismantles the selected wall, bed or furniture (or any own building, if enabled). Written as text: X, CTRL+X, SHIFT+ALT+X; NONE - no key"
+
+msgid "Reset hotkey default"
+msgstr "Default hotkey"
+
+msgid "Reset dismantle hotkey and modifier requirements to defaults"
+msgstr "Sets the dismantle key back to X without Ctrl, Shift or Alt"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "Debug logging"
+msgstr "Detailed log"
+
+msgid "Write extra runtime diagnostics to the RE_Kenshi log"
+msgstr "Writes extra details to RE_Kenshi_log.txt"
+
+msgid "Dismantle any own building"
+msgstr "Dismantle any own building"
+
+msgid "Dismantle any selected building of yours, not only walls and furniture; storage must be empty and nobody inside"
+msgstr "Dismantle any selected building of yours, not only walls and furniture. Storage and machines must be empty, nobody may be inside, nothing may stand inside or be mounted on it"
+
+msgid "Unload items when dismantling"
+msgstr "Unload items when dismantling"
+
+msgid "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"
+msgstr "With \"Dismantle any own building\": a storage or workbench that holds items is dismantled too - its items are put on the ground first"
