@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+
+resolve_powershell() {
+  if command -v pwsh >/dev/null 2>&1; then
+    echo "pwsh"
+    return 0
+  fi
+  if command -v powershell.exe >/dev/null 2>&1; then
+    echo "powershell.exe"
+    return 0
+  fi
+  if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
+    echo "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    return 0
+  fi
+  if command -v powershell >/dev/null 2>&1; then
+    echo "powershell"
+    return 0
+  fi
+  return 1
+}
+
+to_host_path() {
+  local path="$1"
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$path"
+    return 0
+  fi
+  if command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$path"
+    return 0
+  fi
+  echo "$path"
+}
+
+run_ps1() {
+  local script_path="$1"
+  local psh
+  local psh_path
+  psh="$(resolve_powershell)" || {
+    echo "[pre-commit] ERROR: PowerShell not found." >&2
+    return 1
+  }
+
+  psh_path="$psh"
+  if command -v "$psh" >/dev/null 2>&1; then
+    psh_path="$(command -v "$psh")"
+  fi
+
+  if [[ "$psh" == "pwsh" || "$psh" == "powershell" ]]; then
+    if [[ "$psh_path" == *.exe ]]; then
+      "$psh" -NoProfile -File "$(to_host_path "$script_path")"
+      return $?
+    fi
+
+    "$psh" -NoProfile -File "$script_path"
+    return $?
+  fi
+
+  "$psh" -NoProfile -ExecutionPolicy Bypass -File "$(to_host_path "$script_path")"
+}
+
+cd "$REPO_ROOT"
+
+echo "[pre-commit] Running Phase 17 address SSOT guard..."
+run_ps1 "$REPO_ROOT/scripts/phase17_address_ssot_guard_test.ps1"
+echo "[pre-commit] PASS"

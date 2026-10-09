@@ -1,0 +1,35 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.VC.db
+.idea
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+.packaging/
+dist/
+.tmp
+
+# Files
+*.obj
+*.pdb
+*.ilk
+*.tlog
+
+# Local env overrides
+.env
+
+# Runtime logs
+RE_Kenshi_log.txt
+
+# Local release-note builder state
+.release-notes-builder.json
+MOD_LINKS.json
+release-notes/

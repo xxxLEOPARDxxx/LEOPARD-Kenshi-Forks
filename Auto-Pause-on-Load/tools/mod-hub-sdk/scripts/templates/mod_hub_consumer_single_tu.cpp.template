@@ -1,0 +1,136 @@
+#include "emc/mod_hub_client.h"
+#include "emc/mod_hub_consumer_helpers.h"
+
+namespace
+{
+struct ExampleModState
+{
+__BOOL_STATE_FIELDS__
+};
+
+ExampleModState g_state = {
+__BOOL_STATE_INITIALIZERS__};
+
+emc::ModHubClient g_client;
+bool g_client_configured = false;
+
+bool PersistExampleModState(const ExampleModState& next_state)
+{
+    (void)next_state;
+    // TODO: Persist next_state to your config store and return false on failure.
+    return true;
+}
+
+template <typename UpdateFn>
+EMC_Result ApplyExampleModStateUpdate(
+    void* user_data,
+    char* err_buf,
+    uint32_t err_buf_size,
+    UpdateFn update)
+{
+    if (user_data == 0)
+    {
+        emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_state");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    ExampleModState* state = static_cast<ExampleModState*>(user_data);
+    const ExampleModState previous = *state;
+    ExampleModState updated = previous;
+    update(updated);
+
+    return emc::consumer::ApplyUpdateWithRollback(
+        previous,
+        updated,
+        err_buf,
+        err_buf_size,
+        [state](const ExampleModState& snapshot) {
+            *state = snapshot;
+        },
+        &PersistExampleModState);
+}
+
+__BOOL_ACCESSORS__
+
+const EMC_ModDescriptorV1 kModDescriptor = {
+    "__NAMESPACE_ID__",
+    "__NAMESPACE_DISPLAY_NAME__",
+    "__MOD_ID__",
+    "__MOD_DISPLAY_NAME__",
+    &g_state };
+
+__BOOL_SETTING_DEFS__
+
+const emc::ModHubClientSettingRowV1 kRows[] = {
+__BOOL_ROW_ENTRIES__
+};
+
+const emc::ModHubClientTableRegistrationV1 kRegistration = {
+    &kModDescriptor,
+    kRows,
+    (uint32_t)(sizeof(kRows) / sizeof(kRows[0])) };
+
+void EnsureClientConfigured()
+{
+    if (g_client_configured)
+    {
+        return;
+    }
+
+    emc::ModHubClient::Config config;
+    config.table_registration = &kRegistration;
+    g_client.SetConfig(config);
+    g_client_configured = true;
+}
+}
+
+// Single-TU integration wiring:
+// 1) Call ModHubSingleTuSample_OnStartup() from startPlugin.
+// 2) Call ModHubSingleTuSample_OnOptionsWindowInit() only when you need legacy compatibility with older hub builds.
+// 3) Guard local tab creation with ModHubSingleTuSample_ShouldCreateLocalTab().
+
+void ModHubSingleTuSample_OnStartup()
+{
+    EnsureClientConfigured();
+    g_client.OnStartup();
+}
+
+void ModHubSingleTuSample_OnOptionsWindowInit()
+{
+    EnsureClientConfigured();
+    g_client.OnOptionsWindowInit();
+}
+
+bool ModHubSingleTuSample_UseHubUi()
+{
+    EnsureClientConfigured();
+    return g_client.UseHubUi();
+}
+
+bool ModHubSingleTuSample_ShouldCreateLocalTab()
+{
+    return !ModHubSingleTuSample_UseHubUi();
+}
+
+bool ModHubSingleTuSample_IsAttachRetryPending()
+{
+    EnsureClientConfigured();
+    return g_client.IsAttachRetryPending();
+}
+
+bool ModHubSingleTuSample_HasAttachRetryAttempted()
+{
+    EnsureClientConfigured();
+    return g_client.HasAttachRetryAttempted();
+}
+
+EMC_Result ModHubSingleTuSample_LastAttachFailureResult()
+{
+    EnsureClientConfigured();
+    return g_client.LastAttemptFailureResult();
+}
+
+const emc::ModHubClientTableRegistrationV1* ModHubSingleTuSample_GetTableRegistration()
+{
+    return &kRegistration;
+}

@@ -1,0 +1,179 @@
+#include "mod_hub_consumer_adapter.h"
+#include "emc/mod_hub_consumer_helpers.h"
+
+namespace
+{
+struct ExampleModState
+{
+__BOOL_STATE_FIELDS__
+    EMC_KeybindValueV1 hotkey;
+    int32_t count;
+    float radius;
+};
+
+ExampleModState g_state = {
+__BOOL_STATE_INITIALIZERS__
+    { 42, 0u },
+    10,
+    2.5f };
+
+emc::ModHubClient g_client;
+bool g_client_configured = false;
+
+__BOOL_ACCESSORS__
+
+EMC_Result __cdecl GetHotkey(void* user_data, EMC_KeybindValueV1* out_value)
+{
+    return emc::consumer::GetFieldValue(user_data, out_value, &ExampleModState::hotkey);
+}
+
+EMC_Result __cdecl SetHotkey(void* user_data, EMC_KeybindValueV1 value, char* err_buf, uint32_t err_buf_size)
+{
+    return emc::consumer::SetFieldValueWithRollback(user_data, value, err_buf, err_buf_size, &ExampleModState::hotkey);
+}
+
+EMC_Result __cdecl GetCount(void* user_data, int32_t* out_value)
+{
+    return emc::consumer::GetFieldValue(user_data, out_value, &ExampleModState::count);
+}
+
+EMC_Result __cdecl SetCount(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return emc::consumer::SetFieldValueWithRollback(user_data, value, err_buf, err_buf_size, &ExampleModState::count);
+}
+
+EMC_Result __cdecl GetRadius(void* user_data, float* out_value)
+{
+    return emc::consumer::GetFieldValue(user_data, out_value, &ExampleModState::radius);
+}
+
+EMC_Result __cdecl SetRadius(void* user_data, float value, char* err_buf, uint32_t err_buf_size)
+{
+    return emc::consumer::SetFieldValueWithRollback(user_data, value, err_buf, err_buf_size, &ExampleModState::radius);
+}
+
+EMC_Result __cdecl RefreshNow(void* user_data, char* err_buf, uint32_t err_buf_size)
+{
+    return emc::consumer::ActionNoopSuccess(user_data, err_buf, err_buf_size);
+}
+
+const EMC_ModDescriptorV1 kModDescriptor = {
+    "__NAMESPACE_ID__",
+    "__NAMESPACE_DISPLAY_NAME__",
+    "__MOD_ID__",
+    "__MOD_DISPLAY_NAME__",
+    &g_state };
+
+__BOOL_SETTING_DEFS__
+
+const EMC_KeybindSettingDefV1 kKeybindSetting = {
+    "hotkey",
+    "Hotkey",
+    "Primary feature hotkey",
+    &g_state,
+    &GetHotkey,
+    &SetHotkey };
+
+const EMC_IntSettingDefV1 kIntSetting = {
+    "count",
+    "Count",
+    "Example integer setting",
+    &g_state,
+    0,
+    100,
+    5,
+    &GetCount,
+    &SetCount };
+
+const EMC_FloatSettingDefV1 kFloatSetting = {
+    "radius",
+    "Radius",
+    "Example float setting",
+    &g_state,
+    0.0f,
+    10.0f,
+    0.5f,
+    EMC_FLOAT_DISPLAY_DECIMALS_DEFAULT,
+    &GetRadius,
+    &SetRadius };
+
+const EMC_ActionRowDefV1 kActionRow = {
+    "refresh_now",
+    "Refresh now",
+    "Re-sync values from runtime state",
+    &g_state,
+    EMC_ACTION_FORCE_REFRESH,
+    &RefreshNow };
+
+const emc::ModHubClientSettingRowV1 kRows[] = {
+__BOOL_ROW_ENTRIES__
+    { emc::MOD_HUB_CLIENT_SETTING_KIND_KEYBIND, &kKeybindSetting },
+    { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kIntSetting },
+    { emc::MOD_HUB_CLIENT_SETTING_KIND_FLOAT, &kFloatSetting },
+    { emc::MOD_HUB_CLIENT_SETTING_KIND_ACTION, &kActionRow }
+};
+
+const emc::ModHubClientTableRegistrationV1 kRegistration = {
+    &kModDescriptor,
+    kRows,
+    (uint32_t)(sizeof(kRows) / sizeof(kRows[0])) };
+
+void EnsureClientConfigured()
+{
+    if (g_client_configured)
+    {
+        return;
+    }
+
+    emc::ModHubClient::Config config;
+    config.table_registration = &kRegistration;
+    g_client.SetConfig(config);
+    g_client_configured = true;
+}
+}
+
+void ModHubConsumerAdapter_OnStartup()
+{
+    EnsureClientConfigured();
+    g_client.OnStartup();
+}
+
+void ModHubConsumerAdapter_OnOptionsWindowInit()
+{
+    EnsureClientConfigured();
+    g_client.OnOptionsWindowInit();
+}
+
+bool ModHubConsumerAdapter_UseHubUi()
+{
+    EnsureClientConfigured();
+    return g_client.UseHubUi();
+}
+
+bool ModHubConsumerAdapter_ShouldCreateLocalTab()
+{
+    return !ModHubConsumerAdapter_UseHubUi();
+}
+
+bool ModHubConsumerAdapter_IsAttachRetryPending()
+{
+    EnsureClientConfigured();
+    return g_client.IsAttachRetryPending();
+}
+
+bool ModHubConsumerAdapter_HasAttachRetryAttempted()
+{
+    EnsureClientConfigured();
+    return g_client.HasAttachRetryAttempted();
+}
+
+EMC_Result ModHubConsumerAdapter_LastAttachFailureResult()
+{
+    EnsureClientConfigured();
+    return g_client.LastAttemptFailureResult();
+}
+
+const emc::ModHubClientTableRegistrationV1* ModHubConsumerAdapter_GetTableRegistration()
+{
+    return &kRegistration;
+}

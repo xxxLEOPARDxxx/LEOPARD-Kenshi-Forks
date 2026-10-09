@@ -1,0 +1,23 @@
+#ifndef MOD_HUB_CONSUMER_ADAPTER_H
+#define MOD_HUB_CONSUMER_ADAPTER_H
+
+#include "emc/mod_hub_client.h"
+
+// Integration wiring:
+// 1) Call ModHubConsumerAdapter_OnStartup() from startPlugin.
+// 2) Call ModHubConsumerAdapter_OnOptionsWindowInit() only when you need legacy compatibility with older hub builds that do not expose observer registration.
+// 3) Guard local tab creation with ModHubConsumerAdapter_ShouldCreateLocalTab().
+
+void ModHubConsumerAdapter_OnStartup();
+void ModHubConsumerAdapter_OnOptionsWindowInit();
+
+bool ModHubConsumerAdapter_UseHubUi();
+bool ModHubConsumerAdapter_ShouldCreateLocalTab();
+
+bool ModHubConsumerAdapter_IsAttachRetryPending();
+bool ModHubConsumerAdapter_HasAttachRetryAttempted();
+EMC_Result ModHubConsumerAdapter_LastAttachFailureResult();
+
+const emc::ModHubClientTableRegistrationV1* ModHubConsumerAdapter_GetTableRegistration();
+
+#endif

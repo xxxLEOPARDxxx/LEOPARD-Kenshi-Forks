@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+
+cd "$REPO_ROOT"
+
+echo "[pre-push] Running Debug build + Phase 16 reliability smoke..."
+echo "[pre-push] Tip: set KENSHI_PATH or KENSHI_DEFAULT_PATH if Kenshi runtime DLLs are not on PATH."
+
+./scripts/build-and-package.sh \
+  -Configuration Debug \
+  -SkipSdkPackage \
+  -RunReliabilitySmoke
+
+echo "[pre-push] PASS"
