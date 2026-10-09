@@ -1,0 +1,108 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Inventory\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar in inventories that filters items by name."
+msgstr "A search bar in inventories that filters items by name."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Organize the Inventory search controls"
+msgstr "Turns the whole mod on and off"
+
+msgid "Creature search"
+msgstr "Creature search"
+
+msgid "Show search controls when the active target is a creature or pack animal inventory"
+msgstr "The search also in the inventories of animals and pack beasts"
+
+msgid "Show entry count"
+msgstr "Show entry count"
+
+msgid "Show visible and total entry counts in the inventory search bar"
+msgstr "Shows how many entries are visible out of the total, next to the search"
+
+msgid "Show quantity count"
+msgstr "Show quantity count"
+
+msgid "Show visible stack quantity in the inventory search bar"
+msgstr "Shows the total quantity of the visible stacks next to the search"
+
+msgid "Show clear button"
+msgstr "Show clear button"
+
+msgid "Show the clear button inside the inventory search bar"
+msgstr "A button inside the search field that clears it"
+
+msgid "Auto-focus search"
+msgstr "Auto-focus search"
+
+msgid "Focus the inventory search input automatically when controls are injected"
+msgstr "Puts the cursor into the search field when the inventory opens"
+
+msgid "Debug logging"
+msgstr "Detailed log"
+
+msgid "Enable baseline debug logging for inventory UI attachment"
+msgstr "Writes details to RE_Kenshi_log.txt"
+
+msgid "Debug search logging"
+msgstr "Log the search"
+
+msgid "Enable search-specific debug logging when debug logging is enabled"
+msgstr "Search details in RE_Kenshi_log.txt, when the detailed log is on"
+
+msgid "Debug binding logging"
+msgstr "Log the binding"
+
+msgid "Enable inventory binding diagnostics when debug logging is enabled"
+msgstr "How the search finds the inventory window, in RE_Kenshi_log.txt, when the detailed log is on"
+
+msgid "Enable debug probes"
+msgstr "Deep diagnostics"
+
+msgid "Enable extra inventory UI probe diagnostics and hot-path dumps"
+msgstr "Very detailed interface checks in RE_Kenshi_log.txt. Only for finding problems, slows the game down"
+
+msgid "Search input width"
+msgstr "Search input width"
+
+msgid "Desired search input width in pixels"
+msgstr "Width of the search field, px"
+
+msgid "Search bar width"
+msgstr "Search bar width"
+
+msgid "Desired total search bar width in pixels"
+msgstr "Width of the whole search bar, px"
+
+msgid "Search input height"
+msgstr "Search input height"
+
+msgid "Desired search input height in pixels"
+msgstr "Height of the search field, px"
+
+msgid "Creature search input width"
+msgstr "Animal search field width"
+
+msgid "Desired creature search input width in pixels"
+msgstr "Width of the search field in animal inventories, px"
+
+msgid "Creature search bar width"
+msgstr "Animal search bar width"
+
+msgid "Desired total creature search bar width in pixels"
+msgstr "Width of the whole search bar in animal inventories, px"
+
+msgid "Creature search input height"
+msgstr "Animal search field height"
+
+msgid "Desired creature search input height in pixels"
+msgstr "Height of the search field in animal inventories, px"
+
+msgid "Advanced"
+msgstr "Advanced"

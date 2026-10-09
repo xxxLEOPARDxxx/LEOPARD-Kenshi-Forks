@@ -1,0 +1,3 @@
+[submodule "tools/mod-hub-sdk"]
+	path = tools/mod-hub-sdk
+	url = git@github.com:Emkej/Emkejs-Mod-Core.git

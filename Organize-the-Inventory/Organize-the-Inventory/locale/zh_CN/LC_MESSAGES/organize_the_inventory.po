@@ -1,0 +1,108 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Inventory\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar in inventories that filters items by name."
+msgstr "物品栏中的搜索框，按名称筛选物品。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Organize the Inventory search controls"
+msgstr "开启或关闭整个模组"
+
+msgid "Creature search"
+msgstr "动物物品栏搜索"
+
+msgid "Show search controls when the active target is a creature or pack animal inventory"
+msgstr "动物和驮兽的物品栏中也显示搜索"
+
+msgid "Show entry count"
+msgstr "显示条目数"
+
+msgid "Show visible and total entry counts in the inventory search bar"
+msgstr "在搜索框旁显示可见条目数和总条目数"
+
+msgid "Show quantity count"
+msgstr "显示数量"
+
+msgid "Show visible stack quantity in the inventory search bar"
+msgstr "在搜索框旁显示可见堆叠的总数量"
+
+msgid "Show clear button"
+msgstr "清除按钮"
+
+msgid "Show the clear button inside the inventory search bar"
+msgstr "搜索框内的清除按钮"
+
+msgid "Auto-focus search"
+msgstr "自动聚焦搜索框"
+
+msgid "Focus the inventory search input automatically when controls are injected"
+msgstr "打开物品栏时自动将光标放入搜索框"
+
+msgid "Debug logging"
+msgstr "详细日志"
+
+msgid "Enable baseline debug logging for inventory UI attachment"
+msgstr "将详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Debug search logging"
+msgstr "记录搜索"
+
+msgid "Enable search-specific debug logging when debug logging is enabled"
+msgstr "开启详细日志时，将搜索详情写入 RE_Kenshi_log.txt"
+
+msgid "Debug binding logging"
+msgstr "记录绑定"
+
+msgid "Enable inventory binding diagnostics when debug logging is enabled"
+msgstr "开启详细日志时，将搜索如何找到物品栏窗口写入 RE_Kenshi_log.txt"
+
+msgid "Enable debug probes"
+msgstr "深度诊断"
+
+msgid "Enable extra inventory UI probe diagnostics and hot-path dumps"
+msgstr "在 RE_Kenshi_log.txt 中记录非常详细的界面检查。仅用于排查问题，会降低游戏速度"
+
+msgid "Search input width"
+msgstr "搜索框宽度"
+
+msgid "Desired search input width in pixels"
+msgstr "搜索框宽度（像素）"
+
+msgid "Search bar width"
+msgstr "搜索栏宽度"
+
+msgid "Desired total search bar width in pixels"
+msgstr "整个搜索栏的宽度（像素）"
+
+msgid "Search input height"
+msgstr "搜索框高度"
+
+msgid "Desired search input height in pixels"
+msgstr "搜索框高度（像素）"
+
+msgid "Creature search input width"
+msgstr "动物搜索框宽度"
+
+msgid "Desired creature search input width in pixels"
+msgstr "动物物品栏搜索框宽度（像素）"
+
+msgid "Creature search bar width"
+msgstr "动物搜索栏宽度"
+
+msgid "Desired total creature search bar width in pixels"
+msgstr "动物物品栏整个搜索栏宽度（像素）"
+
+msgid "Creature search input height"
+msgstr "动物搜索框高度"
+
+msgid "Desired creature search input height in pixels"
+msgstr "动物物品栏搜索框高度（像素）"
+
+msgid "Advanced"
+msgstr "高级"
