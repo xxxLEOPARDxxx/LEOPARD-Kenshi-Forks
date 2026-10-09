@@ -1,0 +1,48 @@
+import * from "buildings.material"
+import * from "container_highlight_objects.program"
+import * from "objects.material"
+
+material CH_StaticObject : StaticObject {
+    technique {
+        pass {
+            vertex_program_ref CH_Object_VP {}
+            fragment_program_ref CH_Object_FP {}
+        }
+    }
+}
+
+material CH_Building : Building {
+    technique {
+        pass {
+            vertex_program_ref CH_Object_VP {}
+            fragment_program_ref CH_Object_FP {}
+        }
+    }
+}
+
+material CH_Building_Alpha : Building_Alpha {
+    technique {
+        pass {
+            vertex_program_ref CH_Object_VP {}
+            fragment_program_ref CH_Object_Alpha_FP {}
+        }
+    }
+}
+
+material CH_Building_Dual : Building_Dual {
+    technique {
+        pass {
+            vertex_program_ref CH_Object_Coloured_VP {}
+            fragment_program_ref CH_Object_Dual_FP {}
+        }
+    }
+}
+
+material CH_Building_Emissive : Building_Emissive {
+    technique {
+        pass {
+            vertex_program_ref CH_Object_VP {}
+            fragment_program_ref CH_Object_Emissive_FP {}
+        }
+    }
+}

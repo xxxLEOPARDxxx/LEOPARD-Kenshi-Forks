@@ -1,0 +1,7 @@
+{
+  "title": "Configuration",
+  "items": [
+    "[b][size=4]Configuration[/size][/b]\n[spoiler]\nContainer Highlight can be configured in-game through Emkejs Mod Core / Mod Hub, or by editing [b]mod-config.json[/b] in the mod folder.\n[list]\n[*] [b]enabled[/b] (bool): Master toggle. Default: true.\n[*] [b]highlight_key[/b] (string): Primary highlight key. Default: ALT.\n[*] [b]highlight_key_require_ctrl[/b], [b]highlight_key_require_shift[/b], [b]highlight_key_require_alt[/b] (bool): Optional modifier requirements. Set [b]highlight_key[/b] to UNBOUND and enable a modifier for modifier-only activation.\n[*] [b]max_highlight_distance_m[/b] (number): Maximum nearby-container scan distance in meters. Default: 900.\n[*] [b]show_icons[/b] (bool): Show icon markers above matched containers. Default: true.\n[*] [b]show_text[/b] (bool): Show text markers above matched containers. Default: true.\n[*] [b]marker_text[/b] (string): Short marker label. Default: BOX.\n[*] [b]marker_icon_texture[/b] (string): Marker icon texture path/name. Default: container_highlight_chest.png.\n[*] [b]marker_color_hex[/b] (hex color): Marker icon and text color. Default: #F6C454.\n[*] [b]enable_tint[/b] (bool): Enable world tinting for compatible container render paths. Default: true.\n[*] [b]tint_color_hex[/b] (hex color): World tint color, including alpha when edited in JSON. Default: #F6C454D9.\n[*] [b]debug_logging[/b] (bool): Write focused diagnostics to RE_Kenshi_log.txt. Default: false.\n[/list]\n[/spoiler]"
+  ],
+  "key": "configuration"
+}

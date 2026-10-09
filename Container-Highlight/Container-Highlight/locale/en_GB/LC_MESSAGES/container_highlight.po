@@ -1,0 +1,102 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Container-Highlight\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights nearby containers with a marker and a tint while the highlight key is held."
+msgstr "Highlights nearby containers with a marker and a tint while the highlight key is held."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Container Highlight runtime behavior"
+msgstr "Turns the whole mod on and off"
+
+msgid "Highlight key"
+msgstr "Highlight key"
+
+msgid "Primary key that gates container highlighting; set Unbound and use modifier toggles for Shift/Alt alone"
+msgstr "Containers are highlighted while this key is held. NONE together with Require Shift or Alt below - highlight on Shift or Alt alone"
+
+msgid "Require Ctrl"
+msgstr "Require Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "Ctrl must be held together with the highlight key"
+
+msgid "Require Shift"
+msgstr "Require Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "Shift must be held together with the highlight key"
+
+msgid "Require Alt"
+msgstr "Require Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "Alt must be held together with the highlight key"
+
+msgid "Max highlight distance"
+msgstr "Max highlight distance"
+
+msgid "Maximum scan radius in meters for nearby container detection"
+msgstr "How far containers are searched for, m"
+
+msgid "Show icons"
+msgstr "Show icons"
+
+msgid "Show screen-space icon markers above matched containers"
+msgstr "An icon above each highlighted container"
+
+msgid "Show text"
+msgstr "Show text"
+
+msgid "Show screen-space text markers above matched containers"
+msgstr "Text above each highlighted container"
+
+msgid "Marker text"
+msgstr "Marker text"
+
+msgid "Text shown above matched containers when Show text is enabled"
+msgstr "The text above containers, when Show text is on"
+
+msgid "Marker color"
+msgstr "Marker color"
+
+msgid "RGB color for marker text and icon"
+msgstr "Colour of the marker text and icon, #RRGGBB"
+
+msgid "Enable tint"
+msgstr "Enable tint"
+
+msgid "Apply model tint to matched containers when the highlight gate is active"
+msgstr "Tints the containers themselves while the highlight is on"
+
+msgid "Tint color"
+msgstr "Tint color"
+
+msgid "RGB tint color for highlighted containers; JSON alpha is preserved"
+msgstr "Tint colour of highlighted containers, #RRGGBB. Transparency stays as set in mod-config.json"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "Debug logging"
+msgstr "Detailed log"
+
+msgid "Write probe summaries and diagnostics to RE_Kenshi_log.txt"
+msgstr "Writes details to RE_Kenshi_log.txt"
+
+msgid "Log nearby probe snapshot"
+msgstr "Log nearby objects"
+
+msgid "Dump nearby scanned objects and filter decisions into RE_Kenshi_log.txt for barrel/container debugging"
+msgstr "Writes every nearby object and why it was or was not highlighted to RE_Kenshi_log.txt. Only for finding problems"
+
+msgid "Log render trace"
+msgstr "Log render trace"
+
+msgid "Capture the recent D3D11 bind/update path that feeds the known instanced container draw into RE_Kenshi_log.txt"
+msgstr "Writes graphics calls of container drawing to RE_Kenshi_log.txt. Only for finding problems, slows the game down"

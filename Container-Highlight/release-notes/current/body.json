@@ -1,0 +1,9 @@
+{
+  "summary": "Highlights lootable containers with configurable text markers, optional tinting, and in-game Mod Hub controls.",
+  "details": [
+    "Container Highlight is an RE_Kenshi plugin for making nearby lootable containers easier to spot while the highlight key is held.",
+    "Screen-space markers can show configurable text and icon styling, including marker text, marker color, and a readable outlined label.",
+    "Optional container tinting helps valid containers stand out in the world when Kenshi exposes a tintable render path.",
+    "Mod Hub integration provides in-game controls for the highlight key, marker display, marker color, tint color, distance, and advanced debug actions."
+  ]
+}

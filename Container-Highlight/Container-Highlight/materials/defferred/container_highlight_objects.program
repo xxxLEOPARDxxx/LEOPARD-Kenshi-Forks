@@ -1,0 +1,356 @@
+vertex_program CH_Object_VP_HLSL hlsl {
+    source container_highlight_objects.hlsl
+    entry_point main_vs
+    target vs_4_0
+}
+
+vertex_program CH_Object_Coloured_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines COLOURING
+}
+
+vertex_program CH_Object_Construction_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines CONSTRUCTION
+}
+
+vertex_program CH_Object_Construction_Coloured_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines CONSTRUCTION,COLOURING
+}
+
+vertex_program CH_Object_Instanced_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines INSTANCED
+}
+
+vertex_program CH_Object_Instanced_Coloured_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines INSTANCED,COLOURING
+}
+
+vertex_program CH_Object_Instanced_Construction_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines INSTANCED,CONSTRUCTION
+}
+
+vertex_program CH_Object_Instanced_Construction_Coloured_VP_HLSL hlsl : CH_Object_VP_HLSL {
+    preprocessor_defines INSTANCED,CONSTRUCTION,COLOURING
+}
+
+fragment_program CH_Object_FP_HLSL hlsl {
+    source container_highlight_objects.hlsl
+    entry_point main_ps
+    target ps_4_0
+    preprocessor_defines DX11
+}
+
+fragment_program CH_Object_Construction_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION
+}
+
+fragment_program CH_Object_Alpha_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,TRANSPARENCY
+}
+
+fragment_program CH_Object_Construction_Alpha_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,TRANSPARENCY
+}
+
+fragment_program CH_Object_Coloured_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,COLOURING
+}
+
+fragment_program CH_Object_Construction_Coloured_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,COLOURING
+}
+
+fragment_program CH_Object_DoubleSided_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,TRANSPARENCY,DOUBLESIDED2
+}
+
+fragment_program CH_Object_Construction_DoubleSided_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,TRANSPARENCY,DOUBLESIDED2
+}
+
+fragment_program CH_Object_DoubleSided_Coloured_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,TRANSPARENCY,COLOURING,DOUBLESIDED2
+}
+
+fragment_program CH_Object_Construction_DoubleSided_Coloured_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,TRANSPARENCY,COLOURING,DOUBLESIDED2
+}
+
+fragment_program CH_Object_Dual_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,COLOURING,DUAL_TEXTURE
+}
+
+fragment_program CH_Object_Construction_Dual_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,COLOURING,DUAL_TEXTURE
+}
+
+fragment_program CH_Object_Emissive_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,EMISSIVE
+}
+
+fragment_program CH_Object_Construction_Emissive_FP_HLSL hlsl : CH_Object_FP_HLSL {
+    preprocessor_defines DX11,CONSTRUCTION,EMISSIVE
+}
+
+vertex_program CH_Object_VP unified {
+    delegate CH_Object_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Construction_VP unified {
+    delegate CH_Object_Construction_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Coloured_VP unified {
+    delegate CH_Object_Coloured_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Construction_Coloured_VP unified {
+    delegate CH_Object_Construction_Coloured_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Instanced_VP unified {
+    delegate CH_Object_Instanced_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Instanced_Coloured_VP unified {
+    delegate CH_Object_Instanced_Coloured_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Instanced_Construction_VP unified {
+    delegate CH_Object_Instanced_Construction_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+vertex_program CH_Object_Instanced_Construction_Coloured_VP unified {
+    delegate CH_Object_Instanced_Construction_Coloured_VP_HLSL
+    default_params {
+        param_named_auto worldViewProjMatrix worldviewproj_matrix
+        param_named_auto worldMatrix world_matrix
+        param_named_auto cameraDir view_direction
+        param_named tiling float2 1 1
+        param_named overrideDepth int 0
+    }
+}
+
+fragment_program CH_Object_FP unified {
+    delegate CH_Object_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_FP unified {
+    delegate CH_Object_Construction_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Alpha_FP unified {
+    delegate CH_Object_Alpha_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_Alpha_FP unified {
+    delegate CH_Object_Construction_Alpha_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Coloured_FP unified {
+    delegate CH_Object_Coloured_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_Coloured_FP unified {
+    delegate CH_Object_Construction_Coloured_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_DoubleSided_FP unified {
+    delegate CH_Object_DoubleSided_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_DoubleSided_FP unified {
+    delegate CH_Object_Construction_DoubleSided_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_DoubleSided_Coloured_FP unified {
+    delegate CH_Object_DoubleSided_Coloured_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_DoubleSided_Coloured_FP unified {
+    delegate CH_Object_Construction_DoubleSided_Coloured_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named threshold float 0.5
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Dual_FP unified {
+    delegate CH_Object_Dual_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_Dual_FP unified {
+    delegate CH_Object_Construction_Dual_FP_HLSL
+    default_params {
+        param_named glossMult float 1
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Emissive_FP unified {
+    delegate CH_Object_Emissive_FP_HLSL
+    default_params {
+        param_named brightness float 1.0
+        param_named glossMult float 1
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
+
+fragment_program CH_Object_Construction_Emissive_FP unified {
+    delegate CH_Object_Construction_Emissive_FP_HLSL
+    default_params {
+        param_named brightness float 1.0
+        param_named glossMult float 1
+        param_named scaffoldTiling float 1.0
+        param_named constructionState float4 1.0 1.0 0.0 0.0
+        param_named coloroverride float4 0.0 0.0 0.0 0.0
+        param_named_auto farClip far_clip_distance
+        param_named_auto cameraPos camera_position
+        shared_params_ref SharedWaterParams
+    }
+}
