@@ -1,0 +1,96 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Map-markers\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Your own markers on the world map, kept in the save."
+msgstr "Свои метки на карте мира, хранятся в сохранении."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable Map-markers map UI and runtime behavior"
+msgstr "Включает и выключает весь мод"
+
+msgid "Close editor on map close"
+msgstr "Закрывать редактор вместе с картой"
+
+msgid "Clear selection and close the marker editor when the world map closes"
+msgstr "При закрытии карты закрывать редактор меток и снимать выделение"
+
+msgid "Show hover labels"
+msgstr "Подписи при наведении"
+
+msgid "Show marker type and label text when hovering a marker on the world map"
+msgstr "Показывать тип и текст метки при наведении мыши"
+
+msgid "Default marker type"
+msgstr "Тип новой метки"
+
+msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
+msgstr "0 заметка, 1 опасность, 2 тайник, 3 руины, 4 шахта, 5 база, 6 торговец, 7 безопасное место, 8 задание, 9 сделать"
+
+msgid "Markers: On"
+msgstr "Метки: вкл."
+
+msgid "Markers: Off"
+msgstr "Метки: выкл."
+
+msgid "Label"
+msgstr "Подпись"
+
+msgid "Type:"
+msgstr "Тип:"
+
+msgid "Marker"
+msgstr "Метка"
+
+msgid "MMB add | LMB move | Enter save | Del | RMB deselect"
+msgstr "СКМ - новая | ЛКМ - перенести | Enter - сохранить | Del - удалить | ПКМ - снять выбор"
+
+msgid "Danger"
+msgstr "Опасность"
+
+msgid "Stash"
+msgstr "Тайник"
+
+msgid "Ruin"
+msgstr "Руины"
+
+msgid "Mine / Resource"
+msgstr "Шахта / ресурсы"
+
+msgid "Base / Outpost"
+msgstr "База / форпост"
+
+msgid "Trader / Shop"
+msgstr "Торговец / лавка"
+
+msgid "Safe Spot / Bed / Recovery"
+msgstr "Укрытие / кровать / лечение"
+
+msgid "Quest"
+msgstr "Задание"
+
+msgid "Todo"
+msgstr "Сделать"
+
+msgid "Note"
+msgstr "Заметка"
+
+msgid "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+msgstr "СКМ - новая метка | ЛКМ - перенести | Enter - сохранить\nDel или кнопка - удалить | ПКМ - снять выбор"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Писать подробности в RE_Kenshi_log.txt"
+
+msgid "Colour"
+msgstr "Цвет"

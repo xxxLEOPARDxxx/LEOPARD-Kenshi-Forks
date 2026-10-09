@@ -1,0 +1,96 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Map-markers\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Your own markers on the world map, kept in the save."
+msgstr "Your own markers on the world map, kept in the save."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Enable Map-markers map UI and runtime behavior"
+msgstr "Turns the whole mod on and off"
+
+msgid "Close editor on map close"
+msgstr "Close editor on map close"
+
+msgid "Clear selection and close the marker editor when the world map closes"
+msgstr "Closes the marker editor and clears the selection when the map closes"
+
+msgid "Show hover labels"
+msgstr "Show hover labels"
+
+msgid "Show marker type and label text when hovering a marker on the world map"
+msgstr "Shows the marker type and its text when the mouse is over it"
+
+msgid "Default marker type"
+msgstr "Default marker type"
+
+msgid "0 Note | 1 Danger | 2 Stash | 3 Ruin | 4 Mine | 5 Base | 6 Trader | 7 Safe Spot | 8 Quest | 9 Todo"
+msgstr "0 note, 1 danger, 2 stash, 3 ruin, 4 mine, 5 base, 6 trader, 7 safe spot, 8 quest, 9 to do"
+
+msgid "Markers: On"
+msgstr "Markers: On"
+
+msgid "Markers: Off"
+msgstr "Markers: Off"
+
+msgid "Label"
+msgstr "Label"
+
+msgid "Type:"
+msgstr "Type:"
+
+msgid "Marker"
+msgstr "Marker"
+
+msgid "MMB add | LMB move | Enter save | Del | RMB deselect"
+msgstr "MMB add | LMB move | Enter save | Del | RMB deselect"
+
+msgid "Danger"
+msgstr "Danger"
+
+msgid "Stash"
+msgstr "Stash"
+
+msgid "Ruin"
+msgstr "Ruin"
+
+msgid "Mine / Resource"
+msgstr "Mine / Resource"
+
+msgid "Base / Outpost"
+msgstr "Base / Outpost"
+
+msgid "Trader / Shop"
+msgstr "Trader / Shop"
+
+msgid "Safe Spot / Bed / Recovery"
+msgstr "Safe Spot / Bed / Recovery"
+
+msgid "Quest"
+msgstr "Quest"
+
+msgid "Todo"
+msgstr "Todo"
+
+msgid "Note"
+msgstr "Note"
+
+msgid "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+msgstr "MMB new marker | LMB move | Enter save\nDel or the button - delete | RMB deselect"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"
+
+msgid "Colour"
+msgstr "Colour"
