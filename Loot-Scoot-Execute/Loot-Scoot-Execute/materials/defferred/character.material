@@ -1,0 +1,238 @@
+import * from "skin.material"
+import * from "skin.program"
+import * from "objects.program"
+
+// ----------------------------------------------------------------------------------- //
+
+vertex_program Character_VP hlsl : Skinned_VP_HLSL {
+		preprocessor_defines PART_MASK,BLOOD
+}
+
+
+fragment_program Character_FP_HLSL hlsl {
+	source character.hlsl
+	entry_point main_fs
+	target ps_3_0 ps_4_0
+	enable_backwards_compatibility true
+}
+fragment_program Hair_FP_HLSL hlsl {
+	source character.hlsl
+	entry_point hair_fs
+	target ps_3_0 ps_4_0
+	enable_backwards_compatibility true
+}
+
+// ----------------------------------------------------------------------------------- //
+
+fragment_program Character_FP_GLSL glsl {
+	source character.frag
+	attach GBufferFunctions
+	default_params {
+		param_named diffuseMap     int 0
+		param_named normalMap      int 1
+		param_named colorMap       int 2
+		param_named partMap        int 3
+		param_named maskMap        int 4
+		param_named blendNormalMap int 5
+		param_named headDiffuseMap int 6
+		param_named headNormalMap  int 7
+		param_named headMaskMap    int 8
+		param_named hairMap        int 9
+		param_named beardMap       int 10
+		param_named vestDiffuseMap int 11
+		param_named vestNormalMap  int 12
+	}
+}
+fragment_program Hair_FP_GLSL glsl {
+	source character_hair.frag
+	attach GBufferFunctions
+}
+
+// ----------------------------------------------------------------------------------- //
+
+fragment_program Character_FP unified {
+	delegate Character_FP_HLSL
+	delegate Character_FP_GLSL
+	default_params {
+		param_named skintone     float3 1.0 1.0 1.0		// Saturation, Brightness, Contrast
+		param_named color        float3 0 0 0					// Colouring for vest map
+		param_named coloroverride float4 0.0 0.0 0.0 0.0
+		param_named muscleBlend  float  0
+		param_named hairColor    float3 0 0 0
+		param_named hairMult     float4 0 0 0 0
+		param_named hairAlpha    float4 0 0 0 0
+		param_named beardAlpha   float4 0 0 0 0
+		param_named_auto farClip far_clip_distance
+		param_named_auto cameraPos camera_position
+		shared_params_ref SharedWaterParams
+	}
+}
+
+
+fragment_program Hair_FP unified {
+	delegate Hair_FP_HLSL
+	delegate Hair_FP_GLSL
+	default_params {
+		param_named color          float3 0 0 0
+		param_named diffuseChannel float4 1 0 0 0
+		param_named alphaChannel   float4 1 0 0 0
+		param_named threshold      float .5
+		param_named specularMult   float 1.0
+		param_named_auto farClip far_clip_distance
+		param_named_auto cameraPos camera_position
+	}
+}
+
+// ----------------------------------------------------------------------------------- //
+
+material Character : Skinned {
+	technique {
+		pass main {
+			
+			vertex_program_ref Character_VP { }
+			fragment_program_ref Character_FP { }
+			
+			// Inherited from Skinned
+			texture_unit diffuseMap {
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			texture_unit normalMap {
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			texture_unit colorMap {
+			}
+			
+			// Skin tone colour mask
+			texture_unit maskMap {
+				texture white.dds
+				filtering bilinear
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			
+			// For variance in muscle size
+			texture_unit bodyBlendNormal {
+				texture flat.dds
+				filtering bilinear
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			
+			// Head
+			texture_unit headDiffuse {
+				texture nothing.dds
+				filtering bilinear
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			texture_unit headNormal {
+				texture flat.dds
+				filtering bilinear
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+
+			texture_unit headMask {
+				texture white.dds
+				filtering bilinear
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			
+			// Hair
+			texture_unit hairMap {
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+				texture nothing.dds
+			}
+			texture_unit beardMap {
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+				texture nothing.dds
+			}
+			
+			// Textured clothing
+			texture_unit vestDiffuse {
+				texture nothing.dds
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			texture_unit vestNormal {
+				texture flat.dds
+				tex_address_mode border
+				tex_border_colour 0 0 0 0
+			}
+			
+			// Testing blood stuff
+			texture_unit blood {
+				texture bloody.png
+				//texture checker.png
+			}
+		}
+	}
+}
+
+material Hair : Skinned {
+	technique {
+		pass main {
+			cull_hardware none
+			cull_software none
+			fragment_program_ref Hair_FP { }
+		}
+	}
+}
+
+// ------------------------------------------------------ //
+
+vertex_program SeveredLimb_VP hlsl {
+	source character.hlsl
+	entry_point severed_limb_vs
+	target vs_3_0 vs_4_0
+	enable_backwards_compatibility true
+	default_params {
+		param_named_auto worldViewProjMatrix worldviewproj_matrix
+		param_named_auto worldMatrix world_matrix
+	}
+}
+
+fragment_program SeveredLimb_FP hlsl {
+	source character.hlsl
+	entry_point severed_limb_fs
+	target ps_3_0 ps_4_0
+	enable_backwards_compatibility true
+	default_params {
+		param_named_auto skinTone custom 2
+		param_named_auto bloodColour custom 3
+		param_named_auto farClip far_clip_distance
+		param_named_auto cameraPos camera_position
+		shared_params_ref SharedWaterParams
+	}
+}
+
+material SeveredLimb {
+	technique {
+		shadow_caster_material standardShadowCaster
+		pass {
+			vertex_program_ref SeveredLimb_VP {}
+			fragment_program_ref SeveredLimb_FP {}
+			
+			texture_unit diffuseMap {
+				texture black.dds
+			}
+			texture_unit normalMap {
+				texture flat.dds
+			}
+			texture_unit skinMask {
+				texture black.dds
+			}
+			texture_unit blood {
+				texture bloody.png
+				tex_address_mode wrap
+				
+			}
+		}
+	}
+}
+

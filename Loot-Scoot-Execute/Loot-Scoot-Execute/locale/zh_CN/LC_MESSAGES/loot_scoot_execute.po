@@ -1,0 +1,93 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Loot-Scoot-Execute\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Adds an Execute action for downed enemies to the right-click menu."
+msgstr "在右键菜单中为倒地的敌人添加处决动作。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable Loot-Scoot-Execute"
+msgstr "开启或关闭整个模组"
+
+msgid "Enable execute kill sound"
+msgstr "处决音效"
+
+msgid "Play execute kill sound when execute dispatch succeeds"
+msgstr "处决成功时播放音效"
+
+msgid "Debug execute logging"
+msgstr "详细日志"
+
+msgid "Enable focused execute investigation logs in RE_Kenshi_log.txt"
+msgstr "将处决的详细信息写入 RE_Kenshi_log.txt"
+
+msgid "Enable Execute All"
+msgstr "全部处决"
+
+msgid "Show the Execute All button and allow batch execute behavior"
+msgstr "处决目标周围所有倒地敌人的按钮"
+
+msgid "Ignore execute alliance check"
+msgstr "也可处决非敌对者"
+
+msgid "Allow execute on incapacitated non-hostiles; player characters remain blocked"
+msgstr "允许处决倒地的中立角色；自己的角色永远不行"
+
+msgid "Execute distance"
+msgstr "处决距离"
+
+msgid "Required distance before queued execute triggers (default 2, max 200)"
+msgstr "处决者出手前需要靠近的距离。默认 2"
+
+msgid "Execute All radius"
+msgstr "全部处决半径"
+
+msgid "Search radius for Execute All around the selected target (default 10, max 200)"
+msgstr "全部处决在目标周围搜索倒地敌人的范围。默认 10"
+
+msgid "Execute button width"
+msgstr "按钮宽度"
+
+msgid "Execute button width in pixels (default 310)"
+msgstr "处决按钮的宽度（像素）。默认 310"
+
+msgid "Execute button height"
+msgstr "按钮高度"
+
+msgid "Execute button height in pixels (default 56)"
+msgstr "处决按钮的高度（像素）。默认 56"
+
+msgid "Execute button gap"
+msgstr "按钮间距"
+
+msgid "Vertical gap in pixels between Execute rows; use negative values to overlap (default -8)"
+msgstr "处决按钮行之间的间距（像素）；负值表示重叠。默认 -8"
+
+msgid "Execute button X"
+msgstr "按钮 X 偏移"
+
+msgid "Horizontal offset in pixels from the default anchored position"
+msgstr "按钮相对默认位置的左右偏移（像素）"
+
+msgid "Execute button Y"
+msgstr "按钮 Y 偏移"
+
+msgid "Vertical offset in pixels from the default anchored position"
+msgstr "按钮相对默认位置的上下偏移（像素）"
+
+msgid "Reset Execute button defaults"
+msgstr "恢复按钮默认值"
+
+msgid "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0"
+msgstr "将按钮恢复为宽 310、高 56、间距 -8、偏移 0"
+
+msgid "Execute"
+msgstr "处决"
+
+msgid "Execute All"
+msgstr "全部处决"
