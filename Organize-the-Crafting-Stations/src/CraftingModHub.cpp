@@ -1,0 +1,420 @@
+// ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+#define KLOC_DOMAIN "organize_the_crafting_stations"
+#include <Localization.h>
+
+#include "CraftingModHub.h"
+
+#include "CraftingCore.h"
+#include "CraftingSearchUi.h"
+#include "emc/mod_hub_client.h"
+#define MCM_BRIDGE_OLD_SDK        // старый SDK: строки {kind, def}, без разделов
+#include <McmModHubBridge.h>
+
+#include <sstream>
+
+namespace
+{
+const char* kHubNamespaceId = "emkej.qol";
+const char* kHubNamespaceDisplayName = "Emkej QoL";
+const char* kHubModId = "organize_the_crafting_stations";
+const char* kHubModDisplayName = "Organize the Crafting Stations";
+
+typedef bool TraderConfigSnapshot::*TraderConfigBoolField;
+typedef int TraderConfigSnapshot::*TraderConfigIntField;
+
+emc::ModHubClient g_modHubClient;
+bool g_modHubClientConfigured = false;
+
+void WriteHubErrorText(char* err_buf, uint32_t err_buf_size, const char* text)
+{
+    if (err_buf == 0 || err_buf_size == 0u)
+    {
+        return;
+    }
+
+    if (text == 0)
+    {
+        err_buf[0] = '\0';
+        return;
+    }
+
+    uint32_t index = 0u;
+    while (index + 1u < err_buf_size && text[index] != '\0')
+    {
+        err_buf[index] = text[index];
+        ++index;
+    }
+
+    err_buf[index] = '\0';
+}
+
+bool IsValidHubUserData(void* user_data)
+{
+    return user_data == &g_modHubClient;
+}
+
+EMC_Result GetHubBoolSetting(void* user_data, int32_t* out_value, TraderConfigBoolField field)
+{
+    if (!IsValidHubUserData(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+    *out_value = (config.*field) ? 1 : 0;
+    return EMC_OK;
+}
+
+EMC_Result SetHubBoolSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    TraderConfigBoolField field)
+{
+    if (!IsValidHubUserData(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    if (value != 0 && value != 1)
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_bool");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot previous = CaptureTraderConfigSnapshot();
+    TraderConfigSnapshot updated = previous;
+    updated.*field = value != 0;
+    NormalizeTraderConfigSnapshot(&updated);
+    ApplyTraderConfigSnapshot(updated);
+
+    if (!SaveTraderConfigSnapshot(updated))
+    {
+        ApplyTraderConfigSnapshot(previous);
+        WriteHubErrorText(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    ApplyRuntimeSearchUiConfig("mod_hub_bool_setting");
+    WriteHubErrorText(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
+EMC_Result GetHubIntSetting(void* user_data, int32_t* out_value, TraderConfigIntField field)
+{
+    if (!IsValidHubUserData(user_data) || out_value == 0)
+    {
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot config = CaptureTraderConfigSnapshot();
+    *out_value = static_cast<int32_t>(config.*field);
+    return EMC_OK;
+}
+
+EMC_Result SetHubIntSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size,
+    TraderConfigIntField field)
+{
+    if (!IsValidHubUserData(user_data))
+    {
+        WriteHubErrorText(err_buf, err_buf_size, "invalid_user_data");
+        return EMC_ERR_INVALID_ARGUMENT;
+    }
+
+    const TraderConfigSnapshot previous = CaptureTraderConfigSnapshot();
+    TraderConfigSnapshot updated = previous;
+    updated.*field = static_cast<int>(value);
+    NormalizeTraderConfigSnapshot(&updated);
+    ApplyTraderConfigSnapshot(updated);
+
+    if (!SaveTraderConfigSnapshot(updated))
+    {
+        ApplyTraderConfigSnapshot(previous);
+        WriteHubErrorText(err_buf, err_buf_size, "persist_failed");
+        return EMC_ERR_INTERNAL;
+    }
+
+    ApplyRuntimeSearchUiConfig("mod_hub_int_setting");
+    WriteHubErrorText(err_buf, err_buf_size, 0);
+    return EMC_OK;
+}
+
+EMC_Result __cdecl GetEnabledSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::enabled);
+}
+
+EMC_Result __cdecl SetEnabledSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::enabled);
+}
+
+EMC_Result __cdecl GetShowSearchEntryCountSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchEntryCount);
+}
+
+EMC_Result __cdecl SetShowSearchEntryCountSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::showSearchEntryCount);
+}
+
+EMC_Result __cdecl GetShowSearchClearButtonSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::showSearchClearButton);
+}
+
+EMC_Result __cdecl SetShowSearchClearButtonSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::showSearchClearButton);
+}
+
+EMC_Result __cdecl GetDebugLoggingSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::debugLogging);
+}
+
+EMC_Result __cdecl SetDebugLoggingSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(user_data, value, err_buf, err_buf_size, &TraderConfigSnapshot::debugLogging);
+}
+
+EMC_Result __cdecl GetAutoFocusSearchInputSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubBoolSetting(user_data, out_value, &TraderConfigSnapshot::autoFocusSearchInput);
+}
+
+EMC_Result __cdecl SetAutoFocusSearchInputSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubBoolSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::autoFocusSearchInput);
+}
+
+EMC_Result __cdecl GetSearchInputWidthSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputWidth);
+}
+
+EMC_Result __cdecl SetSearchInputWidthSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::searchInputWidth);
+}
+
+EMC_Result __cdecl GetSearchInputHeightSetting(void* user_data, int32_t* out_value)
+{
+    return GetHubIntSetting(user_data, out_value, &TraderConfigSnapshot::searchInputHeight);
+}
+
+EMC_Result __cdecl SetSearchInputHeightSetting(
+    void* user_data,
+    int32_t value,
+    char* err_buf,
+    uint32_t err_buf_size)
+{
+    return SetHubIntSetting(
+        user_data,
+        value,
+        err_buf,
+        err_buf_size,
+        &TraderConfigSnapshot::searchInputHeight);
+}
+
+void LogModHubFallback(const char* reason)
+{
+    std::stringstream line;
+    line << "event=mod_hub_fallback"
+         << " reason=" << (reason != 0 ? reason : "unknown")
+         << " result=" << g_modHubClient.LastAttemptFailureResult()
+         << " use_hub_ui=0";
+
+    if (g_modHubClient.LastAttemptFailureResult() == EMC_ERR_NOT_FOUND)
+    {
+        LogDebugLine(line.str());
+        return;
+    }
+
+    LogWarnLine(line.str());
+}
+
+void EnsureModHubClientConfigured()
+{
+    if (g_modHubClientConfigured)
+    {
+        return;
+    }
+
+    static const EMC_ModDescriptorV1 kModHubDescriptor = {
+        kHubNamespaceId,
+        kHubNamespaceDisplayName,
+        kHubModId,
+        kHubModDisplayName,
+        &g_modHubClient };
+
+    static const EMC_BoolSettingDefV1 kEnabledSetting = {
+        "enabled",
+        "Enabled",
+        "Enable Organize the Crafting Stations search controls",
+        &g_modHubClient,
+        &GetEnabledSetting,
+        &SetEnabledSetting };
+
+    static const EMC_BoolSettingDefV1 kShowSearchEntryCountSetting = {
+        "show_search_entry_count",
+        "Show entry count",
+        "Show visible and total entry counts in the search bar",
+        &g_modHubClient,
+        &GetShowSearchEntryCountSetting,
+        &SetShowSearchEntryCountSetting };
+
+    static const EMC_BoolSettingDefV1 kShowSearchClearButtonSetting = {
+        "show_search_clear_button",
+        "Show clear button",
+        "Show the clear button inside the search bar",
+        &g_modHubClient,
+        &GetShowSearchClearButtonSetting,
+        &SetShowSearchClearButtonSetting };
+
+    static const EMC_BoolSettingDefV1 kAutoFocusSearchInputSetting = {
+        "auto_focus_search_input",
+        "Auto-focus search",
+        "Focus the crafting search input automatically when controls are injected",
+        &g_modHubClient,
+        &GetAutoFocusSearchInputSetting,
+        &SetAutoFocusSearchInputSetting };
+
+    static const EMC_IntSettingDefV1 kSearchInputWidthSetting = {
+        "search_input_width",
+        "Search input width",
+        "Desired search input width in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredWidthMin),
+        static_cast<int32_t>(kSearchInputConfiguredWidthMax),
+        1,
+        &GetSearchInputWidthSetting,
+        &SetSearchInputWidthSetting };
+
+    static const EMC_IntSettingDefV1 kSearchInputHeightSetting = {
+        "search_input_height",
+        "Search input height",
+        "Desired search input height in pixels",
+        &g_modHubClient,
+        static_cast<int32_t>(kSearchInputConfiguredHeightMin),
+        static_cast<int32_t>(kSearchInputConfiguredHeightMax),
+        1,
+        &GetSearchInputHeightSetting,
+        &SetSearchInputHeightSetting };
+
+    // «Подробный журнал» - во всех модах (08.10.2026, leopard).
+    static const EMC_BoolSettingDefV1 kDebugLoggingSetting = {
+        "debug_logging",
+        "Debug logging",
+        "Write detailed logs to RE_Kenshi_log.txt",
+        &g_modHubClient,
+        &GetDebugLoggingSetting,
+        &SetDebugLoggingSetting };
+
+    static const emc::ModHubClientSettingRowV1 kModHubRows[] = {
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchEntryCountSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kShowSearchClearButtonSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kAutoFocusSearchInputSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugLoggingSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputWidthSetting },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kSearchInputHeightSetting }
+    };
+
+    static const emc::ModHubClientTableRegistrationV1 kModHubRegistration = {
+        &kModHubDescriptor,
+        kModHubRows,
+        static_cast<uint32_t>(sizeof(kModHubRows) / sizeof(kModHubRows[0])) };
+
+    emc::ModHubClient::Config config;
+    config.table_registration = mcm_bridge::Capture(&kModHubRegistration);
+    g_modHubClient.SetConfig(config);
+    g_modHubClientConfigured = true;
+}
+}
+
+void TraderModHub_OnStartup()
+{
+    EnsureModHubClientConfigured();
+
+    // Mod Hub из сборки убран: настройки - во вкладке MCM (McmModHubBridge.h),
+    // таблица к этому месту уже захвачена. К Mod Hub не подключаемся.
+    return;
+    const emc::ModHubClient::AttemptResult result = g_modHubClient.OnStartup();
+    if (result == emc::ModHubClient::ATTACH_SUCCESS)
+    {
+        LogInfoLine("event=mod_hub_attached use_hub_ui=1");
+        return;
+    }
+
+    if (result == emc::ModHubClient::ATTACH_FAILED)
+    {
+        if (g_modHubClient.IsAttachRetryPending())
+        {
+            LogInfoLine("event=mod_hub_attach_retry_pending use_hub_ui=0");
+            return;
+        }
+
+        LogModHubFallback("get_api_failed");
+        return;
+    }
+
+    if (result == emc::ModHubClient::REGISTRATION_FAILED)
+    {
+        LogModHubFallback("register_mod_or_setting_failed");
+        return;
+    }
+
+    LogModHubFallback("invalid_client_configuration");
+}
+
+// Страница в ModConfigMenu (вкладка MCM в настройках игры) вместо Mod Hub.
+MCM_MODHUB_BRIDGE("A search bar in crafting and research windows that filters recipes and blueprints.")

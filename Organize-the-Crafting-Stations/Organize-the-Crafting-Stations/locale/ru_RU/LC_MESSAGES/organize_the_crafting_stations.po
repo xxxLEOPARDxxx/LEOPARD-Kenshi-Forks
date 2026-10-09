@@ -1,0 +1,54 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Organize-the-Crafting-Stations\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A search bar in crafting and research windows that filters recipes and blueprints."
+msgstr "Поиск в окнах ремесла и исследований: отбирает рецепты и чертежи."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable Organize the Crafting Stations search controls"
+msgstr "Включает и выключает весь мод"
+
+msgid "Show entry count"
+msgstr "Показывать число строк"
+
+msgid "Show visible and total entry counts in the search bar"
+msgstr "Показывать рядом с поиском, сколько строк видно из всех"
+
+msgid "Show clear button"
+msgstr "Кнопка очистки"
+
+msgid "Show the clear button inside the search bar"
+msgstr "Кнопка в поле поиска, которая его очищает"
+
+msgid "Auto-focus search"
+msgstr "Сразу ставить курсор в поиск"
+
+msgid "Focus the crafting search input automatically when controls are injected"
+msgstr "Курсор сразу в поле поиска, когда открывается окно ремесла"
+
+msgid "Search input width"
+msgstr "Ширина поля поиска"
+
+msgid "Desired search input width in pixels"
+msgstr "Ширина поля поиска в пикселях"
+
+msgid "Search input height"
+msgstr "Высота поля поиска"
+
+msgid "Desired search input height in pixels"
+msgstr "Высота поля поиска в пикселях"
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Писать подробности в RE_Kenshi_log.txt"
+
+msgid "Search items..."
+msgstr "Поиск предметов..."
