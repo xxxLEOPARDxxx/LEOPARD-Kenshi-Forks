@@ -22,6 +22,7 @@
 #include <mygui/MyGUI_RenderManager.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
+#include <WidgetRef.h>
 
 #include <Windows.h>
 

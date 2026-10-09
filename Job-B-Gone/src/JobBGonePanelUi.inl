@@ -1400,25 +1400,6 @@ static bool TryGetHudHiddenState(bool* hiddenOut)
     return true;
 }
 
-enum EscMenuCaptionMask
-{
-    EscMenuCaptionMask_None = 0,
-    EscMenuCaptionMask_Resume = 1 << 0,
-    EscMenuCaptionMask_SaveGame = 1 << 1,
-    EscMenuCaptionMask_LoadGame = 1 << 2,
-    EscMenuCaptionMask_Options = 1 << 3,
-    EscMenuCaptionMask_Exit = 1 << 4,
-    EscMenuCaptionMask_NewGame = 1 << 5,
-    EscMenuCaptionMask_MainMenu = 1 << 6,
-    EscMenuCaptionMask_All =
-        EscMenuCaptionMask_Resume
-        | EscMenuCaptionMask_SaveGame
-        | EscMenuCaptionMask_LoadGame
-        | EscMenuCaptionMask_Options
-        | EscMenuCaptionMask_Exit
-        | EscMenuCaptionMask_NewGame
-        | EscMenuCaptionMask_MainMenu
-};
 
 static int CountSetBits32(unsigned int value)
 {
@@ -1678,81 +1659,32 @@ static bool TryDetectDialogueWindowOpenState(bool* openOut, unsigned int* signal
     return true;
 }
 
-static unsigned int BuildEscMenuCaptionMaskFromCaption(const std::string& caption)
+// Меню паузы (Esc) - панель MainMenuPopupPanel из
+// Kenshi_MainMenuPopupPanel.layout. Ищем её по ИМЕНИ, один раз, и держим
+// ссылку (WidgetRef обнуляется сам, когда MyGUI удаляет виджет). Прежде
+// меню узнавали по английским подписям кнопок (RESUME, SAVE GAME...):
+// в русской игре они другие - панель Job-B-Gone висела поверх меню паузы
+// (09.10.2026), да и обход всего дерева интерфейса раз в 80 мс был дорогим.
+static MyGUI::Widget* FindWidgetBySuffix(MyGUI::Widget* widget, const std::string& suffix, int depth)
 {
-    if (caption.empty())
+    if (!widget || depth > 3)
     {
-        return EscMenuCaptionMask_None;
+        return 0;
     }
-
-    std::string normalized;
-    normalized.reserve(caption.size());
-    for (size_t i = 0; i < caption.size(); ++i)
+    const std::string& name = widget->getName();
+    if (name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0)
     {
-        const unsigned char ch = static_cast<unsigned char>(caption[i]);
-        if (std::isalnum(ch) == 0)
-        {
-            continue;
-        }
-        normalized.push_back(static_cast<char>(std::toupper(ch)));
+        return widget;
     }
-
-    if (normalized == "RESUME")
-    {
-        return EscMenuCaptionMask_Resume;
-    }
-    if (normalized == "SAVEGAME")
-    {
-        return EscMenuCaptionMask_SaveGame;
-    }
-    if (normalized == "LOADGAME")
-    {
-        return EscMenuCaptionMask_LoadGame;
-    }
-    if (normalized == "OPTIONS")
-    {
-        return EscMenuCaptionMask_Options;
-    }
-    if (normalized == "EXIT")
-    {
-        return EscMenuCaptionMask_Exit;
-    }
-    if (normalized == "NEWGAME")
-    {
-        return EscMenuCaptionMask_NewGame;
-    }
-    if (normalized == "MAINMENU")
-    {
-        return EscMenuCaptionMask_MainMenu;
-    }
-
-    return EscMenuCaptionMask_None;
-}
-
-static void AccumulateEscMenuCaptionMaskFromWidgetTree(MyGUI::Widget* widget, unsigned int* maskOut)
-{
-    if (!widget || !maskOut)
-    {
-        return;
-    }
-
-    if ((widget->getVisible() == false) || ((*maskOut & EscMenuCaptionMask_All) == EscMenuCaptionMask_All))
-    {
-        return;
-    }
-
-    MyGUI::Button* button = widget->castType<MyGUI::Button>(false);
-    if (button && button->getInheritedVisible())
-    {
-        const std::string caption = TrimAscii(button->getCaption().asUTF8());
-        *maskOut |= BuildEscMenuCaptionMaskFromCaption(caption);
-    }
-
     const size_t childCount = widget->getChildCount();
     for (size_t i = 0; i < childCount; ++i)
     {
-        AccumulateEscMenuCaptionMaskFromWidgetTree(widget->getChildAt(i), maskOut);
+        if (MyGUI::Widget* found = FindWidgetBySuffix(widget->getChildAt(i), suffix, depth + 1))
+        {
+            return found;
+        }
     }
+    return 0;
 }
 
 static bool TryDetectEscMenuOpenState(bool* openOut)
@@ -1763,42 +1695,31 @@ static bool TryDetectEscMenuOpenState(bool* openOut)
     }
 
     *openOut = false;
-    const DWORD nowMs = GetTickCount();
-    static DWORD s_lastScanMs = 0;
-    static bool s_hasLastScanResult = false;
-    static bool s_lastScanMenuVisible = false;
-    if (s_hasLastScanResult && s_lastScanMs != 0 && !DebounceWindowElapsed(nowMs, s_lastScanMs, 80))
-    {
-        *openOut = s_lastScanMenuVisible;
-        return true;
-    }
-
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     if (!gui)
     {
-        s_lastScanMs = nowMs;
-        s_hasLastScanResult = true;
-        s_lastScanMenuVisible = false;
         return true;
     }
 
-    unsigned int captionMask = EscMenuCaptionMask_None;
-    MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
-    while (roots.next())
+    static WidgetRef* s_menu = new WidgetRef();   // не удаляется: см. WidgetRef.h
+    static DWORD s_lastSearchMs = 0;
+    MyGUI::Widget* menu = s_menu->get();
+    const DWORD nowMs = GetTickCount();
+    if (!menu && (s_lastSearchMs == 0 || DebounceWindowElapsed(nowMs, s_lastSearchMs, 1000)))
     {
-        AccumulateEscMenuCaptionMaskFromWidgetTree(roots.current(), &captionMask);
-        if ((captionMask & EscMenuCaptionMask_All) == EscMenuCaptionMask_All)
+        s_lastSearchMs = nowMs;
+        MyGUI::EnumeratorWidgetPtr roots = gui->getEnumerator();
+        while (roots.next() && !menu)
         {
-            break;
+            menu = FindWidgetBySuffix(roots.current(), "MainMenuPopupPanel", 0);
+        }
+        if (menu)
+        {
+            s_menu->set(menu);
         }
     }
 
-    // Require several canonical pause-menu captions to avoid normal gameplay false positives.
-    const bool menuVisible = CountSetBits32(captionMask) >= 3;
-    s_lastScanMs = nowMs;
-    s_hasLastScanResult = true;
-    s_lastScanMenuVisible = menuVisible;
-    *openOut = menuVisible;
+    *openOut = menu && menu->getInheritedVisible();
     return true;
 }
 
