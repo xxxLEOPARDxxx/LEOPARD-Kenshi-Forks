@@ -1,0 +1,28 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.VC.db
+.idea
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+.packaging/
+dist/
+.artifacts
+Linkednpm-cache
+
+# Files
+*.obj
+*.pdb
+*.ilk
+*.tlog
+
+# Local env overrides
+.env
