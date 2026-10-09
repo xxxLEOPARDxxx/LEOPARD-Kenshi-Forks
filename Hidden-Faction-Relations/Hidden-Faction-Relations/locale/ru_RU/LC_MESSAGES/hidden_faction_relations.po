@@ -1,0 +1,150 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Hidden-Faction-Relations\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "An Options tab with your relations toward the hidden factions."
+msgstr "Вкладка в настройках с вашими отношениями со скрытыми фракциями."
+
+msgid "Auto-focus search on open"
+msgstr "Сразу ставить курсор в поиск"
+
+msgid "Focus the Hidden Factions search box when the tab opens"
+msgstr "Курсор сразу в поле поиска, когда открывается вкладка"
+
+msgid "Open Hidden Factions key"
+msgstr "Клавиша скрытых фракций"
+
+msgid "Gameplay shortcut key that opens Options on the Hidden Factions tab"
+msgstr "Открывает окно настроек на вкладке скрытых фракций. NONE - без клавиши"
+
+msgid "Open shortcut requires Ctrl"
+msgstr "Нужен Ctrl"
+
+msgid "Require Ctrl for the gameplay Hidden Factions shortcut"
+msgstr "Вместе с клавишей нужно держать Ctrl"
+
+msgid "Open shortcut requires Shift"
+msgstr "Нужен Shift"
+
+msgid "Require Shift for the gameplay Hidden Factions shortcut"
+msgstr "Вместе с клавишей нужно держать Shift"
+
+msgid "Open shortcut requires Alt"
+msgstr "Нужен Alt"
+
+msgid "Require Alt for the gameplay Hidden Factions shortcut"
+msgstr "Вместе с клавишей нужно держать Alt"
+
+msgid "Search width"
+msgstr "Ширина поиска"
+
+msgid "Preferred Hidden Factions search box width in pixels"
+msgstr "Ширина поля поиска в пикселях"
+
+msgid "Search height"
+msgstr "Высота поиска"
+
+msgid "Preferred Hidden Factions control height in pixels"
+msgstr "Высота поля поиска и кнопок в пикселях"
+
+msgid "Your relations toward the hidden factions, with search and sorting."
+msgstr "Ваши отношения со скрытыми фракциями, с поиском и сортировкой."
+
+msgid "Load or resume a game, then open this tab to inspect hidden faction relations."
+msgstr "Загрузите или продолжите игру, чтобы увидеть отношения со скрытыми фракциями."
+
+msgid "Hidden faction relations could not be prepared for display."
+msgstr "Не удалось подготовить отношения со скрытыми фракциями."
+
+msgid "Failed to create the hidden faction scroll view."
+msgstr "Не удалось создать список скрытых фракций."
+
+msgid "No factions match the current view."
+msgstr "Ни одна фракция не подходит под отбор."
+
+msgid "No hidden factions match the current view."
+msgstr "Ни одна скрытая фракция не подходит под отбор."
+
+msgid "No factions with relation data were available in the current world."
+msgstr "В этом мире нет фракций с данными об отношениях."
+
+msgid "No hidden factions were available in the current world."
+msgstr "В этом мире нет скрытых фракций."
+
+msgid "Showing %d of %d hidden factions"
+msgstr "Показано %d из %d скрытых фракций"
+
+msgid "Showing %d of %d factions"
+msgstr "Показано %d из %d фракций"
+
+msgid "Player faction:"
+msgstr "Фракция игрока:"
+
+msgid "TOTAL HIDDEN"
+msgstr "ВСЕГО СКРЫТЫХ"
+
+msgid "TOTAL SHOWN"
+msgstr "ВСЕГО ПОКАЗАНО"
+
+msgid "HOSTILE"
+msgstr "ВРАЖДЕБНЫ"
+
+msgid "FRIENDLY"
+msgstr "ДРУЖЕЛЮБНЫ"
+
+msgid "NEUTRAL"
+msgstr "НЕЙТРАЛЬНЫ"
+
+msgid "HATED"
+msgstr "НЕНАВИСТЬ"
+
+msgid "ALLIED"
+msgstr "СОЮЗНИКИ"
+
+msgid "Unknown origin"
+msgstr "Источник неизвестен"
+
+msgid "Search"
+msgstr "Поиск"
+
+msgid "Sort"
+msgstr "Сортировка"
+
+msgid "Filter"
+msgstr "Отбор"
+
+msgid "Scope"
+msgstr "Какие фракции"
+
+msgid "Relation ascending"
+msgstr "Сначала худшие"
+
+msgid "Relation descending"
+msgstr "Сначала лучшие"
+
+msgid "Name A-Z"
+msgstr "Имя А-Я"
+
+msgid "Name Z-A"
+msgstr "Имя Я-А"
+
+msgid "Non-zero only"
+msgstr "Без нулевых"
+
+msgid "All values"
+msgstr "Все значения"
+
+msgid "Hidden only"
+msgstr "Только скрытые"
+
+msgid "All factions"
+msgstr "Все фракции"
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Писать подробности в RE_Kenshi_log.txt"

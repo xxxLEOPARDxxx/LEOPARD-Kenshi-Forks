@@ -1,0 +1,150 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Hidden-Faction-Relations\n"
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "An Options tab with your relations toward the hidden factions."
+msgstr "An Options tab with your relations toward the hidden factions."
+
+msgid "Auto-focus search on open"
+msgstr "Auto-focus search"
+
+msgid "Focus the Hidden Factions search box when the tab opens"
+msgstr "Puts the cursor into the search field when the tab opens"
+
+msgid "Open Hidden Factions key"
+msgstr "Hidden factions key"
+
+msgid "Gameplay shortcut key that opens Options on the Hidden Factions tab"
+msgstr "Opens the Options window on the hidden factions tab. NONE - no key"
+
+msgid "Open shortcut requires Ctrl"
+msgstr "Require Ctrl"
+
+msgid "Require Ctrl for the gameplay Hidden Factions shortcut"
+msgstr "Ctrl must be held together with the key"
+
+msgid "Open shortcut requires Shift"
+msgstr "Require Shift"
+
+msgid "Require Shift for the gameplay Hidden Factions shortcut"
+msgstr "Shift must be held together with the key"
+
+msgid "Open shortcut requires Alt"
+msgstr "Require Alt"
+
+msgid "Require Alt for the gameplay Hidden Factions shortcut"
+msgstr "Alt must be held together with the key"
+
+msgid "Search width"
+msgstr "Search width"
+
+msgid "Preferred Hidden Factions search box width in pixels"
+msgstr "Width of the search field, px"
+
+msgid "Search height"
+msgstr "Search height"
+
+msgid "Preferred Hidden Factions control height in pixels"
+msgstr "Height of the search field and buttons, px"
+
+msgid "Your relations toward the hidden factions, with search and sorting."
+msgstr "Your relations toward the hidden factions, with search and sorting."
+
+msgid "Load or resume a game, then open this tab to inspect hidden faction relations."
+msgstr "Load or continue a game to see the relations with the hidden factions."
+
+msgid "Hidden faction relations could not be prepared for display."
+msgstr "Hidden faction relations could not be prepared for display."
+
+msgid "Failed to create the hidden faction scroll view."
+msgstr "Failed to create the hidden faction scroll view."
+
+msgid "No factions match the current view."
+msgstr "No factions match the current view."
+
+msgid "No hidden factions match the current view."
+msgstr "No hidden factions match the current view."
+
+msgid "No factions with relation data were available in the current world."
+msgstr "No factions with relation data were available in the current world."
+
+msgid "No hidden factions were available in the current world."
+msgstr "No hidden factions were available in the current world."
+
+msgid "Showing %d of %d hidden factions"
+msgstr "Showing %d of %d hidden factions"
+
+msgid "Showing %d of %d factions"
+msgstr "Showing %d of %d factions"
+
+msgid "Player faction:"
+msgstr "Player faction:"
+
+msgid "TOTAL HIDDEN"
+msgstr "TOTAL HIDDEN"
+
+msgid "TOTAL SHOWN"
+msgstr "TOTAL SHOWN"
+
+msgid "HOSTILE"
+msgstr "HOSTILE"
+
+msgid "FRIENDLY"
+msgstr "FRIENDLY"
+
+msgid "NEUTRAL"
+msgstr "NEUTRAL"
+
+msgid "HATED"
+msgstr "HATED"
+
+msgid "ALLIED"
+msgstr "ALLIED"
+
+msgid "Unknown origin"
+msgstr "Unknown origin"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Sort"
+msgstr "Sort"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Scope"
+msgstr "Factions"
+
+msgid "Relation ascending"
+msgstr "Worst relations first"
+
+msgid "Relation descending"
+msgstr "Best relations first"
+
+msgid "Name A-Z"
+msgstr "Name A-Z"
+
+msgid "Name Z-A"
+msgstr "Name Z-A"
+
+msgid "Non-zero only"
+msgstr "Non-zero only"
+
+msgid "All values"
+msgstr "All values"
+
+msgid "Hidden only"
+msgstr "Hidden only"
+
+msgid "All factions"
+msgstr "All factions"
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Write detailed logs to RE_Kenshi_log.txt"
+msgstr "Write detailed logs to RE_Kenshi_log.txt"

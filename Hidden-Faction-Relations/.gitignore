@@ -1,0 +1,31 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.vcxproj.user
+*.sdf
+*.opensdf
+*.VC.db
+.idea
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+build/
+.packaging/
+dist/
+.tmp
+
+# Files
+*.obj
+*.pdb
+*.ilk
+*.tlog
+
+# Local env overrides
+.env
+
+# Generated local caches
+.boost-link-override/
+Linkednpm-cache/
