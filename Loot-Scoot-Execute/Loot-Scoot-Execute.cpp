@@ -10,6 +10,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
+#include <kenshi/RaceData.h>
 #include <kenshi/Damages.h>
 #include <kenshi/Faction.h>
 #include <kenshi/PlayerInterface.h>
@@ -74,21 +75,13 @@ static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
 static const DWORD kCustomExecutePanelFallbackTickMinGapMs = 100;
 static const DWORD kCustomExecutePanelPredicateRefreshMs = 100;
 static const std::string kQueuedExecuteSlaveAnimName = "salute";
-static const char* kExecuteKillSoundEventCandidates[] =
-{
-    "Heavy_Hit",
-    "Play_Heavy_Hit",
-    "Light_Hit",
-    "Play_Light_Hit",
-    "VO_Get_Hit",
-    "Play_VO_Get_Hit",
-    "VO_Creature_Die",
-    "Play_VO_Creature_Die",
-    "VO_Creature_Victory",
-    "Play_VO_Creature_Victory"
-};
-static const size_t kExecuteKillSoundEventCandidateCount =
-    sizeof(kExecuteKillSoundEventCandidates) / sizeof(kExecuteKillSoundEventCandidates[0]);
+// Kill sound: Wwise events that really exist in the game's banks (checked by
+// FNV-1 hash in data/audio/*.bnk, 09.10.2026). The original list tried
+// "Heavy_Hit"/"Light_Hit" first - there are no such events, so nothing was
+// heard. Played on the target: a body impact plus a voice per kind.
+static const char* kExecuteKillSoundHuman[] = { "Impact", "VO_Get_Hit" };
+static const char* kExecuteKillSoundAnimal[] = { "Impact", "VO_Creature_Die" };
+static const char* kExecuteKillSoundSkeleton[] = { "Impact", "Deflection" };
 static const size_t kContextMenuRowMaterializationMaxRows = 12;
 static const size_t kExecuteAllBatchMaxTargets = 64;
 static const int kExecuteAllWorldQueryMaxTargets = 128;
@@ -466,6 +459,7 @@ static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* ta
 static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
 static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target);
 static bool TryPlayCharacterAudioEvent(Character* character, const char* eventName, SoundRange range);
+static bool IsAnimalCharacterSafe(Character* candidate);
 static bool TryPlayExecuteKillSound(
     Character* actor,
     Character* targetCharacter,
@@ -1474,12 +1468,29 @@ static bool TryPlayCharacterAudioEvent(Character* character, const char* eventNa
     }
 }
 
+static bool IsSkeletonCharacterSafe(Character* candidate)
+{
+    if (!candidate)
+    {
+        return false;
+    }
+    __try
+    {
+        return candidate->myRace != 0 && candidate->myRace->robot;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
 static bool TryPlayExecuteKillSound(
     Character* actor,
     Character* targetCharacter,
     const char** playedEventOut,
     const char** playedEmitterOut)
 {
+    (void)actor;
     if (playedEventOut)
     {
         *playedEventOut = "none";
@@ -1488,42 +1499,44 @@ static bool TryPlayExecuteKillSound(
     {
         *playedEmitterOut = "none";
     }
-
-    for (size_t i = 0; i < kExecuteKillSoundEventCandidateCount; ++i)
+    if (!targetCharacter)
     {
-        const char* eventName = kExecuteKillSoundEventCandidates[i];
-        if (TryPlayCharacterAudioEvent(actor, eventName, SOUNDRANGE_ALWAYS))
-        {
-            if (playedEventOut)
-            {
-                *playedEventOut = eventName;
-            }
-            if (playedEmitterOut)
-            {
-                *playedEmitterOut = "actor";
-            }
-            return true;
-        }
+        return false;
     }
 
-    for (size_t i = 0; i < kExecuteKillSoundEventCandidateCount; ++i)
+    const char* const* events = kExecuteKillSoundHuman;
+    const char* kind = "human";
+    if (IsSkeletonCharacterSafe(targetCharacter))
     {
-        const char* eventName = kExecuteKillSoundEventCandidates[i];
-        if (TryPlayCharacterAudioEvent(targetCharacter, eventName, SOUNDRANGE_ALWAYS))
-        {
-            if (playedEventOut)
-            {
-                *playedEventOut = eventName;
-            }
-            if (playedEmitterOut)
-            {
-                *playedEmitterOut = "target";
-            }
-            return true;
-        }
+        events = kExecuteKillSoundSkeleton;
+        kind = "skeleton";
+    }
+    else if (IsAnimalCharacterSafe(targetCharacter))
+    {
+        events = kExecuteKillSoundAnimal;
+        kind = "animal";
     }
 
-    return false;
+    // Both events: the impact and the voice together.
+    bool played = false;
+    const char* last = "none";
+    for (size_t i = 0; i < 2; ++i)
+    {
+        if (TryPlayCharacterAudioEvent(targetCharacter, events[i], SOUNDRANGE_ALWAYS))
+        {
+            played = true;
+            last = events[i];
+        }
+    }
+    if (playedEventOut)
+    {
+        *playedEventOut = last;
+    }
+    if (playedEmitterOut)
+    {
+        *playedEmitterOut = kind;
+    }
+    return played;
 }
 
 static void TryEndQueuedExecuteSlaveAnim(Character* actor)
