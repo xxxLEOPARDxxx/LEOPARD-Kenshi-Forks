@@ -1,0 +1,153 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Job-B-Gone\n"
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad."
+msgstr "小队栏上方的面板：为自己、所选角色或整个小队清除排队的工作。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Enable the Job-B-Gone panel and actions"
+msgstr "开启或关闭整个模组"
+
+msgid "Panel toggle key"
+msgstr "面板开关按键"
+
+msgid "Primary key for the panel visibility toggle. Clear to disable the hotkey."
+msgstr "显示或隐藏面板。NONE - 不设按键"
+
+msgid "Require Ctrl"
+msgstr "需要 Ctrl"
+
+msgid "Require Ctrl to be held with the panel toggle hotkey"
+msgstr "需要同时按住 Ctrl 和面板按键"
+
+msgid "Require Alt"
+msgstr "需要 Alt"
+
+msgid "Require Alt to be held with the panel toggle hotkey"
+msgstr "需要同时按住 Alt 和面板按键"
+
+msgid "Require Shift"
+msgstr "需要 Shift"
+
+msgid "Require Shift to be held with the panel toggle hotkey"
+msgstr "需要同时按住 Shift 和面板按键"
+
+msgid "Top actions"
+msgstr "顶部按钮"
+
+msgid "Show the top scoped delete-all buttons"
+msgstr "面板顶部按钮：清除我、所选角色或小队的全部工作"
+
+msgid "Panel collapsed"
+msgstr "面板折叠"
+
+msgid "Persist whether the panel is collapsed"
+msgstr "面板是否折叠；会在多次启动之间记住"
+
+msgid "Hide in creation"
+msgstr "创建角色时隐藏"
+
+msgid "Hide the panel while character creation or editing is open"
+msgstr "创建或编辑角色时隐藏面板"
+
+msgid "Hide in inventory"
+msgstr "物品栏中隐藏"
+
+msgid "Hide the panel while inventory or trade windows are open"
+msgstr "打开物品栏或交易窗口时隐藏面板"
+
+msgid "Hide in dialogue"
+msgstr "对话中隐藏"
+
+msgid "Hide the panel while characters are in dialogue or interaction"
+msgstr "对话时隐藏面板"
+
+msgid "Debug transitions"
+msgstr "记录面板变化"
+
+msgid "Enable transition and visibility diagnostics"
+msgstr "将面板显示或隐藏的时机和原因写入 RE_Kenshi_log.txt"
+
+msgid "Debug snapshots"
+msgstr "记录工作"
+
+msgid "Log selected-member job snapshots for diagnostics"
+msgstr "将所选角色的工作写入 RE_Kenshi_log.txt"
+
+msgid "Me"
+msgstr "我"
+
+msgid "Selected"
+msgstr "所选"
+
+msgid "Squad"
+msgstr "小队"
+
+msgid "All"
+msgstr "全部"
+
+msgid "Delete All Jobs"
+msgstr "删除所有工作"
+
+msgid "Confirm"
+msgstr "确认"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Selected member has no queued jobs."
+msgstr "所选角色没有排队的工作。"
+
+msgid "Selected members have no queued jobs."
+msgstr "所选角色都没有排队的工作。"
+
+msgid "Selected members:"
+msgstr "已选："
+
+msgid "Selected members jobs:"
+msgstr "所选角色的工作："
+
+msgid "Selected member jobs:"
+msgstr "所选角色的工作："
+
+msgid "showing"
+msgstr "显示"
+
+msgid "Task"
+msgstr "工作"
+
+msgid "Scroll job rows up."
+msgstr "向上滚动工作列表。"
+
+msgid "Scroll job rows down."
+msgstr "向下滚动工作列表。"
+
+msgid "Delete all queued jobs for the currently selected member."
+msgstr "删除当前所选角色的所有排队工作。"
+
+msgid "Delete all queued jobs for all selected members."
+msgstr "删除所有所选角色的所有排队工作。"
+
+msgid "Warning: delete all queued jobs for the selected member's squad."
+msgstr "警告：删除所选角色所在小队的所有排队工作。"
+
+msgid "Warning: delete all queued jobs for all player-controlled squads."
+msgstr "警告：删除玩家所有小队的所有排队工作。"
+
+msgid "Delete this job for selected member."
+msgstr "删除所选角色的这项工作。"
+
+msgid "Delete this job for all selected members."
+msgstr "删除所有所选角色的这项工作。"
+
+msgid "Warning: delete this job for the whole squad."
+msgstr "警告：删除整个小队的这项工作。"
+
+msgid "Warning: delete this job for all player-controlled squads."
+msgstr "警告：删除玩家所有小队的这项工作。"

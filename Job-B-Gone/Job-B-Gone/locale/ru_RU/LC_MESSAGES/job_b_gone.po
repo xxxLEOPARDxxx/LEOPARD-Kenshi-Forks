@@ -1,0 +1,153 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Job-B-Gone\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "A panel above the squad bar to clear queued jobs for you, the selected characters or the whole squad."
+msgstr "Панель над полосой отряда: снять поставленные работы у себя, у выделенных или у всего отряда."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable the Job-B-Gone panel and actions"
+msgstr "Включает и выключает весь мод"
+
+msgid "Panel toggle key"
+msgstr "Клавиша показа панели"
+
+msgid "Primary key for the panel visibility toggle. Clear to disable the hotkey."
+msgstr "Показывает и прячет панель. NONE - без клавиши"
+
+msgid "Require Ctrl"
+msgstr "Нужен Ctrl"
+
+msgid "Require Ctrl to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Ctrl"
+
+msgid "Require Alt"
+msgstr "Нужен Alt"
+
+msgid "Require Alt to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Alt"
+
+msgid "Require Shift"
+msgstr "Нужен Shift"
+
+msgid "Require Shift to be held with the panel toggle hotkey"
+msgstr "Вместе с клавишей панели нужно держать Shift"
+
+msgid "Top actions"
+msgstr "Кнопки сверху"
+
+msgid "Show the top scoped delete-all buttons"
+msgstr "Кнопки вверху панели, которые снимают все работы у меня, у выделенных или у отряда"
+
+msgid "Panel collapsed"
+msgstr "Панель свёрнута"
+
+msgid "Persist whether the panel is collapsed"
+msgstr "Свёрнута ли панель; запоминается между запусками"
+
+msgid "Hide in creation"
+msgstr "Прятать при создании персонажа"
+
+msgid "Hide the panel while character creation or editing is open"
+msgstr "Прятать панель, пока открыто создание или правка персонажа"
+
+msgid "Hide in inventory"
+msgstr "Прятать в инвентаре"
+
+msgid "Hide the panel while inventory or trade windows are open"
+msgstr "Прятать панель, пока открыт инвентарь или торговля"
+
+msgid "Hide in dialogue"
+msgstr "Прятать в разговоре"
+
+msgid "Hide the panel while characters are in dialogue or interaction"
+msgstr "Прятать панель во время разговора"
+
+msgid "Debug transitions"
+msgstr "Журнал панели"
+
+msgid "Enable transition and visibility diagnostics"
+msgstr "Пишет в RE_Kenshi_log.txt, когда и почему панель показывается или прячется"
+
+msgid "Debug snapshots"
+msgstr "Журнал работ"
+
+msgid "Log selected-member job snapshots for diagnostics"
+msgstr "Пишет работы выделенных персонажей в RE_Kenshi_log.txt"
+
+msgid "Me"
+msgstr "Я"
+
+msgid "Selected"
+msgstr "Выделенные"
+
+msgid "Squad"
+msgstr "Отряд"
+
+msgid "All"
+msgstr "Все"
+
+msgid "Delete All Jobs"
+msgstr "Снять все работы"
+
+msgid "Confirm"
+msgstr "Подтвердить"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Selected member has no queued jobs."
+msgstr "У выделенного нет поставленных работ."
+
+msgid "Selected members have no queued jobs."
+msgstr "У выделенных нет поставленных работ."
+
+msgid "Selected members:"
+msgstr "Выделено:"
+
+msgid "Selected members jobs:"
+msgstr "Работ у выделенных:"
+
+msgid "Selected member jobs:"
+msgstr "Работ у выделенного:"
+
+msgid "showing"
+msgstr "показаны"
+
+msgid "Task"
+msgstr "Работа"
+
+msgid "Scroll job rows up."
+msgstr "Прокрутить работы вверх."
+
+msgid "Scroll job rows down."
+msgstr "Прокрутить работы вниз."
+
+msgid "Delete all queued jobs for the currently selected member."
+msgstr "Снять все работы у выделенного персонажа."
+
+msgid "Delete all queued jobs for all selected members."
+msgstr "Снять все работы у всех выделенных."
+
+msgid "Warning: delete all queued jobs for the selected member's squad."
+msgstr "Внимание: снять все работы у всего отряда выделенного."
+
+msgid "Warning: delete all queued jobs for all player-controlled squads."
+msgstr "Внимание: снять все работы у всех ваших отрядов."
+
+msgid "Delete this job for selected member."
+msgstr "Снять эту работу у выделенного."
+
+msgid "Delete this job for all selected members."
+msgstr "Снять эту работу у всех выделенных."
+
+msgid "Warning: delete this job for the whole squad."
+msgstr "Внимание: снять эту работу у всего отряда."
+
+msgid "Warning: delete this job for all player-controlled squads."
+msgstr "Внимание: снять эту работу у всех ваших отрядов."
