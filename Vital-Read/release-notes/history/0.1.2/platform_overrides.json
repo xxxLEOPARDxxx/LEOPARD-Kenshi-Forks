@@ -1,0 +1,156 @@
+{
+  "steam": {
+    "body": {
+      "summary": "Vital Read adds small configurable status markers to squad portraits so you can read critical downed and injury states at a glance without opening each character panel.",
+      "details": [
+        "Vital Read adds portrait icon overlays and optional text badges for unconscious, recovery coma, dying, playing dead, starving, crippled arm, and crippled leg states. Icons, text, size, corner, and shared edge margins are configurable through [u]mod-config.json[/u], and optional in-game controls are available when [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed.",
+        "It is intentionally focused on portrait readability and status visibility. It does not change Kenshi gameplay, medical rules, or AI behavior.",
+        "[h3]Requirements[/h3]\n- [url=https://www.nexusmods.com/kenshi/mods/847]RE_Kenshi[/url]"
+      ]
+    },
+    "shared_fragments": [
+      {
+        "name": "compatibility",
+        "source_format": "json",
+        "fragment": {
+          "title": "Compatibility",
+          "items": [
+            "[h3]Compatibility[/h3]\n[list]\n[*] No special load order required beyond RE_Kenshi unless you also use [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url]. For Mod Hub integration, load [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] before this mod.\n[/list]"
+          ],
+          "key": "compatibility"
+        }
+      },
+      {
+        "name": "credits",
+        "source_format": "json",
+        "fragment": {
+          "title": "Credits",
+          "items": [
+            "[h3]Credits[/h3]\n[list]\n[*] Lo-Fi Games (Kenshi)\nRE_Kenshi team\n[*] [url=https://www.flaticon.com/free-icons/bandage]Bandage icons created by Freepik - Flaticon\n[/url]\n[*] [url=https://www.flaticon.com/free-icons/skull]Skull icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/starving]Starving icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/patient]Patient icons created by Freepik - Flaticon[/url]\n[*] [url=https://www.flaticon.com/free-icons/broken-leg]Broken-leg icons created by Graphiqa - Flaticon[/url]\n[/list]"
+          ],
+          "key": "credits"
+        }
+      },
+      {
+        "name": "feedback",
+        "source_format": "json",
+        "fragment": {
+          "title": "Feedback",
+          "items": [
+            "[h3]Support / full patch notes[/h3]\nFor updates, full changelog, bug reports, and support, use the Nexus page:\n[url=https://www.nexusmods.com/kenshi/mods/1863]Wall-B-Gone on Nexus Mods[/url]"
+          ],
+          "key": "feedback"
+        }
+      },
+      {
+        "name": "how_to_use",
+        "source_format": "json",
+        "fragment": {
+          "title": "How to Use",
+          "items": [
+            "[h3]How to Use[/h3]\n[list]\n[*] Load into a save with squad portraits visible.\n[*] Downed and injury states will appear as portrait icons and optional text badges automatically.\n[*] Adjust [u]mod-config.json[/u] if you want different text/icon visibility, size, corners, margins, or textures.\n[*] If [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed, you can adjust the main overlay settings from Mod Hub in game.\n[/list]"
+          ],
+          "key": "how_to_use"
+        }
+      },
+      {
+        "name": "support_the_developer",
+        "source_format": "json",
+        "fragment": {
+          "title": "Support the Developer",
+          "items": [
+            "[h3]Support the developer[/h3]\nIf you enjoy my mods and want to support future development, you can support me on Ko-fi. You can also help decide what I build next by voting in my polls:\n[url=https://ko-fi.com/emkej]https://ko-fi.com/emkej[/url]"
+          ],
+          "key": "support_the_developer"
+        }
+      },
+      {
+        "name": "troubleshooting",
+        "source_format": "json",
+        "fragment": {
+          "title": "Troubleshooting",
+          "items": [
+            "[h3]Troubleshooting[/h3]\n[list]\n[*] Ensure RE_Kenshi is installed and enabled.\n[*] If another mod also draws portrait overlays, check for UI overlap and adjust corners or margins.\n[*]If you use Mod Hub, confirm [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] is installed and loads before this mod.\n[/list]"
+          ],
+          "key": "troubleshooting"
+        }
+      }
+    ],
+    "other_mods": [
+      {
+        "mod_id": "wall-b-gone",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1863",
+        "link_text": "Wall-B-Gone",
+        "description": "Adds a hotkey that allows the player to quickly dismantle player-built walls."
+      },
+      {
+        "mod_id": "auto-pause-on-load",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1867",
+        "link_text": "Auto-Pause on Load",
+        "description": null
+      },
+      {
+        "mod_id": "job-b-gone",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/PLACEHOLDER",
+        "link_text": "Job-B-Gone",
+        "description": "Adds an in-game above the squad UI so you can quickly remove queued jobs for one member, selected members, a whole squad, or all player squads."
+      },
+      {
+        "mod_id": "loot-scoot-execute",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1871",
+        "link_text": "Loot Scoot Execute",
+        "description": "Adds an Execute action for downed enemies in the right-click context flow."
+      },
+      {
+        "mod_id": "vital-sense",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1873",
+        "link_text": "Vital Sense",
+        "description": "Highlights downed characters with state text/icons and shows configurable bounty symbol markers for downed and live bounty targets while ALT is held."
+      },
+      {
+        "mod_id": "emkejs-mod-core",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1885",
+        "link_text": "Emkejs Mod Core",
+        "description": "Install this to enable the in-game menu and shared settings for this mod."
+      },
+      {
+        "mod_id": "organize-the-trader",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1886",
+        "link_text": "Organize the Trader",
+        "description": "Adds a search bar to Kenshi trader windows so you can find items faster."
+      },
+      {
+        "mod_id": "map-markers",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1887",
+        "link_text": "Map Markers",
+        "description": "Adds persistent custom markers to Kenshi's world map through RE_Kenshi. You can place markers per save, assign a type, add a short label, and manage them directly on the map."
+      },
+      {
+        "mod_id": "organize-the-crafting-stations",
+        "source": "registry",
+        "url": "https://www.nexusmods.com/kenshi/mods/1900",
+        "link_text": "Organize the Crafting Stations",
+        "description": "Adds a search bar to Kenshi crafting and research windows so you can filter visible recipes and blueprints without scrolling through the full list."
+      }
+    ],
+    "included_other_mod_ids": [
+      "wall-b-gone",
+      "auto-pause-on-load",
+      "job-b-gone",
+      "loot-scoot-execute",
+      "vital-sense",
+      "emkejs-mod-core",
+      "organize-the-trader",
+      "map-markers",
+      "organize-the-crafting-stations"
+    ]
+  }
+}

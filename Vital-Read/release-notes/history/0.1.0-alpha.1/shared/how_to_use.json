@@ -1,0 +1,6 @@
+{
+  "title": "How to Use",
+  "items": [
+    "[b][size=4]How to Use[/size][/b]\n[list]\n[*] Load into a save with squad portraits visible.\n[*] Downed and injury states will appear as portrait icons and optional text badges automatically.\n[*] Adjust [u]mod-config.json[/u] if you want different text/icon visibility, size, corners, margins, or textures.\n[*] If [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed, you can adjust the main overlay settings from Mod Hub in game.\n[/list]"
+  ]
+}

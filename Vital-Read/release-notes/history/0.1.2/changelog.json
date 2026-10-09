@@ -1,0 +1,12 @@
+{
+  "changes": [
+    "Added Mod Hub dropdown controls for portrait icon and text corner settings.",
+    "Added a default playing-dead portrait icon using the same built-in Kenshi UI atlas pip used by Vital Sense.",
+    "Added the PD text badge for playing-dead portrait overlays.",
+    "Moved debug logging into the Mod Hub Advanced section and removed obsolete search and binding debug toggles from Vital Read configuration.",
+    "Aligned the Mod Hub SDK integration with current upstream section support so Vital Read settings appear correctly in the in-game Mod Hub menu.",
+    "Fixed a Debug runtime startup crash in Vital Read's Kenshi version check.",
+    "Fixed portrait overlay cache validation so partial or hidden portrait bars no longer trigger repeated full GUI scans.",
+    "Reduced avoidable portrait overlay refresh and texture work during normal runtime updates."
+  ]
+}

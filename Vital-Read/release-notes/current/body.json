@@ -1,0 +1,7 @@
+{
+  "summary": "Vital Read adds small configurable status markers to squad portraits so you can read critical downed and injury states at a glance without opening each character panel.",
+  "details": [
+    "Vital Read adds portrait icon overlays and optional text badges for unconscious, recovery coma, dying, playing dead, starving, crippled arm, and crippled leg states. Icons, text, size, corner, and shared edge margins are configurable through [u]mod-config.json[/u], and optional in-game controls are available when [url=https://www.nexusmods.com/games/kenshi/mods/1885]Emkejs-Mod-Core[/url] is installed.",
+    "It is intentionally focused on portrait readability and status visibility. It does not change Kenshi gameplay, medical rules, or AI behavior."
+  ]
+}

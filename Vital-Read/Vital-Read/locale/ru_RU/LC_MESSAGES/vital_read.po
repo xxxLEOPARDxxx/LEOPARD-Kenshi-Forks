@@ -1,0 +1,87 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Read\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "State icons on squad portraits: unconscious, coma, dying, playing dead, starving, crippled limbs."
+msgstr "Значки состояния на портретах отряда: без сознания, кома, при смерти, притворяется мёртвым, голодает, искалечены конечности."
+
+msgid "Core"
+msgstr "Общее"
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable Vital Read runtime probes and overlays"
+msgstr "Включает и выключает весь мод"
+
+msgid "Show icons"
+msgstr "Показывать значки"
+
+msgid "Show portrait state icon overlays"
+msgstr "Значки состояния на портретах"
+
+msgid "Show text"
+msgstr "Показывать текст"
+
+msgid "Show portrait state text badges"
+msgstr "Короткий текст состояния на портретах"
+
+msgid "Advanced"
+msgstr "Дополнительно"
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Enable general Vital Read debug logs"
+msgstr "Пишет подробности в RE_Kenshi_log.txt"
+
+msgid "Icon size"
+msgstr "Размер значка"
+
+msgid "Set portrait state icon display size in pixels (0 keeps automatic sizing)"
+msgstr "Размер значка состояния в пикселях. 0 - подбирается сам"
+
+msgid "Text size"
+msgstr "Размер текста"
+
+msgid "Set portrait state text badge font height"
+msgstr "Высота шрифта текста состояния"
+
+msgid "Overlay X margin"
+msgstr "Отступ по горизонтали"
+
+msgid "Set horizontal edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "Отступ значка и текста от бокового края портрета: плюс - внутрь, минус - наружу"
+
+msgid "Overlay Y margin"
+msgstr "Отступ по вертикали"
+
+msgid "Set vertical edge margin for portrait icons and text; positive moves inward, negative moves outward"
+msgstr "Отступ значка и текста от верхнего или нижнего края портрета: плюс - внутрь, минус - наружу"
+
+msgid "Icon corner"
+msgstr "Угол значка"
+
+msgid "Set portrait icon corner"
+msgstr "В каком углу портрета значок"
+
+msgid "Bottom left"
+msgstr "Снизу слева"
+
+msgid "Bottom right"
+msgstr "Снизу справа"
+
+msgid "Top left"
+msgstr "Сверху слева"
+
+msgid "Top right"
+msgstr "Сверху справа"
+
+msgid "Text corner"
+msgstr "Угол текста"
+
+msgid "Set portrait text corner"
+msgstr "В каком углу портрета текст"

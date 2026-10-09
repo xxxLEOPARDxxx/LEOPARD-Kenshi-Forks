@@ -1,0 +1,7 @@
+{
+  "title": "Troubleshooting",
+  "items": [
+    "[b][size=4]Troubleshooting[/size][/b]\n[spoiler]\n[list]\n[*] Ensure RE_Kenshi is installed and enabled.\n[*] If another mod also draws portrait overlays, check for UI overlap and adjust corners or margins.\n[*]If you use Mod Hub, confirm [url=https://www.nexusmods.com/kenshi/mods/1885]Emkejs Mod Core[/url] is installed and loads before this mod.\n[/list]\n[/spoiler]"
+  ],
+  "key": "troubleshooting"
+}

@@ -1,0 +1,45 @@
+{
+  "mod_name": "Vital Read",
+  "release_notes_dir": "release-notes",
+  "default_platforms": [
+    "nexus",
+    "steam"
+  ],
+  "default_shared_fragments": [
+    "install",
+    "tested_with",
+    "feedback"
+  ],
+  "default_include_shared": [
+    "install",
+    "tested_with",
+    "feedback"
+  ],
+  "default_seed_shared": [
+    "credits",
+    "support_the_developer"
+  ],
+  "archive_generated_output": false,
+  "infer_repo_name_as_mod_name": true,
+  "mod_nexus_url": "https://www.nexusmods.com/kenshi/mods/1910",
+  "mod_steam_url": "https://steamcommunity.com/sharedfiles/filedetails/?id=3694888337",
+  "mod_reddit_url": "https://www.reddit.com/r/Kenshi/comments/1s6splo/i_made_a_small_qol_mod_vital_read_re_kenshi/",
+  "include_in_other_mods": true,
+  "mod_id": "vital-read",
+  "mod_description": "Adds small configurable status markers to squad portraits so you can read critical downed and injury states at a glance without opening each character panel.",
+  "included_other_mod_ids": [
+    "wall-b-gone",
+    "emkejs-mod-core",
+    "job-b-gone",
+    "loot-scoot-execute",
+    "vital-sense",
+    "organize-the-trader",
+    "map-markers",
+    "auto-pause-on-load",
+    "organize-the-crafting-stations",
+    "hidden-faction-relations",
+    "emkejs-test-kit",
+    "organize-the-inventory"
+  ],
+  "excluded_other_mod_ids": []
+}
