@@ -1,0 +1,408 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Vital-Sense\n"
+"Language: ru_RU\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Highlights downed characters with state markers, an optional body tint and bounty indicators."
+msgstr "Выделяет лежащих персонажей: метки состояния, по желанию окраска тела и значки награды за голову."
+
+msgid "Core"
+msgstr "Общее"
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Enable all Vital Sense overlays and tint behavior"
+msgstr "Включает и выключает весь мод"
+
+msgid "Highlight key"
+msgstr "Клавиша подсветки"
+
+msgid "Primary key that gates KO highlights. Clear to Unbound for always-on highlights."
+msgstr "Пока зажата эта клавиша, лежащие выделены. NONE - выделены всегда"
+
+msgid "Require Ctrl"
+msgstr "Нужен Ctrl"
+
+msgid "Require Ctrl to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Ctrl"
+
+msgid "Require Shift"
+msgstr "Нужен Shift"
+
+msgid "Require Shift to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Shift"
+
+msgid "Require Alt"
+msgstr "Нужен Alt"
+
+msgid "Require Alt to be held with the highlight key"
+msgstr "Вместе с клавишей подсветки нужно держать Alt"
+
+msgid "Max highlight distance"
+msgstr "Наибольшее расстояние подсветки"
+
+msgid "Maximum horizontal distance from camera center for highlights"
+msgstr "На каком расстоянии от центра камеры выделять персонажей"
+
+msgid "Show icons"
+msgstr "Показывать значки"
+
+msgid "Render icon widgets for KO states"
+msgstr "Значки состояний"
+
+msgid "Show text"
+msgstr "Показывать текст"
+
+msgid "Render short state labels such as ZZ and DY"
+msgstr "Короткий текст состояния вроде ZZ или DY"
+
+msgid "States"
+msgstr "Состояния"
+
+msgid "Show unconscious"
+msgstr "Без сознания"
+
+msgid "Show markers for unconscious targets"
+msgstr "Метки у лежащих без сознания"
+
+msgid "Show recovery coma"
+msgstr "Кома"
+
+msgid "Show markers for recovery coma targets"
+msgstr "Метки у лежащих в коме"
+
+msgid "Show dying"
+msgstr "При смерти"
+
+msgid "Show markers for dying targets"
+msgstr "Метки у умирающих"
+
+msgid "Show playing dead"
+msgstr "Притворяется мёртвым"
+
+msgid "Show markers for playing dead targets"
+msgstr "Метки у притворяющихся мёртвыми"
+
+msgid "Show dead"
+msgstr "Мёртвые"
+
+msgid "Show markers for dead targets"
+msgstr "Метки у мёртвых"
+
+msgid "Unconscious text"
+msgstr "Текст: без сознания"
+
+msgid "Short label for the unconscious marker"
+msgstr "Короткий текст метки: без сознания"
+
+msgid "Recovery coma text"
+msgstr "Текст: комы"
+
+msgid "Short label for the recovery coma marker"
+msgstr "Короткий текст метки: комы"
+
+msgid "Dying text"
+msgstr "Текст: при смерти"
+
+msgid "Short label for the dying marker"
+msgstr "Короткий текст метки: при смерти"
+
+msgid "Playing dead text"
+msgstr "Текст: притворства"
+
+msgid "Short label for the playing dead marker"
+msgstr "Короткий текст метки: притворства"
+
+msgid "Dead text"
+msgstr "Текст: мёртвых"
+
+msgid "Short label for the dead marker"
+msgstr "Короткий текст метки: мёртвых"
+
+msgid "Unconscious text size"
+msgstr "Размер текста: без сознания"
+
+msgid "Font height for the unconscious label"
+msgstr "Высота шрифта текста: без сознания"
+
+msgid "Recovery coma text size"
+msgstr "Размер текста: комы"
+
+msgid "Font height for the recovery coma label"
+msgstr "Высота шрифта текста: комы"
+
+msgid "Dying text size"
+msgstr "Размер текста: при смерти"
+
+msgid "Font height for the dying label"
+msgstr "Высота шрифта текста: при смерти"
+
+msgid "Playing dead text size"
+msgstr "Размер текста: притворства"
+
+msgid "Font height for the playing dead label"
+msgstr "Высота шрифта текста: притворства"
+
+msgid "Dead text size"
+msgstr "Размер текста: мёртвых"
+
+msgid "Font height for the dead label"
+msgstr "Высота шрифта текста: мёртвых"
+
+msgid "Unconscious icon texture"
+msgstr "Картинка значка: без сознания"
+
+msgid "Short path for the unconscious icon texture"
+msgstr "Путь к картинке значка: без сознания"
+
+msgid "Recovery coma icon texture"
+msgstr "Картинка значка: комы"
+
+msgid "Short path for the recovery coma icon texture"
+msgstr "Путь к картинке значка: комы"
+
+msgid "Dying icon texture"
+msgstr "Картинка значка: при смерти"
+
+msgid "Short path for the dying icon texture"
+msgstr "Путь к картинке значка: при смерти"
+
+msgid "Playing dead icon texture"
+msgstr "Картинка значка: притворства"
+
+msgid "Short path for the playing dead icon texture"
+msgstr "Путь к картинке значка: притворства"
+
+msgid "Dead icon texture"
+msgstr "Картинка значка: мёртвых"
+
+msgid "Short path for the dead icon texture"
+msgstr "Путь к картинке значка: мёртвых"
+
+msgid "Unconscious icon size"
+msgstr "Размер значка: без сознания"
+
+msgid "Pixel size for the unconscious icon"
+msgstr "Размер значка в пикселях: без сознания"
+
+msgid "Recovery coma icon size"
+msgstr "Размер значка: комы"
+
+msgid "Pixel size for the recovery coma icon"
+msgstr "Размер значка в пикселях: комы"
+
+msgid "Dying icon size"
+msgstr "Размер значка: при смерти"
+
+msgid "Pixel size for the dying icon"
+msgstr "Размер значка в пикселях: при смерти"
+
+msgid "Playing dead icon size"
+msgstr "Размер значка: притворства"
+
+msgid "Pixel size for the playing dead icon"
+msgstr "Размер значка в пикселях: притворства"
+
+msgid "Dead icon size"
+msgstr "Размер значка: мёртвых"
+
+msgid "Pixel size for the dead icon"
+msgstr "Размер значка в пикселях: мёртвых"
+
+msgid "Bounty"
+msgstr "Награда за голову"
+
+msgid "Show bounty glow"
+msgstr "Свечение награды"
+
+msgid "Render bounty glow behind eligible targets"
+msgstr "Свечение за персонажами с наградой за голову"
+
+msgid "Show bounty symbol"
+msgstr "Значок награды"
+
+msgid "Render bounty symbol text using tier colors"
+msgstr "Значок награды, цветом по размеру награды"
+
+msgid "Show live bounty symbol"
+msgstr "Значок награды у стоящих"
+
+msgid "Render bounty symbols for non-downed on-screen bounty targets"
+msgstr "Значок награды и над теми, кто не лежит"
+
+msgid "Bounty symbol"
+msgstr "Символ награды"
+
+msgid "Short bounty symbol text such as $ or B"
+msgstr "Сам символ, например $ или B"
+
+msgid "Bounty symbol size"
+msgstr "Размер символа награды"
+
+msgid "Base font height for the bounty symbol"
+msgstr "Высота шрифта символа награды"
+
+msgid "Bounty symbol position"
+msgstr "Место символа награды"
+
+msgid "Choose whether the bounty symbol renders before the state icon or before the state text"
+msgstr "Перед значком состояния или перед текстом состояния"
+
+msgid "Before state icon"
+msgstr "Перед значком"
+
+msgid "Before state text"
+msgstr "Перед текстом"
+
+msgid "Live symbol anchor offset"
+msgstr "Высота символа над стоящими"
+
+msgid "Vertical world-anchor offset for live bounty symbols"
+msgstr "Как высоко над стоящим персонажем висит символ награды"
+
+msgid "Bounty trivial max"
+msgstr "Награда ничтожная: до"
+
+msgid "Upper bound for the trivial bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: ничтожная"
+
+msgid "Bounty low max"
+msgstr "Награда малая: до"
+
+msgid "Upper bound for the low bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: малая"
+
+msgid "Bounty modest max"
+msgstr "Награда скромная: до"
+
+msgid "Upper bound for the modest bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: скромная"
+
+msgid "Bounty notable max"
+msgstr "Награда заметная: до"
+
+msgid "Upper bound for the notable bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: заметная"
+
+msgid "Bounty high value max"
+msgstr "Награда крупная: до"
+
+msgid "Upper bound for the high-value bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: крупная"
+
+msgid "Bounty elite max"
+msgstr "Награда элитная: до"
+
+msgid "Upper bound for the elite bounty tier"
+msgstr "Наибольшая награда, которая ещё считается: элитная"
+
+msgid "Bounty trivial color"
+msgstr "Цвет: награда ничтожная"
+
+msgid "Bounty symbol text color for the trivial tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда ничтожная, #RRGGBB"
+
+msgid "Bounty low color"
+msgstr "Цвет: награда малая"
+
+msgid "Bounty symbol text color for the low tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда малая, #RRGGBB"
+
+msgid "Bounty modest color"
+msgstr "Цвет: награда скромная"
+
+msgid "Bounty symbol text color for the modest tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда скромная, #RRGGBB"
+
+msgid "Bounty notable color"
+msgstr "Цвет: награда заметная"
+
+msgid "Bounty symbol text color for the notable tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда заметная, #RRGGBB"
+
+msgid "Bounty high value color"
+msgstr "Цвет: награда крупная"
+
+msgid "Bounty symbol text color for the high-value tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда крупная, #RRGGBB"
+
+msgid "Bounty elite color"
+msgstr "Цвет: награда элитная"
+
+msgid "Bounty symbol text color for the elite tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда элитная, #RRGGBB"
+
+msgid "Bounty legendary color"
+msgstr "Цвет: награда легендарная"
+
+msgid "Bounty symbol text color for the legendary tier; Mod Hub edits RGB only"
+msgstr "Цвет символа награды, если награда легендарная, #RRGGBB"
+
+msgid "Tint & relation colors"
+msgstr "Окраска и цвета отношений"
+
+msgid "Enable character tint"
+msgstr "Окрашивать персонажей"
+
+msgid "Tint resolved characters in addition to marker overlays"
+msgstr "Окрашивать самих персонажей, а не только ставить метки"
+
+msgid "Tint squad"
+msgstr "Окрашивать свой отряд"
+
+msgid "Tint conscious squadmates when character tint is enabled"
+msgstr "Окрашивать и своих, кто на ногах"
+
+msgid "Tint bounty-only"
+msgstr "Окрашивать цели с наградой"
+
+msgid "Tint non-downed bounty-only targets when character tint is enabled"
+msgstr "Окрашивать и стоящих персонажей с наградой"
+
+msgid "Force depth override"
+msgstr "Видно сквозь стены"
+
+msgid "Force tint to render through depth when supported by the shader"
+msgstr "Окраска видна сквозь стены и предметы, где это позволяет шейдер"
+
+msgid "Enemy color"
+msgstr "Цвет врагов"
+
+msgid "Relation color used for enemy markers and tint"
+msgstr "Цвет меток и окраски врагов, #RRGGBB"
+
+msgid "Ally color"
+msgstr "Цвет союзников"
+
+msgid "Relation color used for ally markers and tint"
+msgstr "Цвет меток и окраски союзников, #RRGGBB"
+
+msgid "Squad color"
+msgstr "Цвет отряда"
+
+msgid "Relation color used for squad markers and tint"
+msgstr "Цвет меток и окраски своего отряда, #RRGGBB"
+
+msgid "Advanced"
+msgstr "Дополнительно"
+
+msgid "Update interval"
+msgstr "Обновлять раз в, мс"
+
+msgid "KO target refresh interval in milliseconds"
+msgstr "Как часто искать лежащих, миллисекунд"
+
+msgid "Debug diagnostics"
+msgstr "Подробный журнал"
+
+msgid "Enable extra runtime diagnostics"
+msgstr "Пишет подробности в RE_Kenshi_log.txt"
+
+msgid "Debug texture info"
+msgstr "Журнал картинок значков"
+
+msgid "Log custom icon texture resolution details"
+msgstr "Пишет в RE_Kenshi_log.txt, как нашлись картинки значков"

@@ -1,0 +1,48 @@
+
+material SkinnedShadowCaster {
+	technique {
+		pass {
+			vertex_program_ref SkinnedShadow_VP { }
+			fragment_program_ref ShadowCaster_FP { }
+		}
+	}
+	technique RTWShadow {
+		pass {
+			vertex_program_ref SkinnedRTWShadow_VP { }
+			fragment_program_ref ShadowCaster_FP { }
+			texture_unit warp {
+				tex_address_mode clamp
+				binding_type vertex
+			}
+			
+		}
+	}
+}
+
+
+material Skinned {
+	technique {
+		shadow_caster_material SkinnedShadowCaster
+		pass main {
+			
+			vertex_program_ref Skinned_VP { }
+			fragment_program_ref Skinned_FP { }
+			
+			texture_unit diffuseMap {
+				texture nothing.dds
+				filtering trilinear
+				mipmap_bias -2
+			}
+			texture_unit normalMap {
+				texture flat.dds
+				filtering trilinear
+			}
+			texture_unit colorMap {
+				texture colormap_default.dds
+				filtering trilinear
+			}
+		}
+	}
+}
+
+
