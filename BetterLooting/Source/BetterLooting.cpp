@@ -10,6 +10,7 @@
 #include <CommCtrl.h>
 #include <cstdint>
 #include <cstdio>
+#include <float.h>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -5413,9 +5414,14 @@ static void FinishBetterLootingRadiusRun()
 struct BetterLootingGroundCandidate
 {
     hand target;
-    float distanceSquared;
-    float valuePerKg;
+    Ogre::Vector3 position;
+    bool consumed;
 };
+
+static bool IsBetterLootingFiniteGroundPosition(const Ogre::Vector3& position)
+{
+    return _finite(position.x) && _finite(position.y) && _finite(position.z);
+}
 
 static bool BetterLootingGroundNeedsTheft(Item* item)
 {
@@ -5441,7 +5447,10 @@ static bool IsBetterLootingGroundItemAllowed(Item* item, Character* character)
         IsBetterLootingPlayerBuildingSource(item->getProperOwner().getRootObject())) return false;
     Inventory* contents = item->getInventory();
     if (contents != NULL && contents->getNumItems() > 0) return false;
-    const Ogre::Vector3 offset = item->getPosition() - character->getPosition();
+    const Ogre::Vector3 position = item->getPosition();
+    const Ogre::Vector3 center = character->getPosition();
+    if (!IsBetterLootingFiniteGroundPosition(position) || !IsBetterLootingFiniteGroundPosition(center)) return false;
+    const Ogre::Vector3 offset = position - center;
     const float radius = g_betterLootingRules.lootRadius * 10.0f;
     if (!(offset.squaredLength() <= radius * radius)) return false;
     const int function = GetBetterLootingEffectiveItemFunctionValue(item, GetBetterLootingItemFunctionValue(item));
@@ -5461,13 +5470,14 @@ static unsigned QueueBetterLootingGroundPickups(Character* character)
         !character->isPlayerCharacter() || character->isDead() || character->isUnconcious()) return 0;
     const float radius = g_betterLootingRules.lootRadius * 10.0f;
     if (!(radius >= 10.0f && radius <= 1000.0f)) return 0; // rejects NaN/Inf too
+    const Ogre::Vector3 center = character->getPosition();
+    if (!IsBetterLootingFiniteGroundPosition(center)) return 0;
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
     if (input != NULL && input->getKeyFocusWidget() != NULL) return 0;
     static lektor<RootObject*> found; // lektor has no freeing destructor; reuse its allocation
     std::vector<BetterLootingGroundCandidate> candidates;
     std::set<hand> seen;
     const itemType types[] = { ITEM, WEAPON, ARMOUR, CROSSBOW, BLUEPRINT, CONTAINER, LIMB_REPLACEMENT };
-    const Ogre::Vector3 center = character->getPosition();
     unsigned examined = 0;
     for (size_t t = 0; t < sizeof(types) / sizeof(types[0]) && examined < 256; ++t)
     {
@@ -5484,30 +5494,61 @@ static unsigned QueueBetterLootingGroundPickups(Character* character)
             if (!IsBetterLootingGroundItemAllowed(item, character)) continue;
             BetterLootingGroundCandidate candidate;
             candidate.target = target;
-            candidate.distanceSquared = (item->getPosition() - center).squaredLength();
-            const float weight = item->getItemWeightSingle();
-            candidate.valuePerKg = weight > 0.001f ? item->getValueSingle(true) / weight : item->getValueSingle(true) * 1000000.0f;
+            candidate.position = item->getPosition();
+            if (!IsBetterLootingFiniteGroundPosition(candidate.position)) continue;
+            candidate.consumed = false;
             candidates.push_back(candidate);
         }
     }
     found.clear();
-    const bool bestFirst = g_betterLootingRules.bestItemsFirst;
-    std::stable_sort(candidates.begin(), candidates.end(), [bestFirst](const BetterLootingGroundCandidate& a, const BetterLootingGroundCandidate& b) -> bool
-    {
-        if (bestFirst && a.valuePerKg != b.valuePerKg) return a.valuePerKg > b.valuePerKg;
-        return a.distanceSquared < b.distanceSquared;
-    });
+    // Ground pickup requires walking: choose a short greedy route, not the
+    // inventory-loot value priority. Start at the character, then choose the
+    // closest remaining candidate from each successfully queued target.
+    // Discovery stays bounded and runs only on the loot action.
+    Ogre::Vector3 routeFrom = center;
     unsigned queued = 0;
-    for (size_t i = 0; i < candidates.size() && queued < 32; ++i)
+    while (queued < 32)
     {
-        Item* item = candidates[i].target.getItem();
+        size_t nearest = candidates.size();
+        double nearestDistanceSquared = 0.0;
+        for (size_t i = 0; i < candidates.size(); ++i)
+        {
+            if (candidates[i].consumed) continue;
+            const Ogre::Vector3& position = candidates[i].position;
+            // Double intermediates keep finite float coordinates from
+            // overflowing while calculating squared distance.
+            const double dx = static_cast<double>(position.x) - routeFrom.x;
+            const double dy = static_cast<double>(position.y) - routeFrom.y;
+            const double dz = static_cast<double>(position.z) - routeFrom.z;
+            const double distanceSquared = dx * dx + dy * dy + dz * dz;
+            if (nearest == candidates.size() || distanceSquared < nearestDistanceSquared ||
+                (distanceSquared == nearestDistanceSquared && candidates[i].target < candidates[nearest].target))
+            {
+                nearest = i;
+                nearestDistanceSquared = distanceSquared;
+            }
+        }
+        if (nearest == candidates.size()) break;
+        candidates[nearest].consumed = true;
+        Item* item = candidates[nearest].target.getItem();
         if (!IsBetterLootingGroundItemAllowed(item, character) || character->checkPlayerOrderForProblems(PICKUP, item)) continue;
         const Ogre::Vector3 position = item->getPosition();
+        if (!IsBetterLootingFiniteGroundPosition(position)) continue;
         Building* indoors = item->isIndoors().getBuilding();
         // shift=false: temporary order; clear=false: preserve unrelated jobs/orders.
+        // Keep the existing native append call and submit the chosen route
+        // forward. Do not guess a reverse queue policy from a test double.
         character->addOrder(indoors, PICKUP, item, false, false, position);
+        routeFrom = position;
         ++queued;
         // Do not dereference the Item after entering native pickup logic.
+        if (g_betterLootingDebugLog)
+        {
+            char step[192];
+            sprintf_s(step, "BetterLooting: GROUND_ROUTE order=%u position=(%.2f,%.2f,%.2f) distanceSquared=%.2f",
+                queued, position.x, position.y, position.z, nearestDistanceSquared);
+            BlTrace(step);
+        }
     }
     if (g_betterLootingDebugLog)
     {
