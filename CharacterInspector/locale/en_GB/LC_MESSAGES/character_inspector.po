@@ -1,0 +1,83 @@
+msgid ""
+msgstr "Language: en_GB\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "Acid"
+msgstr "Acid"
+
+msgid "Armour on this part"
+msgstr "Armour on this part"
+
+msgid "B %s"
+msgstr "B %s"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Blunt %s"
+msgstr "Blunt %s"
+
+msgid "Burn"
+msgstr "Burn"
+
+msgid "C %s"
+msgstr "C %s"
+
+msgid "Click a body part"
+msgstr "Click a body part"
+
+msgid "Cover %s"
+msgstr "Cover %s"
+
+msgid "Cut %s"
+msgstr "Cut %s"
+
+msgid "Detailed log"
+msgstr "Detailed log"
+
+msgid "Details in RE_Kenshi_log.txt: inventory button, inspected character and protection window changes."
+msgstr "Details in RE_Kenshi_log.txt: inventory button, inspected character and protection window changes."
+
+msgid "Dust"
+msgstr "Dust"
+
+msgid "Enable the inspector window and its controls."
+msgstr "Enable the inspector window and its controls."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Environment"
+msgstr "Environment"
+
+msgid "Gas"
+msgstr "Gas"
+
+msgid "Inspect body parts, armour layers and protection using the inventory STATS button."
+msgstr "Inspect body parts, armour layers and protection using the inventory STATS button."
+
+msgid "Inventory button"
+msgstr "Inventory button"
+
+msgid "Mitigation ~%.0f%%"
+msgstr "Mitigation ~%.0f%%"
+
+msgid "No body parts."
+msgstr "No body parts."
+
+msgid "None - unprotected"
+msgstr "None - unprotected"
+
+msgid "P %s"
+msgstr "P %s"
+
+msgid "Pierce %s"
+msgstr "Pierce %s"
+
+msgid "Rain"
+msgstr "Rain"
+
+msgid "STATS"
+msgstr "STATS"
+
+msgid "Show the STATS button in character inventories."
+msgstr "Show the STATS button in character inventories."

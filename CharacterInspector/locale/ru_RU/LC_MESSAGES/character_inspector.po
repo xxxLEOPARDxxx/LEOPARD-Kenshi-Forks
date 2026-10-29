@@ -1,0 +1,83 @@
+msgid ""
+msgstr "Language: ru_RU\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "Acid"
+msgstr "Кислота"
+
+msgid "Armour on this part"
+msgstr "Броня на этой части"
+
+msgid "B %s"
+msgstr "Д %s"
+
+msgid "Back"
+msgstr "Назад"
+
+msgid "Blunt %s"
+msgstr "Дробящий %s"
+
+msgid "Burn"
+msgstr "Опаление"
+
+msgid "C %s"
+msgstr "Р %s"
+
+msgid "Click a body part"
+msgstr "Выберите часть тела"
+
+msgid "Cover %s"
+msgstr "Покр. %s"
+
+msgid "Cut %s"
+msgstr "Режущий %s"
+
+msgid "Detailed log"
+msgstr "Подробный журнал"
+
+msgid "Details in RE_Kenshi_log.txt: inventory button, inspected character and protection window changes."
+msgstr "В RE_Kenshi_log.txt: кнопка инвентаря, осматриваемый персонаж и изменения окна защиты."
+
+msgid "Dust"
+msgstr "Пыль"
+
+msgid "Enable the inspector window and its controls."
+msgstr "Включить окно осмотра и управление им."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Environment"
+msgstr "Среда"
+
+msgid "Gas"
+msgstr "Газ"
+
+msgid "Inspect body parts, armour layers and protection using the inventory STATS button."
+msgstr "Осмотр частей тела, слоёв брони и защиты через кнопку СТАТЫ в инвентаре."
+
+msgid "Inventory button"
+msgstr "Кнопка в инвентаре"
+
+msgid "Mitigation ~%.0f%%"
+msgstr "Снижение ур. ~%.0f%%"
+
+msgid "No body parts."
+msgstr "Нет частей тела."
+
+msgid "None - unprotected"
+msgstr "Нет: без защиты"
+
+msgid "P %s"
+msgstr "К %s"
+
+msgid "Pierce %s"
+msgstr "Колющий %s"
+
+msgid "Rain"
+msgstr "Дождь"
+
+msgid "STATS"
+msgstr "СТАТЫ"
+
+msgid "Show the STATS button in character inventories."
+msgstr "Показывать кнопку СТАТЫ в инвентаре персонажей."

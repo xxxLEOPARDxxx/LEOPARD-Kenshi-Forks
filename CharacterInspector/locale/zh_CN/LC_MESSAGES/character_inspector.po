@@ -1,0 +1,83 @@
+msgid ""
+msgstr "Language: zh_CN\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "Acid"
+msgstr "酸蚀"
+
+msgid "Armour on this part"
+msgstr "此部位的护甲"
+
+msgid "B %s"
+msgstr "钝 %s"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Blunt %s"
+msgstr "钝击 %s"
+
+msgid "Burn"
+msgstr "灼烧"
+
+msgid "C %s"
+msgstr "切 %s"
+
+msgid "Click a body part"
+msgstr "点击身体部位"
+
+msgid "Cover %s"
+msgstr "覆盖 %s"
+
+msgid "Cut %s"
+msgstr "切割 %s"
+
+msgid "Detailed log"
+msgstr "详细日志"
+
+msgid "Details in RE_Kenshi_log.txt: inventory button, inspected character and protection window changes."
+msgstr "在 RE_Kenshi_log.txt 中记录物品栏按钮、检查的角色和防护窗口的变化。"
+
+msgid "Dust"
+msgstr "沙尘"
+
+msgid "Enable the inspector window and its controls."
+msgstr "启用检查窗口及其操作。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Environment"
+msgstr "环境防护"
+
+msgid "Gas"
+msgstr "毒气"
+
+msgid "Inspect body parts, armour layers and protection using the inventory STATS button."
+msgstr "通过物品栏中的属性按钮查看身体部位、护甲层和防护效果。"
+
+msgid "Inventory button"
+msgstr "物品栏按钮"
+
+msgid "Mitigation ~%.0f%%"
+msgstr "伤害减免约 %.0f%%"
+
+msgid "No body parts."
+msgstr "无身体部位。"
+
+msgid "None - unprotected"
+msgstr "无 - 未受防护"
+
+msgid "P %s"
+msgstr "穿 %s"
+
+msgid "Pierce %s"
+msgstr "穿刺 %s"
+
+msgid "Rain"
+msgstr "降雨"
+
+msgid "STATS"
+msgstr "属性"
+
+msgid "Show the STATS button in character inventories."
+msgstr "在角色物品栏中显示属性按钮。"
