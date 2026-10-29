@@ -1,18 +1,6 @@
 msgid ""
 msgstr "Language: en_GB\nContent-Type: text/plain; charset=UTF-8\n"
 
-msgid "'"
-msgstr "'"
-
-msgid "An optional second way to rotate an item."
-msgstr "An optional second way to rotate an item."
-
-msgid "Assigning a key switches the primary input to keyboard."
-msgstr "Assigning a key switches the primary input to keyboard."
-
-msgid "Assigning a key switches the secondary input to keyboard."
-msgstr "Assigning a key switches the secondary input to keyboard."
-
 msgid "Cannot rotate: item is equipped"
 msgstr "Cannot rotate: item is equipped"
 
@@ -28,20 +16,11 @@ msgstr "Cannot rotate: save/load hooks failed"
 msgid "Cannot rotate: this inventory doesn't accept items"
 msgstr "Cannot rotate: this inventory doesn't accept items"
 
-msgid "Change"
-msgstr "Change"
-
-msgid "Choose middle mouse, a keyboard shortcut, or disable this input."
-msgstr "Choose middle mouse, a keyboard shortcut, or disable this input."
-
 msgid "Detailed log"
 msgstr "Detailed log"
 
 msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
 msgstr "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
-
-msgid "Disabled"
-msgstr "Disabled"
 
 msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
 msgstr "Disables new rotations only. Existing rotations keep their appearance and save correctly."
@@ -52,47 +31,11 @@ msgstr "Enable rotation input"
 msgid "KenshiRotate: some hooks failed to install (see log); features may not work correctly"
 msgstr "KenshiRotate: some hooks failed to install (see log); features may not work correctly"
 
-msgid "Keyboard"
-msgstr "Keyboard"
+msgid "Press one key or mouse button, with optional CTRL, SHIFT or ALT. NONE disables rotation input."
+msgstr "Press one key or mouse button, with optional CTRL, SHIFT or ALT. NONE disables rotation input."
 
-msgid "Middle Mouse"
-msgstr "Middle Mouse"
+msgid "Rotate inventory items with one keyboard or mouse binding. Existing rotations stay save-compatible."
+msgstr "Rotate inventory items with one keyboard or mouse binding. Existing rotations stay save-compatible."
 
-msgid "Middle mouse"
-msgstr "Middle mouse"
-
-msgid "Middle mouse or keyboard. Esc to cancel."
-msgstr "Middle mouse or keyboard. Esc to cancel."
-
-msgid "None"
-msgstr "None"
-
-msgid "Press a key..."
-msgstr "Press a key..."
-
-msgid "Primary input"
-msgstr "Primary input"
-
-msgid "Primary keyboard shortcut"
-msgstr "Primary keyboard shortcut"
-
-msgid "Reset"
-msgstr "Reset"
-
-msgid "Rotate inventory items with middle mouse or a keyboard shortcut. Existing rotations stay save-compatible."
-msgstr "Rotate inventory items with middle mouse or a keyboard shortcut. Existing rotations stay save-compatible."
-
-msgid "Rotate key: "
-msgstr "Rotate key: "
-
-msgid "Secondary input"
-msgstr "Secondary input"
-
-msgid "Secondary key: "
-msgstr "Secondary key: "
-
-msgid "Secondary keyboard shortcut"
-msgstr "Secondary keyboard shortcut"
-
-msgid "Warning: bound to '"
-msgstr "Warning: bound to '"
+msgid "Rotation binding"
+msgstr "Rotation binding"

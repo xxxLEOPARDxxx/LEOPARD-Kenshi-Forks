@@ -12,7 +12,6 @@
 #include <kenshi/GameWorld.h>
 #include <kenshi/Item.h>
 #include <kenshi/Inventory.h>
-#include <kenshi/InputHandler.h>
 #include <kenshi/RootObjectFactory.h>
 #include <kenshi/gui/InventoryGUI.h>
 
@@ -25,7 +24,6 @@
 #include <vector>
 
 #include <kenshi/GameData.h>
-#include <kenshi/gui/OptionsWindow.h>
 
 #include "Settings.h"
 #include "Translate.h"
@@ -459,10 +457,6 @@ void InventoryGUI_update_hook(InventoryGUI* thisptr)
 		}
 	}
 
-	// Skip rotation during key capture (settings rebind in progress)
-	if (RotateSettings::IsCapturing())
-		return;
-
 	bool triggerDown = RotateSettings::TriggerDown();
 
 	// Rising-edge detection, but only consume the edge when rotation
@@ -665,17 +659,6 @@ void Item_loadInv_hook(Item* thisptr, GameDataContainer* container, GameData* st
 		// session, so this only fires after a full reload when reassigned).
 		RotationState::EraseKey(RotationState::GetHandleKey(thisptr));
 	}
-}
-
-// Options tab widgets are destroyed when the menu closes, so re-inject every
-// frame. InjectModsTabUI is idempotent.
-void (*OptionsWindow_update_orig)(OptionsWindow*) = NULL;
-
-void OptionsWindow_update_hook(OptionsWindow* thisptr)
-{
-	OptionsWindow_update_orig(thisptr);
-	RotateSettings::InjectModsTabUI();
-	RotateSettings::ProcessCapture();
 }
 
 __declspec(dllexport) void startPlugin()
