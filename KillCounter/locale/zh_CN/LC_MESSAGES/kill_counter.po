@@ -1,0 +1,44 @@
+msgid ""
+msgstr "Language: zh_CN\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "Count new combat events and show counters. Saved statistics are kept when disabled."
+msgstr "记录新的战斗事件并显示计数。关闭后保留已有统计数据。"
+
+msgid "Detailed log"
+msgstr "详细日志"
+
+msgid "Details in RE_Kenshi_log.txt: kills, knockouts, lost limbs and loaded counters."
+msgstr "在 RE_Kenshi_log.txt 中记录击杀、击倒、断肢和读档后的统计。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Kills"
+msgstr "击杀"
+
+msgid "Kills, knockouts and severed limbs in the stats window. Existing save statistics are preserved."
+msgstr "在属性窗口中显示击杀、击倒和断肢统计。保留存档中已有的数据。"
+
+msgid "Knockouts"
+msgstr "击倒"
+
+msgid "Limbs removed"
+msgstr "切断肢体"
+
+msgid "Show how many limbs this character removed."
+msgstr "显示该角色切断的肢体数量。"
+
+msgid "Show kills"
+msgstr "显示击杀数"
+
+msgid "Show knockouts"
+msgstr "显示击倒数"
+
+msgid "Show severed limbs"
+msgstr "显示断肢数"
+
+msgid "Show the kill total in the character stats window."
+msgstr "在角色属性窗口中显示击杀总数。"
+
+msgid "Show the knockout total in the character stats window."
+msgstr "在角色属性窗口中显示击倒总数。"

@@ -1,0 +1,44 @@
+msgid ""
+msgstr "Language: en_GB\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "Count new combat events and show counters. Saved statistics are kept when disabled."
+msgstr "Count new combat events and show counters. Saved statistics are kept when disabled."
+
+msgid "Detailed log"
+msgstr "Detailed log"
+
+msgid "Details in RE_Kenshi_log.txt: kills, knockouts, lost limbs and loaded counters."
+msgstr "Details in RE_Kenshi_log.txt: kills, knockouts, lost limbs and loaded counters."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Kills"
+msgstr "Kills"
+
+msgid "Kills, knockouts and severed limbs in the stats window. Existing save statistics are preserved."
+msgstr "Kills, knockouts and severed limbs in the stats window. Existing save statistics are preserved."
+
+msgid "Knockouts"
+msgstr "Knockouts"
+
+msgid "Limbs removed"
+msgstr "Limbs removed"
+
+msgid "Show how many limbs this character removed."
+msgstr "Show how many limbs this character removed."
+
+msgid "Show kills"
+msgstr "Show kills"
+
+msgid "Show knockouts"
+msgstr "Show knockouts"
+
+msgid "Show severed limbs"
+msgstr "Show severed limbs"
+
+msgid "Show the kill total in the character stats window."
+msgstr "Show the kill total in the character stats window."
+
+msgid "Show the knockout total in the character stats window."
+msgstr "Show the knockout total in the character stats window."
