@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 
 struct BetterLootingRules
@@ -25,6 +26,9 @@ struct BetterLootingRules
     bool preferBackpack;
     int activationVirtualKey;
     bool lootMaterials;
+    bool ignorePlayerStorage;
+    bool pickupGroundItems;
+    std::string requiredItems;
 };
 
 
@@ -132,9 +136,15 @@ inline BetterLootingDecision EvaluateLootDecision(
     int itemTypeValue,
     int itemFunctionValue
 ,
-    bool isResource
+    bool isResource,
+    bool requiredItem = false
 )
 {
+    // The whitelist bypasses only the three item filters. Theft, source
+    // ownership, native capacity and transfer safety remain authoritative.
+    if (requiredItem)
+        return stolen && !g_betterLootingRules.allowStolen
+            ? BetterLootingDecision::SKIP_STOLEN : BetterLootingDecision::LOOT;
     if (
         !IsAllowedLootCategory(
             itemTypeValue,

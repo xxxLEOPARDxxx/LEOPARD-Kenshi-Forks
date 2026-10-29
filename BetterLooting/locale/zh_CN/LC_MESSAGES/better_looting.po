@@ -1,0 +1,200 @@
+msgid ""
+msgstr "Project-Id-Version: BetterLooting\nLanguage: zh_CN\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "Advanced"
+msgstr "高级"
+
+msgid "All"
+msgstr "全部"
+
+msgid "All categories"
+msgstr "全部类别"
+
+msgid "Allow stolen items"
+msgstr "拾取赃物"
+
+msgid "Always take these items"
+msgstr "始终拾取以下物品"
+
+msgid "Ammo"
+msgstr "弹药"
+
+msgid "Armour"
+msgstr "护甲"
+
+msgid "Best items first"
+msgstr "优先最佳物品"
+
+msgid "Better Looting"
+msgstr "更好的拾取"
+
+msgid "Blueprints"
+msgstr "蓝图"
+
+msgid "Books"
+msgstr "书籍"
+
+msgid "Categories"
+msgstr "类别"
+
+msgid "Cats found on the dead and the unconscious go straight into your money. From an unconscious person only with stolen items allowed."
+msgstr "死者和昏迷者身上的猫币直接计入你的钱。从昏迷的活人身上拾取，仅在允许拾取赃物时进行。"
+
+msgid "Collect items of this kind"
+msgstr "收集此类物品"
+
+msgid "Collects loot around the selected character with one key and puts it away by your rules."
+msgstr "一键收集所选角色周围的战利品，并按你的规则整理存放。"
+
+msgid "Cuts off heavy items with a poor value to weight ratio."
+msgstr "排除价值重量比太低的重物。"
+
+msgid "Debug logging"
+msgstr "调试日志"
+
+msgid "Deposit everything"
+msgstr "全部存放"
+
+msgid "Deposit key"
+msgstr "存放按键"
+
+msgid "Deposit only by looting rules"
+msgstr "仅按拾取规则存放"
+
+msgid "Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."
+msgstr "用分号分隔完整物品名称或 FCS 记录 ID。可选前缀示例：name:Animal Skin; name:Basic First Aid Kit; id:your-record-id。忽略类别和价值筛选，但仍遵守赃物限制、储存保护及容量。最多 128 项。"
+
+msgid "Fill the backpack before the character's own inventory."
+msgstr "先装满背包，再放进角色自身的物品栏。"
+
+msgid "Food"
+msgstr "食物"
+
+msgid "How far around the character the mod looks for loot."
+msgstr "模组在角色周围多远的范围内寻找战利品。"
+
+msgid "Items cheaper than this are left where they are."
+msgstr "低于此价格的物品留在原地。"
+
+msgid "Key that collects loot around the selected character."
+msgstr "收集所选角色周围战利品的按键。"
+
+msgid "Key that collects loot around the selected character. Click and press a key."
+msgstr "收集所选角色周围战利品的键。点击后按下一个键。"
+
+msgid "Loot radius (m)"
+msgstr "拾取半径（米）"
+
+msgid "Looting"
+msgstr "拾取"
+
+msgid "Looting key"
+msgstr "拾取按键"
+
+msgid "Materials and resources"
+msgstr "材料和资源"
+
+msgid "Medicine"
+msgstr "药品"
+
+msgid "Minimum value"
+msgstr "最低价值"
+
+msgid "Minimum value per kg"
+msgstr "每公斤最低价值"
+
+msgid "Move everything that matches the rules into nearby storage."
+msgstr "把所有符合规则的物品移入附近的仓库。"
+
+msgid "Narcotics"
+msgstr "毒品"
+
+msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
+msgstr "不拾取玩家建筑物品栏中的物品，包括已打开的储存和玩家建筑内的家具。存放功能不变。"
+
+msgid "No categories"
+msgstr "不选类别"
+
+msgid "None"
+msgstr "无"
+
+msgid "Off: every item that is not worn is put away. On: only items that pass the looting categories and price limits below."
+msgstr "关：未穿戴的物品全部存放。开：只存放符合下方拾取类别和价格限制的物品。"
+
+msgid "On the looting key, append up to 32 temporary pickup orders for nearby ground items. The character walks to them; existing orders stay queued. Off by default."
+msgstr "按拾取键后，为附近的地面物品追加最多 32 个临时拾取命令。角色会走到物品旁，原有命令保留。默认关闭。"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Pick up goods that still belong to someone else."
+msgstr "拾取仍属于他人的物品。"
+
+msgid "Pick up ground items"
+msgstr "拾取地面物品"
+
+msgid "Prefer backpack"
+msgstr "优先背包"
+
+msgid "Profile: balanced"
+msgstr "方案：平衡"
+
+msgid "Profile: money"
+msgstr "方案：金钱"
+
+msgid "Profile: resources"
+msgstr "方案：资源"
+
+msgid "Profiles"
+msgstr "方案"
+
+msgid "Protect player storage"
+msgstr "保护玩家储存"
+
+msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
+msgstr "把角色的物品放进附近可接收它们的储物箱（矿石放进矿石箱，武器放上武器架等）。点击后按下按键或组合键。"
+
+msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
+msgstr "半径 20 米，价格 500 起、每公斤 300 起；除毒品和断肢外全部"
+
+msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
+msgstr "半径 25 米，价格 1000 起、每公斤 500 起；武器、护甲、蓝图、书籍、机器人、毒品及其他"
+
+msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
+msgstr "半径 30 米，任意价格；材料、食物、药品、工具、弹药和机器人"
+
+msgid "Restore defaults"
+msgstr "恢复默认"
+
+msgid "Robotics"
+msgstr "机器人"
+
+msgid "Rules"
+msgstr "规则"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Severed limbs"
+msgstr "断肢"
+
+msgid "Sort by value, so a full backpack holds the best finds."
+msgstr "按价值排序，背包满时装的是最好的东西。"
+
+msgid "Take money"
+msgstr "拾取钱币"
+
+msgid "Tools"
+msgstr "工具"
+
+msgid "Turn every category below off"
+msgstr "关闭下方所有类别"
+
+msgid "Turn every category below on"
+msgstr "开启下方所有类别"
+
+msgid "Weapons"
+msgstr "武器"
+
+msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
+msgstr "将每一步拾取过程写入 RE_Kenshi_log.txt。出错信息总会记录"

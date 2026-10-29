@@ -1,0 +1,200 @@
+msgid ""
+msgstr "Project-Id-Version: BetterLooting\nLanguage: ru_RU\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "Advanced"
+msgstr "Дополнительно"
+
+msgid "All"
+msgstr "Всё"
+
+msgid "All categories"
+msgstr "Все категории"
+
+msgid "Allow stolen items"
+msgstr "Брать краденое"
+
+msgid "Always take these items"
+msgstr "Всегда брать эти предметы"
+
+msgid "Ammo"
+msgstr "Боеприпасы"
+
+msgid "Armour"
+msgstr "Броня"
+
+msgid "Best items first"
+msgstr "Сначала лучшее"
+
+msgid "Better Looting"
+msgstr "Лучший сбор добычи"
+
+msgid "Blueprints"
+msgstr "Чертежи"
+
+msgid "Books"
+msgstr "Книги"
+
+msgid "Categories"
+msgstr "Категории"
+
+msgid "Cats found on the dead and the unconscious go straight into your money. From an unconscious person only with stolen items allowed."
+msgstr "Каты у мёртвых и потерявших сознание сразу идут в ваши деньги. У живого без сознания - только если разрешено брать краденое."
+
+msgid "Collect items of this kind"
+msgstr "Собирать вещи этого вида"
+
+msgid "Collects loot around the selected character with one key and puts it away by your rules."
+msgstr "Собирает добычу вокруг выбранного персонажа одной клавишей и раскладывает её по вашим правилам."
+
+msgid "Cuts off heavy items with a poor value to weight ratio."
+msgstr "Отсекает тяжёлое с плохим отношением цены к весу."
+
+msgid "Debug logging"
+msgstr "Подробный журнал"
+
+msgid "Deposit everything"
+msgstr "Разложить всё"
+
+msgid "Deposit key"
+msgstr "Клавиша \"разложить\""
+
+msgid "Deposit only by looting rules"
+msgstr "Раскладывать только по правилам сбора"
+
+msgid "Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."
+msgstr "Точные названия предметов или ID записей FCS через точку с запятой. Можно указать префиксы: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Категории и цены не учитываются, но действуют ограничения на краденое, защита хранилищ и вместимость. До 128 записей."
+
+msgid "Fill the backpack before the character's own inventory."
+msgstr "Заполнять рюкзак раньше своего инвентаря."
+
+msgid "Food"
+msgstr "Еда"
+
+msgid "How far around the character the mod looks for loot."
+msgstr "На каком расстоянии от персонажа мод ищет добычу."
+
+msgid "Items cheaper than this are left where they are."
+msgstr "Что дешевле, остаётся лежать."
+
+msgid "Key that collects loot around the selected character."
+msgstr "Клавиша, собирающая добычу вокруг выбранного персонажа."
+
+msgid "Key that collects loot around the selected character. Click and press a key."
+msgstr "Клавиша, собирающая добычу вокруг выбранного персонажа. Щёлкните и нажмите клавишу."
+
+msgid "Loot radius (m)"
+msgstr "Радиус сбора (м)"
+
+msgid "Looting"
+msgstr "Сбор"
+
+msgid "Looting key"
+msgstr "Клавиша сбора"
+
+msgid "Materials and resources"
+msgstr "Материалы и ресурсы"
+
+msgid "Medicine"
+msgstr "Медикаменты"
+
+msgid "Minimum value"
+msgstr "Минимальная цена"
+
+msgid "Minimum value per kg"
+msgstr "Минимальная цена за кг"
+
+msgid "Move everything that matches the rules into nearby storage."
+msgstr "Перенести всё подходящее под правила в ближние хранилища."
+
+msgid "Narcotics"
+msgstr "Наркотики"
+
+msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
+msgstr "Не забирать вещи из инвентарей зданий игрока, включая открытые хранилища и мебель в зданиях игрока. Раскладка вещей не меняется."
+
+msgid "No categories"
+msgstr "Ни одной категории"
+
+msgid "None"
+msgstr "Ничего"
+
+msgid "Off: every item that is not worn is put away. On: only items that pass the looting categories and price limits below."
+msgstr "Выкл: убирается всё, что не надето. Вкл: только вещи, которые проходят категории и пороги цены сбора ниже."
+
+msgid "On the looting key, append up to 32 temporary pickup orders for nearby ground items. The character walks to them; existing orders stay queued. Off by default."
+msgstr "По клавише сбора добавлять до 32 разовых приказов подобрать вещи с земли поблизости. Персонаж подходит к ним; прежние приказы остаются в очереди. По умолчанию выключено."
+
+msgid "Other"
+msgstr "Прочее"
+
+msgid "Pick up goods that still belong to someone else."
+msgstr "Подбирать вещи, у которых есть хозяин."
+
+msgid "Pick up ground items"
+msgstr "Подбирать вещи с земли"
+
+msgid "Prefer backpack"
+msgstr "Сначала в рюкзак"
+
+msgid "Profile: balanced"
+msgstr "Профиль: баланс"
+
+msgid "Profile: money"
+msgstr "Профиль: деньги"
+
+msgid "Profile: resources"
+msgstr "Профиль: ресурсы"
+
+msgid "Profiles"
+msgstr "Профили"
+
+msgid "Protect player storage"
+msgstr "Защищать хранилища игрока"
+
+msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
+msgstr "Раскладывает вещи персонажа по ближайшим хранилищам, которые их принимают (руду - в ящик для руды, оружие - на стойку и так далее). Нажмите и введите клавишу или сочетание."
+
+msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
+msgstr "Радиус 20 м, от 500 и от 300 за кг; всё, кроме наркотиков и отрубленных конечностей"
+
+msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
+msgstr "Радиус 25 м, от 1000 и от 500 за кг; оружие, броня, чертежи, книги, робототехника, наркотики и прочее"
+
+msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
+msgstr "Радиус 30 м, любая цена; материалы, еда, медикаменты, инструменты, боеприпасы и робототехника"
+
+msgid "Restore defaults"
+msgstr "По умолчанию"
+
+msgid "Robotics"
+msgstr "Робототехника"
+
+msgid "Rules"
+msgstr "Правила"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Severed limbs"
+msgstr "Отрубленные конечности"
+
+msgid "Sort by value, so a full backpack holds the best finds."
+msgstr "Сортировать по цене: в полный рюкзак попадёт лучшее."
+
+msgid "Take money"
+msgstr "Брать деньги"
+
+msgid "Tools"
+msgstr "Инструменты"
+
+msgid "Turn every category below off"
+msgstr "Выключить все категории ниже"
+
+msgid "Turn every category below on"
+msgstr "Включить все категории ниже"
+
+msgid "Weapons"
+msgstr "Оружие"
+
+msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
+msgstr "Писать каждый шаг сбора в RE_Kenshi_log.txt. Сбои пишутся в любом случае"

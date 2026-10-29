@@ -1,4 +1,4 @@
-﻿#define BOOST_ALL_NO_LIB
+#define BOOST_ALL_NO_LIB
 #define BOOST_SYSTEM_NO_LIB
 #define BOOST_ERROR_CODE_HEADER_ONLY
 
@@ -57,6 +57,7 @@ static void BlTrace(const std::string& message)
 #include <core/Functions.h>
 
 #include "BetterLootingRules.h"
+#include "BetterLootingRequiredItems.h"
 #include "BetterLootingPanel.h"
 
 // Определение здесь, а не в заголовке: файлов мода теперь два.
@@ -81,7 +82,10 @@ BetterLootingRules g_betterLootingRules =
     true,    true,
     true,
     45,
-    true
+    true,
+    true,   // player-owned building inventories are protected by default
+    false,  // native ground pickup orders are opt-in
+    ""
 };
 
 // BL_FIX_STACK_TRANSFER_ONE_SHOT_ADDARG1_NO_EQUIPMENT
@@ -114,6 +118,7 @@ BetterLootingRules g_betterLootingRules =
 #include <unordered_set>
 #include <kenshi/Building/Building.h>
 #include <kenshi/Faction.h>
+#include <mygui/MyGUI_InputManager.h>
 
 // В библиотеке VC10 нет strtof из C99. strtod есть, и его точности здесь
 // с запасом: значение всё равно кладётся во float. См. fix_bl_vc10.py.
@@ -124,6 +129,42 @@ static inline float strtof(const char* text, char** end)
 }
 #endif
 
+
+static BetterLootingRequiredItems g_requiredLoot;
+static bool g_requiredLootTextComplete = true;
+
+static bool IsBetterLootingRequiredItem(Item* item)
+{
+    if (item == NULL || g_requiredLoot.Empty()) return false;
+    GameData* data = item->getGameData();
+    if (data != NULL && (g_requiredLoot.MatchesId(data->stringID) || g_requiredLoot.MatchesName(data->name))) return true;
+    return g_requiredLoot.HasNames() && g_requiredLoot.MatchesName(item->getName());
+}
+
+// Any player-owned ancestor protects furniture/machine/storage inventory.
+// This is deliberately conservative and does not depend on storage class IDs.
+static bool IsBetterLootingPlayerBuildingSource(RootObject* object)
+{
+    if (object == NULL || object->getDataType() != BUILDING) return false;
+    Building* building = static_cast<Building*>(object);
+    for (int depth = 0; depth < 8 && building != NULL; ++depth)
+    {
+        if (!building->isValid()) return true; // never loot an uncertain/deleting source
+        Faction* faction = building->getFaction();
+        if (building->isThePlayer() || (faction != NULL && faction->isThePlayer())) return true;
+        Building* parent = building->furnitureParentBuilding();
+        if (parent == building) break;
+        building = parent;
+    }
+    return false;
+}
+
+static bool IsBetterLootingBlockedLootInventory(Inventory* inventory)
+{
+    return g_betterLootingRules.ignorePlayerStorage && inventory != NULL &&
+        (IsBetterLootingPlayerBuildingSource(inventory->getOwner()) ||
+         IsBetterLootingPlayerBuildingSource(inventory->getCallbackObject()));
+}
 
 // v100 не знает scoped enum, см. fix_bl_vc10.py.
 enum InventoryKind
@@ -166,6 +207,30 @@ static ShowSimpleInventoryFn
 static InventoryGUI* g_playerMainWindow = NULL;
 static InventoryGUI* g_playerBackpackWindow = NULL;
 
+
+// Dedicated per-call-site scan scratch. KenshiLib lektor does not free its
+// allocation in a destructor. Reuse bounded buffers, but never let a reentrant
+// scan overwrite the outer caller's collection. All three callers run on GUI.
+struct BetterLootingRadiusScratch
+{
+    lektor<RootObject*> characters, buildings;
+    bool busy;
+    BetterLootingRadiusScratch() : busy(false) {}
+};
+struct BetterLootingRadiusScratchUse
+{
+    BetterLootingRadiusScratch& scratch;
+    const bool acquired;
+    BetterLootingRadiusScratchUse(BetterLootingRadiusScratch& value)
+        : scratch(value), acquired(!value.busy)
+    {
+        if (acquired) { scratch.busy = true; scratch.characters.clear(); scratch.buildings.clear(); }
+    }
+    ~BetterLootingRadiusScratchUse()
+    {
+        if (acquired) { scratch.characters.clear(); scratch.buildings.clear(); scratch.busy = false; }
+    }
+};
 
 static InventoryGUI* SelectLootDestination()
 {
@@ -2100,8 +2165,15 @@ TryBetterLootingNearestCompatiblePlayerStorage(
     }
 
 
-    lektor<RootObject*> characterTargets;
-    lektor<RootObject*> buildingTargets;
+    static BetterLootingRadiusScratch scratch;
+    BetterLootingRadiusScratchUse scratchUse(scratch);
+    if (!scratchUse.acquired)
+    {
+        BlTrace("BetterLooting: ERROR reentrant radius scan skipped");
+        return result;
+    }
+    lektor<RootObject*>& characterTargets = scratch.characters;
+    lektor<RootObject*>& buildingTargets = scratch.buildings;
 
 
     CollectBetterLootingRadiusTargets(
@@ -2587,6 +2659,13 @@ static void ExecuteLootCandidate(
         return;
     }
 
+
+
+    if (IsBetterLootingBlockedLootInventory(sourceInventory))
+    {
+        BlTrace("BetterLooting: TRANSFER_SKIP protected player building inventory");
+        return;
+    }
 
     GameData* itemData =
         candidate.item->getGameData();
@@ -3812,6 +3891,13 @@ static void EvaluateTargetInventory(
         return;
     }
 
+
+    if (IsBetterLootingBlockedLootInventory(inventory))
+    {
+        BlTrace("BetterLooting: EVALUATE_SKIP protected player building inventory");
+        return;
+    }
+
     const lektor<InventorySection*>& sections =
         inventory->getAllSections();
 
@@ -3929,7 +4015,8 @@ static void EvaluateTargetInventory(
                 effectiveStolen,
                 type,
                 effectiveItemFunctionValue,
-                isResource
+                isResource,
+                IsBetterLootingRequiredItem(item)
             );
 
         char message[768];
@@ -4093,6 +4180,23 @@ static bool LoadBetterLootingRules()
             configPath.c_str()
         ) != 0;
 
+
+    g_betterLootingRules.ignorePlayerStorage =
+        GetPrivateProfileIntA("Behavior", "IgnorePlayerStorage", 1, configPath.c_str()) != 0;
+    g_betterLootingRules.pickupGroundItems =
+        GetPrivateProfileIntA("Behavior", "PickupGroundItems", 0, configPath.c_str()) != 0;
+    char requiredText[8193] = {};
+    const DWORD requiredLength = GetPrivateProfileStringA("Rules", "RequiredItems", "", requiredText,
+        sizeof(requiredText), configPath.c_str());
+    g_betterLootingRules.requiredItems = requiredText;
+    g_requiredLootTextComplete = requiredLength <= 8191;
+    if (!g_requiredLootTextComplete)
+    {
+        g_requiredLoot.Parse(""); // never match a token cut short by the INI buffer
+        BlTrace("BetterLooting: CONFIG_ERROR RequiredItems exceeds 8191 UTF-8 bytes; whitelist disabled, original INI value preserved");
+    }
+    else if (!g_requiredLoot.Parse(g_betterLootingRules.requiredItems))
+        BlTrace("BetterLooting: CONFIG_ERROR RequiredItems limited to 128 entries");
 
     g_betterLootingRules.minValue =
         GetPrivateProfileIntA(
@@ -4914,6 +5018,8 @@ static bool IsBetterLootingBuildingTarget(
     RootObject* object
 )
 {
+    if (g_betterLootingRules.ignorePlayerStorage && IsBetterLootingPlayerBuildingSource(object)) return false;
+
     if (!object)
     {
         return false;
@@ -5012,8 +5118,15 @@ static void BuildBetterLootingTargetQueue(
     }
 
 
-    lektor<RootObject*> characterTargets;
-    lektor<RootObject*> buildingTargets;
+    static BetterLootingRadiusScratch scratch;
+    BetterLootingRadiusScratchUse scratchUse(scratch);
+    if (!scratchUse.acquired)
+    {
+        BlTrace("BetterLooting: ERROR reentrant radius scan skipped");
+        return;
+    }
+    lektor<RootObject*>& characterTargets = scratch.characters;
+    lektor<RootObject*>& buildingTargets = scratch.buildings;
 
 
     CollectBetterLootingRadiusTargets(
@@ -5293,6 +5406,118 @@ static void FinishBetterLootingRadiusRun()
     g_radialLootActive = false;
 }
 
+
+// Ground items use the game's temporary pickup-order path. The plugin never
+// detaches a world Item, calls addItem for it, or retries an accepted transfer.
+// Only handles survive between discovery and dispatch; the game owns its jobs.
+struct BetterLootingGroundCandidate
+{
+    hand target;
+    float distanceSquared;
+    float valuePerKg;
+};
+
+static bool BetterLootingGroundNeedsTheft(Item* item)
+{
+    if (item->isStolen(true)) return true;
+    const hand& owner = item->getProperOwner();
+    if (owner.isNull()) return false;
+    Character* character = owner.getCharacter();
+    if (character != NULL && character->isPlayerCharacter()) return false;
+    RootObject* object = owner.getRootObject();
+    if (IsBetterLootingPlayerBuildingSource(object)) return false;
+    // A foreign/unresolved owner is not free loot merely because it is lying
+    // on the ground and has not yet been marked stolen by the game.
+    return true;
+}
+
+static bool IsBetterLootingGroundItemAllowed(Item* item, Character* character)
+{
+    if (item == NULL || character == NULL || !item->isValid() || !item->onGround() || item->isInInventory || item->isEquipped)
+        return false;
+    GameData* data = item->getGameData();
+    if (data == NULL) return false;
+    if (g_betterLootingRules.ignorePlayerStorage &&
+        IsBetterLootingPlayerBuildingSource(item->getProperOwner().getRootObject())) return false;
+    Inventory* contents = item->getInventory();
+    if (contents != NULL && contents->getNumItems() > 0) return false;
+    const Ogre::Vector3 offset = item->getPosition() - character->getPosition();
+    const float radius = g_betterLootingRules.lootRadius * 10.0f;
+    if (!(offset.squaredLength() <= radius * radius)) return false;
+    const int function = GetBetterLootingEffectiveItemFunctionValue(item, GetBetterLootingItemFunctionValue(item));
+    if (function == ITEM_MONEY) return false; // keep the original money exclusion
+    // Plain, function-less ITEM records are material/trade-resource items;
+    // equipment/food/medicine etc. retain their semantic function categories.
+    const bool resource = item->getItemType() == ITEM &&
+        (function == ITEM_NO_FUNCTION || function == ITEM_ANYTHING);
+    return EvaluateLootDecision(item->getValueSingle(true), item->getItemWeightSingle(),
+        BetterLootingGroundNeedsTheft(item), item->getItemType(), function, resource,
+        IsBetterLootingRequiredItem(item)) == BetterLootingDecision::LOOT;
+}
+
+static unsigned QueueBetterLootingGroundPickups(Character* character)
+{
+    if (!g_betterLootingRules.pickupGroundItems || ou == NULL || character == NULL ||
+        !character->isPlayerCharacter() || character->isDead() || character->isUnconcious()) return 0;
+    const float radius = g_betterLootingRules.lootRadius * 10.0f;
+    if (!(radius >= 10.0f && radius <= 1000.0f)) return 0; // rejects NaN/Inf too
+    MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
+    if (input != NULL && input->getKeyFocusWidget() != NULL) return 0;
+    static lektor<RootObject*> found; // lektor has no freeing destructor; reuse its allocation
+    std::vector<BetterLootingGroundCandidate> candidates;
+    std::set<hand> seen;
+    const itemType types[] = { ITEM, WEAPON, ARMOUR, CROSSBOW, BLUEPRINT, CONTAINER, LIMB_REPLACEMENT };
+    const Ogre::Vector3 center = character->getPosition();
+    unsigned examined = 0;
+    for (size_t t = 0; t < sizeof(types) / sizeof(types[0]) && examined < 256; ++t)
+    {
+        found.clear();
+        const unsigned remaining = 256 - examined;
+        ou->getObjectsWithinSphere(found, center, radius, types[t], remaining < 64 ? remaining : 64, character);
+        for (uint32_t i = 0; i < found.size() && examined < 256; ++i, ++examined)
+        {
+            RootObject* object = found[i];
+            if (object == NULL || !object->typeIsAnItem()) continue;
+            const hand target = object->getHandle();
+            if (!seen.insert(target).second) continue;
+            Item* item = target.getItem();
+            if (!IsBetterLootingGroundItemAllowed(item, character)) continue;
+            BetterLootingGroundCandidate candidate;
+            candidate.target = target;
+            candidate.distanceSquared = (item->getPosition() - center).squaredLength();
+            const float weight = item->getItemWeightSingle();
+            candidate.valuePerKg = weight > 0.001f ? item->getValueSingle(true) / weight : item->getValueSingle(true) * 1000000.0f;
+            candidates.push_back(candidate);
+        }
+    }
+    found.clear();
+    const bool bestFirst = g_betterLootingRules.bestItemsFirst;
+    std::stable_sort(candidates.begin(), candidates.end(), [bestFirst](const BetterLootingGroundCandidate& a, const BetterLootingGroundCandidate& b) -> bool
+    {
+        if (bestFirst && a.valuePerKg != b.valuePerKg) return a.valuePerKg > b.valuePerKg;
+        return a.distanceSquared < b.distanceSquared;
+    });
+    unsigned queued = 0;
+    for (size_t i = 0; i < candidates.size() && queued < 32; ++i)
+    {
+        Item* item = candidates[i].target.getItem();
+        if (!IsBetterLootingGroundItemAllowed(item, character) || character->checkPlayerOrderForProblems(PICKUP, item)) continue;
+        const Ogre::Vector3 position = item->getPosition();
+        Building* indoors = item->isIndoors().getBuilding();
+        // shift=false: temporary order; clear=false: preserve unrelated jobs/orders.
+        character->addOrder(indoors, PICKUP, item, false, false, position);
+        ++queued;
+        // Do not dereference the Item after entering native pickup logic.
+    }
+    if (g_betterLootingDebugLog)
+    {
+        char note[192];
+        sprintf_s(note, "BetterLooting: GROUND_PICKUP examined=%u accepted=%u queued=%u limit=32", examined,
+            static_cast<unsigned>(candidates.size()), queued);
+        BlTrace(note);
+    }
+    return queued;
+}
 
 static bool StartBetterLootingRadiusRun(
     InventoryGUI* destinationWindow,
@@ -6017,8 +6242,15 @@ static void BuildBetterLootingStoreTargetQueue(
     }
 
 
-    lektor<RootObject*> characterTargets;
-    lektor<RootObject*> buildingTargets;
+    static BetterLootingRadiusScratch scratch;
+    BetterLootingRadiusScratchUse scratchUse(scratch);
+    if (!scratchUse.acquired)
+    {
+        BlTrace("BetterLooting: ERROR reentrant radius scan skipped");
+        return;
+    }
+    lektor<RootObject*>& characterTargets = scratch.characters;
+    lektor<RootObject*>& buildingTargets = scratch.buildings;
 
 
     CollectBetterLootingRadiusTargets(
@@ -7801,6 +8033,10 @@ static void InventoryGUIUpdate_hook(
             NULL;
 
 
+        // Consume the key before native order callbacks can re-enter GUI code.
+        g_smartLootInsertConsumed = true;
+        QueueBetterLootingGroundPickups(livePlayerCharacter);
+
         const bool radialStarted =
             StartBetterLootingRadiusRun(
                 destination,
@@ -8256,6 +8492,11 @@ void BetterLootingSaveRules()
         path.c_str()
     );
 
+    if (g_requiredLootTextComplete)
+        WritePrivateProfileStringA("Rules", "RequiredItems", g_betterLootingRules.requiredItems.c_str(), path.c_str());
+    BetterLootingWriteBool(path, "Behavior", "IgnorePlayerStorage", g_betterLootingRules.ignorePlayerStorage);
+    BetterLootingWriteBool(path, "Behavior", "PickupGroundItems", g_betterLootingRules.pickupGroundItems);
+
     BetterLootingWriteBool(path, "Rules", "AllowStolen", g_betterLootingRules.allowStolen);
 
     BetterLootingWriteBool(path, "Categories", "Weapons", g_betterLootingRules.lootWeapons);
@@ -8365,7 +8606,14 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->toggle(api, "Behavior", "PreferBackpack", Tr("Prefer backpack"),
                 Tr("Fill the backpack before the character's own inventory."), 1, 0);
 
+    api->toggle(api, "Behavior", "IgnorePlayerStorage", Tr("Protect player storage"),
+                Tr("Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."), 1, 0);
+    api->toggle(api, "Behavior", "PickupGroundItems", Tr("Pick up ground items"),
+                Tr("On the looting key, append up to 32 temporary pickup orders for nearby ground items. The character walks to them; existing orders stay queued. Off by default."), 0, 0);
+
     api->section(api, Tr("Rules"));
+    api->text(api, "Rules", "RequiredItems", Tr("Always take these items"),
+              Tr("Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."), "", 0);
     api->integer(api, "Rules", "MinValue", Tr("Minimum value"),
                  Tr("Items cheaper than this are left where they are."), 0, 0, 5000, 0);
     api->number(api, "Rules", "MinValuePerKg", Tr("Minimum value per kg"),

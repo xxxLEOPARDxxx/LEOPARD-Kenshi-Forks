@@ -1,0 +1,200 @@
+msgid ""
+msgstr "Project-Id-Version: BetterLooting\nLanguage: en_GB\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\n"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "All"
+msgstr "All"
+
+msgid "All categories"
+msgstr "All categories"
+
+msgid "Allow stolen items"
+msgstr "Allow stolen items"
+
+msgid "Always take these items"
+msgstr "Always take these items"
+
+msgid "Ammo"
+msgstr "Ammo"
+
+msgid "Armour"
+msgstr "Armour"
+
+msgid "Best items first"
+msgstr "Best items first"
+
+msgid "Better Looting"
+msgstr "Better Looting"
+
+msgid "Blueprints"
+msgstr "Blueprints"
+
+msgid "Books"
+msgstr "Books"
+
+msgid "Categories"
+msgstr "Categories"
+
+msgid "Cats found on the dead and the unconscious go straight into your money. From an unconscious person only with stolen items allowed."
+msgstr "Cats found on the dead and the unconscious go straight into your money. From an unconscious person only with stolen items allowed."
+
+msgid "Collect items of this kind"
+msgstr "Collect items of this kind"
+
+msgid "Collects loot around the selected character with one key and puts it away by your rules."
+msgstr "Collects loot around the selected character with one key and puts it away by your rules."
+
+msgid "Cuts off heavy items with a poor value to weight ratio."
+msgstr "Cuts off heavy items with a poor value to weight ratio."
+
+msgid "Debug logging"
+msgstr "Debug logging"
+
+msgid "Deposit everything"
+msgstr "Deposit everything"
+
+msgid "Deposit key"
+msgstr "Deposit key"
+
+msgid "Deposit only by looting rules"
+msgstr "Deposit only by looting rules"
+
+msgid "Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."
+msgstr "Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."
+
+msgid "Fill the backpack before the character's own inventory."
+msgstr "Fill the backpack before the character's own inventory."
+
+msgid "Food"
+msgstr "Food"
+
+msgid "How far around the character the mod looks for loot."
+msgstr "How far around the character the mod looks for loot."
+
+msgid "Items cheaper than this are left where they are."
+msgstr "Items cheaper than this are left where they are."
+
+msgid "Key that collects loot around the selected character."
+msgstr "Key that collects loot around the selected character."
+
+msgid "Key that collects loot around the selected character. Click and press a key."
+msgstr "Key that collects loot around the selected character. Click and press a key."
+
+msgid "Loot radius (m)"
+msgstr "Loot radius (m)"
+
+msgid "Looting"
+msgstr "Looting"
+
+msgid "Looting key"
+msgstr "Looting key"
+
+msgid "Materials and resources"
+msgstr "Materials and resources"
+
+msgid "Medicine"
+msgstr "Medicine"
+
+msgid "Minimum value"
+msgstr "Minimum value"
+
+msgid "Minimum value per kg"
+msgstr "Minimum value per kg"
+
+msgid "Move everything that matches the rules into nearby storage."
+msgstr "Move everything that matches the rules into nearby storage."
+
+msgid "Narcotics"
+msgstr "Narcotics"
+
+msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
+msgstr "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
+
+msgid "No categories"
+msgstr "No categories"
+
+msgid "None"
+msgstr "None"
+
+msgid "Off: every item that is not worn is put away. On: only items that pass the looting categories and price limits below."
+msgstr "Off: every item that is not worn is put away. On: only items that pass the looting categories and price limits below."
+
+msgid "On the looting key, append up to 32 temporary pickup orders for nearby ground items. The character walks to them; existing orders stay queued. Off by default."
+msgstr "On the looting key, append up to 32 temporary pickup orders for nearby ground items. The character walks to them; existing orders stay queued. Off by default."
+
+msgid "Other"
+msgstr "Other"
+
+msgid "Pick up goods that still belong to someone else."
+msgstr "Pick up goods that still belong to someone else."
+
+msgid "Pick up ground items"
+msgstr "Pick up ground items"
+
+msgid "Prefer backpack"
+msgstr "Prefer backpack"
+
+msgid "Profile: balanced"
+msgstr "Profile: balanced"
+
+msgid "Profile: money"
+msgstr "Profile: money"
+
+msgid "Profile: resources"
+msgstr "Profile: resources"
+
+msgid "Profiles"
+msgstr "Profiles"
+
+msgid "Protect player storage"
+msgstr "Protect player storage"
+
+msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
+msgstr "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
+
+msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
+msgstr "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
+
+msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
+msgstr "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
+
+msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
+msgstr "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
+
+msgid "Restore defaults"
+msgstr "Restore defaults"
+
+msgid "Robotics"
+msgstr "Robotics"
+
+msgid "Rules"
+msgstr "Rules"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Severed limbs"
+msgstr "Severed limbs"
+
+msgid "Sort by value, so a full backpack holds the best finds."
+msgstr "Sort by value, so a full backpack holds the best finds."
+
+msgid "Take money"
+msgstr "Take money"
+
+msgid "Tools"
+msgstr "Tools"
+
+msgid "Turn every category below off"
+msgstr "Turn every category below off"
+
+msgid "Turn every category below on"
+msgstr "Turn every category below on"
+
+msgid "Weapons"
+msgstr "Weapons"
+
+msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
+msgstr "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"

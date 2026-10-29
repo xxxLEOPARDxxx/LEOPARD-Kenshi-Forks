@@ -1,0 +1,7 @@
+
+# Compiled catalogs and generated regression harnesses
+BetterLooting/locale/**/*.mo
+CharacterInspector/locale/**/*.mo
+KenshiRotate/locale/**/*.mo
+KillCounter/locale/**/*.mo
+BetterLooting/tests/_generated/
