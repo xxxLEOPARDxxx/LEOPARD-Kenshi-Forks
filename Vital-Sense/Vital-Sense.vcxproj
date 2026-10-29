@@ -91,6 +91,7 @@
     <ClCompile Include="tools\mod-hub-sdk\src\mod_hub_client.cpp" />
     <ClCompile Include="src\vs_character_lookup.cpp" />
     <ClCompile Include="src\vs_character_tint.cpp" />
+    <ClCompile Include="src\vs_animation_cache_guard.cpp" />
     <ClCompile Include="src\vs_config.cpp" />
     <ClCompile Include="src\vs_keybind.cpp" />
     <ClCompile Include="src\vs_log.cpp" />
@@ -108,6 +109,7 @@
     <ClInclude Include="src\vs_config.h" />
     <ClInclude Include="src\vs_character_lookup.h" />
     <ClInclude Include="src\vs_character_tint.h" />
+    <ClInclude Include="src\vs_animation_cache_guard.h" />
     <ClInclude Include="src\vs_keybind.h" />
     <ClInclude Include="src\vs_log.h" />
     <ClInclude Include="src\vs_marker_render.h" />
