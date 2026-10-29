@@ -4,7 +4,37 @@ BetterLooting is a native RE_Kenshi plugin for Kenshi.
 
 This repository contains the corresponding source code for the distributed plugin build.
 
-## New options (29 October 2026)
+## Current release / Текущая версия: v4 (29–30 October / октября 2026)
+
+### English — changes in this version
+
+- Added **Always take these items**: exact full item names or FCS IDs, up to 128 entries / 8191 UTF-8 bytes. It bypasses category, minimum value and value-per-kg filters only. Theft rules, storage protection, distance, native capacity and transfer checks still apply. Profiles and All/No categories preserve this list.
+- Added **Protect player storage**, enabled by default. Nearby and directly open player-owned building inventories are excluded from looting, including storage and furniture inside a player-owned building. The existing **Alt+Insert** deposit action is preserved.
+- Added optional **Pick up ground items**, disabled by default. A loot-key press searches within the configured radius, examines at most 256 results and appends up to 32 temporary native pickup orders. The character walks to each item, and existing orders/jobs remain queued. Money and nonempty containers are excluded; duplicate hits in that press are removed. The full native pickup gameplay scenario still needs a separate in-game check.
+- Reused separate scratch buffers for nearby inventory, storage and ground searches; early-return cleanup and nested-scan protection prevent one scan from overwriting another. Ground searches run on the loot action, with no idle world scan.
+- Preserved the earlier **KEO / merged-stack transfer fix**: once the game accepts an item, BetterLooting does not insert it again or roll it back merely because the selected inventory count did not rise. This covers the game's backpack destination choice and stack merging. Deposit remains all unequipped items by default, with an optional “Deposit only by looting rules” filter.
+- Updated MCM labels and help in **English, Russian and Simplified Chinese** (`en_GB`, `ru_RU`, `zh_CN`). The full whitelist editor needs MCM v10 or newer; current MCM v11 includes this support. Changes apply without restarting. Detailed logging remains the last setting, off by default; failures are always logged.
+
+### Русский — изменения этой версии
+
+- Добавлен пункт **«Всегда брать эти предметы»**: точные полные названия или FCS ID, до 128 записей / 8191 байта UTF-8. Список обходит только категорию, минимальную цену и цену за килограмм. Проверки краденого, защиты хранилищ, расстояния, вместимости и безопасного переноса сохраняются. Профили и «Все/Ни одной категории» список не стирают.
+- Добавлена **«Защита хранилищ игрока»**, включённая по умолчанию. Сбор пропускает принадлежащие игроку инвентари построек, в том числе открытый сундук и мебель внутри здания игрока. Прежняя раскладка по **Alt+Insert** сохранена.
+- Добавлен необязательный **«Подбор вещей с земли»**, выключенный по умолчанию. Нажатие клавиши сбора проверяет до 256 результатов в заданном радиусе и добавляет до 32 временных штатных приказов подойти и подобрать предмет. Старые приказы и задания остаются в очереди. Деньги и непустые контейнеры исключены, повторы одного результата в рамках нажатия убираются. Полный игровой сценарий штатного подбора ещё требует отдельной проверки.
+- Поиски ближайших инвентарей, хранилищ и наземных вещей используют раздельные повторно используемые буферы; очистка при раннем выходе и защита вложенных поисков исключают перезапись активного обхода. Поиск на земле запускается только по действию сбора.
+- Сохранено прежнее исправление переноса с **KEO и объединением стопок**: принятый игрой предмет больше не вставляется повторно и не возвращается назад только потому, что счётчик выбранного инвентаря не вырос. Игра может направить его в рюкзак или объединить со стопкой. Раскладка по умолчанию переносит всё ненадетое; при желании включаются правила сбора.
+- Подписи и подсказки MCM обновлены на **русском, английском и упрощённом китайском** (`ru_RU`, `en_GB`, `zh_CN`). Для полного редактора списка нужен MCM v10 или новее; текущий v11 это поддерживает. Настройки действуют без перезапуска. Подробный журнал — последняя настройка, по умолчанию выключен; ошибки пишутся всегда.
+
+## Player guide / Краткий справочник
+
+**English:** Open the intended player's main inventory and press **Insert** to collect nearby loot according to the rules. Press **Alt+Insert** once to deposit unequipped items in nearby player storage that accepts them. Both actions use the loot radius (default 20 m); a held deposit binding suppresses collection. The collector is the character whose main inventory handles the press, not every selected squad member. Options → MCM → **Better Looting** provides bindings, radius, value filters, categories, backpack preference and the Balanced/Money/Resources profiles. MCM is optional; file settings use `BetterLooting.ini` beside the DLL. On a clean installation the existing runtime defaults are Insert, 20 m, minimum value 500 and 300 per kg. Existing personal settings are preserved. Requires RE_Kenshi; do not enable another BetterLooting DLL at the same time.
+
+**Русский:** Откройте основной инвентарь нужного персонажа игрока и нажмите **Insert** для сбора ближайшей добычи по правилам. **Alt+Insert** однократно раскладывает ненадетые вещи по подходящим хранилищам игрока. Для обоих действий используется радиус сбора (по умолчанию 20 м); удержание раскладки блокирует сбор. Действует персонаж, чей основной инвентарь обработал нажатие, а не весь выделенный отряд. Настройки → MCM → **Better Looting**: клавиши, радиус, цена, категории, предпочтение рюкзака и профили «Баланс/Деньги/Ресурсы». MCM необязателен; настройки хранятся в `BetterLooting.ini` рядом с DLL. На чистой установке прежние значения по умолчанию: Insert, 20 м, цена от 500 и от 300 за кг. Личные настройки сохраняются. Требуется RE_Kenshi; вторую DLL BetterLooting одновременно не включать.
+
+## Credits and origin / Авторство и происхождение
+
+Original / оригинал: **XxAtreuSSxX**, [BetterLooting source](https://github.com/XxAtreuSSxX/BetterLooting). MCM fork, integration and fixes / MCM-форк, интеграция и исправления: **LEOPARD**. GNU GPL v3; see [LICENSE.txt](LICENSE.txt). RE_Kenshi/KenshiLib provide the native plugin foundation; localization uses Asur's shared `Localization.h`. Original author and contributors retain credit. Historical release notes below describe earlier fork versions.
+
+## New options reference (29 October 2026)
 
 The MCM page now provides three independent options, applied to the next loot action without restarting:
 
