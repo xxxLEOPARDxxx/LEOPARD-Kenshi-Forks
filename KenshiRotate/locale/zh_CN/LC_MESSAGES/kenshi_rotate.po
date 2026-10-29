@@ -1,0 +1,98 @@
+msgid ""
+msgstr "Language: zh_CN\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "'"
+msgstr "'"
+
+msgid "An optional second way to rotate an item."
+msgstr "可选的第二种物品旋转方式。"
+
+msgid "Assigning a key switches the primary input to keyboard."
+msgstr "指定按键后会将主要旋转方式切换为键盘。"
+
+msgid "Assigning a key switches the secondary input to keyboard."
+msgstr "指定按键后会将备用旋转方式切换为键盘。"
+
+msgid "Cannot rotate: item is equipped"
+msgstr "无法旋转: 物品已装备"
+
+msgid "Cannot rotate: item is square"
+msgstr "无法旋转: 物品是正方形"
+
+msgid "Cannot rotate: not enough space"
+msgstr "无法旋转: 空间不足"
+
+msgid "Cannot rotate: save/load hooks failed"
+msgstr "无法旋转: 保存/加载钩子失败"
+
+msgid "Cannot rotate: this inventory doesn't accept items"
+msgstr "无法旋转: 此物品栏不接受物品"
+
+msgid "Change"
+msgstr "更改"
+
+msgid "Choose middle mouse, a keyboard shortcut, or disable this input."
+msgstr "选择鼠标中键、键盘快捷键，或禁用此操作方式。"
+
+msgid "Detailed log"
+msgstr "详细日志"
+
+msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
+msgstr "在 RE_Kenshi_log.txt 中记录操作设置、物品旋转尝试和结果。"
+
+msgid "Disabled"
+msgstr "禁用"
+
+msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
+msgstr "仅禁止新的旋转操作。已旋转物品仍会正确显示和保存。"
+
+msgid "Enable rotation input"
+msgstr "允许旋转物品"
+
+msgid "KenshiRotate: some hooks failed to install (see log); features may not work correctly"
+msgstr "KenshiRotate：部分挂钩安装失败，请查看日志；部分功能可能无法正常运行。"
+
+msgid "Keyboard"
+msgstr "键盘"
+
+msgid "Middle Mouse"
+msgstr "鼠标中键"
+
+msgid "Middle mouse"
+msgstr "鼠标中键"
+
+msgid "Middle mouse or keyboard. Esc to cancel."
+msgstr "鼠标中键或键盘。Esc 取消。"
+
+msgid "None"
+msgstr "无"
+
+msgid "Press a key..."
+msgstr "请按下按键..."
+
+msgid "Primary input"
+msgstr "主要旋转方式"
+
+msgid "Primary keyboard shortcut"
+msgstr "主要键盘快捷键"
+
+msgid "Reset"
+msgstr "重置"
+
+msgid "Rotate inventory items with middle mouse or a keyboard shortcut. Existing rotations stay save-compatible."
+msgstr "使用鼠标中键或键盘快捷键旋转物品，已旋转物品可正常保存和加载。"
+
+msgid "Rotate key: "
+msgstr "旋转按键: "
+
+msgid "Secondary input"
+msgstr "备用旋转方式"
+
+msgid "Secondary key: "
+msgstr "副键: "
+
+msgid "Secondary keyboard shortcut"
+msgstr "备用键盘快捷键"
+
+msgid "Warning: bound to '"
+msgstr "警告: 已绑定到 '"

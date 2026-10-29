@@ -1,0 +1,98 @@
+msgid ""
+msgstr "Language: ru_RU\nContent-Type: text/plain; charset=UTF-8\n"
+
+msgid "'"
+msgstr "'"
+
+msgid "An optional second way to rotate an item."
+msgstr "Необязательный второй способ поворота предметов."
+
+msgid "Assigning a key switches the primary input to keyboard."
+msgstr "Назначение клавиши переключает основной способ на клавиатуру."
+
+msgid "Assigning a key switches the secondary input to keyboard."
+msgstr "Назначение клавиши переключает второй способ на клавиатуру."
+
+msgid "Cannot rotate: item is equipped"
+msgstr "Нельзя вращать: предмет экипирован"
+
+msgid "Cannot rotate: item is square"
+msgstr "Нельзя вращать: предмет квадратный"
+
+msgid "Cannot rotate: not enough space"
+msgstr "Нельзя вращать: недостаточно места"
+
+msgid "Cannot rotate: save/load hooks failed"
+msgstr "Нельзя вращать: ошибка хуков сохранения/загрузки"
+
+msgid "Cannot rotate: this inventory doesn't accept items"
+msgstr "Нельзя вращать: этот инвентарь не принимает предметы"
+
+msgid "Change"
+msgstr "Изменить"
+
+msgid "Choose middle mouse, a keyboard shortcut, or disable this input."
+msgstr "Средняя кнопка мыши, клавиатура или отключение этого способа."
+
+msgid "Detailed log"
+msgstr "Подробный журнал"
+
+msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
+msgstr "В RE_Kenshi_log.txt: настройки управления, попытки и результаты вращения."
+
+msgid "Disabled"
+msgstr "Отключено"
+
+msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
+msgstr "Отключается только новый поворот. Уже повёрнутые предметы отображаются и сохраняются правильно."
+
+msgid "Enable rotation input"
+msgstr "Разрешить поворот предметов"
+
+msgid "KenshiRotate: some hooks failed to install (see log); features may not work correctly"
+msgstr "KenshiRotate: часть хуков не установлена. Проверьте журнал; некоторые функции могут не работать."
+
+msgid "Keyboard"
+msgstr "Клавиатура"
+
+msgid "Middle Mouse"
+msgstr "Средняя кнопка мыши"
+
+msgid "Middle mouse"
+msgstr "Средняя кнопка мыши"
+
+msgid "Middle mouse or keyboard. Esc to cancel."
+msgstr "Средняя кнопка мыши или клавиатура. Esc для отмены."
+
+msgid "None"
+msgstr "Нет"
+
+msgid "Press a key..."
+msgstr "Нажмите клавишу..."
+
+msgid "Primary input"
+msgstr "Основной способ поворота"
+
+msgid "Primary keyboard shortcut"
+msgstr "Основное сочетание клавиш"
+
+msgid "Reset"
+msgstr "Сброс"
+
+msgid "Rotate inventory items with middle mouse or a keyboard shortcut. Existing rotations stay save-compatible."
+msgstr "Поворот предметов средней кнопкой мыши или сочетанием клавиш. Повороты сохраняются в сохранении игры."
+
+msgid "Rotate key: "
+msgstr "Клавиша вращения: "
+
+msgid "Secondary input"
+msgstr "Второй способ поворота"
+
+msgid "Secondary key: "
+msgstr "Доп. клавиша: "
+
+msgid "Secondary keyboard shortcut"
+msgstr "Второе сочетание клавиш"
+
+msgid "Warning: bound to '"
+msgstr "Внимание: назначено на '"
