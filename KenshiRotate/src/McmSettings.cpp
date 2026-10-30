@@ -104,5 +104,5 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     if (api->version >= 2) api->info(api, Tr("Rotate inventory items with one keyboard or mouse binding. Existing rotations stay save-compatible."));
     api->toggle(api, "KenshiRotate", "Enabled", Tr("Enable rotation input"), Tr("Disables new rotations only. Existing rotations keep their appearance and save correctly."), 1, 0);
     api->hotkey(api, "KenshiRotate", "RotationKey", Tr("Rotation binding"), Tr("Press one key or mouse button, with optional CTRL, SHIFT or ALT. NONE disables rotation input."), "MMB", MCM_ALLOW_MOUSE);
-    api->toggle(api, "KenshiRotate", "Debug", Tr("Detailed log"), Tr("Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."), 0, 0);
+    api->toggle(api, "KenshiRotate", "Debug", Tr("Detailed log"), Tr("Log rotations and manual stack checks in RE_Kenshi_log.txt. Helps diagnose item ownership and incompatible stacks; does not change items."), 0, 0);
 }

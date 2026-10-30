@@ -22,6 +22,8 @@
 
 #include <string>
 #include <vector>
+#include <intrin.h>
+#pragma intrinsic(_ReturnAddress)
 
 #include <kenshi/GameData.h>
 
@@ -31,6 +33,7 @@
 #include "TextureRotation.h"
 #include "MouseInventoryAccess.h"
 #include "CursorState.h"
+#include "PairDiagnostics.h"
 
 
 void (*InventoryGUI_update_orig)(InventoryGUI*) = NULL;
@@ -250,7 +253,13 @@ bool placeItemFromMouse_hook(InventoryGUI* thisptr, const std::string sectionNam
 	const MyGUI::types::TPoint<int>& mousePos)
 {
 	Item* prevCursorItem = CursorState::GetItem();
-	bool result = placeItemFromMouse_orig(thisptr, sectionName, mousePos);
+    bool result;
+    if(PairTraceOnUIThread())
+    {
+        PairTrace::ScopedContext scope(s_pairPlaceContext,thisptr,&sectionName);
+        result=placeItemFromMouse_orig(thisptr,sectionName,mousePos);
+    }
+    else result=placeItemFromMouse_orig(thisptr,sectionName,mousePos);
 	if (result && CursorState::GetItem() == prevCursorItem)
 		CursorState::Clear();
 	return result;
@@ -286,19 +295,18 @@ bool canStackWith_hook(InventoryItemBase* thisptr, InventoryItemBase* other)
 	if (!thisptr || !other)
 		return false;
 
-	if (!canStackWith_orig(thisptr, other))
-		return false;
-
-	// Right-click quick-transfer: destination stack's rotation wins.
-	if (g_inQuickTransfer)
-		return true;
-
-	bool thisRotated = RotationState::IsRotated(static_cast<Item*>(thisptr));
-	bool otherRotated = RotationState::IsRotated(static_cast<Item*>(other));
-	if (thisRotated != otherRotated)
-		return false;
-
-	return true;
+    const bool nativeResult=canStackWith_orig(thisptr,other);
+    bool result=nativeResult;
+    // Preserve original evaluation: no rotation lookup for a native rejection
+    // or quick transfer. Diagnostics do not participate in this decision.
+    if(nativeResult && !g_inQuickTransfer)
+    {
+        const bool thisRotated=RotationState::IsRotated(static_cast<Item*>(thisptr));
+        const bool otherRotated=RotationState::IsRotated(static_cast<Item*>(other));
+        result=thisRotated==otherRotated;
+    }
+    if(PluginDiagnostics::Enabled()) RecordStackPair(thisptr,other,nativeResult,result,_ReturnAddress());
+    return result;
 }
 
 // Defense-in-depth behind canStackWith: placeItemFromMouse's swap/fallback
@@ -413,6 +421,7 @@ static void TryRotateCursorItem()
 void InventoryGUI_update_hook(InventoryGUI* thisptr)
 {
 	InventoryGUI_update_orig(thisptr);
+    if(PluginDiagnostics::Enabled()) PairTraceRememberUIThread();
 
 	// Child GUIs (backpack, container, loot): skip input processing.
 	// The owner GUI handles input for all linked inventories.

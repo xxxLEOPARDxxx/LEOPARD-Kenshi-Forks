@@ -19,8 +19,8 @@ msgstr "Нельзя вращать: этот инвентарь не прини
 msgid "Detailed log"
 msgstr "Подробный журнал"
 
-msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
-msgstr "В RE_Kenshi_log.txt: настройки управления, попытки и результаты вращения."
+msgid "Log rotations and manual stack checks in RE_Kenshi_log.txt. Helps diagnose item ownership and incompatible stacks; does not change items."
+msgstr "Повороты и ручные проверки стопок в RE_Kenshi_log.txt. Помогает выяснить владельца вещей и причину несовместимости; предметы не меняет."
 
 msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
 msgstr "Отключается только новый поворот. Уже повёрнутые предметы отображаются и сохраняются правильно."

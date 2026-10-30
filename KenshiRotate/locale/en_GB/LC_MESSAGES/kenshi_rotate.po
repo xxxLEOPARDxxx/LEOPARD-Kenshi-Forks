@@ -19,8 +19,8 @@ msgstr "Cannot rotate: this inventory doesn't accept items"
 msgid "Detailed log"
 msgstr "Detailed log"
 
-msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
-msgstr "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
+msgid "Log rotations and manual stack checks in RE_Kenshi_log.txt. Helps diagnose item ownership and incompatible stacks; does not change items."
+msgstr "Log rotations and manual stack checks in RE_Kenshi_log.txt. Helps diagnose item ownership and incompatible stacks; does not change items."
 
 msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
 msgstr "Disables new rotations only. Existing rotations keep their appearance and save correctly."

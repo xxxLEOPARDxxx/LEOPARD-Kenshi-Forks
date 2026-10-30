@@ -19,8 +19,8 @@ msgstr "无法旋转: 此物品栏不接受物品"
 msgid "Detailed log"
 msgstr "详细日志"
 
-msgid "Details in RE_Kenshi_log.txt: input settings, rotation attempts and results."
-msgstr "在 RE_Kenshi_log.txt 中记录操作设置、物品旋转尝试和结果。"
+msgid "Log rotations and manual stack checks in RE_Kenshi_log.txt. Helps diagnose item ownership and incompatible stacks; does not change items."
+msgstr "在 RE_Kenshi_log.txt 中记录旋转和手动堆叠检查，帮助诊断物品所有权与堆叠不兼容问题，不会修改物品。"
 
 msgid "Disables new rotations only. Existing rotations keep their appearance and save correctly."
 msgstr "仅禁止新的旋转操作。已旋转物品仍会正确显示和保存。"
