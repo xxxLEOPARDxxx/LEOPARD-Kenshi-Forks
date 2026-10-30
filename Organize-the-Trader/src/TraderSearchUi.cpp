@@ -736,6 +736,14 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     MyGUI::TextBox* deal = AsText(TradeBalanceRef().get());
     HeaderCaptionIfChanged(trader, MyGUI::UString(std::string(Tr("Trader")) + ": " + g_balanceMoneyCaption));
     std::string line = std::string(Tr("Deal")) + ": ";
+    // Colour only the amount with the active game's semantic XML palette.
+    // A missing/malformed key keeps this widget's own native text style.
+    // This branch runs only when the cached header has actually changed.
+    const char* amountColour = balance > 0 ? GameTheme::Hex("Good", NULL)
+        : balance < 0 ? GameTheme::Hex("Bad", NULL) : NULL;
+    if (amountColour != NULL && amountColour[0] == '#' && std::strlen(amountColour) == 7
+        && std::strspn(amountColour + 1, "0123456789abcdefABCDEF") == 6)
+        line += amountColour;
     if (balance > 0) line += "+";
     else if (balance < 0) line += "-";
     line += g_moneyPrefix + FormatMoney(balance);

@@ -2,6 +2,7 @@
 // model. Theme colours represent XML properties, never an inferred palette.
 #include "../src/TraderAdaptiveLayout.h"
 #include <string>
+#include <cstring>
 #include <map>
 #include <vector>
 #include <cstdio>
@@ -24,7 +25,8 @@ class Widget {public:Widget* parent;IntCoord coord;float alpha;bool visible,dead
  bool getNeedMouseFocus(){return focus;}void setNeedMouseFocus(bool v){focus=v;}std::string getUserString(const std::string& k){return tags[k];}void setUserString(const std::string& k,const std::string& v){tags[k]=v;}void clearUserString(const std::string& k){tags.erase(k);}
 };
 class Window:public Widget {public:Window(Widget* p=0,const char* n=""):Widget(p,n){}};
-class TextBox:public Widget {public:ISubWidgetText rendered;UString caption;Align textAlign;TextBox(Widget* p=0,const char* n=""):Widget(p,n){rendered.colour=xmlColour;}const UString& getCaption(){return caption;}void setCaption(UString c){caption=c;++captionWrites;}void setFontName(const std::string& f){rendered.font=f;}void setFontHeight(int h){rendered.height=h;}void setTextColour(Colour c){rendered.colour=c;}IntSize getTextSize(){return IntSize((int)caption.size()*rendered.height/2,rendered.height);}Align getTextAlign(){return textAlign;}void setTextAlign(Align a){textAlign=a;}};
+static size_t VisibleCaptionSize(const std::string& s){size_t n=0;for(size_t i=0;i<s.size();++i){if(s[i]=='#'&&i+6<s.size()&&std::strspn(s.c_str()+i+1,"0123456789abcdefABCDEF")>=6){i+=6;continue;}++n;}return n;}
+class TextBox:public Widget {public:ISubWidgetText rendered;UString caption;Align textAlign;TextBox(Widget* p=0,const char* n=""):Widget(p,n){rendered.colour=xmlColour;}const UString& getCaption(){return caption;}void setCaption(UString c){caption=c;++captionWrites;}void setFontName(const std::string& f){rendered.font=f;}void setFontHeight(int h){rendered.height=h;}void setTextColour(Colour c){rendered.colour=c;}IntSize getTextSize(){return IntSize((int)VisibleCaptionSize(caption)*rendered.height/2,rendered.height);}Align getTextAlign(){return textAlign;}void setTextAlign(Align a){textAlign=a;}};
 class Gui {public:static Gui* getInstancePtr(){static Gui g;return &g;}void destroyWidget(Widget* w){while(!w->children.empty())destroyWidget(w->children.back());w->dead=true;if(w->parent){std::vector<Widget*>& v=w->parent->children;for(size_t i=0;i<v.size();++i)if(v[i]==w){v.erase(v.begin()+i);break;}}}};
 static void AfterCoordinate(Widget* w){if(destroyOnCoord==w){destroyOnCoord=0;Gui::getInstancePtr()->destroyWidget(w);}}
 }
@@ -43,6 +45,7 @@ static MyGUI::Widget* g_balanceOwner=0;static int g_balanceStartMoney=-1,g_balan
 struct State {struct Core{bool g_showDealBalance;Core():g_showDealBalance(true){}}core;};static State state;static State& TraderState(){return state;}
 static MyGUI::Widget* CachedInParent(WidgetRef& r,MyGUI::Widget*,const char*){if(!r.get())r.set(liveData);return r.get();}static MyGUI::TextBox* AsText(MyGUI::Widget* w){return dynamic_cast<MyGUI::TextBox*>(w);}static MyGUI::ISubWidgetText* RenderedText(MyGUI::Widget* w){MyGUI::TextBox* t=AsText(w);return t?&t->rendered:0;}
 static void FindMoneyTexts(MyGUI::Widget*,int,MyGUI::TextBox**,MyGUI::TextBox** v){*v=value;}static int FontHeight(MyGUI::Widget* w){return RenderedText(w)->height;}static const std::string& FontName(MyGUI::Widget* w){return RenderedText(w)->font;}
+namespace GameTheme {static std::map<std::string,std::string> palette;static int lookups=0;const char* Hex(const char* key,const char* fallback){++lookups;std::map<std::string,std::string>::iterator i=palette.find(key);return i==palette.end()?fallback:i->second.c_str();}}
 static const char* Tr(const char* s){return s;}static int ParseMoneyCaption(const std::string& s){return TraderAdaptiveLayout::ParseMoneyCaption(s);}static void LearnMoneyFormat(const std::string&){}static std::string FormatMoney(int){return "0";}
 static void HeaderCaptionIfChanged(MyGUI::TextBox* t,MyGUI::UString c){if(t->caption!=c){t->setCaption(c);++cache.headerCaptionSets;}}static void CoordIfChanged(MyGUI::Widget* w,MyGUI::IntCoord c){if(w&&w->getCoord()!=c)w->setCoord(c);}static void AlignIfChanged(MyGUI::TextBox* t,MyGUI::Align a){if(t->getTextAlign()!=a)t->setTextAlign(a);}static void FullCaptionTip(MyGUI::Widget*,const MyGUI::UString&,bool){}
 #include "ViewportProductionUnderTest.h"
@@ -56,8 +59,9 @@ int main(int argc,char** argv){
  FILE* fixtures=argc>1?fopen(argv[1],"r"):NULL;if(!fixtures)return 2;
  for(int theme=0;theme<3;++theme){
   cache=Cache();dataRef.reset();balanceRef.reset();g_balanceOwner=0;g_balanceStartMoney=g_balanceMoney=-1;g_balanceMoneyCaption.clear();
-  char skin[128];MyGUI::IntCoord base,dc;int pa,da;MyGUI::Colour source;
-  if(fscanf(fixtures,"%127s %d%d%d%d %d%d%d%d %d%d %f%f%f%f %f%f%f%f",skin,&base.left,&base.top,&base.width,&base.height,&dc.left,&dc.top,&dc.width,&dc.height,&pa,&da,&MyGUI::xmlColour.red,&MyGUI::xmlColour.green,&MyGUI::xmlColour.blue,&MyGUI::xmlColour.alpha,&source.red,&source.green,&source.blue,&source.alpha)!=19)return 3;
+  char skin[128],good[8],bad[8];MyGUI::IntCoord base,dc;int pa,da;MyGUI::Colour source;
+  if(fscanf(fixtures,"%127s %d%d%d%d %d%d%d%d %d%d %f%f%f%f %f%f%f%f %7s %7s",skin,&base.left,&base.top,&base.width,&base.height,&dc.left,&dc.top,&dc.width,&dc.height,&pa,&da,&MyGUI::xmlColour.red,&MyGUI::xmlColour.green,&MyGUI::xmlColour.blue,&MyGUI::xmlColour.alpha,&source.red,&source.green,&source.blue,&source.alpha,good,bad)!=21)return 3;
+  GameTheme::palette["Good"]=good;GameTheme::palette["Bad"]=bad;
   MyGUI::Widget owner(0,"Content"),plate(&owner,"NativeCashPlate"),data(&plate,"datapanel");root=&owner;liveData=&data;plate.coord=base;plate.skin=skin;plate.align=MyGUI::Align(pa?MyGUI::Align::HStretch:0);data.alpha=.8f;data.coord=dc;data.align=MyGUI::Align(da?MyGUI::Align::HStretch:0);
   MyGUI::TextBox cash(&data,"value");value=&cash;cash.caption="c.6000";cash.rendered.colour=source;dataRef.set(&data);
   UpdateTradeBalance(&owner,&owner);
@@ -72,6 +76,22 @@ int main(int argc,char** argv){
    int writes=MyGUI::captionWrites,created=MyGUI::creates,coords=MyGUI::coordWrites;
    for(int i=0;i<1000;++i)UpdateTradeBalance(&owner,&owner);
    CHECK(writes==MyGUI::captionWrites&&created==MyGUI::creates&&coords==MyGUI::coordWrites);
+   cash.caption="c.5000";UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(balanceRef.get())->caption.find(good)!=std::string::npos);
+   CHECK(AsText(cache.trader.get())->caption.find(good)==std::string::npos);
+   int paletteReads=GameTheme::lookups;writes=MyGUI::captionWrites;created=MyGUI::creates;coords=MyGUI::coordWrites;
+   for(int n=0;n<1000;++n)UpdateTradeBalance(&owner,&owner);
+   CHECK(paletteReads==GameTheme::lookups&&writes==MyGUI::captionWrites&&created==MyGUI::creates&&coords==MyGUI::coordWrites);
+   cash.caption="c.7000";UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(balanceRef.get())->caption.find(bad)!=std::string::npos);
+   cash.caption="c.6000";UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(balanceRef.get())->caption.find('#')==std::string::npos);
+   GameTheme::palette.erase("Good");cash.caption="c.5000";UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(balanceRef.get())->caption.find('#')==std::string::npos);
+   GameTheme::palette["Good"]="#bad";cash.caption="c.4000";UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(balanceRef.get())->caption.find('#')==std::string::npos);
+   GameTheme::palette["Good"]=good;cash.caption="c.6000";UpdateTradeBalance(&owner,&owner);
+   writes=MyGUI::captionWrites;created=MyGUI::creates;coords=MyGUI::coordWrites;
    const MyGUI::IntCoord expanded=plate.getCoord();
    plate.setCoord(base);UpdateTradeBalance(&owner,&owner);
    CHECK(plate.getCoord()==expanded);

@@ -23,10 +23,13 @@ for base in (game/'data/gui',game/'mods/Dark UI Advanced/gui'):
         actual=next(r for r in skins.iter('Resource') if r.get('name')==plate.get('skin'))
         assert any(b.get('type')=='SubSkin' for b in actual.iter('BasisSkin')), 'actual plate background missing'
     foreground=colour(props['TextColour']);assert foreground[3]>0
+    palette={p.get('key'):p.get('value') for p in ET.parse(base/'colours/kenshi_colours.xml').getroot().iter('Property')}
+    accents=[palette[k] for k in ('Good','Bad')]
+    assert all(len(x)==7 and x[0]=='#' and all(c in '0123456789abcdefABCDEF' for c in x[1:]) for x in accents)
     values=[plate.get('skin')]+rect+child+[int('HStretch' in plate.get('align','')),int('HStretch' in data.get('align',''))]+foreground+foreground
-    rows.append(' '.join(map(str,values)))
+    rows.append(' '.join(map(str,values+accents)))
     print('PASS XML: '+str(base)+' plate='+plate.get('skin')+' text='+props['TextColour'])
 # Deliberately different input/text roles: copying a white EditBox foreground
 # over a white plate must not overwrite the XML's blue standard-text role.
-rows.append('NativeWhiteFrame 14 0 203 41 21 11 161 19 0 0 .1 .2 .8 1 1 1 1 1')
+rows.append('NativeWhiteFrame 14 0 203 41 21 11 161 19 0 0 .1 .2 .8 1 1 1 1 1 #123456 #654321')
 out.write_text('\n'.join(rows)+'\n',encoding='ascii')
