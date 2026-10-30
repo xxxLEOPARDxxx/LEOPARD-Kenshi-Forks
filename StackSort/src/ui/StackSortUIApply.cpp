@@ -870,14 +870,38 @@ bool StackSortUI::ConsolidateStacks(InventorySection* section)
 {
     if (!StackSort_EligibleSection(section)) return false;
     StackMerge::Outcome outcome;
+    NativeMergeAdapter::Stats stats;
+    const bool trace=GetLogLevel()>=LOG_LEVEL_VERBOSE;
     {
         ApplyGuard applyGuard;
         CallbackGuard guard(section);
-        NativeMergeAdapter native(section);
+        NativeMergeAdapter native(section,trace?&stats:NULL);
         outcome = StackMerge::Consolidate(native);
         section->recalculateTotalWeight();
     }
     if (outcome.changed) SortWorker::MarkSectionStale(section);
+    if(trace) try
+    {
+        std::ostringstream msg;
+        msg << "StackSort: MERGE_GATES section=" << section->name << " sources=" << stats.sources
+            << " findMiss=" << stats.findMiss << " sourceInvalid=" << stats.sourceInvalid
+            << " sourceCapacity=" << stats.sourceCapacity << " targetInvalid=" << stats.targetInvalid
+            << " targetCapacity=" << stats.targetCapacity << " targetFull=" << stats.targetFull
+            << " rejected=" << stats.rejected << " accepted=" << stats.accepted
+            << " badUnits=" << stats.badUnits << " chargeMismatch=" << stats.chargeMismatch
+            << " removeReject=" << stats.removeReject << " addOK=" << stats.addOK << " addFault=" << stats.addFault;
+        LogVerbose(msg.str());
+        for(unsigned i=0;i<stats.sampleCount;++i)
+        {
+            const NativeMergeAdapter::Stats::Pair& p=stats.samples[i];std::ostringstream pair;
+            pair << "StackSort: MERGE_PAIR source=" << p.source << " target=" << p.target
+                 << " compatible=" << p.accepted << " qty=" << p.sq << "/" << p.tq << " cap=" << p.cap
+                 << " dims=" << p.sw << "x" << p.sh << "/" << p.tw << "x" << p.th
+                 << " charges=" << p.left << "/" << p.full << "," << p.targetLeft << "/" << p.targetFull;
+            LogVerbose(pair.str());
+        }
+    }
+    catch (...) { /* Diagnostic allocation/logging must not alter native outcome handling. */ }
     if (outcome.fault) throw std::runtime_error("StackSort native consolidation fault");
     return outcome.changed;
 }

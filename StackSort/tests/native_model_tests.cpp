@@ -172,5 +172,27 @@ int main()
       CHECK(NativeMergeAdapter::Units(&a,100)+NativeMergeAdapter::Units(&b,100)==310);
       b.quantity=5;CHECK(!adapter.RestoreUncredited(&a,250,100,credits));CHECK(a.quantity==2&&a.chargesLeft==80);
     }
+    { InventorySection s;Item a(901,1),b(902,1);Bind(s,a,b);
+      NativeMergeAdapter::Stats stats;NativeMergeAdapter adapter(&s,&stats);
+      StackMerge::Outcome out=StackMerge::Consolidate(adapter);
+      CHECK(out.changed&&!out.fault);CHECK(stats.sources>=1);CHECK(stats.accepted>=1);
+      CHECK(stats.addOK>=1);CHECK(stats.findMiss==0);CHECK(stats.sampleCount<=8);
+    }
+    { InventorySection s;Item a(903,2),b(904,1);Bind(s,a,b);a.maxStack=1;
+      NativeMergeAdapter::Stats stats;NativeMergeAdapter adapter(&s,&stats);
+      CHECK(!adapter.HasMergeTarget(a.handle));CHECK(stats.sourceCapacity==1);CHECK(s.addCalls==0);
+    }
+    { InventorySection s;Item a(905,1),b(906,1);Bind(s,a,b);b.kind=2;
+      NativeMergeAdapter::Stats stats;NativeMergeAdapter adapter(&s,&stats);
+      StackMerge::Outcome out=StackMerge::Consolidate(adapter);CHECK(!out.changed&&!out.fault);
+      CHECK(stats.rejected==2&&stats.accepted==0&&s.addCalls==0);
+      CHECK(!adapter.HasMergeTarget(hand(99999)));CHECK(stats.findMiss==1&&stats.sourceInvalid==1);
+    }
+    { InventorySection s;Item a(907,1),b(908,1);Bind(s,a,b);
+      a.originalFullChargeAmount=100;b.originalFullChargeAmount=200;
+      NativeMergeAdapter::Stats stats;NativeMergeAdapter adapter(&s,&stats);
+      CHECK(adapter.HasMergeTarget(a.handle));CHECK(adapter.Reinsert(a.handle)==0);
+      CHECK(stats.chargeMismatch==1&&stats.addOK==0&&s.addCalls==0);
+    }
     std::printf("%d native model checks, %d failures\n",checks,failures);return failures?1:0;
 }

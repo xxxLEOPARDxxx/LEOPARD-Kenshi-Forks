@@ -259,3 +259,22 @@ Native может объединить чистый и украденный пр
 сверяет прежний адаптер. Подробный журнал различает пропуск, попытку, результат
 и ошибку только на кликах. Новых хуков и покадровых обходов нет. Проверка нового
 поведения в игре ещё требуется.
+
+
+### Click-scoped merge diagnostics / Диагностика объединения по нажатию
+
+With Detailed log enabled, MERGE_GATES reports missing handles, invalid/equipped
+sources, capacity/full-stack rejections, compatibility results and native transfer
+outcomes for each clicked section. Up to eight MERGE_PAIR samples copy item
+addresses, quantities, dimensions and charge values before any consuming call.
+Addresses are printed as values afterwards. Logging performs no extra native
+compatibility/capacity calls and is best-effort after required cache invalidation.
+The diagnostics do not change ownership or merge rules. They distinguish the
+currently unresolved in-game no-transfer case; passing model tests is not proof
+that this gameplay bug is fixed.
+
+При включённом подробном журнале MERGE_GATES показывает этап отказа: поиск
+предмета, состояние, вместимость, совместимость или нативный перенос. Не более
+восьми MERGE_PAIR сохраняют значения до возможного поглощения предмета.
+Диагностика выполняется только при нажатии сортировки и не меняет правила
+объединения или владельца вещей. Игровая причина отказа пока не установлена.

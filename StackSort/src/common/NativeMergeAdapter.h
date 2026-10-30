@@ -10,8 +10,21 @@
 struct NativeMergeAdapter
 {
     typedef hand Token;
+    // Optional, click-local diagnostics. Never owns or dereferences consumed items.
+    struct Stats
+    {
+        unsigned sources, findMiss, sourceInvalid, sourceCapacity, targetInvalid, targetCapacity,
+                 targetFull, rejected, accepted, badUnits, chargeMismatch, removeReject, addOK, addFault;
+        struct Pair { const void* source; const void* target; int sq,tq,cap,sw,sh,tw,th;
+                      float full,left,targetFull,targetLeft; bool accepted; } samples[8];
+        unsigned sampleCount;
+        Stats():sources(0),findMiss(0),sourceInvalid(0),sourceCapacity(0),targetInvalid(0),
+            targetCapacity(0),targetFull(0),rejected(0),accepted(0),badUnits(0),chargeMismatch(0),
+            removeReject(0),addOK(0),addFault(0),sampleCount(0){}
+    };
     InventorySection* section;
-    NativeMergeAdapter(InventorySection* s) : section(s) {}
+    Stats* stats;
+    NativeMergeAdapter(InventorySection* s, Stats* trace=NULL) : section(s),stats(trace) {}
     struct Credit
     {
         Token key;
@@ -58,21 +71,27 @@ struct NativeMergeAdapter
         const Ogre::vector<InventorySection::SectionItem>::type& items = section->getItems();
         for (size_t i = 0; i < items.size(); ++i)
             if (items[i].item && items[i].item->handle == token) return items[i].item;
+        if (stats) ++stats->findMiss;
         return NULL;
     }
     bool HasMergeTarget(const Token& token)
     {
         Item* source = Find(token);
-        if (!source || source->quantity <= 0 || source->isEquipped) return false;
+        if (stats) ++stats->sources;
+        if (!source || source->quantity <= 0 || source->isEquipped)
+        { if(stats) ++stats->sourceInvalid; return false; }
         // Valid existing stacks never need native splitting into new Items.
-        if (source->quantity > source->isStackable(section)) return false;
+        if (source->quantity > source->isStackable(section))
+        { if(stats) ++stats->sourceCapacity; return false; }
         const Ogre::vector<InventorySection::SectionItem>::type& items = section->getItems();
         for (size_t i = 0; i < items.size(); ++i)
         {
             Item* target = items[i].item;
-            if (!target || target == source || target->quantity <= 0 || target->isEquipped) continue;
+            if (!target || target == source || target->quantity <= 0 || target->isEquipped)
+            { if(stats) ++stats->targetInvalid; continue; }
             const int maxStack = target->isStackable(section);
-            if (maxStack < 1 || target->quantity > maxStack) continue;
+            if (maxStack < 1 || target->quantity > maxStack)
+            { if(stats) ++stats->targetCapacity; continue; }
             if (target->quantity == maxStack)
             {
                 // A stack at its item-count limit can still accept charges.
@@ -80,11 +99,26 @@ struct NativeMergeAdapter
                 // partial open charge even when isStackable(section) == 1.
                 const double full = (double)target->originalFullChargeAmount;
                 const double left = (double)target->chargesLeft;
-                if (!_finite(full) || !_finite(left) || full <= 0.0 || left < 0.0 || left >= full) continue;
+                if (!_finite(full) || !_finite(left) || full <= 0.0 || left < 0.0 || left >= full)
+                { if(stats) ++stats->targetFull; continue; }
             }
             // Virtual isSameAs and the native ownership rule account for
             // quality/material/manufacturer/stolen states; no template-only key.
-            if (target->canStackWith(source)) return true;
+            const bool compatible=target->canStackWith(source);
+            if(stats)
+            {
+                if(compatible) ++stats->accepted; else ++stats->rejected;
+                if(stats->sampleCount<8 && source->manufacturerData==target->manufacturerData &&
+                   source->materialData==target->materialData)
+                {
+                    Stats::Pair& p=stats->samples[stats->sampleCount++];
+                    p.source=source;p.target=target;p.sq=source->quantity;p.tq=target->quantity;p.cap=maxStack;
+                    p.sw=source->itemWidth;p.sh=source->itemHeight;p.tw=target->itemWidth;p.th=target->itemHeight;
+                    p.full=source->originalFullChargeAmount;p.left=source->chargesLeft;
+                    p.targetFull=target->originalFullChargeAmount;p.targetLeft=target->chargesLeft;p.accepted=compatible;
+                }
+            }
+            if (compatible) return true;
         }
         return false;
     }
@@ -94,7 +128,8 @@ struct NativeMergeAdapter
         if (!source) return 0;
         const double full = (double)source->originalFullChargeAmount;
         const double originalUnits = Units(source, full);
-        if (!_finite(full) || !_finite(originalUnits) || originalUnits <= 0.0) return 0;
+        if (!_finite(full) || !_finite(originalUnits) || originalUnits <= 0.0)
+        { if(stats) ++stats->badUnits; return 0; }
         // Allocated before the native mutation window. Every target that native
         // compatibility permits is recorded, including already-full stacks.
         std::vector<Credit> credits;
@@ -106,20 +141,22 @@ struct NativeMergeAdapter
             Item* target = items[i].item;
             if (target == source) { x = items[i].x; y = items[i].y; continue; }
             if (!target || !target->canStackWith(source)) continue;
-            if ((double)target->originalFullChargeAmount != full) return 0;
+            if ((double)target->originalFullChargeAmount != full)
+            { if(stats) ++stats->chargeMismatch; return 0; }
             Credit credit; credit.key = target->handle; credit.units = Units(target, full);
-            if (!_finite(credit.units)) return 0;
+            if (!_finite(credit.units)) { if(stats) ++stats->badUnits; return 0; }
             credits.push_back(credit);
         }
-        if (!section->removeItem(source)) return 0;
+        if (!section->removeItem(source)) { if(stats) ++stats->removeReject; return 0; }
         try
         {
             // Never read source after this call: successful merge schedules its
             // destruction. On false the audited native branch retains a live
             // remainder, recovered by handle below.
-            if (section->_NV_addItem(source, 1)) return 1;
+            if (section->_NV_addItem(source, 1)) { if(stats) ++stats->addOK; return 1; }
         }
         catch (...) { }
+        if(stats) ++stats->addFault;
         // The handle is the only authority after a possibly consuming call.
         // Do not recreate an item when the native outcome is ambiguous.
         Item* remainder = token.getItem();
