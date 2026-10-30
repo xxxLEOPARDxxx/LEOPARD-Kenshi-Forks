@@ -2,7 +2,7 @@
 import argparse, ast, json, pathlib, re, struct
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROWS = [
-("StackSort [{n}]", "StackSort [{n}]", "StackSort [{n}]"),
+("Sort [{n}]", "Сортировать [{n}]", "整理 [{n}]"),
 ("H", "В", "高"), ("W", "Ш", "宽"), ("<", "<", "<"), (">", ">", ">"),
 ("StackSort: some hooks failed to install (see RE_Kenshi log); sorting may not work correctly", "StackSort: не удалось подключить некоторые функции (см. журнал RE_Kenshi); сортировка может работать неправильно", "StackSort：部分功能挂接失败（请查看 RE_Kenshi 日志），整理可能无法正常工作"),
 ("StackSort: {n} problem(s) in StackSort.cfg were ignored (see RE_Kenshi log)", "StackSort: проигнорировано ошибок в StackSort.cfg: {n} (см. журнал RE_Kenshi)", "StackSort：已忽略 StackSort.cfg 中的 {n} 个问题（请查看 RE_Kenshi 日志）"),

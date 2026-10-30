@@ -35,11 +35,11 @@ and 64 cached sections are supported.
 
 ## Controls
 
-`[ < ] [ StackSort [N] ] [ H/W ] [ > ]`
+`[ < ] [ Sort [N] ] [ H/W ] [ > ]`
 
-Left-click StackSort to cycle the best arrangements. H reserves a free
+Left-click Sort to cycle the best arrangements. H reserves a free
 rectangle with the selected height; W reserves one with the selected width.
-The arrows decrease/increase N. Right-click StackSort once to restore item
+The arrows decrease/increase N. Right-click Sort once to restore item
 positions captured **after first-click stack consolidation**. It does not split
 merged stacks. Adding/removing items invalidates the undo capture. The H/W
 button changes the active direction during play. Target choices last for the
@@ -150,7 +150,7 @@ undo, rotated icon visuals and rotation persistence after saving/loading.
 
 ## Управление
 
-`[ < ] [ StackSort [N] ] [ В/Ш ] [ > ]`
+`[ < ] [ Сортировать [N] ] [ В/Ш ] [ > ]`
 
 ЛКМ перебирает лучшие варианты. В оставляет свободный прямоугольник выбранной
 высоты, Ш — ширины. Стрелки уменьшают/увеличивают N. ПКМ однократно возвращает
