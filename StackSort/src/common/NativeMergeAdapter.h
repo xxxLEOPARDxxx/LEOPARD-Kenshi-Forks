@@ -70,7 +70,10 @@ struct NativeMergeAdapter
     {
         const Ogre::vector<InventorySection::SectionItem>::type& items = section->getItems();
         for (size_t i = 0; i < items.size(); ++i)
-            if (items[i].item && items[i].item->handle == token) return items[i].item;
+            // VC10 groups the SDK's overloaded virtual == declarations in a
+            // different order from Native hand's vtable. Call the verified
+            // nonvirtual hand comparison (all five fields, Native null rule).
+            if (items[i].item && items[i].item->handle._NV_operator_equal(token)) return items[i].item;
         if (stats) ++stats->findMiss;
         return NULL;
     }

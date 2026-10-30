@@ -5,11 +5,13 @@
 #include <algorithm>
 #include "MergeDriver.h"
 struct Item;
+static bool sdkBrokenEquality=false;
 struct hand
 {
     int id,type;unsigned int index,serial,container,containerSerial;
     hand(int i=0):id(i),type(2),index(i),serial(7),container(3),containerSerial(2){}
-    bool operator==(const hand& h) const { return id==h.id; }
+    bool operator==(const hand& h) const { return !sdkBrokenEquality && id==h.id; }
+    bool _NV_operator_equal(const hand& h) const { return type==h.type&&index==h.index&&serial==h.serial&&container==h.container&&containerSerial==h.containerSerial; }
     Item* getItem() const;
 };
 template<class T> struct FakeVector { typedef std::vector<T> type; };
@@ -193,6 +195,11 @@ int main()
       NativeMergeAdapter::Stats stats;NativeMergeAdapter adapter(&s,&stats);
       CHECK(adapter.HasMergeTarget(a.handle));CHECK(adapter.Reinsert(a.handle)==0);
       CHECK(stats.chargeMismatch==1&&stats.addOK==0&&s.addCalls==0);
+    }
+    { InventorySection s;Item a(909,1),b(910,1);Bind(s,a,b);NativeMergeAdapter adapter(&s);
+      sdkBrokenEquality=true;CHECK(adapter.Find(a.handle)==&a);
+      StackMerge::Outcome out=StackMerge::Consolidate(adapter);CHECK(out.changed&&!out.fault);CHECK(s.items.size()==1);
+      sdkBrokenEquality=false;
     }
     std::printf("%d native model checks, %d failures\n",checks,failures);return failures?1:0;
 }

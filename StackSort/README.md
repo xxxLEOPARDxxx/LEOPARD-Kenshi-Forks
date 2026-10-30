@@ -269,12 +269,17 @@ outcomes for each clicked section. Up to eight MERGE_PAIR samples copy item
 addresses, quantities, dimensions and charge values before any consuming call.
 Addresses are printed as values afterwards. Logging performs no extra native
 compatibility/capacity calls and is best-effort after required cache invalidation.
-The diagnostics do not change ownership or merge rules. They distinguish the
-currently unresolved in-game no-transfer case; passing model tests is not proof
-that this gameplay bug is fixed.
+The diagnostics do not change ownership or merge rules. The trace isolated an
+SDK/VC10 virtual hand-comparison mismatch: all live tokens failed lookup before
+compatibility checks. Lookup now uses the verified nonvirtual Native comparison,
+preserving all identity fields and the Native NULL_ITEM rule. Gameplay acceptance
+remains a separate check; passing model tests alone does not establish it.
 
 При включённом подробном журнале MERGE_GATES показывает этап отказа: поиск
 предмета, состояние, вместимость, совместимость или нативный перенос. Не более
 восьми MERGE_PAIR сохраняют значения до возможного поглощения предмета.
 Диагностика выполняется только при нажатии сортировки и не меняет правила
-объединения или владельца вещей. Игровая причина отказа пока не установлена.
+объединения или владельца вещей. Причиной отказа оказалось несовпадение
+виртуального сравнения hand в SDK/VC10: поиск не находил ни одного живого токена.
+Используется проверенный невиртуальный нативный метод, без изменения правил
+владения и совместимости. Игровая проверка остаётся отдельным этапом.
