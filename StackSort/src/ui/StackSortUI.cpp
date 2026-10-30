@@ -515,6 +515,7 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         request.parent = ControlStrip::Rect(0, 0, ui.parentWidth, ui.parentHeight);
         request.anchor = ControlStrip::Rect(ac.left, ac.top, ac.width, ac.height);
         request.gap = cfg.buttonGap;
+        request.leftClampInset = isBodyGUI ? 5 : 0;
         request.desired[0] = cfg.arrowButtonWidth;
         request.desired[1] = cfg.sortButtonWidth;
         request.desired[2] = cfg.dimButtonWidth;

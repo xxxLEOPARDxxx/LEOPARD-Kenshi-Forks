@@ -32,5 +32,24 @@ int main()
     r=Request(320);blocks.push_back(ControlStrip::Rect(0,60,320,24));CHECK(!ControlStrip::Build(r,blocks).fits);
     blocks.clear();blocks.push_back(ControlStrip::Rect(0,0,320,20));Valid(r,blocks,ControlStrip::Build(r,blocks));
     r.anchor.y=90;CHECK(!ControlStrip::Build(r,blocks).fits);
+    // Screenshot 2026-10-30 14:34: backpack outer~390px; KEO checkbox
+    // starts at local271. Expanding controls to fill269px forced x=0.
+    // Keep full translated words at their measured minimum and permit x=21.
+    r=Request(390);r.anchor=ControlStrip::Rect(61,60,206,24);r.preferredX=21;
+    blocks.clear();blocks.push_back(ControlStrip::Rect(271,60,24,24));
+    p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
+    CHECK(p.caption==0);CHECK(p.width[1]==r.captionWidth[0]);CHECK(p.total==212);CHECK(p.x==21);
+    // A roomy row does not compact or change configured control widths.
+    blocks[0].x=350;p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
+    CHECK(p.caption==0&&p.total==286&&p.width[1]==180&&p.x==21);
+    // Body row from the same screenshot: armor occupies the left side and
+    // absorbs a mere preferredX +5 unless a small post-clamp inset is kept.
+    r=Request(650);r.anchor=ControlStrip::Rect(420,60,160,24);r.preferredX=317;
+    blocks.clear();blocks.push_back(ControlStrip::Rect(216,60,134,24));
+    p=ControlStrip::Build(r,blocks);const int oldBodyX=p.x;
+    r.preferredX+=5;r.leftClampInset=5;p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
+    CHECK(p.x==oldBodyX+5);
+    r.parent.w=p.x+p.total-3;p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
+    CHECK(p.x>=oldBodyX&&p.x<oldBodyX+5); // inset yields to the right parent edge
     std::printf("%d control-strip checks, %d failures\n",checks,failures);return failures?1:0;
 }

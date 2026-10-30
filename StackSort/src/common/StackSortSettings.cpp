@@ -11,7 +11,7 @@ static const char* const CFG_NAME = "StackSort.cfg";
 StackSortSettings::StackSortSettings()
     : logLevel(0), defaultDim(0), consolidateStacks(true), numWorkers(4), mutationDebounceMs(150),
       resnapshotsPerFrame(3), topTargets(5), arrowButtonWidth(30), dimButtonWidth(40), sortButtonWidth(180),
-      buttonGap(2), bodyXOffset(-40), firstPassRestarts(-1), firstPassIters(-1), refineRestarts(-1), refineIters(-1),
+      buttonGap(2), bodyXOffset(-35), firstPassRestarts(-1), firstPassIters(-1), refineRestarts(-1), refineIters(-1),
       refineLahcHistory(-1), refinePlateau(-1), refineItemThreshold(-1), syncRestarts(4), syncIters(1000)
 {
 }

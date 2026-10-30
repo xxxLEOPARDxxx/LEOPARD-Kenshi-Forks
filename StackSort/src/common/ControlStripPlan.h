@@ -12,6 +12,8 @@ struct Request
     int desired[4]; // back, sort, direction, forward
     int minimum[4];
     int captionWidth[3]; // full, compact, numeric; including skin padding
+    int leftClampInset;
+    Request():leftClampInset(0){}
 };
 struct Plan
 {
@@ -58,16 +60,26 @@ inline Plan Build(const Request& req,const std::vector<Rect>& obstacles)
             }
             const int available=free[i].right-free[i].left;
             if(minimum>available) continue;
+            long long desired=3LL*req.gap;
+            for(int k=0;k<4;++k) desired+=(std::max)(widths[k],req.desired[k]);
+            // A right-side neighbor such as KEO's checkbox must not make us
+            // fill its entire left interval and pin the toolbar to the panel
+            // edge. Keep readable measured minima so preferredX can survive.
+            const bool rightNeighborClamp=free[i].right<req.parent.w &&
+                (long long)req.preferredX+desired>free[i].right;
             int extra=available-(int)minimum;
             const int priority[4]={1,2,0,3};
-            for(int p=0;p<4;++p)
+            for(int p=0;p<4 && !rightNeighborClamp;++p)
             {
                 int k=priority[p];
                 int add=(std::min)(extra,(std::max)(0,req.desired[k]-widths[k]));
                 widths[k]+=add;extra-=add;
             }
             int total=3*req.gap;for(int k=0;k<4;++k) total+=widths[k];
-            const int x=(std::max)(free[i].left,(std::min)(req.preferredX,free[i].right-total));
+            const int spare=available-total;
+            const int inset=req.preferredX<free[i].left ?
+                (std::min)(spare,(std::max)(0,(std::min)(50,req.leftClampInset))) : 0;
+            const int x=(std::max)(free[i].left+inset,(std::min)(req.preferredX,free[i].right-total));
             const long long delta=(long long)x-req.preferredX;
             const long long distance=delta<0?-delta:delta;
             if(distance>=closest) continue;
