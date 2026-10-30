@@ -7,8 +7,8 @@
 struct Item;
 struct hand
 {
-    int id;
-    hand(int i=0):id(i){}
+    int id,type;unsigned int index,serial,container,containerSerial;
+    hand(int i=0):id(i),type(2),index(i),serial(7),container(3),containerSerial(2){}
     bool operator==(const hand& h) const { return id==h.id; }
     Item* getItem() const;
 };
@@ -19,13 +19,21 @@ struct Item
 {
     hand handle;
     int quantity, maxStack, kind, quality, material, maker, owner;
-    bool isEquipped, alive;
+    bool isEquipped, alive,nativeRules,stolen,rotated;
+    void* manufacturerData;void* materialData;int itemWidth,itemHeight;
+    mutable hand ownerToken;
     std::string inventorySection;
     float originalFullChargeAmount, chargesLeft;
-    Item(int id,int q):handle(id),quantity(q),maxStack(10),kind(1),quality(1),material(1),maker(1),owner(1),isEquipped(false),alive(true),inventorySection("main"),originalFullChargeAmount(1),chargesLeft(1){}
+    Item(int id,int q):handle(id),quantity(q),maxStack(10),kind(1),quality(1),material(1),maker(1),owner(1),isEquipped(false),alive(true),nativeRules(false),stolen(false),rotated(false),manufacturerData((void*)1),materialData((void*)1),itemWidth(1),itemHeight(2),inventorySection("main"),originalFullChargeAmount(1),chargesLeft(1){}
     int isStackable(InventorySection*) const { return maxStack; }
+    void* getGameData()const{return (void*)(size_t)kind;}
+    bool isStolen(bool)const{return stolen;}
+    const hand& getProperOwner()const{ownerToken=hand(owner);return ownerToken;}
+    // Legacy fault fixtures use a controllable rejection predicate. nativeRules
+    // reproduces the verified base Native + Rotate path for UI-stamp cases:
+    // both clean OR proper-owner equality when EITHER is stolen.
     // Charges left are deliberately absent, matching native isSameAs.
-    bool canStackWith(Item* b) const { return kind==b->kind && quality==b->quality && material==b->material && maker==b->maker && owner==b->owner; }
+    bool canStackWith(Item* b) const {if(nativeRules)return kind==b->kind&&manufacturerData==b->manufacturerData&&materialData==b->materialData&&((!stolen&&!b->stolen)||owner==b->owner)&&rotated==b->rotated;return kind==b->kind && quality==b->quality && material==b->material && maker==b->maker && owner==b->owner; }
 };
 static std::vector<Item*> handles;
 Item* hand::getItem() const { for(size_t i=0;i<handles.size();++i) if(handles[i]->handle.id==id && handles[i]->alive) return handles[i]; return NULL; }

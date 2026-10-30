@@ -63,7 +63,13 @@ $worker=[IO.File]::ReadAllText("$module/src/worker/SortWorker.cpp")
 $begin=$worker.IndexOf('void SortWorker::OnInventoryOpened(')
 $finish='SnapshotSections(idx, gui, &needsCompute);';$end=$worker.IndexOf($finish,$begin)+$finish.Length
 [IO.File]::WriteAllText("$out/rotation_open_under_test.h",$worker.Substring($begin,$end-$begin)+"`n }catch(...){} }`n")
-$begin=$ui.IndexOf('void StackSortUI::FirstClickInit(');$end=$ui.IndexOf('if (!ui.stacksConsolidated)',$begin)
+$mergeBegin=$ui.IndexOf('void StackSortUI::FirstClickInit(');$mergeEnd=$ui.IndexOf('// Forward-arrow cycling:',$mergeBegin)
+[IO.File]::WriteAllText("$out/ui_merge_under_test.h",$ui.Substring($mergeBegin,$mergeEnd-$mergeBegin))
+& "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD /O2 /DWIN32 /DNDEBUG /D_CRT_SECURE_NO_WARNINGS "/I$out" "/Fo$out/" "/Fe$out/ui_merge_tests.exe" "$PSScriptRoot/ui_merge_tests.cpp"
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
+& "$out/ui_merge_tests.exe"
+if ($LASTEXITCODE) { exit $LASTEXITCODE }
+$begin=$ui.IndexOf('void StackSortUI::FirstClickInit(');$end=$ui.IndexOf('// Merge inspection starts here:',$begin)
 [IO.File]::WriteAllText("$out/rotation_click_under_test.h",$ui.Substring($begin,$end-$begin)+"`n}`n")
 & "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD /O2 /DWIN32 /DNDEBUG /DSTACKSORT_ENABLE_ROTATION "/I$out" "/Fo$out/" "/Fe$out/rotation_binding_tests.exe" "$PSScriptRoot/rotation_binding_tests.cpp"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }

@@ -9,13 +9,17 @@ solver, inventory controls, background preparation and Rotate Items support.
 - License: GNU GPL version 3; see LICENSE and ORIGIN.md for the source revision.
 
 The original author's features are retained: close packing, merging split
-stacks on the first sort, cycling through the five best arrangements, H/W
+stacks, cycling through the five best arrangements, H/W
 free-space goals, arrow controls, right-click position undo, background
 calculation on opening an inventory and cached results on reopening. Trader
 stock keeps its original sorting controls. Up to 16 visible inventory panels
 and 64 cached sections are supported.
 
 ## What this fork changes
+
+- **Merge again after content changes.** After manually splitting/adding items
+  or using charges, the next sort click retries compatible merging. Unchanged
+  arrangement cycling does not repeat merging.
 
 - MCM settings and Russian, English and Simplified Chinese interface text.
 - Stack consolidation uses the game's full native insertion path. Empty
@@ -47,7 +51,7 @@ and 64 cached sections are supported.
 Left-click Sort to cycle the best arrangements. H reserves a free
 rectangle with the selected height; W reserves one with the selected width.
 The arrows decrease/increase N. Right-click Sort once to restore item
-positions captured **after first-click stack consolidation**. It does not split
+positions captured **after stack consolidation**. It does not split
 merged stacks. Adding/removing items invalidates the undo capture. The H/W
 button changes the active direction during play. Target choices last for the
 current world and are remembered separately for body, backpack and container.
@@ -134,12 +138,17 @@ undo, rotated icon visuals and rotation persistence after saving/loading.
 - Лицензия: GNU GPL версии 3. Ревизия исходников указана в ORIGIN.md.
 
 Сохранены возможности автора: плотная раскладка, объединение разделённых стопок
-при первой сортировке, перебор пяти лучших вариантов, свободный прямоугольник
+при сортировке, перебор пяти лучших вариантов, свободный прямоугольник
 заданной высоты/ширины, стрелки, отмена позиций по ПКМ, фоновый расчёт при
 открытии и повторное использование результатов. Склады торговцев сохраняют
 штатные кнопки. Поддерживаются 16 открытых панелей и 64 раздела в кэше.
 
 ## Что изменено в нашем форке
+
+- **Повторное объединение после изменения предметов.** После ручного разделения,
+  добавления или расхода зарядов следующее нажатие сортировки повторяет
+  объединение совместимых стопок. Перебор неизменившихся раскладок не повторяет
+  поиск объединения.
 
 - Настройки MCM и интерфейс на русском, английском и упрощённом китайском.
 - Объединение через штатное добавление предмета правильно удаляет опустевшую
@@ -170,7 +179,7 @@ undo, rotated icon visuals and rotation persistence after saving/loading.
 
 ЛКМ перебирает лучшие варианты. В оставляет свободный прямоугольник выбранной
 высоты, Ш — ширины. Стрелки уменьшают/увеличивают N. ПКМ однократно возвращает
-позиции **после объединения стопок первым нажатием**; стопки обратно не
+позиции **после объединения стопок**; стопки обратно не
 разделяются. Добавление/удаление предметов отменяет снимок для возврата.
 Кнопка В/Ш меняет направление в игре. Цели запоминаются до смены мира отдельно
 для основного инвентаря, рюкзака и контейнера.
@@ -216,3 +225,37 @@ MCM: включение, объединение стопок, начальное
 - Исходная сортировка и управление дополнены MCM и переводами RU/EN/ZH.
 - Исправлены очистка объединённых стопок и кнопки ограниченных хранилищ.
 - Включена поддержка Rotate Items и отмена старых заданий при смене мира.
+
+
+### Semantic merge trigger / Повторное объединение
+
+Consolidation remains on explicit sort clicks, never background GUI updates.
+Each click reads a bounded semantic stamp from borrowed live section contents:
+full item identities, prototype/material/manufacturer, Native theft/owner
+compatibility, quantities, charge capacity/remainder, equipment, stack capacity
+and relative rotation partitions. Rotation groups use only real section and
+prototype/material/manufacturer; stolen state and full proper owner of every
+item remain per-item inputs, because Native can permit mixed stolen states
+with the same owner. Positions and list order are excluded; flipping
+an entire compatibility group's orientation preserves its pair relationships.
+The unchanged cache path avoids Native pairwise merge scans. Only small value
+stamps survive a click; no cached Item pointer is dereferenced. The detector is
+bounded to128 sections/4096 entries and fails before mutation on invalid inputs.
+Its open-addressed grouping has expected linear cost; worst-case probing is
+bounded. Native canStackWith and the existing charged-unit reconciliation still
+authorize every actual transfer. Hash collisions could defer a retry, never
+permit incompatible transfer. Detailed log records skipped/attempted/result
+only on explicit clicks. No extra hooks, worker reads or per-frame item scans
+were added. Native visual acceptance of this trigger remains pending.
+
+Объединение выполняется только по явному нажатию сортировки. Снимок значимых
+параметров учитывает реальные предметы, остатки зарядов, владение и совместимость
+поворотов. Признак кражи и полный владелец учитываются у каждого предмета:
+Native может объединить чистый и украденный предметы с одним владельцем. XY и порядок списка не учитываются; обычный перебор раскладок не
+повторяет попарный поиск. В кэше остаются только значения, без разыменования
+сохранённых указателей предметов. Проверка ограничена128 разделами/4096 записями;
+некорректный вход останавливает действие до изменения инвентаря. Окончательное
+решение о каждом объединении по-прежнему принимает Native canStackWith, заряды
+сверяет прежний адаптер. Подробный журнал различает пропуск, попытку, результат
+и ошибку только на кликах. Новых хуков и покадровых обходов нет. Проверка нового
+поведения в игре ещё требуется.

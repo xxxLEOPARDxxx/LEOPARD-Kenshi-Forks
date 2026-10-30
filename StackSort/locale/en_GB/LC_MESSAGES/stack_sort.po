@@ -41,8 +41,8 @@ msgstr "Replace Arrange in inventories with room to sort. Single-slot storage ke
 msgid "Merge split stacks"
 msgstr "Merge split stacks"
 
-msgid "On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."
-msgstr "On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."
+msgid "On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks."
+msgstr "On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks."
 
 msgid "Height"
 msgstr "Height"

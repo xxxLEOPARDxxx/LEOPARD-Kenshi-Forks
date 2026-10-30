@@ -41,8 +41,8 @@ msgstr "在有整理空间的物品栏中替换整理按钮。单格储存容器
 msgid "Merge split stacks"
 msgstr "合并分散堆叠"
 
-msgid "On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."
-msgstr "首次整理时，按照游戏的物品及所有权兼容规则合并堆叠。撤销会恢复合并后的物品位置。"
+msgid "On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks."
+msgstr "点击整理时，在物品或剩余使用次数变化后重新合并兼容堆叠。遵循游戏的物品及所有权规则。撤销仅恢复位置，不会拆分堆叠。"
 
 msgid "Height"
 msgstr "高度"

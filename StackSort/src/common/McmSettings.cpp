@@ -38,7 +38,7 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->beginMod(api, "StackSort", "Stack Sort", path.c_str(), LoadLive);
     if (api->version >= 2) api->info(api, Tr("Pack inventory items, merge compatible split stacks and reserve free space."));
     api->toggle(api, "StackSort", "Enabled", Tr("Enable Stack Sort"), Tr("Replace Arrange in inventories with room to sort. Single-slot storage keeps its original controls."), 1, 0);
-    api->toggle(api, "StackSort", "ConsolidateStacks", Tr("Merge split stacks"), Tr("On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."), 1, 0);
+    api->toggle(api, "StackSort", "ConsolidateStacks", Tr("Merge split stacks"), Tr("On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks."), 1, 0);
     static const char* values[] = {"H", "W"};
     const char* labels[] = {Tr("Height"), Tr("Width")};
     api->choice(api, "StackSort", "DefaultDimension", Tr("Starting free-space direction"), Tr("Starting H/W mode when the plugin starts. The inventory H/W button changes it during play."), "H", values, labels, 2, MCM_RESTART);

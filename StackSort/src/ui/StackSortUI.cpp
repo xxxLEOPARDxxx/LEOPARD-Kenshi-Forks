@@ -1,6 +1,7 @@
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <kenshi/Inventory.h>
+#include <kenshi/Item.h>
 #include <kenshi/RootObject.h>
 #include <kenshi/gui/InventoryGUI.h>
 #include <kenshi/Globals.h>
@@ -25,6 +26,7 @@
 #include "StackSortConfig.h"
 #include "StackSortSettings.h"
 #include "SectionEligibility.h"
+#include "NativeMergeContentStamp.h"
 #include "McmSettings.h"
 #include "Translate.h"
 #include "Log.h"
@@ -64,6 +66,7 @@ struct UIState
     MyGUI::Widget* controlsParent;
     int parentWidth, parentHeight;
     bool stacksConsolidated;
+    MergeContent::Value mergeStamp;
     int topTargets[TOP_TARGETS_MAX];
     int topTargetCount; // 0..the top_targets setting
     int topTargetIdx;   // -1 = not active, else 0..topTargetCount-1
@@ -194,6 +197,7 @@ static void ResetSlot(UIState& ui)
     ui.controlsParent     = NULL;
     ui.parentWidth = ui.parentHeight = 0;
     ui.stacksConsolidated = false;
+    ui.mergeStamp = MergeContent::Value();
     ui.topTargetCount     = 0;
     ui.topTargetIdx       = -1;
     ui.hasMemKey          = false;
@@ -737,49 +741,63 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         ReportUIException("initialize (native Arrange retained)");
     }
 }
-// Pre-sort setup for every sort click. Stack consolidation runs once per open
-// (stacksConsolidated); the revert capture is retried on every click because
-// the worker drops a section's capture when the player hand-edits it or
-// changes the backpack, and CaptureOriginalPositions skips sections that
-// still hold one. Per-inventory scope — only touches sections of ui.gui's
-// inventory.
+// Pre-sort setup for every sort click. A bounded semantic stamp
+// detects quiet changes (charges, ownership and relative rotation included).
+// Packing positions/list order never invalidate it; unchanged cycling does no
+// pairwise consolidation. Capture is still retried after native merging.
 void StackSortUI::FirstClickInit(int uiIdx)
 {
     UIState& ui = s_uiStates[uiIdx];
     StackSort_InitRotateAPI();
-
-    if (!ui.stacksConsolidated)
+    // Merge inspection starts here: explicit click only.
+    Inventory* inv = ui.gui->_NV_getInventory();
+    if (inv && StackSortMcm::MergeStacks())
     {
-        Inventory* inv = ui.gui->_NV_getInventory();
-
-        bool anyConsolidated = false;
-        if (inv && StackSortMcm::MergeStacks())
+        MergeContent::Value current;
+        if (!ReadMergeContentStamp(inv,current))
         {
-            lektor<InventorySection*>& sections = inv->getAllSections();
-            for (lektor<InventorySection*>::iterator it = sections.begin(); it != sections.end(); ++it)
+            ui.stacksConsolidated = false;
+            throw std::runtime_error("StackSort cannot inspect merge contents within safe bounds");
+        }
+        if (ui.stacksConsolidated && ui.mergeStamp == current)
+            LogVerbose("[StackSort] Semantic contents unchanged -> merge skipped");
+        else
+        {
+            ui.stacksConsolidated = false; // Exceptions must not cache a successful pass.
+            LogVerbose("[StackSort] Semantic contents uncached/changed -> merge attempted");
+            bool anyConsolidated = false;
+            try
             {
-                InventorySection* section = *it;
-                if (!StackSort_EligibleSection(section)) continue;
-                if (!section->enabled) continue;
-                if (section->getItems().empty()) continue;
-                if (ConsolidateStacks(section)) anyConsolidated = true;
+                lektor<InventorySection*>& sections = inv->getAllSections();
+                for (lektor<InventorySection*>::iterator it = sections.begin(); it != sections.end(); ++it)
+                {
+                    InventorySection* section = *it;
+                    if (!StackSort_EligibleSection(section) || !section->enabled || section->getItems().empty()) continue;
+                    if (ConsolidateStacks(section)) anyConsolidated = true;
+                }
+                // Native may consume sources: reacquire only real live contents.
+                if (!ReadMergeContentStamp(inv,current))
+                    throw std::runtime_error("StackSort cannot verify post-merge contents");
+            }
+            catch (...)
+            {
+                LogVerbose("[StackSort] Merge attempted -> fault; successful stamp not retained");
+                throw;
+            }
+            ui.mergeStamp = current;
+            ui.stacksConsolidated = true;
+            LogVerbose(anyConsolidated ? "[StackSort] Merge attempted -> changed"
+                                      : "[StackSort] Merge attempted -> no transfer");
+            if (anyConsolidated)
+            {
+                LogInfo("[StackSort] Consolidated stacks, triggering re-snapshot");
+                SortWorker::OnMutation(ui.ownerGUI);
+                ForceRefreshAllSections(ui.gui);
             }
         }
-
-        ui.stacksConsolidated = true;
-
-        if (anyConsolidated)
-        {
-            LogInfo("[StackSort] Consolidated stacks, triggering re-snapshot");
-            SortWorker::OnMutation(ui.ownerGUI);
-            ForceRefreshAllSections(ui.gui);
-        }
     }
-
-    // Must run before the click's ApplySort: an absent capture here means the
-    // layout on screen is the player's, not ours, unless an earlier apply
-    // marked the section sorted-without-capture (no entry yet, or the apply
-    // dropped the capture itself); CaptureOriginalPositions skips those.
+    else ui.stacksConsolidated = false;
+    // Captures the post-merge player layout, never a consumed source pointer.
     CaptureOriginalPositions(ui.gui);
 }
 
@@ -1050,7 +1068,7 @@ void StackSortUI::OnDimClick(MyGUI::Widget* sender)
         // the new dim rather than at 0. The recall clamps against the GUI's
         // inventory, so every other slot does it from its own next OnUpdate; only
         // the clicked GUI is provably alive here.
-        // Do NOT reset stacksConsolidated — consolidation is per-inventory-open.
+        // H/W changes alone do not invalidate semantic merge contents.
         for (int i = 0; i < MAX_GUIS; ++i)
         {
             UIState& ui = s_uiStates[i];

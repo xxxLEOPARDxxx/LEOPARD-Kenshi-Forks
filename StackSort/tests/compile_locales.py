@@ -12,7 +12,7 @@ ROWS = [
 ("Enable Stack Sort", "Включить Stack Sort", "启用 Stack Sort"),
 ("Replace Arrange in inventories with room to sort. Single-slot storage keeps its original controls.", "Заменяет кнопку сортировки там, где есть место для перестановки. Однослотовые хранилища сохраняют обычное управление.", "在有整理空间的物品栏中替换整理按钮。单格储存容器保留原有控件。"),
 ("Merge split stacks", "Объединять разделённые стопки", "合并分散堆叠"),
-("On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging.", "При первой сортировке объединяет стопки по игровым правилам совместимости предметов и владельцев. Отмена возвращает позиции после объединения.", "首次整理时，按照游戏的物品及所有权兼容规则合并堆叠。撤销会恢复合并后的物品位置。"),
+("On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks.", "При нажатии сортировки повторно объединяет совместимые стопки после изменения состава или расхода зарядов. Использует игровые правила предметов и владельцев. Отмена возвращает позиции, не разделяя стопки.", "点击整理时，在物品或剩余使用次数变化后重新合并兼容堆叠。遵循游戏的物品及所有权规则。撤销仅恢复位置，不会拆分堆叠。"),
 ("Height", "Высота", "高度"), ("Width", "Ширина", "宽度"),
 ("Starting free-space direction", "Начальное направление свободного места", "初始空余空间方向"),
 ("Starting H/W mode when the plugin starts. The inventory H/W button changes it during play.", "Режим В/Ш при запуске плагина. Кнопка В/Ш в инвентаре меняет его во время игры.", "插件启动时使用的高/宽模式。游戏中可通过物品栏的高/宽按钮切换。"),

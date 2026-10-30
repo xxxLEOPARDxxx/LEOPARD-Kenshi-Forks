@@ -41,8 +41,8 @@ msgstr "Заменяет кнопку сортировки там, где ест
 msgid "Merge split stacks"
 msgstr "Объединять разделённые стопки"
 
-msgid "On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."
-msgstr "При первой сортировке объединяет стопки по игровым правилам совместимости предметов и владельцев. Отмена возвращает позиции после объединения."
+msgid "On sort clicks, merge compatible stacks after contents or remaining charges change. Uses the game's item and ownership rules. Undo restores positions, without splitting stacks."
+msgstr "При нажатии сортировки повторно объединяет совместимые стопки после изменения состава или расхода зарядов. Использует игровые правила предметов и владельцев. Отмена возвращает позиции, не разделяя стопки."
 
 msgid "Height"
 msgstr "Высота"

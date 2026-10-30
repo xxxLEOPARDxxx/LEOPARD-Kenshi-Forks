@@ -33,4 +33,20 @@ if ($LASTEXITCODE) { throw 'Planner mutant did not compile' }
 & "$out/ignored_neighbors.exe"
 if ($LASTEXITCODE -eq 0) { throw 'Ignored-neighbor planner mutation survived' }
 Write-Host 'Expected assertion failure verified: ignored_neighbors'
+# Regression from independent Native review: a clean item's owner must remain
+# observable when the other candidate is stolen. This exact production mutation
+# must fail the actual stamp + FirstClickInit charged-transfer cases.
+[IO.File]::WriteAllText("$out/NativeMergeAdapter.h",$original)
+$stamp=[IO.File]::ReadAllText("$module/src/common/NativeMergeContentStamp.h")
+$missingCleanOwner=$stamp.Replace('MergeContent::AddWord(value,owner.index)','MergeContent::AddWord(value,stolen?owner.index:0)')
+if($stamp -eq $missingCleanOwner){throw 'Clean-owner mutation did not apply'}
+[IO.File]::WriteAllText("$out/NativeMergeContentStamp.h",$missingCleanOwner)
+$ui=[IO.File]::ReadAllText("$module/src/ui/StackSortUI.cpp")
+$begin=$ui.IndexOf('void StackSortUI::FirstClickInit(');$end=$ui.IndexOf('// Forward-arrow cycling:',$begin)
+[IO.File]::WriteAllText("$out/ui_merge_under_test.h",$ui.Substring($begin,$end-$begin))
+& "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD /O2 /DWIN32 /DNDEBUG /D_CRT_SECURE_NO_WARNINGS "/Fo$out/" "/Fe$out/ignored_clean_owner.exe" "$PSScriptRoot/ui_merge_tests.cpp"
+if($LASTEXITCODE){throw 'Clean-owner mutant did not compile'}
+& "$out/ignored_clean_owner.exe"
+if($LASTEXITCODE -eq 0){throw 'Clean-owner omission survived'}
+Write-Host 'Expected assertion failure verified: ignored_clean_owner'
 exit 0
