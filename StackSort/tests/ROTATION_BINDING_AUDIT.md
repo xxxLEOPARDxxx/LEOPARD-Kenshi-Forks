@@ -42,3 +42,16 @@ orientation/reused identity, and existing-rotation dimensions without the API. S
 are not a substitute for testing actual automatic rotation in both mod orders.
 
 No KEO/body/backpack geometry, user configuration or Rotate source is changed.
+
+## Installed-game acceptance, 30 October 2026
+
+Root installed the reviewed ef748 DLL and placed StackSort.mod immediately
+before KenshiRotate.mod in the game's mods.cfg, retaining the original file
+in the grouped installation backup. The user tested the previously failing
+case and confirmed both automatic item rotation and right-click undo. They
+also confirmed that both plugin orders now work. The prior e890 geometry
+change had already received their acceptance for inventory and backpack
+centering with the existing KEO checkbox.
+
+This is user visual acceptance, separate from the source/model tests above;
+no screenshots with diagnostic arrows are treated as publication images.
