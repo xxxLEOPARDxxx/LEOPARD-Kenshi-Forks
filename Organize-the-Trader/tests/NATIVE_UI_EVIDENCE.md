@@ -82,3 +82,68 @@ Candidate3 has a separate matching MAP/compiler layout/probe; candidate2 artifac
 Independent actual-production review reproduced a native reset to the original money-plate rectangle while captions and semantic cache keys were unchanged: base width191, owned width468, reset left the plate at191 with owned text reaching447. The original independent case failed4 checks/3 failures. The correction compares live geometry with the last owned rectangle projected through ordinary parent alignment before the baseline helper adopts any native reset. A mismatch invalidates header layout even when the semantic text cache is unchanged.
 
 The exact independently supplied case now passes4/0. The production header suite adds NativeReset -> Update ->100 stable calls for all three XML/style fixtures:93 checks/0, with no additional caption writes, widget allocations or geometry writes during the stable calls. Native baseline restoration, theme inheritance, two amounts and existing font/measurement caches remain covered. These are offline source/model checks, not visual or sale acceptance.
+
+
+## Missing header in both themes: real layout parent (2026-10-30)
+
+The direct-parent guard introduced with native background preservation rejected
+both installed layouts. `ResolveInjectionParent(Window)` returns the Window skin
+Client. `Kenshi_InventoryTraderWindow.layout` places the native money plate inside
+its separate Content widget. The already captured RUNTIME-35788 candidate2 snapshot
+independently records plate -> generated *_Content -> Client -> Window; its combo
+controls instead live directly under Client. This explains a functioning footer
+with a completely native cash header and no creation/style error in the log.
+
+The previous production-function test flattened the plate directly under the
+injection parent. Adding the actual nested Content, with distinct position and
+size, failed five assertions before the fix (102 checks / 5 failures). The fix
+accepts only a bounded chain of six widget nodes ending at the exact injection
+parent. A sibling host, foreign host, cycle or excessive nesting is rejected.
+The plate's immediate parent remains its coordinate/resize/restore reference;
+no reparenting or skin/colour substitution is performed. Existing native text
+insets, original background, native rendered font and XML text role are retained.
+The footer and inventory viewport reservation still belong to the injection host.
+
+The new tests cover offset nested Content, its own resize, native baseline
+restoration, repeated stable frames without allocations/coordinate writes, foreign
+and sibling hosts, a cycle and the explicit nesting bound. This is offline source
+and historical snapshot evidence. The corrected DLL still requires fresh in-game
+visual acceptance in vanilla and Dark UI; no process was opened for this work.
+
+
+## Independent review: combined header and viewport reservation
+
+The first Content-parent candidate (21e24a23) is rejected. Independent review
+extracted both real production functions and reproduced another direct-parent
+assumption in ReserveAdaptiveRows: seven checks, two failures. The header wrapped
+by41px, but both Content-owned inventory viewports remained at their original top.
+The previous header suite replaced that function with a no-op and missed overlap.
+
+The permanent suite now extracts the complete production viewport binding,
+reservation and teardown helpers alongside UpdateTradeBalance. Its first nested
+combined case failed five checks (117 checks /5 failures) before this correction.
+A viewport now retains weak references to its actual parent and exact injection
+host. Alignment projection and reservation restoration use that immediate parent's
+dimensions. Reparent/replacement clears the old identity and baseline; an exact
+owned rectangle is undone on an in-scope reparent, while a supplied new Native
+rectangle becomes the new baseline. Foreign roots and nested Windows are excluded.
+Coordinate callbacks are followed by weak-reference/parent revalidation before
+further GUI access. Destruction invalidates all viewport/parent/host references.
+
+Native resource prefixes are accepted with an exact reserved suffix. The longer
+scrollview_backpack_content role is checked before backpack_content, preventing
+one ScrollView from being used for both. Binding uses a fixed128-entry breadth
+first queue, at most six ancestry nodes and six search levels; inventory icon
+children are never traversed. Duplicate roles fail closed. A missing role is
+retried after60 reservation calls; normal stable frames perform no tree search,
+allocation or geometry write. These are bounded source operations, not an FPS
+or memory benchmark.
+
+The combined cases cover separate Content offsets/dimensions, own-parent resize,
+1000 stable frames, disable/reopen restoration, in-scope reparent with retained
+owned geometry, an absolute Native baseline reset, foreign-root replacement,
+Native delete/recreate, clipping with independent initial visibility, missing
+raw viewport versus ScrollView role aliasing, nested foreign Windows, late
+creation,300 icon descendants, synchronous coordinate-callback destruction and
+window close. Together with the existing XML/style scenarios the suite passes
+136 checks. In-game visual acceptance of the new candidate remains pending.

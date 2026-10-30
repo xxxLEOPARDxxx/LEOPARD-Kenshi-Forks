@@ -19,6 +19,15 @@ inline int ParseMoneyCaption(const std::string& caption)
     }
     return digits ? value : -1;
 }
+// Native Window::getClientWidget() returns the skin Client; layout Content
+// can add intermediate parents. Validate scope without flattening that layout.
+template<class Widget>
+bool WithinParent(Widget* widget, Widget* parent)
+{
+    for (int depth = 0; widget != 0 && depth < 6; ++depth, widget = widget->getParent())
+        if (widget == parent) return true;
+    return false;
+}
 inline bool SafeMoneyPlate(bool ownsContent, bool isContent, int plateHeight, int parentHeight, bool trusted = false)
 {
     return !ownsContent && !isContent && plateHeight > 0 && parentHeight > 0

@@ -13,24 +13,28 @@ struct IntSize {int width,height;IntSize(int w=0,int h=0):width(w),height(h){}};
 struct Align {int bits;Align(int b=0):bits(b){}enum{Default=0,Left=1,Right=2,HCenter=4,VCenter=8,Top=16,Bottom=32,HStretch=64,VStretch=128};bool isHStretch()const{return (bits&HStretch)!=0;}bool isVStretch()const{return (bits&VStretch)!=0;}bool isRight()const{return bits&Right;}bool isHCenter()const{return bits&HCenter;}bool isBottom()const{return bits&Bottom;}bool isVCenter()const{return bits&VCenter;}bool operator!=(Align a)const{return bits!=a.bits;}};
 struct UString:std::string {UString(){}UString(const char* s):std::string(s){}UString(const std::string& s):std::string(s){}std::string asUTF8()const{return *this;}};
 struct ISubWidgetText {int height;std::string font;Colour colour;ISubWidgetText():height(21),font("NativeMedium"){}int getFontHeight(){return height;}const std::string& getFontName(){return font;}Colour getTextColour(){return colour;}};
-class TextBox;static Colour xmlColour;static int creates=0,coordWrites=0,captionWrites=0,failAt=0;
+class Widget;static Widget* destroyOnCoord=0;static void AfterCoordinate(Widget*);
+class TextBox;static Colour xmlColour;static int creates=0,coordWrites=0,captionWrites=0,failAt=0,treeReads=0;
 class Widget {public:Widget* parent;IntCoord coord;float alpha;bool visible,dead,focus;std::string name,skin;std::map<std::string,std::string> tags;Align align;std::vector<Widget*> children;
  Widget(Widget* p=0,const char* n=""):parent(p),coord(0,0,500,550),alpha(1),visible(true),dead(false),focus(false),name(n){if(p)p->children.push_back(this);}virtual ~Widget(){}
  template<class T>T* castType(bool){return dynamic_cast<T*>(this);}template<class T>T* createWidget(const std::string& s,IntCoord c,Align a,const char* n){++creates;if(creates==failAt)throw std::runtime_error("missing skin");T* t=new T(this,n);t->skin=s;t->coord=c;t->align=a;return t;}
- Widget* getParent(){return parent;}int getWidth(){return coord.width;}int getHeight(){return coord.height;}IntCoord getCoord(){return coord;}void setCoord(IntCoord c){int dx=c.width-coord.width,dy=c.height-coord.height;coord=c;++coordWrites;for(size_t i=0;i<children.size();++i){Widget* w=children[i];if(w->dead)continue;Align a=w->align;TraderAdaptiveLayout::Rect r=TraderAdaptiveLayout::ProjectAlign(TraderAdaptiveLayout::Rect(w->coord.left,w->coord.top,w->coord.width,w->coord.height),dx,dy,a.isHStretch()?3:a.isRight()?2:a.isHCenter()?1:0,a.isVStretch()?3:a.isBottom()?2:a.isVCenter()?1:0);IntCoord next(r.left,r.top,r.width,r.height);if(next!=w->coord)w->setCoord(next);}}IntCoord getAbsoluteCoord(){IntCoord c=coord;if(parent){IntCoord p=parent->getAbsoluteCoord();c.left+=p.left;c.top+=p.top;}return c;}
- const std::string& getName(){return name;}float getAlpha(){return alpha;}void setAlpha(float a){alpha=a;}float realAlpha(){return alpha*(parent?parent->realAlpha():1);}bool getVisible(){return visible;}void setVisible(bool v){visible=v;}Align getAlign(){return align;}
+ size_t getChildCount(){++treeReads;return children.size();}Widget* getChildAt(size_t i){++treeReads;return children[i];}
+ Widget* getParent(){return parent;}int getWidth(){return coord.width;}int getHeight(){return coord.height;}IntCoord getCoord(){return coord;}void setCoord(IntCoord c){int dx=c.width-coord.width,dy=c.height-coord.height;coord=c;++coordWrites;for(size_t i=0;i<children.size();++i){Widget* w=children[i];if(w->dead)continue;Align a=w->align;TraderAdaptiveLayout::Rect r=TraderAdaptiveLayout::ProjectAlign(TraderAdaptiveLayout::Rect(w->coord.left,w->coord.top,w->coord.width,w->coord.height),dx,dy,a.isHStretch()?3:a.isRight()?2:a.isHCenter()?1:0,a.isVStretch()?3:a.isBottom()?2:a.isVCenter()?1:0);IntCoord next(r.left,r.top,r.width,r.height);if(next!=w->coord)w->setCoord(next);}AfterCoordinate(this);}IntCoord getAbsoluteCoord(){IntCoord c=coord;if(parent){IntCoord p=parent->getAbsoluteCoord();c.left+=p.left;c.top+=p.top;}return c;}
+ const std::string& getName(){return name;}float getAlpha(){return alpha;}void setAlpha(float a){alpha=a;}float realAlpha(){return alpha*(parent?parent->realAlpha():1);}bool getVisible(){if(dead)throw std::runtime_error("Native read of destroyed widget");return visible;}void setVisible(bool v){visible=v;}Align getAlign(){return align;}
  bool getNeedMouseFocus(){return focus;}void setNeedMouseFocus(bool v){focus=v;}std::string getUserString(const std::string& k){return tags[k];}void setUserString(const std::string& k,const std::string& v){tags[k]=v;}void clearUserString(const std::string& k){tags.erase(k);}
 };
+class Window:public Widget {public:Window(Widget* p=0,const char* n=""):Widget(p,n){}};
 class TextBox:public Widget {public:ISubWidgetText rendered;UString caption;Align textAlign;TextBox(Widget* p=0,const char* n=""):Widget(p,n){rendered.colour=xmlColour;}const UString& getCaption(){return caption;}void setCaption(UString c){caption=c;++captionWrites;}void setFontName(const std::string& f){rendered.font=f;}void setFontHeight(int h){rendered.height=h;}void setTextColour(Colour c){rendered.colour=c;}IntSize getTextSize(){return IntSize((int)caption.size()*rendered.height/2,rendered.height);}Align getTextAlign(){return textAlign;}void setTextAlign(Align a){textAlign=a;}};
-class Gui {public:static Gui* getInstancePtr(){static Gui g;return &g;}void destroyWidget(Widget* w){w->dead=true;}};
+class Gui {public:static Gui* getInstancePtr(){static Gui g;return &g;}void destroyWidget(Widget* w){while(!w->children.empty())destroyWidget(w->children.back());w->dead=true;if(w->parent){std::vector<Widget*>& v=w->parent->children;for(size_t i=0;i<v.size();++i)if(v[i]==w){v.erase(v.begin()+i);break;}}}};
+static void AfterCoordinate(Widget* w){if(destroyOnCoord==w){destroyOnCoord=0;Gui::getInstancePtr()->destroyWidget(w);}}
 }
 struct WidgetRef {MyGUI::Widget* value;WidgetRef():value(0){}MyGUI::Widget* get(){return value&&!value->dead?value:0;}void set(MyGUI::Widget* w){value=w;}void reset(){value=0;}};
 struct Metric {void Reset(){}};
 struct Snapshot {bool Observe(MyGUI::Widget*){return false;}};
 struct Cache {WidgetRef controls[7],viewports[2],nativeMoney,plate,trader,measure,popup;Metric metrics[2];Snapshot headerText[2];MyGUI::UString nativeCaption;MyGUI::IntCoord headerCoord;
  int moneyFontHeight,balance,baseFont[7],fittedFont[7],headerExtra,footerExtra;std::string moneyFontName;MyGUI::Colour moneyColour;bool headerValid,showDeal,popupValid,viewportsBound,uiStateValid,footerValid,viewportHidden[2],viewportVisible[2];float plateAlpha;int headerCaptionSets;TraderAdaptiveLayout::Viewport viewportLayout[2];
- float dataAlpha;WidgetRef nativePanel,nativePlateParent,failedNativePanel;TraderAdaptiveLayout::Viewport plateLayout;MyGUI::IntCoord headerContent;
- Cache():moneyFontHeight(-1),balance(0),headerExtra(0),footerExtra(0),headerValid(false),showDeal(false),plateAlpha(1),headerCaptionSets(0),dataAlpha(1){}
+ float dataAlpha;WidgetRef nativePanel,nativePlateParent,failedNativePanel,viewportParents[2],viewportHost;int viewportRetry;TraderAdaptiveLayout::Viewport plateLayout;MyGUI::IntCoord headerContent;
+ Cache():moneyFontHeight(-1),balance(0),headerExtra(0),footerExtra(0),headerValid(false),showDeal(false),popupValid(false),viewportsBound(false),uiStateValid(false),footerValid(false),plateAlpha(1),headerCaptionSets(0),dataAlpha(1),viewportRetry(0){for(int i=0;i<2;++i)viewportHidden[i]=viewportVisible[i]=false;for(int i=0;i<7;++i)baseFont[i]=fittedFont[i]=-1;}
 };
 typedef Cache AdaptiveUiCache;
 static Cache cache;static WidgetRef dataRef,balanceRef;static MyGUI::Widget* root=0;static MyGUI::Widget* liveData=0;static MyGUI::TextBox* value=0;
@@ -41,9 +45,11 @@ static MyGUI::Widget* CachedInParent(WidgetRef& r,MyGUI::Widget*,const char*){if
 static void FindMoneyTexts(MyGUI::Widget*,int,MyGUI::TextBox**,MyGUI::TextBox** v){*v=value;}static int FontHeight(MyGUI::Widget* w){return RenderedText(w)->height;}static const std::string& FontName(MyGUI::Widget* w){return RenderedText(w)->font;}
 static const char* Tr(const char* s){return s;}static int ParseMoneyCaption(const std::string& s){return TraderAdaptiveLayout::ParseMoneyCaption(s);}static void LearnMoneyFormat(const std::string&){}static std::string FormatMoney(int){return "0";}
 static void HeaderCaptionIfChanged(MyGUI::TextBox* t,MyGUI::UString c){if(t->caption!=c){t->setCaption(c);++cache.headerCaptionSets;}}static void CoordIfChanged(MyGUI::Widget* w,MyGUI::IntCoord c){if(w&&w->getCoord()!=c)w->setCoord(c);}static void AlignIfChanged(MyGUI::TextBox* t,MyGUI::Align a){if(t->getTextAlign()!=a)t->setTextAlign(a);}static void FullCaptionTip(MyGUI::Widget*,const MyGUI::UString&,bool){}
-static void ReserveAdaptiveRows(MyGUI::Widget*,int,int){}static MyGUI::Widget* FindLiveDockOwner(bool){return root;}static MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* w){return w;}static const int kHeaderCount=2;
+#include "ViewportProductionUnderTest.h"
+static MyGUI::Widget* FindLiveDockOwner(bool){return root&&!root->dead?root:0;}static MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* w){return w;}static const int kHeaderCount=2;
 static int errors=0;static void LogErrorLine(const std::string&){++errors;}
 #include "HeaderProductionUnderTest.h"
+static void Reparent(MyGUI::Widget& w,MyGUI::Widget* parent){if(w.parent){std::vector<MyGUI::Widget*>& v=w.parent->children;for(size_t i=0;i<v.size();++i)if(v[i]==&w){v.erase(v.begin()+i);break;}}w.parent=parent;if(parent)parent->children.push_back(&w);}
 static int checks=0,failures=0;
 #define CHECK(x) do{++checks;if(!(x)){++failures;printf("FAIL %d: %s\n",__LINE__,#x);}}while(0)
 int main(int argc,char** argv){
@@ -84,6 +90,93 @@ int main(int argc,char** argv){
   for(int fail=1;fail<=2;++fail){dataRef.set(&data);MyGUI::failAt=MyGUI::creates+fail;int oldErrors=errors;UpdateTradeBalance(&owner,&owner);CHECK(errors==oldErrors+1&&data.alpha==.6f&&!cache.trader.get()&&!balanceRef.get());CHECK(data.getUserString("LEOPARD_OTT_MoneyHeader")!="1");int allocated=MyGUI::creates;for(int n=0;n<100;++n)UpdateTradeBalance(&owner,&owner);CHECK(allocated==MyGUI::creates);MyGUI::failAt=0;DestroyTradeBalance();}
   MyGUI::xmlColour.alpha=0;cash.rendered.colour.alpha=1;int oldErrors=errors;UpdateTradeBalance(&owner,&owner);CHECK(errors==oldErrors+1&&data.alpha==.6f&&!cache.trader.get()&&!balanceRef.get());int allocated=MyGUI::creates;for(int n=0;n<100;++n)UpdateTradeBalance(&owner,&owner);CHECK(allocated==MyGUI::creates);MyGUI::xmlColour.alpha=1;DestroyTradeBalance();
   plate.alpha=.5f;UpdateTradeBalance(&owner,&owner);CHECK(plate.alpha==.5f&&cache.trader.get()->getAlpha()==.6f);DestroyTradeBalance();CHECK(plate.alpha==.5f);
+ }
+ // Native layouts place the plate under Content, while Window returns its
+ // skin Client as the injection parent. Keep the real Content offset/size.
+ cache=Cache();dataRef.reset();balanceRef.reset();g_balanceOwner=0;g_balanceStartMoney=g_balanceMoney=-1;
+ MyGUI::Widget client(0,"Client"),content(&client,"generated_Content"),plate(&content,"NativeCashPlate"),data(&plate,"datapanel");
+ root=&client;liveData=&data;content.coord=MyGUI::IntCoord(11,7,450,500);plate.coord=MyGUI::IntCoord(14,3,203,41);data.coord=MyGUI::IntCoord(21,11,161,19);
+ MyGUI::TextBox cash(&data,"value");value=&cash;cash.caption="c.64760";dataRef.set(&data);MyGUI::xmlColour.alpha=1;
+ UpdateTradeBalance(&client,&client);
+ CHECK(cache.trader.get()&&balanceRef.get());CHECK(data.alpha==0);CHECK(cache.nativePlateParent.get()==&content);
+ CHECK(plate.coord.left==16&&plate.coord.top==3&&plate.coord.width==418);
+ int allocated=MyGUI::creates,written=MyGUI::coordWrites;
+ for(int i=0;i<1000;++i)UpdateTradeBalance(&client,&client);
+ CHECK(allocated==MyGUI::creates&&written==MyGUI::coordWrites);
+ content.setCoord(MyGUI::IntCoord(19,12,470,510));UpdateTradeBalance(&client,&client);CHECK(plate.coord.width==438);
+ DestroyTradeBalance();CHECK(data.alpha==1);CHECK(plate.coord==MyGUI::IntCoord(14,3,203,41));
+ MyGUI::Widget foreign;plate.parent=&foreign;dataRef.set(&data);allocated=MyGUI::creates;
+ UpdateTradeBalance(&client,&client);CHECK(!cache.trader.get()&&!balanceRef.get()&&data.alpha==1&&allocated==MyGUI::creates);
+ plate.parent=&content;
+ MyGUI::Widget sibling(&client,"other_scope"),a(&client),b(&a),c(&b),d(&c),e(&d),f(&e);
+ CHECK(TraderAdaptiveLayout::WithinParent(&e,&client));CHECK(!TraderAdaptiveLayout::WithinParent(&f,&client));
+ CHECK(!TraderAdaptiveLayout::WithinParent(&content,&sibling));
+ MyGUI::Widget cyclic;cyclic.parent=&cyclic;CHECK(!TraderAdaptiveLayout::WithinParent(&cyclic,&client));
+ // A sibling target must not gain control over another Content's plate.
+ root=&sibling;dataRef.set(&data);allocated=MyGUI::creates;
+ UpdateTradeBalance(&sibling,&sibling);CHECK(!cache.trader.get()&&!balanceRef.get()&&data.alpha==1&&allocated==MyGUI::creates);
+ {
+ // Combined production header + viewport reservation, including Native prefixes.
+ cache=Cache();dataRef.reset();balanceRef.reset();g_balanceOwner=0;g_balanceStartMoney=g_balanceMoney=-1;
+ MyGUI::Widget client(0,"Client"),content(&client,"prefix_Content"),plate(&content,"CashPlate"),data(&plate,"datapanel"),viewport(&content,"prefix_backpack_content"),scroll(&content,"prefix_scrollview_backpack_content");
+ root=&client;liveData=&data;content.coord=MyGUI::IntCoord(19,12,450,500);plate.coord=MyGUI::IntCoord(14,3,203,41);data.coord=MyGUI::IntCoord(21,11,161,19);viewport.coord=MyGUI::IntCoord(8,50,400,400);scroll.coord=MyGUI::IntCoord(9,60,390,390);
+ viewport.align=scroll.align=MyGUI::Align(MyGUI::Align::HStretch|MyGUI::Align::VStretch);
+ MyGUI::TextBox cash(&data,"value");value=&cash;cash.caption="c.64760";dataRef.set(&data);MyGUI::xmlColour.alpha=1;
+ UpdateTradeBalance(&client,&client);const int extra=cache.headerExtra;CHECK(extra>0);
+ ReserveAdaptiveRows(&client,extra,12);CHECK(viewport.coord.top==50+extra&&viewport.coord.height==400-extra-12);CHECK(scroll.coord.top==60+extra&&scroll.coord.height==390-extra-12);
+ CHECK(cache.viewports[0].get()==&viewport&&cache.viewports[1].get()==&scroll);
+ int created=MyGUI::creates,writes=MyGUI::coordWrites,reads=MyGUI::treeReads;
+ for(int n=0;n<1000;++n){UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,cache.headerExtra,12);}
+ CHECK(created==MyGUI::creates&&writes==MyGUI::coordWrites&&reads==MyGUI::treeReads);
+ content.setCoord(MyGUI::IntCoord(31,18,470,510));UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,cache.headerExtra,12);
+ CHECK(viewport.coord.top==50+extra&&viewport.coord.height==410-extra-12);CHECK(scroll.coord.top==60+extra&&scroll.coord.height==400-extra-12);
+ DestroyTradeBalance();CHECK(viewport.coord==MyGUI::IntCoord(8,50,420,410));CHECK(scroll.coord==MyGUI::IntCoord(9,60,410,400));
+ CHECK(!cache.viewportParents[0].get()&&!cache.viewportParents[1].get());
+ // Reopen after disable and prove parent identity changes cannot reuse an old
+ // projection. Undo an exact owned local rectangle before a safe rebind.
+ dataRef.set(&data);UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,cache.headerExtra,12);
+ MyGUI::Widget alternate(&client,"other_Content");alternate.coord=MyGUI::IntCoord(7,9,430,490);
+ Reparent(viewport,&alternate);ReserveAdaptiveRows(&client,extra,12);
+ CHECK(cache.viewportParents[0].get()==&alternate);CHECK(viewport.coord.top==50+extra&&viewport.coord.height==410-extra-12);
+ viewport.coord=MyGUI::IntCoord(9,70,300,250);ReserveAdaptiveRows(&client,extra,12);
+ CHECK(viewport.coord.top==70+extra&&viewport.coord.height==250-extra-12);
+ DestroyTradeBalance();CHECK(viewport.coord==MyGUI::IntCoord(9,70,300,250));CHECK(scroll.coord==MyGUI::IntCoord(9,60,410,400));
+ // An alive old viewport moved to a foreign root must be left alone. A new
+ // same-role viewport in this host replaces its stale refs/baseline immediately.
+ dataRef.set(&data);UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,cache.headerExtra,12);
+ MyGUI::Widget foreign;Reparent(viewport,&foreign);viewport.coord=MyGUI::IntCoord(17,21,33,44);
+ MyGUI::Widget replacement(&content,"next_backpack_content");replacement.coord=MyGUI::IntCoord(6,80,310,240);
+ ReserveAdaptiveRows(&client,extra,12);CHECK(viewport.coord==MyGUI::IntCoord(17,21,33,44));
+ CHECK(cache.viewports[0].get()==&replacement&&cache.viewportParents[0].get()==&content);CHECK(replacement.coord.top==80+extra&&replacement.coord.height==240-extra-12);
+ MyGUI::Gui::getInstancePtr()->destroyWidget(&replacement);
+ MyGUI::Widget replacement2(&content,"last_backpack_content");replacement2.coord=MyGUI::IntCoord(4,90,300,230);replacement2.visible=false;
+ ReserveAdaptiveRows(&client,extra,12);CHECK(cache.viewports[0].get()==&replacement2&&replacement2.coord.top==90+extra);
+ // Clipping and disable preserve each native visibility state independently.
+ ReserveAdaptiveRows(&client,extra,1000);CHECK(!scroll.visible&&!replacement2.visible);
+ DestroyTradeBalance();CHECK(scroll.visible&&!replacement2.visible);CHECK(replacement2.coord==MyGUI::IntCoord(4,90,300,230));
+ dataRef.set(&data);UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,extra,12);
+ MyGUI::Gui::getInstancePtr()->destroyWidget(&replacement2);ReserveAdaptiveRows(&client,extra,12);
+ CHECK(!cache.viewports[0].get()&&cache.viewports[1].get()==&scroll);
+ // A nested foreign Window cannot supply this host's missing viewport.
+ MyGUI::Window nested(&client,"ForeignWindow");MyGUI::Widget nestedViewport(&nested,"backpack_content");nestedViewport.coord=MyGUI::IntCoord(3,4,200,210);
+ for(int n=0;n<61;++n)ReserveAdaptiveRows(&client,extra,12);
+ CHECK(!cache.viewports[0].get()&&nestedViewport.coord==MyGUI::IntCoord(3,4,200,210));
+ MyGUI::Widget late(&content,"late_backpack_content");late.coord=MyGUI::IntCoord(2,100,300,200);
+ for(int n=0;n<61;++n)ReserveAdaptiveRows(&client,extra,12);
+ CHECK(cache.viewports[0].get()==&late&&late.coord.top==100+extra);
+ // Item icon descendants do not enter the bounded viewport binder.
+ MyGUI::Widget icons[300];for(int n=0;n<300;++n)Reparent(icons[n],&late);
+ MyGUI::Widget* found[2];reads=MyGUI::treeReads;FindAdaptiveViewports(&client,found);
+ CHECK(found[0]==&late&&found[1]==&scroll&&MyGUI::treeReads-reads<128);
+ DestroyTradeBalance();CHECK(late.coord==MyGUI::IntCoord(2,100,300,200)&&scroll.coord==MyGUI::IntCoord(9,60,410,400));
+ dataRef.set(&data);UpdateTradeBalance(&client,&client);ReserveAdaptiveRows(&client,extra,12);
+ MyGUI::Gui::getInstancePtr()->destroyWidget(&late);
+ MyGUI::Widget callbackViewport(&content,"callback_backpack_content");callbackViewport.coord=MyGUI::IntCoord(3,110,300,220);
+ MyGUI::destroyOnCoord=&callbackViewport;ReserveAdaptiveRows(&client,extra,12);
+ CHECK(callbackViewport.dead&&!cache.viewports[0].get()&&!cache.viewportParents[0].get());
+ MyGUI::Gui::getInstancePtr()->destroyWidget(&client);writes=MyGUI::coordWrites;DestroyTradeBalance();
+ CHECK(writes==MyGUI::coordWrites&&!cache.viewports[0].get()&&!cache.viewportParents[0].get()&&!cache.viewportHost.get());
+ root=0;liveData=0;value=0;
  }
  fclose(fixtures);printf("%d actual header skin/lifecycle checks, %d failures\n",checks,failures);return failures?1:0;
 }

@@ -12,6 +12,9 @@ $source=[IO.File]::ReadAllText("$module/src/TraderSearchUi.cpp")
 $start=$source.IndexOf('void DestroyTradeBalance();');$end=$source.IndexOf('// The drop-down list',$start)
 if($start -lt 0 -or $end -lt $start){throw 'Production header boundaries changed'}
 [IO.File]::WriteAllText("$out/HeaderProductionUnderTest.h",$source.Substring($start,$end-$start))
+$rowsStart=$source.IndexOf('// Native inventory viewport ownership');$rowsEnd=$source.IndexOf('void LayoutBottomSearchRow',$rowsStart)
+if($rowsStart -lt 0 -or $rowsEnd -lt $rowsStart){throw 'Production viewport boundaries changed'}
+[IO.File]::WriteAllText("$out/ViewportProductionUnderTest.h",$source.Substring($rowsStart,$rowsEnd-$rowsStart))
 & "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD "/Fo$out/" "/Fe$out/HeaderSkinTests.exe" "$PSScriptRoot/HeaderSkinTests.cpp"
 if($LASTEXITCODE){exit $LASTEXITCODE}
 & "$out/HeaderSkinTests.exe" "$out/header-skin-fixtures.txt"

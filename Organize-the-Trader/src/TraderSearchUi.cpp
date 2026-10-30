@@ -297,12 +297,14 @@ struct AdaptiveUiCache
     WidgetRef nativePanel, nativePlateParent, failedNativePanel;
     TraderAdaptiveLayout::Viewport plateLayout;
     MyGUI::IntCoord headerContent;
+    WidgetRef viewportParents[2], viewportHost;
+    int viewportRetry;
     AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), balance(0), listWidth(0), moneyFontHeight(-1),
         listTextWidth(0), closedChrome(0), popupChrome(0), popupNaturalWidth(0), popupRenderedWidth(0),
         measureCreates(0), measureFontChanges(0), headerCaptionSets(0),
         popupFontHeight(0), popupTextWidth(0), popupValid(false),
         footerValid(false), headerValid(false), showDeal(false), viewportsBound(false), uiStateValid(false), uiState(0),
-        headerExtra(0), footerExtra(0), dataAlpha(1.0f)
+        headerExtra(0), footerExtra(0), dataAlpha(1.0f), viewportRetry(0)
     {
         for (int i = 0; i < 7; ++i) baseFont[i] = fittedFont[i] = -1;
         for (int i = 0; i < 2; ++i)
@@ -393,32 +395,141 @@ void FullCaptionTip(MyGUI::Widget* widget, const MyGUI::UString& caption, bool n
         tooltip->clear(widget);
     }
 }
+// Native inventory viewport ownership (extracted by production tests).
+bool NativeViewportParentInHost(MyGUI::Widget* widget, MyGUI::Widget* host)
+{
+    for (int depth = 0; widget != 0 && depth < 6; ++depth, widget = widget->getParent())
+    {
+        if (widget == host) return true;
+        if (widget->castType<MyGUI::Window>(false) != 0) return false;
+    }
+    return false;
+}
+bool NativeViewportName(const std::string& name, const char* suffix)
+{
+    const size_t length = std::strlen(suffix);
+    return name.size() >= length && name.compare(name.size()-length,length,suffix) == 0
+        && (name.size() == length || name[name.size()-length-1] == '_');
+}
+void FindAdaptiveViewports(MyGUI::Widget* host, MyGUI::Widget** found)
+{
+    // Breadth first: inventory icons must not consume the lookup budget before
+    // the sibling ScrollView is visited. No heap allocation or icon-tree walk.
+    struct Entry { MyGUI::Widget* widget; int depth; } queue[128];
+    int begin = 0, end = 1; queue[0].widget = host; queue[0].depth = 0;
+    bool ambiguous[2] = { false, false }; found[0] = found[1] = 0;
+    while (begin < end)
+    {
+        const Entry entry = queue[begin++]; MyGUI::Widget* widget = entry.widget;
+        if (widget == 0 || (widget != host && widget->castType<MyGUI::Window>(false) != 0)) continue;
+        const std::string& name = widget->getName();
+        // Check the longer role first: a ScrollView also ends in backpack_content.
+        const int slot = NativeViewportName(name,"scrollview_backpack_content") ? 1
+            : NativeViewportName(name,"backpack_content") ? 0 : -1;
+        if (slot >= 0)
+        {
+            if (NativeViewportParentInHost(widget->getParent(),host))
+            {
+                if (found[slot] != 0) ambiguous[slot] = true;
+                found[slot] = widget;
+            }
+            continue;
+        }
+        if (entry.depth >= 6) continue;
+        const size_t children = widget->getChildCount();
+        for (size_t i = 0; i < children && end < 128; ++i)
+        { queue[end].widget = widget->getChildAt(i); queue[end++].depth = entry.depth+1; }
+    }
+    for (int i = 0; i < 2; ++i) if (ambiguous[i]) found[i] = 0;
+}
+void ClearAdaptiveViewport(int index, MyGUI::Widget* host, bool restore)
+{
+    AdaptiveUiCache& cache = AdaptiveUi();
+    MyGUI::Widget* viewport = cache.viewports[index].get();
+    MyGUI::Widget* parent = viewport == 0 ? 0 : viewport->getParent();
+    bool ownsGeometry = false;
+    if (restore && viewport != 0 && NativeViewportParentInHost(parent,host))
+    {
+        const MyGUI::IntCoord current = viewport->getCoord();
+        TraderAdaptiveLayout::Viewport& baseline = cache.viewportLayout[index];
+        const TraderAdaptiveLayout::Rect rect(current.left,current.top,current.width,current.height);
+        if (parent == cache.viewportParents[index].get())
+        {
+            const MyGUI::Align align = viewport->getAlign();
+            const TraderAdaptiveLayout::Rect want = baseline.Update(rect,parent->getWidth(),parent->getHeight(),
+                align.isHStretch()?3:align.isRight()?2:align.isHCenter()?1:0,
+                align.isVStretch()?3:align.isBottom()?2:align.isVCenter()?1:0,0,0);
+            CoordIfChanged(viewport,MyGUI::IntCoord(want.left,want.top,want.width,want.height));
+            ownsGeometry = true;
+        }
+        else if (baseline.bound && rect == baseline.written)
+        {
+            // In-scope reparenting retained our exact local rectangle. Undo only
+            // that proven write before adopting the new parent's native baseline.
+            const TraderAdaptiveLayout::Rect& want = baseline.baseline;
+            CoordIfChanged(viewport,MyGUI::IntCoord(want.left,want.top,want.width,want.height));
+            ownsGeometry = true;
+        }
+        if (ownsGeometry && cache.viewports[index].get() == viewport
+            && viewport->getParent() == parent && NativeViewportParentInHost(parent,host)
+            && cache.viewportHidden[index] && !viewport->getVisible())
+            viewport->setVisible(cache.viewportVisible[index]);
+    }
+    cache.viewports[index].reset(); cache.viewportParents[index].reset();
+    cache.viewportLayout[index] = TraderAdaptiveLayout::Viewport();
+    cache.viewportHidden[index] = cache.viewportVisible[index] = false;
+}
 void ReserveAdaptiveRows(MyGUI::Widget* parent, int header, int footer)
 {
     AdaptiveUiCache& cache = AdaptiveUi();
-    const char* names[] = { "backpack_content", "scrollview_backpack_content" };
+    bool bind = !cache.viewportsBound;
+    if (cache.viewportHost.get() != parent)
+    {
+        for (int i = 0; i < 2; ++i) ClearAdaptiveViewport(i,cache.viewportHost.get(),true);
+        cache.viewportHost.set(parent); bind = true; cache.viewportRetry = 0;
+    }
+    if (parent == 0) { cache.viewportsBound = false; return; }
+    bool missing = false;
     for (int i = 0; i < 2; ++i)
     {
-        if (!cache.viewportsBound)
-        {
-            MyGUI::Widget* viewport = FindNamedDescendantRecursive(parent, names[i], false);
-            if (viewport != 0 && viewport->getParent() == parent)
-            {
-                cache.viewports[i].set(viewport);
-                cache.viewportVisible[i] = viewport->getVisible();
-            }
-        }
         MyGUI::Widget* viewport = cache.viewports[i].get();
-        if (viewport == 0) continue;
+        if ((viewport == 0 && cache.viewportLayout[i].bound)
+            || (viewport != 0 && (viewport->getParent() != cache.viewportParents[i].get()
+                || !NativeViewportParentInHost(viewport->getParent(),parent))))
+        { ClearAdaptiveViewport(i,parent,true); bind = true; }
+        if (cache.viewports[i].get() == 0) missing = true;
+    }
+    if (missing && cache.viewportRetry == 0) bind = true;
+    if (bind && (header != 0 || footer != 0))
+    {
+        MyGUI::Widget* found[2]; FindAdaptiveViewports(parent,found);
+        for (int i = 0; i < 2; ++i)
+            if (cache.viewports[i].get() == 0 && found[i] != 0)
+            {
+                cache.viewports[i].set(found[i]); cache.viewportParents[i].set(found[i]->getParent());
+                cache.viewportVisible[i] = found[i]->getVisible();
+            }
+        cache.viewportRetry = 60;
+    }
+    else if (missing && cache.viewportRetry > 0) --cache.viewportRetry;
+    for (int i = 0; i < 2; ++i)
+    {
+        MyGUI::Widget* viewport = cache.viewports[i].get();
+        MyGUI::Widget* actualParent = cache.viewportParents[i].get();
+        if (viewport == 0 || actualParent == 0) continue;
         const MyGUI::IntCoord current = viewport->getCoord();
         const MyGUI::Align align = viewport->getAlign();
         const int horizontal = align.isHStretch() ? 3 : align.isRight() ? 2 : align.isHCenter() ? 1 : 0;
         const int vertical = align.isVStretch() ? 3 : align.isBottom() ? 2 : align.isVCenter() ? 1 : 0;
         const TraderAdaptiveLayout::Rect want = cache.viewportLayout[i].Update(
             TraderAdaptiveLayout::Rect(current.left, current.top, current.width, current.height),
-            parent->getWidth(), parent->getHeight(), horizontal, vertical, header, footer);
+            actualParent->getWidth(), actualParent->getHeight(), horizontal, vertical, header, footer);
         const MyGUI::IntCoord coord(want.left, want.top, want.width, want.height);
         CoordIfChanged(viewport, coord);
+        // A public coordinate callback may synchronously destroy/reparent GUI.
+        if (cache.viewports[i].get() != viewport || viewport->getParent() != actualParent
+            || cache.viewportParents[i].get() != actualParent)
+        { ClearAdaptiveViewport(i,parent,true); cache.viewportRetry = 0; continue; }
         if (coord.height == 0 && !cache.viewportHidden[i])
         {
             cache.viewportVisible[i] = viewport->getVisible();
@@ -474,10 +585,12 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         if (cache.plate.get() != 0) DestroyTradeBalance();
         return;
     }
-    // A dedicated native plate is the background/style owner. Do not copy its
-    // foreground onto unrelated window chrome or move a foreign nested panel.
-    if (moneyBox->getParent() != parent || (cache.plate.get() != 0
-        && (cache.plate.get() != moneyBox || cache.nativePanel.get() != data)))
+    // Keep the dedicated native plate in its actual layout parent. Both stock
+    // themes insert Content between this plate and the Window skin Client.
+    MyGUI::Widget* plateParent = moneyBox->getParent();
+    if (!TraderAdaptiveLayout::WithinParent(plateParent, parent) || (cache.plate.get() != 0
+        && (cache.plate.get() != moneyBox || cache.nativePanel.get() != data
+            || cache.nativePlateParent.get() != plateParent)))
     {
         if (cache.plate.get() != 0) DestroyTradeBalance();
         return;
@@ -523,7 +636,7 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     {
         cache.plate.set(moneyBox);
         cache.nativePanel.set(data);
-        cache.nativePlateParent.set(parent);
+        cache.nativePlateParent.set(plateParent);
         cache.dataAlpha = data->getAlpha();
     }
     WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
@@ -569,7 +682,7 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     for (int i = 0; i < kHeaderCount; ++i)
         if (refs[i]->get()->getAlpha() != cache.dataAlpha) refs[i]->get()->setAlpha(cache.dataAlpha);
     const int balance = g_balanceStartMoney < 0 ? 0 : g_balanceStartMoney - g_balanceMoney;
-    const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
+    const MyGUI::IntCoord origin = plateParent->getAbsoluteCoord();
     const MyGUI::IntCoord currentPlate = moneyBox->getCoord();
     const MyGUI::Align plateAlign = moneyBox->getAlign();
     const int horizontal = plateAlign.isHStretch() ? 3 : plateAlign.isRight() ? 2 : plateAlign.isHCenter() ? 1 : 0;
@@ -578,16 +691,16 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     // A native layout can reset to the same baseline without changing captions
     // or any cached semantic key. Detect it before Update adopts that baseline.
     const bool nativePlateReset = cache.plateLayout.bound && !(currentGeometry == TraderAdaptiveLayout::ProjectAlign(
-        cache.plateLayout.written,parent->getWidth()-cache.plateLayout.parentWidth,
-        parent->getHeight()-cache.plateLayout.parentHeight,horizontal,vertical));
+        cache.plateLayout.written,plateParent->getWidth()-cache.plateLayout.parentWidth,
+        plateParent->getHeight()-cache.plateLayout.parentHeight,horizontal,vertical));
     const TraderAdaptiveLayout::Rect baseline = cache.plateLayout.Update(
         TraderAdaptiveLayout::Rect(currentPlate.left, currentPlate.top, currentPlate.width, currentPlate.height),
-        parent->getWidth(), parent->getHeight(), horizontal, vertical, 0, 0);
+        plateParent->getWidth(), plateParent->getHeight(), horizontal, vertical, 0, 0);
     // Capture the latest native baseline without forgetting our still-live write
     // when the cached layout below needs no further changes this frame.
     cache.plateLayout.written = TraderAdaptiveLayout::Rect(currentPlate.left, currentPlate.top, currentPlate.width, currentPlate.height);
     const MyGUI::IntCoord box(origin.left + baseline.left, origin.top + baseline.top, baseline.width, baseline.height);
-    const int width = parent->getWidth() - 32;
+    const int width = plateParent->getWidth() - 32;
     const MyGUI::IntCoord dataCoord = data->getCoord();
     const MyGUI::Align dataAlign = data->getAlign();
     const int dataHorizontal = dataAlign.isHStretch() ? 3 : dataAlign.isRight() ? 2 : dataAlign.isHCenter() ? 1 : 0;
@@ -709,11 +822,12 @@ void DestroyTradeBalance()
     cache.nativePanel.reset(); cache.nativePlateParent.reset();
     cache.failedNativePanel.reset();
     cache.plateLayout = TraderAdaptiveLayout::Viewport();
+    cache.viewportHost.reset(); cache.viewportRetry = 0;
     for (int i = 0; i < 7; ++i)
     { cache.controls[i].reset(); cache.baseFont[i] = cache.fittedFont[i] = -1; }
     for (int i = 0; i < 2; ++i)
     {
-        cache.viewports[i].reset(); cache.viewportLayout[i] = TraderAdaptiveLayout::Viewport();
+        cache.viewports[i].reset(); cache.viewportParents[i].reset(); cache.viewportLayout[i] = TraderAdaptiveLayout::Viewport();
         cache.viewportHidden[i] = false; cache.viewportVisible[i] = false;
     }
     cache.headerValid = false;
