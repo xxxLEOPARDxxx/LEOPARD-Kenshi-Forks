@@ -1,0 +1,69 @@
+# StackSort MCM fork. Original StackSort by Jakematt2004. GPL-3.0.
+msgid ""
+msgstr "Language: ru_RU\nContent-Type: text/plain; charset=UTF-8\nMIME-Version: 1.0\n"
+
+msgid "StackSort [{n}]"
+msgstr "StackSort [{n}]"
+
+msgid "H"
+msgstr "В"
+
+msgid "W"
+msgstr "Ш"
+
+msgid "<"
+msgstr "<"
+
+msgid ">"
+msgstr ">"
+
+msgid "StackSort: some hooks failed to install (see RE_Kenshi log); sorting may not work correctly"
+msgstr "StackSort: не удалось подключить некоторые функции (см. журнал RE_Kenshi); сортировка может работать неправильно"
+
+msgid "StackSort: {n} problem(s) in StackSort.cfg were ignored (see RE_Kenshi log)"
+msgstr "StackSort: проигнорировано ошибок в StackSort.cfg: {n} (см. журнал RE_Kenshi)"
+
+msgid "Pack inventory items, merge compatible split stacks and reserve free space."
+msgstr "Уплотняет предметы в инвентаре, объединяет совместимые стопки и оставляет свободное место."
+
+msgid "Enable Stack Sort"
+msgstr "Включить Stack Sort"
+
+msgid "Replace Arrange in inventories with room to sort. Single-slot storage keeps its original controls."
+msgstr "Заменяет кнопку сортировки там, где есть место для перестановки. Однослотовые хранилища сохраняют обычное управление."
+
+msgid "Merge split stacks"
+msgstr "Объединять разделённые стопки"
+
+msgid "On the first sort, merge stacks using the game's item and ownership compatibility rules. Undo restores positions after merging."
+msgstr "При первой сортировке объединяет стопки по игровым правилам совместимости предметов и владельцев. Отмена возвращает позиции после объединения."
+
+msgid "Height"
+msgstr "Высота"
+
+msgid "Width"
+msgstr "Ширина"
+
+msgid "Starting free-space direction"
+msgstr "Начальное направление свободного места"
+
+msgid "Starting H/W mode when the plugin starts. The inventory H/W button changes it during play."
+msgstr "Режим В/Ш при запуске плагина. Кнопка В/Ш в инвентаре меняет его во время игры."
+
+msgid "Solutions to cycle"
+msgstr "Количество вариантов"
+
+msgid "Number of best arrangements shown by repeated clicks on StackSort."
+msgstr "Сколько лучших раскладок показывать при повторных нажатиях StackSort."
+
+msgid "Background workers"
+msgstr "Потоки фонового расчёта"
+
+msgid "Threads used to prepare inventory arrangements. More workers can increase CPU use."
+msgstr "Потоки для подготовки раскладок инвентаря. Большее число может повысить нагрузку на процессор."
+
+msgid "Detailed log"
+msgstr "Подробный журнал"
+
+msgid "Log sorting, stack merging, rotation detection and background jobs in RE_Kenshi_log.txt. Errors are always logged."
+msgstr "Записывает сортировку, объединение стопок, обнаружение поворота и фоновые задания в RE_Kenshi_log.txt. Ошибки записываются всегда."

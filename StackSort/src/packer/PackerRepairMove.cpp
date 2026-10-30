@@ -1,0 +1,179 @@
+#include "Packer.h"
+#include "PackerLAHCInternals.h"
+
+#include <algorithm>
+#include <cstring>
+
+namespace Packer
+{
+
+namespace Search
+{
+
+void TryRepairMove(PackContext& ctx, int gridW, int gridH, std::vector<Item>& curOrder, int n, Move& move, LCG& rng,
+                   const PackState& bestState, int effLateBiasAlphaQ, int effLateBiasUniformPct,
+                   int& diagRepairMoveScans, int& diagRepairMoveHits)
+{
+    // firstIdx / groupCount below are indexed by curOrder position, so they
+    // must cover n. WithinPackLimits caps n at MAX_PACK_ITEMS, well inside
+    // REPAIR_TYPE_CAP; the guard keeps a caller that bypasses the contract
+    // from writing past them.
+    static const int REPAIR_TYPE_CAP = 256;
+
+    // Caller guarantees n >= 3; guard makes it visible to clang-analyzer.
+    if (n < 2 || n > REPAIR_TYPE_CAP) return;
+
+    move.type        = MOVE_REPAIR;
+    bool repairFound = false;
+
+    if (bestState.strandedCells > 0 && !ctx.bestPl.empty())
+    {
+        ++diagRepairMoveScans;
+        const int totalCellsRepair = gridW * gridH;
+        // Rebuild ctx.bestPl occupancy + the stranded-cell list only when
+        // ctx.bestPl changed; a cache hit skips a full rebuild + flood fill
+        // (~2-4us). ctx.grid is kept incrementally current by SkylinePack for
+        // the *current* ordering, so bestPl occupancy is built into
+        // ctx.repair.grid rather than clobbering ctx.grid. The flood fill's
+        // ctx.visited output is consumed here and nowhere else -- the block
+        // below re-clears it before its own flood fill.
+        if (ctx.repair.dirty)
+        {
+            memset(&ctx.repair.grid[0], 0, totalCellsRepair);
+            for (size_t pi = 0; pi < ctx.bestPl.size(); ++pi)
+            {
+                const Placement& bp = ctx.bestPl[pi];
+                for (int dy = 0; dy < bp.h; ++dy)
+                    memset(&ctx.repair.grid[(bp.y + dy) * gridW + bp.x], 1, bp.w);
+            }
+            Grid::FloodFillFromLer(ctx, gridW, gridH, bestState.lerX, bestState.lerY, bestState.lerWidth,
+                                   bestState.lerHeight, &ctx.repair.grid[0]);
+            // Build stranded-cell list in the same scan order the
+            // reservoir loop used to walk, so the RNG stream below
+            // is byte-identical to the pre-cache implementation.
+            ctx.repair.strandedList.clear();
+            for (int sy = 1; sy < gridH - 1; ++sy)
+            {
+                for (int sx = 1; sx < gridW - 1; ++sx)
+                {
+                    int si = sy * gridW + sx;
+                    if (ctx.repair.grid[si] == 0 && !ctx.visited[si]) ctx.repair.strandedList.push_back(si);
+                }
+            }
+            ctx.repair.dirty = false;
+        }
+
+        int strandedX = -1, strandedY = -1;
+        int candidates = 0;
+        for (size_t li = 0; li < ctx.repair.strandedList.size(); ++li)
+        {
+            int si = ctx.repair.strandedList[li];
+            ++candidates;
+            if (rng.nextInt(candidates) == 0)
+            {
+                strandedY = (int)((unsigned long long)(unsigned int)si * ctx.recipGridW >> 48);
+                strandedX = si - strandedY * gridW;
+            }
+        }
+
+        if (strandedX >= 0)
+        {
+            // Flood-fill to find connected gap region (capped)
+            int minGX = strandedX, maxGX = strandedX;
+            int minGY = strandedY, maxGY = strandedY;
+            ctx.visited.resize(totalCellsRepair);
+            memset(&ctx.visited[0], 0, totalCellsRepair);
+            ctx.ler.floodStack.clear();
+            ctx.ler.floodStack.push_back(strandedY * gridW + strandedX);
+            ctx.visited[strandedY * gridW + strandedX] = 1;
+            int gapCells                               = 0;
+            while (!ctx.ler.floodStack.empty() && gapCells < 16)
+            {
+                int ci = ctx.ler.floodStack.back();
+                ctx.ler.floodStack.pop_back();
+                ++gapCells;
+                int cy = (int)((unsigned long long)(unsigned int)ci * ctx.recipGridW >> 48);
+                int cx = ci - cy * gridW;
+                minGX  = std::min(minGX, cx);
+                maxGX  = std::max(maxGX, cx);
+                minGY  = std::min(minGY, cy);
+                maxGY  = std::max(maxGY, cy);
+
+                if (cx > 0 && !ctx.visited[ci - 1] && !ctx.repair.grid[ci - 1])
+                {
+                    ctx.visited[ci - 1] = 1;
+                    ctx.ler.floodStack.push_back(ci - 1);
+                }
+                if (cx < gridW - 1 && !ctx.visited[ci + 1] && !ctx.repair.grid[ci + 1])
+                {
+                    ctx.visited[ci + 1] = 1;
+                    ctx.ler.floodStack.push_back(ci + 1);
+                }
+                if (cy > 0 && !ctx.visited[ci - gridW] && !ctx.repair.grid[ci - gridW])
+                {
+                    ctx.visited[ci - gridW] = 1;
+                    ctx.ler.floodStack.push_back(ci - gridW);
+                }
+                if (cy < gridH - 1 && !ctx.visited[ci + gridW] && !ctx.repair.grid[ci + gridW])
+                {
+                    ctx.visited[ci + gridW] = 1;
+                    ctx.ler.floodStack.push_back(ci + gridW);
+                }
+            }
+
+            int gapW = maxGX - minGX + 1;
+            int gapH = maxGY - minGY + 1;
+
+            // One pass to find each type's first index + count.
+            int firstIdx[REPAIR_TYPE_CAP];
+            int groupCount[REPAIR_TYPE_CAP];
+            for (int i = 0; i < n; ++i)
+            {
+                firstIdx[i]   = -1;
+                groupCount[i] = 0;
+            }
+            for (int ki = 0; ki < n; ++ki)
+            {
+                int typeId = curOrder[ki].exactId;
+                if (typeId < 0 || typeId >= n) continue;
+                if (firstIdx[typeId] < 0) firstIdx[typeId] = ki;
+                ++groupCount[typeId];
+            }
+
+            for (int ki = 0; ki < n; ++ki)
+            {
+                // Skip first item of a multi-item type group —
+                // it anchors contact-point clustering for its type.
+                int typeId = curOrder[ki].exactId;
+                if (typeId >= 0 && typeId < n && ki == firstIdx[typeId] && groupCount[typeId] > 1) continue;
+
+                bool fitsNormal  = (curOrder[ki].w <= gapW && curOrder[ki].h <= gapH);
+                bool fitsRotated = (curOrder[ki].canRotate && curOrder[ki].h <= gapW && curOrder[ki].w <= gapH);
+                if (fitsNormal || fitsRotated)
+                {
+                    // Targeted insert: move this item to position 0
+                    move.a = ki;
+                    move.b = 0;
+                    MoveItem(curOrder, move.a, move.b);
+                    repairFound = true;
+                    ++diagRepairMoveHits;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!repairFound)
+    {
+        // Fall back to random swap
+        move.type = MOVE_SWAP;
+        move.a    = SampleBiasedIndex(rng, n, effLateBiasAlphaQ, effLateBiasUniformPct);
+        move.b    = rng.nextInt(n - 1);
+        if (move.b >= move.a) ++move.b;
+        std::swap(curOrder[move.a], curOrder[move.b]);
+    }
+}
+
+} // namespace Search
+
+} // namespace Packer
