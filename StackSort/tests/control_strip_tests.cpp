@@ -51,5 +51,18 @@ int main()
     CHECK(p.x==oldBodyX+5);
     r.parent.w=p.x+p.total-3;p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
     CHECK(p.x>=oldBodyX&&p.x<oldBodyX+5); // inset yields to the right parent edge
+    // Backpack: center the fitted whole row (including optional KEO), using
+    // measured RU/EN/ZH full-caption widths. Body's legacy branch stays above.
+    const int fullWidths[]={146,99,95};
+    for(int lang=0;lang<3;++lang)for(int keo=0;keo<2;++keo)
+    {
+        r=Request(390);r.anchor=ControlStrip::Rect(20,60,350,24); // grid, not old Arrange(61,206)
+        r.centerOnAnchor=true;r.trailingWidth=keo?24:0;r.captionWidth[0]=fullWidths[lang];blocks.clear();
+        p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);
+        CHECK(p.caption==0);CHECK(abs(2*p.x+p.total-(2*r.anchor.x+r.anchor.w))<=1);
+        CHECK(p.total==286+(keo?26:0));
+        blocks.push_back(ControlStrip::Rect(0,60,30,24));p=ControlStrip::Build(r,blocks);Valid(r,blocks,p);CHECK(p.x>=32);
+    }
+    r=Request(80);r.centerOnAnchor=true;r.trailingWidth=24;blocks.clear();CHECK(!ControlStrip::Build(r,blocks).fits);
     std::printf("%d control-strip checks, %d failures\n",checks,failures);return failures?1:0;
 }

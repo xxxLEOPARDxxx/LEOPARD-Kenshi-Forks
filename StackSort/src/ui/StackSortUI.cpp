@@ -14,6 +14,7 @@
 
 #include <vector>
 #include <sstream>
+#include <stdexcept>
 
 #include "StackSortUI.h"
 #include "Packer.h"
@@ -28,6 +29,7 @@
 #include "Translate.h"
 #include "Log.h"
 #include "ControlStripPlan.h"
+#include "WidgetRef.h"
 
 class InventoryGUIAccess : public InventoryGUI
 {
@@ -239,8 +241,67 @@ static bool IsSlotButton(MyGUI::Widget* w)
 // parent must be provably alive. Never call from a click delegate of one of
 // these buttons: MyGUI must not destroy the sender mid-dispatch.
 // Returns true if any were destroyed.
+// Static weak leases survive a forgotten UI slot, but never widget destruction.
+// Only the exact KEO checkbox is leased. No KEO state/delegate/userdata changes.
+struct BackpackBoxLease
+{
+    WidgetRef widget;
+    WidgetRef parent;
+    MyGUI::IntCoord original, applied;
+    bool active;
+    BackpackBoxLease():active(false){}
+};
+static BackpackBoxLease s_backpackBoxLeases[MAX_GUIS];
+static void RestoreBackpackBoxes(MyGUI::Widget* parent)
+{
+    for(int i=0;i<MAX_GUIS;++i)
+    {
+        BackpackBoxLease& lease=s_backpackBoxLeases[i];
+        MyGUI::Widget* box=lease.widget.get();
+        if(!lease.active) {lease.widget.reset();lease.parent.reset();continue;}
+        if(box && box->getParent()!=lease.parent.get())
+        {
+            lease.widget.reset();lease.parent.reset();lease.active=false;continue;
+        }
+        if(!box || box->getParent()!=parent) continue;
+        const MyGUI::IntCoord now=box->getCoord();
+        // Right/Bottom alignment and other mods may move/resize the widget
+        // while leased. Undo only our positional contribution.
+        box->setPosition(lease.original.left+now.left-lease.applied.left,
+                         lease.original.top+now.top-lease.applied.top);
+        lease.widget.reset();lease.parent.reset();lease.active=false;
+    }
+}
+static bool PlaceBackpackBox(MyGUI::Widget* box,const MyGUI::IntCoord& coord)
+{
+    for(int i=0;i<MAX_GUIS;++i)
+    {
+        BackpackBoxLease& lease=s_backpackBoxLeases[i];
+        if(lease.widget.get()) continue;
+        lease.active=false;
+        lease.original=box->getCoord();lease.applied=coord;
+        lease.widget.set(box);
+        if(lease.widget.get()!=box) return false; // no live unlink manager
+        lease.parent.set(box->getParent());
+        if(lease.parent.get()!=box->getParent()) {lease.widget.reset();return false;}
+        try {box->setPosition(coord.left,coord.top);}
+        catch(...)
+        {
+            // Registration/position failures before movement must not apply
+            // an uncommitted offset. If MyGUI moved before throwing, normal
+            // teardown can still undo the completed positional contribution.
+            const MyGUI::IntCoord now=box->getCoord();
+            lease.active=now.left==coord.left && now.top==coord.top;
+            throw;
+        }
+        lease.active=true;
+        return true;
+    }
+    return false;
+}
 static bool RemoveOurButtons(MyGUI::Widget* parent)
 {
+    RestoreBackpackBoxes(parent);
     std::vector<MyGUI::Widget*> doomed;
     size_t n = parent->getChildCount();
     for (size_t i = 0; i < n; ++i)
@@ -473,6 +534,42 @@ int StackSortUI::PeekAppliedLerSide(InventoryGUI* gui, int target)
     return maxLerSide;
 }
 
+// Init/resize only, on the GUI thread. Arrange can be deliberately off-center
+// to leave room for another native control; the actual grid is our anchor.
+static ControlStrip::Rect BackpackGridAnchor(InventoryGUI* gui,MyGUI::Widget* parent,const MyGUI::IntCoord& row)
+{
+    const MyGUI::IntCoord client=parent->getClientCoord();
+    const int clientLeft=(std::max)(0,client.left);
+    const int clientRight=(std::min)(parent->getWidth(),client.left+client.width);
+    ControlStrip::Rect result(clientLeft,row.top,(std::max)(0,clientRight-clientLeft),row.height);
+    if(result.w<=0) {result.x=0;result.w=parent->getWidth();}
+    Inventory* inventory=gui->_NV_getInventory();
+    if(!inventory || inventory->sectionsInSearchOrder.size()>64 || gui->inventorySections.size()>64) return result;
+    const MyGUI::IntCoord parentAbs=parent->getAbsoluteCoord();
+    int left=parent->getWidth(),right=0;
+    typedef Ogre::map<std::string,InventorySectionGUI*>::type SectionGuiMap;
+    for(size_t i=0;i<inventory->sectionsInSearchOrder.size();++i)
+    {
+        InventorySection* section=inventory->sectionsInSearchOrder[i];
+        if(!StackSort_EligibleSection(section)) continue;
+        SectionGuiMap::const_iterator found=gui->inventorySections.find(section->name);
+        if(found==gui->inventorySections.end() || !found->second) continue;
+        MyGUI::Widget* grid=found->second->widget;
+        if(!grid || !grid->getVisible()) continue;
+        MyGUI::Widget* ancestor=grid;
+        for(int depth=0;ancestor && ancestor!=parent && depth<16;++depth) ancestor=ancestor->getParent();
+        if(ancestor!=parent) continue;
+        const MyGUI::IntCoord absolute=grid->getAbsoluteCoord();
+        if(absolute.width<=0 || absolute.height<=0) continue;
+        const int l=(int)(std::max)(0LL,(long long)absolute.left-parentAbs.left);
+        const int r=(int)(std::min)((long long)parent->getWidth(),(long long)absolute.left-parentAbs.left+absolute.width);
+        if(l>=r) continue;
+        left=(std::min)(left,l);right=(std::max)(right,r);
+    }
+    if(left<right) {result.x=left;result.w=right-left;}
+    return result;
+}
+
 void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, InventoryGUI* ownerGUI)
 {
     if (FindUIState(gui) >= 0) return;
@@ -500,6 +597,7 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
     ui.parentWidth = parent->getWidth();
     ui.parentHeight = parent->getHeight();
     const bool isBodyGUI = gui == ownerGUI && gui->childInventory != NULL;
+    const bool isBackpackGUI = gui != ownerGUI;
     const MyGUI::IntCoord ac = arrangeBtn->getCoord();
     const StackSortSettings& cfg = StackSortSettingsStore::Get();
     try
@@ -514,8 +612,10 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         ControlStrip::Request request;
         request.parent = ControlStrip::Rect(0, 0, ui.parentWidth, ui.parentHeight);
         request.anchor = ControlStrip::Rect(ac.left, ac.top, ac.width, ac.height);
+        if(isBackpackGUI) request.anchor=BackpackGridAnchor(gui,parent,ac);
         request.gap = cfg.buttonGap;
         request.leftClampInset = isBodyGUI ? 5 : 0;
+        request.centerOnAnchor = isBackpackGUI;
         request.desired[0] = cfg.arrowButtonWidth;
         request.desired[1] = cfg.sortButtonWidth;
         request.desired[2] = cfg.dimButtonWidth;
@@ -536,17 +636,27 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         ui.sortButton->setCaption(Tr(TR_DIM_W));
         request.minimum[2] = (std::max)(16, (std::max)(hWidth, ui.sortButton->getTextSize().width) + padding);
         request.minimum[1] = 1;
-        // KEO adds its checkbox from setupSections before native _NV_update
-        // returns. Scan direct siblings once, reserving every visible neighbor
-        // on this row, including KEO and body equipment slots. Hook load order
-        // cannot move KEO's post-setup work past this post-update initializer.
+        // KEO adds its checkbox synchronously from setupSections. Only the
+        // exact same-prefix sibling cooperates in backpack centering; all
+        // other visible siblings remain fixed obstacles. Scan only on rebuild.
         std::vector<ControlStrip::Rect> obstacles;
+        MyGUI::Widget* backpackBox=NULL;
+        const std::string arrangeName=arrangeBtn->getName();
+        const std::string suffix="ArrangeButton";
+        const std::string boxName=arrangeName.size()>=suffix.size() &&
+            arrangeName.compare(arrangeName.size()-suffix.size(),suffix.size(),suffix)==0 ?
+            arrangeName.substr(0,arrangeName.size()-suffix.size())+"keo_backpackFirst" : "";
         const size_t children = parent->getChildCount();
         for (size_t n = 0; n < children; ++n)
         {
             MyGUI::Widget* widget = parent->getChildAt(n);
             if (!widget || widget == arrangeBtn || widget == ui.sortButton || !widget->getVisible()) continue;
             const MyGUI::IntCoord c = widget->getCoord();
+            if(isBackpackGUI && !boxName.empty() && widget->getName()==boxName &&
+               c.width>0 && c.height==ac.height && c.top==ac.top)
+            {
+                backpackBox=widget;request.trailingWidth=c.width;continue;
+            }
             obstacles.push_back(ControlStrip::Rect(c.left, c.top, c.width, c.height));
             if (obstacles.size() > 128) break;
         }
@@ -598,6 +708,11 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         ui.slotName = gui != ownerGUI ? "backpack" : (isBodyGUI ? "body" : "container");
         ReKeyAndRecall(idx, true);
         UpdateCaption(idx);
+        // Lease only after all allocations and delegates have succeeded.
+        if(backpackBox && !PlaceBackpackBox(backpackBox,
+            MyGUI::IntCoord(plan.x+plan.total-request.trailingWidth,plan.y,
+                           request.trailingWidth,ac.height)))
+            throw std::runtime_error("StackSort: no safe KEO widget lease");
         // Commit the replacement only after all four widgets/handlers exist.
         // Until here the original is the sole visible, active Arrange control.
         arrangeBtn->setUserString(ARRANGE_VISIBILITY_KEY, originalVisible ? "1" : "0");
@@ -605,7 +720,7 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
         ui.initialized = true;
         ui.backButton->setVisible(true);ui.sortButton->setVisible(true);
         ui.dimButton->setVisible(true);ui.forwardButton->setVisible(true);
-        LogInfo("StackSort: Arrange replaced with a bounded four-button strip");
+        LogInfo("StackSort: Arrange replaced with a bounded strip (backpack row includes its KEO checkbox when present)");
     }
     catch (...)
     {
@@ -1113,6 +1228,32 @@ void StackSortUI::OnClose(InventoryGUI* gui)
     if (!gui) return;
 
     InventoryGUI* child = gui->childInventory;
+    // A world reset/stale-slot reclaim can forget ownership while a layout
+    // survives. Weak leases still belong to those live widgets; disabling or
+    // closing that layout must restore KEO even without a tracked UI slot.
+    try
+    {
+        InventoryGUI* liveLayouts[2]={gui,child};
+        for(int l=0;l<2;++l)
+        {
+            InventoryGUI* live=liveLayouts[l];
+            if(!live || !live->layoutMgr) continue;
+            MyGUI::Widget* arrange=live->layoutMgr->getWidget("ArrangeButton");
+            if(!arrange) continue;
+            RestoreBackpackBoxes(arrange->getParent());
+            const int tracked=FindUIState(live);
+            if(tracked<0 || s_uiStates[tracked].layout!=live->layoutMgr)
+            {
+                // A forgotten slot can leave its buttons and visibility
+                // baseline on this provably live layout. Only our namespaced
+                // marker authorizes orphan cleanup; normal tracked layouts
+                // continue through the existing teardown below.
+                const std::string baseline=arrange->getUserString(ARRANGE_VISIBILITY_KEY);
+                if(baseline=="0" || baseline=="1") TeardownWidgets(live,baseline=="1");
+            }
+        }
+    }
+    catch(...) {ReportUIException("close KEO lease");}
 
     // Clear every slot where gui matches directly (body/container) or as
     // ownerGUI (backpack owned by the closing body). Widgets are torn down

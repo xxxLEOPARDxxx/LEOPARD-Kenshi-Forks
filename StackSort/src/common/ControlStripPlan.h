@@ -13,7 +13,9 @@ struct Request
     int minimum[4];
     int captionWidth[3]; // full, compact, numeric; including skin padding
     int leftClampInset;
-    Request():leftClampInset(0){}
+    bool centerOnAnchor;
+    int trailingWidth; // optional cooperating checkbox; zero for our four controls
+    Request():leftClampInset(0),centerOnAnchor(false),trailingWidth(0){}
 };
 struct Plan
 {
@@ -26,7 +28,9 @@ inline Plan Build(const Request& req,const std::vector<Rect>& obstacles)
 {
     Plan best;
     if(req.parent.w<=0 || req.parent.h<=0 || req.anchor.h<=0 || req.anchor.y<0 ||
-       req.anchor.y>req.parent.h-req.anchor.h || req.gap<0 || req.gap>50 || obstacles.size()>128) return best;
+       req.anchor.y>req.parent.h-req.anchor.h || req.gap<0 || req.gap>50 ||
+       req.trailingWidth<0 || req.trailingWidth>10000 || obstacles.size()>128) return best;
+    const int spacing=(req.trailingWidth?4:3)*req.gap+req.trailingWidth;
     std::vector<Interval> free;
     free.push_back(Interval(0,req.parent.w));
     for(size_t b=0;b<obstacles.size();++b)
@@ -51,7 +55,7 @@ inline Plan Build(const Request& req,const std::vector<Rect>& obstacles)
         long long closest=LLONG_MAX;
         for(size_t i=0;i<free.size();++i)
         {
-            int widths[4];long long minimum=3LL*req.gap;
+            int widths[4];long long minimum=spacing;
             for(int k=0;k<4;++k)
             {
                 widths[k]=k==1?req.captionWidth[mode]:req.minimum[k];
@@ -60,12 +64,12 @@ inline Plan Build(const Request& req,const std::vector<Rect>& obstacles)
             }
             const int available=free[i].right-free[i].left;
             if(minimum>available) continue;
-            long long desired=3LL*req.gap;
+            long long desired=spacing;
             for(int k=0;k<4;++k) desired+=(std::max)(widths[k],req.desired[k]);
             // A right-side neighbor such as KEO's checkbox must not make us
             // fill its entire left interval and pin the toolbar to the panel
             // edge. Keep readable measured minima so preferredX can survive.
-            const bool rightNeighborClamp=free[i].right<req.parent.w &&
+            const bool rightNeighborClamp=!req.centerOnAnchor && free[i].right<req.parent.w &&
                 (long long)req.preferredX+desired>free[i].right;
             int extra=available-(int)minimum;
             const int priority[4]={1,2,0,3};
@@ -75,12 +79,15 @@ inline Plan Build(const Request& req,const std::vector<Rect>& obstacles)
                 int add=(std::min)(extra,(std::max)(0,req.desired[k]-widths[k]));
                 widths[k]+=add;extra-=add;
             }
-            int total=3*req.gap;for(int k=0;k<4;++k) total+=widths[k];
+            int total=spacing;for(int k=0;k<4;++k) total+=widths[k];
+            // Backpack centering uses the actual fitted width, including KEO,
+            // rather than the configured width of just our four controls.
+            const int preferred=req.centerOnAnchor ? req.anchor.x+(req.anchor.w-total)/2 : req.preferredX;
             const int spare=available-total;
-            const int inset=req.preferredX<free[i].left ?
+            const int inset=preferred<free[i].left ?
                 (std::min)(spare,(std::max)(0,(std::min)(50,req.leftClampInset))) : 0;
-            const int x=(std::max)(free[i].left+inset,(std::min)(req.preferredX,free[i].right-total));
-            const long long delta=(long long)x-req.preferredX;
+            const int x=(std::max)(free[i].left+inset,(std::min)(preferred,free[i].right-total));
+            const long long delta=(long long)x-preferred;
             const long long distance=delta<0?-delta:delta;
             if(distance>=closest) continue;
             closest=distance;best.fits=true;best.x=x;best.y=req.anchor.y;best.caption=mode;best.total=total;

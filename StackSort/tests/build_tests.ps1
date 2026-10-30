@@ -34,8 +34,8 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 $ui = [IO.File]::ReadAllText("$module/src/ui/StackSortUI.cpp")
 $fragments = @(
-    @('static bool RemoveOurButtons(', '// Removes our buttons from liveGui', 'ui_remove_under_test.h'),
-    @('void StackSortUI::InitializeUI(', '// Pre-sort setup for every sort click', 'ui_init_under_test.h'),
+    @('struct BackpackBoxLease', '// Removes our buttons from liveGui', 'ui_remove_under_test.h'),
+    @('static ControlStrip::Rect BackpackGridAnchor(', '// Pre-sort setup for every sort click', 'ui_init_under_test.h'),
     @('void StackSortUI::OnClose(', 'void StackSortUI::OnDestroyed(', 'ui_close_under_test.h'),
     @('void StackSortUI::MaintainSlots(', 'void StackSortUI::OnUpdate(', 'ui_maintain_under_test.h')
 )

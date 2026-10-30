@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include "ControlStripPlan.h"
 typedef unsigned long DWORD;static DWORD GetTickCount(){return 1;}static DWORD s_uiPollCount=0;
+static void UnlinkModelWidget(void*);
 namespace MyGUI
 {
 struct IntCoord { int left,top,width,height;IntCoord(int x=0,int y=0,int w=0,int h=0):left(x),top(y),width(w),height(h){} };
@@ -17,15 +18,18 @@ struct MouseButton {};
 struct Any {template<class T> Any(const T&){} };
 struct Event {int count;Event():count(0){}template<class T>void operator+=(T){++count;} };
 template<class F> int newDelegate(F){return 0;}
-static int created=0,throwAt=0,destroyedForeign=0;
+static int created=0,throwAt=0,destroyedForeign=0,fullCaptionPixels=136,throwPosition=0;
 class Widget
 {
 public:
     Widget* parent;std::vector<Widget*> children;std::string name;IntCoord coord;bool visible;
     std::map<std::string,std::string> strings;
-    Widget():parent(NULL),visible(true){}virtual ~Widget(){}
+    Widget():parent(NULL),visible(true){}virtual ~Widget(){UnlinkModelWidget(this);}
     const std::string& getName(){return name;}Widget* getParent(){return parent;}
     const IntCoord& getCoord(){return coord;}void setCoord(const IntCoord& c){coord=c;}
+    IntCoord getAbsoluteCoord(){IntCoord c=coord;for(Widget* p=parent;p;p=p->parent){c.left+=p->coord.left;c.top+=p->coord.top;}return c;}
+    IntCoord getClientCoord(){return IntCoord(0,0,coord.width,coord.height);}
+    void setPosition(int x,int y){int failure=throwPosition;throwPosition=0;if(failure==1)throw std::runtime_error("position before");coord.left=x;coord.top=y;if(failure==2)throw std::runtime_error("position after");}
     int getWidth(){return coord.width;}int getHeight(){return coord.height;}
     bool getVisible(){return visible;}void setVisible(bool value){visible=value;}
     const std::string& getUserString(const char* key){return strings[key];}
@@ -38,10 +42,10 @@ public:
 class Button:public Widget
 {
 public:
-    std::string caption;Event eventMouseButtonClick,eventMouseButtonPressed;
+    bool selected;Button():selected(false){}std::string caption;Event eventMouseButtonClick,eventMouseButtonPressed;
     void setCaption(const std::string& text){caption=text;}void setTextAlign(int){}void setUserData(const Any&){}
     IntCoord getTextRegion(){return IntCoord(3,3,coord.width-6,coord.height-6);}
-    Size getTextSize(){return Size(caption.find("FULL")==0?136:caption.find("COMPACT")==0?88:caption.find("[")==0?42:caption=="H"||caption=="W"?14:8,18);}
+    Size getTextSize(){return Size(caption.find("FULL")==0?fullCaptionPixels:caption.find("COMPACT")==0?88:caption.find("[")==0?42:caption=="H"||caption=="W"?14:8,18);}
 };
 class Gui
 {
@@ -54,6 +58,21 @@ public:
     }
 };
 }
+// Same unlink contract as shared WidgetRef: manager clears every weak reference
+// before the widget memory is freed. No name lookup or tree walk on get().
+class WidgetRef;
+static std::vector<WidgetRef*> weakRefs;
+static int weakThrowAt=0;
+class WidgetRef
+{
+    MyGUI::Widget* ptr;bool registered;
+public:
+    WidgetRef():ptr(NULL),registered(false){}
+    MyGUI::Widget* get(){return ptr;}
+    void reset(){ptr=NULL;}
+    void set(MyGUI::Widget* w){if(weakThrowAt&&!--weakThrowAt)throw std::runtime_error("unlink registration");if(w&&!registered){weakRefs.push_back(this);registered=true;}ptr=w;}
+};
+static void UnlinkModelWidget(void* w){for(size_t i=0;i<weakRefs.size();++i)if(weakRefs[i]->get()==w)weakRefs[i]->reset();}
 class ToolTip
 {
 public:
@@ -64,8 +83,15 @@ public:
 };
 class ForgottenGUI {public:ToolTip tip;ToolTip* getToolTip(){return &tip;} };
 static ForgottenGUI forgotten;static ForgottenGUI* gui=&forgotten;
-class InventoryLayout {public:MyGUI::Widget* arrange;InventoryLayout():arrange(NULL){} };
-class InventoryGUI {public:InventoryGUI* childInventory;InventoryLayout* layoutMgr;InventoryGUI():childInventory(NULL),layoutMgr(NULL){} };
+class InventoryLayout {public:MyGUI::Widget* arrange;InventoryLayout():arrange(NULL){}MyGUI::Widget* getWidget(const char*){return arrange;} };
+template<class T>class lektor:public std::vector<T>{};
+namespace Ogre {template<class K,class V>struct map {typedef std::map<K,V> type;};}
+struct InventorySection {std::string name;bool eligible;InventorySection():name("backpack"),eligible(true){} };
+static bool StackSort_EligibleSection(const InventorySection* s){return s&&s->eligible;}
+class Inventory {public:lektor<InventorySection*> sectionsInSearchOrder;};
+class InventorySectionGUI {public:MyGUI::Widget* widget;};
+class InventoryGUI {public:InventoryGUI* childInventory;InventoryLayout* layoutMgr;Inventory nativeInventory;Ogre::map<std::string,InventorySectionGUI*>::type inventorySections;
+ InventoryGUI():childInventory(NULL),layoutMgr(NULL){}Inventory* _NV_getInventory(){return &nativeInventory;} };
 struct TargetKey {};
 struct UIState
 {
@@ -116,6 +142,7 @@ static int checks=0,failures=0;
 struct Fixture
 {
     MyGUI::Widget parent;MyGUI::Button arrange,keo;InventoryLayout layout;InventoryGUI inventory;
+    MyGUI::Widget grid;InventorySection section;InventorySectionGUI sectionGUI;
     Fixture(int width,int boxLeft,bool shown=true)
     {
         ResetSlot(s_uiStates[0]);MyGUI::created=MyGUI::throwAt=0;forgotten.tip=ToolTip();gui=&forgotten;
@@ -125,10 +152,77 @@ struct Fixture
         parent.children.push_back(&arrange);parent.children.push_back(&keo);layout.arrange=&arrange;inventory.layoutMgr=&layout;
     }
     ~Fixture(){StackSortUI::OnClose(&inventory);}
+    void AddGrid(int left,int width)
+    {grid.parent=&parent;grid.coord=MyGUI::IntCoord(left,0,width,50);sectionGUI.widget=&grid;
+     inventory.nativeInventory.sectionsInSearchOrder.push_back(&section);inventory.inventorySections[section.name]=&sectionGUI;}
     void CheckAnchor(){CHECK(arrange.name=="native_ArrangeButton");CHECK(arrange.coord.left==parent.coord.width/3&&arrange.coord.width==parent.coord.width/3);CHECK(arrange.eventMouseButtonClick.count==1);CHECK(keo.visible&&keo.name=="native_keo_backpackFirst");CHECK(MyGUI::destroyedForeign==0);}
 };
 int main()
 {
+    const int localePixels[]={136,89,85}; // measured RU/EN/ZH [126], see check_caption.py
+    for(int lang=0;lang<3;++lang)for(int selected=0;selected<2;++selected){Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     MyGUI::fullCaptionPixels=localePixels[lang];
+     f.AddGrid(20,350);f.parent.coord.left=1000;f.parent.coord.top=200;
+     f.arrange.coord=MyGUI::IntCoord(61,60,206,24);f.keo.selected=selected!=0;f.keo.strings["KEO_owner"]="123";f.keo.eventMouseButtonClick.count=1;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);UIState& s=s_uiStates[0];CHECK(s.initialized&&s.captionMode==0);
+     CHECK(abs((s.backButton->coord.left+f.keo.coord.left+f.keo.coord.width)-390)<=1); // Content center, not off-center Arrange164
+     CHECK(f.keo.coord.left==s.forwardButton->coord.left+s.forwardButton->coord.width+2);
+     CHECK(f.keo.selected==(selected!=0)&&f.keo.strings["KEO_owner"]=="123"&&f.keo.eventMouseButtonClick.count==1);
+     StackSortUI::OnClose(&f.inventory);CHECK(f.keo.coord.left==271&&f.keo.coord.top==60);
+     CHECK(f.keo.selected==(selected!=0)&&f.keo.strings["KEO_owner"]=="123"&&f.keo.eventMouseButtonClick.count==1);}
+    MyGUI::fullCaptionPixels=136;
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;f.arrange.coord=MyGUI::IntCoord(61,60,206,24);f.AddGrid(80,290);
+     ControlStrip::Rect grid=BackpackGridAnchor(&f.inventory,&f.parent,f.arrange.coord);CHECK(grid.x==80&&grid.w==290);
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);UIState& s=s_uiStates[0];
+     CHECK(abs(s.backButton->coord.left+f.keo.coord.left+f.keo.coord.width-450)<=1);CHECK(f.arrange.coord.left==61&&f.arrange.coord.width==206);}
+    {Fixture f(390,271);f.AddGrid(80,290);f.section.eligible=false;
+     ControlStrip::Rect grid=BackpackGridAnchor(&f.inventory,&f.parent,f.arrange.coord);CHECK(grid.x==0&&grid.w==390);
+     f.section.eligible=true;f.grid.visible=false;grid=BackpackGridAnchor(&f.inventory,&f.parent,f.arrange.coord);CHECK(grid.x==0&&grid.w==390);
+     f.grid.visible=true;for(int i=0;i<65;++i)f.inventory.nativeInventory.sectionsInSearchOrder.push_back(&f.section);
+     grid=BackpackGridAnchor(&f.inventory,&f.parent,f.arrange.coord);CHECK(grid.x==0&&grid.w==390);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);int moved=f.keo.coord.left;
+     f.keo.coord.left+=17;f.keo.coord.top+=3;f.keo.coord.width=27; // foreign move/resize
+     StackSortUI::OnClose(&owner);CHECK(f.keo.coord.left==288&&f.keo.coord.top==63&&f.keo.coord.width==27);CHECK(moved!=271);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);ResetSlot(s_uiStates[0]); // world-reset/lost slot
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);StackSortUI::OnClose(&owner);
+     CHECK(f.keo.coord.left==271&&f.arrange.visible&&f.parent.children.size()==2);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);ResetSlot(s_uiStates[0]);
+     StackSortUI::OnClose(&owner);CHECK(f.keo.coord.left==271);CHECK(f.parent.children.size()==2&&f.arrange.visible);}
+    {Fixture f(390,271,false);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);ResetSlot(s_uiStates[0]);
+     StackSortUI::OnClose(&owner);CHECK(f.keo.coord.left==271&&!f.arrange.visible&&f.parent.children.size()==2);
+     CHECK(f.arrange.getUserString(ARRANGE_VISIBILITY_KEY).empty()&&forgotten.tip.bound==NULL);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::OnClose(&owner);CHECK(f.parent.children.size()==2&&f.arrange.visible&&f.keo.coord.left==271);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;MyGUI::Widget other;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);int moved=f.keo.coord.left;
+     f.keo.parent=&other;StackSortUI::OnClose(&owner);CHECK(f.keo.coord.left==moved);CHECK(s_backpackBoxLeases[0].widget.get()==NULL);f.keo.parent=&f.parent;}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);UnlinkModelWidget(&f.keo); // foreign destruction callback
+     CHECK(s_backpackBoxLeases[0].widget.get()==NULL);StackSortUI::OnClose(&owner);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);
+     f.parent.coord.width+=40;f.arrange.coord.left+=40;f.keo.coord.left+=40; // Right alignment
+     StackSortUI::MaintainSlots(&owner);CHECK(f.keo.coord.left==311&&f.arrange.visible);
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(s_uiStates[0].initialized);
+     StackSortUI::OnClose(&owner);CHECK(f.keo.coord.left==311);}
+    for(int fail=1;fail<=4;++fail){Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;MyGUI::throwAt=fail;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(s_uiStates[0].nativeFallback&&f.keo.coord.left==271&&f.arrange.visible);}
+    for(int fail=1;fail<=2;++fail){Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;weakThrowAt=fail;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(s_uiStates[0].nativeFallback&&f.keo.coord.left==271&&f.arrange.visible);CHECK(s_backpackBoxLeases[0].widget.get()==NULL);}
+    for(int fail=1;fail<=2;++fail){Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;MyGUI::throwPosition=fail;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(s_uiStates[0].nativeFallback&&f.keo.coord.left==271&&f.arrange.visible);CHECK(s_backpackBoxLeases[0].widget.get()==NULL);}
+    {Fixture f(80,54);InventoryGUI owner;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(s_uiStates[0].nativeFallback&&f.keo.coord.left==54);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;f.keo.visible=false;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);UIState& s=s_uiStates[0];
+     CHECK(s.initialized&&abs(s.backButton->coord.left+s.forwardButton->coord.left+s.forwardButton->coord.width-f.parent.coord.width)<=1);
+     CHECK(f.keo.coord.left==271&&!f.keo.visible);}
+    {Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;f.keo.name="other_keo_backpackFirst";
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);CHECK(f.keo.coord.left==271);}
     {Fixture f(650,424);StackSortUI::InitializeUI(&f.inventory,&f.arrange,&f.inventory);CHECK(s_uiStates[0].initialized&&!f.arrange.visible);CHECK(f.parent.children.size()==6);f.CheckAnchor();
      UIState& s=s_uiStates[0];CHECK(s.backButton->eventMouseButtonClick.count==1&&s.sortButton->eventMouseButtonClick.count==1&&s.dimButton->eventMouseButtonClick.count==1&&s.forwardButton->eventMouseButtonClick.count==1);CHECK(s.sortButton->eventMouseButtonPressed.count==1);CHECK(forgotten.tip.bound==s.sortButton);
      StackSortUI::OnClose(&f.inventory);CHECK(f.arrange.visible&&f.parent.children.size()==2);CHECK(forgotten.tip.bound==NULL&&forgotten.tip.cleared==1);f.CheckAnchor();}
