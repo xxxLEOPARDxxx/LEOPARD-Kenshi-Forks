@@ -113,8 +113,8 @@ msgstr "Желаемая ширина поиска в пикселях. Чита
 msgid "Deal balance"
 msgstr "Итог сделки"
 
-msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
-msgstr "Итог текущей сделки в центре верхней строки торговца (зелёный - доход, красный - расход)."
+msgid "Show the current deal balance at the centre of the trader header (plus - gain, minus - cost)."
+msgstr "Итог текущей сделки в центре верхней строки торговца (плюс - доход, минус - расход)."
 
 msgid "Trader"
 msgstr "Торговец"

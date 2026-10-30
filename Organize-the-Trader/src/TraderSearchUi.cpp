@@ -293,13 +293,16 @@ struct AdaptiveUiCache
     int headerExtra, footerExtra;
     TraderAdaptiveLayout::Viewport viewportLayout[2];
     bool viewportHidden[2], viewportVisible[2];
-    float plateAlpha;
+    float dataAlpha;
+    WidgetRef nativePanel, nativePlateParent, failedNativePanel;
+    TraderAdaptiveLayout::Viewport plateLayout;
+    MyGUI::IntCoord headerContent;
     AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), balance(0), listWidth(0), moneyFontHeight(-1),
         listTextWidth(0), closedChrome(0), popupChrome(0), popupNaturalWidth(0), popupRenderedWidth(0),
         measureCreates(0), measureFontChanges(0), headerCaptionSets(0),
         popupFontHeight(0), popupTextWidth(0), popupValid(false),
         footerValid(false), headerValid(false), showDeal(false), viewportsBound(false), uiStateValid(false), uiState(0),
-        headerExtra(0), footerExtra(0), plateAlpha(1.0f)
+        headerExtra(0), footerExtra(0), dataAlpha(1.0f)
     {
         for (int i = 0; i < 7; ++i) baseFont[i] = fittedFont[i] = -1;
         for (int i = 0; i < 2; ++i)
@@ -464,8 +467,17 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     MyGUI::Widget* data = CachedInParent(DataPanelRef(), parent, "datapanel");
     MyGUI::Widget* moneyBox = data == 0 ? 0 : data->getParent();
     if (moneyBox == 0) return;
+    if (cache.failedNativePanel.get() == data) return;
     if (!TraderAdaptiveLayout::SafeMoneyPlate(moneyBox == parent || moneyBox == owner,
         moneyBox->getName() == "Content", moneyBox->getHeight(), parent->getHeight(), cache.plate.get() == moneyBox))
+    {
+        if (cache.plate.get() != 0) DestroyTradeBalance();
+        return;
+    }
+    // A dedicated native plate is the background/style owner. Do not copy its
+    // foreground onto unrelated window chrome or move a foreign nested panel.
+    if (moneyBox->getParent() != parent || (cache.plate.get() != 0
+        && (cache.plate.get() != moneyBox || cache.nativePanel.get() != data)))
     {
         if (cache.plate.get() != 0) DestroyTradeBalance();
         return;
@@ -510,33 +522,90 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     if (cache.plate.get() == 0)
     {
         cache.plate.set(moneyBox);
-        cache.plateAlpha = moneyBox->getAlpha();
+        cache.nativePanel.set(data);
+        cache.nativePlateParent.set(parent);
+        cache.dataAlpha = data->getAlpha();
     }
     WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
     const char* names[] = { "OTT_TraderMoney", "OTT_TradeBalance" };
+    try
+    {
+        for (int i = 0; i < kHeaderCount; ++i)
+            if (refs[i]->get() == 0)
+            {
+                MyGUI::TextBox* text = moneyBox->createWidget<MyGUI::TextBox>(
+                    "Kenshi_TextboxStandardText", MyGUI::IntCoord(0, 0, 10, 10), MyGUI::Align::Default, names[i]);
+                if (text == 0) throw 0;
+                refs[i]->set(text); // Register immediately for partial-build cleanup.
+                text->setNeedMouseFocus(false);
+                text->setFontName(nativeFontName);
+                text->setFontHeight(nativeFontHeight);
+                cache.headerValid = false;
+            }
+    }
+    catch (...)
+    {
+        DestroyTradeBalance(); cache.failedNativePanel.set(data);
+        LogErrorLine("money header skin could not be created; native header retained");
+        return;
+    }
     for (int i = 0; i < kHeaderCount; ++i)
-        if (refs[i]->get() == 0)
+    {
+        MyGUI::ISubWidgetText* rendered = RenderedText(refs[i]->get());
+        if (rendered == 0 || rendered->getTextColour().alpha <= 0.0f)
         {
-            MyGUI::TextBox* text = parent->createWidget<MyGUI::TextBox>(
-                "Kenshi_TextboxStandardText", MyGUI::IntCoord(0, 0, 10, 10), MyGUI::Align::Default, names[i]);
-            if (text == 0) return;
-            text->setNeedMouseFocus(false);
-            text->setFontName(nativeFontName);
-            text->setFontHeight(nativeFontHeight);
-            refs[i]->set(text);
-            cache.headerValid = false;
+            DestroyTradeBalance(); cache.failedNativePanel.set(data);
+            LogErrorLine("money header XML text style is unavailable; native header retained");
+            return;
         }
-    // Keep the native panel visible and updating; only its rendering is transparent.
+    }
+    // Preserve the real plate, skin and opacity, including XML UI replacements.
+    // Conceal only the old contents, which remain visible/updateable to Native.
     // UITweaks yields this specific panel while this marker is present.
     static const std::string headerMarker("LEOPARD_OTT_MoneyHeader");
     if (data->getUserString(headerMarker) != "1") data->setUserString(headerMarker, "1");
-    if (moneyBox->getAlpha() != 0.0f) moneyBox->setAlpha(0.0f);
+    if (data->getAlpha() != 0.0f)
+    { cache.dataAlpha = data->getAlpha(); data->setAlpha(0.0f); }
+    for (int i = 0; i < kHeaderCount; ++i)
+        if (refs[i]->get()->getAlpha() != cache.dataAlpha) refs[i]->get()->setAlpha(cache.dataAlpha);
     const int balance = g_balanceStartMoney < 0 ? 0 : g_balanceStartMoney - g_balanceMoney;
     const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
-    const MyGUI::IntCoord box = moneyBox->getAbsoluteCoord();
+    const MyGUI::IntCoord currentPlate = moneyBox->getCoord();
+    const MyGUI::Align plateAlign = moneyBox->getAlign();
+    const int horizontal = plateAlign.isHStretch() ? 3 : plateAlign.isRight() ? 2 : plateAlign.isHCenter() ? 1 : 0;
+    const int vertical = plateAlign.isVStretch() ? 3 : plateAlign.isBottom() ? 2 : plateAlign.isVCenter() ? 1 : 0;
+    const TraderAdaptiveLayout::Rect currentGeometry(currentPlate.left,currentPlate.top,currentPlate.width,currentPlate.height);
+    // A native layout can reset to the same baseline without changing captions
+    // or any cached semantic key. Detect it before Update adopts that baseline.
+    const bool nativePlateReset = cache.plateLayout.bound && !(currentGeometry == TraderAdaptiveLayout::ProjectAlign(
+        cache.plateLayout.written,parent->getWidth()-cache.plateLayout.parentWidth,
+        parent->getHeight()-cache.plateLayout.parentHeight,horizontal,vertical));
+    const TraderAdaptiveLayout::Rect baseline = cache.plateLayout.Update(
+        TraderAdaptiveLayout::Rect(currentPlate.left, currentPlate.top, currentPlate.width, currentPlate.height),
+        parent->getWidth(), parent->getHeight(), horizontal, vertical, 0, 0);
+    // Capture the latest native baseline without forgetting our still-live write
+    // when the cached layout below needs no further changes this frame.
+    cache.plateLayout.written = TraderAdaptiveLayout::Rect(currentPlate.left, currentPlate.top, currentPlate.width, currentPlate.height);
+    const MyGUI::IntCoord box(origin.left + baseline.left, origin.top + baseline.top, baseline.width, baseline.height);
     const int width = parent->getWidth() - 32;
+    const MyGUI::IntCoord dataCoord = data->getCoord();
+    const MyGUI::Align dataAlign = data->getAlign();
+    const int dataHorizontal = dataAlign.isHStretch() ? 3 : dataAlign.isRight() ? 2 : dataAlign.isHCenter() ? 1 : 0;
+    const TraderAdaptiveLayout::Rect originalData = TraderAdaptiveLayout::ProjectAlign(
+        TraderAdaptiveLayout::Rect(dataCoord.left,dataCoord.top,dataCoord.width,dataCoord.height),
+        baseline.width-currentPlate.width,0,dataHorizontal,0);
+    int leftPadding = originalData.left;
+    int rightPadding = baseline.width-originalData.left-originalData.width;
+    if (leftPadding < 0) leftPadding = 0;
+    if (rightPadding < 0) rightPadding = 0;
+    const int contentWidth = width-leftPadding-rightPadding;
+    const int dealPadding = leftPadding > rightPadding ? leftPadding : rightPadding;
+    const int dealContentWidth = width-2*dealPadding;
+    if (contentWidth <= 4 || dealContentWidth <= 4) { DestroyTradeBalance(); return; }
+    const MyGUI::IntCoord headerContent(leftPadding,0,contentWidth,0);
     const MyGUI::IntCoord headerCoord(width, box.top - origin.top, box.width, box.height);
-    bool changed = !cache.headerValid || cache.headerCoord != headerCoord
+    bool changed = !cache.headerValid || nativePlateReset || cache.headerCoord != headerCoord
+        || cache.headerContent != headerContent
         || cache.balance != balance || cache.showDeal != TraderState().core.g_showDealBalance
         || cache.moneyFontHeight != nativeFontHeight || cache.moneyFontName != nativeFontName
         || cache.moneyColour != nativeColour;
@@ -545,6 +614,7 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     if (!changed) return;
     cache.headerValid = true;
     cache.headerCoord = headerCoord; cache.balance = balance;
+    cache.headerContent = headerContent;
     cache.showDeal = TraderState().core.g_showDealBalance;
     cache.moneyFontHeight = nativeFontHeight;
     cache.moneyFontName = nativeFontName;
@@ -553,8 +623,8 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     MyGUI::TextBox* deal = AsText(TradeBalanceRef().get());
     HeaderCaptionIfChanged(trader, MyGUI::UString(std::string(Tr("Trader")) + ": " + g_balanceMoneyCaption));
     std::string line = std::string(Tr("Deal")) + ": ";
-    if (balance > 0) line += "#73D966+";
-    else if (balance < 0) line += "#EB6152-";
+    if (balance > 0) line += "+";
+    else if (balance < 0) line += "-";
     line += g_moneyPrefix + FormatMoney(balance);
     HeaderCaptionIfChanged(deal, MyGUI::UString(line));
     deal->setVisible(TraderState().core.g_showDealBalance);
@@ -563,7 +633,8 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
         if (FontHeight(text) + 8 > height) height = FontHeight(text) + 8;
-        text->setTextColour(nativeColour);
+        // Keep this widget's active XML text colour/shadow paired with its
+        // own skin. The source EditBox may use a different input background.
     }
     for (int i = 0; i < kHeaderCount; ++i)
     {
@@ -572,23 +643,25 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         if (FontName(text) != nativeFontName) text->setFontName(nativeFontName);
         if (FontHeight(text) != nativeHeight) text->setFontHeight(nativeHeight);
         const int natural = text->getTextSize().width;
-        const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, width - 4);
+        const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, (i == 0 ? contentWidth : dealContentWidth) - 4);
         if (font != FontHeight(text)) text->setFontHeight(font);
     }
     for (int i = 0; i < kHeaderCount; ++i)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
-        const bool overflow = text->getTextSize().width > width - 4;
+        const bool overflow = text->getTextSize().width > (i == 0 ? contentWidth : dealContentWidth) - 4;
         if (text->getNeedMouseFocus() != overflow) text->setNeedMouseFocus(overflow);
         FullCaptionTip(text, text->getCaption(), overflow);
     }
     const int traderWidth = trader->getTextSize().width + 4;
     const int dealWidth = deal->getVisible() ? deal->getTextSize().width + 4 : 0;
-    const TraderAdaptiveLayout::Header layout(width, traderWidth, 0, dealWidth, height);
+    const TraderAdaptiveLayout::Header layout(width, leftPadding + traderWidth, 0, dealWidth, height);
     cache.headerExtra = layout.extraHeight + (height > box.height ? height - box.height : 0);
-    const int top = box.top - origin.top;
-    CoordIfChanged(trader, MyGUI::IntCoord(16, top + layout.traderTop, width, height));
-    CoordIfChanged(deal, MyGUI::IntCoord(16, top + layout.dealTop, width, height));
+    const MyGUI::IntCoord plateCoord(16, baseline.top, width, height + layout.extraHeight);
+    CoordIfChanged(moneyBox, plateCoord);
+    cache.plateLayout.written = TraderAdaptiveLayout::Rect(plateCoord.left, plateCoord.top, plateCoord.width, plateCoord.height);
+    CoordIfChanged(trader, MyGUI::IntCoord(leftPadding, layout.traderTop, contentWidth, height));
+    CoordIfChanged(deal, MyGUI::IntCoord(dealPadding, layout.dealTop, dealContentWidth, height));
     AlignIfChanged(trader, MyGUI::Align::Left | MyGUI::Align::VCenter);
     AlignIfChanged(deal, MyGUI::Align::HCenter | MyGUI::Align::VCenter);
 
@@ -597,10 +670,22 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
 void DestroyTradeBalance()
 {
     AdaptiveUiCache& cache = AdaptiveUi();
-    MyGUI::Widget* data = DataPanelRef().get();
+    MyGUI::Widget* data = cache.nativePanel.get();
     if (data != 0) data->clearUserString("LEOPARD_OTT_MoneyHeader");
+    if (data != 0 && data->getAlpha() == 0.0f) data->setAlpha(cache.dataAlpha);
     MyGUI::Widget* plate = cache.plate.get();
-    if (plate != 0 && plate->getAlpha() != cache.plateAlpha) plate->setAlpha(cache.plateAlpha);
+    MyGUI::Widget* plateParent = cache.nativePlateParent.get();
+    if (plate != 0 && plateParent != 0 && plate->getParent() == plateParent && cache.plateLayout.bound)
+    {
+        const MyGUI::IntCoord current = plate->getCoord();
+        const MyGUI::Align align = plate->getAlign();
+        const int horizontal = align.isHStretch() ? 3 : align.isRight() ? 2 : align.isHCenter() ? 1 : 0;
+        const int vertical = align.isVStretch() ? 3 : align.isBottom() ? 2 : align.isVCenter() ? 1 : 0;
+        const TraderAdaptiveLayout::Rect restore = cache.plateLayout.Update(
+            TraderAdaptiveLayout::Rect(current.left,current.top,current.width,current.height),
+            plateParent->getWidth(),plateParent->getHeight(),horizontal,vertical,0,0);
+        CoordIfChanged(plate,MyGUI::IntCoord(restore.left,restore.top,restore.width,restore.height));
+    }
     // Restore the latest native baseline, including resize/reset while enabled.
     MyGUI::Widget* owner = FindLiveDockOwner(false);
     MyGUI::Widget* parent = owner == 0 ? 0 : ResolveInjectionParent(owner);
@@ -621,6 +706,9 @@ void DestroyTradeBalance()
     cache.uiStateValid = false;
     cache.nativeMoney.reset();
     cache.plate.reset();
+    cache.nativePanel.reset(); cache.nativePlateParent.reset();
+    cache.failedNativePanel.reset();
+    cache.plateLayout = TraderAdaptiveLayout::Viewport();
     for (int i = 0; i < 7; ++i)
     { cache.controls[i].reset(); cache.baseFont[i] = cache.fittedFont[i] = -1; }
     for (int i = 0; i < 2; ++i)

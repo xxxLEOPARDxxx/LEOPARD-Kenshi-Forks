@@ -14,6 +14,10 @@ checks = {
         and 'CoordIfChanged(count, MyGUI::IntCoord(row.countLeft, 0, row.countWidth, height));' in ui,
     'money style comes from rendered client text': 'RenderedText(nativeValue)' in ui
         and 'nativeValue->getFontHeight()' not in ui and 'nativeValue->getTextColour()' not in ui,
+    'native background retained and own XML palette preserved': 'moneyBox->setAlpha(0.0f)' not in ui
+        and 'text->setTextColour(nativeColour)' not in ui
+        and 'moneyBox->createWidget<MyGUI::TextBox>' in ui
+        and 'data->setAlpha(0.0f)' in ui and '#73D966' not in ui and '#EB6152' not in ui,
     'caption measurement uses native text renderer and cache':
         'return measure->getSubWidgetText()->getTextSize().width;' in ui
         and '.Get(rendered->getFontName(), rendered->getFontHeight(), cache.comboItems, renderer)' in ui,

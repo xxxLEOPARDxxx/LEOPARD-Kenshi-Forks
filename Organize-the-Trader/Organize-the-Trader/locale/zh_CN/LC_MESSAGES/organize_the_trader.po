@@ -113,8 +113,8 @@ msgstr "搜索框的期望宽度（像素）。优先保证文字可读；窄窗
 msgid "Deal balance"
 msgstr "交易盈亏"
 
-msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
-msgstr "在商人窗口顶部中央显示本次交易结算（绿色为收入，红色为支出）。"
+msgid "Show the current deal balance at the centre of the trader header (plus - gain, minus - cost)."
+msgstr "在商人窗口顶部中央显示本次交易结算（加号为收入，减号为支出）。"
 
 msgid "Trader"
 msgstr "商人"

@@ -113,8 +113,8 @@ msgstr "Preferred search field width in pixels. Readable text takes priority; na
 msgid "Deal balance"
 msgstr "Deal balance"
 
-msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
-msgstr "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
+msgid "Show the current deal balance at the centre of the trader header (plus - gain, minus - cost)."
+msgstr "Show the current deal balance at the centre of the trader header (plus - gain, minus - cost)."
 
 msgid "Trader"
 msgstr "Trader"

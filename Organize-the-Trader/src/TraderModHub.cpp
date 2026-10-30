@@ -490,7 +490,7 @@ void EnsureModHubClientConfigured()
     static const EMC_BoolSettingDefV1 kDealBalanceSetting = {
         "show_deal_balance",
         "Deal balance",
-        "Show the current deal balance at the centre of the trader header (green - gain, red - cost).",
+        "Show the current deal balance at the centre of the trader header (plus - gain, minus - cost).",
         &g_modHubClient,
         &GetDealBalanceSetting,
         &SetDealBalanceSetting };

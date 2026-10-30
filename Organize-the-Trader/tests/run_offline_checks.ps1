@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path $PSScriptRoot -Parent
-$out = 'D:/DEV/Kenshi/build/Organize-the-Trader'
+$out = 'D:/DEV/Kenshi/build/Organize-the-TraderOfflineTests'
 $python = 'C:/Users/User/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe'
 $vc = 'C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC'
 $sdk = 'C:/Program Files/Microsoft SDKs/Windows/v7.1'
@@ -17,6 +17,8 @@ function CompileTest([string]$name, [string[]]$sources) {
 }
 RunCheck "$PSScriptRoot/CheckAdaptiveUi.py"
 RunCheck "$PSScriptRoot/CheckFilterCoordinates.py"
+& "$PSScriptRoot/run_header_skin_checks.ps1"
+if ($LASTEXITCODE) { throw 'Native header skin/restore regression' }
 CompileTest 'AdaptiveLayoutTests' @("$PSScriptRoot/AdaptiveLayoutTests.cpp")
 & "$out/AdaptiveLayoutTests.exe"
 if ($LASTEXITCODE) { throw 'Adaptive layout regression' }
@@ -26,7 +28,7 @@ if ($LASTEXITCODE) { throw 'Rendered client text/measurement cache regression' }
 @'
 from pathlib import Path
 import xml.etree.ElementTree as ET
-target = Path('D:/DEV/Kenshi/build/Organize-the-Trader/installed-layout-fixtures.txt')
+target = Path('D:/DEV/Kenshi/build/Organize-the-TraderOfflineTests/installed-layout-fixtures.txt')
 with target.open('w', encoding='utf-8') as out:
     for path in sorted(Path('D:/SteamLibrary/steamapps/common/Kenshi/data/gui/layout').glob('Kenshi_Inventory*.layout')):
         out.write(path.name + '\n')
