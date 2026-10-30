@@ -1,5 +1,36 @@
 # Character Inspector - MCM fork
 
+<!-- fork-publication:start -->
+## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
+
+Original author / автор оригинала: **shutori**. Thank you for the original mod! / Спасибо за оригинальный мод!
+Original project / оригинальный проект: https://github.com/shutori/Shutori_Re_Kenshi_Source
+Original source / исходники оригинала: https://github.com/shutori/Shutori_Re_Kenshi_Source
+
+### Changes made by this fork / Отличия именно нашего форка
+
+Inherited gameplay features are described in the player guide; the list below records our changes. / Исходные игровые возможности описаны в справочнике; ниже перечислены наши изменения.
+
+**Русский**
+- В MCM можно включить осмотр и кнопку инвентаря; отдельное назначение открытия убрано.
+- Интерфейс и настройки поддерживают русский, английский и китайский; прежние переводы сообщества и исправления LEOPARD сохранены.
+- Убраны повторные поиски и лишние перестановки кнопок; привязки очищаются при закрытии окон, осмотр закрывается при удалении персонажа.
+
+**English**
+- MCM controls enable inspection and the inventory button; the separate open binding is removed.
+- Interface and settings support Russian, English and Chinese; earlier community translations and LEOPARD fixes are retained.
+- Repeated button searches and unnecessary layout changes were removed; bindings are cleared on window close, and inspection closes when its character is destroyed.
+
+### Fork release history / История выпусков нашего форка
+
+First fork release: v1; pre-publication fixes stay in this version. / Первый выпуск форка: v1; исправления до публикации остаются в нём.
+
+**v1**
+- Добавлены MCM-переключатели осмотра и кнопки инвентаря, английский/русский/китайский интерфейс; старое назначение открытия больше не используется. Убраны повторные поиски и лишние перестановки кнопок, кэш очищается при закрытии окон, осмотр закрывается при удалении персонажа.
+- Added MCM controls for the inspector and inventory button with English, Russian and Chinese text; the obsolete open binding is no longer used. Repeated button searches and unnecessary layout changes were removed, cached controls are cleared on close, and inspection closes when its character is destroyed.
+
+<!-- fork-publication:end -->
+
 Кнопка STATS (СТАТЫ) в инвентаре открывает осмотр частей тела, покрытия
 и слоёв брони выбранного в этом инвентаре персонажа. Выбор части тела
 показывает подробности её защиты. Отдельного хоткея открытия нет.

@@ -1,5 +1,38 @@
 # Rotate Items - MCM fork
 
+<!-- fork-publication:start -->
+## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
+
+Original author / автор оригинала: **jacobericson**. Thank you for the original mod! / Спасибо за оригинальный мод!
+Original project / оригинальный проект: https://github.com/jacobericson/KenshiRotate
+Original source / исходники оригинала: https://github.com/jacobericson/KenshiRotate
+
+### Changes made by this fork / Отличия именно нашего форка
+
+Inherited gameplay features are described in the player guide; the list below records our changes. / Исходные игровые возможности описаны в справочнике; ниже перечислены наши изменения.
+
+**Русский**
+- MCM заменяет прежнюю вкладку MODS: одно назначение клавиатуры или мыши с модификаторами, MMB по умолчанию; NONE отключает ввод. Для назначения мыши нужен MCM 10 или новее.
+- Первый активный прежний способ переносится автоматически; существующее новое сочетание и личные настройки сохраняются.
+- Исправлены повторные повороты после фокуса инвентаря; редактируемые поля и окно настроек блокируют вращение.
+- Добавлены русский, английский и китайский, сокращены лишние обновления значков, ссылки очищаются при удалении предметов и значков.
+
+**English**
+- MCM replaces the old MODS controls: one keyboard or mouse binding with modifiers, MMB by default; NONE disables input. Mouse assignment requires MCM 10 or newer.
+- The first active legacy binding migrates automatically; an existing new binding and personal settings are preserved.
+- Repeated rotation after inventory focus was fixed; editable fields and the Options window block rotation.
+- Added Russian, English and Chinese text, fewer redundant icon updates, and reference cleanup when items or icons are destroyed.
+
+### Fork release history / История выпусков нашего форка
+
+First fork release: v1; pre-publication fixes stay in this version. / Первый выпуск форка: v1; исправления до публикации остаются в нём.
+
+**v1**
+- Настройки перенесены из MODS в MCM с одним назначением клавиатуры/мыши и модификаторов: MMB по умолчанию, NONE отключает ввод, первый активный старый способ переносится автоматически. Исправлены повторные повороты при фокусе инвентаря с защитой ввода текста; добавлены три языка, сокращены лишние обновления значков, состояние очищается при удалении предметов и значков.
+- Settings moved from MODS to MCM with one keyboard/mouse binding and modifiers: MMB by default, NONE disables input, and the first active old binding migrates automatically. Repeated rotation with inventory focus was fixed while protecting text entry; three languages, fewer redundant icon updates and item/icon lifetime cleanup were added.
+
+<!-- fork-publication:end -->
+
 Локальный форк jacobericson/KenshiRotate. Рабочая логика поворота, переносов,
 разделения стопок и записи поворота в сохранение оставлена из оригинала.
 

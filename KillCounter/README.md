@@ -1,5 +1,36 @@
 # Kill Counter - локальный MCM fork
 
+<!-- fork-publication:start -->
+## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
+
+Original author / автор оригинала: **Rokeshi**. Thank you for the original mod! / Спасибо за оригинальный мод!
+Original project / оригинальный проект: https://www.nexusmods.com/kenshi/mods/2103
+Original source / исходники оригинала: Source code shipped with the installed original; a public repository and author permission to redistribute a modified version have not been verified. No explicit license was present locally. / Исходники поставлялись с установленным оригиналом; публичный репозиторий и разрешение автора на распространение изменённой версии не подтверждены. Явной лицензии локально не было.
+
+### Changes made by this fork / Отличия именно нашего форка
+
+Inherited gameplay features are described in the player guide; the list below records our changes. / Исходные игровые возможности описаны в справочнике; ниже перечислены наши изменения.
+
+**Русский**
+- В MCM добавлены общее включение учёта и независимый показ каждой строки; скрытие строки не останавливает её учёт, отключение сохраняет накопленное.
+- Подписи и настройки переведены на русский, английский и китайский; прежние исправления сообщества и совместимость со StatColours сохранены.
+- Числа обновляются только при изменении; очищаются записи удалённых персонажей и просроченных скрытных оглушений, не накапливаются пустые записи статистики.
+
+**English**
+- MCM adds a tracking enable switch and independent row visibility; hiding a row does not stop counting, and disabling retains totals.
+- Labels and settings support Russian, English and Chinese, retaining community fixes and StatColours compatibility.
+- Numbers refresh only when changed; destroyed-character and expired stealth-attempt records are removed, and empty statistics records do not accumulate.
+
+### Fork release history / История выпусков нашего форка
+
+First fork release: v1; pre-publication fixes stay in this version. / Первый выпуск форка: v1; исправления до публикации остаются в нём.
+
+**v1**
+- Добавлены MCM-переключатели нового учёта и независимого показа каждой строки, английские/русские/китайские подписи. Обновляются только изменившиеся числа, удаляются записи об уничтоженных персонажах и просроченных попытках оглушения; отключение сохраняет накопленное, совместимость со StatColours сохранена.
+- Added MCM controls for new-event tracking and independent visibility of each row, with English, Russian and Chinese labels. Only changed numbers are refreshed, destroyed-character and expired stealth-attempt records are removed, disabling retains totals, and StatColours compatibility is preserved.
+
+<!-- fork-publication:end -->
+
 Оригинал Rokeshi, существующие исправления перевода сохранены.
 Убийства, нокауты и оторванные конечности видны в окне навыков.
 
