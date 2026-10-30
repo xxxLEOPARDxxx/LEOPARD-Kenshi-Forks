@@ -24,6 +24,12 @@ int main()
     Check(asymmetric.traderTop == 0 && asymmetric.playerTop == 0 && asymmetric.dealTop == 32);
     Header captured(669, 163, 200, 80, 54);
     Check(captured.dealTop == 0 && captured.extraHeight == 0);
+    Header merchantDeal(669, 163, 0, 80, 54);
+    Check(merchantDeal.traderTop == 0 && merchantDeal.dealTop == 0 && merchantDeal.extraHeight == 0);
+    Header narrowMerchantDeal(180, 220, 0, 80, 54);
+    Check(narrowMerchantDeal.dealTop == 54 && narrowMerchantDeal.extraHeight == 54);
+    Header merchantOnly(180, 220, 0, 0, 54);
+    Check(merchantOnly.extraHeight == 0);
     Check(FitFont(40, 600, 300) == 30);
     Check(FitFont(10, 600, 1) == 10);
     Check(FitFont(16, 600, 1) == 12);

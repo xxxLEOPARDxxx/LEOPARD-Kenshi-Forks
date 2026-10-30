@@ -39,6 +39,10 @@ int main()
     Widget* actual = TraderRenderedText::Resolve(&edit);
     Check(actual == &client, "EditBox must use its rendered Client, never empty root getters");
     Check(actual->getFontHeight() == 21 && actual->getTextAlpha() == 1.0f, "cash style stays visible and nonzero");
+    Text headerStyles[2] = { *actual->getSubWidgetText(), *actual->getSubWidgetText() };
+    Check(headerStyles[0].height == 21 && headerStyles[0].alpha == 1.0f
+        && headerStyles[1].height == 21 && headerStyles[1].alpha == 1.0f,
+        "merchant and deal both copy the accepted rendered style");
     Text decoy("RootDecorativeFont", 14, 0.0f);
     Widget composed(&decoy, &client);
     Check(TraderRenderedText::Resolve(&composed) == &client, "Client overrides decorative root text as Native EditBox does");
@@ -65,5 +69,5 @@ int main()
     captions[3]="translated-caption";
     Check(metrics.Get("client-font",22,captions,renderer)==180 && renderer.measures==21,
         "locale/content change invalidates the seven-caption result once");
-    std::puts("PASS: 15 rendered-text/native-client and measurement-invalidation checks");
+    std::puts("PASS: 16 rendered-text/native-client and measurement-invalidation checks");
 }

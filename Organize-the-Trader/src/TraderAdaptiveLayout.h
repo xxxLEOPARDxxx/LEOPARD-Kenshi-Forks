@@ -113,7 +113,7 @@ struct Header
             if (traderNeed + 12 > leftSpace || playerNeed + 12 > rightSpace)
                 dealTop = extraHeight = height;
         }
-        if (traderNeed + playerNeed + 12 > width)
+        if (playerNeed > 0 && traderNeed + playerNeed + 12 > width)
         {
             playerTop = height;
             dealTop = dealNeed > 0 ? height * 2 : 0;

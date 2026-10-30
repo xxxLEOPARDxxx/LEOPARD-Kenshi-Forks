@@ -27,7 +27,7 @@ Run `CheckNativeContract.py` with the bundled Python to reproduce the installed-
 
 ## Wallet and native panel updates
 
-Character::getMoney resolves through installed slot1604 to Steam `0x790AC0`. The unpacked Steam function tests the character's player-side data and then reads the player's participant faction through PlayerInterface+0x2A0, faction ownerships+0x80, and money+0x88. Non-player branches use the character's own ownership. OTT resolves the selected player Character handle afresh for each money refresh, with getAnyPlayerCharacter as a fallback; it never writes a wallet.
+Character::getMoney resolves through installed slot1604 to Steam `0x790AC0`. The unpacked Steam function tests the character's player-side data and then reads the player's participant faction through PlayerInterface+0x2A0, faction ownerships+0x80, and money+0x88. Non-player branches use the character's own ownership. The earlier three-label candidate resolved a fresh player Character to display that wallet; the current two-label UI removes that getter and fallback entirely. No version writes a wallet.
 
 The merchant amount comes from the game's live numeric data-panel caption. Currency prefix and separators follow that caption. The deal is the opening amount minus the current amount. Parsing accepts the full non-negative signed-int range, distinguishes zero from missing data, and rejects overflow.
 
@@ -37,7 +37,7 @@ Independent offline review resolved InventoryGUI::updateDatapanel to Steam `0x70
 
 The installed default and Dark UI Advanced `Kenshi_InventoryTraderWindow.layout` both put `datapanel` in a dedicated small money plate beneath Content. The adapter rejects a plate equal to the injection parent, window owner, or a widget named Content; it also rejects an untrusted plate exceeding one third of parent height. A previously acquired dedicated plate remains trusted during vertical shrinking. Rejection after acquisition restores the header instead of leaving Content transparent.
 
-All three custom header widgets must be created before the native plate is faded or `LEOPARD_OTT_MoneyHeader=1` is set. UITweaks skips only this marked native data panel; the marker is removed and original alpha restored on teardown. Native overflow tooltips are resolved afresh, hidden/cleared for the live owned widget before its destruction, and are never cached as world-owned pointers.
+Both current custom header widgets must be created before the native plate is faded or `LEOPARD_OTT_MoneyHeader=1` is set. UITweaks skips only this marked native data panel; the marker is removed and original alpha restored on teardown. Native overflow tooltips are resolved afresh, hidden/cleared for the live owned widget before its destruction, and are never cached as world-owned pointers.
 
 The viewport adapter's production helper tracks a native baseline and its last written rectangle independently for each viewport. Normal MyGUI alignment projects both through parent-size changes; a distinct native absolute setCoord is adopted as a new baseline. Reservation clamps height to zero, temporarily hides a fully collapsed viewport, and restores the latest baseline and prior visibility on teardown. The helper is exercised directly in AdaptiveLayoutTests, including mixed viewport heights, repeated updates, collapse, ordinary resizing, absolute geometry reset, and restoration.
 
@@ -68,3 +68,11 @@ Installed MyGUIEngine disassembly establishes the missing contract:
 The hidden native measuring widget and its caches are owned by the plugin. Popup row pointers are obtained via public ListBox::getWidgetByIndex, used only during that call, and never retained. Actual popup text-region chrome is calculated separately from the closed combo. Missing money render text or a zero/empty/transparent source style restores/leaves the native header visible rather than hiding it.
 
 A matching candidate2 MAP, compiler-measured cache layout and fresh read-only probe are prepared before the next user launch. That future capture must show all three custom cash styles with positive height/alpha, correct Client widths and stable measurement counters. This section records a source/Native-contract correction; visual acceptance of candidate2 is still pending.
+
+## Accepted candidate and removal of player wallet
+
+The user accepted candidate7c629088: sums and preset names are visible. Root's controlled snapshot consumed613220 bytes with no read errors: the original three labels used opaque21px text, closed combo191/client157 with Native text153, popup217 and rendered text157, and stable measurement counters.
+
+The next user request removes the player wallet entirely. The current header owns exactly two labels, OTT_TraderMoney and OTT_TradeBalance, with the same accepted rendered-text style. No OTT_PlayerMoney widget, player-money cache, Character::getMoney or getAnyPlayerCharacter call remains in this UI translation unit. The PE audit rejects those player-wallet getter imports. The layout helper receives playerNeed0; no hidden third row is reserved for an absent player label. Initial headerCaptionSets is2 instead of3; counters remain cumulative across reopen and unchanged frames add no writes. New unit cases cover the two-label layout, narrow two-label wrap, merchant-only mode, and both opaque21px style copies. Font/footer behaviour and MO/config files are unchanged.
+
+Candidate3 has a separate matching MAP/compiler layout/probe; candidate2 artifacts and its accepted snapshot are preserved. The two-label simplification still awaits the short final visual check after Root installs it; GOG runtime acceptance remains outstanding.

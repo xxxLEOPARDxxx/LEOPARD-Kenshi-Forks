@@ -32,6 +32,10 @@ for name in ('Organize-the-Trader', 'UITweaks'):
     assert '?startPlugin@@YAXXZ' in pe.exports()
     assert 'MCM_Describe' in pe.exports()
     checked = 0
+    if name == 'Organize-the-Trader':
+        all_imports = [symbol for names in pe.imports().values() for symbol in names]
+        assert not any('getMoney@Character' in symbol or 'getAnyPlayerCharacter@PlayerInterface' in symbol
+                       for symbol in all_imports), 'Removed player wallet getter still imported'
     for dep, names in pe.imports().items():
         if dep.lower() not in {'kenshilib.dll', 'ogremain_x64.dll', 'myguiengine_x64.dll'}:
             continue

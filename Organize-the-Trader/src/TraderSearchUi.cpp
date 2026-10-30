@@ -16,9 +16,6 @@
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
-#include <kenshi/Character.h>
-#include <kenshi/GameWorld.h>
-#include <kenshi/PlayerInterface.h>
 #include <kenshi/GUI/ForgottenGUI.h>
 #include <kenshi/GUI/ToolTip.h>
 
@@ -49,6 +46,7 @@
 namespace
 {
 const char* kDockWindowName = "OTT_InlineTraderSearch";
+const int kHeaderCount = 2;
 
 MyGUI::ISubWidgetText* RenderedText(MyGUI::Widget* widget)
 {
@@ -272,17 +270,17 @@ struct AdaptiveUiCache
 {
     WidgetRef controls[7]; // label, combo, direction, edit, hint, clear, count
     WidgetRef viewports[2];
-    WidgetRef nativeMoney, plate, trader, player;
+    WidgetRef nativeMoney, plate, trader;
     WidgetRef measure, popup;
     TraderRenderedText::MeasureCache<MyGUI::UString> metrics[2];
     int listTextWidth;
     int closedChrome, popupChrome, popupNaturalWidth, popupRenderedWidth;
     size_t measureCreates, measureFontChanges, headerCaptionSets;
-    TextSnapshot footerText[7], headerText[3];
+    TextSnapshot footerText[7], headerText[kHeaderCount];
     std::vector<MyGUI::UString> comboItems;
     MyGUI::UString nativeCaption;
     MyGUI::IntCoord footerCoord, headerCoord;
-    int sortSetting, searchSetting, playerMoney, balance, listWidth, moneyFontHeight;
+    int sortSetting, searchSetting, balance, listWidth, moneyFontHeight;
     std::string moneyFontName;
     MyGUI::Colour moneyColour;
     std::string popupFont;
@@ -296,7 +294,7 @@ struct AdaptiveUiCache
     TraderAdaptiveLayout::Viewport viewportLayout[2];
     bool viewportHidden[2], viewportVisible[2];
     float plateAlpha;
-    AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), playerMoney(-2), balance(0), listWidth(0), moneyFontHeight(-1),
+    AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), balance(0), listWidth(0), moneyFontHeight(-1),
         listTextWidth(0), closedChrome(0), popupChrome(0), popupNaturalWidth(0), popupRenderedWidth(0),
         measureCreates(0), measureFontChanges(0), headerCaptionSets(0),
         popupFontHeight(0), popupTextWidth(0), popupValid(false),
@@ -514,9 +512,9 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         cache.plate.set(moneyBox);
         cache.plateAlpha = moneyBox->getAlpha();
     }
-    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
-    const char* names[] = { "OTT_TraderMoney", "OTT_PlayerMoney", "OTT_TradeBalance" };
-    for (int i = 0; i < 3; ++i)
+    WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
+    const char* names[] = { "OTT_TraderMoney", "OTT_TradeBalance" };
+    for (int i = 0; i < kHeaderCount; ++i)
         if (refs[i]->get() == 0)
         {
             MyGUI::TextBox* text = parent->createWidget<MyGUI::TextBox>(
@@ -533,34 +531,27 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     static const std::string headerMarker("LEOPARD_OTT_MoneyHeader");
     if (data->getUserString(headerMarker) != "1") data->setUserString(headerMarker, "1");
     if (moneyBox->getAlpha() != 0.0f) moneyBox->setAlpha(0.0f);
-    // Resolve the player handle afresh; no Character/ownership pointer is cached.
-    Character* selected = ou == 0 || ou->player == 0 ? 0 : ou->player->selectedCharacter.getCharacter();
-    if (selected == 0 && ou != 0 && ou->player != 0) selected = ou->player->getAnyPlayerCharacter();
-    const int playerMoney = selected == 0 ? -1 : selected->getMoney();
     const int balance = g_balanceStartMoney < 0 ? 0 : g_balanceStartMoney - g_balanceMoney;
     const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
     const MyGUI::IntCoord box = moneyBox->getAbsoluteCoord();
     const int width = parent->getWidth() - 32;
     const MyGUI::IntCoord headerCoord(width, box.top - origin.top, box.width, box.height);
-    bool changed = !cache.headerValid || cache.headerCoord != headerCoord || cache.playerMoney != playerMoney
+    bool changed = !cache.headerValid || cache.headerCoord != headerCoord
         || cache.balance != balance || cache.showDeal != TraderState().core.g_showDealBalance
         || cache.moneyFontHeight != nativeFontHeight || cache.moneyFontName != nativeFontName
         || cache.moneyColour != nativeColour;
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kHeaderCount; ++i)
         if (cache.headerText[i].Observe(refs[i]->get())) changed = true;
     if (!changed) return;
     cache.headerValid = true;
-    cache.headerCoord = headerCoord; cache.playerMoney = playerMoney; cache.balance = balance;
+    cache.headerCoord = headerCoord; cache.balance = balance;
     cache.showDeal = TraderState().core.g_showDealBalance;
     cache.moneyFontHeight = nativeFontHeight;
     cache.moneyFontName = nativeFontName;
     cache.moneyColour = nativeColour;
     MyGUI::TextBox* trader = AsText(cache.trader.get());
-    MyGUI::TextBox* player = AsText(cache.player.get());
     MyGUI::TextBox* deal = AsText(TradeBalanceRef().get());
     HeaderCaptionIfChanged(trader, MyGUI::UString(std::string(Tr("Trader")) + ": " + g_balanceMoneyCaption));
-    HeaderCaptionIfChanged(player, MyGUI::UString(std::string(Tr("Player")) + ": "
-        + (playerMoney < 0 ? "-" : g_moneyPrefix + FormatMoney(playerMoney))));
     std::string line = std::string(Tr("Deal")) + ": ";
     if (balance > 0) line += "#73D966+";
     else if (balance < 0) line += "#EB6152-";
@@ -568,13 +559,13 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     HeaderCaptionIfChanged(deal, MyGUI::UString(line));
     deal->setVisible(TraderState().core.g_showDealBalance);
     int height = box.height > nativeFontHeight + 8 ? box.height : nativeFontHeight + 8;
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kHeaderCount; ++i)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
         if (FontHeight(text) + 8 > height) height = FontHeight(text) + 8;
         text->setTextColour(nativeColour);
     }
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kHeaderCount; ++i)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
         const int nativeHeight = nativeFontHeight;
@@ -584,7 +575,7 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, width - 4);
         if (font != FontHeight(text)) text->setFontHeight(font);
     }
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kHeaderCount; ++i)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
         const bool overflow = text->getTextSize().width > width - 4;
@@ -592,16 +583,13 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         FullCaptionTip(text, text->getCaption(), overflow);
     }
     const int traderWidth = trader->getTextSize().width + 4;
-    const int playerWidth = player->getTextSize().width + 4;
     const int dealWidth = deal->getVisible() ? deal->getTextSize().width + 4 : 0;
-    const TraderAdaptiveLayout::Header layout(width, traderWidth, playerWidth, dealWidth, height);
+    const TraderAdaptiveLayout::Header layout(width, traderWidth, 0, dealWidth, height);
     cache.headerExtra = layout.extraHeight + (height > box.height ? height - box.height : 0);
     const int top = box.top - origin.top;
     CoordIfChanged(trader, MyGUI::IntCoord(16, top + layout.traderTop, width, height));
-    CoordIfChanged(player, MyGUI::IntCoord(16, top + layout.playerTop, width, height));
     CoordIfChanged(deal, MyGUI::IntCoord(16, top + layout.dealTop, width, height));
     AlignIfChanged(trader, MyGUI::Align::Left | MyGUI::Align::VCenter);
-    AlignIfChanged(player, MyGUI::Align::Right | MyGUI::Align::VCenter);
     AlignIfChanged(deal, MyGUI::Align::HCenter | MyGUI::Align::VCenter);
 
 }
@@ -617,9 +605,9 @@ void DestroyTradeBalance()
     MyGUI::Widget* owner = FindLiveDockOwner(false);
     MyGUI::Widget* parent = owner == 0 ? 0 : ResolveInjectionParent(owner);
     if (parent != 0) ReserveAdaptiveRows(parent, 0, 0);
-    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
+    WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < kHeaderCount; ++i)
     {
         FullCaptionTip(refs[i]->get(), MyGUI::UString(), false);
         if (refs[i]->get() != 0 && gui != 0) gui->destroyWidget(refs[i]->get());

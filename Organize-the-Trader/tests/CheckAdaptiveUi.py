@@ -17,6 +17,9 @@ checks = {
     'caption measurement uses native text renderer and cache':
         'return measure->getSubWidgetText()->getTextSize().width;' in ui
         and '.Get(rendered->getFontName(), rendered->getFontHeight(), cache.comboItems, renderer)' in ui,
+    'header contains only merchant and deal without player wallet calls':
+        'OTT_PlayerMoney' not in ui and 'playerMoney' not in ui and '->getMoney()' not in ui
+        and 'const int kHeaderCount = 2;' in ui,
 }
 game = Path('D:/SteamLibrary/steamapps/common/Kenshi')
 for path in (game/'data/gui/layout/Kenshi_InventoryTraderWindow.layout',
