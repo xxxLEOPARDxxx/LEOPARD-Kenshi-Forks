@@ -1,5 +1,7 @@
 # Kill Counter - локальный MCM fork
 
+[Nexus — our release / наша версия](https://www.nexusmods.com/kenshi/mods/2261)
+
 <!-- fork-publication:start -->
 ## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
 
@@ -42,12 +44,12 @@ MCM -> Kill Counter: включение нового учёта и показ к
 не заставляют интерфейс перерисовывать текст каждый кадр.
 
 Собирается штатным build.ps1 -SrcDir <этот каталог> -Name KillCounter.
-Локальный тестовый форк; публичная публикация в этой задаче не выполняется.
+Первый выпуск форка: v1.
 Происхождение: ORIGIN.md. Нужна проверка накопления и загрузки в игре.
 
 Исправления по проверке 29.10.2026:
 Debug=1 в MCM включает журнал в RE_Kenshi_log.txt: убийства, боевые и скрытные нокауты, отсечённые конечности и загруженные счётчики. По умолчанию выключен, применяется сразу. Ошибки пишутся всегда.
-## Current local release / Текущая локальная версия: v1 (29–30 October / октября 2026)
+## Current release / Текущая версия: v1 (29–30 October / октября 2026)
 
 ### English — changes in this version
 
@@ -96,6 +98,6 @@ These settings require no restart. / Эти настройки не требую
 
 Original / оригинал: **Rokeshi**, according to installed mod metadata / по метаданным установленного мода. [Original Kill Counter on Nexus Mods / оригинальная страница](https://www.nexusmods.com/kenshi/mods/2103). Source was included with the installed original mod; imported from the locally patched `KillCounter-src` on 29 October 2026. / Исходник поставлялся с установленным оригиналом; импортирован из локального исправленного `KillCounter-src` 29 октября 2026 года. MCM integration and local fixes / интеграция MCM и локальные исправления: **LEOPARD**; existing community translation work is retained / прежние исправления перевода сообщества сохранены.
 
-[ORIGIN.md](ORIGIN.md) records that **no explicit license was present locally**. Permission from the original author for a public modified redistribution is **not confirmed**. This is a local test fork; neither source availability nor a locally built archive establishes permission to publish it. No GPL license is asserted for this fork. / В ORIGIN.md зафиксировано, что **явной лицензии локально не было**. Разрешение оригинального автора на публичное распространение изменённой версии **не подтверждено**. Это локальный тестовый форк; наличие исходника или локального архива не означает разрешения на публикацию. Лицензия GPL этому форку не приписывается.
+[ORIGIN.md](ORIGIN.md) records that **no explicit license was present locally**. Permission from the original author for a public modified redistribution is **not confirmed**. Source availability and a locally built archive do not establish an upstream license. No GPL license is asserted for this fork. / В ORIGIN.md зафиксировано, что **явной лицензии локально не было**. Разрешение оригинального автора на публичное распространение изменённой версии **не подтверждено**. Наличие исходника и локального архива не устанавливает лицензию оригинала. Лицензия GPL этому форку не приписывается.
 
 Native foundation / основа: RE_Kenshi/KenshiLib. Localization / локализация: Asur's shared `Localization.h`. Build on the development stand / сборка на стенде: `build.ps1 -SrcDir <this directory> -Name KillCounter`. No isolated performance improvement or absence of long-session leaks is claimed. / Изолированный прирост производительности и отсутствие длительных утечек не заявляются.

@@ -1,5 +1,7 @@
 # Rotate Items - MCM fork
 
+[Nexus — our release / наша версия](https://www.nexusmods.com/kenshi/mods/2260)
+
 <!-- fork-publication:start -->
 ## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
 
