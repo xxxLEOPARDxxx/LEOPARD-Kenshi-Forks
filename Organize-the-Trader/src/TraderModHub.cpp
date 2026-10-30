@@ -479,7 +479,7 @@ void EnsureModHubClientConfigured()
     static const EMC_IntSettingDefV1 kSearchFieldWidthSetting = {
         "search_field_width",
         "Search field width",
-        "Width of the search field at the bottom of the trader window, in pixels",
+        "Preferred search field width in pixels. Readable text takes priority; narrow windows use separate rows.",
         &g_modHubClient,
         static_cast<int32_t>(kSearchFieldWidthMin),
         static_cast<int32_t>(kSearchFieldWidthMax),
@@ -490,7 +490,7 @@ void EnsureModHubClientConfigured()
     static const EMC_BoolSettingDefV1 kDealBalanceSetting = {
         "show_deal_balance",
         "Deal balance",
-        "How much you made in this trader window (green - plus, red - minus), next to the trader's money",
+        "Show the current deal balance at the centre of the trader header (green - gain, red - cost).",
         &g_modHubClient,
         &GetDealBalanceSetting,
         &SetDealBalanceSetting };
@@ -498,7 +498,7 @@ void EnsureModHubClientConfigured()
     static const EMC_IntSettingDefV1 kSortComboWidthSetting = {
         "sort_combo_width",
         "Sort list width",
-        "Width of the sort drop-down at the bottom of the trader window, in pixels. 0 - fitted to the window; a set width moves the direction and Arrange buttons to the right",
+        "Preferred sort list width in pixels. 0 fits its translated items. Narrow windows use separate rows.",
         &g_modHubClient,
         0,
         static_cast<int32_t>(kSortComboWidthMax),

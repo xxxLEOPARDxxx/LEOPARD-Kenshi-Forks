@@ -204,17 +204,13 @@ bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
         && version == "1.0.65";
 }
 
-void InventoryLayoutCreateGUI_hook(
+InventoryLayoutCreateGUIFn g_traderSetupSectionsOrig = 0;
+void BindInventoryLayoutSections(
     void* self,
     InventoryGUI* invGui,
     Ogre::map<std::string, InventorySectionGUI*>::type& sectionGuis,
     Inventory* inv)
 {
-    if (g_inventoryLayoutCreateGUIOrig != 0)
-    {
-        g_inventoryLayoutCreateGUIOrig(self, invGui, sectionGuis, inv);
-    }
-
     if (inv == 0)
     {
         return;
@@ -331,6 +327,19 @@ void InventoryLayoutCreateGUI_hook(
     }
 }
 
+void InventoryLayoutCreateGUI_hook(void* self, InventoryGUI* gui,
+    Ogre::map<std::string, InventorySectionGUI*>::type& sections, Inventory* inventory)
+{
+    if (g_inventoryLayoutCreateGUIOrig != 0) g_inventoryLayoutCreateGUIOrig(self, gui, sections, inventory);
+    BindInventoryLayoutSections(self, gui, sections, inventory);
+}
+void TraderSetupSections_hook(void* self, InventoryGUI* gui,
+    Ogre::map<std::string, InventorySectionGUI*>::type& sections, Inventory* inventory)
+{
+    if (g_traderSetupSectionsOrig != 0) g_traderSetupSectionsOrig(self, gui, sections, inventory);
+    BindInventoryLayoutSections(self, gui, sections, inventory);
+}
+
 std::uintptr_t ResolveInventoryLayoutCreateGUIHookAddress(KenshiLib::BinaryVersion versionInfo)
 {
     const std::string version = versionInfo.GetVersion();
@@ -339,21 +348,13 @@ std::uintptr_t ResolveInventoryLayoutCreateGUIHookAddress(KenshiLib::BinaryVersi
         return 0;
     }
 
-    const std::uintptr_t baseAddress = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(0));
-    if (baseAddress == 0)
-    {
-        return 0;
-    }
-
-    const bool hasNonZeroPlatform = versionInfo.GetPlatform() != 0;
-    if (hasNonZeroPlatform)
-    {
-        // 1.0.65 Steam: slot 37 (0x14F530) resolves into the backpack attach branch,
-        // but the inventory-item population path lives at slot 1 / RVA 0x14EEA0.
-        return baseAddress + 0x0014EEA0;
-    }
-
-    return baseAddress + 0x0014F450;
+    // Resolve the same native Character layout for Steam and GOG from the
+    // installed KenshiLib table. The old GOG RVA selected ANIMAL setupSections,
+    // explaining why opening an animal inventory first woke the binding path.
+    HMODULE runtime = GetModuleHandleA("KenshiLib.dll");
+    FARPROC entry = runtime == 0 ? 0 : GetProcAddress(runtime,
+        "CharacterInventoryLayout_setupSections_PLACEHOLDER");
+    return entry == 0 ? 0 : KenshiLib::GetRealAddress(entry);
 }
 
 bool IsAddressInMainModuleTextSection(std::uintptr_t address)
@@ -674,7 +675,6 @@ void TryInstallInventoryLayoutCreateGUIHookFromLayout(InventoryLayout* layout)
         bool exactExpectedMatch;
     };
 
-    const std::uintptr_t kExpectedAddressTolerance = 0x3000;
     std::vector<CreateGUIHookCandidate> candidates;
     candidates.reserve(48);
 
@@ -730,33 +730,6 @@ void TryInstallInventoryLayoutCreateGUIHookFromLayout(InventoryLayout* layout)
         selectedIndex = index;
         selected = true;
         break;
-    }
-
-    if (!selected && g_expectedInventoryLayoutCreateGUIAddress != 0)
-    {
-        std::size_t bestIndex = 0;
-        std::uintptr_t bestDelta = static_cast<std::uintptr_t>(-1);
-        for (std::size_t index = 0; index < candidates.size(); ++index)
-        {
-            if (candidates[index].deltaToExpected < bestDelta)
-            {
-                bestIndex = index;
-                bestDelta = candidates[index].deltaToExpected;
-            }
-        }
-
-        if (bestDelta <= kExpectedAddressTolerance)
-        {
-            selectedIndex = bestIndex;
-            selected = true;
-            selectedNearExpected = true;
-        }
-    }
-
-    if (!selected && g_expectedInventoryLayoutCreateGUIAddress == 0)
-    {
-        selectedIndex = 0;
-        selected = true;
     }
 
     if (!selected)
@@ -901,6 +874,16 @@ __declspec(dllexport) void startPlugin()
     {
         LogWarnLine("inventory layout createGUI expected target unresolved; deferred hook disabled");
     }
+
+    // Bind the shop's actual panel directly, independent of the selected
+    // character's human/animal layout and before the first window is created.
+    TryInstallInventoryLayoutCreateGUIHookEarly();
+    HMODULE setupRuntime = GetModuleHandleA("KenshiLib.dll");
+    FARPROC traderSetup = setupRuntime == 0 ? 0 : GetProcAddress(setupRuntime,
+        "TraderInventoryLayout_setupSections_PLACEHOLDER");
+    if (traderSetup == 0 || KenshiLib::AddHook(KenshiLib::GetRealAddress(traderSetup),
+        TraderSetupSections_hook, &g_traderSetupSectionsOrig) != KenshiLib::SUCCESS)
+        LogErrorLine("could not hook native TraderInventoryLayout::setupSections");
 
     LogInfoLine("Inventory::refreshGui hook disabled (unsafe in current runtime)");
 

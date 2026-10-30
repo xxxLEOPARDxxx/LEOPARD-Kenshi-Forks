@@ -10,10 +10,17 @@
 #include "TraderSearchText.h"
 #include "TraderWindowDetection.h"
 #include "TraderInlinePlacement.h"
+#include "TraderAdaptiveLayout.h"
+#include "TraderRenderedText.h"
 
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
+#include <kenshi/Character.h>
+#include <kenshi/GameWorld.h>
+#include <kenshi/PlayerInterface.h>
+#include <kenshi/GUI/ForgottenGUI.h>
+#include <kenshi/GUI/ToolTip.h>
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_ComboBox.h>
@@ -21,6 +28,7 @@
 #include <mygui/MyGUI_FontManager.h>
 #include <mygui/MyGUI_Gui.h>
 #include <mygui/MyGUI_InputManager.h>
+#include <mygui/MyGUI_ListBox.h>
 #include <mygui/MyGUI_TextBox.h>
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Window.h>
@@ -41,6 +49,23 @@
 namespace
 {
 const char* kDockWindowName = "OTT_InlineTraderSearch";
+
+MyGUI::ISubWidgetText* RenderedText(MyGUI::Widget* widget)
+{
+    MyGUI::Widget* rendered = TraderRenderedText::Resolve(widget);
+    return rendered == 0 ? 0 : rendered->getSubWidgetText();
+}
+int FontHeight(MyGUI::Widget* widget)
+{
+    MyGUI::ISubWidgetText* text = RenderedText(widget);
+    return text == 0 ? 0 : text->getFontHeight();
+}
+const std::string& FontName(MyGUI::Widget* widget)
+{
+    static const std::string empty;
+    MyGUI::ISubWidgetText* text = RenderedText(widget);
+    return text == 0 ? empty : text->getFontName();
+}
 
 // Пристыкованная панель поиска - по ссылке (shared/WidgetRef.h), без
 // поиска по имени через весь интерфейс каждый кадр.
@@ -105,29 +130,7 @@ void FitSortComboText(MyGUI::ComboBox* combo)
 }
 
 // Width of the longest item in the combo's font.
-int SortComboItemsWidth(MyGUI::ComboBox* combo)
-{
-    MyGUI::FontManager* fonts = MyGUI::FontManager::getInstancePtr();
-    MyGUI::IFont* font = fonts == 0 ? 0 : fonts->getByName(combo->getFontName());
-    if (font == 0) return 0;
-    float scale = 1.0f;
-    if (combo->getFontHeight() > 0 && font->getDefaultHeight() > 0)
-        scale = static_cast<float>(combo->getFontHeight()) / font->getDefaultHeight();
-    int widest = 0;
-    for (size_t i = 0; i < combo->getItemCount(); ++i)
-    {
-        const MyGUI::UString& item = combo->getItemNameAt(i);
-        float width = 0.0f;
-        for (MyGUI::UString::const_iterator c = item.begin(); c != item.end(); ++c)
-        {
-            MyGUI::GlyphInfo* glyph = font->getGlyphInfo(*c);
-            if (glyph != 0) width += glyph->advance + glyph->bearingX;
-        }
-        const int px = static_cast<int>(width * scale + 0.5f);
-        if (px > widest) widest = px;
-    }
-    return widest;
-}
+int SortComboItemsWidth(MyGUI::ComboBox* combo, MyGUI::ISubWidgetText* rendered = 0, bool popup = false);
 
 // ---------------------------------------------------------------------------
 // LEOPARD (14.10.2026, просьба пользователя): итог торговли. Наверху, где
@@ -172,23 +175,10 @@ MyGUI::Widget* g_balanceOwner = 0;      // окно торговца, для к�
 int g_balanceStartMoney = -1;
 std::string g_balanceMoneyCaption;      // последняя разобранная подпись
 int g_balanceMoney = -1;
-int g_balanceShown = 0x7fffffff;
 
 int ParseMoneyCaption(const std::string& caption)
 {
-    int value = 0;
-    bool digits = false;
-    for (size_t i = 0; i < caption.size(); ++i)
-    {
-        const char ch = caption[i];
-        if (ch >= '0' && ch <= '9')
-        {
-            digits = true;
-            if (value < 200000000)
-                value = value * 10 + (ch - '0');
-        }
-    }
-    return digits ? value : -1;
+    return TraderAdaptiveLayout::ParseMoneyCaption(caption);
 }
 
 // подписи блока денег: метка («Нал.:») - первая без цифр, значение -
@@ -211,32 +201,6 @@ void FindMoneyTexts(MyGUI::Widget* widget, int depth, MyGUI::TextBox** labelOut,
     }
     for (size_t i = 0; i < widget->getChildCount(); ++i)
         FindMoneyTexts(widget->getChildAt(i), depth + 1, labelOut, valueOut);
-}
-
-// подпись с цифрами в блоке денег окна торговца (последняя - значение)
-const MyGUI::UString* FindMoneyCaption(MyGUI::Widget* widget, int depth)
-{
-    if (widget == 0 || depth > 6)
-        return 0;
-    const MyGUI::UString* found = 0;
-    MyGUI::TextBox* const text = widget->castType<MyGUI::TextBox>(false);
-    if (text != 0)
-    {
-        const MyGUI::UString& caption = text->getCaption();
-        for (size_t i = 0; i < caption.size(); ++i)
-            if (caption[i] >= '0' && caption[i] <= '9')
-            {
-                found = &caption;
-                break;
-            }
-    }
-    for (size_t i = 0; i < widget->getChildCount(); ++i)
-    {
-        const MyGUI::UString* inner = FindMoneyCaption(widget->getChildAt(i), depth + 1);
-        if (inner != 0)
-            found = inner;
-    }
-    return found;
 }
 
 // Знак валюты и разделитель тысяч - как в подписи денег самой игры
@@ -284,147 +248,403 @@ std::string FormatMoney(int value)
     return out;
 }
 
-// Поиск в нижнем ряду - как сортировка слева: та же высота строки (на 4
-// меньше ряда, сверху 2), текст по центру по высоте; справа кнопка
-// очистки, за ней счётчик. Строка текста шаблона Kenshi_EditBox прибита к
-// верху, как у списка (FitSortComboText) - растягиваем её на всю высоту.
-void LayoutBottomSearchRow(MyGUI::Widget* search, int width, int height)
+// All non-owning widget references unlink synchronously on MyGUI destruction.
+// No item-tree walks or font measurements occur on an unchanged frame.
+struct TextSnapshot
 {
-    MyGUI::Widget* const edit = FindNamedDescendantRecursive(search, "OTT_SearchEdit", false);
-    MyGUI::Widget* const placeholder = FindNamedDescendantRecursive(search, "OTT_SearchPlaceholder", false);
-    MyGUI::Widget* const clear = FindNamedDescendantRecursive(search, "OTT_SearchClearButton", false);
-    MyGUI::Widget* const count = FindNamedDescendantRecursive(search, "OTT_SearchCountText", false);
-    if (edit == 0)
-        return;
-    const int rowHeight = height > 22 ? height - 4 : 18;
-    const int top = (height - rowHeight) / 2;
-    const int countWidth = count != 0 && count->getVisible() ? count->getWidth() : 0;
-    const int clearSize = clear != 0 && clear->getVisible() ? (rowHeight > 28 ? 28 : rowHeight) : 0;
-    int editWidth = width - countWidth - (countWidth > 0 ? 6 : 0) - (clearSize > 0 ? clearSize + 4 : 0);
-    // короче всего ряда (просьба пользователя): поле - не шире 260, кнопка
-    // очистки и счётчик - сразу за ним
-    const int setWidth = TraderState().core.g_searchFieldWidth;
-    if (editWidth > setWidth) editWidth = setWidth;
-    if (editWidth < 80) editWidth = 80;
-    const MyGUI::IntCoord editCoord(0, top, editWidth, rowHeight);
-    if (edit->getCoord() != editCoord) edit->setCoord(editCoord);
-    MyGUI::EditBox* const box = edit->castType<MyGUI::EditBox>(false);
-    if (box != 0)
+    MyGUI::UString caption;
+    std::string font;
+    int height;
+    bool visible;
+    TextSnapshot() : height(-1), visible(false) {}
+    bool Observe(MyGUI::Widget* widget)
     {
-        MyGUI::Widget* const client = box->getClientWidget();
-        const MyGUI::IntCoord want(8, 0, editWidth - 16, rowHeight);
-        if (client != 0 && want.width > 10 && client->getCoord() != want) client->setCoord(want);
-        box->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+        MyGUI::TextBox* text = widget == 0 ? 0 : widget->castType<MyGUI::TextBox>(false);
+        if (text == 0) return false;
+        if (caption == text->getCaption() && font == FontName(text)
+            && height == FontHeight(text) && visible == text->getVisible()) return false;
+        caption = text->getCaption(); font = FontName(text);
+        height = FontHeight(text); visible = text->getVisible();
+        return true;
     }
-    if (placeholder != 0)
+};
+struct AdaptiveUiCache
+{
+    WidgetRef controls[7]; // label, combo, direction, edit, hint, clear, count
+    WidgetRef viewports[2];
+    WidgetRef nativeMoney, plate, trader, player;
+    WidgetRef measure, popup;
+    TraderRenderedText::MeasureCache<MyGUI::UString> metrics[2];
+    int listTextWidth;
+    int closedChrome, popupChrome, popupNaturalWidth, popupRenderedWidth;
+    size_t measureCreates, measureFontChanges, headerCaptionSets;
+    TextSnapshot footerText[7], headerText[3];
+    std::vector<MyGUI::UString> comboItems;
+    MyGUI::UString nativeCaption;
+    MyGUI::IntCoord footerCoord, headerCoord;
+    int sortSetting, searchSetting, playerMoney, balance, listWidth, moneyFontHeight;
+    std::string moneyFontName;
+    MyGUI::Colour moneyColour;
+    std::string popupFont;
+    MyGUI::IntSize popupSize;
+    int popupFontHeight, popupTextWidth;
+    bool popupValid;
+    int baseFont[7], fittedFont[7];
+    bool footerValid, headerValid, showDeal, viewportsBound, uiStateValid;
+    int uiState;
+    int headerExtra, footerExtra;
+    TraderAdaptiveLayout::Viewport viewportLayout[2];
+    bool viewportHidden[2], viewportVisible[2];
+    float plateAlpha;
+    AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), playerMoney(-2), balance(0), listWidth(0), moneyFontHeight(-1),
+        listTextWidth(0), closedChrome(0), popupChrome(0), popupNaturalWidth(0), popupRenderedWidth(0),
+        measureCreates(0), measureFontChanges(0), headerCaptionSets(0),
+        popupFontHeight(0), popupTextWidth(0), popupValid(false),
+        footerValid(false), headerValid(false), showDeal(false), viewportsBound(false), uiStateValid(false), uiState(0),
+        headerExtra(0), footerExtra(0), plateAlpha(1.0f)
     {
-        const MyGUI::IntCoord want(8, top, editWidth - 16, rowHeight);
-        if (placeholder->getCoord() != want) placeholder->setCoord(want);
+        for (int i = 0; i < 7; ++i) baseFont[i] = fittedFont[i] = -1;
+        for (int i = 0; i < 2; ++i)
+        { viewportHidden[i] = false; viewportVisible[i] = false; }
     }
-    if (clear != 0 && clearSize > 0)
+};
+AdaptiveUiCache& AdaptiveUi()
+{
+    static AdaptiveUiCache* cache = new AdaptiveUiCache();
+    return *cache;
+}
+struct NativeCaptionRenderer
+{
+    MyGUI::TextBox* measure;
+    NativeCaptionRenderer() : measure(0) {}
+    bool Begin(const std::string& font, int height)
     {
-        const MyGUI::IntCoord want(editWidth + 4, top + (rowHeight - clearSize) / 2, clearSize, clearSize);
-        if (clear->getCoord() != want) clear->setCoord(want);
+        AdaptiveUiCache& cache = AdaptiveUi();
+        measure = cache.measure.get() == 0 ? 0 : cache.measure.get()->castType<MyGUI::TextBox>(false);
+        if (measure == 0)
+        {
+            MyGUI::Widget* parent = DockPanelRef().get();
+            if (parent == 0) return false;
+            measure = parent->createWidget<MyGUI::TextBox>("Kenshi_TextboxStandardText",
+                MyGUI::IntCoord(0, 0, 8192, 256), MyGUI::Align::Default, "OTT_TextMeasure");
+            if (measure == 0) return false;
+            measure->setVisible(false);
+            measure->setNeedMouseFocus(false);
+            cache.measure.set(measure);
+            ++cache.measureCreates;
+        }
+        if (FontName(measure) != font) { measure->setFontName(font); ++cache.measureFontChanges; }
+        if (FontHeight(measure) != height) { measure->setFontHeight(height); ++cache.measureFontChanges; }
+        MyGUI::ISubWidgetText* text = measure->getSubWidgetText();
+        if (text == 0) return false;
+        text->setWordWrap(false);
+        return true;
     }
-    if (count != 0 && countWidth > 0)
+    int CaptionWidth(const MyGUI::UString& caption)
     {
-        const int countLeft = editWidth + 4 + (clearSize > 0 ? clearSize + 6 : 0);
-        const MyGUI::IntCoord want(countLeft, top, countWidth, rowHeight);
-        if (count->getCoord() != want) count->setCoord(want);
+        measure->setCaption(caption);
+        return measure->getSubWidgetText()->getTextSize().width;
     }
+};
+int SortComboItemsWidth(MyGUI::ComboBox* combo, MyGUI::ISubWidgetText* rendered, bool popup)
+{
+    if (rendered == 0) rendered = RenderedText(combo);
+    if (combo == 0 || rendered == 0 || rendered->getFontHeight() <= 0 || rendered->getFontName().empty()) return -1;
+    AdaptiveUiCache& cache = AdaptiveUi();
+    NativeCaptionRenderer renderer;
+    return cache.metrics[popup ? 1 : 0].Get(rendered->getFontName(), rendered->getFontHeight(), cache.comboItems, renderer);
 }
 
+void CoordIfChanged(MyGUI::Widget* widget, const MyGUI::IntCoord& coord)
+{
+    if (widget != 0 && widget->getCoord() != coord) widget->setCoord(coord);
+}
+void AlignIfChanged(MyGUI::TextBox* text, MyGUI::Align align)
+{
+    if (text != 0 && text->getTextAlign() != align) text->setTextAlign(align);
+}
+MyGUI::TextBox* AsText(MyGUI::Widget* widget)
+{
+    return widget == 0 ? 0 : widget->castType<MyGUI::TextBox>(false);
+}
+void HeaderCaptionIfChanged(MyGUI::TextBox* text, const MyGUI::UString& caption)
+{
+    if (text != 0 && text->getCaption() != caption)
+    {
+        text->setCaption(caption);
+        ++AdaptiveUi().headerCaptionSets;
+    }
+}
+int TextWidth(MyGUI::Widget* widget)
+{
+    MyGUI::TextBox* text = AsText(widget);
+    return text == 0 ? 0 : text->getTextSize().width;
+}
+void FullCaptionTip(MyGUI::Widget* widget, const MyGUI::UString& caption, bool needed)
+{
+    // Resolve the game's tooltip afresh; do not retain a world-owned pointer.
+    ToolTip* tooltip = ::gui == 0 ? 0 : ::gui->getToolTip();
+    if (tooltip == 0 || widget == 0) return;
+    if (needed) tooltip->setup(widget, caption.asUTF8());
+    else
+    {
+        if (tooltip->caller == widget) tooltip->hide();
+        tooltip->clear(widget);
+    }
+}
+void ReserveAdaptiveRows(MyGUI::Widget* parent, int header, int footer)
+{
+    AdaptiveUiCache& cache = AdaptiveUi();
+    const char* names[] = { "backpack_content", "scrollview_backpack_content" };
+    for (int i = 0; i < 2; ++i)
+    {
+        if (!cache.viewportsBound)
+        {
+            MyGUI::Widget* viewport = FindNamedDescendantRecursive(parent, names[i], false);
+            if (viewport != 0 && viewport->getParent() == parent)
+            {
+                cache.viewports[i].set(viewport);
+                cache.viewportVisible[i] = viewport->getVisible();
+            }
+        }
+        MyGUI::Widget* viewport = cache.viewports[i].get();
+        if (viewport == 0) continue;
+        const MyGUI::IntCoord current = viewport->getCoord();
+        const MyGUI::Align align = viewport->getAlign();
+        const int horizontal = align.isHStretch() ? 3 : align.isRight() ? 2 : align.isHCenter() ? 1 : 0;
+        const int vertical = align.isVStretch() ? 3 : align.isBottom() ? 2 : align.isVCenter() ? 1 : 0;
+        const TraderAdaptiveLayout::Rect want = cache.viewportLayout[i].Update(
+            TraderAdaptiveLayout::Rect(current.left, current.top, current.width, current.height),
+            parent->getWidth(), parent->getHeight(), horizontal, vertical, header, footer);
+        const MyGUI::IntCoord coord(want.left, want.top, want.width, want.height);
+        CoordIfChanged(viewport, coord);
+        if (coord.height == 0 && !cache.viewportHidden[i])
+        {
+            cache.viewportVisible[i] = viewport->getVisible();
+            if (viewport->getVisible()) viewport->setVisible(false);
+            cache.viewportHidden[i] = true;
+        }
+        else if (coord.height > 0 && cache.viewportHidden[i])
+        {
+            if (viewport->getVisible() != cache.viewportVisible[i]) viewport->setVisible(cache.viewportVisible[i]);
+            cache.viewportHidden[i] = false;
+        }
+    }
+    cache.viewportsBound = true;
+}
+
+void LayoutBottomSearchRow(MyGUI::Widget* search, int width, int height)
+{
+    AdaptiveUiCache& cache = AdaptiveUi();
+    MyGUI::Widget* edit = cache.controls[3].get();
+    MyGUI::Widget* hint = cache.controls[4].get();
+    MyGUI::Widget* clear = cache.controls[5].get();
+    MyGUI::Widget* count = cache.controls[6].get();
+    const int countWidth = count != 0 && count->getVisible() ? TextWidth(count) + 4 : 0;
+    const TraderAdaptiveLayout::SearchRow row(width, countWidth,
+        clear != 0 && clear->getVisible() ? height : 0);
+    const int editWidth = row.editWidth;
+    const int clearSize = row.clearWidth;
+    CoordIfChanged(edit, MyGUI::IntCoord(0, 0, editWidth, height));
+    MyGUI::EditBox* box = edit == 0 ? 0 : edit->castType<MyGUI::EditBox>(false);
+    if (box != 0)
+    {
+        CoordIfChanged(box->getClientWidget(), MyGUI::IntCoord(editWidth > 8 ? 8 : 0, 0, row.clientWidth, height));
+        AlignIfChanged(box, MyGUI::Align::Left | MyGUI::Align::VCenter);
+    }
+    CoordIfChanged(hint, MyGUI::IntCoord(editWidth > 8 ? 8 : 0, 0, row.clientWidth, height));
+    AlignIfChanged(AsText(hint), MyGUI::Align::Left | MyGUI::Align::VCenter);
+    CoordIfChanged(clear, MyGUI::IntCoord(row.clearLeft, 0, clearSize, height));
+    CoordIfChanged(count, MyGUI::IntCoord(row.countLeft, 0, row.countWidth, height));
+    AlignIfChanged(AsText(count), MyGUI::Align::Right | MyGUI::Align::VCenter);
+}
+
+void DestroyTradeBalance();
 void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
 {
-    MyGUI::Widget* const data = CachedInParent(DataPanelRef(), parent, "datapanel");
-    MyGUI::Widget* const moneyBox = data != 0 ? data->getParent() : 0;
-    if (moneyBox == 0)
-        return;
-    const MyGUI::UString* caption = FindMoneyCaption(moneyBox, 0);
-    if (caption != 0 && caption->asUTF8() != g_balanceMoneyCaption)
+    AdaptiveUiCache& cache = AdaptiveUi();
+    MyGUI::Widget* data = CachedInParent(DataPanelRef(), parent, "datapanel");
+    MyGUI::Widget* moneyBox = data == 0 ? 0 : data->getParent();
+    if (moneyBox == 0) return;
+    if (!TraderAdaptiveLayout::SafeMoneyPlate(moneyBox == parent || moneyBox == owner,
+        moneyBox->getName() == "Content", moneyBox->getHeight(), parent->getHeight(), cache.plate.get() == moneyBox))
     {
-        g_balanceMoneyCaption = caption->asUTF8();
+        if (cache.plate.get() != 0) DestroyTradeBalance();
+        return;
+    }
+    if (cache.nativeMoney.get() == 0)
+    {
+        MyGUI::TextBox* nativeLabel = 0;
+        MyGUI::TextBox* nativeValue = 0;
+        FindMoneyTexts(data, 0, &nativeLabel, &nativeValue);
+        if (nativeValue == 0) return; // Native data panel is not populated yet.
+        cache.nativeMoney.set(nativeValue);
+    }
+    MyGUI::TextBox* nativeValue = AsText(cache.nativeMoney.get());
+    if (nativeValue == 0) return;
+    MyGUI::ISubWidgetText* moneyRender = RenderedText(nativeValue);
+    if (moneyRender == 0 || moneyRender->getFontHeight() <= 0 || moneyRender->getFontName().empty()
+        || moneyRender->getTextColour().alpha <= 0.0f)
+    {
+        // Never fade the live native wallet when its actual skin text is unknown.
+        if (cache.plate.get() != 0) DestroyTradeBalance();
+        return;
+    }
+    const int nativeFontHeight = moneyRender->getFontHeight();
+    const std::string& nativeFontName = moneyRender->getFontName();
+    const MyGUI::Colour nativeColour = moneyRender->getTextColour();
+    if (cache.nativeCaption != nativeValue->getCaption())
+    {
+        cache.nativeCaption = nativeValue->getCaption();
+        g_balanceMoneyCaption = cache.nativeCaption.asUTF8();
         g_balanceMoney = ParseMoneyCaption(g_balanceMoneyCaption);
         LearnMoneyFormat(g_balanceMoneyCaption);
+        cache.headerValid = false;
     }
     if (owner != g_balanceOwner)
     {
         g_balanceOwner = owner;
-        g_balanceStartMoney = g_balanceMoney;   // новое окно - счёт с нуля
-        g_balanceShown = 0x7fffffff;
-    }
-    if (g_balanceStartMoney < 0 && g_balanceMoney >= 0)
         g_balanceStartMoney = g_balanceMoney;
-
-    // Строку денег игры (с её подложкой) не трогаем - итог ставим справа от
-    // неё (14.10.2026, «около ванильный вариант», под любой интерфейс):
-    // подложка узкая (ваниль) - сразу за подложкой; растянута на всё окно
-    // (Russian Dark UI) - сразу за суммой.
-    if (!TraderState().core.g_showDealBalance)
-    {
-        MyGUI::Widget* const old = TradeBalanceRef().get();
-        if (old != 0)
-            MyGUI::Gui::getInstance().destroyWidget(old);
-        TradeBalanceRef().reset();
-        return;
+        cache.headerValid = false;
     }
-    MyGUI::TextBox* gameLabel = 0;
-    MyGUI::TextBox* gameValue = 0;
-    FindMoneyTexts(data, 0, &gameLabel, &gameValue);
+    if (g_balanceStartMoney < 0 && g_balanceMoney >= 0) g_balanceStartMoney = g_balanceMoney;
+    if (g_balanceMoney < 0) return;
+    if (cache.plate.get() == 0)
+    {
+        cache.plate.set(moneyBox);
+        cache.plateAlpha = moneyBox->getAlpha();
+    }
+    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
+    const char* names[] = { "OTT_TraderMoney", "OTT_PlayerMoney", "OTT_TradeBalance" };
+    for (int i = 0; i < 3; ++i)
+        if (refs[i]->get() == 0)
+        {
+            MyGUI::TextBox* text = parent->createWidget<MyGUI::TextBox>(
+                "Kenshi_TextboxStandardText", MyGUI::IntCoord(0, 0, 10, 10), MyGUI::Align::Default, names[i]);
+            if (text == 0) return;
+            text->setNeedMouseFocus(false);
+            text->setFontName(nativeFontName);
+            text->setFontHeight(nativeFontHeight);
+            refs[i]->set(text);
+            cache.headerValid = false;
+        }
+    // Keep the native panel visible and updating; only its rendering is transparent.
+    // UITweaks yields this specific panel while this marker is present.
+    static const std::string headerMarker("LEOPARD_OTT_MoneyHeader");
+    if (data->getUserString(headerMarker) != "1") data->setUserString(headerMarker, "1");
+    if (moneyBox->getAlpha() != 0.0f) moneyBox->setAlpha(0.0f);
+    // Resolve the player handle afresh; no Character/ownership pointer is cached.
+    Character* selected = ou == 0 || ou->player == 0 ? 0 : ou->player->selectedCharacter.getCharacter();
+    if (selected == 0 && ou != 0 && ou->player != 0) selected = ou->player->getAnyPlayerCharacter();
+    const int playerMoney = selected == 0 ? -1 : selected->getMoney();
+    const int balance = g_balanceStartMoney < 0 ? 0 : g_balanceStartMoney - g_balanceMoney;
     const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
     const MyGUI::IntCoord box = moneyBox->getAbsoluteCoord();
-    int anchorRight = box.left + box.width;
-    if (box.width > parent->getWidth() * 6 / 10 && gameValue != 0)
-    {
-        const MyGUI::IntCoord region = gameValue->getTextRegion();
-        anchorRight = gameValue->getAbsoluteLeft() + region.left + region.width;
-    }
-    const int dealLeft = anchorRight - origin.left + 16;
-    const int dealWidth = parent->getWidth() - dealLeft - 16;
-
-    MyGUI::Widget* label = TradeBalanceRef().get();
-    if (label == 0)
-    {
-        label = parent->createWidget<MyGUI::TextBox>(
-            "Kenshi_TextboxStandardText", MyGUI::IntCoord(0, 0, 10, 10),
-            MyGUI::Align::Default, "OTT_TradeBalance");
-        if (label == 0)
-            return;
-        label->setNeedMouseFocus(false);
-        TradeBalanceRef().set(label);
-        g_balanceShown = 0x7fffffff;
-    }
-    const MyGUI::IntCoord dealPlace(dealLeft, box.top - origin.top, dealWidth > 40 ? dealWidth : 40, box.height);
-    if (label->getCoord() != dealPlace)
-        label->setCoord(dealPlace);
-    MyGUI::TextBox* const text = label->castType<MyGUI::TextBox>(false);
-    if (text == 0)
-        return;
-
-    if (g_balanceMoney < 0 || g_balanceStartMoney < 0)
-        return;
-    const int balance = g_balanceStartMoney - g_balanceMoney;
-    if (balance == g_balanceShown)
-        return;
-    g_balanceShown = balance;
-    // «Сделка:» - цветом текста, цветная только сумма (тег цвета MyGUI)
+    const int width = parent->getWidth() - 32;
+    const MyGUI::IntCoord headerCoord(width, box.top - origin.top, box.width, box.height);
+    bool changed = !cache.headerValid || cache.headerCoord != headerCoord || cache.playerMoney != playerMoney
+        || cache.balance != balance || cache.showDeal != TraderState().core.g_showDealBalance
+        || cache.moneyFontHeight != nativeFontHeight || cache.moneyFontName != nativeFontName
+        || cache.moneyColour != nativeColour;
+    for (int i = 0; i < 3; ++i)
+        if (cache.headerText[i].Observe(refs[i]->get())) changed = true;
+    if (!changed) return;
+    cache.headerValid = true;
+    cache.headerCoord = headerCoord; cache.playerMoney = playerMoney; cache.balance = balance;
+    cache.showDeal = TraderState().core.g_showDealBalance;
+    cache.moneyFontHeight = nativeFontHeight;
+    cache.moneyFontName = nativeFontName;
+    cache.moneyColour = nativeColour;
+    MyGUI::TextBox* trader = AsText(cache.trader.get());
+    MyGUI::TextBox* player = AsText(cache.player.get());
+    MyGUI::TextBox* deal = AsText(TradeBalanceRef().get());
+    HeaderCaptionIfChanged(trader, MyGUI::UString(std::string(Tr("Trader")) + ": " + g_balanceMoneyCaption));
+    HeaderCaptionIfChanged(player, MyGUI::UString(std::string(Tr("Player")) + ": "
+        + (playerMoney < 0 ? "-" : g_moneyPrefix + FormatMoney(playerMoney))));
     std::string line = std::string(Tr("Deal")) + ": ";
     if (balance > 0) line += "#73D966+";
     else if (balance < 0) line += "#EB6152-";
     line += g_moneyPrefix + FormatMoney(balance);
-    text->setCaption(MyGUI::UString(line));
-    text->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
-    // серый ваниль - как подпись «Сорт» внизу
-    text->setTextColour(MyGUI::Colour(0.65f, 0.63f, 0.59f, 1.0f));
+    HeaderCaptionIfChanged(deal, MyGUI::UString(line));
+    deal->setVisible(TraderState().core.g_showDealBalance);
+    int height = box.height > nativeFontHeight + 8 ? box.height : nativeFontHeight + 8;
+    for (int i = 0; i < 3; ++i)
+    {
+        MyGUI::TextBox* text = AsText(refs[i]->get());
+        if (FontHeight(text) + 8 > height) height = FontHeight(text) + 8;
+        text->setTextColour(nativeColour);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        MyGUI::TextBox* text = AsText(refs[i]->get());
+        const int nativeHeight = nativeFontHeight;
+        if (FontName(text) != nativeFontName) text->setFontName(nativeFontName);
+        if (FontHeight(text) != nativeHeight) text->setFontHeight(nativeHeight);
+        const int natural = text->getTextSize().width;
+        const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, width - 4);
+        if (font != FontHeight(text)) text->setFontHeight(font);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+        MyGUI::TextBox* text = AsText(refs[i]->get());
+        const bool overflow = text->getTextSize().width > width - 4;
+        if (text->getNeedMouseFocus() != overflow) text->setNeedMouseFocus(overflow);
+        FullCaptionTip(text, text->getCaption(), overflow);
+    }
+    const int traderWidth = trader->getTextSize().width + 4;
+    const int playerWidth = player->getTextSize().width + 4;
+    const int dealWidth = deal->getVisible() ? deal->getTextSize().width + 4 : 0;
+    const TraderAdaptiveLayout::Header layout(width, traderWidth, playerWidth, dealWidth, height);
+    cache.headerExtra = layout.extraHeight + (height > box.height ? height - box.height : 0);
+    const int top = box.top - origin.top;
+    CoordIfChanged(trader, MyGUI::IntCoord(16, top + layout.traderTop, width, height));
+    CoordIfChanged(player, MyGUI::IntCoord(16, top + layout.playerTop, width, height));
+    CoordIfChanged(deal, MyGUI::IntCoord(16, top + layout.dealTop, width, height));
+    AlignIfChanged(trader, MyGUI::Align::Left | MyGUI::Align::VCenter);
+    AlignIfChanged(player, MyGUI::Align::Right | MyGUI::Align::VCenter);
+    AlignIfChanged(deal, MyGUI::Align::HCenter | MyGUI::Align::VCenter);
+
 }
 
 void DestroyTradeBalance()
 {
-    MyGUI::Widget* const label = TradeBalanceRef().get();
-    MyGUI::Gui* const gui = MyGUI::Gui::getInstancePtr();
-    if (label != 0 && gui != 0)
-        gui->destroyWidget(label);
-    TradeBalanceRef().reset();
+    AdaptiveUiCache& cache = AdaptiveUi();
+    MyGUI::Widget* data = DataPanelRef().get();
+    if (data != 0) data->clearUserString("LEOPARD_OTT_MoneyHeader");
+    MyGUI::Widget* plate = cache.plate.get();
+    if (plate != 0 && plate->getAlpha() != cache.plateAlpha) plate->setAlpha(cache.plateAlpha);
+    // Restore the latest native baseline, including resize/reset while enabled.
+    MyGUI::Widget* owner = FindLiveDockOwner(false);
+    MyGUI::Widget* parent = owner == 0 ? 0 : ResolveInjectionParent(owner);
+    if (parent != 0) ReserveAdaptiveRows(parent, 0, 0);
+    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
+    MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
+    for (int i = 0; i < 3; ++i)
+    {
+        FullCaptionTip(refs[i]->get(), MyGUI::UString(), false);
+        if (refs[i]->get() != 0 && gui != 0) gui->destroyWidget(refs[i]->get());
+        refs[i]->reset();
+    }
+    if (cache.measure.get() != 0 && gui != 0) gui->destroyWidget(cache.measure.get());
+    cache.measure.reset(); cache.popup.reset(); cache.popupValid = false;
+    cache.metrics[0].Reset(); cache.metrics[1].Reset();
+    cache.nativeCaption.clear();
+    cache.viewportsBound = false;
+    cache.uiStateValid = false;
+    cache.nativeMoney.reset();
+    cache.plate.reset();
+    for (int i = 0; i < 7; ++i)
+    { cache.controls[i].reset(); cache.baseFont[i] = cache.fittedFont[i] = -1; }
+    for (int i = 0; i < 2; ++i)
+    {
+        cache.viewports[i].reset(); cache.viewportLayout[i] = TraderAdaptiveLayout::Viewport();
+        cache.viewportHidden[i] = false; cache.viewportVisible[i] = false;
+    }
+    cache.headerValid = false;
+    cache.footerValid = false;
+    cache.headerExtra = cache.footerExtra = 0;
+    DataPanelRef().reset();
+    ArrangeRef().reset();
     g_balanceOwner = 0;
     g_balanceStartMoney = -1;
     g_balanceMoneyCaption.clear();
@@ -437,97 +657,201 @@ void DestroyTradeBalance()
 // longest item.
 void WidenOpenSortList()
 {
+    AdaptiveUiCache& cache = AdaptiveUi();
     MyGUI::Widget* sort = FindSortControlsContainer();
     MyGUI::InputManager* input = MyGUI::InputManager::getInstancePtr();
-    if (sort == 0 || input == 0) return;
-    MyGUI::Widget* focus = input->getKeyFocusWidget();
-    if (focus == 0 || !focus->getVisible()) return;
+    MyGUI::Widget* focus = input == 0 ? 0 : input->getKeyFocusWidget();
+    if (sort == 0 || focus == 0 || !focus->getVisible()) { cache.popupValid = false; return; }
     MyGUI::Widget* owner = focus->getParent();
-    if (owner == 0 || owner->getName() != "OTT_SortModeCombo") return;
+    if (owner == 0 || owner->getName() != "OTT_SortModeCombo") { cache.popupValid = false; return; }
     MyGUI::ComboBox* combo = owner->castType<MyGUI::ComboBox>(false);
-    if (combo == 0) return;
-    const int want = SortComboItemsWidth(combo) + 30;
+    MyGUI::ListBox* list = focus->castType<MyGUI::ListBox>(false);
+    if (combo == 0 || list == 0) return;
+    // The public list API returns a row valid only for this call. Never cache it.
+    MyGUI::ISubWidgetText* rowText = 0;
+    for (size_t i = 0; i < list->getItemCount() && i < 32 && rowText == 0; ++i)
+        rowText = RenderedText(list->getWidgetByIndex(i));
+    if (rowText == 0 || rowText->getFontHeight() <= 0 || rowText->getFontName().empty()) return;
+    if (cache.popup.get() != focus)
+    {
+        cache.popup.set(focus);
+        cache.popupValid = false;
+    }
+    const bool changed = !cache.popupValid || cache.popupSize != focus->getSize()
+        || cache.popupFontHeight != rowText->getFontHeight() || cache.popupFont != rowText->getFontName()
+        || cache.popupTextWidth != cache.listTextWidth;
+    if (!changed) return;
+    const int natural = SortComboItemsWidth(combo, rowText, true);
+    if (natural < 0) return;
+    const int want = TraderRenderedText::OuterWidth(natural, focus->getWidth(), rowText->getWidth());
+    cache.popupChrome = focus->getWidth() - rowText->getWidth();
+    cache.popupNaturalWidth = natural;
+    // Copy transient row values before resizing: the list may recreate its rows.
+    cache.popupFontHeight = rowText->getFontHeight();
+    cache.popupFont = rowText->getFontName();
+    cache.popupTextWidth = cache.listTextWidth;
     if (focus->getWidth() < want) focus->setSize(want, focus->getHeight());
+    cache.popupRenderedWidth = 0;
+    for (size_t i = 0; i < list->getItemCount() && i < 32 && cache.popupRenderedWidth == 0; ++i)
+    {
+        MyGUI::ISubWidgetText* after = RenderedText(list->getWidgetByIndex(i));
+        if (after != 0) cache.popupRenderedWidth = after->getWidth();
+    }
+    cache.popupSize = focus->getSize();
+    cache.popupValid = true;
 }
 
 void PositionInlineControls()
 {
     MyGUI::Widget* owner = FindLiveDockOwner(true);
-    if (owner == 0) return;
     MyGUI::Widget* panel = DockPanelRef().get();
-    if (panel == 0) return;
+    if (owner == 0 || panel == 0) return;
     MyGUI::Widget* parent = ResolveInjectionParent(owner);
     if (parent == 0) return;
-    // LEOPARD (14.10.2026): наверху - итог торговли, поиск - внизу, на
-    // месте кнопки ARRANGE. Сама кнопка не нужна (поиск и сортировка
-    // раскладывают сетку сами) - спрятана насовсем, от неё берём только
-    // место нижнего ряда. Удалять её нельзя: на неё ссылается окно игры.
-    // Нет ARRANGE (чужое окно) - поиск остаётся наверху.
     UpdateTradeBalance(owner, parent);
     MyGUI::Widget* search = FindControlsContainer();
     MyGUI::Widget* sort = FindSortControlsContainer();
     MyGUI::Widget* arrange = CachedInParent(ArrangeRef(), parent, "ArrangeButton");
-    if (arrange == 0)
+    if (arrange == 0 || search == 0 || sort == 0) return;
+    if (arrange->getVisible()) arrange->setVisible(false);
+    AdaptiveUiCache& cache = AdaptiveUi();
+    const char* names[] = { "OTT_SortLabel", "OTT_SortModeCombo", "OTT_SortDirectionButton",
+        "OTT_SearchEdit", "OTT_SearchPlaceholder", "OTT_SearchClearButton", "OTT_SearchCountText" };
+    for (int i = 0; i < 7; ++i)
+        if (cache.controls[i].get() == 0)
+        {
+            MyGUI::Widget* widget = FindNamedDescendantRecursive(i < 3 ? sort : search, names[i], false);
+            if (widget != 0) cache.controls[i].set(widget);
+        }
+    MyGUI::ComboBox* combo = cache.controls[1].get() == 0 ? 0
+        : cache.controls[1].get()->castType<MyGUI::ComboBox>(false);
+    if (combo == 0) return;
+    const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
+    const MyGUI::IntCoord button = arrange->getAbsoluteCoord();
+    const int width = parent->getWidth() - 24;
+    const MyGUI::IntCoord footerCoord(width, button.top - origin.top, button.width, button.height);
+    bool changed = !cache.footerValid || cache.footerCoord != footerCoord
+        || cache.sortSetting != TraderState().core.g_sortComboWidth
+        || cache.searchSetting != TraderState().core.g_searchFieldWidth;
+    for (int i = 0; i < 7; ++i)
     {
-        const MyGUI::IntCoord coord = InlineSearchCoord(parent);
-        if (panel->getCoord() != coord) panel->setCoord(coord);
-        if (search != 0) search->setSize(coord.width, coord.height);
+        MyGUI::TextBox* text = AsText(cache.controls[i].get());
+        if (text != 0 && FontHeight(text) != cache.fittedFont[i])
+            cache.baseFont[i] = FontHeight(text);
+        if (cache.footerText[i].Observe(cache.controls[i].get())) changed = true;
     }
-    if (sort != 0 && arrange != 0)
+    if (cache.comboItems.size() != combo->getItemCount())
     {
-        const MyGUI::IntCoord origin = parent->getAbsoluteCoord();
-        const MyGUI::IntCoord button = arrange->getAbsoluteCoord();
-        if (arrange->getVisible())
-            arrange->setVisible(false);
-        // нижний ряд целиком: сортировка слева, поиск справа
-        const int rowWidth = parent->getWidth() - 8 - 16;
-        int width = rowWidth / 2;
-        if (width > 360) width = 360;
-        if (width < 180) width = 180;
-        const int comboSetting = TraderState().core.g_sortComboWidth;
-        // LEOPARD: the label is at least 52 wide and grows with its text
-        // ("Sort by" in English); the rest of the row moves along
-        MyGUI::Widget* label = FindNamedDescendantRecursive(sort, "OTT_SortLabel", false);
-        MyGUI::TextBox* labelText = label != 0 ? label->castType<MyGUI::TextBox>(false) : 0;
-        int labelWidth = 52;
-        if (labelText != 0 && labelText->getTextSize().width + 8 > labelWidth)
-            labelWidth = labelText->getTextSize().width + 8;
-        const int rowExtra = labelWidth + 46;   // label + gaps + direction button
-        if (comboSetting > 0)
+        cache.comboItems.resize(combo->getItemCount()); changed = true;
+    }
+    for (size_t i = 0; i < combo->getItemCount(); ++i)
+        if (cache.comboItems[i] != combo->getItemNameAt(i))
         {
-            // заданная в MCM ширина списка: ряд сортировки шире на rowExtra,
-            // поиску - остаток (не меньше 160)
-            width = comboSetting + rowExtra;
-            if (width > rowWidth - 160)
-                width = rowWidth - 160;
+            cache.comboItems[i] = combo->getItemNameAt(i); changed = true;
         }
-        // поиск - справа от сортировки до края окна, по высоте ARRANGE
+    if (changed)
+    {
+        cache.footerValid = true; cache.footerCoord = footerCoord;
+        cache.sortSetting = TraderState().core.g_sortComboWidth;
+        cache.searchSetting = TraderState().core.g_searchFieldWidth;
+        for (int i = 0; i < 7; ++i)
         {
-            const MyGUI::IntCoord place(8 + width + 8, button.top - origin.top,
-                                        rowWidth - width - 8, button.height);
-            if (panel->getCoord() != place) panel->setCoord(place);
-            if (search != 0 && search->getSize() != place.size())
-                search->setSize(place.width, place.height);
-            if (search != 0)
-                LayoutBottomSearchRow(search, place.width, place.height);
+            MyGUI::TextBox* text = AsText(cache.controls[i].get());
+            if (text != 0 && cache.baseFont[i] > 0 && FontHeight(text) != cache.baseFont[i])
+                text->setFontHeight(cache.baseFont[i]);
         }
-        const bool showSort = true;
-        sort->setVisible(showSort);
-        if (showSort)
+        int height = button.height > 4 ? button.height - 4 : 22;
+        for (int i = 0; i < 7; ++i)
         {
-            sort->setCoord(8, button.top - origin.top, width, button.height);
-            MyGUI::Widget* combo = FindNamedDescendantRecursive(sort, "OTT_SortModeCombo", false);
-            MyGUI::Widget* direction = FindNamedDescendantRecursive(sort, "OTT_SortDirectionButton", false);
-            const int height = button.height > 22 ? button.height - 4 : 18;
-            if (label != 0) label->setCoord(6, 2, labelWidth, height);
-            if (combo != 0)
-            {
-                combo->setCoord(labelWidth + 10, 2, width - rowExtra, height);
-                FitSortComboText(combo->castType<MyGUI::ComboBox>(false));
-            }
-            if (direction != 0) direction->setCoord(width - 30, 2, 28, height);
+            MyGUI::TextBox* text = AsText(cache.controls[i].get());
+            if (text != 0 && FontHeight(text) + 8 > height) height = FontHeight(text) + 8;
+        }
+        MyGUI::TextBox* sortLabel = AsText(cache.controls[0].get());
+        if (sortLabel != 0)
+        {
+            const int font = TraderAdaptiveLayout::FitFont(FontHeight(sortLabel), sortLabel->getTextSize().width, width / 3);
+            if (font != FontHeight(sortLabel)) sortLabel->setFontHeight(font);
+        }
+        int labelWidth = TextWidth(cache.controls[0].get()) + 8;
+        FitSortComboText(combo);
+        MyGUI::ISubWidgetText* comboRender = RenderedText(combo);
+        const int naturalComboWidth = SortComboItemsWidth(combo);
+        if (comboRender == 0 || naturalComboWidth < 0)
+        {
+            cache.footerValid = false;
+            return;
+        }
+        const int comboNeed = TraderRenderedText::OuterWidth(naturalComboWidth, combo->getWidth(), comboRender->getWidth());
+        const int comboChrome = comboNeed - naturalComboWidth;
+        cache.closedChrome = comboChrome - 4;
+        cache.listWidth = comboNeed;
+        cache.listTextWidth = naturalComboWidth;
+        int sortExtra = labelWidth + 8 + height + 8;
+        int sortNeed = sortExtra + comboNeed;
+        const bool showLabel = sortNeed <= width;
+        if (!showLabel) { labelWidth = 0; sortExtra = height + 12; sortNeed = sortExtra + comboNeed; }
+        if (sortLabel != 0 && sortLabel->getVisible() != showLabel) sortLabel->setVisible(showLabel);
+        const int countWidth = cache.controls[6].get() != 0 && cache.controls[6].get()->getVisible()
+            ? TextWidth(cache.controls[6].get()) + 12 : 0;
+        const int clearWidth = cache.controls[5].get() != 0 && cache.controls[5].get()->getVisible() ? height + 6 : 0;
+        int searchNeed = TextWidth(cache.controls[4].get()) + 24 + clearWidth + countWidth;
+        if (searchNeed < 120 + clearWidth + countWidth) searchNeed = 120 + clearWidth + countWidth;
+        // Manual widths remain preferences; readable localized text sets the floor.
+        const int requested = TraderState().core.g_sortComboWidth + sortExtra;
+        if (requested > sortNeed && requested + searchNeed + 8 <= width) sortNeed = requested;
+        const int requestedSearch = TraderState().core.g_searchFieldWidth + clearWidth + countWidth;
+        if (requestedSearch > searchNeed && requestedSearch + sortNeed + 8 <= width) searchNeed = requestedSearch;
+        const TraderAdaptiveLayout::Footer layout(width, sortNeed, searchNeed, height);
+        cache.footerExtra = layout.extraHeight + (height + 4 > button.height ? height + 4 - button.height : 0);
+        const int top = button.top - origin.top + button.height - height - 2;
+        CoordIfChanged(panel, MyGUI::IntCoord(layout.extraHeight ? 8 : 8 + layout.sortWidth + 8,
+            top + layout.searchTop, layout.searchWidth, height));
+        CoordIfChanged(search, MyGUI::IntCoord(0, 0, layout.searchWidth, height));
+        CoordIfChanged(sort, MyGUI::IntCoord(8, top + layout.sortTop, layout.sortWidth, height));
+        if (!sort->getVisible()) sort->setVisible(true);
+        CoordIfChanged(cache.controls[0].get(), MyGUI::IntCoord(0, 0, labelWidth, height));
+        CoordIfChanged(combo, MyGUI::IntCoord(labelWidth + (showLabel ? 8 : 4), 0, layout.sortWidth - sortExtra, height));
+        const int fittedCombo = TraderAdaptiveLayout::FitFont(FontHeight(combo), naturalComboWidth,
+            layout.sortWidth - sortExtra - comboChrome);
+        if (fittedCombo != FontHeight(combo)) combo->setFontHeight(fittedCombo);
+        MyGUI::TextBox* hint = AsText(cache.controls[4].get());
+        MyGUI::TextBox* count = AsText(cache.controls[6].get());
+        const int hintNatural = hint == 0 ? 0 : hint->getTextSize().width;
+        const int countNatural = count == 0 || !count->getVisible() ? 0 : count->getTextSize().width;
+        const int allTextSpace = layout.searchWidth - clearWidth - 28;
+        const int allTextNeed = hintNatural + countNatural;
+        if (count != 0 && countNatural > 0 && allTextNeed > allTextSpace)
+        {
+            const int font = TraderAdaptiveLayout::FitFont(FontHeight(count), allTextNeed, allTextSpace);
+            if (font != FontHeight(count)) count->setFontHeight(font);
+        }
+        const int actualCountWidth = count == 0 || !count->getVisible() ? 0 : count->getTextSize().width + 12;
+        if (hint != 0)
+        {
+            const int font = TraderAdaptiveLayout::FitFont(FontHeight(hint), hintNatural,
+                layout.searchWidth - clearWidth - actualCountWidth - 24);
+            if (font != FontHeight(hint)) hint->setFontHeight(font);
+        }
+        FitSortComboText(combo);
+        const size_t selectedIndex = combo->getIndexSelected();
+        if (selectedIndex < combo->getItemCount())
+            FullCaptionTip(combo, combo->getItemNameAt(selectedIndex),
+                combo->getTextSize().width > layout.sortWidth - sortExtra - comboChrome);
+        const int hintSpace = layout.searchWidth - clearWidth - actualCountWidth - 24;
+        FullCaptionTip(hint, hint == 0 ? MyGUI::UString() : hint->getCaption(),
+            hint != 0 && hint->getTextSize().width > hintSpace);
+        const bool countOverflow = count != 0 && count->getVisible() && count->getTextSize().width > layout.searchWidth - 4;
+        if (count != 0 && count->getNeedMouseFocus() != countOverflow) count->setNeedMouseFocus(countOverflow);
+        FullCaptionTip(count, count == 0 ? MyGUI::UString() : count->getCaption(), countOverflow);
+        CoordIfChanged(cache.controls[2].get(), MyGUI::IntCoord(layout.sortWidth - height, 0, height, height));
+        LayoutBottomSearchRow(search, layout.searchWidth, height);
+        for (int i = 0; i < 7; ++i)
+        {
+            MyGUI::TextBox* text = AsText(cache.controls[i].get());
+            if (text != 0) cache.fittedFont[i] = FontHeight(text);
         }
     }
+    ReserveAdaptiveRows(parent, cache.headerExtra, cache.footerExtra);
 }
 
 const char* kControlsContainerName = "OTT_TraderControlsContainer";
@@ -1375,6 +1699,8 @@ MyGUI::Widget* FindControlsContainer()
 
 MyGUI::EditBox* FindSearchEditBox()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[3].get();
+    if (cached != 0) return cached->castType<MyGUI::EditBox>(false);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
@@ -1387,6 +1713,8 @@ MyGUI::EditBox* FindSearchEditBox()
 
 MyGUI::TextBox* FindSearchPlaceholderTextBox()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[4].get();
+    if (cached != 0) return cached->castType<MyGUI::TextBox>(false);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
@@ -1400,6 +1728,8 @@ MyGUI::TextBox* FindSearchPlaceholderTextBox()
 
 MyGUI::Button* FindSearchClearButton()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[5].get();
+    if (cached != 0) return cached->castType<MyGUI::Button>(false);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
@@ -1413,6 +1743,8 @@ MyGUI::Button* FindSearchClearButton()
 
 MyGUI::TextBox* FindSearchCountTextBox()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[6].get();
+    if (cached != 0) return cached->castType<MyGUI::TextBox>(false);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     if (controlsContainer == 0)
     {
@@ -1425,6 +1757,8 @@ MyGUI::TextBox* FindSearchCountTextBox()
 
 MyGUI::ComboBox* FindSortModeComboBox()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[1].get();
+    if (cached != 0) return cached->castType<MyGUI::ComboBox>(false);
     MyGUI::Widget* sortContainer = FindSortControlsContainer();
     if (sortContainer == 0)
     {
@@ -1437,6 +1771,8 @@ MyGUI::ComboBox* FindSortModeComboBox()
 
 MyGUI::Button* FindSortDirectionButton()
 {
+    MyGUI::Widget* cached = AdaptiveUi().controls[2].get();
+    if (cached != 0) return cached->castType<MyGUI::Button>(false);
     MyGUI::Widget* sortContainer = FindSortControlsContainer();
     if (sortContainer == 0)
     {
@@ -1571,9 +1907,17 @@ void UpdateSearchUiState()
     const bool focused = IsSearchEditFocused(searchEdit);
     const bool noVisibleResults = SearchHasNoVisibleResults();
     const bool sortActive = g_sortMode != TraderSortMode_None;
+    AdaptiveUiCache& cache = AdaptiveUi();
+    const int state = (hasQuery ? 1 : 0) | (focused ? 2 : 0) | (noVisibleResults ? 4 : 0)
+        | (g_showSearchClearButton ? 8 : 0) | (ShouldShowAnySearchCountMetric() ? 16 : 0)
+        | (static_cast<int>(g_sortMode) << 8) | (static_cast<int>(g_sortDirection) << 16);
+    if (DockPanelRef().get() != 0 && cache.uiStateValid && cache.uiState == state) return;
+    cache.uiStateValid = true; cache.uiState = state;
 
     if (clearButton != 0)
     {
+        if (DockPanelRef().get() == 0)
+        {
         MyGUI::Widget* container = searchEdit->getParent();
         const MyGUI::IntCoord clearCoord = clearButton->getCoord();
         const int clearButtonWidth = clearCoord.width;
@@ -1621,6 +1965,9 @@ void UpdateSearchUiState()
             clearButton->setCoord(clearLeft, clearCoord.top, clearCoord.width, clearCoord.height);
         }
 
+        }
+        const bool showClearButton = g_showSearchClearButton;
+        const bool clearButtonHasAction = hasQuery;
         clearButton->setVisible(showClearButton);
         clearButton->setAlpha(
             clearButtonHasAction
@@ -1637,7 +1984,7 @@ void UpdateSearchUiState()
     if (placeholder != 0)
     {
         const bool showPlaceholder = !hasQuery && !focused;
-        if (clearButton != 0)
+        if (clearButton != 0 && DockPanelRef().get() == 0)
         {
             const MyGUI::IntCoord editCoord = searchEdit->getCoord();
             const int placeholderLeft = editCoord.left + 10;
@@ -2601,6 +2948,10 @@ void OnSearchTextChanged(MyGUI::EditBox* sender)
 
 void DestroyEmbeddedControlsIfPresent()
 {
+    // The game's tooltip owns a raw caller; clear it while our widgets live.
+    const int tipControls[] = { 1, 4, 6 };
+    for (int i = 0; i < 3; ++i)
+        FullCaptionTip(AdaptiveUi().controls[tipControls[i]].get(), MyGUI::UString(), false);
     MyGUI::Widget* controlsContainer = FindControlsContainer();
     MyGUI::Widget* sortControlsContainer = FindSortControlsContainer();
     if (controlsContainer == 0 && sortControlsContainer == 0)

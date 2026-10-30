@@ -98,8 +98,8 @@ msgstr "Price / weight"
 msgid "Sort list width"
 msgstr "Sort list width"
 
-msgid "Width of the sort drop-down at the bottom of the trader window, in pixels. 0 - fitted to the window; a set width moves the direction and Arrange buttons to the right"
-msgstr "Width of the sort drop-down at the bottom of the trader window, in pixels. 0 - fitted to the window; a set width moves the direction and Arrange buttons to the right"
+msgid "Preferred sort list width in pixels. 0 fits its translated items. Narrow windows use separate rows."
+msgstr "Preferred sort list width in pixels. 0 fits its translated items. Narrow windows use separate rows."
 
 msgid "Deal"
 msgstr "Deal"
@@ -107,11 +107,17 @@ msgstr "Deal"
 msgid "Search field width"
 msgstr "Search field width"
 
-msgid "Width of the search field at the bottom of the trader window, in pixels"
-msgstr "Width of the search field at the bottom of the trader window, in pixels"
+msgid "Preferred search field width in pixels. Readable text takes priority; narrow windows use separate rows."
+msgstr "Preferred search field width in pixels. Readable text takes priority; narrow windows use separate rows."
 
 msgid "Deal balance"
 msgstr "Deal balance"
 
-msgid "How much you made in this trader window (green - plus, red - minus), next to the trader's money"
-msgstr "How much you made in this trader window (green - plus, red - minus), next to the trader's money"
+msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
+msgstr "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
+
+msgid "Trader"
+msgstr "Trader"
+
+msgid "Player"
+msgstr "Player"

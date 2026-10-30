@@ -98,8 +98,8 @@ msgstr "价格/重量"
 msgid "Sort list width"
 msgstr "排序列表宽度"
 
-msgid "Width of the sort drop-down at the bottom of the trader window, in pixels. 0 - fitted to the window; a set width moves the direction and Arrange buttons to the right"
-msgstr "交易窗口底部排序下拉列表的宽度(像素)。0 - 适应窗口;设置宽度后,方向按钮和整理按钮会向右移动"
+msgid "Preferred sort list width in pixels. 0 fits its translated items. Narrow windows use separate rows."
+msgstr "排序列表的期望宽度（像素）。0表示根据翻译后的选项自动调整；窄窗口会分行显示控件。"
 
 msgid "Deal"
 msgstr "交易"
@@ -107,11 +107,17 @@ msgstr "交易"
 msgid "Search field width"
 msgstr "搜索框宽度"
 
-msgid "Width of the search field at the bottom of the trader window, in pixels"
-msgstr "交易窗口底部搜索框的宽度(像素)"
+msgid "Preferred search field width in pixels. Readable text takes priority; narrow windows use separate rows."
+msgstr "搜索框的期望宽度（像素）。优先保证文字可读；窄窗口会分行显示控件。"
 
 msgid "Deal balance"
 msgstr "交易盈亏"
 
-msgid "How much you made in this trader window (green - plus, red - minus), next to the trader's money"
-msgstr "在商人的金钱旁显示本次交易窗口的盈亏(绿色为盈,红色为亏)"
+msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
+msgstr "在商人窗口顶部中央显示本次交易结算（绿色为收入，红色为支出）。"
+
+msgid "Trader"
+msgstr "商人"
+
+msgid "Player"
+msgstr "玩家"

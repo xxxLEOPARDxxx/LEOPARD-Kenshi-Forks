@@ -98,8 +98,8 @@ msgstr "Цена / вес"
 msgid "Sort list width"
 msgstr "Ширина списка сортировки"
 
-msgid "Width of the sort drop-down at the bottom of the trader window, in pixels. 0 - fitted to the window; a set width moves the direction and Arrange buttons to the right"
-msgstr "Ширина выпадающего списка сортировки внизу окна торговца, в пикселях. 0 - по месту в окне; с заданной шириной кнопки направления и \"Разложить\" сдвигаются вправо"
+msgid "Preferred sort list width in pixels. 0 fits its translated items. Narrow windows use separate rows."
+msgstr "Желаемая ширина списка сортировки в пикселях. 0 - по длине переведённых пунктов. В узком окне панели переносятся на отдельные строки."
 
 msgid "Deal"
 msgstr "Сделка"
@@ -107,11 +107,17 @@ msgstr "Сделка"
 msgid "Search field width"
 msgstr "Ширина поля поиска"
 
-msgid "Width of the search field at the bottom of the trader window, in pixels"
-msgstr "Ширина поля поиска внизу окна торговца, в пикселях"
+msgid "Preferred search field width in pixels. Readable text takes priority; narrow windows use separate rows."
+msgstr "Желаемая ширина поиска в пикселях. Читаемый текст важнее ширины; в узком окне панели переносятся на отдельные строки."
 
 msgid "Deal balance"
 msgstr "Итог сделки"
 
-msgid "How much you made in this trader window (green - plus, red - minus), next to the trader's money"
-msgstr "Сколько вы наторговали за это окно торговца (зелёным - в плюс, красным - в минус), рядом с деньгами торговца"
+msgid "Show the current deal balance at the centre of the trader header (green - gain, red - cost)."
+msgstr "Итог текущей сделки в центре верхней строки торговца (зелёный - доход, красный - расход)."
+
+msgid "Trader"
+msgstr "Торговец"
+
+msgid "Player"
+msgstr "Игрок"
