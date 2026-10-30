@@ -283,3 +283,23 @@ remains a separate check; passing model tests alone does not establish it.
 виртуального сравнения hand в SDK/VC10: поиск не находил ни одного живого токена.
 Используется проверенный невиртуальный нативный метод, без изменения правил
 владения и совместимости. Игровая проверка остаётся отдельным этапом.
+
+
+## Prepared release 2 / Подготовленный выпуск 2
+
+EN: Corrected live-token lookup through explicit Native hand equality. Compatible
+stacks merge again, and content changes retrigger consolidation without reopening
+the inventory. Ownership/charge rules, rotation and undo remain Native-controlled.
+Bounded diagnostic summaries are optional and default off.
+RU: Исправлен поиск живых предметов через невиртуальное сравнение идентификаторов.
+Совместимые стопки снова объединяются; изменения содержимого повторно запускают
+проверку без закрытия инвентаря. Правила владения и ресурса сохраняются, повороты
+и отмена раскладки доступны. Ограниченная диагностика выключена по умолчанию.
+
+Runtime acceptance 2026-10-31: user confirmed merging and camera controls work.
+The recorded merge processed17 sources, found all identities, completed13 native
+reinsertions with0 faults, and left4 distinct goods stacks. A scoped read-only
+snapshot observed bolts9/open8, repairkits6/open313.9576, medicalkits2/open953.0244;
+comparable prior observations have matching quantity/charge totals. These were
+separate observations across restarts, not an atomic transaction or save/load
+stress test. Detailed debug settings were restored to0 after capture.
