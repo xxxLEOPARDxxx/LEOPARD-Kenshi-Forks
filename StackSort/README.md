@@ -26,6 +26,9 @@ and 64 cached sections are supported.
   kits may become one full kit while preserving all usable charges.
 - Single-cell storage, sections limited to one item and single-resource
   storage whose footprint only permits one stack keep their original controls.
+- The replacement controls fit around neighboring widgets, including KEO's
+  backpack-priority checkbox. Narrow panels use a compact caption or `[N]`
+  with a tooltip. An exceptionally narrow row retains the game's Arrange button.
 - Rotate Items integration is enabled in the build. Actual item dimensions
   are used; the optional native C API changes orientation and refreshes icons.
   With no compatible API, existing rotated items retain their actual
@@ -142,6 +145,10 @@ undo, rotated icon visuals and rotation persistence after saving/loading.
   ограничении стопки одним предметом; все оставшиеся заряды сохраняются.
 - Одноячеечные разделы, ограничение одним предметом и ресурсные хранилища,
   допускающие только одну стопку, сохраняют штатное управление.
+- Кнопки замены учитывают соседние виджеты, в том числе галочку приоритета
+  рюкзака KEO. В узких панелях подпись сокращается до «Сорт.» или `[N]` с
+  подсказкой. Если даже минимальные четыре кнопки не помещаются, остаётся
+  штатная «Разложить».
 - Поддержка Rotate Items включена при сборке: учитывается фактический размер
   каждого предмета. Без подходящего API существующие повороты сохраняются,
   новые повороты сортировщик не вводит.

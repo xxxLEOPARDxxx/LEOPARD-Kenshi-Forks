@@ -5,6 +5,12 @@ msgstr "Language: zh_CN\nContent-Type: text/plain; charset=UTF-8\nMIME-Version: 
 msgid "Sort [{n}]"
 msgstr "整理 [{n}]"
 
+msgid "Sort. [{n}]"
+msgstr "整理 [{n}]"
+
+msgid "Sort items. Left-click cycles arrangements; right-click restores item positions."
+msgstr "整理物品。左键切换排列方案；右键恢复物品位置。"
+
 msgid "H"
 msgstr "高"
 

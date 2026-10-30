@@ -3,6 +3,9 @@
 #include <kenshi/Inventory.h>
 #include <kenshi/RootObject.h>
 #include <kenshi/gui/InventoryGUI.h>
+#include <kenshi/Globals.h>
+#include <kenshi/gui/ForgottenGUI.h>
+#include <kenshi/gui/ToolTip.h>
 #pragma warning(pop)
 
 #include <mygui/MyGUI_Button.h>
@@ -24,6 +27,7 @@
 #include "McmSettings.h"
 #include "Translate.h"
 #include "Log.h"
+#include "ControlStripPlan.h"
 
 class InventoryGUIAccess : public InventoryGUI
 {
@@ -36,10 +40,11 @@ void StackSortUI::ForceRefreshAllSections(InventoryGUI* gui)
     ((InventoryGUIAccess*)gui)->refreshAllSections();
 }
 
-static std::string MakeCaption(int target)
+static std::string MakeCaption(int target, int mode = 0)
 {
     // Caption is dim-agnostic in the number; the dim toggle button shows H/W.
-    return FormatToken(Tr(TR_SORT_BUTTON), "{n}", IntToStr(target));
+    const char* format = mode == 2 ? "[{n}]" : Tr(mode == 1 ? TR_SORT_BUTTON_COMPACT : TR_SORT_BUTTON);
+    return FormatToken(format, "{n}", IntToStr(target));
 }
 
 struct UIState
@@ -52,6 +57,10 @@ struct UIState
     MyGUI::Button* forwardButton; // [>]
     int currentTarget;            // 0 = unsorted, else current target value
     bool initialized;
+    bool nativeFallback;
+    int captionMode;
+    MyGUI::Widget* controlsParent;
+    int parentWidth, parentHeight;
     bool stacksConsolidated;
     int topTargets[TOP_TARGETS_MAX];
     int topTargetCount; // 0..the top_targets setting
@@ -96,6 +105,7 @@ struct ButtonTag
 };
 
 static const char* const BUTTON_NAMES[4] = {"StackSortBack", "StackSortSort", "StackSortDim", "StackSortForward"};
+static const char* const ARRANGE_VISIBILITY_KEY = "StackSort_OriginalArrangeVisible_v1";
 
 // The owning object's handle plus slot and dim. A GUI with no callbackObject
 // gets no memory at all rather than colliding with every other such GUI.
@@ -177,6 +187,10 @@ static void ResetSlot(UIState& ui)
     ui.forwardButton      = NULL;
     ui.currentTarget      = 0;
     ui.initialized        = false;
+    ui.nativeFallback     = false;
+    ui.captionMode        = 0;
+    ui.controlsParent     = NULL;
+    ui.parentWidth = ui.parentHeight = 0;
     ui.stacksConsolidated = false;
     ui.topTargetCount     = 0;
     ui.topTargetIdx       = -1;
@@ -239,7 +253,11 @@ static bool RemoveOurButtons(MyGUI::Widget* parent)
     MyGUI::Gui* mygui = MyGUI::Gui::getInstancePtr();
     if (!mygui) return false;
     for (size_t d = 0; d < doomed.size(); ++d)
+    {
+        if (doomed[d]->getName() == BUTTON_NAMES[1] && ::gui && ::gui->getToolTip())
+            ::gui->getToolTip()->clear(doomed[d]);
         mygui->destroyWidget(doomed[d]);
+    }
     return true;
 }
 
@@ -254,7 +272,8 @@ static void TeardownWidgets(InventoryGUI* liveGui, bool restoreVanilla)
     if (!arrangeBtn) return;
     MyGUI::Widget* parent = arrangeBtn->getParent();
     if (parent) RemoveOurButtons(parent);
-    if (restoreVanilla) arrangeBtn->setVisible(true);
+    arrangeBtn->setVisible(restoreVanilla);
+    arrangeBtn->clearUserString(ARRANGE_VISIBILITY_KEY);
 }
 
 // The slot a button belongs to, or -1 when the button outlived its slot
@@ -277,7 +296,7 @@ static void ReclaimStaleUIStates(DWORD now)
     for (int i = 0; i < MAX_GUIS; ++i)
     {
         UIState& ui = s_uiStates[i];
-        if (!ui.initialized || !ui.updateStamped) continue;
+        if ((!ui.initialized && !ui.nativeFallback) || !ui.updateStamped) continue;
         if ((LONG)(now - ui.lastSeenTick) <= UI_RECLAIM_MS) continue;
         if ((DWORD)(s_uiPollCount - ui.lastSeenPoll) <= UI_RECLAIM_POLLS) continue;
 
@@ -290,7 +309,7 @@ int StackSortUI::FindUIState(InventoryGUI* gui)
 {
     for (int i = 0; i < MAX_GUIS; ++i)
     {
-        if (s_uiStates[i].initialized && s_uiStates[i].gui == gui) return i;
+        if ((s_uiStates[i].initialized || s_uiStates[i].nativeFallback) && s_uiStates[i].gui == gui) return i;
     }
     return -1;
 }
@@ -299,7 +318,7 @@ int StackSortUI::AllocUIState(InventoryGUI* gui)
 {
     for (int i = 0; i < MAX_GUIS; ++i)
     {
-        if (!s_uiStates[i].initialized)
+        if (!s_uiStates[i].initialized && !s_uiStates[i].nativeFallback)
         {
             UIState& ui = s_uiStates[i];
             ResetSlot(ui); // initialized stays false until the caller's full init
@@ -328,7 +347,7 @@ void StackSortUI::PlayClickSound()
 void StackSortUI::UpdateCaption(int uiIdx)
 {
     UIState& ui = s_uiStates[uiIdx];
-    if (ui.sortButton) ui.sortButton->setCaption(MakeCaption(ui.currentTarget));
+    if (ui.sortButton) ui.sortButton->setCaption(MakeCaption(ui.currentTarget, ui.captionMode));
     if (ui.dimButton) ui.dimButton->setCaption(Tr((SortWorker::GetDim() == Packer::TARGET_H) ? TR_DIM_H : TR_DIM_W));
     ui.captionDirty = false;
 }
@@ -456,127 +475,152 @@ int StackSortUI::PeekAppliedLerSide(InventoryGUI* gui, int target)
 
 void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, InventoryGUI* ownerGUI)
 {
-    // Already initialized for this GUI
     if (FindUIState(gui) >= 0) return;
-
-    MyGUI::Widget* parent = arrangeBtn->getParent();
+    MyGUI::Widget* parent = arrangeBtn ? arrangeBtn->getParent() : NULL;
     if (!parent) return;
-
-    // Buttons left on this layout by an earlier slot (closed without
-    // show(false), reclaimed, or a stale-context reset that could not reach
-    // them) go first, so a layout never carries more than one group. Before
-    // AllocUIState, which may hand out the very slot that pointed at them.
-    bool hadLeftovers = RemoveOurButtons(parent);
-
-    int idx = AllocUIState(gui);
+    // Widget-local baseline survives a cleared tracking slot while this layout
+    // remains alive. Leftover custom buttons alone do not prove vanilla was
+    // originally visible (another mod may have hidden it before our ownership).
+    const std::string baseline = arrangeBtn->getUserString(ARRANGE_VISIBILITY_KEY);
+    const bool hadBaseline = baseline == "0" || baseline == "1";
+    const bool originalVisible = hadBaseline ? baseline == "1" : arrangeBtn->getVisible();
+    const bool hadLeftovers = RemoveOurButtons(parent);
+    const int idx = AllocUIState(gui);
     if (idx < 0)
     {
-        if (hadLeftovers) arrangeBtn->setVisible(true);
+        if (hadLeftovers || hadBaseline) arrangeBtn->setVisible(originalVisible);
+        arrangeBtn->clearUserString(ARRANGE_VISIBILITY_KEY);
         return;
     }
-
-    UIState& ui       = s_uiStates[idx];
-    ui.ownerGUI       = ownerGUI;
-    ui.layout         = gui->layoutMgr;
-    ui.restoreVanilla = hadLeftovers || arrangeBtn->getVisible();
-
-    // Anchor on the vanilla ArrangeButton's own coordinates — Kenshi's layout
-    // system places it near the inventory grid, so we mirror that position.
-    // Parent dimensions aren't reliable: for character body panels,
-    // parent->getCoord() includes sidebar elements and reports a larger width
-    // than the inventory grid.
-    MyGUI::IntCoord ac = arrangeBtn->getCoord();
-    MyGUI::IntCoord pc = parent->getCoord();
-
-    // Body GUIs (character inventory with a child backpack) need a small
-    // leftward nudge — the vanilla ArrangeButton is centered under the wider
-    // body panel, but we want the new group under the main inventory grid.
-    bool isBodyGUI               = (gui == ownerGUI && gui->childInventory != NULL);
+    UIState& ui = s_uiStates[idx];
+    ui.ownerGUI = ownerGUI;
+    ui.layout = gui->layoutMgr;
+    ui.restoreVanilla = originalVisible;
+    ui.controlsParent = parent;
+    ui.parentWidth = parent->getWidth();
+    ui.parentHeight = parent->getHeight();
+    const bool isBodyGUI = gui == ownerGUI && gui->childInventory != NULL;
+    const MyGUI::IntCoord ac = arrangeBtn->getCoord();
     const StackSortSettings& cfg = StackSortSettingsStore::Get();
-
-#ifdef STACKSORT_PACKER_GRID_LOG
-    LogDebug(std::string("[StackSort] Layout anchor: arrangeBtn (") + IntToStr(ac.left) + "," + IntToStr(ac.top) + " " +
-             IntToStr(ac.width) + "x" + IntToStr(ac.height) + ")" + ", parent (" + IntToStr(pc.left) + "," +
-             IntToStr(pc.top) + " " + IntToStr(pc.width) + "x" + IntToStr(pc.height) + ")" +
-             (isBodyGUI ? " [body]" : ""));
-#endif
-
-    // Hide the vanilla ArrangeButton — the new 4-button group replaces it.
-    // OnClose and the stale-context reset re-show it (TeardownWidgets) in case
-    // the layout outlives this open.
-    arrangeBtn->setVisible(false);
-
-    ButtonTag tag;
-    tag.idx        = idx;
-    tag.generation = ui.generation;
-
-    // Layout: [<] [Stacksort [N]] [H|W] [>]
-    // Horizontally centered on the vanilla button's own center.
-    // Vertically aligned with the vanilla button's top.
-    const int btnH      = ac.height;
-    const int arrowBtnW = cfg.arrowButtonWidth;
-    const int dimBtnW   = cfg.dimButtonWidth;
-    const int sortBtnW  = cfg.sortButtonWidth;
-    const int gap       = cfg.buttonGap;
-
-    const int totalW         = arrowBtnW + gap + sortBtnW + gap + dimBtnW + gap + arrowBtnW;
-    const int vanillaCenterX = ac.left + ac.width / 2;
-    const int startX         = vanillaCenterX - totalW / 2 + (isBodyGUI ? cfg.bodyXOffset : 0);
-    const int startY         = ac.top;
-
-    const int xBack = startX;
-    const int xSort = xBack + arrowBtnW + gap;
-    const int xDim  = xSort + sortBtnW + gap;
-    const int xFwd  = xDim + dimBtnW + gap;
-
-    // Back button
-    ui.backButton = parent->createWidget<MyGUI::Button>(
-        "Kenshi_Button1", MyGUI::IntCoord(xBack, startY, arrowBtnW, btnH), MyGUI::Align::Default, "StackSortBack");
-    ui.backButton->setCaption(Tr(TR_BACK_ARROW));
-    ui.backButton->setTextAlign(MyGUI::Align::Center);
-    ui.backButton->setUserData(MyGUI::Any(tag));
-    ui.backButton->eventMouseButtonClick += MyGUI::newDelegate(OnBackClick);
-
-    // Sort button (middle — score cycling + right-click revert)
-    ui.sortButton = parent->createWidget<MyGUI::Button>(
-        "Kenshi_Button1", MyGUI::IntCoord(xSort, startY, sortBtnW, btnH), MyGUI::Align::Default, "StackSortSort");
-    ui.sortButton->setTextAlign(MyGUI::Align::Center);
-    ui.sortButton->setUserData(MyGUI::Any(tag));
-    ui.sortButton->eventMouseButtonClick += MyGUI::newDelegate(OnSortCycleClick);
-    ui.sortButton->eventMouseButtonPressed += MyGUI::newDelegate(OnSortRightClick);
-
-    // Dim toggle
-    ui.dimButton = parent->createWidget<MyGUI::Button>("Kenshi_Button1", MyGUI::IntCoord(xDim, startY, dimBtnW, btnH),
-                                                       MyGUI::Align::Default, "StackSortDim");
-    ui.dimButton->setTextAlign(MyGUI::Align::Center);
-    ui.dimButton->setUserData(MyGUI::Any(tag));
-    ui.dimButton->eventMouseButtonClick += MyGUI::newDelegate(OnDimClick);
-
-    // Forward button
-    ui.forwardButton = parent->createWidget<MyGUI::Button>(
-        "Kenshi_Button1", MyGUI::IntCoord(xFwd, startY, arrowBtnW, btnH), MyGUI::Align::Default, "StackSortForward");
-    ui.forwardButton->setCaption(Tr(TR_FORWARD_ARROW));
-    ui.forwardButton->setTextAlign(MyGUI::Align::Center);
-    ui.forwardButton->setUserData(MyGUI::Any(tag));
-    ui.forwardButton->eventMouseButtonClick += MyGUI::newDelegate(OnForwardArrowClick);
-
-    // Key and label are cached now, while ownerGUI is provably alive, so a
-    // later dim toggle can re-key every slot without dereferencing any GUI.
-    ui.hasMemKey = MakeKey(gui, ownerGUI, ui.memKey, ui.ownerLabel);
-    ui.slotName  = (gui != ownerGUI) ? "backpack" : (isBodyGUI ? "body" : "container");
-
-    ui.initialized = true;
-
-    // Caption-only restore: the inventory is physically still in its last
-    // applied layout, so nothing is re-packed or re-placed behind the user.
-    ReKeyAndRecall(idx, true);
-
-    UpdateCaption(idx);
-
-    LogInfo("[StackSort] UI initialized (target=" + IntToStr(ui.currentTarget) +
-            ", dim=" + ((SortWorker::GetDim() == Packer::TARGET_H) ? "H" : "W") + ")");
+    try
+    {
+        // The original remains the KEO/native anchor: no name, geometry or
+        // delegate changes. Measure only our hidden button, once per layout.
+        ui.sortButton = parent->createWidget<MyGUI::Button>("Kenshi_Button1",
+            MyGUI::IntCoord(0, ac.top, 600, ac.height), MyGUI::Align::Default, BUTTON_NAMES[1]);
+        ui.sortButton->setVisible(false);
+        ui.sortButton->setTextAlign(MyGUI::Align::Center);
+        const int padding = (std::max)(6, 600 - ui.sortButton->getTextRegion().width + 4);
+        ControlStrip::Request request;
+        request.parent = ControlStrip::Rect(0, 0, ui.parentWidth, ui.parentHeight);
+        request.anchor = ControlStrip::Rect(ac.left, ac.top, ac.width, ac.height);
+        request.gap = cfg.buttonGap;
+        request.desired[0] = cfg.arrowButtonWidth;
+        request.desired[1] = cfg.sortButtonWidth;
+        request.desired[2] = cfg.dimButtonWidth;
+        request.desired[3] = cfg.arrowButtonWidth;
+        const int wanted = 2 * cfg.arrowButtonWidth + cfg.sortButtonWidth + cfg.dimButtonWidth + 3 * cfg.buttonGap;
+        request.preferredX = ac.left + ac.width / 2 - wanted / 2 + (isBodyGUI ? cfg.bodyXOffset : 0);
+        for (int mode = 0; mode < 3; ++mode)
+        {
+            ui.sortButton->setCaption(MakeCaption(Packer::MAX_GRID_DIM, mode));
+            request.captionWidth[mode] = ui.sortButton->getTextSize().width + padding;
+        }
+        ui.sortButton->setCaption(Tr(TR_BACK_ARROW));
+        request.minimum[0] = (std::max)(16, ui.sortButton->getTextSize().width + padding);
+        ui.sortButton->setCaption(Tr(TR_FORWARD_ARROW));
+        request.minimum[3] = (std::max)(16, ui.sortButton->getTextSize().width + padding);
+        ui.sortButton->setCaption(Tr(TR_DIM_H));
+        const int hWidth = ui.sortButton->getTextSize().width;
+        ui.sortButton->setCaption(Tr(TR_DIM_W));
+        request.minimum[2] = (std::max)(16, (std::max)(hWidth, ui.sortButton->getTextSize().width) + padding);
+        request.minimum[1] = 1;
+        // KEO adds its checkbox from setupSections before native _NV_update
+        // returns. Scan direct siblings once, reserving every visible neighbor
+        // on this row, including KEO and body equipment slots. Hook load order
+        // cannot move KEO's post-setup work past this post-update initializer.
+        std::vector<ControlStrip::Rect> obstacles;
+        const size_t children = parent->getChildCount();
+        for (size_t n = 0; n < children; ++n)
+        {
+            MyGUI::Widget* widget = parent->getChildAt(n);
+            if (!widget || widget == arrangeBtn || widget == ui.sortButton || !widget->getVisible()) continue;
+            const MyGUI::IntCoord c = widget->getCoord();
+            obstacles.push_back(ControlStrip::Rect(c.left, c.top, c.width, c.height));
+            if (obstacles.size() > 128) break;
+        }
+        const ControlStrip::Plan plan = ControlStrip::Build(request, obstacles);
+        ToolTip* const tooltip = ::gui ? ::gui->getToolTip() : NULL;
+        if (!plan.fits || (plan.caption == 2 && !tooltip))
+        {
+            ui.nativeFallback = true;
+            MyGUI::Button* measure = ui.sortButton;
+            ui.sortButton = NULL;
+            MyGUI::Gui::getInstance().destroyWidget(measure);
+            if (hadLeftovers || hadBaseline) arrangeBtn->setVisible(originalVisible);
+            arrangeBtn->clearUserString(ARRANGE_VISIBILITY_KEY);
+            LogInfo("StackSort: native Arrange retained; four readable controls do not fit the available row");
+            return;
+        }
+        ui.captionMode = plan.caption;
+        ButtonTag tag;tag.idx = idx;tag.generation = ui.generation;
+        int x = plan.x;
+        ui.backButton = parent->createWidget<MyGUI::Button>("Kenshi_Button1",
+            MyGUI::IntCoord(x, plan.y, plan.width[0], ac.height), MyGUI::Align::Default, BUTTON_NAMES[0]);
+        ui.backButton->setVisible(false);
+        ui.backButton->setCaption(Tr(TR_BACK_ARROW));
+        ui.backButton->setTextAlign(MyGUI::Align::Center);
+        ui.backButton->setUserData(MyGUI::Any(tag));
+        ui.backButton->eventMouseButtonClick += MyGUI::newDelegate(OnBackClick);
+        x += plan.width[0] + cfg.buttonGap;
+        ui.sortButton->setCoord(MyGUI::IntCoord(x, plan.y, plan.width[1], ac.height));
+        ui.sortButton->setUserData(MyGUI::Any(tag));
+        ui.sortButton->eventMouseButtonClick += MyGUI::newDelegate(OnSortCycleClick);
+        ui.sortButton->eventMouseButtonPressed += MyGUI::newDelegate(OnSortRightClick);
+        if (tooltip) tooltip->setup(ui.sortButton, std::string(Tr(TR_SORT_TOOLTIP)));
+        x += plan.width[1] + cfg.buttonGap;
+        ui.dimButton = parent->createWidget<MyGUI::Button>("Kenshi_Button1",
+            MyGUI::IntCoord(x, plan.y, plan.width[2], ac.height), MyGUI::Align::Default, BUTTON_NAMES[2]);
+        ui.dimButton->setVisible(false);
+        ui.dimButton->setTextAlign(MyGUI::Align::Center);
+        ui.dimButton->setUserData(MyGUI::Any(tag));
+        ui.dimButton->eventMouseButtonClick += MyGUI::newDelegate(OnDimClick);
+        x += plan.width[2] + cfg.buttonGap;
+        ui.forwardButton = parent->createWidget<MyGUI::Button>("Kenshi_Button1",
+            MyGUI::IntCoord(x, plan.y, plan.width[3], ac.height), MyGUI::Align::Default, BUTTON_NAMES[3]);
+        ui.forwardButton->setVisible(false);
+        ui.forwardButton->setCaption(Tr(TR_FORWARD_ARROW));
+        ui.forwardButton->setTextAlign(MyGUI::Align::Center);
+        ui.forwardButton->setUserData(MyGUI::Any(tag));
+        ui.forwardButton->eventMouseButtonClick += MyGUI::newDelegate(OnForwardArrowClick);
+        ui.hasMemKey = MakeKey(gui, ownerGUI, ui.memKey, ui.ownerLabel);
+        ui.slotName = gui != ownerGUI ? "backpack" : (isBodyGUI ? "body" : "container");
+        ReKeyAndRecall(idx, true);
+        UpdateCaption(idx);
+        // Commit the replacement only after all four widgets/handlers exist.
+        // Until here the original is the sole visible, active Arrange control.
+        arrangeBtn->setUserString(ARRANGE_VISIBILITY_KEY, originalVisible ? "1" : "0");
+        arrangeBtn->setVisible(false);
+        ui.initialized = true;
+        ui.backButton->setVisible(true);ui.sortButton->setVisible(true);
+        ui.dimButton->setVisible(true);ui.forwardButton->setVisible(true);
+        LogInfo("StackSort: Arrange replaced with a bounded four-button strip");
+    }
+    catch (...)
+    {
+        // Our partially created widgets are hidden, and original's handler and
+        // coordinates are intact. Do not retry allocations every frame.
+        const bool restore = ui.restoreVanilla;
+        ResetSlot(ui);
+        ui.gui = gui;ui.ownerGUI = ownerGUI;ui.layout = gui->layoutMgr;
+        ui.nativeFallback = true;ui.restoreVanilla = restore;ui.controlsParent = parent;
+        ui.parentWidth = parent->getWidth();ui.parentHeight = parent->getHeight();
+        arrangeBtn->setVisible(restore);
+        arrangeBtn->clearUserString(ARRANGE_VISIBILITY_KEY);
+        try { RemoveOurButtons(parent); } catch (...) { }
+        ReportUIException("initialize (native Arrange retained)");
+    }
 }
-
 // Pre-sort setup for every sort click. Stack consolidation runs once per open
 // (stacksConsolidated); the revert capture is retried on every click because
 // the worker drops a section's capture when the player hand-edits it or
@@ -675,7 +719,7 @@ bool StackSortUI::OnForwardClick(InventoryGUI* gui, MyGUI::Widget* sender)
         idx = FindUIState(gui);
     }
 
-    if (idx < 0) return false; // not handled — caller should fall through to vanilla
+    if (idx < 0 || s_uiStates[idx].nativeFallback) return false; // native once, including bounded-row fallback
 
     CycleTargetForward(idx);
     return true;
@@ -950,7 +994,7 @@ void StackSortUI::MaintainSlots(InventoryGUI* gui)
     for (int i = 0; i < MAX_GUIS; ++i)
     {
         UIState& ui = s_uiStates[i];
-        if (!ui.initialized) continue;
+        if (!ui.initialized && !ui.nativeFallback) continue;
 
         InventoryGUI* live = NULL;
         if (ui.gui == gui) live = gui;
@@ -975,9 +1019,22 @@ void StackSortUI::MaintainSlots(InventoryGUI* gui)
             continue;
         }
 
+        // O(1) cached size check. Re-measure/re-scan only after an actual
+        // resize, never every frame or after merely moving a window.
+        if (ui.controlsParent && (ui.controlsParent->getWidth() != ui.parentWidth ||
+                                 ui.controlsParent->getHeight() != ui.parentHeight))
+        {
+            const bool restore = ui.restoreVanilla;
+            ResetSlot(ui);
+            TeardownWidgets(live, restore);
+            continue;
+        }
+
         ui.updateStamped = true;
         ui.lastSeenTick  = now;
         ui.lastSeenPoll  = s_uiPollCount;
+
+        if (ui.nativeFallback) continue;
 
         if (ui.recallPending)
         {
@@ -1063,7 +1120,7 @@ void StackSortUI::OnClose(InventoryGUI* gui)
     for (int i = 0; i < MAX_GUIS; ++i)
     {
         UIState& ui = s_uiStates[i];
-        if (!ui.initialized) continue;
+        if (!ui.initialized && !ui.nativeFallback) continue;
         if (ui.gui != gui && ui.ownerGUI != gui) continue;
 
         InventoryGUI* live = NULL;
@@ -1097,7 +1154,7 @@ void StackSortUI::OnDestroyed(InventoryGUI* gui)
     for (int i = 0; i < MAX_GUIS; ++i)
     {
         UIState& ui = s_uiStates[i];
-        if (!ui.initialized) continue;
+        if (!ui.initialized && !ui.nativeFallback) continue;
         if (ui.gui != gui && ui.ownerGUI != gui) continue;
         ResetSlot(ui);
     }

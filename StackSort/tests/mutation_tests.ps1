@@ -24,4 +24,13 @@ foreach ($name in $variants.Keys) {
     if ($LASTEXITCODE -eq 0) { throw "Mutant survived: $name" }
     Write-Host "Expected assertion failure verified: $name"
 }
+$planner = [IO.File]::ReadAllText("$module/src/common/ControlStripPlan.h")
+$mutantPlanner = $planner.Replace('b<obstacles.size()', 'b<0')
+if ($planner -eq $mutantPlanner) { throw 'Planner mutation did not apply' }
+[IO.File]::WriteAllText("$out/ControlStripPlan.h", $mutantPlanner)
+& "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD /O2 /DWIN32 /DNDEBUG "/Fo$out/" "/Fe$out/ignored_neighbors.exe" "$PSScriptRoot/control_strip_tests.cpp"
+if ($LASTEXITCODE) { throw 'Planner mutant did not compile' }
+& "$out/ignored_neighbors.exe"
+if ($LASTEXITCODE -eq 0) { throw 'Ignored-neighbor planner mutation survived' }
+Write-Host 'Expected assertion failure verified: ignored_neighbors'
 exit 0

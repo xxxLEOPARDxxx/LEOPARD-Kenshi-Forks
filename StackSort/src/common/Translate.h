@@ -6,6 +6,8 @@
 // X() args must be plain identifiers (MSVC 2010 preprocessor quirk with `##`).
 #define TR_KEYS(X)                                                                                                     \
     X(SORT_BUTTON, "Sort [{n}]")                                                                                       \
+    X(SORT_BUTTON_COMPACT, "Sort. [{n}]")                                                                              \
+    X(SORT_TOOLTIP, "Sort items. Left-click cycles arrangements; right-click restores item positions.")                \
     X(DIM_H, "H")                                                                                                      \
     X(DIM_W, "W")                                                                                                      \
     X(BACK_ARROW, "<")                                                                                                 \
