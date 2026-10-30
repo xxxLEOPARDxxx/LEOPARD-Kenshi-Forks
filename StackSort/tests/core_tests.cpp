@@ -3,6 +3,15 @@
 #include "Packer.h"
 #include "TargetMemory.h"
 #include "ResultCache.h"
+// Compile the real RevertSection matching pass against plain test items.
+namespace Ogre {template<class T>struct vector {typedef std::vector<T> type;};}
+class Item {public:ItemIdentity identity;int itemWidth,itemHeight;};
+class InventorySection {public:struct SectionItem{Item* item;};std::vector<SectionItem> items;const std::vector<SectionItem>& getItems(){return items;}};
+static bool rotationIdentityAvailable=false;
+class SortWorker {public:static void ReadItemIdentity(Item* item,ItemIdentity& out){out=item->identity;if(rotationIdentityAvailable&&out.w>out.h)std::swap(out.w,out.h);}};
+static int PlaceableWidth(InventorySection*){return 10;}static int PlaceableHeight(InventorySection*){return 10;}
+static Packer::Placement MakePlacement(int id,int x,int y,int w,int h){Packer::Placement p={};p.id=id;p.x=x;p.y=y;p.w=w;p.h=h;return p;}
+#include "revert_match_under_test.h"
 static int failures = 0, checks = 0;
 #define CHECK(x) do { ++checks; if (!(x)) { ++failures; std::printf("FAIL %d: %s\n", __LINE__, #x); } } while(0)
 int main()
@@ -60,9 +69,25 @@ int main()
     LONG currentGeneration=ResultCache::Insert(section,2,3,Packer::TARGET_H,items,identities);
     CHECK(currentGeneration!=oldGeneration);
     CHECK(!SortPolicy::CanPublish(1,currentGeneration,currentGeneration,1,2));
+    cached->hasOriginalPositions=true;cached->originalPositions.resize(1);
+    Item wide;wide.identity=identities[0];wide.identity.item=&wide;wide.identity.w=3;wide.identity.h=2;wide.itemWidth=3;wide.itemHeight=2;
+    OriginalPlacement& captured=cached->originalPositions[0];captured.identity=wide.identity;captured.x=1;captured.y=1;captured.w=3;captured.h=2;
+    InventorySection liveSection;InventorySection::SectionItem si={&wide};liveSection.items.push_back(si);
+    CHECK(RevertSection(&liveSection,cached->originalPositions));
+    ResultCache::MarkSortedWithoutCapture(section);
+    ResultCache::InvalidateForRotation(); // late Rotate binding drops packing, not undo
+    CHECK(cached->valid==0&&cached->generation!=currentGeneration);
+    CHECK(cached->hasOriginalPositions&&cached->originalPositions.size()==1);
+    rotationIdentityAvailable=true;CHECK(RevertSection(&liveSection,cached->originalPositions));
+    CHECK(captured.w==3&&captured.h==2); // migration must not change exact captured shape
+    wide.itemWidth=2;wide.itemHeight=3;CHECK(!RevertSection(&liveSection,cached->originalPositions));wide.itemWidth=3;wide.itemHeight=2;
+    ++wide.identity.serial;CHECK(!RevertSection(&liveSection,cached->originalPositions));--wide.identity.serial;
+    CHECK(ResultCache::IsSortedWithoutCapture(section));
+    CHECK(!SortPolicy::CanPublish(0,cached->generation,currentGeneration,1,2));
     InterlockedExchange(&cached->generation,LONG_MAX);
     ResultCache::InvalidateAll();
     CHECK(cached->generation==1);
+    CHECK(!cached->hasOriginalPositions&&cached->originalPositions.empty()&&!ResultCache::IsSortedWithoutCapture(section));
     ResultCache::Shutdown();
     std::printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

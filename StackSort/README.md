@@ -33,6 +33,8 @@ and 64 cached sections are supported.
   with a tooltip. An exceptionally narrow row retains the game's Arrange button.
 - Rotate Items integration is enabled in the build. Actual item dimensions
   are used; the optional native C API changes orientation and refreshes icons.
+  Either mod-list order is supported: StackSort retries detection when opening
+  an inventory or requesting a sort if Rotate Items was not loaded at startup.
   With no compatible API, existing rotated items retain their actual
   dimensions and the sorter introduces no new rotations.
 - Background jobs are cancelled and stale cache generations rejected before
@@ -155,7 +157,9 @@ undo, rotated icon visuals and rotation persistence after saving/loading.
   подсказкой. Если даже минимальные четыре кнопки не помещаются, остаётся
   штатная «Разложить».
 - Поддержка Rotate Items включена при сборке: учитывается фактический размер
-  каждого предмета. Без подходящего API существующие повороты сохраняются,
+  каждого предмета. Порядок этих двух модов в списке не важен: если Rotate Items
+  ещё не загрузился при старте StackSort, проверка повторяется при открытии
+  инвентаря или запросе сортировки. Без подходящего API существующие повороты сохраняются,
   новые повороты сортировщик не вводит.
 - Новая игра, загрузка и сброс мира отменяют фоновые задания и сбрасывают
   старые результаты и запомненные цели.

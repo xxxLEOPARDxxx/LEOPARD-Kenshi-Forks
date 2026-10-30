@@ -41,7 +41,7 @@ void ResultCache::Shutdown()
     s_sortedWithoutCapture.clear();
 }
 
-void ResultCache::InvalidateAll()
+static void InvalidateAllImpl(bool clearOriginalPositions,bool canonicalizeUndo)
 {
     ScopedLock guard(s_lock);
     for (std::map<InventorySection*, CachedSection>::iterator it = s_cache.begin(); it != s_cache.end(); ++it)
@@ -50,11 +50,28 @@ void ResultCache::InvalidateAll()
         ScopedLock entry(cs.resultLock);
         BumpGenerationLocked(cs);
         InterlockedExchange(&cs.valid, 0);
-        cs.hasOriginalPositions = false;
-        cs.originalPositions.clear();
+        if(clearOriginalPositions)
+        {
+            cs.hasOriginalPositions = false;
+            cs.originalPositions.clear();
+        }
+        else if(canonicalizeUndo)
+        {
+            // ReadItemIdentity becomes orientation-free after late binding.
+            // Migrate only its saved plain-data comparison dimensions. The
+            // exact OriginalPlacement w/h must remain unchanged for undo.
+            for(size_t i=0;i<cs.originalPositions.size();++i)
+            {
+                ItemIdentity& identity=cs.originalPositions[i].identity;
+                if(identity.w>identity.h) std::swap(identity.w,identity.h);
+            }
+        }
     }
-    s_sortedWithoutCapture.clear();
+    if(clearOriginalPositions) s_sortedWithoutCapture.clear();
 }
+
+void ResultCache::InvalidateAll() {InvalidateAllImpl(true,false);}
+void ResultCache::InvalidateForRotation() {InvalidateAllImpl(false,true);}
 
 LONG ResultCache::Insert(InventorySection* section, int gridW, int gridH, Packer::TargetDim dim,
                          const std::vector<Packer::Item>& packItems, const std::vector<ItemIdentity>& identities)

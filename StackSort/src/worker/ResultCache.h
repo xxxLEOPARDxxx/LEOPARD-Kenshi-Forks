@@ -163,6 +163,9 @@ class ResultCache
     static void Init();
     static void Shutdown();
     static void InvalidateAll(); // retain entries until workers no longer hold them
+    // Late API binding: invalidate results, keep undo positions/marks and
+    // canonicalize only saved identity dimensions to the new comparison mode.
+    static void InvalidateForRotation();
 
     // Insert or update a cache entry with a fresh snapshot.
     // Pre-allocates results[] sized for the given dim:

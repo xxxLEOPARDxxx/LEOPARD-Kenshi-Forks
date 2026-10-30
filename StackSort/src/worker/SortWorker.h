@@ -111,6 +111,10 @@ class SortWorker
     // instead of logging a digest over a replaced snapshot. Does not touch
     // the revert capture. Main thread only. Never throws.
     static void MarkSectionStale(InventorySection* section);
+    // Main-thread transition after the optional API binds. Invalidate old
+    // nonrotating snapshots, abort their jobs, preserve captures and requeue
+    // from each GUI's next live update. Never dereferences native objects.
+    static void OnRotationAPIAvailable();
 
     // One live item's identity exactly as snapshots record it (dims
     // orientation-free when KenshiRotate is loaded). Main thread only.

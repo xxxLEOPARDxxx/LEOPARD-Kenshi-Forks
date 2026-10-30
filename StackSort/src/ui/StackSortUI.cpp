@@ -746,6 +746,7 @@ void StackSortUI::InitializeUI(InventoryGUI* gui, MyGUI::Widget* arrangeBtn, Inv
 void StackSortUI::FirstClickInit(int uiIdx)
 {
     UIState& ui = s_uiStates[uiIdx];
+    StackSort_InitRotateAPI();
 
     if (!ui.stacksConsolidated)
     {

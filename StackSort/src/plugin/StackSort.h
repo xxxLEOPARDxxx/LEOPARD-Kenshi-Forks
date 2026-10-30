@@ -5,6 +5,8 @@ class InventoryGUI;
 
 #ifdef STACKSORT_ENABLE_ROTATION
 
+// Idempotent main-thread bind. Retry only at startup/inventory-open/sort-request
+// boundaries; item queries below never discover modules or touch workers.
 void StackSort_InitRotateAPI();
 bool StackSort_RotateAvailable();
 bool StackSort_CanRotate(Item* item);

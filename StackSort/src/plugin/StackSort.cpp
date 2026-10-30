@@ -49,6 +49,8 @@ static KR_CanRotateFn s_krCanRotate           = NULL;
 static KR_SetRotatedFn s_krSetRotated         = NULL;
 static KR_RefreshVisualsFn s_krRefreshVisuals = NULL;
 static bool s_krAvailable                     = false;
+static HMODULE s_krRejectedModule              = NULL;
+static bool s_krAbsentLogged                   = false;
 #endif
 
 // Resolved from kenshi_x64.exe at startup.
@@ -199,12 +201,18 @@ static void LearnBaseVtable(InventoryGUI* gui)
 #ifdef STACKSORT_ENABLE_ROTATION
 void StackSort_InitRotateAPI()
 {
+    // Main thread only, at startup/open/sort-request boundaries. Successful
+    // binding is permanent: item queries and steady GUI updates never search
+    // loaded modules. Absence at startup is not a permanent verdict.
+    if(s_krAvailable) return;
     HMODULE hMod = GetModuleHandleA("KenshiRotate.dll");
     if (!hMod)
     {
-        LogInfo("[StackSort] KenshiRotate not detected (rotation disabled)");
+        if(!s_krAbsentLogged) LogInfo("[StackSort] KenshiRotate not detected yet; retrying on inventory open or sort request");
+        s_krAbsentLogged=true;
         return;
     }
+    if(hMod==s_krRejectedModule) return;
 
     s_krApiVersion     = (KR_ApiVersionFn)GetProcAddress(hMod, "KenshiRotate_ApiVersion");
     s_krIsRotated      = (KR_IsRotatedFn)GetProcAddress(hMod, "KenshiRotate_IsRotated");
@@ -214,6 +222,7 @@ void StackSort_InitRotateAPI()
 
     if (!s_krApiVersion || !s_krIsRotated || !s_krCanRotate || !s_krSetRotated)
     {
+        s_krRejectedModule=hMod;
         LogError("[StackSort] KenshiRotate found but missing API exports (rotation disabled)");
         return;
     }
@@ -221,11 +230,13 @@ void StackSort_InitRotateAPI()
     int ver = s_krApiVersion();
     if (ver < 1)
     {
+        s_krRejectedModule=hMod;
         LogError("[StackSort] KenshiRotate API version " + IntToStr(ver) + " < 1 (rotation disabled)");
         return;
     }
 
     s_krAvailable = true;
+    SortWorker::OnRotationAPIAvailable();
     LogInfo("[StackSort] KenshiRotate detected (API v" + IntToStr(ver) + ", rotation enabled)");
 }
 

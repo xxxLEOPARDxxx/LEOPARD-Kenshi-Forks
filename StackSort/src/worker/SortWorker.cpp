@@ -1260,6 +1260,7 @@ void SortWorker::OnInventoryOpened(InventoryGUI* gui)
         idx = AllocTracking(gui);
         if (idx < 0) return;
 
+        StackSort_InitRotateAPI();
         bool needsCompute = false;
         SnapshotSections(idx, gui, &needsCompute);
 
@@ -1573,6 +1574,22 @@ void SortWorker::MarkSectionStale(InventorySection* section)
             break;
         }
     }
+}
+
+void SortWorker::OnRotationAPIAvailable()
+{
+    // Capability changed from exact orientation to optional rotation. Abort
+    // old plain-data jobs and reject all old generations, including closed
+    // cached sections. No native GUI/item is dereferenced here. Preserve undo.
+    const DWORD expired=GetTickCount()-(DWORD)StackSortSettingsStore::Get().mutationDebounceMs;
+    for(int i=0;i<MAX_GUIS;++i)
+    {
+        GUITracking& t=s_guiTracking[i];
+        if(!t.gui) continue;
+        AbortJobsForGUI(t.gui);
+        t.mutationPending=true;t.lastMutationTick=expired;
+    }
+    ResultCache::InvalidateForRotation();
 }
 
 bool SortWorker::GetResult(InventorySection* section, int target, Packer::Result& outResult)
