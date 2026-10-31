@@ -2,6 +2,22 @@
 
 [Nexus — our release / наша версия](https://www.nexusmods.com/kenshi/mods/2259)
 
+## Version 2 / Версия 2
+
+Environmental protection returned by CharStats is a fraction even above 1.0.
+Removed the magnitude-based /100 conversion that turned 155% into a displayed
+2%. The existing effective-protection display cap remains: full protection
+shows 100%. Applies to acid, dust, burning, gas and rain. No per-frame work,
+allocations, game-state changes or new settings are added.
+
+Исправлена защита от среды: значения выше 100% больше не превращаются в 2%.
+Полная защита отображается как 100% с прежним пределом. Исправление относится
+к кислоте, пыли, опалению, газу и дождю. Настройки и состояние игры не меняются.
+
+Validation: 22 production conversion/UI checks cover boundaries around 100%
+and 150%. The old header reproduces Acid 2%; the correction displays Acid 100%.
+VC10 build passed; independent review passed. Reporter live confirmation is pending.
+
 <!-- fork-publication:start -->
 ## Our fork: author, sources and release history / Наш форк: автор, исходники и версии
 

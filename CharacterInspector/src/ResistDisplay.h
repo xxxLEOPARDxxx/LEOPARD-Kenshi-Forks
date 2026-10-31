@@ -10,11 +10,11 @@ inline float resistToPercent(float value)
     return value * 100.0f;
 }
 
-// Use only when ingesting raw Kenshi fields that may be fraction OR percent.
+// CharStats::getWeatherProtection returns an aggregated fraction. The native
+// immunity branch returns 1.0, and equipment totals may legitimately exceed it.
+// Do not guess units from magnitude: 1.55 means 155%, never 1.55%.
 inline float normalizeResist(float value)
 {
-    if (value > 1.5f)
-        return value / 100.0f;
     if (value < 0.f)
         return 0.f;
     return value;
