@@ -1,0 +1,66 @@
+# Taunt Expansion MCM fork v1. Original by tata / Tata-Gari. GPL-3.0.
+msgid ""
+msgstr "Language: zh_CN\nContent-Type: text/plain; charset=UTF-8\nMIME-Version: 1.0\n"
+
+msgid "Strengthen the vanilla Taunt bonus and help tanks draw enemies away from allies."
+msgstr "增强原版嘲讽效果，帮助坦克角色吸引攻击盟友的敌人。"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Apply the Taunt multipliers. Disabling restores vanilla targeting strength immediately."
+msgstr "应用嘲讽倍率。关闭后立即恢复原版嘲讽强度。"
+
+msgid "Taunt strength"
+msgstr "嘲讽强度"
+
+msgid "Taunt multiplier"
+msgstr "嘲讽倍率"
+
+msgid "Multiply the vanilla +2 Taunt score bonus. 1 is vanilla; default 5 gives +10."
+msgstr "将原版嘲讽的 +2 评分加成乘以此倍率。1 为原版强度；默认 5 提供 +10。"
+
+msgid "Retarget multiplier"
+msgstr "转移目标倍率"
+
+msgid "Additional Taunt multiplier when the enemy already has a valid target. Default 2 gives +20 with the default Taunt multiplier."
+msgstr "当敌人已有有效目标时额外应用的嘲讽倍率。使用默认嘲讽倍率时，默认值 2 提供 +20。"
+
+msgid "Diagnostics"
+msgstr "诊断"
+
+msgid "Include candidates"
+msgstr "记录候选目标"
+
+msgid "Include candidate names and Taunt state in detailed diagnostics."
+msgstr "在详细诊断中记录候选目标的名称及嘲讽状态。"
+
+msgid "Only when Taunt is present"
+msgstr "仅在存在嘲讽时"
+
+msgid "Write target diagnostics only when at least one candidate has Taunt enabled."
+msgstr "仅当至少一个候选目标开启嘲讽时记录目标诊断。"
+
+msgid "Only changed selections"
+msgstr "仅记录目标变化"
+
+msgid "Suppress repeated target selections. Diagnostic identities expire after 30 seconds."
+msgstr "跳过相同目标的重复记录。诊断记录在 30 秒后过期。"
+
+msgid "Minimum log interval, ms"
+msgstr "最小日志间隔，毫秒"
+
+msgid "Minimum time between diagnostic entries for the same actor. Applies only while detailed logging is enabled."
+msgstr "同一角色两条诊断记录之间的最短时间。仅在启用详细日志时生效。"
+
+msgid "Candidates per entry"
+msgstr "每条记录的候选目标数"
+
+msgid "Maximum number of candidates included in one diagnostic entry."
+msgstr "一条诊断记录中最多包含的候选目标数量。"
+
+msgid "Detailed log"
+msgstr "详细日志"
+
+msgid "Log target choices and settings in RE_Kenshi_log.txt. Disabled by default. Errors are always logged."
+msgstr "将目标选择及设置写入 RE_Kenshi_log.txt。默认关闭。错误始终记录。"

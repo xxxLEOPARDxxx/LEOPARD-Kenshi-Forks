@@ -1,0 +1,58 @@
+{
+  "mod_id": "TauntExpansion",
+  "name": "Taunt Expansion",
+  "version": "1",
+  "source_directory": "D:\\DEV\\Kenshi\\forks\\LEOPARD-Kenshi-Forks\\TauntExpansion",
+  "dll_path": "D:/DEV/Kenshi/build/TauntExpansion/TauntExpansion.dll",
+  "source_locales": "locale/<language>/LC_MESSAGES/taunt_expansion.po",
+  "runtime_locales": "D:/DEV/Kenshi/build/TauntExpansion/locale/<language>/LC_MESSAGES/taunt_expansion.mo",
+  "languages": [
+    "en_GB",
+    "ru_RU",
+    "zh_CN"
+  ],
+  "mcm_id": "TauntExpansion",
+  "mcm_title": "Taunt Expansion",
+  "mcm_settings": 9,
+  "mcm_restart_settings": [],
+  "detailed_log_last": true,
+  "detailed_log_default": false,
+  "author": "tata / Tata-Gari",
+  "original_url": "https://steamcommunity.com/workshop/filedetails/?id=3771499164",
+  "source_url": "https://github.com/Tata-Gari/RE_Kenshi_Plugins_Source",
+  "upstream_commit": "b7cc05a3a1b9d6c065bd7c96272abebcd0de8be8",
+  "offline_binary_audit": {
+    "dll_sha256": "899cf81729d62e599f411afd9a2851d8ae4763c41969f09436ba70ac07eaac8d",
+    "dll_bytes": 96768,
+    "kenshilib_complete_export_count": 10131,
+    "kenshilib_import_count": 11,
+    "target_slot": 154,
+    "target_rva": "0x59d870",
+    "taunt_add_rva": "0x59dbf3",
+    "taunt_add_bytes": "f3 0f 58 3d d5 3e 0e 01",
+    "vanilla_bonus_rva": "0x1681ad0",
+    "vanilla_bonus": 2.0,
+    "scan_matches": 1,
+    "game_exe_path": "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\RE_Kenshi\\Kenshi_x64.exe",
+    "game_exe_sha256": "504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e",
+    "status": "PASS offline audit of the RE_Kenshi runtime executable image; live hook/behavior/FPS still require game test"
+  },
+  "fork_nexus_url": null,
+  "fork_steam_id": null,
+  "publication": "not created; Nexus user upload first; no Steam publication before user link",
+  "player_changes": {
+    "en": [
+      "Optional live MCM settings.",
+      "English, Russian and Simplified Chinese interface.",
+      "Consistent Taunt strength during simultaneous target evaluations.",
+      "Original package defaults preserved."
+    ],
+    "ru": [
+      "Необязательные настройки MCM с применением во время игры.",
+      "Русский, английский и китайский интерфейс.",
+      "Стабильная сила провокации при одновременном выборе целей.",
+      "Сохранены значения поставки оригинала."
+    ]
+  },
+  "runtime_validation": "Game behavior, skin UI, CPU/FPS and sustained-memory measurements pending; offline audit is not a runtime claim."
+}

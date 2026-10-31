@@ -1,0 +1,16 @@
+{
+  "dll_sha256": "899cf81729d62e599f411afd9a2851d8ae4763c41969f09436ba70ac07eaac8d",
+  "dll_bytes": 96768,
+  "kenshilib_complete_export_count": 10131,
+  "kenshilib_import_count": 11,
+  "target_slot": 154,
+  "target_rva": "0x59d870",
+  "taunt_add_rva": "0x59dbf3",
+  "taunt_add_bytes": "f3 0f 58 3d d5 3e 0e 01",
+  "vanilla_bonus_rva": "0x1681ad0",
+  "vanilla_bonus": 2.0,
+  "scan_matches": 1,
+  "game_exe_path": "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\RE_Kenshi\\Kenshi_x64.exe",
+  "game_exe_sha256": "504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e",
+  "status": "PASS offline audit of the RE_Kenshi runtime executable image; live hook/behavior/FPS still require game test"
+}

@@ -1,0 +1,66 @@
+# Taunt Expansion MCM fork v1. Original by tata / Tata-Gari. GPL-3.0.
+msgid ""
+msgstr "Language: en_GB\nContent-Type: text/plain; charset=UTF-8\nMIME-Version: 1.0\n"
+
+msgid "Strengthen the vanilla Taunt bonus and help tanks draw enemies away from allies."
+msgstr "Strengthen the vanilla Taunt bonus and help tanks draw enemies away from allies."
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Apply the Taunt multipliers. Disabling restores vanilla targeting strength immediately."
+msgstr "Apply the Taunt multipliers. Disabling restores vanilla targeting strength immediately."
+
+msgid "Taunt strength"
+msgstr "Taunt strength"
+
+msgid "Taunt multiplier"
+msgstr "Taunt multiplier"
+
+msgid "Multiply the vanilla +2 Taunt score bonus. 1 is vanilla; default 5 gives +10."
+msgstr "Multiply the vanilla +2 Taunt score bonus. 1 is vanilla; default 5 gives +10."
+
+msgid "Retarget multiplier"
+msgstr "Retarget multiplier"
+
+msgid "Additional Taunt multiplier when the enemy already has a valid target. Default 2 gives +20 with the default Taunt multiplier."
+msgstr "Additional Taunt multiplier when the enemy already has a valid target. Default 2 gives +20 with the default Taunt multiplier."
+
+msgid "Diagnostics"
+msgstr "Diagnostics"
+
+msgid "Include candidates"
+msgstr "Include candidates"
+
+msgid "Include candidate names and Taunt state in detailed diagnostics."
+msgstr "Include candidate names and Taunt state in detailed diagnostics."
+
+msgid "Only when Taunt is present"
+msgstr "Only when Taunt is present"
+
+msgid "Write target diagnostics only when at least one candidate has Taunt enabled."
+msgstr "Write target diagnostics only when at least one candidate has Taunt enabled."
+
+msgid "Only changed selections"
+msgstr "Only changed selections"
+
+msgid "Suppress repeated target selections. Diagnostic identities expire after 30 seconds."
+msgstr "Suppress repeated target selections. Diagnostic identities expire after 30 seconds."
+
+msgid "Minimum log interval, ms"
+msgstr "Minimum log interval, ms"
+
+msgid "Minimum time between diagnostic entries for the same actor. Applies only while detailed logging is enabled."
+msgstr "Minimum time between diagnostic entries for the same actor. Applies only while detailed logging is enabled."
+
+msgid "Candidates per entry"
+msgstr "Candidates per entry"
+
+msgid "Maximum number of candidates included in one diagnostic entry."
+msgstr "Maximum number of candidates included in one diagnostic entry."
+
+msgid "Detailed log"
+msgstr "Detailed log"
+
+msgid "Log target choices and settings in RE_Kenshi_log.txt. Disabled by default. Errors are always logged."
+msgstr "Log target choices and settings in RE_Kenshi_log.txt. Disabled by default. Errors are always logged."

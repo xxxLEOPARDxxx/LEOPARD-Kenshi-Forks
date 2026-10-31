@@ -1,0 +1,45 @@
+[h1]Taunt Expansion - MCM fork[/h1]
+[b]Original mod:[/b] [url=https://steamcommunity.com/workshop/filedetails/?id=3771499164]Taunt Expansion[/url]
+[b]Original author:[/b] tata / Tata-Gari. Thank you for the original Taunt mechanic and the public source code.
+[b]Original source code:[/b] [url=https://github.com/Tata-Gari/RE_Kenshi_Plugins_Source]Tata-Gari/RE_Kenshi_Plugins_Source[/url]
+
+[h2]Features[/h2]
+[list]
+[*][b]A stronger tank role.[/b] The original mod strengthens Kenshi's normal Taunt button, helping a taunting character attract enemy attention.
+[*][b]Adjustable Taunt strength.[/b] The vanilla +2 score bonus is multiplied by 5 by default, giving +10.
+[*][b]Help drawing enemies away from allies.[/b] If an enemy already has a valid target, the default additional multiplier of 2 gives a total Taunt bonus of +20.
+[*][b]Normal combat decisions remain.[/b] Kenshi still checks valid targets, distance, reachability and its normal target-retention rules. Taunt is stronger but does not guarantee a forced target switch. Several taunting characters still compete normally.
+[/list]
+
+[h2]What our fork changes[/h2]
+[list]
+[*][b]Optional Mod Config Menu support.[/b] Change Taunt settings in the game and apply them immediately, including enabling or disabling the mechanic. No setting needs a restart.
+[*][b]Three interface languages.[/b] English, Russian and Simplified Chinese settings and tooltips.
+[*][b]Consistent Taunt strength.[/b] Simultaneous target evaluations retain the strength appropriate to each enemy's situation.
+[*][b]Original defaults preserved.[/b] The original package's 5 / 2 defaults remain in place.
+[/list]
+The Taunt gameplay and retarget enhancement are the original author's work. Our fork adds settings, translations and stability improvements.
+
+[h2]Controls[/h2]
+[list]
+[*][b]Taunt:[/b] enable the existing Taunt button for the character who should draw attention. There is no additional hotkey.
+[*][b]Settings:[/b] open Mod Config Menu and select [b]Taunt Expansion[/b]. Without MCM, edit TauntExpansion.ini beside the DLL while the game is closed.
+[/list]
+
+[h2]Settings[/h2]
+[list]
+[*][b]Enabled:[/b] on by default. Turning it off immediately restores normal Taunt strength.
+[*][b]Taunt multiplier:[/b] 0-100; default 5. Value 1 is vanilla strength, 0 removes the Taunt-specific bonus.
+[*][b]Retarget multiplier:[/b] 0-10; default 2. The additional factor applies when an enemy already has a valid target. Value 1 adds no extra retarget enhancement.
+[/list]
+The README contains the full settings and diagnostic reference.
+
+[h2]Installation and compatibility[/h2]
+[list]
+[*][b]Requirements:[/b] Kenshi 1.0.65 x64, RE_Kenshi and KenshiLib. Mod Config Menu is optional. This build targets the matching Steam 1.0.65 executable.
+[*][b]Installation:[/b] copy the TauntExpansion folder to Kenshi/mods and enable TauntExpansion.mod in the launcher.
+[*][b]Replace the original:[/b] keep one active Taunt Expansion copy. Plugins changing the same Taunt or target-selection behavior may conflict.
+[*][b]Saves:[/b] no import is required. The fork stores no separate gameplay data in saves.
+[*][b]Combat:[/b] pathfinding, attack slots, animations, damage, dodge and guard are unchanged.
+[*][b]Balance:[/b] the original author notes less testing for ranged enemies, turrets, animals and law-enforcement AI. Very high multipliers remain a player balance choice.
+[/list]

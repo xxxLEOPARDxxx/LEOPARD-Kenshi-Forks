@@ -1,0 +1,66 @@
+# Taunt Expansion MCM fork v1. Original by tata / Tata-Gari. GPL-3.0.
+msgid ""
+msgstr "Language: ru_RU\nContent-Type: text/plain; charset=UTF-8\nMIME-Version: 1.0\n"
+
+msgid "Strengthen the vanilla Taunt bonus and help tanks draw enemies away from allies."
+msgstr "Усиливает обычную провокацию и помогает танкам отвлекать врагов от союзников."
+
+msgid "Enabled"
+msgstr "Включено"
+
+msgid "Apply the Taunt multipliers. Disabling restores vanilla targeting strength immediately."
+msgstr "Применять множители провокации. Отключение сразу возвращает обычную силу провокации."
+
+msgid "Taunt strength"
+msgstr "Сила провокации"
+
+msgid "Taunt multiplier"
+msgstr "Множитель провокации"
+
+msgid "Multiply the vanilla +2 Taunt score bonus. 1 is vanilla; default 5 gives +10."
+msgstr "Множитель обычного бонуса провокации +2. Значение 1 соответствует оригиналу; по умолчанию 5 даёт +10."
+
+msgid "Retarget multiplier"
+msgstr "Множитель смены цели"
+
+msgid "Additional Taunt multiplier when the enemy already has a valid target. Default 2 gives +20 with the default Taunt multiplier."
+msgstr "Дополнительный множитель провокации, если у врага уже есть допустимая цель. По умолчанию 2 даёт +20 при стандартном множителе провокации."
+
+msgid "Diagnostics"
+msgstr "Диагностика"
+
+msgid "Include candidates"
+msgstr "Записывать кандидатов"
+
+msgid "Include candidate names and Taunt state in detailed diagnostics."
+msgstr "Добавлять имена возможных целей и состояние провокации в подробный журнал."
+
+msgid "Only when Taunt is present"
+msgstr "Только при наличии провокации"
+
+msgid "Write target diagnostics only when at least one candidate has Taunt enabled."
+msgstr "Записывать диагностику выбора цели, только если хотя бы у одного кандидата включена провокация."
+
+msgid "Only changed selections"
+msgstr "Только изменения цели"
+
+msgid "Suppress repeated target selections. Diagnostic identities expire after 30 seconds."
+msgstr "Пропускать повторные записи одной цели. Диагностические записи устаревают через 30 секунд."
+
+msgid "Minimum log interval, ms"
+msgstr "Интервал журнала, мс"
+
+msgid "Minimum time between diagnostic entries for the same actor. Applies only while detailed logging is enabled."
+msgstr "Минимальное время между записями для одного персонажа. Действует только при включённом подробном журнале."
+
+msgid "Candidates per entry"
+msgstr "Кандидатов в записи"
+
+msgid "Maximum number of candidates included in one diagnostic entry."
+msgstr "Максимальное число возможных целей в одной диагностической записи."
+
+msgid "Detailed log"
+msgstr "Подробный журнал"
+
+msgid "Log target choices and settings in RE_Kenshi_log.txt. Disabled by default. Errors are always logged."
+msgstr "Записывать выбор целей и настройки в RE_Kenshi_log.txt. По умолчанию выключено. Ошибки записываются всегда."

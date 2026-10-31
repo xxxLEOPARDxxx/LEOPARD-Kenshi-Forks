@@ -1,0 +1,92 @@
+[h1]Taunt Expansion - MCM fork[/h1]
+[b]Original mod:[/b] [url=https://steamcommunity.com/workshop/filedetails/?id=3771499164]Taunt Expansion[/url]
+[b]Original author:[/b] tata / Tata-Gari. Thank you for the original Taunt mechanic and the public source code.
+[b]Original source code:[/b] [url=https://github.com/Tata-Gari/RE_Kenshi_Plugins_Source]Tata-Gari/RE_Kenshi_Plugins_Source[/url]
+
+[h2]Features[/h2]
+[list]
+[*][b]A stronger tank role.[/b] The original mod strengthens Kenshi's normal Taunt button, helping a taunting character attract enemy attention.
+[*][b]Adjustable Taunt strength.[/b] The vanilla +2 score bonus is multiplied by 5 by default, giving +10.
+[*][b]Help drawing enemies away from allies.[/b] If an enemy already has a valid target, the default additional multiplier of 2 gives a total Taunt bonus of +20.
+[*][b]Normal combat decisions remain.[/b] Kenshi still checks valid targets, distance, reachability and its normal target-retention rules. Taunt is stronger but does not guarantee a forced target switch. Several taunting characters still compete normally.
+[/list]
+
+[h2]What our fork changes[/h2]
+[list]
+[*][b]Optional Mod Config Menu support.[/b] Change Taunt settings in the game and apply them immediately, including enabling or disabling the mechanic. No setting needs a restart.
+[*][b]Three interface languages.[/b] English, Russian and Simplified Chinese settings and tooltips.
+[*][b]Consistent Taunt strength.[/b] Simultaneous target evaluations retain the strength appropriate to each enemy's situation.
+[*][b]Original defaults preserved.[/b] The original package's 5 / 2 defaults remain in place.
+[/list]
+The Taunt gameplay and retarget enhancement are the original author's work. Our fork adds settings, translations and stability improvements.
+
+[h2]Controls[/h2]
+[list]
+[*][b]Taunt:[/b] enable the existing Taunt button for the character who should draw attention. There is no additional hotkey.
+[*][b]Settings:[/b] open Mod Config Menu and select [b]Taunt Expansion[/b]. Without MCM, edit TauntExpansion.ini beside the DLL while the game is closed.
+[/list]
+
+[h2]Settings[/h2]
+[list]
+[*][b]Enabled:[/b] on by default. Turning it off immediately restores normal Taunt strength.
+[*][b]Taunt multiplier:[/b] 0-100; default 5. Value 1 is vanilla strength, 0 removes the Taunt-specific bonus.
+[*][b]Retarget multiplier:[/b] 0-10; default 2. The additional factor applies when an enemy already has a valid target. Value 1 adds no extra retarget enhancement.
+[/list]
+The README contains the full settings and diagnostic reference.
+
+[h2]Installation and compatibility[/h2]
+[list]
+[*][b]Requirements:[/b] Kenshi 1.0.65 x64, RE_Kenshi and KenshiLib. Mod Config Menu is optional. This build targets the matching Steam 1.0.65 executable.
+[*][b]Installation:[/b] copy the TauntExpansion folder to Kenshi/mods and enable TauntExpansion.mod in the launcher.
+[*][b]Replace the original:[/b] keep one active Taunt Expansion copy. Plugins changing the same Taunt or target-selection behavior may conflict.
+[*][b]Saves:[/b] no import is required. The fork stores no separate gameplay data in saves.
+[*][b]Combat:[/b] pathfinding, attack slots, animations, damage, dodge and guard are unchanged.
+[*][b]Balance:[/b] the original author notes less testing for ranged enemies, turrets, animals and law-enforcement AI. Very high multipliers remain a player balance choice.
+[/list]
+
+
+[h1]Taunt Expansion - MCM-форк[/h1]
+[b]Оригинальный мод:[/b] [url=https://steamcommunity.com/workshop/filedetails/?id=3771499164]Taunt Expansion[/url]
+[b]Автор оригинала:[/b] tata / Tata-Gari. Спасибо за механику усиленной провокации и открытые исходники.
+[b]Исходники оригинала:[/b] [url=https://github.com/Tata-Gari/RE_Kenshi_Plugins_Source]Tata-Gari/RE_Kenshi_Plugins_Source[/url]
+
+[h2]Возможности[/h2]
+[list]
+[*][b]Более выраженная роль танка.[/b] Оригинальный мод усиливает штатную кнопку провокации Kenshi, помогая персонажу привлекать внимание врагов.
+[*][b]Настраиваемая сила провокации.[/b] Обычный бонус оценки +2 по умолчанию умножается на 5 и даёт +10.
+[*][b]Помощь в отвлечении врагов от союзников.[/b] Если у врага уже есть допустимая цель, дополнительный стандартный множитель 2 даёт суммарный бонус провокации +20.
+[*][b]Обычные правила боя сохраняются.[/b] Kenshi по-прежнему учитывает допустимость цели, расстояние, достижимость и удержание текущего противника. Провокация сильнее, но не гарантирует принудительную смену цели. Несколько провокаторов конкурируют обычным образом.
+[/list]
+
+[h2]Что изменено в нашем форке[/h2]
+[list]
+[*][b]Необязательный Mod Config Menu.[/b] Настройки провокации меняются прямо в игре и применяются сразу, включая включение и отключение механики. Перезапуск не требуется.
+[*][b]Три языка интерфейса.[/b] Русские, английские и китайские подписи и подсказки.
+[*][b]Стабильная сила провокации.[/b] При одновременном выборе целей каждый враг получает усиление, соответствующее его ситуации.
+[*][b]Сохранены значения оригинала.[/b] Стандартные множители 5 / 2 соответствуют поставке оригинального мода.
+[/list]
+Механика провокации и дополнительное усиление смены цели принадлежат автору оригинала. Наш форк добавляет настройки, переводы и улучшения стабильности.
+
+[h2]Управление[/h2]
+[list]
+[*][b]Провокация:[/b] включите обычную кнопку провокации у персонажа, который должен отвлекать врагов. Дополнительной клавиши нет.
+[*][b]Настройки:[/b] откройте Mod Config Menu и выберите [b]Taunt Expansion[/b]. Без MCM редактируйте TauntExpansion.ini рядом с DLL при закрытой игре.
+[/list]
+
+[h2]Настройки[/h2]
+[list]
+[*][b]Включено:[/b] по умолчанию да. Отключение сразу возвращает обычную силу провокации.
+[*][b]Множитель провокации:[/b] 0-100, по умолчанию 5. Значение 1 соответствует обычной силе, 0 убирает бонус от провокации.
+[*][b]Множитель смены цели:[/b] 0-10, по умолчанию 2. Дополнительный множитель действует, когда у врага уже есть допустимая цель. Значение 1 не даёт дополнительного усиления смены цели.
+[/list]
+Полный справочник настроек и диагностики находится в README.
+
+[h2]Установка и совместимость[/h2]
+[list]
+[*][b]Требования:[/b] Kenshi 1.0.65 x64, RE_Kenshi и KenshiLib. Mod Config Menu необязателен. Сборка предназначена для соответствующего Steam EXE 1.0.65.
+[*][b]Установка:[/b] поместите каталог TauntExpansion в Kenshi/mods и включите TauntExpansion.mod в лаунчере.
+[*][b]Замена оригинала:[/b] оставьте одну активную копию Taunt Expansion. Плагины, меняющие ту же провокацию или выбор цели, могут конфликтовать.
+[*][b]Сохранения:[/b] импорт не нужен. Форк не сохраняет отдельные игровые данные в сейвах.
+[*][b]Бой:[/b] поиск пути, слоты атак, анимации, урон, уклонение и блокирование не меняются.
+[*][b]Баланс:[/b] по замечанию автора, стрелки, турели, животные и правоохранительный ИИ проверены менее подробно. Очень высокие множители остаются выбором игрока.
+[/list]
