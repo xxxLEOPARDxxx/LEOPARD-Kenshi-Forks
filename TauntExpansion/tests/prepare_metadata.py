@@ -24,6 +24,11 @@ def main():
             'ru':['Необязательные настройки MCM с применением во время игры.','Русский, английский и китайский интерфейс.','Стабильная сила провокации при одновременном выборе целей.','Сохранены значения поставки оригинала.']},
         'runtime_validation':'Game behavior, skin UI, CPU/FPS and sustained-memory measurements pending; offline audit is not a runtime claim.'
     }
+    ledger=pathlib.Path('D:/DEV/Kenshi/workshop/published_releases.json')
+    published=json.loads(ledger.read_text(encoding='utf-8')).get('mods',{}).get('TauntExpansion') if ledger.exists() else None
+    if published:
+        data.update(fork_nexus_url=f'https://www.nexusmods.com/kenshi/mods/{published["nexus"]}',fork_steam_id=published['workshop_id'],published_version=published['version'],publication_record=published,
+            publication='Nexus upload verified by user; Steam published and remotely verified.' if published['version']==data['version'] else 'Prepared candidate; earlier public version '+published['version'])
     (release/'integration_metadata.json').write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     for lang in ('en','ru'):
         text=(release/f'description_{lang}.bbcode.txt').read_text(encoding='utf-8')
