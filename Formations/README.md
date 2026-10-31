@@ -24,6 +24,22 @@ folder is that source unchanged.
   game's Hold on.
 - Settings page in Mod Config Menu (en/ru/zh), readout in the game's language.
 
+## Version 2
+
+- Fixed language selection for Steam Workshop installations. The MCM page and
+  in-game readout use the game's settings, regardless of the DLL's location.
+- Normal and nested RE_Kenshi executable paths are supported. No working-directory
+  changes or polling were added; language is read when the UI is initialized.
+- Personal settings and formations stored in saves remain unchanged.
+
+Версия 2: исправлен выбор языка при установке через Steam Workshop. Страница
+MCM и игровые подписи используют настройки игры независимо от расположения DLL,
+включая вложенный EXE RE_Kenshi. Личные настройки и строй в сейвах не изменяются.
+
+Validation: five checks compile the production language reader against local,
+Workshop, nested executable and missing-settings fixtures. No frame-loop work,
+world pointers or persistent file handles are added.
+
 ## Build
 
 `D:\DEV\Kenshi\build_formations.ps1` (MSVC 2022, `/utf-8`). KenshiLib is not linked - everything is

@@ -723,10 +723,24 @@ namespace formations_mcm
 
     static int CurrentLang()
     {
-        char path[MAX_PATH];
-        _snprintf_s(path, MAX_PATH, _TRUNCATE, "%s..\\..\\settings.cfg", g_dir);
         FILE* f = 0;
-        if (fopen_s(&f, path, "r") != 0 || !f) return EN;
+        // Workshop DLLs need not be on the game's drive or at mods/<name>.
+        // Locate settings relative to the executable, including RE_Kenshi's
+        // nested executable, without changing the process working directory.
+        wchar_t path[MAX_PATH];
+        const DWORD length = GetModuleFileNameW(NULL, path, MAX_PATH);
+        if (!length || length >= MAX_PATH) return EN;
+        for (int depth=0; depth<4; ++depth)
+        {
+            wchar_t* slash=wcsrchr(path,L'\\');
+            if (!slash) break;
+            *(slash+1)=0;
+            wchar_t candidate[MAX_PATH];
+            if (_snwprintf_s(candidate,MAX_PATH,_TRUNCATE,L"%ssettings.cfg",path)<0) return EN;
+            if (_wfopen_s(&f,candidate,L"r")==0 && f) break;
+            *slash=0;
+        }
+        if (!f) return EN;
         char line[256];
         int lang = EN;
         while (fgets(line, sizeof(line), f))

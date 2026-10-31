@@ -2,6 +2,17 @@ Formations — строй отрядов как в Bannerlord
 
 Требуется RE_Kenshi.
 
+ВЕРСИЯ 2 / VERSION 2
+
+- Исправлен язык при установке из Steam Workshop: страница MCM и игровые
+  подписи используют язык settings.cfg игры независимо от папки DLL.
+- Steam Workshop installations now use the game's language for the MCM page
+  and in-game readout, independently of the DLL's installation folder.
+- Поддержаны обычный запуск и вложенный EXE RE_Kenshi. Личные настройки
+  и выбор строя в сохранениях не меняются.
+- Both normal and nested RE_Kenshi executable paths are supported. Personal
+  settings and formations stored in saves remain unchanged.
+
 
 КАК ПОЛЬЗОВАТЬСЯ
 
