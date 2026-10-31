@@ -33,10 +33,10 @@ static void AfterCoordinate(Widget* w){if(destroyOnCoord==w){destroyOnCoord=0;Gu
 struct WidgetRef {MyGUI::Widget* value;WidgetRef():value(0){}MyGUI::Widget* get(){return value&&!value->dead?value:0;}void set(MyGUI::Widget* w){value=w;}void reset(){value=0;}};
 struct Metric {void Reset(){}};
 struct Snapshot {bool Observe(MyGUI::Widget*){return false;}};
-struct Cache {WidgetRef controls[7],viewports[2],nativeMoney,plate,trader,measure,popup;Metric metrics[2];Snapshot headerText[2];MyGUI::UString nativeCaption;MyGUI::IntCoord headerCoord;
- int moneyFontHeight,balance,baseFont[7],fittedFont[7],headerExtra,footerExtra;std::string moneyFontName;MyGUI::Colour moneyColour;bool headerValid,showDeal,popupValid,viewportsBound,uiStateValid,footerValid,viewportHidden[2],viewportVisible[2];float plateAlpha;int headerCaptionSets;TraderAdaptiveLayout::Viewport viewportLayout[2];
+struct Cache {WidgetRef controls[7],viewports[2],nativeMoney,plate,trader,player,measure,popup;Metric metrics[2];Snapshot headerText[3];MyGUI::UString nativeCaption;MyGUI::IntCoord headerCoord;
+ int playerMoney,moneyFontHeight,balance,baseFont[7],fittedFont[7],headerExtra,footerExtra;std::string moneyFontName;MyGUI::Colour moneyColour;bool headerValid,showDeal,popupValid,viewportsBound,uiStateValid,footerValid,viewportHidden[2],viewportVisible[2];float plateAlpha;int headerCaptionSets;TraderAdaptiveLayout::Viewport viewportLayout[2];
  float dataAlpha;WidgetRef nativePanel,nativePlateParent,failedNativePanel,viewportParents[2],viewportHost;int viewportRetry;TraderAdaptiveLayout::Viewport plateLayout;MyGUI::IntCoord headerContent;
- Cache():moneyFontHeight(-1),balance(0),headerExtra(0),footerExtra(0),headerValid(false),showDeal(false),popupValid(false),viewportsBound(false),uiStateValid(false),footerValid(false),plateAlpha(1),headerCaptionSets(0),dataAlpha(1),viewportRetry(0){for(int i=0;i<2;++i)viewportHidden[i]=viewportVisible[i]=false;for(int i=0;i<7;++i)baseFont[i]=fittedFont[i]=-1;}
+ Cache():playerMoney(-2),moneyFontHeight(-1),balance(0),headerExtra(0),footerExtra(0),headerValid(false),showDeal(false),popupValid(false),viewportsBound(false),uiStateValid(false),footerValid(false),plateAlpha(1),headerCaptionSets(0),dataAlpha(1),viewportRetry(0){for(int i=0;i<2;++i)viewportHidden[i]=viewportVisible[i]=false;for(int i=0;i<7;++i)baseFont[i]=fittedFont[i]=-1;}
 };
 typedef Cache AdaptiveUiCache;
 static Cache cache;static WidgetRef dataRef,balanceRef;static MyGUI::Widget* root=0;static MyGUI::Widget* liveData=0;static MyGUI::TextBox* value=0;
@@ -46,16 +46,23 @@ struct State {struct Core{bool g_showDealBalance;Core():g_showDealBalance(true){
 static MyGUI::Widget* CachedInParent(WidgetRef& r,MyGUI::Widget*,const char*){if(!r.get())r.set(liveData);return r.get();}static MyGUI::TextBox* AsText(MyGUI::Widget* w){return dynamic_cast<MyGUI::TextBox*>(w);}static MyGUI::ISubWidgetText* RenderedText(MyGUI::Widget* w){MyGUI::TextBox* t=AsText(w);return t?&t->rendered:0;}
 static void FindMoneyTexts(MyGUI::Widget*,int,MyGUI::TextBox**,MyGUI::TextBox** v){*v=value;}static int FontHeight(MyGUI::Widget* w){return RenderedText(w)->height;}static const std::string& FontName(MyGUI::Widget* w){return RenderedText(w)->font;}
 namespace GameTheme {static std::map<std::string,std::string> palette;static int lookups=0;const char* Hex(const char* key,const char* fallback){++lookups;std::map<std::string,std::string>::iterator i=palette.find(key);return i==palette.end()?fallback:i->second.c_str();}}
-static const char* Tr(const char* s){return s;}static int ParseMoneyCaption(const std::string& s){return TraderAdaptiveLayout::ParseMoneyCaption(s);}static void LearnMoneyFormat(const std::string&){}static std::string FormatMoney(int){return "0";}
+static int wallet=1234567;static bool hasPlayer=true;static int walletReads=0;
+struct Character{int getMoney(){++walletReads;return wallet;}};
+struct PlayerInterface{Character member;Character* getAnyPlayerCharacter(){return hasPlayer?&member:0;}};
+struct GameWorld{PlayerInterface* player;};static PlayerInterface playerInterface;static GameWorld world={&playerInterface};static GameWorld* ou=&world;
+static const char* Tr(const char* s){return s;}static int ParseMoneyCaption(const std::string& s){return TraderAdaptiveLayout::ParseMoneyCaption(s);}static void LearnMoneyFormat(const std::string&){}static std::string FormatMoney(int n){char b[32];sprintf(b,"%d",n);return b;}
 static void HeaderCaptionIfChanged(MyGUI::TextBox* t,MyGUI::UString c){if(t->caption!=c){t->setCaption(c);++cache.headerCaptionSets;}}static void CoordIfChanged(MyGUI::Widget* w,MyGUI::IntCoord c){if(w&&w->getCoord()!=c)w->setCoord(c);}static void AlignIfChanged(MyGUI::TextBox* t,MyGUI::Align a){if(t->getTextAlign()!=a)t->setTextAlign(a);}static void FullCaptionTip(MyGUI::Widget*,const MyGUI::UString&,bool){}
 #include "ViewportProductionUnderTest.h"
-static MyGUI::Widget* FindLiveDockOwner(bool){return root&&!root->dead?root:0;}static MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* w){return w;}static const int kHeaderCount=2;
+static MyGUI::Widget* FindLiveDockOwner(bool){return root&&!root->dead?root:0;}static MyGUI::Widget* ResolveInjectionParent(MyGUI::Widget* w){return w;}static const int kHeaderCount=3;
 static int errors=0;static void LogErrorLine(const std::string&){++errors;}
 #include "HeaderProductionUnderTest.h"
 static void Reparent(MyGUI::Widget& w,MyGUI::Widget* parent){if(w.parent){std::vector<MyGUI::Widget*>& v=w.parent->children;for(size_t i=0;i<v.size();++i)if(v[i]==&w){v.erase(v.begin()+i);break;}}w.parent=parent;if(parent)parent->children.push_back(&w);}
 static int checks=0,failures=0;
 #define CHECK(x) do{++checks;if(!(x)){++failures;printf("FAIL %d: %s\n",__LINE__,#x);}}while(0)
 int main(int argc,char** argv){
+ ou=0;CHECK(ReadPlayerMoney()==-1);ou=&world;
+ world.player=0;CHECK(ReadPlayerMoney()==-1);world.player=&playerInterface;
+ hasPlayer=false;int moneyReads=walletReads;CHECK(ReadPlayerMoney()==-1);CHECK(walletReads==moneyReads);hasPlayer=true;
  FILE* fixtures=argc>1?fopen(argv[1],"r"):NULL;if(!fixtures)return 2;
  for(int theme=0;theme<3;++theme){
   cache=Cache();dataRef.reset();balanceRef.reset();g_balanceOwner=0;g_balanceStartMoney=g_balanceMoney=-1;g_balanceMoneyCaption.clear();
@@ -65,6 +72,18 @@ int main(int argc,char** argv){
   MyGUI::Widget owner(0,"Content"),plate(&owner,"NativeCashPlate"),data(&plate,"datapanel");root=&owner;liveData=&data;plate.coord=base;plate.skin=skin;plate.align=MyGUI::Align(pa?MyGUI::Align::HStretch:0);data.alpha=.8f;data.coord=dc;data.align=MyGUI::Align(da?MyGUI::Align::HStretch:0);
   MyGUI::TextBox cash(&data,"value");value=&cash;cash.caption="c.6000";cash.rendered.colour=source;dataRef.set(&data);
   UpdateTradeBalance(&owner,&owner);
+  CHECK(cache.player.get()!=0);
+  if(cache.player.get()){
+   CHECK(AsText(cache.player.get())->caption=="Player: c.1234567");
+   CHECK(cache.player.get()->getParent()==&plate);
+   CHECK(AsText(cache.player.get())->getTextAlign().isRight());
+   CHECK(RenderedText(cache.player.get())->getTextColour()==MyGUI::xmlColour);
+   CHECK(cache.player.get()->coord.left+cache.player.get()->coord.width==plate.coord.width-(base.width-dc.left-dc.width));
+   int beforeWrites=MyGUI::captionWrites;wallet=7654321;UpdateTradeBalance(&owner,&owner);
+   CHECK(AsText(cache.player.get())->caption=="Player: c.7654321");CHECK(MyGUI::captionWrites==beforeWrites+1);
+   hasPlayer=false;UpdateTradeBalance(&owner,&owner);CHECK(AsText(cache.player.get())->caption=="Player: -");
+   hasPlayer=true;wallet=1234567;UpdateTradeBalance(&owner,&owner);
+  }
   CHECK(plate.getAlpha()==1);CHECK(data.getAlpha()==0);CHECK(cache.trader.get()&&balanceRef.get());
   if(cache.trader.get()&&balanceRef.get()){
    CHECK(cache.trader.get()->getParent()==&plate&&balanceRef.get()->getParent()==&plate);
@@ -104,10 +123,10 @@ int main(int argc,char** argv){
   }
   owner.setCoord(MyGUI::IntCoord(0,0,600,550));UpdateTradeBalance(&owner,&owner);CHECK(plate.coord.width==568);
   data.alpha=.6f;UpdateTradeBalance(&owner,&owner);CHECK(data.alpha==0&&cache.trader.get()->getAlpha()==.6f&&balanceRef.get()->getAlpha()==.6f);
-  DestroyTradeBalance();CHECK(data.alpha==.6f);if(pa)base.width+=100;CHECK(plate.getCoord()==base);CHECK(plate.skin==skin);
+  DestroyTradeBalance();CHECK(!cache.player.get());CHECK(data.alpha==.6f);if(pa)base.width+=100;CHECK(plate.getCoord()==base);CHECK(plate.skin==skin);
   dataRef.set(&data);UpdateTradeBalance(&owner,&owner);plate.coord=MyGUI::IntCoord(30,5,211,43);DestroyTradeBalance();CHECK(plate.getCoord()==MyGUI::IntCoord(30,5,211,43));
   dataRef.set(&data);UpdateTradeBalance(&owner,&owner);MyGUI::Widget other;plate.parent=&other;plate.coord=MyGUI::IntCoord(7,9,100,40);DestroyTradeBalance();CHECK(plate.getCoord()==MyGUI::IntCoord(7,9,100,40));plate.parent=&owner;
-  for(int fail=1;fail<=2;++fail){dataRef.set(&data);MyGUI::failAt=MyGUI::creates+fail;int oldErrors=errors;UpdateTradeBalance(&owner,&owner);CHECK(errors==oldErrors+1&&data.alpha==.6f&&!cache.trader.get()&&!balanceRef.get());CHECK(data.getUserString("LEOPARD_OTT_MoneyHeader")!="1");int allocated=MyGUI::creates;for(int n=0;n<100;++n)UpdateTradeBalance(&owner,&owner);CHECK(allocated==MyGUI::creates);MyGUI::failAt=0;DestroyTradeBalance();}
+  for(int fail=1;fail<=3;++fail){dataRef.set(&data);MyGUI::failAt=MyGUI::creates+fail;int oldErrors=errors;UpdateTradeBalance(&owner,&owner);CHECK(errors==oldErrors+1&&data.alpha==.6f&&!cache.trader.get()&&!balanceRef.get());CHECK(data.getUserString("LEOPARD_OTT_MoneyHeader")!="1");int allocated=MyGUI::creates;for(int n=0;n<100;++n)UpdateTradeBalance(&owner,&owner);CHECK(allocated==MyGUI::creates);MyGUI::failAt=0;DestroyTradeBalance();}
   MyGUI::xmlColour.alpha=0;cash.rendered.colour.alpha=1;int oldErrors=errors;UpdateTradeBalance(&owner,&owner);CHECK(errors==oldErrors+1&&data.alpha==.6f&&!cache.trader.get()&&!balanceRef.get());int allocated=MyGUI::creates;for(int n=0;n<100;++n)UpdateTradeBalance(&owner,&owner);CHECK(allocated==MyGUI::creates);MyGUI::xmlColour.alpha=1;DestroyTradeBalance();
   plate.alpha=.5f;UpdateTradeBalance(&owner,&owner);CHECK(plate.alpha==.5f&&cache.trader.get()->getAlpha()==.6f);DestroyTradeBalance();CHECK(plate.alpha==.5f);
  }

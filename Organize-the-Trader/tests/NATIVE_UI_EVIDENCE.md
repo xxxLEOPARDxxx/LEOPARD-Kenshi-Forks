@@ -147,3 +147,10 @@ raw viewport versus ScrollView role aliasing, nested foreign Windows, late
 creation,300 icon descendants, synchronous coordinate-callback destruction and
 window close. Together with the existing XML/style scenarios the suite passes
 136 checks. In-game visual acceptance of the new candidate remains pending.
+
+
+## 2026-11-01: restored player wallet (prepared release 7)
+
+The user's newer request supersedes the two-label decision above. A third native-skinned label, OTT_PlayerMoney, is restored inside the current real money plate and right-aligned within its native content insets. The existing Header allocator receives the measured right-label width; narrow-window wrapping still reserves viewport space. The wallet source always uses getAnyPlayerCharacter, not selectedCharacter, so inspecting an NPC cannot select that NPC's purse. Actual Steam getAnyPlayerCharacter is O(1), returning the first entry of the player's member list. No Character/ownership pointer survives the update.
+
+The VC10 production DLL emits the imported player getter followed by a null check and virtual Character getMoney dispatch at vtable+0x1b8; getMoney itself therefore need not appear in the import table. CheckNativeContract now verifies this compiled call sequence and all installed native exports. Three-widget creation/teardown, failure at each allocation, three installed XML role fixtures, player money change, missing-player fallback and unchanged-frame counters are covered by extracted production tests. No new per-frame widget allocations or repeated caption/geometry writes occur in those fixtures. This does not establish in-game FPS or long-term leak freedom.

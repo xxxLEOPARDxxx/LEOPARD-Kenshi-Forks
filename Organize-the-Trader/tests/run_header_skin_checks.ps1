@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force $out | Out-Null
 & C:/Users/User/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe "$PSScriptRoot/header_skin_fixtures.py"
 if($LASTEXITCODE){exit $LASTEXITCODE}
 $source=[IO.File]::ReadAllText("$module/src/TraderSearchUi.cpp")
-$start=$source.IndexOf('void DestroyTradeBalance();');$end=$source.IndexOf('// The drop-down list',$start)
+$start=$source.IndexOf('int ReadPlayerMoney()');$end=$source.IndexOf('// The drop-down list',$start)
 if($start -lt 0 -or $end -lt $start){throw 'Production header boundaries changed'}
 [IO.File]::WriteAllText("$out/HeaderProductionUnderTest.h",$source.Substring($start,$end-$start))
 $rowsStart=$source.IndexOf('// Native inventory viewport ownership');$rowsEnd=$source.IndexOf('void LayoutBottomSearchRow',$rowsStart)

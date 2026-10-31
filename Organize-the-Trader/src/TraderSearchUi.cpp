@@ -16,6 +16,9 @@
 
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
+#include <kenshi/Character.h>
+#include <kenshi/GameWorld.h>
+#include <kenshi/PlayerInterface.h>
 #include <kenshi/GUI/ForgottenGUI.h>
 #include <kenshi/GUI/ToolTip.h>
 
@@ -46,7 +49,7 @@
 namespace
 {
 const char* kDockWindowName = "OTT_InlineTraderSearch";
-const int kHeaderCount = 2;
+const int kHeaderCount = 3;
 
 MyGUI::ISubWidgetText* RenderedText(MyGUI::Widget* widget)
 {
@@ -270,7 +273,7 @@ struct AdaptiveUiCache
 {
     WidgetRef controls[7]; // label, combo, direction, edit, hint, clear, count
     WidgetRef viewports[2];
-    WidgetRef nativeMoney, plate, trader;
+    WidgetRef nativeMoney, plate, trader, player;
     WidgetRef measure, popup;
     TraderRenderedText::MeasureCache<MyGUI::UString> metrics[2];
     int listTextWidth;
@@ -280,7 +283,7 @@ struct AdaptiveUiCache
     std::vector<MyGUI::UString> comboItems;
     MyGUI::UString nativeCaption;
     MyGUI::IntCoord footerCoord, headerCoord;
-    int sortSetting, searchSetting, balance, listWidth, moneyFontHeight;
+    int sortSetting, searchSetting, playerMoney, balance, listWidth, moneyFontHeight;
     std::string moneyFontName;
     MyGUI::Colour moneyColour;
     std::string popupFont;
@@ -299,7 +302,7 @@ struct AdaptiveUiCache
     MyGUI::IntCoord headerContent;
     WidgetRef viewportParents[2], viewportHost;
     int viewportRetry;
-    AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), balance(0), listWidth(0), moneyFontHeight(-1),
+    AdaptiveUiCache() : sortSetting(-1), searchSetting(-1), playerMoney(-2), balance(0), listWidth(0), moneyFontHeight(-1),
         listTextWidth(0), closedChrome(0), popupChrome(0), popupNaturalWidth(0), popupRenderedWidth(0),
         measureCreates(0), measureFontChanges(0), headerCaptionSets(0),
         popupFontHeight(0), popupTextWidth(0), popupValid(false),
@@ -571,6 +574,14 @@ void LayoutBottomSearchRow(MyGUI::Widget* search, int width, int height)
     AlignIfChanged(AsText(count), MyGUI::Align::Right | MyGUI::Align::VCenter);
 }
 
+int ReadPlayerMoney()
+{
+    // Never use the inspected character: it may belong to an NPC faction.
+    // Resolve a real player member afresh; retain no Character across frames.
+    Character* member = ou == 0 || ou->player == 0 ? 0 : ou->player->getAnyPlayerCharacter();
+    return member == 0 ? -1 : member->getMoney();
+}
+
 void DestroyTradeBalance();
 void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
 {
@@ -639,8 +650,8 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         cache.nativePlateParent.set(plateParent);
         cache.dataAlpha = data->getAlpha();
     }
-    WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
-    const char* names[] = { "OTT_TraderMoney", "OTT_TradeBalance" };
+    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
+    const char* names[] = { "OTT_TraderMoney", "OTT_PlayerMoney", "OTT_TradeBalance" };
     try
     {
         for (int i = 0; i < kHeaderCount; ++i)
@@ -682,6 +693,7 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     for (int i = 0; i < kHeaderCount; ++i)
         if (refs[i]->get()->getAlpha() != cache.dataAlpha) refs[i]->get()->setAlpha(cache.dataAlpha);
     const int balance = g_balanceStartMoney < 0 ? 0 : g_balanceStartMoney - g_balanceMoney;
+    const int playerMoney = ReadPlayerMoney();
     const MyGUI::IntCoord origin = plateParent->getAbsoluteCoord();
     const MyGUI::IntCoord currentPlate = moneyBox->getCoord();
     const MyGUI::Align plateAlign = moneyBox->getAlign();
@@ -719,22 +731,25 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
     const MyGUI::IntCoord headerCoord(width, box.top - origin.top, box.width, box.height);
     bool changed = !cache.headerValid || nativePlateReset || cache.headerCoord != headerCoord
         || cache.headerContent != headerContent
-        || cache.balance != balance || cache.showDeal != TraderState().core.g_showDealBalance
+        || cache.playerMoney != playerMoney || cache.balance != balance || cache.showDeal != TraderState().core.g_showDealBalance
         || cache.moneyFontHeight != nativeFontHeight || cache.moneyFontName != nativeFontName
         || cache.moneyColour != nativeColour;
     for (int i = 0; i < kHeaderCount; ++i)
         if (cache.headerText[i].Observe(refs[i]->get())) changed = true;
     if (!changed) return;
     cache.headerValid = true;
-    cache.headerCoord = headerCoord; cache.balance = balance;
+    cache.headerCoord = headerCoord; cache.playerMoney = playerMoney; cache.balance = balance;
     cache.headerContent = headerContent;
     cache.showDeal = TraderState().core.g_showDealBalance;
     cache.moneyFontHeight = nativeFontHeight;
     cache.moneyFontName = nativeFontName;
     cache.moneyColour = nativeColour;
     MyGUI::TextBox* trader = AsText(cache.trader.get());
+    MyGUI::TextBox* player = AsText(cache.player.get());
     MyGUI::TextBox* deal = AsText(TradeBalanceRef().get());
     HeaderCaptionIfChanged(trader, MyGUI::UString(std::string(Tr("Trader")) + ": " + g_balanceMoneyCaption));
+    HeaderCaptionIfChanged(player, MyGUI::UString(std::string(Tr("Player")) + ": "
+        + (playerMoney < 0 ? "-" : g_moneyPrefix + FormatMoney(playerMoney))));
     std::string line = std::string(Tr("Deal")) + ": ";
     // Colour only the amount with the active game's semantic XML palette.
     // A missing/malformed key keeps this widget's own native text style.
@@ -764,26 +779,29 @@ void UpdateTradeBalance(MyGUI::Widget* owner, MyGUI::Widget* parent)
         if (FontName(text) != nativeFontName) text->setFontName(nativeFontName);
         if (FontHeight(text) != nativeHeight) text->setFontHeight(nativeHeight);
         const int natural = text->getTextSize().width;
-        const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, (i == 0 ? contentWidth : dealContentWidth) - 4);
+        const int font = TraderAdaptiveLayout::FitFont(nativeHeight, natural, (i == 2 ? dealContentWidth : contentWidth) - 4);
         if (font != FontHeight(text)) text->setFontHeight(font);
     }
     for (int i = 0; i < kHeaderCount; ++i)
     {
         MyGUI::TextBox* text = AsText(refs[i]->get());
-        const bool overflow = text->getTextSize().width > (i == 0 ? contentWidth : dealContentWidth) - 4;
+        const bool overflow = text->getTextSize().width > (i == 2 ? dealContentWidth : contentWidth) - 4;
         if (text->getNeedMouseFocus() != overflow) text->setNeedMouseFocus(overflow);
         FullCaptionTip(text, text->getCaption(), overflow);
     }
     const int traderWidth = trader->getTextSize().width + 4;
+    const int playerWidth = player->getTextSize().width + 4;
     const int dealWidth = deal->getVisible() ? deal->getTextSize().width + 4 : 0;
-    const TraderAdaptiveLayout::Header layout(width, leftPadding + traderWidth, 0, dealWidth, height);
+    const TraderAdaptiveLayout::Header layout(width, leftPadding + traderWidth, rightPadding + playerWidth, dealWidth, height);
     cache.headerExtra = layout.extraHeight + (height > box.height ? height - box.height : 0);
     const MyGUI::IntCoord plateCoord(16, baseline.top, width, height + layout.extraHeight);
     CoordIfChanged(moneyBox, plateCoord);
     cache.plateLayout.written = TraderAdaptiveLayout::Rect(plateCoord.left, plateCoord.top, plateCoord.width, plateCoord.height);
     CoordIfChanged(trader, MyGUI::IntCoord(leftPadding, layout.traderTop, contentWidth, height));
+    CoordIfChanged(player, MyGUI::IntCoord(leftPadding, layout.playerTop, contentWidth, height));
     CoordIfChanged(deal, MyGUI::IntCoord(dealPadding, layout.dealTop, dealContentWidth, height));
     AlignIfChanged(trader, MyGUI::Align::Left | MyGUI::Align::VCenter);
+    AlignIfChanged(player, MyGUI::Align::Right | MyGUI::Align::VCenter);
     AlignIfChanged(deal, MyGUI::Align::HCenter | MyGUI::Align::VCenter);
 
 }
@@ -811,7 +829,7 @@ void DestroyTradeBalance()
     MyGUI::Widget* owner = FindLiveDockOwner(false);
     MyGUI::Widget* parent = owner == 0 ? 0 : ResolveInjectionParent(owner);
     if (parent != 0) ReserveAdaptiveRows(parent, 0, 0);
-    WidgetRef* refs[] = { &cache.trader, &TradeBalanceRef() };
+    WidgetRef* refs[] = { &cache.trader, &cache.player, &TradeBalanceRef() };
     MyGUI::Gui* gui = MyGUI::Gui::getInstancePtr();
     for (int i = 0; i < kHeaderCount; ++i)
     {
