@@ -1,11 +1,14 @@
 """Boundary checks for the real native-weather to display conversion."""
 from pathlib import Path
-import os,subprocess,sys
+import argparse,os,subprocess
 root=Path(__file__).resolve().parents[1]
 out=root.parents[2]/'build/CharacterInspectorWeatherCheck';out.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--baseline',nargs='?',const='7955865',help='Read a Git revision instead of the working header; default is the last pre-fix revision')
+args=parser.parse_args()
 header=(root/'src/ResistDisplay.h').read_text(encoding='utf-8-sig')
-if '--baseline' in sys.argv:
- header=subprocess.run(['git','show','HEAD:CharacterInspector/src/ResistDisplay.h'],cwd=root,check=True,capture_output=True,text=True).stdout
+if args.baseline:
+ header=subprocess.run(['git','show',args.baseline+':CharacterInspector/src/ResistDisplay.h'],cwd=root,check=True,capture_output=True,text=True).stdout
 (out/'ResistDisplayUnderTest.h').write_text(header,encoding='utf-8')
 ui=(root/'src/UiText.h').read_text(encoding='utf-8-sig')
 def function(signature):
