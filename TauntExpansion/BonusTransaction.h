@@ -9,7 +9,13 @@ struct BonusTransaction {
     CRITICAL_SECTION lock;
     float* address;
     typedef bool (*Callback)(void*);
-    void Initialise(float* value) { InitializeCriticalSection(&lock); address=value; }
+    // CRT constructs globals before LoadLibrary returns. Exported MCM callbacks
+    // therefore have a valid lock even if RE startup was skipped or failed.
+    // Binding a cave later must never initialize an already-live lock again.
+    BonusTransaction():address(NULL) { InitializeCriticalSection(&lock); }
+    void Initialise(float* value) {
+        EnterCriticalSection(&lock);address=value;LeaveCriticalSection(&lock);
+    }
     void Dispose() { DeleteCriticalSection(&lock); address=NULL; }
     bool Invoke(float bonus, Callback callback, void* context) {
         EnterCriticalSection(&lock);

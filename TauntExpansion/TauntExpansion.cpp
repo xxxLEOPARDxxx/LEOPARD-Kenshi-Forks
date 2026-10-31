@@ -526,7 +526,8 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID)
     return TRUE;
 }
 
-extern "C" __declspec(dllexport) void startPlugin()
+// RE_Kenshi::LoadPlugin looks up the exact MSVC C++ export ?startPlugin@@YAXXZ.
+__declspec(dllexport) void startPlugin()
 {
     if (g_started) return;
     g_started=true;
@@ -550,7 +551,7 @@ extern "C" __declspec(dllexport) void startPlugin()
     if (g_config.debug) DebugLog("[TauntExpansion] MCM fork version 1 started.");
 }
 
-extern "C" __declspec(dllexport) void stopPlugin()
+__declspec(dllexport) void stopPlugin()
 {
     if (!g_started) return;
     EnterCriticalSection(&g_transaction.lock);

@@ -1,0 +1,13 @@
+{
+  "production_source_sha256": "5c20da7625e6f170271e27675a4a31f4df61a52abc619a8932bb3c3d71e345e6",
+  "transaction_header_sha256": "80aa2407851c23fb3838b3d2e5f3e7980a75182eeedc29bb422099e557e3d8bc",
+  "fixture_exe_sha256": "eae4ea200751424458fc992d5428e0d0d6cb1f1626da6768c07726bc199d6b1a",
+  "loader_entry": "?startPlugin@@YAXXZ",
+  "actual_extracted_startup_invoked_via_GetProcAddress": true,
+  "actual_extracted_LoadConfig_callback": true,
+  "early_describe_and_apply_before_startup": true,
+  "normal_startup_before_describe_and_apply": true,
+  "duplicate_startup_safe": true,
+  "target_patch_and_hook_failure_callbacks_safe": true,
+  "limitation": "Game API dependencies are fixtures; live game startup and target behavior require separate acceptance."
+}

@@ -63,6 +63,8 @@ Optional debug observations use **256** fixed entries, never dereference stored 
 
 The code cave is a single bounded allocation of **64 bytes**, retained for the plugin/process lifetime after a successful hook. `stopPlugin` restores vanilla strength and disables diagnostics; it retains its cave, trampoline and critical section because KenshiLib exposes no hook-removal API. Runtime unloading of an active hook is unsupported. If hook installation fails, the original instruction is restored before freeing the cave; a failed restoration retains the allocation instead of leaving a branch into freed memory.
 
+RE_Kenshi resolves the exact C++ startup export `?startPlugin@@YAXXZ`; the companion stop export is `?stopPlugin@@YAXXZ`, while MCM resolves the C export `MCM_Describe`. The critical section is constructed once with the global transaction before `LoadLibrary` returns. Startup only binds its cave address, so an early MCM settings callback or failed startup cannot enter an uninitialized lock or cause a second initialization.
+
 A static review and short concurrency test cannot prove game CPU/FPS or long-session memory behavior. Runtime measurements and the game checks listed below remain required before claiming those outcomes.
 
 ### Build and verification
@@ -82,10 +84,13 @@ Build with **VC10/v100 x64, Windows SDK 7.1, `/GL` and `/LTCG`**, using the proj
 
 Game checks still needed: ordinary and already-targeted enemies with defaults/1/0/disabled; repeated live MCM changes; multiple Taunt users; save/load/new game; detailed log on/off; MCM pages in EN/RU/ZH with vanilla and modified skins; runtime CPU/FPS and sustained memory measurements. Build/test success does not replace these game checks.
 
+`tests/run_lifecycle_tests.ps1` executes the extracted actual startup, INI readers, `LoadConfig` and `MCM_Describe` bodies. It uses the exact loader `GetProcAddress` name and checks normal startup before settings, early Describe/apply before startup, duplicate startup, and target/patch/hook failure callbacks. Game-native hook dependencies are fixtures; live acceptance remains separate. The PE audit also verifies the installed RE_Kenshi loader contract and requires a lifecycle proof matching the current production source/header hashes.
+
 ### Version 1 changes
 
 - First MCM fork based on pinned upstream source; preserve the original gameplay and package defaults.
 - Add optional live MCM settings and EN/RU/ZH interface catalogs.
+- Preserve RE_Kenshi's required decorated startup/stop exports and initialize the settings lock before any export callback, including early or failed startup paths.
 - Add the default-off detailed-log master; bound diagnostic history and always retain error reporting.
 - Fix nested/concurrent bonus restoration, neutralize disabled behavior, validate executable memory and complete unique instruction before patching, and preserve live code-cave lifetime on failure/shutdown.
 - Add production-core and offline import/signature/locale checks. Runtime game verification is tracked separately.
@@ -153,6 +158,8 @@ Game checks still needed: ordinary and already-targeted enemies with defaults/1/
 
 Единственный блок кода размером **64 байта** сохраняется на весь срок жизни плагина и процесса после успешного подключения. `stopPlugin` возвращает обычную силу провокации и выключает диагностику; блок, переходник и критическая секция остаются, поскольку KenshiLib не предоставляет снятие хука. Выгрузка активного DLL во время игры не поддерживается. При ошибке подключения исходная инструкция восстанавливается до освобождения блока; если восстановить её не удалось, память сохраняется, чтобы игра не перешла в освобождённую область.
 
+RE_Kenshi ищет точный C++-экспорт запуска `?startPlugin@@YAXXZ`; экспорт остановки - `?stopPlugin@@YAXXZ`, а MCM использует C-экспорт `MCM_Describe`. Критическая секция создаётся один раз вместе с глобальным объектом до возврата из `LoadLibrary`. При запуске меняется только адрес блока кода, поэтому ранний callback настроек или ошибка запуска не обращаются к неинициализированной блокировке и не создают её повторно.
+
 Статический review и короткий тест не подтверждают FPS или отсутствие любого роста памяти в долгой игре. Для этих выводов нужны отдельные игровые замеры.
 
 ### Сборка и проверки
@@ -165,10 +172,13 @@ Game checks still needed: ordinary and already-targeted enemies with defaults/1/
 
 Остаются игровые проверки: обычный выбор и смена существующей цели со стандартными значениями/1/0/выключением; многократные изменения MCM; несколько провокаторов; save/load/new game; журнал; страницы EN/RU/ZH на ванильном и модифицированном скине; CPU/FPS и длительный рост памяти. Успешная сборка и локальные тесты их не заменяют.
 
+`tests/run_lifecycle_tests.ps1` выполняет извлечённые настоящие тела запуска, чтения INI, `LoadConfig` и `MCM_Describe`. Проверяются точное имя `GetProcAddress`, обычный запуск до настроек, ранние Describe/apply до запуска, повторный запуск и callbacks после ошибок адреса/патча/хука. Игровые зависимости заменены тестовыми границами; игровая приёмка остаётся отдельной. PE-аудит также сверяет контракт установленного загрузчика RE_Kenshi и требует результат lifecycle-тестов с хешами текущих production-исходника и заголовка.
+
 ### Изменения версии 1
 
 - Первый MCM-форк по зафиксированным исходникам; сохранены механика и значения поставки оригинала.
 - Добавлены необязательные настройки MCM с применением во время игры и интерфейс EN/RU/ZH.
+- Сохранены требуемые RE_Kenshi декорированные экспорты запуска/остановки; блокировка настроек создаётся до любого callback, включая ранние вызовы и ошибки запуска.
 - Добавлен выключенный по умолчанию общий подробный журнал, ограничена история диагностики; ошибки записываются всегда.
 - Исправлены вложенные и одновременные вычисления бонуса, отключение возвращает обычную силу. Добавлены проверки исполняемой памяти и полной уникальной инструкции, безопасный срок жизни блока при ошибках и завершении работы.
 - Добавлены проверки production-кода, импортов, сигнатуры и переводов. Игровая проверка учитывается отдельно.

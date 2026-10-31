@@ -11,5 +11,6 @@ if($LASTEXITCODE){exit $LASTEXITCODE}
 & $python "$module/tests/audit_binary.py" --output "$out/binary_audit.json"
 if($LASTEXITCODE){exit $LASTEXITCODE}
 Copy-Item -LiteralPath "$out/binary_audit.json" -Destination "$module/release/binary_audit.json"
+Copy-Item -LiteralPath 'D:/DEV/Kenshi/build/TauntExpansionTests/lifecycle_proof.json' -Destination "$module/release/lifecycle_proof.json"
 & $python "$module/tests/prepare_metadata.py"
 exit $LASTEXITCODE

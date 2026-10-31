@@ -72,8 +72,19 @@ def main():
     bonus=struct.unpack('<f',exe.code(bonus_rva,4))[0];assert bonus==2.0,bonus
     dll=PE(args.dll);imports=dll.imports();native=imports.get('kenshilib.dll',[])
     assert native and not(set(native)-set(exports)),set(native)-set(exports)
-    for required in ('startPlugin','stopPlugin','MCM_Describe'):assert required in dll.exports(),required
-    report={'dll_sha256':hashlib.sha256(dll.data).hexdigest(),'dll_bytes':len(dll.data),'kenshilib_complete_export_count':len(exports),'kenshilib_import_count':len(native),'target_slot':index,'target_rva':hex(rva),'taunt_add_rva':hex(site),'taunt_add_bytes':instruction.hex(' '),'vanilla_bonus_rva':hex(bonus_rva),'vanilla_bonus':bonus,'scan_matches':len(offsets),'game_exe_path':str(exe.path),'game_exe_sha256':hashlib.sha256(exe.data).hexdigest(),'status':'PASS offline audit of the RE_Kenshi runtime executable image; live hook/behavior/FPS still require game test'}
+    loader=game/'RE_Kenshi.dll';loader_bytes=loader.read_bytes()
+    # Verified Plugins.cpp::LoadPlugin calls GetProcAddress with this exact
+    # MSVC C++ name. A C export can load and expose MCM yet never start.
+    loader_entry='?startPlugin@@YAXXZ'
+    assert loader_entry.encode()+b'\0' in loader_bytes,'installed RE_Kenshi loader entry contract changed'
+    for required in (loader_entry,'?stopPlugin@@YAXXZ','MCM_Describe'):assert required in dll.exports(),required
+    lifecycle=json.loads(pathlib.Path('D:/DEV/Kenshi/build/TauntExpansionTests/lifecycle_proof.json').read_text(encoding='utf-8-sig'))
+    assert lifecycle['production_source_sha256']==hashlib.sha256((ROOT/'TauntExpansion.cpp').read_bytes()).hexdigest(),'lifecycle proof source changed; rerun tests'
+    assert lifecycle['transaction_header_sha256']==hashlib.sha256((ROOT/'BonusTransaction.h').read_bytes()).hexdigest(),'lifecycle proof lock header changed; rerun tests'
+    assert lifecycle['actual_extracted_startup_invoked_via_GetProcAddress'] and lifecycle['actual_extracted_LoadConfig_callback']
+    assert lifecycle['early_describe_and_apply_before_startup'] and lifecycle['normal_startup_before_describe_and_apply']
+    assert lifecycle['target_patch_and_hook_failure_callbacks_safe']
+    report={'dll_sha256':hashlib.sha256(dll.data).hexdigest(),'dll_bytes':len(dll.data),'plugin_exports':sorted(dll.exports()),'loader_entry':loader_entry,'loader_dll_path':str(loader),'loader_dll_sha256':hashlib.sha256(loader_bytes).hexdigest(),'lifecycle_proof':lifecycle,'kenshilib_complete_export_count':len(exports),'kenshilib_import_count':len(native),'target_slot':index,'target_rva':hex(rva),'taunt_add_rva':hex(site),'taunt_add_bytes':instruction.hex(' '),'vanilla_bonus_rva':hex(bonus_rva),'vanilla_bonus':bonus,'scan_matches':len(offsets),'game_exe_path':str(exe.path),'game_exe_sha256':hashlib.sha256(exe.data).hexdigest(),'status':'PASS offline audit of exact RE loader entry, production lifecycle fixture and runtime executable image; live hook/behavior/FPS still require game test'}
     print(json.dumps(report,indent=2))
     if args.output:args.output.write_text(json.dumps(report,indent=2)+'\n')
 if __name__=='__main__':main()

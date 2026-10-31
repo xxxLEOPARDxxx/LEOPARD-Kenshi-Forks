@@ -26,4 +26,6 @@ if($begin -lt 0 -or $end -lt $begin){throw 'Production RunSelection boundaries m
 & "$vc/bin/amd64/cl.exe" /nologo /EHsc /MD /O2 "/I$out" "/Fo$out/" "/Fe$out/selection_tests.exe" "$PSScriptRoot/selection_tests.cpp"
 if($LASTEXITCODE){exit $LASTEXITCODE}
 & "$out/selection_tests.exe"
+if($LASTEXITCODE){exit $LASTEXITCODE}
+& "$PSScriptRoot/run_lifecycle_tests.ps1"
 exit $LASTEXITCODE

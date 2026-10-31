@@ -1,6 +1,27 @@
 {
-  "dll_sha256": "899cf81729d62e599f411afd9a2851d8ae4763c41969f09436ba70ac07eaac8d",
+  "dll_sha256": "b16d292185d93c02e64edd030f16c1247686faf82b80e7b5f8eb896e6b727636",
   "dll_bytes": 96768,
+  "plugin_exports": [
+    "?startPlugin@@YAXXZ",
+    "?stopPlugin@@YAXXZ",
+    "MCM_Describe"
+  ],
+  "loader_entry": "?startPlugin@@YAXXZ",
+  "loader_dll_path": "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\RE_Kenshi.dll",
+  "loader_dll_sha256": "58900f1678e4eef407fb19d12527fd8c1d3dbc5bc09903c088dc52a9134a04ee",
+  "lifecycle_proof": {
+    "production_source_sha256": "5c20da7625e6f170271e27675a4a31f4df61a52abc619a8932bb3c3d71e345e6",
+    "transaction_header_sha256": "80aa2407851c23fb3838b3d2e5f3e7980a75182eeedc29bb422099e557e3d8bc",
+    "fixture_exe_sha256": "eae4ea200751424458fc992d5428e0d0d6cb1f1626da6768c07726bc199d6b1a",
+    "loader_entry": "?startPlugin@@YAXXZ",
+    "actual_extracted_startup_invoked_via_GetProcAddress": true,
+    "actual_extracted_LoadConfig_callback": true,
+    "early_describe_and_apply_before_startup": true,
+    "normal_startup_before_describe_and_apply": true,
+    "duplicate_startup_safe": true,
+    "target_patch_and_hook_failure_callbacks_safe": true,
+    "limitation": "Game API dependencies are fixtures; live game startup and target behavior require separate acceptance."
+  },
   "kenshilib_complete_export_count": 10131,
   "kenshilib_import_count": 11,
   "target_slot": 154,
@@ -12,5 +33,5 @@
   "scan_matches": 1,
   "game_exe_path": "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\RE_Kenshi\\Kenshi_x64.exe",
   "game_exe_sha256": "504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e",
-  "status": "PASS offline audit of the RE_Kenshi runtime executable image; live hook/behavior/FPS still require game test"
+  "status": "PASS offline audit of exact RE loader entry, production lifecycle fixture and runtime executable image; live hook/behavior/FPS still require game test"
 }
