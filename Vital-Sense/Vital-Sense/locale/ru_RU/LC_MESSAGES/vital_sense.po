@@ -152,6 +152,9 @@ msgstr "Размер текста: мёртвых"
 msgid "Font height for the dead label"
 msgstr "Высота шрифта текста: мёртвых"
 
+msgid "Icon image path. Leave empty to use the game's standard atlas icon; this does not disable the icon. Use Show icons to turn icons off."
+msgstr "Путь к картинке. Пустое поле использует штатный значок игры из атласа, а не отключает его. Для отключения выключите \"Показывать значки\"."
+
 msgid "Unconscious icon texture"
 msgstr "Картинка значка: без сознания"
 

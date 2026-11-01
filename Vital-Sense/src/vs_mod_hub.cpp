@@ -288,12 +288,14 @@ HubTextSettingDescriptor g_textSettingDescriptors[] = {
     }
 };
 
+const char* kIconTexturePathHelp = "Icon image path. Leave empty to use the game's standard atlas icon; this does not disable the icon. Use Show icons to turn icons off.";
+
 HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
     {
         "unconscious_icon_texture",
         "Unconscious icon texture",
-        "Short path for the unconscious icon texture",
-        "Edit the icon texture used for unconscious targets.",
+        kIconTexturePathHelp,
+        kIconTexturePathHelp,
         &PluginConfig::customUnconsciousIconTexture,
         kHubPathTextMaxLength,
         true
@@ -301,8 +303,8 @@ HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
     {
         "recovery_coma_icon_texture",
         "Recovery coma icon texture",
-        "Short path for the recovery coma icon texture",
-        "Edit the icon texture used for recovery coma targets.",
+        kIconTexturePathHelp,
+        kIconTexturePathHelp,
         &PluginConfig::customRecoveryComaIconTexture,
         kHubPathTextMaxLength,
         true
@@ -310,8 +312,8 @@ HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
     {
         "dying_icon_texture",
         "Dying icon texture",
-        "Short path for the dying icon texture",
-        "Edit the icon texture used for dying targets.",
+        kIconTexturePathHelp,
+        kIconTexturePathHelp,
         &PluginConfig::customDyingIconTexture,
         kHubPathTextMaxLength,
         true
@@ -319,8 +321,8 @@ HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
     {
         "playing_dead_icon_texture",
         "Playing dead icon texture",
-        "Short path for the playing dead icon texture",
-        "Edit the icon texture used for playing dead targets.",
+        kIconTexturePathHelp,
+        kIconTexturePathHelp,
         &PluginConfig::customPlayingDeadIconTexture,
         kHubPathTextMaxLength,
         true
@@ -328,8 +330,8 @@ HubTextSettingDescriptor g_stateIconTextureSettingDescriptors[] = {
     {
         "dead_icon_texture",
         "Dead icon texture",
-        "Short path for the dead icon texture",
-        "Edit the icon texture used for dead targets.",
+        kIconTexturePathHelp,
+        kIconTexturePathHelp,
         &PluginConfig::customDeadIconTexture,
         kHubPathTextMaxLength,
         true

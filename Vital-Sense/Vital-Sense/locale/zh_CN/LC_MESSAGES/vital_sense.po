@@ -152,6 +152,9 @@ msgstr "死亡文字大小"
 msgid "Font height for the dead label"
 msgstr "死亡文字的字体高度"
 
+msgid "Icon image path. Leave empty to use the game's standard atlas icon; this does not disable the icon. Use Show icons to turn icons off."
+msgstr "图标图片路径。留空时使用游戏自带图集中的默认图标，不会关闭图标。若要关闭图标，请关闭“显示图标”。"
+
 msgid "Unconscious icon texture"
 msgstr "昏迷图标贴图"
 

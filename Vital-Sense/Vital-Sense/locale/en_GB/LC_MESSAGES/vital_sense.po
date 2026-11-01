@@ -152,6 +152,9 @@ msgstr "Dead text size"
 msgid "Font height for the dead label"
 msgstr "Font height of the dead text"
 
+msgid "Icon image path. Leave empty to use the game's standard atlas icon; this does not disable the icon. Use Show icons to turn icons off."
+msgstr "Icon image path. Leave empty to use the game's standard atlas icon; this does not disable the icon. Use Show icons to turn icons off."
+
 msgid "Unconscious icon texture"
 msgstr "Unconscious icon texture"
 
