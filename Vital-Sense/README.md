@@ -137,3 +137,19 @@ Custom paths retain their existing priority, including relative, mod-qualified a
 The preflight uses a bounded 256-name FIFO cache and resets for a different DataManager. Already registered textures, including manual/runtime textures, remain usable without a file. Existing visual-state caches remain unchanged; no new per-frame filesystem polling or world scans are introduced. Installing/replacing assets requires restarting the game. Regression command from the forks repository: `python Vital-Read/tests/test_texture_preflight.py` (both plugins' actual loaders and preflight helper).
 
 Проверки существования используют ограниченный FIFO-кэш на 256 имён со сбросом при смене DataManager. Уже зарегистрированные текстуры, в том числе созданные в памяти, работают и без файла. Прежний кэш состояния значков сохраняется; новых покадровых опросов файловой системы или обходов мира нет. Установка или замена картинок применяется после перезапуска игры.
+
+## Prepared release 7 / Подготовленный выпуск 7 (2026-11-02)
+
+English
+
+- Optional icon compatibility. Optional custom textures are checked before loading, avoiding misleading missing-texture messages. Settings explain the standard-icon fallback.
+- Optional language diagnostics. Language and translation-catalogue summaries follow this plugin's Detailed log setting, which is off by default.
+- Useful errors remain visible. Translation loading and format errors are still reported with Detailed log disabled. Enabling the setting after loading reports the saved summary once without reloading translations.
+- Clean update package. English, Russian and Simplified Chinese each use one compiled runtime catalogue. Personal settings and gameplay saves are preserved.
+
+Русский
+
+- Совместимость необязательных значков. Пользовательские текстуры проверяются до загрузки, без ложных сообщений об отсутствующих файлах. Подсказки настроек поясняют использование штатных значков.
+- Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
+- Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
+- Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
