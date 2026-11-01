@@ -17,6 +17,7 @@ function CompileTest([string]$name, [string[]]$sources) {
 }
 RunCheck "$PSScriptRoot/CheckAdaptiveUi.py"
 RunCheck "$PSScriptRoot/CheckFilterCoordinates.py"
+RunCheck "$PSScriptRoot/CheckLanguageFallback.py"
 & "$PSScriptRoot/run_header_skin_checks.ps1"
 if ($LASTEXITCODE) { throw 'Native header skin/restore regression' }
 CompileTest 'AdaptiveLayoutTests' @("$PSScriptRoot/AdaptiveLayoutTests.cpp")
