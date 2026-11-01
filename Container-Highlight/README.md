@@ -65,6 +65,12 @@ mod-config.json starts with the shared logging baseline:
 - Нагрузка (16.10.2026): значки - текстура (поиск ресурса по нескольким путям), надпись, шрифт и цвет 9 слоёв ставились каждый кадр на каждый значок; теперь только при изменении (положение - по-прежнему каждый кадр). Окраска контейнеров - обход узлов сцены, перекраска клонов и setMaterial каждый кадр; теперь после каждого скана (150-500 мс), при смене цвета и раз в 0,5 с, а неизменный клон не трогается. Утечка: lektor поиска объектов (без деструктора) заводился заново на каждом скане - теперь постоянный, с clear().
 - Клавиша (16.10.2026): в MCM задаётся одним сочетанием на кнопке клавиши (CTRL+X). Геттер отдаёт модификаторы из highlight_key_require_*, сеттер их туда пишет (раньше отклонял с use_modifier_toggles); строки Require Ctrl/Shift/Alt убраны со страницы, ключи в mod-config.json остались.
 
+## Pending fixes / Подготовленные исправления
+
+EN: Added protection when removing tint after a container model changes or unloads. Obsolete highlight records are discarded after a restoration failure, preventing repeated attempts on the same broken model. Replacement materials are preserved.
+
+RU: Добавлена защита при снятии окраски после замены или выгрузки модели контейнера. При ошибке восстановления устаревшая запись подсветки удаляется, чтобы не повторять попытку с той же повреждённой моделью. Новые материалы сохраняются.
+
 
 Localization diagnostics / Журнал локализации (2026-11-01)
 Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.

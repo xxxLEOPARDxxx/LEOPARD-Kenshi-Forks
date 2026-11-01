@@ -505,8 +505,8 @@ std::string RootObjectDisplayNameForLog(RootObject* object);
 Inventory* TryGetBuildingInventorySafe(Building* building);
 bool LooksLikeContainerDisplayName(const std::string& value);
 Inventory* ResolveContainerInventory(RootObject* object, bool* usedBuildingFallback);
-PhysicsCollection* TryGetBuildingPhysical(Building* building);
-Ogre::SceneNode* TryGetBuildingRootNode(Building* building);
+PhysicsCollection* TryGetBuildingPhysical(Building* building, bool* collectionFailed = 0);
+Ogre::SceneNode* TryGetBuildingRootNode(Building* building, bool* collectionFailed = 0);
 bool TryProjectWorldToScreenPx(const Ogre::Vector3& worldPos, float* xOut, float* yOut);
 bool ConvertProjectionToPixels(float rawX, float rawY, int viewWidth, int viewHeight, float* pixelXOut, float* pixelYOut);
 bool TryGetTintOverlayBoundsForTarget(const hand& targetHandle, Ogre::SceneManager** sceneManagerOut, Ogre::Vector3* centerOut, Ogre::Vector3* sizeOut);
@@ -3998,7 +3998,8 @@ bool StringListContains(const std::vector<std::string>& values, const std::strin
     return false;
 }
 
-void AppendMovableAsTintEntityUnique(std::vector<Ogre::Entity*>* outEntities, Ogre::MovableObject* movable)
+void AppendMovableAsTintEntityUnique(std::vector<Ogre::Entity*>* outEntities,
+    Ogre::MovableObject* movable, bool* collectionFailed = 0)
 {
     if (outEntities == 0 || movable == 0)
     {
@@ -4014,6 +4015,7 @@ void AppendMovableAsTintEntityUnique(std::vector<Ogre::Entity*>* outEntities, Og
     }
     catch (...)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
@@ -4045,7 +4047,8 @@ void AppendTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatches, Ogre::
     outBatches->push_back(batch);
 }
 
-void AppendMovableAsTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatches, Ogre::MovableObject* movable)
+void AppendMovableAsTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatches,
+    Ogre::MovableObject* movable, bool* collectionFailed = 0)
 {
     if (outBatches == 0 || movable == 0)
     {
@@ -4067,6 +4070,7 @@ void AppendMovableAsTintBatchUnique(std::vector<Ogre::InstanceBatch*>* outBatche
     }
     catch (...)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
@@ -4755,7 +4759,8 @@ void LogTintEntityCollectionInvestigation(const hand& targetHandle)
     }
 }
 
-void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth, std::vector<Ogre::Entity*>* outEntities)
+void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth,
+    std::vector<Ogre::Entity*>* outEntities, bool* collectionFailed = 0)
 {
     if (node == 0 || outEntities == 0 || depth > 10)
     {
@@ -4773,25 +4778,28 @@ void CollectBuildingEntitiesRecursive(Ogre::SceneNode* node, size_t depth, std::
                 continue;
             }
 
-            AppendMovableAsTintEntityUnique(outEntities, movable);
+            AppendMovableAsTintEntityUnique(outEntities, movable, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
 
         const size_t childCount = node->numChildren();
         for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
         {
             Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
-            CollectBuildingEntitiesRecursive(childNode, depth + 1, outEntities);
+            CollectBuildingEntitiesRecursive(childNode, depth + 1, outEntities, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
 void CollectBuildingInstanceBatchesRecursive(
     Ogre::SceneNode* node,
     size_t depth,
-    std::vector<Ogre::InstanceBatch*>* outBatches)
+    std::vector<Ogre::InstanceBatch*>* outBatches, bool* collectionFailed = 0)
 {
     if (node == 0 || outBatches == 0 || depth > 10)
     {
@@ -4809,46 +4817,52 @@ void CollectBuildingInstanceBatchesRecursive(
                 continue;
             }
 
-            AppendMovableAsTintBatchUnique(outBatches, movable);
+            AppendMovableAsTintBatchUnique(outBatches, movable, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
 
         const size_t childCount = node->numChildren();
         for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
         {
             Ogre::SceneNode* childNode = static_cast<Ogre::SceneNode*>(node->getChild(childIndex));
-            CollectBuildingInstanceBatchesRecursive(childNode, depth + 1, outBatches);
+            CollectBuildingInstanceBatchesRecursive(childNode, depth + 1, outBatches, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
-PhysicsCollection* TryGetBuildingPhysical(Building* building)
+PhysicsCollection* TryGetBuildingPhysical(Building* building, bool* collectionFailed)
 {
-    if (building == 0 || !building->isValid())
+    if (building == 0)
     {
         return 0;
     }
 
     __try
     {
+        if (!building->isValid()) return 0;
         return building->physical;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
         return 0;
     }
 }
 
-void CollectBuildingPhysicalEntities(Building* building, std::vector<Ogre::Entity*>* outEntities)
+void CollectBuildingPhysicalEntities(Building* building, std::vector<Ogre::Entity*>* outEntities,
+    bool* collectionFailed = 0)
 {
     if (building == 0 || outEntities == 0)
     {
         return;
     }
 
-    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    PhysicsCollection* physical = TryGetBuildingPhysical(building, collectionFailed);
     if (physical == 0)
     {
         return;
@@ -4866,22 +4880,25 @@ void CollectBuildingPhysicalEntities(Building* building, std::vector<Ogre::Entit
                 continue;
             }
 
-            AppendMovableAsTintEntityUnique(outEntities, staticEnt->ent);
+            AppendMovableAsTintEntityUnique(outEntities, staticEnt->ent, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
-void CollectBuildingPhysicalInstanceBatches(Building* building, std::vector<Ogre::InstanceBatch*>* outBatches)
+void CollectBuildingPhysicalInstanceBatches(Building* building, std::vector<Ogre::InstanceBatch*>* outBatches,
+    bool* collectionFailed = 0)
 {
     if (building == 0 || outBatches == 0)
     {
         return;
     }
 
-    PhysicsCollection* physical = TryGetBuildingPhysical(building);
+    PhysicsCollection* physical = TryGetBuildingPhysical(building, collectionFailed);
     if (physical == 0)
     {
         return;
@@ -4899,15 +4916,17 @@ void CollectBuildingPhysicalInstanceBatches(Building* building, std::vector<Ogre
                 continue;
             }
 
-            AppendMovableAsTintBatchUnique(outBatches, staticEnt->ent);
+            AppendMovableAsTintBatchUnique(outBatches, staticEnt->ent, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
     }
 }
 
-Ogre::SceneNode* TryGetBuildingRootNode(Building* building)
+Ogre::SceneNode* TryGetBuildingRootNode(Building* building, bool* collectionFailed)
 {
     if (building == 0)
     {
@@ -4920,6 +4939,7 @@ Ogre::SceneNode* TryGetBuildingRootNode(Building* building)
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
+        if (collectionFailed != 0) *collectionFailed = true;
         return 0;
     }
 }
@@ -7861,40 +7881,103 @@ void ReleaseTintClones(std::vector<Ogre::MaterialPtr>& clones)
     }
 }
 
-void ClearTintBinding(TintEntityBinding* binding)
+// These leaf guards have no owning C++ locals: /EHsc does not catch native
+// access violations. Let ordinary C++ exceptions reach the caller's catch.
+bool TryGetTintEntityPartCount(Ogre::Entity* entity, size_t* count)
+{
+    __try
+    {
+        *count = entity->getNumSubEntities();
+        return true;
+    }
+    __except (GetExceptionCode() == 0xe06d7363u ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool TryRestoreTintEntityMaterial(
+    Ogre::Entity* entity, size_t index,
+    const Ogre::MaterialPtr& original, const Ogre::MaterialPtr& clone)
+{
+    __try
+    {
+        // The mesh may have been rebuilt at the same Entity address. Never
+        // overwrite its replacement material (or another plugin's material).
+        if (index >= entity->getNumSubEntities())
+        {
+            return true;
+        }
+        Ogre::SubEntity* subEntity = entity->getSubEntity(index);
+        if (subEntity != 0 && MaterialPtrsReferSameObject(subEntity->getMaterial(), clone))
+        {
+            subEntity->setMaterial(original);
+        }
+        return true;
+    }
+    __except (GetExceptionCode() == 0xe06d7363u ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void ClearTintBinding(TintEntityBinding* binding, const std::vector<Ogre::Entity*>* liveEntities = 0)
 {
     if (binding == 0)
     {
         return;
     }
 
-    if (binding->entity != 0)
+    bool restoreFailed = false;
+    // A hand identifies the building, not the lifetime of its Ogre model.
+    // Only touch pointers found again in that building's current model graph.
+    if (binding->entity != 0 && liveEntities != 0
+        && EntityVectorContains(*liveEntities, binding->entity))
     {
-        for (size_t i = 0; i < binding->originalMaterials.size(); ++i)
+        size_t liveCount = 0;
+        try
         {
-            if (binding->originalMaterials[i].isNull())
+            restoreFailed = !TryGetTintEntityPartCount(binding->entity, &liveCount);
+        }
+        catch (...)
+        {
+            restoreFailed = true;
+        }
+        const size_t restoreCount = std::min(liveCount,
+            std::min(binding->originalMaterials.size(), binding->cloneMaterials.size()));
+        for (size_t i = 0; i < restoreCount; ++i)
+        {
+            if (binding->originalMaterials[i].isNull() || binding->cloneMaterials[i].isNull())
             {
                 continue;
             }
 
             try
             {
-                Ogre::SubEntity* subEntity = binding->entity->getSubEntity(i);
-                if (subEntity != 0)
+                if (!TryRestoreTintEntityMaterial(binding->entity, i,
+                    binding->originalMaterials[i], binding->cloneMaterials[i]))
                 {
-                    subEntity->setMaterial(binding->originalMaterials[i]);
+                    restoreFailed = true;
+                    break;
                 }
             }
             catch (...)
             {
+                restoreFailed = true;
+                break;
             }
         }
     }
 
     binding->entity = 0;
+    binding->hasApplied = false;
     binding->originalMaterials.clear();
     ReleaseTintClones(binding->cloneMaterials);
     binding->cloneMaterials.clear();
+    if (restoreFailed)
+    {
+        LogErrorLine("container tint restore failed; cached model retired");
+    }
 }
 
 Ogre::MaterialPtr GetInstanceBatchMaterial(Ogre::InstanceBatch* batch)
@@ -7933,21 +8016,75 @@ bool SetInstanceBatchMaterial(Ogre::InstanceBatch* batch, const Ogre::MaterialPt
     }
 }
 
-void ClearTintBatchBinding(TintBatchBinding* binding)
+bool TryRestoreTintBatchMaterial(Ogre::InstanceBatch* batch,
+    const Ogre::MaterialPtr& original, const Ogre::MaterialPtr& clone)
+{
+    __try
+    {
+        Ogre::MaterialPtr& materialSlot = const_cast<Ogre::MaterialPtr&>(batch->getMaterial());
+        if (MaterialPtrsReferSameObject(materialSlot, clone))
+        {
+            materialSlot = original;
+        }
+        return true;
+    }
+    __except (GetExceptionCode() == 0xe06d7363u ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void ClearTintBatchBinding(TintBatchBinding* binding,
+    const std::vector<Ogre::InstanceBatch*>* liveBatches = 0)
 {
     if (binding == 0)
     {
         return;
     }
 
-    if (binding->batch != 0 && !binding->originalMaterial.isNull())
+    bool restoreFailed = false;
+    if (binding->batch != 0 && !binding->originalMaterial.isNull()
+        && !binding->cloneMaterial.isNull() && liveBatches != 0
+        && InstanceBatchVectorContains(*liveBatches, binding->batch))
     {
-        SetInstanceBatchMaterial(binding->batch, binding->originalMaterial);
+        try
+        {
+            restoreFailed = !TryRestoreTintBatchMaterial(binding->batch,
+                binding->originalMaterial, binding->cloneMaterial);
+        }
+        catch (...)
+        {
+            restoreFailed = true;
+        }
     }
 
     binding->batch = 0;
     binding->originalMaterial.setNull();
     ReleaseTintClone(binding->cloneMaterial);
+    if (restoreFailed)
+    {
+        LogErrorLine("container batch tint restore failed; cached model retired");
+    }
+}
+
+void CollectTintTargetsForTarget(
+    const hand& targetHandle,
+    std::vector<Ogre::Entity*>* outEntities,
+    std::vector<Ogre::InstanceBatch*>* outBatches, bool* collectionFailed = 0);
+
+bool TryCollectTintRestoreTargets(const hand& targetHandle,
+    std::vector<Ogre::Entity*>* liveEntities, std::vector<Ogre::InstanceBatch*>* liveBatches)
+{
+    __try
+    {
+        bool collectionFailed = false;
+        CollectTintTargetsForTarget(targetHandle, liveEntities, liveBatches, &collectionFailed);
+        return !collectionFailed;
+    }
+    __except (GetExceptionCode() == 0xe06d7363u ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
 }
 
 void ClearTintEntry(ContainerTintEntry* entry)
@@ -7957,19 +8094,44 @@ void ClearTintEntry(ContainerTintEntry* entry)
         return;
     }
 
+    std::vector<Ogre::Entity*> liveEntities;
+    std::vector<Ogre::InstanceBatch*> liveBatches;
+    bool collectionFailed = false;
+    if (!entry->entityBindings.empty() || !entry->batchBindings.empty())
+    {
+        try
+        {
+            collectionFailed = !TryCollectTintRestoreTargets(entry->targetHandle, &liveEntities, &liveBatches);
+        }
+        catch (...)
+        {
+            collectionFailed = true;
+        }
+        if (collectionFailed)
+        {
+            // A partial traversal cannot establish object lifetime. Drop the
+            // entire entry without touching any collected native pointers.
+            liveEntities.clear();
+            liveBatches.clear();
+        }
+    }
     for (size_t i = 0; i < entry->entityBindings.size(); ++i)
     {
-        ClearTintBinding(&entry->entityBindings[i]);
+        ClearTintBinding(&entry->entityBindings[i], &liveEntities);
     }
     entry->entityBindings.clear();
 
     for (size_t i = 0; i < entry->batchBindings.size(); ++i)
     {
-        ClearTintBatchBinding(&entry->batchBindings[i]);
+        ClearTintBatchBinding(&entry->batchBindings[i], &liveBatches);
     }
     entry->batchBindings.clear();
 
     ClearTintOverlayBinding(&entry->overlayBinding);
+    if (collectionFailed)
+    {
+        LogErrorLine("container tint model collection failed; cached entry retired");
+    }
 }
 
 int FindTintEntryByHandle(const hand& targetHandle)
@@ -7997,7 +8159,7 @@ void AppendTintEntityUnique(std::vector<Ogre::Entity*>* outEntities, Ogre::Entit
 void CollectTintTargetsForTarget(
     const hand& targetHandle,
     std::vector<Ogre::Entity*>* outEntities,
-    std::vector<Ogre::InstanceBatch*>* outBatches)
+    std::vector<Ogre::InstanceBatch*>* outBatches, bool* collectionFailed)
 {
     if (outEntities == 0 || outBatches == 0)
     {
@@ -8010,20 +8172,25 @@ void CollectTintTargetsForTarget(
     Building* building = targetHandle.getBuilding();
     if (building != 0 && IsHighlightableContainerBuilding(building))
     {
-        Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building);
-        CollectBuildingEntitiesRecursive(rootNode, 0, outEntities);
-        CollectBuildingPhysicalEntities(building, outEntities);
+        Ogre::SceneNode* rootNode = TryGetBuildingRootNode(building, collectionFailed);
+        if (collectionFailed != 0 && *collectionFailed) return;
+        CollectBuildingEntitiesRecursive(rootNode, 0, outEntities, collectionFailed);
+        if (collectionFailed != 0 && *collectionFailed) return;
+        CollectBuildingPhysicalEntities(building, outEntities, collectionFailed);
+        if (collectionFailed != 0 && *collectionFailed) return;
         if (kEnableInstancedBatchTint)
         {
-            CollectBuildingInstanceBatchesRecursive(rootNode, 0, outBatches);
-            CollectBuildingPhysicalInstanceBatches(building, outBatches);
+            CollectBuildingInstanceBatchesRecursive(rootNode, 0, outBatches, collectionFailed);
+            if (collectionFailed != 0 && *collectionFailed) return;
+            CollectBuildingPhysicalInstanceBatches(building, outBatches, collectionFailed);
         }
     }
 
     (void)targetHandle;
 }
 
-bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogre::Entity* entity, TintEntityBinding* binding)
+bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogre::Entity* entity,
+    TintEntityBinding* binding, const std::vector<Ogre::Entity*>* liveEntities)
 {
     if (entity == 0 || binding == 0)
     {
@@ -8032,7 +8199,7 @@ bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogr
 
     if (binding->entity != entity)
     {
-        ClearTintBinding(binding);
+        ClearTintBinding(binding, liveEntities);
         binding->entity = entity;
         binding->hasApplied = false;
     }
@@ -8158,7 +8325,8 @@ bool ApplyTintToEntityBinding(const hand& targetHandle, size_t bindingIndex, Ogr
     return appliedAny;
 }
 
-bool ApplyTintToBatchBinding(const hand& targetHandle, size_t bindingIndex, Ogre::InstanceBatch* batch, TintBatchBinding* binding)
+bool ApplyTintToBatchBinding(const hand& targetHandle, size_t bindingIndex, Ogre::InstanceBatch* batch,
+    TintBatchBinding* binding, const std::vector<Ogre::InstanceBatch*>* liveBatches)
 {
     if (batch == 0 || binding == 0)
     {
@@ -8167,7 +8335,7 @@ bool ApplyTintToBatchBinding(const hand& targetHandle, size_t bindingIndex, Ogre
 
     if (binding->batch != batch)
     {
-        ClearTintBatchBinding(binding);
+        ClearTintBatchBinding(binding, liveBatches);
         binding->batch = batch;
     }
 
@@ -8327,7 +8495,7 @@ void SyncTint()
         ContainerTintEntry& tintEntry = g_state.tintEntries[static_cast<size_t>(tintEntryIndex)];
         while (tintEntry.entityBindings.size() > entities.size())
         {
-            ClearTintBinding(&tintEntry.entityBindings.back());
+            ClearTintBinding(&tintEntry.entityBindings.back(), &entities);
             tintEntry.entityBindings.pop_back();
         }
         while (tintEntry.entityBindings.size() < entities.size())
@@ -8341,7 +8509,7 @@ void SyncTint()
 
         while (tintEntry.batchBindings.size() > batches.size())
         {
-            ClearTintBatchBinding(&tintEntry.batchBindings.back());
+            ClearTintBatchBinding(&tintEntry.batchBindings.back(), &batches);
             tintEntry.batchBindings.pop_back();
         }
         while (tintEntry.batchBindings.size() < batches.size())
@@ -8358,7 +8526,8 @@ void SyncTint()
                 tintEntry.targetHandle,
                 entityIndex,
                 entities[entityIndex],
-                &tintEntry.entityBindings[entityIndex]))
+                &tintEntry.entityBindings[entityIndex],
+                &entities))
             {
                 appliedAny = true;
             }
@@ -8370,7 +8539,8 @@ void SyncTint()
                 tintEntry.targetHandle,
                 entities.size() + batchIndex,
                 batches[batchIndex],
-                &tintEntry.batchBindings[batchIndex]))
+                &tintEntry.batchBindings[batchIndex],
+                &batches))
             {
                 appliedAny = true;
             }
