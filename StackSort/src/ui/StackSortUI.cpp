@@ -326,6 +326,24 @@ static bool RemoveOurButtons(MyGUI::Widget* parent)
     return true;
 }
 
+// ArrangeButton is optional: vanilla crafting/building layouts omit it.
+// BaseLayout::assignWidget logs even with throw/fake-widget flags disabled.
+// Keep its exact prefix/root search, using MyGUI's silent nullable API instead.
+// The caller must pass a live layout, just as for InventoryLayout::getWidget.
+static MyGUI::Widget* FindOptionalArrangeButton(InventoryLayout* layout)
+{
+    if (!layout) return NULL;
+    const std::string name = layout->mPrefix + "ArrangeButton";
+    const MyGUI::VectorWidgetPtr& roots = layout->mListWindowRoot;
+    for (size_t i = 0; i < roots.size(); ++i)
+    {
+        if (!roots[i]) continue;
+        MyGUI::Widget* const widget = roots[i]->findWidget(name);
+        if (widget) return widget;
+    }
+    return NULL;
+}
+
 // Removes our buttons from liveGui's layout and re-shows the vanilla
 // ArrangeButton. liveGui must be provably alive (its own show/update, or the
 // childInventory of one that is), and its layoutMgr the one the buttons were
@@ -333,7 +351,7 @@ static bool RemoveOurButtons(MyGUI::Widget* parent)
 static void TeardownWidgets(InventoryGUI* liveGui, bool restoreVanilla)
 {
     if (!liveGui || !liveGui->layoutMgr) return;
-    MyGUI::Widget* arrangeBtn = liveGui->layoutMgr->getWidget("ArrangeButton");
+    MyGUI::Widget* arrangeBtn = FindOptionalArrangeButton(liveGui->layoutMgr);
     if (!arrangeBtn) return;
     MyGUI::Widget* parent = arrangeBtn->getParent();
     if (parent) RemoveOurButtons(parent);
@@ -1208,7 +1226,7 @@ void StackSortUI::InitForUpdate(InventoryGUI* gui)
         InventoryGUI* bpGUI = gui->childInventory;
         if (FindUIState(bpGUI) < 0 && bpGUI->layoutMgr && HasEligibleSections(bpGUI->_NV_getInventory()))
         {
-            MyGUI::Widget* btn = bpGUI->layoutMgr->getWidget("ArrangeButton");
+            MyGUI::Widget* btn = FindOptionalArrangeButton(bpGUI->layoutMgr);
             if (btn) InitializeUI(bpGUI, btn, gui);
         }
 
@@ -1219,7 +1237,7 @@ void StackSortUI::InitForUpdate(InventoryGUI* gui)
             Inventory* bodyInv = gui->_NV_getInventory();
             if (bodyInv && HasEligibleSections(bodyInv))
             {
-                MyGUI::Widget* bodyBtn = gui->layoutMgr->getWidget("ArrangeButton");
+                MyGUI::Widget* bodyBtn = FindOptionalArrangeButton(gui->layoutMgr);
                 if (bodyBtn) InitializeUI(gui, bodyBtn, gui);
             }
         }
@@ -1236,7 +1254,7 @@ void StackSortUI::InitForUpdate(InventoryGUI* gui)
         Inventory* inv = gui->_NV_getInventory();
         if (inv && HasEligibleSections(inv))
         {
-            MyGUI::Widget* btn = gui->layoutMgr->getWidget("ArrangeButton");
+            MyGUI::Widget* btn = FindOptionalArrangeButton(gui->layoutMgr);
             if (btn) InitializeUI(gui, btn, gui);
         }
     }
@@ -1257,7 +1275,7 @@ void StackSortUI::OnClose(InventoryGUI* gui)
         {
             InventoryGUI* live=liveLayouts[l];
             if(!live || !live->layoutMgr) continue;
-            MyGUI::Widget* arrange=live->layoutMgr->getWidget("ArrangeButton");
+            MyGUI::Widget* arrange=FindOptionalArrangeButton(live->layoutMgr);
             if(!arrange) continue;
             RestoreBackpackBoxes(arrange->getParent());
             const int tracked=FindUIState(live);

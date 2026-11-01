@@ -18,7 +18,7 @@ struct MouseButton {};
 struct Any {template<class T> Any(const T&){} };
 struct Event {int count;Event():count(0){}template<class T>void operator+=(T){++count;} };
 template<class F> int newDelegate(F){return 0;}
-static int created=0,throwAt=0,destroyedForeign=0,fullCaptionPixels=136,throwPosition=0;
+static int created=0,throwAt=0,destroyedForeign=0,fullCaptionPixels=136,throwPosition=0,missingLookupWarnings=0;
 class Widget
 {
 public:
@@ -36,6 +36,7 @@ public:
     void setUserString(const char* key,const char* value){strings[key]=value;}
     void clearUserString(const char* key){strings.erase(key);}
     size_t getChildCount(){return children.size();}Widget* getChildAt(size_t n){return children[n];}
+    Widget* findWidget(const std::string& exactName){if(name==exactName)return this;for(size_t i=0;i<children.size();++i){Widget* found=children[i]->findWidget(exactName);if(found)return found;}return NULL;}
     template<class T>T* createWidget(const char*,const IntCoord& c,int,const char* n)
     {if(++created==throwAt)throw std::runtime_error("allocation");T* w=new T;w->parent=this;w->coord=c;w->name=n;children.push_back(w);return w;}
 };
@@ -57,6 +58,7 @@ public:
         std::vector<Widget*>& list=w->parent->children;list.erase(std::find(list.begin(),list.end(),w));delete w;
     }
 };
+typedef std::vector<Widget*> VectorWidgetPtr;
 }
 // Same unlink contract as shared WidgetRef: manager clears every weak reference
 // before the widget memory is freed. No name lookup or tree walk on get().
@@ -83,7 +85,8 @@ public:
 };
 class ForgottenGUI {public:ToolTip tip;ToolTip* getToolTip(){return &tip;} };
 static ForgottenGUI forgotten;static ForgottenGUI* gui=&forgotten;
-class InventoryLayout {public:MyGUI::Widget* arrange;InventoryLayout():arrange(NULL){}MyGUI::Widget* getWidget(const char*){return arrange;} };
+class InventoryLayout {public:MyGUI::Widget* arrange;std::string mPrefix;MyGUI::VectorWidgetPtr mListWindowRoot;InventoryLayout():arrange(NULL){}MyGUI::Widget* getWidget(const char*){if(!arrange)++MyGUI::missingLookupWarnings;return arrange;} };
+#include "ui_lookup_under_test.h"
 template<class T>class lektor:public std::vector<T>{};
 namespace Ogre {template<class K,class V>struct map {typedef std::map<K,V> type;};}
 struct InventorySection {std::string name;bool eligible;InventorySection():name("backpack"),eligible(true){} };
@@ -149,7 +152,7 @@ struct Fixture
         parent.coord=MyGUI::IntCoord(0,0,width,100);arrange.parent=keo.parent=&parent;
         arrange.name="native_ArrangeButton";arrange.coord=MyGUI::IntCoord(width/3,60,width/3,24);arrange.visible=shown;
         arrange.eventMouseButtonClick.count=1;keo.name="native_keo_backpackFirst";keo.coord=MyGUI::IntCoord(boxLeft,60,24,24);
-        parent.children.push_back(&arrange);parent.children.push_back(&keo);layout.arrange=&arrange;inventory.layoutMgr=&layout;
+        parent.children.push_back(&arrange);parent.children.push_back(&keo);layout.arrange=&arrange;layout.mPrefix="native_";layout.mListWindowRoot.push_back(&parent);inventory.layoutMgr=&layout;
     }
     ~Fixture(){StackSortUI::OnClose(&inventory);}
     void AddGrid(int left,int width)
@@ -159,6 +162,28 @@ struct Fixture
 };
 int main()
 {
+    // Match BaseLayout's exact prefix across this layout's roots only.
+    {InventoryLayout layout;MyGUI::Widget wrongRoot,rightRoot,plain,wrong,nested,anchor;
+     layout.mPrefix="inventory_";plain.name="ArrangeButton";wrong.name="other_ArrangeButton";anchor.name="inventory_ArrangeButton";
+     wrongRoot.children.push_back(&plain);wrongRoot.children.push_back(&wrong);rightRoot.children.push_back(&nested);nested.children.push_back(&anchor);
+     layout.mListWindowRoot.push_back(NULL);layout.mListWindowRoot.push_back(&wrongRoot);layout.mListWindowRoot.push_back(&rightRoot);
+     CHECK(FindOptionalArrangeButton(NULL)==NULL);CHECK(FindOptionalArrangeButton(&layout)==&anchor);
+     layout.mListWindowRoot.pop_back();CHECK(FindOptionalArrangeButton(&layout)==NULL);
+     layout.mPrefix.clear();CHECK(FindOptionalArrangeButton(&layout)==&plain);
+     layout.mListWindowRoot.clear();CHECK(FindOptionalArrangeButton(&layout)==NULL);}
+    // A vanilla crafting/building layout has no ArrangeButton. Closing it is
+    // an optional lookup, not a missing-required-widget warning.
+    {InventoryGUI building;InventoryLayout layout;MyGUI::Widget root;
+     layout.mPrefix="craft_";layout.mListWindowRoot.push_back(&root);building.layoutMgr=&layout;
+     const int warnings=MyGUI::missingLookupWarnings;const size_t children=root.children.size();
+     StackSortUI::OnClose(&building);CHECK(MyGUI::missingLookupWarnings==warnings);CHECK(root.children.size()==children);}
+    // An absent owner anchor must not prevent cleanup of its live backpack,
+    // even after the slot was forgotten by a world reset.
+    {Fixture f(390,271);InventoryGUI owner;InventoryLayout ownerLayout;MyGUI::Widget ownerRoot;
+     ownerLayout.mPrefix="building_";ownerLayout.mListWindowRoot.push_back(&ownerRoot);owner.layoutMgr=&ownerLayout;owner.childInventory=&f.inventory;
+     StackSortUI::InitializeUI(&f.inventory,&f.arrange,&owner);ResetSlot(s_uiStates[0]);
+     const int warnings=MyGUI::missingLookupWarnings;StackSortUI::OnClose(&owner);
+     CHECK(MyGUI::missingLookupWarnings==warnings);CHECK(f.keo.coord.left==271&&f.parent.children.size()==2&&f.arrange.visible);}
     const int localePixels[]={136,89,85}; // measured RU/EN/ZH [126], see check_caption.py
     for(int lang=0;lang<3;++lang)for(int selected=0;selected<2;++selected){Fixture f(390,271);InventoryGUI owner;owner.childInventory=&f.inventory;
      MyGUI::fullCaptionPixels=localePixels[lang];

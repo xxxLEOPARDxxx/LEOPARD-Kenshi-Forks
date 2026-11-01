@@ -25,8 +25,8 @@ class StackSortUI
     // gui vouches for (its own, and its current backpack's), drops a backpack
     // slot whose child GUI is gone or replaced, reclaims slots whose GUI
     // stopped updating, then attempts UI init via
-    // childInventory->layoutMgr->getWidget("ArrangeButton") or
-    // gui->layoutMgr->getWidget("ArrangeButton") for containers.
+    // the optional ArrangeButton in childInventory->layoutMgr or, for
+    // containers, gui->layoutMgr (quietly skip layouts without that button).
     // A slot's gui/ownerGUI is dereferenced only from that GUI's own update
     // (or its owner's, for a backpack) or a click on its own buttons.
     // Main thread only. Exception barrier.

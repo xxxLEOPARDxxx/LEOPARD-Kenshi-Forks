@@ -65,6 +65,11 @@ StackSort installation with this fork; run one StackSort DLL. Place
 `locale/<language>/LC_MESSAGES/stack_sort.mo` under `mods/StackSort`.
 Distribute MO catalogs only; PO files are translation sources.
 
+Crafting/building windows that have no native Arrange button are skipped
+silently. This works with vanilla and replacement UI layouts; no artificial
+button is added. Closing other windows still restores StackSort controls and
+the leased KEO backpack checkbox, including cleanup after a forgotten slot.
+
 ## Settings
 
 MCM exposes Enable Stack Sort, Merge split stacks, starting H/W direction,
@@ -84,6 +89,13 @@ Build with the VC10 x64 stand and **STACKSORT_ENABLE_ROTATION**. Run
 `tests/build_tests.ps1` for the native-free C++ tests. Compile runtime catalogs
 with bundled Python `tests/compile_locales.py --output <build-folder>`.
 No modern C++ standard-library objects cross the game ABI.
+
+Optional Arrange-button lookup follows the SDK BaseLayout prefix and root
+list, calling MyGUI's nullable `Widget::findWidget` rather than the warning
+emitting `InventoryLayout::getWidget`/`assignWidget` path. It searches only
+the current live layout, retains no widget pointers and adds no world scan
+or cache. The production UI tests cover an absent building anchor, exact
+prefixes/multiple roots and orphan backpack/KEO restoration.
 
 Worker code sees copied packer values and opaque cache keys. Native inventory,
 item, MyGUI and Ogre reads happen on the game thread. Publishing takes the
@@ -192,6 +204,12 @@ KenshiRotate (Rotate Items) необязателен и разрешает но�
 В `mods/StackSort` нужны StackSort.dll, стандартный INI, CFG, маркер мода и
 MO-каталоги трёх языков. PO остаются в исходниках.
 
+Окна производства и построек без штатной кнопки сортировки пропускаются
+без предупреждения. Это работает с ванильным и заменённым интерфейсом;
+искусственная кнопка не создаётся. При закрытии других окон сохраняется
+восстановление кнопок StackSort и временно перемещённой галочки рюкзака KEO,
+включая очистку после потери записи окна при смене мира.
+
 ## Настройки и справочник
 
 MCM: включение, объединение стопок, начальное В/Ш, число вариантов, фоновые
@@ -201,6 +219,13 @@ MCM: включение, объединение стопок, начальное
 выключен; ошибки записываются всегда. В StackSort.cfg остались дополнительные
 настройки поиска и расположения кнопок. INI имеет приоритет для настроек MCM.
 Без MCM можно редактировать те же INI/CFG.
+
+Необязательная кнопка ищется через `Widget::findWidget` с точным префиксом
+и списком корней текущего живого layout из SDK BaseLayout. В отличие от
+`InventoryLayout::getWidget`/`assignWidget`, отсутствие виджета не пишет
+предупреждение. Поиск не сохраняет указатели, не добавляет кэш и не обходит
+мир. Production-тесты проверяют отсутствие кнопки в окне постройки,
+префиксы и несколько корней, а также очистку забытого окна рюкзака и KEO.
 
 Фон работает только с копиями чисел и данных решателя. Предметы, инвентари и
 интерфейс читаются в игровом потоке. Поколения кэша и отмена не дают применить
