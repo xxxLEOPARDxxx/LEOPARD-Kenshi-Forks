@@ -1,4 +1,5 @@
 #include "vs_marker_render.h"
+#include "TexturePreflight.h"
 
 #include "vs_log.h"
 
@@ -276,6 +277,9 @@ bool SetKoMarkerIconTexture(RuntimeStateView& state, const char* pluginName, MyG
         return false;
     }
 
+    if (!MyGUI::DataManager::getInstancePtr()) return false;
+    static vital_texture::PreflightCache preflight;
+
     if (gMarkerDiagnosticsEnabled)
     {
         ++gMarkerDiagTextureApplyCalls;
@@ -369,6 +373,7 @@ bool SetKoMarkerIconTexture(RuntimeStateView& state, const char* pluginName, MyG
     for (size_t i = 0; i < textureCandidates.size(); ++i)
     {
         const std::string& candidate = textureCandidates[i];
+        if (!preflight.Exists(candidate)) continue;
         bool applied = false;
         try
         {
@@ -429,8 +434,14 @@ bool SetKoMarkerIconTexture(RuntimeStateView& state, const char* pluginName, MyG
         }
     }
 
+    LogIconTextureOnce(state, pluginName, state.iconTextureWarnLogs, "icon texture unavailable", texture, true);
     try
     {
+        if (!preflight.Exists(fallbackTexture))
+        {
+            LogIconTextureOnce(state, pluginName, state.iconTextureWarnLogs, "icon fallback texture unavailable", fallbackTexture, true);
+            return false;
+        }
         marker->setImageTexture(fallbackTexture);
         LogIconTextureOnce(state, pluginName, state.iconTextureWarnLogs, "icon texture fallback engaged", texture, true);
     }

@@ -123,3 +123,17 @@ It uses KenshiLib, which is released under GPLv3.
 Localization diagnostics / Журнал локализации (2026-11-01)
 Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
 Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.
+
+### Icon resource lookup / Поиск картинок значков
+
+An empty per-state icon path selects the built-in `Kenshi_UI.png` atlas image; it does not disable icons or force text-only mode. The defaults intentionally leave `unconscious_icon_texture` and `playing_dead_icon_texture` empty. Icons and labels are controlled separately by `show_icons` and `show_text`.
+
+Пустой путь картинки состояния означает штатный значок из атласа `Kenshi_UI.png`, а не выключение значка или переход только к тексту. Значения `unconscious_icon_texture` и `playing_dead_icon_texture` по умолчанию намеренно пусты. Значки и подписи включаются отдельно настройками `show_icons` и `show_text`.
+
+Custom paths retain their existing priority, including relative, mod-qualified and absolute paths supported by MyGUI. Before trying an alias, the loader checks it through MyGUI's DataManager. Kenshi registers the mod's `gui/gfx` as a GUI resource root, so `gui/gfx/heart_64px.png` can resolve as `heart_64px.png`. Missing intermediate aliases no longer produce misleading texture errors. Complete lookup failure and decoding errors remain visible, with the existing atlas fallback preserved.
+
+Пользовательские пути проверяются в прежнем порядке, включая относительные, полные и начинающиеся с `mods/` пути, поддерживаемые MyGUI. Каждый вариант сначала проверяется через DataManager. Игра регистрирует `gui/gfx` мода как корень ресурсов GUI: `gui/gfx/heart_64px.png` может успешно загрузиться как `heart_64px.png`. Промежуточные отсутствующие варианты больше не создают ложное впечатление пропавших значков. Полное отсутствие картинки и ошибки её формата остаются видимыми; сохраняется прежний запасной значок из атласа.
+
+The preflight uses a bounded 256-name FIFO cache and resets for a different DataManager. Already registered textures, including manual/runtime textures, remain usable without a file. Existing visual-state caches remain unchanged; no new per-frame filesystem polling or world scans are introduced. Installing/replacing assets requires restarting the game. Regression command from the forks repository: `python Vital-Read/tests/test_texture_preflight.py` (both plugins' actual loaders and preflight helper).
+
+Проверки существования используют ограниченный FIFO-кэш на 256 имён со сбросом при смене DataManager. Уже зарегистрированные текстуры, в том числе созданные в памяти, работают и без файла. Прежний кэш состояния значков сохраняется; новых покадровых опросов файловой системы или обходов мира нет. Установка или замена картинок применяется после перезапуска игры.

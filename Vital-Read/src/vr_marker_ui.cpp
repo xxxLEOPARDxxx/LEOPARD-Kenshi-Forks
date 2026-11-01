@@ -1,4 +1,7 @@
 #include "vr_marker_ui.h"
+#include "TexturePreflight.h"
+
+#include <Debug.h>
 
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_Gui.h>
@@ -306,6 +309,9 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
         return false;
     }
 
+    if (!MyGUI::DataManager::getInstancePtr()) return false;
+    static vital_texture::PreflightCache preflight;
+
     const char* fallbackTexture = "default_icon.png";
     std::vector<std::string> candidates;
 
@@ -391,6 +397,7 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
 
     for (size_t index = 0u; index < candidates.size(); ++index)
     {
+        if (!preflight.Exists(candidates[index])) continue;
         try
         {
             ++g_overlayPerfStats.imageTextureCandidateAttempts;
@@ -411,6 +418,12 @@ bool EnsureTextureApplied(MyGUI::ImageBox* imageBox, const char* pluginName, con
         catch (...)
         {
         }
+    }
+
+    if (preflight.ReportMissingOnce(textureName))
+    {
+        const std::string message = std::string(pluginName) + ": icon texture unavailable: " + textureName;
+        ErrorLog(message.c_str());
     }
 
     if (textureName != fallbackTexture)
