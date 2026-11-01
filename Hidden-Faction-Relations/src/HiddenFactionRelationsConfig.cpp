@@ -1,3 +1,4 @@
+#include <LocalizationLog.h>
 #include "HiddenFactionRelationsConfig.h"
 
 #include <algorithm>
@@ -164,6 +165,7 @@ void HiddenFactionRelationsConfig_SetConfigPath(const std::string& configPath)
 
 bool HiddenFactionRelationsConfig_Load(std::string* outError)
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogging);
     g_config = HiddenFactionRelationsConfigSnapshot();
 
     if (g_configPath.empty())
@@ -253,6 +255,7 @@ bool HiddenFactionRelationsConfig_Save(
     }
 
     g_config = normalized;
+    KLocLog::SetEnabled(g_config.debugLogging);
     if (outError != 0)
     {
         outError->clear();

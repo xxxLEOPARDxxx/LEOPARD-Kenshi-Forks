@@ -1264,3 +1264,9 @@ msgstr "Size of the whole Job Manager window: text, buttons and cards. 100 - fit
 
 msgid "Which station categories the Stations tab shows.\nChanges are saved and apply immediately."
 msgstr "Which station categories the Stations tab shows.\nChanges are saved and apply immediately."
+
+msgid "Detailed log"
+msgstr "Detailed log"
+
+msgid "Write diagnostic details to RE_Kenshi_log.txt. Errors are always logged."
+msgstr "Write diagnostic details to RE_Kenshi_log.txt. Errors are always logged."

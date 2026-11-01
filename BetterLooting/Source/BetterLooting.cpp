@@ -1,3 +1,4 @@
+#include <LocalizationLog.h>
 #define BOOST_ALL_NO_LIB
 #define BOOST_SYSTEM_NO_LIB
 #define BOOST_ERROR_CODE_HEADER_ONLY
@@ -4180,6 +4181,7 @@ static bool LoadBetterLootingRules()
             0,
             configPath.c_str()
         ) != 0;
+    KLocLog::SetEnabled(g_betterLootingDebugLog);
 
 
     g_betterLootingRules.ignorePlayerStorage =

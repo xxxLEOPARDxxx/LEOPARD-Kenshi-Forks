@@ -17,6 +17,7 @@ void LoadLive()
     g_merge = PluginSettings::Bool("StackSort", "ConsolidateStacks", true, path);
     g_solutions = (int)PluginSettings::Number("StackSort", "Solutions", (float)g_solutions, 1, 5, path);
     SetLogLevel(PluginSettings::Bool("StackSort", "Debug", false, path) ? LOG_LEVEL_VERBOSE : LOG_LEVEL_ERROR);
+    KLocLog::SetEnabled(PluginSettings::Bool("StackSort", "Debug", false, path));
 }
 }
 void StackSortMcm::LoadStartup(StackSortSettings& cfg)

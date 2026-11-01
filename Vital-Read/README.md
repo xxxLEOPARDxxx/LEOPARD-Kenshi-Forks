@@ -167,3 +167,8 @@ It uses KenshiLib, which is released under GPLv3.
 - Ремонт скелета (16.10.2026): скелет, который лежит на кровати-ремонтнике (`Character::inSomething == IN_BED`, у постройки `inWhat` назначение `BF_SKELETON_BED`), получает значок ключа (`gui/gfx/repair-wrench_64.png`, настройки `repairingIcon*` в mod-config.json), в текстовом режиме - «RP». По приоритету - сразу после «мёртв», раньше «без сознания».
 - В кровати (16.10.2026): любой, кто лежит в обычной кровати (`BF_BED`), получает красный плюс (`gui/gfx/bed-plus_64.png`, настройки `inBedIcon*`), в текстовом режиме - «BD». Сразу после ремонта скелета (ремкровать - `BF_SKELETON_BED`, ключ), раньше «без сознания».
 - Плюс у кровати (16.10.2026) - тем же голубым, что и ключ ремонта: один цвет = «лечится».
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

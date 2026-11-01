@@ -1,3 +1,4 @@
+#include <LocalizationLog.h>
 #include <IniDefaults.h>   // LEOPARD: mod-config.json from mod-config.defaults.json
 #include "InventoryConfig.h"
 
@@ -461,6 +462,7 @@ bool SaveInventoryConfigSnapshot(const InventoryConfigSnapshot& config)
 
 void LoadInventoryConfig()
 {
+    KLocLog::FollowConfiguration localeLog(InventoryState().g_debugLogging);
     ApplyInventoryConfigSnapshot(InventoryConfigSnapshot());
 
     std::string configPath;

@@ -2811,6 +2811,7 @@ bool IsHighlightGateOpen(const PluginConfig& config)
 
 void LoadConfigState()
 {
+    KLocLog::FollowConfiguration localeLog(g_state.config.debugLogging);
     g_state.config = MakeDefaultConfig();
 
     if (g_state.settingsPath.empty())
@@ -3207,6 +3208,7 @@ EMC_Result HubGetBoolSetting(void* user_data, bool value, int32_t* out_value)
 
 EMC_Result HubSetBoolSetting(void* user_data, int32_t value, bool* target, char* err_buf, uint32_t err_buf_size)
 {
+    KLocLog::FollowConfiguration localeLog(g_state.config.debugLogging);
     if (!IsHubUserDataValid(user_data) || target == 0)
     {
         WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");

@@ -116,3 +116,8 @@ It uses KenshiLib, which is released under GPLv3.
 ## Изменения форка (15.10.2026)
 - «Добить» / «Добить всех» - пункты самого контекстного меню игры, по рецепту HarvestOrgans: сразу после `showContextMenu` слот PanelEmpty в optionsList и в нём Kenshi_Button1 с размерами пунктов игры (ContextMenuGUI +0x100 / +0x110), растёт только окно меню. Плашка под меню - только запасной вариант.
 - `mod-config.json` при первом запуске создаётся копией `mod-config.defaults.json` (`IniDefaults::PrepareJson`) - больше нет «could not read mod-config.json» в журнале на чистой установке.
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

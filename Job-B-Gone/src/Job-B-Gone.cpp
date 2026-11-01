@@ -760,6 +760,7 @@ static void TickPanelVisibilityToggleHotkey(bool allowToggle, const char* blocke
 
 static void LoadConfigState()
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogTransitions);
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
     g_config.debugLogTransitions = false;

@@ -1,3 +1,4 @@
+#include <LocalizationLog.h>
 #include "vs_config.h"
 
 #include "vs_keybind.h"
@@ -315,6 +316,7 @@ bool SaveConfigToFile(const std::string& configPath, const PluginConfig& config)
 
 bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
 {
+    KLocLog::FollowConfiguration localeLog(state.config.debugLogDiagnostics);
     ApplyDefaultConfig(state.config);
 
     if (state.settingsPath.empty())

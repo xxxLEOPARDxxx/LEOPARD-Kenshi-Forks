@@ -101,3 +101,8 @@ Original / оригинал: **Rokeshi**, according to installed mod metadata / 
 [ORIGIN.md](ORIGIN.md) records that **no explicit license was present locally**. Permission from the original author for a public modified redistribution is **not confirmed**. Source availability and a locally built archive do not establish an upstream license. No GPL license is asserted for this fork. / В ORIGIN.md зафиксировано, что **явной лицензии локально не было**. Разрешение оригинального автора на публичное распространение изменённой версии **не подтверждено**. Наличие исходника и локального архива не устанавливает лицензию оригинала. Лицензия GPL этому форку не приписывается.
 
 Native foundation / основа: RE_Kenshi/KenshiLib. Localization / локализация: Asur's shared `Localization.h`. Build on the development stand / сборка на стенде: `build.ps1 -SrcDir <this directory> -Name KillCounter`. No isolated performance improvement or absence of long-session leaks is claimed. / Изолированный прирост производительности и отсутствие длительных утечек не заявляются.
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

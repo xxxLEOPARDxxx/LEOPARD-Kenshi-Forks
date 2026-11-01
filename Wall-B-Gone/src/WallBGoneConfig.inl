@@ -640,6 +640,7 @@ static bool SaveConfigToFile(
 
 static void LoadConfigState()
 {
+    KLocLog::FollowConfiguration localeLog(g_debugLogging);
     g_modEnabled = true;
     g_sleepingBagDismantleEnabled = true;
     g_dismantleAnyOwnBuilding = false;

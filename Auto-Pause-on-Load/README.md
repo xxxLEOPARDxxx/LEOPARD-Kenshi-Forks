@@ -89,3 +89,8 @@ It uses KenshiLib, which is released under GPLv3.
 - `mod-config.json` при первом запуске создаётся копией `mod-config.defaults.json` (`IniDefaults::PrepareJson`) - больше нет «could not read mod-config.json» в журнале на чистой установке.
 - Интервал паузы при нападении на отряд настраивается: `squad_attack_cooldown_s` (0-300 с, по умолчанию 30), ползунок в MCM; 0 - на каждый удар.
 - Пауза после переноса сохранения стабильнее (16.10.2026): ждём, пока кадры идут ровно (без провала больше 0,25 с) 2 с подряд; пауза ставится, даже если уже стоит, и 3 с удерживается - если игра сняла её сама, ставим снова (до трёх раз); если за это время игрок нажал клавишу или кнопку мыши - паузу снял он, удержание прекращается (движение мыши не в счёт). Строка `paused_after_load=true source=save_import` пишется в журнал всегда.
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

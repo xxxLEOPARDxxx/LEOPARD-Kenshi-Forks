@@ -36,6 +36,7 @@ static EMC_Result ApplyHubConfigUpdate(
     uint32_t err_buf_size,
     UpdateFn update)
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogTransitions);
     PluginConfig* config = static_cast<PluginConfig*>(user_data);
     if (!config || config != &g_config)
     {

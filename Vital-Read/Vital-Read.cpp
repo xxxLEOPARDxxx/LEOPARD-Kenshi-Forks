@@ -624,6 +624,7 @@ bool TryResolveModConfigPath(std::string* outPath)
 
 void LoadLoggingConfig()
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogging);
     g_config = vr_config::PluginConfig();
 
     std::string configPath;

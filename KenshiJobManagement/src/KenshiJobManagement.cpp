@@ -761,4 +761,5 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->hotkey(api, "General", "Hotkey", Tr("Open key"), Tr("Opens and closes the Job Manager. NONE (Backspace when assigning) - only the button on the panel."), "CTRL+J", 0);
     api->toggle(api, "General", "HudButton", Tr("Button on the panel"), Tr("The JM button next to the game's Jobs button on the bottom panel."), 1, 0);
     api->integer(api, "General", "UiScale", Tr("Interface size, %"), Tr("Size of the whole Job Manager window: text, buttons and cards. 100 - fitted to the screen height; applies the next time the window opens."), 100, 70, 200, 0);
+    api->toggle(api, "General", "Debug", Tr("Detailed log"), Tr("Write diagnostic details to RE_Kenshi_log.txt. Errors are always logged."), 0, 0);
 }

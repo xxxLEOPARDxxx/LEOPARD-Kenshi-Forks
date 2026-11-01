@@ -482,6 +482,7 @@ void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot)
     g_closeEditorOnMapClose = snapshot.closeEditorOnMapClose;
     g_showHoverLabels = snapshot.showHoverLabels;
     g_probeLive = snapshot.debugLogging;
+    KLocLog::SetEnabled(g_probeLive);
     g_markerEditorPositionCustomized = snapshot.editorPositionCustomized;
     g_markerEditorCustomLeft = snapshot.editorLeft;
     g_markerEditorCustomTop = snapshot.editorTop;
@@ -4195,6 +4196,7 @@ void InputHandler_keyDownEvent_hook(InputHandler* thisptr, OIS::KeyCode keyCode)
     if (modifiersPressed && keyCode == kProbeLiveHotkey)
     {
         g_probeLive = !g_probeLive;
+    KLocLog::SetEnabled(g_probeLive);
 
         {
             ScopedProbeLogging scopedProbeLogging;

@@ -99,6 +99,7 @@ EMC_Result SetHubBoolSetting(
 
     ApplyRuntimeSearchUiConfig();
     WriteHubErrorText(err_buf, err_buf_size, 0);
+    KLocLog::SetEnabled(CaptureTraderConfigSnapshot().debugLogging);
     return EMC_OK;
 }
 

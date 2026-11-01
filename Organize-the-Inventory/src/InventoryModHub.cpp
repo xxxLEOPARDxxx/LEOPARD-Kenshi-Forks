@@ -99,6 +99,7 @@ EMC_Result SetHubBoolSetting(
     }
 
     WriteHubErrorText(err_buf, err_buf_size, 0);
+    KLocLog::SetEnabled(CaptureInventoryConfigSnapshot().debugLogging);
     return EMC_OK;
 }
 

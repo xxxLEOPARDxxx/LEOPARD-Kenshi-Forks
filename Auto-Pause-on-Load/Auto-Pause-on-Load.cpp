@@ -1141,6 +1141,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
 
 static void LoadConfigState()
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogTransitions);
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
     g_config.pauseDebounceMs = 2000;

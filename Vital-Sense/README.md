@@ -118,3 +118,8 @@ It uses KenshiLib, which is released under GPLv3.
 
 ## Изменения форка (22.10.2026)
 - Портреты больше не окрашиваются: оглушённый под зажатой клавишей попадал в портрет окрашенным. Портрет игра рисует сразу внутри RenderToTextureotron::renderCharacter, копируя материалы модели, а своих и животных Vital-Sense красит клонами материалов. Теперь на время отрисовки портрета окраска с персонажа снимается и сразу возвращается (как у Character Highlight).
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

@@ -1,3 +1,4 @@
+#include <LocalizationLog.h>
 #include <IniDefaults.h>   // LEOPARD: mod-config.json from mod-config.defaults.json
 #include "TraderCore.h"
 
@@ -561,6 +562,7 @@ bool SaveTraderConfigSnapshot(const TraderConfigSnapshot& config)
 
 void LoadModConfig()
 {
+    KLocLog::FollowConfiguration localeLog(TraderState().core.g_debugLogging);
     ApplyTraderConfigSnapshot(TraderConfigSnapshot());
 
     std::string configPath;

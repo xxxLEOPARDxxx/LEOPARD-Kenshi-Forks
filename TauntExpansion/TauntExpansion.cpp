@@ -132,6 +132,7 @@ namespace
         if (g_activeDepth) { g_pendingConfig=next; g_configPending=true; }
         else { g_config=next; g_observations.Clear(); }
         LeaveCriticalSection(&g_transaction.lock);
+        KLocLog::SetEnabled(next.debug);
         if (next.debug) DebugLog("[TauntExpansion] Settings loaded; detailed diagnostics enabled.");
     }
 

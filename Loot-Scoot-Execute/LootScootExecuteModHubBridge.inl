@@ -88,6 +88,7 @@ static EMC_Result HubSetBoolConfigValue(
     char* err_buf,
     uint32_t err_buf_size)
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugExecuteLogging);
     if (!IsHubStateValid(user_data) || destination == 0)
     {
         WriteHubErrorText(err_buf, err_buf_size, "missing_user_data");

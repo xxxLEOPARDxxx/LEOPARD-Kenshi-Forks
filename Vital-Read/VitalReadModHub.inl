@@ -116,6 +116,7 @@ EMC_Result __cdecl GetHubBoolSetting(void* user_data, int32_t* out_value)
 
 EMC_Result __cdecl SetHubBoolSetting(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogging);
     if (user_data == 0)
     {
         emc::consumer::WriteErrorMessage(err_buf, err_buf_size, "invalid_setting");

@@ -1264,3 +1264,9 @@ msgstr "Размер всего окна работ: текст, кнопки и
 
 msgid "Which station categories the Stations tab shows.\nChanges are saved and apply immediately."
 msgstr "Какие категории станций показывает вкладка \"Станции\".\nИзменения сохраняются и применяются сразу."
+
+msgid "Detailed log"
+msgstr "Подробный журнал"
+
+msgid "Write diagnostic details to RE_Kenshi_log.txt. Errors are always logged."
+msgstr "Записывать диагностические сведения в RE_Kenshi_log.txt. Ошибки записываются всегда."

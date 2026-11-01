@@ -143,6 +143,7 @@ namespace
         g_showDiplomats = GetPrivateProfileIntA(kSec, "ShowDiplomats", 1, ini.c_str()) != 0;
         g_diplomatColour = ReadColour(ini, "DiplomatColour", Ogre::ColourValue(0.627f, 0.251f, 1.0f, 1.0f));
         g_debug = GetPrivateProfileIntA(kSec, "Debug", 0, ini.c_str()) != 0;
+        KLocLog::SetEnabled(g_debug);
         ForgetColours();                // new colours - re-evaluate everyone
     }
 

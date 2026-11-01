@@ -757,6 +757,7 @@ EMC_Result ApplyHubConfigUpdate(const PluginConfig& updated, char* err_buf, uint
 {
     RuntimeStateView state = vs_runtime_state::GetRuntimeStateView();
     const PluginConfig previous = state.config;
+    KLocLog::FollowConfiguration localeLog(state.config.debugLogDiagnostics);
     state.config = updated;
 
     if (!vs_config::SaveConfigState(state, kPluginName))

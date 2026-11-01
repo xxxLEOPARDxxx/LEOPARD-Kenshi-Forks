@@ -1264,3 +1264,9 @@ msgstr "整个工作管理器窗口的大小：文字、按钮和卡片。100 - 
 
 msgid "Which station categories the Stations tab shows.\nChanges are saved and apply immediately."
 msgstr "\"工作站\"标签页显示哪些工作站类别。\n更改会保存并立即生效。"
+
+msgid "Detailed log"
+msgstr "详细日志"
+
+msgid "Write diagnostic details to RE_Kenshi_log.txt. Errors are always logged."
+msgstr "将诊断详情写入 RE_Kenshi_log.txt。错误始终记录。"

@@ -554,6 +554,7 @@ static std::string TrimAscii(const std::string& value)
 
 static void LoadConfigState()
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugExecuteLogging);
     g_configNeedsWriteBack = false;
     g_config.enabled = true;
     g_config.enableExecuteKillSound = true;

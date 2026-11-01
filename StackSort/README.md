@@ -303,3 +303,8 @@ snapshot observed bolts9/open8, repairkits6/open313.9576, medicalkits2/open953.0
 comparable prior observations have matching quantity/charge totals. These were
 separate observations across restarts, not an atomic transaction or save/load
 stress test. Detailed debug settings were restored to0 after capture.
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

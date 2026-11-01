@@ -145,3 +145,8 @@ This project is distributed under the GNU General Public License version 3. See 
 - По умолчанию раскладывается всё, что не надето (`DepositByRules=0`): у автора раскладка шла через правила сбора, и при выключенных категориях оружие и броня не раскладывались. `DepositByRules=1` - как у автора.
 - Итог раскладки пишется в журнал всегда: сколько вещей и в какое хранилище (имя, расстояние), сколько не нашли места, сколько сбоев переноса. Строка «STORE_ALL END fault=0» больше не идёт в журнал как ошибка.
 - Запрос раскладки живёт секунду: если за это время не обновилось окно инвентаря персонажа игрока (никого не выбрано, идёт сбор), он снимается с записью в журнал, а не срабатывает позже неожиданно.
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.

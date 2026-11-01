@@ -29,6 +29,7 @@ static EMC_Result HubGetBoolSetting(void* user_data, bool value, int32_t* out_va
 
 static EMC_Result HubSetBoolSetting(void* user_data, int32_t value, bool* target, char* err_buf, uint32_t err_buf_size)
 {
+    KLocLog::FollowConfiguration localeLog(g_debugLogging);
     if (!IsHubUserDataValid(user_data) || target == 0)
     {
         WriteRuntimeApiError(err_buf, err_buf_size, "missing_user_data");

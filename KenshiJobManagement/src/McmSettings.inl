@@ -260,6 +260,7 @@
     void LoadLeopardSettings()
     {
         const std::string ini = LeopardIniPath();
+        KLocLog::SetEnabled(!ini.empty() && GetPrivateProfileIntA("General", "Debug", 0, ini.c_str()) != 0);
         if (ini.empty())
         {
             return;

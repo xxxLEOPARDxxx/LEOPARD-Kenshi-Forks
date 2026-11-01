@@ -413,6 +413,7 @@ void InitializeSettingDefinitions()
 
 EMC_Result ApplyHubConfigUpdate(const PluginConfig& updated, char* err_buf, uint32_t err_buf_size)
 {
+    KLocLog::FollowConfiguration localeLog(g_config.debugLogTransitions);
     const PluginConfig previous = g_config;
     const bool previousCollapsed = g_jobBGonePanelCollapsed;
     const bool previousNeedsWriteBack = g_configNeedsWriteBack;

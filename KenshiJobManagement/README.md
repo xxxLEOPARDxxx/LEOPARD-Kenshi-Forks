@@ -83,3 +83,8 @@ This project is licensed under **GPL-3.0-only**.
 - v3: v1-v2 были собраны без флагов `KJM_GENERAL_JOB_TRANSFER_VERIFIED` и `KJM_JOB_BATCH_ACTIONS_VERIFIED` из vcxproj (наш build.ps1 -FromVcxproj не брал PreprocessorDefinitions) - перенос задач и групповые действия, включая добавление лечения, писали "отключено в текущей сборке". build.ps1 теперь берёт определения Release-конфигурации.
 
 - v4 (21.10.2026): пересобран с общим GameTheme от 15.10 - палитра мода на интерфейс ищется и в Мастерской Steam (раньше только Kenshi\mods, и с тёмным интерфейсом из Мастерской окно было ванильным: светлые карточки, тёмный текст).
+
+
+Localization diagnostics / Журнал локализации (2026-11-01)
+Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
+Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.
