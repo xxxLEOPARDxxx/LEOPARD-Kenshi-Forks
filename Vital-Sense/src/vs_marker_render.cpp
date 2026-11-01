@@ -838,6 +838,21 @@ MyGUI::IntCoord ResolveMarkerIconCoord(int markerState, int markerRelation)
     return MyGUI::IntCoord(45, 122, 32, 32);
 }
 
+MyGUI::Colour ResolveAtlasMarkerIconColour(int markerState, const MyGUI::Colour& relationColour)
+{
+    // Native kenshi_images.xml identifies (45,122,32,32) as the red
+    // pic_PointerKnockout. It is authored artwork, not a white tint mask:
+    // multiplying it by a green squad colour makes it nearly black.
+    // The invalid/stealth fallback glyphs are neutral masks and retain tint.
+    if (markerState == CachedKoTarget::STATE_DEAD
+        || markerState == CachedKoTarget::STATE_DYING
+        || markerState == CachedKoTarget::STATE_PLAYING_DEAD)
+    {
+        return relationColour;
+    }
+    return MyGUI::Colour(1.0f, 1.0f, 1.0f, 1.0f);
+}
+
 MyGUI::Colour ResolveMarkerColour(RuntimeStateView& state, int markerState, int markerRelation)
 {
     (void)markerState;
@@ -1046,6 +1061,7 @@ void ApplyKoMarkerVisualState(
     {
         if (state.config.showMarkerIcons)
         {
+            const MyGUI::Colour atlasColour = ResolveAtlasMarkerIconColour(markerState, colour);
             bool customIconReady = false;
             if (wantsCustomIcon && customTexture)
             {
@@ -1059,14 +1075,14 @@ void ApplyKoMarkerVisualState(
                 {
                     SetKoMarkerIconTexture(state, pluginName, marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
                     SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
-                    SetKoMarkerIconColour(marker.icon, colour);
+                    SetKoMarkerIconColour(marker.icon, atlasColour);
                 }
             }
             else
             {
                 SetKoMarkerIconTexture(state, pluginName, marker.icon, ResolveMarkerIconTexture(markerState, markerRelation));
                 SetKoMarkerIconCoord(marker.icon, ResolveMarkerIconCoord(markerState, markerRelation));
-                SetKoMarkerIconColour(marker.icon, colour);
+                SetKoMarkerIconColour(marker.icon, atlasColour);
             }
         }
     }

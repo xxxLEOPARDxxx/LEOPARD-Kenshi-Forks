@@ -130,6 +130,10 @@ An empty per-state icon path selects the built-in `Kenshi_UI.png` atlas image; i
 
 Пустой путь картинки состояния означает штатный значок из атласа `Kenshi_UI.png`, а не выключение значка или переход только к тексту. Значения `unconscious_icon_texture` и `playing_dead_icon_texture` по умолчанию намеренно пусты. Значки и подписи включаются отдельно настройками `show_icons` и `show_text`.
 
+The unconscious/recovery fallback is the game's red Knockout pointer glyph (`pic_PointerKnockout`). It keeps its original colours: multiplying red artwork by a green squad colour made it nearly black. Neutral atlas masks retain relationship tint, as do the status labels; custom pictures keep their own colours. This also applies when a missing custom unconscious/recovery picture falls back to the atlas.
+
+Запасной значок потери сознания/восстановительной комы — красный игровой указатель оглушения (`pic_PointerKnockout`). Он сохраняет исходные цвета: наложение зелёного цвета отряда делало красную картинку почти чёрной. Нейтральные маски атласа и текст состояния сохраняют цвет отношений, пользовательские картинки — собственные цвета. Правило действует и при возврате к атласу после отсутствующей пользовательской картинки этих состояний.
+
 Custom paths retain their existing priority, including relative, mod-qualified and absolute paths supported by MyGUI. Before trying an alias, the loader checks it through MyGUI's DataManager. Kenshi registers the mod's `gui/gfx` as a GUI resource root, so `gui/gfx/heart_64px.png` can resolve as `heart_64px.png`. Missing intermediate aliases no longer produce misleading texture errors. Complete lookup failure and decoding errors remain visible, with the existing atlas fallback preserved.
 
 Пользовательские пути проверяются в прежнем порядке, включая относительные, полные и начинающиеся с `mods/` пути, поддерживаемые MyGUI. Каждый вариант сначала проверяется через DataManager. Игра регистрирует `gui/gfx` мода как корень ресурсов GUI: `gui/gfx/heart_64px.png` может успешно загрузиться как `heart_64px.png`. Промежуточные отсутствующие варианты больше не создают ложное впечатление пропавших значков. Полное отсутствие картинки и ошибки её формата остаются видимыми; сохраняется прежний запасной значок из атласа.
@@ -142,6 +146,7 @@ The preflight uses a bounded 256-name FIFO cache and resets for a different Data
 
 English
 
+- Readable unconscious icons. The game's coloured Knockout glyph keeps its original colours instead of turning almost black beside green squad labels. Custom pictures and neutral icon masks retain their existing behaviour.
 - Optional icon compatibility. Optional custom textures are checked before loading, avoiding misleading missing-texture messages. Settings explain the standard-icon fallback.
 - Optional language diagnostics. Language and translation-catalogue summaries follow this plugin's Detailed log setting, which is off by default.
 - Useful errors remain visible. Translation loading and format errors are still reported with Detailed log disabled. Enabling the setting after loading reports the saved summary once without reloading translations.
@@ -149,6 +154,7 @@ English
 
 Русский
 
+- Читаемые значки потери сознания. Цветной игровой значок оглушения сохраняет исходные цвета и больше не становится почти чёрным рядом с зелёной подписью отряда. Пользовательские картинки и нейтральные маски значков работают по-прежнему.
 - Совместимость необязательных значков. Пользовательские текстуры проверяются до загрузки, без ложных сообщений об отсутствующих файлах. Подсказки настроек поясняют использование штатных значков.
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
