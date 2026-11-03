@@ -1,0 +1,9 @@
+lifecycle-Od.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+FAIL import selected A retains A bookmarks while active world was B
+Traceback (most recent call last):
+  File "D:\DEV\Kenshi\forks\LEOPARD-Kenshi-Forks\Map-markers\tests\test_save_import.py", line 146, in <module>
+    assert result.returncode == 0
+           ^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

@@ -1,0 +1,21 @@
+lifecycle-Od.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+PASS 88 actual bookmark import/save lifecycle checks
+lifecycle-O2.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+PASS 88 actual bookmark import/save lifecycle checks
+mutant-wrong-source.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+FAIL import selected A retains A bookmarks while active world was B
+mutant-failed-import.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+FAIL nested new game plus retry cannot leak staged A
+mutant-unregistered.cpp
+MapMarkersPersistence.cpp
+Generating Code...
+FAIL first save after import copies registered bookmark data
+PASS three compiled import ownership negative controls

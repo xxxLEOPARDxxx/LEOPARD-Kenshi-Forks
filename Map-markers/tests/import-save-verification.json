@@ -1,0 +1,78 @@
+{
+  "format": "MAP_MARKERS_IMPORT_SAVE_REVIEW",
+  "version": 1,
+  "utc": "2026-11-03T20:55:47.669933+00:00",
+  "baseCommit": "440bc16fd0d412bad7cb5e3c7e1283d6321d413a",
+  "productionScope": [
+    "Map-markers/Map-markers.cpp"
+  ],
+  "hostChecksPerOptimization": 88,
+  "optimizations": [
+    "Od",
+    "O2"
+  ],
+  "compiledMutantsKilled": 3,
+  "nativeBuild": "six TUs VC10/GL/LTCG PASS",
+  "kenshiLibImports": 25,
+  "dll": {
+    "path": "D:\\DEV\\Kenshi\\build\\Map-markers\\Map-markers.dll",
+    "bytes": 238592,
+    "sha256": "53f6393da98cb7de18440d16f149d2fec672bbc7da6d5931777bfc1f5c2a2172"
+  },
+  "installed": false,
+  "published": false,
+  "nativeCallerContract": "PASS native reset/index ownership, controlled no-nested-save path, UI/render callers and canonical singleton; final independent review CLEAR",
+  "files": [
+    {
+      "path": "Map-markers/Map-markers.cpp",
+      "bytes": 142772,
+      "sha256": "642203aacfc2292d1da0cb3fc788c991c225a49a9fc2dab2d052f04ed9f05874"
+    },
+    {
+      "path": "Map-markers/src/MapMarkersPersistence.cpp",
+      "bytes": 5410,
+      "sha256": "9a493fd97591dba3ac36daac101e3c3e7a6df99383378c69db60b0eac6015738"
+    },
+    {
+      "path": "Map-markers/src/MapMarkersData.cpp",
+      "bytes": 24162,
+      "sha256": "d5740819350bb9cdaa6d5ee2ce0b8c0f8eaf59a793a0b36888cb80c91592696a"
+    },
+    {
+      "path": "Map-markers/tests/test_save_import.py",
+      "bytes": 13198,
+      "sha256": "9bf56abfad849a2c00e55245b7be56716fef085c37e88b5e089406e073c009f8"
+    },
+    {
+      "path": "Map-markers/tests/import-save-review.md",
+      "bytes": 8776,
+      "sha256": "5acd2ba61504985b2febc962fbd7e3d7150c216fcb7645f48f3fc2645004b5dc"
+    },
+    {
+      "path": "Map-markers/tests/native-evidence/save-import-red.txt",
+      "bytes": 368,
+      "sha256": "ecae6c8f9acd59f18fab49b55db3cb730769bdb01ad03f075f8f01383ad82ead"
+    },
+    {
+      "path": "Map-markers/tests/native-evidence/save-import-final.txt",
+      "bytes": 696,
+      "sha256": "0244e8b076c58ac734eb18d04769e7241106572741ba63b19a3ac0c60a4ea257"
+    },
+    {
+      "path": "Map-markers/tests/audit_native_import.py",
+      "bytes": 14971,
+      "sha256": "0d6cbc809eb469949fb871c709f8fa5473d66b1103164fff76fa62fa882b03d0"
+    },
+    {
+      "path": "Map-markers/tests/native-evidence/native-contract.json",
+      "bytes": 220332,
+      "sha256": "efa9564dfb3cd3867042a5716ad8d99909f0eb050274e1c455edb10c3a12826b"
+    }
+  ],
+  "utcNativeVerified": "2026-11-03T21:30:45.161441+00:00",
+  "nativeReportSha256": "efa9564dfb3cd3867042a5716ad8d99909f0eb050274e1c455edb10c3a12826b",
+  "nativeAuditScriptSha256": "0d6cbc809eb469949fb871c709f8fa5473d66b1103164fff76fa62fa882b03d0",
+  "gameplayImportAcceptance": "not yet performed; source/native/file-host verification only",
+  "independentReview": "fine_job_finish: source, 88 controls per optimization and three mutants, renewed native chain review CLEAR",
+  "preparedRelease": "5; not installed or published"
+}

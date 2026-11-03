@@ -1,0 +1,40 @@
+Read-only audit PID 9388: 23528690 executable bytes, 16 methods
+manager-import refs= 2
+  0x37895e ['?saveExists@SaveManager@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z']
+  0x3789fc ['?resetGame@GameWorld@@QEAAXXZ']
+  0x378c7e ['?versionCode@SaveManager@@QEAAIAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z']
+  0x378dc7 ['?importPlayerBuildings@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z']
+  0x378df7 ['?importOldPlayerBuildings@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z']
+  0x379352 ['??0SaveFileSystem@@QEAA@XZ', '?_CONSTRUCTOR@SaveFileSystem@@QEAAPEAV1@XZ']
+  0x379376 ['?writeFile@SaveFileSystem@@QEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@AEBV23@@Z']
+  0x379dbd ['??0SaveFileSystem@@QEAA@XZ', '?_CONSTRUCTOR@SaveFileSystem@@QEAAPEAV1@XZ']
+  0x379dd8 ['?analyse@SaveFileSystem@@QEAAXXZ']
+world-init refs= 2
+  0x86d0c3 ['?startUpThreads@GameWorld@@QEAA_NXZ']
+world-reset refs= 4
+  0x36caf4 ['??0SaveFileSystem@@QEAA@XZ', '?_CONSTRUCTOR@SaveFileSystem@@QEAAPEAV1@XZ']
+  0x36cb11 ['?newGame@SaveFileSystem@@QEAAXXZ']
+  0x36cf4a ['?_resetGame@TownList@@QEAAXXZ']
+manager-execute refs= 3
+  0x47bb1e ['??0SaveFileSystem@@QEAA@XZ', '?_CONSTRUCTOR@SaveFileSystem@@QEAAPEAV1@XZ']
+  0x47bba0 ['?newGame@KingOfRenderThread@@QEAAXPEAVWidget@MyGUI@@@Z']
+  0x47bbac ['?deleteTitleScreen@KingOfRenderThread@@QEAAXXZ']
+  0x47bbb8 ['?resetGame@GameWorld@@QEAAXXZ']
+  0x47bcc2 ['?newGameWithCharEdit@KingOfRenderThread@@QEAAXPEAVGameData@@@Z']
+  0x47bcce ['?deleteTitleScreen@KingOfRenderThread@@QEAAXXZ']
+  0x47bceb ['?newGame@KingOfRenderThread@@QEAAXPEAVWidget@MyGUI@@@Z']
+  0x47bcf7 ['?deleteTitleScreen@KingOfRenderThread@@QEAAXXZ']
+  0x47be5d ['?importGame@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0H@Z']
+  0x47bf6f ['?newGame@KingOfRenderThread@@QEAAXPEAVWidget@MyGUI@@@Z']
+  0x47bf7b ['?deleteTitleScreen@KingOfRenderThread@@QEAAXXZ']
+  0x47c01d ['?loadGame@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z']
+  0x47c11b ['?saveGame@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z']
+  0x47c2d3 ['?hide@SaveManager@@QEAAXXZ']
+sfs-new refs= 3
+sfs-save refs= 2
+  0x4734b5 ['?log@SaveFileSystem@@QEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@W4Severity@Logger@@@Z']
+  0x473792 ['?beginThread@ThreadClass@@QEAA_NM_NH@Z']
+  0x47379d ['?startRunning@ThreadClass@@QEAA_NM@Z']
+sfs-load refs= 2
+  0x474350 ['?newGame@SaveFileSystem@@QEAAXXZ']
+  0x47439b ['?analyse@SaveFileSystem@@QEAAXXZ']

@@ -74,6 +74,28 @@ If a compatible `Emkejs-Mod-Core` Mod Hub build is present, these user-facing se
 
 Marker saves currently use schema version `3`.
 
+## MCM fork releases / Выпуски MCM-форка
+
+Original author: **Emkej8**. Thank you for Map-markers!
+Original source: https://github.com/Emkej/Map-markers
+The fork uses optional Mod Config Menu settings, English, Russian and Simplified Chinese, and an optional Detailed log (off by default). Marker data stays separate from personal settings and belongs to each saved world.
+
+Автор оригинала: **Emkej8**. Спасибо за Map-markers!
+Исходники оригинала: https://github.com/Emkej/Map-markers
+В форке настройки доступны через MCM, поддерживаются английский, русский и китайский языки. «Подробный журнал» по умолчанию выключен. Метки принадлежат конкретному сохранённому миру и хранятся отдельно от личных настроек.
+
+### v5 - prepared / подготовлено
+
+- Bookmarks survive importing a save.
+- Manual saves, quicksaves, autosaves and Save As preserve the current world's markers without mixing playthroughs.
+
+- Метки сохраняются при импорте сохранения.
+- Обычное сохранение, быстрое сохранение, автосохранение и «Сохранить как» сохраняют метки текущего мира без смешивания прохождений.
+
+Verification: production file-lifecycle controls, native caller contracts and independent review passed. A controlled in-game import of a copied save remains the gameplay acceptance check; this package is not installed or published. See `tests/import-save-review.md` for technical evidence.
+
+Проверены файловые сценарии реального кода, штатные вызовы игры и независимое ревью. Игровая проверка импорта копии сейва ещё не выполнена; пакет не установлен и не опубликован. Технические подтверждения: `tests/import-save-review.md`.
+
 ## Build setup
 
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no submodule init step is required.
@@ -163,6 +185,38 @@ English
 
 Русский
 
+- Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
+- Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
+- Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Previous fork releases / Предыдущие выпуски форка
+
+### 1
+
+v1: First release of this fork: settings in Mod Config Menu instead of Mod Hub, Russian and Chinese translations.
+
+v1: Первый выпуск форка: настройки в Mod Config Menu вместо Mod Hub, перевод на русский и китайский.
+
+### 2
+
+v2: Marker editor translated (Russian, Chinese), wider, drawn above the map icons, with a Delete button. Much lower FPS cost with the map open and with many markers.
+
+v2: Окно метки переведено (русский, китайский), стало шире, рисуется поверх значков карты и получило кнопку «Удалить». Открытая карта и множество меток почти не снижают FPS.
+
+### 3
+
+v3: A debug log option in Mod Config Menu (it was only on Ctrl+Alt+F8). The marker window has a close button and a row of label colours; the Markers button and the labels on hover are no longer cut.
+
+v3: «Подробный журнал» в Mod Config Menu (раньше - только Ctrl+Alt+F8). В окне метки - крестик и строка цветов подписи; кнопка «Метки» и подписи при наведении больше не обрезаются.
+
+### 4
+
+v4 - English
+- Optional language diagnostics. Language and translation-catalogue summaries follow this plugin's Detailed log setting, which is off by default.
+- Useful errors remain visible. Translation loading and format errors are still reported with Detailed log disabled. Enabling the setting after loading reports the saved summary once without reloading translations.
+- Clean update package. English, Russian and Simplified Chinese each use one compiled runtime catalogue. Personal settings and gameplay saves are preserved.
+
+v4 - Русский
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.

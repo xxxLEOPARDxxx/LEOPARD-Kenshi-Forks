@@ -1,0 +1,80 @@
+{
+  "format": "MAP_MARKERS_RELEASE_CANDIDATE",
+  "version": 5,
+  "publishedBase": 4,
+  "utc": "2026-11-03T21:46:37.391416+00:00",
+  "codeChangeDate": "2026-11-03",
+  "packagingDate": "2026-11-04",
+  "status": "prepared; not installed; not published",
+  "dllSha256": "53f6393da98cb7de18440d16f149d2fec672bbc7da6d5931777bfc1f5c2a2172",
+  "archive": "D:\\DEV\\Kenshi\\workshop\\nexus\\Map-markers-5.zip",
+  "archiveBytes": 128134,
+  "archiveSha256": "5b5015dc3df0d2e757b3599bea9ddc9bb9d7a8429f8a5dbcebd0de31fea5250e",
+  "crc": "PASS",
+  "exports": [
+    "?startPlugin@@YAXXZ",
+    "MCM_Describe"
+  ],
+  "kenshiLibImports": 25,
+  "hostControlsPerOptimization": 88,
+  "optimizations": [
+    "Od",
+    "O2"
+  ],
+  "compiledMutantsKilled": 3,
+  "independentReview": "CLEAR incl native lifecycle caller contracts",
+  "nativeReportSha256": "efa9564dfb3cd3867042a5716ad8d99909f0eb050274e1c455edb10c3a12826b",
+  "sourceSha256": "642203aacfc2292d1da0cb3fc788c991c225a49a9fc2dab2d052f04ed9f05874",
+  "gameplayImportAcceptance": "Not yet performed: controlled UI import of a copied save remains",
+  "gogExecution": "Not performed; no platform-specific native address added",
+  "payload": {
+    "Map-markers/CHANGELOG.md": {
+      "bytes": 5348,
+      "sha256": "c71372237dcaff5bb87e93a5e87925451547b815d4d5fedb5d4f5906b001bf99"
+    },
+    "Map-markers/LICENSE": {
+      "bytes": 35821,
+      "sha256": "81cbae84a29ce7e770bf2bc7b178e50bda0ce8de6067aba661b0bc7b05b562f8"
+    },
+    "Map-markers/Map-markers.dll": {
+      "bytes": 238592,
+      "sha256": "53f6393da98cb7de18440d16f149d2fec672bbc7da6d5931777bfc1f5c2a2172"
+    },
+    "Map-markers/Map-markers.mod": {
+      "bytes": 46,
+      "sha256": "ebdab65d330e46e1ff9725ac5d0ed87fd8c718cfb41ef85b27b86eb3d35b79c0"
+    },
+    "Map-markers/README.md": {
+      "bytes": 15002,
+      "sha256": "dc04234609e8302a92e36f7c99f292ab90da999817de39c64b33cd93d33d43fa"
+    },
+    "Map-markers/RE_Kenshi.json": {
+      "bytes": 39,
+      "sha256": "9eab04d814d160044281749f71bd08fa24829c40936da45a646d8f28ee418885"
+    },
+    "Map-markers/mod-config.defaults.json": {
+      "bytes": 332,
+      "sha256": "9883f0c3e09f3ade7562c11a990bf8cc504cd8d22fd3dbf814d40f8a455b87f2"
+    },
+    "Map-markers/locale/en_GB/LC_MESSAGES/map_markers.mo": {
+      "bytes": 2307,
+      "sha256": "567f8996f55571d35ff2627d60cdbc1a2c288fd95bb67beb46f1a1004b2ba2a4"
+    },
+    "Map-markers/locale/ru_RU/LC_MESSAGES/map_markers.mo": {
+      "bytes": 2973,
+      "sha256": "77057d17100f2000449b0b38b8a880b66a03ea8ff03afe475a72110b720a8c27"
+    },
+    "Map-markers/locale/zh_CN/LC_MESSAGES/map_markers.mo": {
+      "bytes": 2348,
+      "sha256": "0ca8d061b44b9cccdf2a7d288174b3be8b7383e5a044d4ab24da5b4cb097e98b"
+    }
+  },
+  "metadataFiles": [
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\build.py",
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\release_notes.json",
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\changelog.json",
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\fork_catalog.json",
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\desc\\make_desc.py",
+    "D:\\DEV\\Kenshi\\ours\\tools\\workshop\\desc\\qol-20261029.json"
+  ]
+}

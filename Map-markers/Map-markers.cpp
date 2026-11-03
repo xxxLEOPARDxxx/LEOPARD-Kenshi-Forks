@@ -1,4 +1,4 @@
-#define KLOC_DOMAIN "map_markers"   // подписи - через перевод (locale/<язык>)
+﻿#define KLOC_DOMAIN "map_markers"   // подписи - через перевод (locale/<язык>)
 #include <IniDefaults.h>   // LEOPARD: mod-config.json from mod-config.defaults.json
 #include <Localization.h>
 #include <Debug.h>
@@ -49,7 +49,6 @@ namespace
 const char* kPluginName = "Map-markers";
 const OIS::KeyCode kProbeSnapshotHotkey = OIS::KC_F7;
 const OIS::KeyCode kProbeLiveHotkey = OIS::KC_F8;
-const DWORD kPendingSaveTransitionTimeoutMs = 15000u;
 const int kMarkerSize = 18;
 const int kSelectedMarkerSize = 26;
 const int kMinimumMapImageSize = 200;
@@ -110,11 +109,10 @@ const MyGUI::Colour kDefaultHoverLabelTextColour = MyGUI::Colour(0.96f, 0.96f, 0
 
 void (*PlayerInterface_updateUT_orig)(PlayerInterface*) = 0;
 void (*InputHandler_keyDownEvent_orig)(InputHandler*, OIS::KeyCode) = 0;
-void (*SaveManager_save_orig)(SaveManager*, const std::string&, bool) = 0;
-void (*SaveManager_loadByInfo_orig)(SaveManager*, const SaveInfo&, bool) = 0;
-void (*SaveManager_loadByName_orig)(SaveManager*, const std::string&) = 0;
-void (*SaveManager_newGame_orig)(SaveManager*, const std::string&) = 0;
-void (*SaveManager_import_orig)(SaveManager*, const SaveInfo&, int) = 0;
+bool (*SaveFileSystem_saveGame_orig)(SaveFileSystem*, const std::string&) = 0;
+void (*SaveFileSystem_loadGame_orig)(SaveFileSystem*, const std::string&) = 0;
+void (*SaveFileSystem_newGame_orig)(SaveFileSystem*) = 0;
+int (*SaveManager_importGame_orig)(SaveManager*, const std::string&, const std::string&, int) = 0;
 
 struct PendingMarkerLabelShortcut
 {
@@ -145,7 +143,6 @@ std::string g_lastHoverLabelSignature;
 std::string g_lastToggleDiagnosticsSignature;
 std::string g_lastOverlayDiagnosticsSignature;
 std::string g_lastMarkerOcclusionSignature;
-std::string g_pendingSaveTransitionDestinationPath;
 std::vector<MarkerState> g_markers;
 int g_selectedMarkerId = 0;
 int g_nextMarkerId = 1;
@@ -163,12 +160,10 @@ bool g_modEnabled = true;
 bool g_showHoverLabels = true;
 bool g_disabledUiStateApplied = false;
 bool g_mapWasVisible = false;
-bool g_pendingSaveTransitionActive = false;
 bool g_focusMarkerLabelEditOnShow = false;
 MarkerType g_defaultMarkerType = MarkerType_Note;
 MyGUI::Colour g_hoverLabelBackgroundColour = kDefaultHoverLabelBackgroundColour;
 MyGUI::Colour g_hoverLabelTextColour = kDefaultHoverLabelTextColour;
-DWORD g_pendingSaveTransitionStartedTick = 0;
 int g_markerEditorDragLastMouseX = 0;
 int g_markerEditorDragLastMouseY = 0;
 int g_markerEditorCustomLeft = 0;
@@ -227,10 +222,6 @@ void ResetMapMarkersUiSignatures();
 void HideMapMarkersUi();
 void ApplyModConfigSnapshotInternal(const MapMarkersModConfigSnapshot& snapshot);
 std::string GetActiveSaveDirectory();
-std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName);
-void ClearPendingSaveTransition(const char* reason);
-void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName);
-void TickPendingSaveTransition();
 
 bool IsSupportedVersion(KenshiLib::BinaryVersion versionInfo)
 {
@@ -313,85 +304,9 @@ const char* BuildMarkerToggleButtonCaption()
     return g_markersVisible ? Tr("Markers: On") : Tr("Markers: Off");
 }
 
-std::string ResolveSaveDestinationPath(SaveManager* saveManager, const std::string& saveName)
-{
-    if (saveName.empty())
-    {
-        return "";
-    }
 
-    const bool looksAbsolute =
-        saveName.find(':') != std::string::npos
-        || (!saveName.empty() && (saveName[0] == '\\' || saveName[0] == '/'));
-    if (looksAbsolute)
-    {
-        return saveName;
-    }
 
-    std::string rootDirectory = GetParentDirectoryPath(GetActiveSaveDirectory());
-    if (rootDirectory.empty() && saveManager != 0)
-    {
-        std::string savePath = saveManager->getSavePath();
-        const std::string currentGame = saveManager->getCurrentGame();
-        if (!savePath.empty())
-        {
-            if (!currentGame.empty() && PathsEqualIgnoreCase(GetPathLeafName(savePath), currentGame))
-            {
-                rootDirectory = GetParentDirectoryPath(savePath);
-            }
-            else
-            {
-                rootDirectory = savePath;
-            }
-        }
-    }
 
-    return JoinWindowsPath(rootDirectory, saveName.c_str());
-}
-
-void ClearPendingSaveTransition(const char*)
-{
-    g_pendingSaveTransitionActive = false;
-    g_pendingSaveTransitionStartedTick = 0;
-    g_pendingSaveTransitionDestinationPath.clear();
-}
-
-void ArmPendingSaveTransition(SaveManager* saveManager, const std::string& saveName)
-{
-    ClearPendingSaveTransition("rearmed");
-
-    const std::string sourcePath = GetActiveSaveDirectory();
-    const std::string destinationPath = ResolveSaveDestinationPath(saveManager, saveName);
-    if (destinationPath.empty())
-    {
-        return;
-    }
-
-    if (!sourcePath.empty() && PathsEqualIgnoreCase(sourcePath, destinationPath))
-    {
-        return;
-    }
-
-    g_pendingSaveTransitionActive = true;
-    g_pendingSaveTransitionStartedTick = GetTickCount();
-    g_pendingSaveTransitionDestinationPath = destinationPath;
-}
-
-void TickPendingSaveTransition()
-{
-    if (!g_pendingSaveTransitionActive)
-    {
-        return;
-    }
-
-    const DWORD now = GetTickCount();
-    if (now - g_pendingSaveTransitionStartedTick < kPendingSaveTransitionTimeoutMs)
-    {
-        return;
-    }
-
-    ClearPendingSaveTransition("timeout");
-}
 
 std::string GetActiveSaveDirectory()
 {
@@ -401,6 +316,10 @@ std::string GetActiveSaveDirectory()
 
 std::string GetMarkerPersistencePath()
 {
+    SaveFileSystem* fs = SaveFileSystem::getSingleton();
+    if (fs != 0 && fs->fileExists(kMarkerPersistenceFileName))
+        return fs->readFile(kMarkerPersistenceFileName);
+    // Existing sidecars remain readable even before the native index sees one.
     return JoinWindowsPath(GetActiveSaveDirectory(), kMarkerPersistenceFileName);
 }
 
@@ -525,7 +444,7 @@ bool SaveModConfig(bool logSuccess = true)
     {
         std::stringstream line;
         line << "config persist failed path=\"" << configPath << "\"";
-        LogProbeLine(line.str());
+        ErrorLog(line.str().c_str());
         return false;
     }
 
@@ -681,7 +600,13 @@ bool SaveMarkersToPath(const std::string& persistencePath, const std::vector<Mar
 
 void SaveMarkersForActiveSave(bool logSuccess = true)
 {
-    SaveMarkersToPath(GetMarkerPersistencePath(), g_markers, logSuccess);
+    SaveFileSystem* fs = SaveFileSystem::getSingleton();
+    if (fs == 0)
+        return;
+    // Register the sidecar in the current world's copy-on-write filesystem.
+    // It then follows manual saves, autosaves and Save As, including the first
+    // save after import, without writing into the previously loaded slot.
+    SaveMarkersToPath(fs->writeFile(kMarkerPersistenceFileName), g_markers, logSuccess);
 }
 
 void ApplyMarkerStateForLoadedSave(const std::vector<MarkerState>& markers)
@@ -705,26 +630,8 @@ MarkerPersistenceLoadAttempt LoadMarkersFromPersistencePath(const std::string& p
 
 void LoadMarkersForActiveSave()
 {
-    const std::string activeSavePath = GetActiveSaveDirectory();
-    const std::string persistencePath = JoinWindowsPath(activeSavePath, kMarkerPersistenceFileName);
+    const std::string persistencePath = GetMarkerPersistencePath();
     const MarkerPersistenceLoadAttempt loadAttempt = LoadMarkersFromPersistencePath(persistencePath);
-
-    const bool pendingSaveMatches =
-        g_pendingSaveTransitionActive
-        && !activeSavePath.empty()
-        && PathsEqualIgnoreCase(activeSavePath, g_pendingSaveTransitionDestinationPath);
-    if (pendingSaveMatches)
-    {
-        SaveMarkersToPath(persistencePath, g_markers, false);
-        ClearPendingSaveTransition("matched_identity_change");
-        g_lastMarkerRenderSignature.clear();
-        return;
-    }
-
-    if (g_pendingSaveTransitionActive)
-    {
-        ClearPendingSaveTransition("non_matching_identity_change");
-    }
 
     switch (loadAttempt.result)
     {
@@ -768,7 +675,7 @@ void LoadMarkersForActiveSave()
         {
             std::stringstream line;
             line << "markers persistence invalid path=\"" << persistencePath << "\" count=0";
-            LogProbeLine(line.str());
+            ErrorLog(line.str().c_str());
         }
         return;
     }
@@ -4017,49 +3924,67 @@ bool TryHandleMarkerKeyDown(OIS::KeyCode keyCode)
     return true;
 }
 
-void SaveManager_save_hook(SaveManager* thisptr, const std::string& saveName, bool autosave)
+// Import is asynchronous at SaveManager::import(SaveInfo): that method only
+// queues a request. importGame is the actual execution and returns 0 on success,
+// 1 on failure, 2 while native work must retry. No cross-request carry is kept.
+void RestoreMarkersAfterImport(SaveFileSystem* fs, const MarkerPersistenceLoadAttempt& source)
 {
-    ArmPendingSaveTransition(thisptr, saveName);
-    if (SaveManager_save_orig)
+    if (fs != 0 && fs->fileExists(kMarkerPersistenceFileName))
     {
-        SaveManager_save_orig(thisptr, saveName, autosave);
+        // An already registered destination belongs to this native import.
+        // Preserve it (including damaged bytes) rather than merging/overwriting.
+        LoadMarkersForActiveSave();
+        return;
+    }
+    if (source.result == MarkerPersistenceLoadResult_LoadedArray
+        || source.result == MarkerPersistenceLoadResult_LoadedLegacySingle)
+    {
+        ApplyMarkerStateForLoadedSave(source.markers);
+        SaveMarkersForActiveSave(false);
+    }
+    else
+    {
+        ClearMarkerStateForLoadedSave();
+        if (source.result == MarkerPersistenceLoadResult_InvalidFile)
+            ErrorLog("Map-markers: imported save has invalid bookmark data; source preserved");
     }
 }
 
-void SaveManager_loadByInfo_hook(SaveManager* thisptr, const SaveInfo& saveInfo, bool resetPos)
+bool SaveFileSystem_saveGame_hook(SaveFileSystem* fs, const std::string& path)
 {
-    ClearPendingSaveTransition("load_by_info");
-    if (SaveManager_loadByInfo_orig)
-    {
-        SaveManager_loadByInfo_orig(thisptr, saveInfo, resetPos);
-    }
+    SaveMarkersForActiveSave(false);
+    return SaveFileSystem_saveGame_orig != 0 && SaveFileSystem_saveGame_orig(fs, path);
 }
 
-void SaveManager_loadByName_hook(SaveManager* thisptr, const std::string& saveName)
+void SaveFileSystem_loadGame_hook(SaveFileSystem* fs, const std::string& path)
 {
-    ClearPendingSaveTransition("load_by_name");
-    if (SaveManager_loadByName_orig)
-    {
-        SaveManager_loadByName_orig(thisptr, saveName);
-    }
+    ClearMarkerStateForLoadedSave();
+    if (SaveFileSystem_loadGame_orig != 0)
+        SaveFileSystem_loadGame_orig(fs, path);
+    LoadMarkersForActiveSave();
 }
 
-void SaveManager_newGame_hook(SaveManager* thisptr, const std::string& startId)
+void SaveFileSystem_newGame_hook(SaveFileSystem* fs)
 {
-    ClearPendingSaveTransition("new_game");
-    if (SaveManager_newGame_orig)
-    {
-        SaveManager_newGame_orig(thisptr, startId);
-    }
+    ClearMarkerStateForLoadedSave();
+    if (SaveFileSystem_newGame_orig != 0)
+        SaveFileSystem_newGame_orig(fs);
 }
 
-void SaveManager_import_hook(SaveManager* thisptr, const SaveInfo& saveInfo, int flags)
+int SaveManager_importGame_hook(SaveManager* manager, const std::string& location,
+                                const std::string& name, int flags)
 {
-    ClearPendingSaveTransition("import");
-    if (SaveManager_import_orig)
-    {
-        SaveManager_import_orig(thisptr, saveInfo, flags);
-    }
+    // Copy selected source data before native import can reset/free its inputs.
+    // In particular this is not GetActiveSaveDirectory(): A may be selected
+    // while unrelated B is currently loaded, or from the title screen.
+    const std::string sourcePath = JoinWindowsPath(
+        JoinWindowsPath(location, name.c_str()), kMarkerPersistenceFileName);
+    const MarkerPersistenceLoadAttempt source = LoadMarkersFromPersistencePath(sourcePath);
+    const int result = SaveManager_importGame_orig == 0 ? 1
+        : SaveManager_importGame_orig(manager, location, name, flags);
+    if (result == 0)
+        RestoreMarkersAfterImport(SaveFileSystem::getSingleton(), source);
+    return result;
 }
 
 // Открыта ли карта - по вызовам MapScreen::update: игра зовёт его только
@@ -4099,8 +4024,6 @@ void TickUiDiagnostics()
     {
         StopMarkerEditorDrag();
     }
-
-    TickPendingSaveTransition();
 
     const DWORD tickNow = GetTickCount();
     if (!IsMapScreenLikelyOpen(tickNow) && !g_mapWasVisible && !g_markerEditorDragging && !g_probeLive)
@@ -4298,44 +4221,21 @@ __declspec(dllexport) void startPlugin()
     }
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&, bool)>(&SaveManager::save)),
-        SaveManager_save_hook,
-        &SaveManager_save_orig))
-    {
-        ErrorLog("Map-markers WARN: could not hook SaveManager::save(std::string,bool)");
-    }
-
+        KenshiLib::GetRealAddress(&SaveFileSystem::saveGame),
+        SaveFileSystem_saveGame_hook, &SaveFileSystem_saveGame_orig))
+        ErrorLog("Map-markers: could not hook SaveFileSystem::saveGame; bookmark save handoff unavailable");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, bool)>(&SaveManager::load)),
-        SaveManager_loadByInfo_hook,
-        &SaveManager_loadByInfo_orig))
-    {
-        ErrorLog("Map-markers WARN: could not hook SaveManager::load(SaveInfo,bool)");
-    }
-
+        KenshiLib::GetRealAddress(&SaveFileSystem::loadGame),
+        SaveFileSystem_loadGame_hook, &SaveFileSystem_loadGame_orig))
+        ErrorLog("Map-markers: could not hook SaveFileSystem::loadGame; bookmark load hook unavailable");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::load)),
-        SaveManager_loadByName_hook,
-        &SaveManager_loadByName_orig))
-    {
-        ErrorLog("Map-markers WARN: could not hook SaveManager::load(std::string)");
-    }
-
+        KenshiLib::GetRealAddress(&SaveFileSystem::newGame),
+        SaveFileSystem_newGame_hook, &SaveFileSystem_newGame_orig))
+        ErrorLog("Map-markers: could not hook SaveFileSystem::newGame; bookmark reset hook unavailable");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const std::string&)>(&SaveManager::newGame)),
-        SaveManager_newGame_hook,
-        &SaveManager_newGame_orig))
-    {
-        ErrorLog("Map-markers WARN: could not hook SaveManager::newGame(std::string)");
-    }
-
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(static_cast<void (SaveManager::*)(const SaveInfo&, int)>(&SaveManager::import)),
-        SaveManager_import_hook,
-        &SaveManager_import_orig))
-    {
-        ErrorLog("Map-markers WARN: could not hook SaveManager::import(SaveInfo,int)");
-    }
+        KenshiLib::GetRealAddress(&SaveManager::importGame),
+        SaveManager_importGame_hook, &SaveManager_importGame_orig))
+        ErrorLog("Map-markers: could not hook SaveManager::importGame; bookmark import handoff unavailable");
 
     MapMarkersModHub_OnStartup();
 
