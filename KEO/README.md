@@ -70,7 +70,7 @@ Enable Detailed log, reproduce once, then provide the mod-folder `KEO.log`, the 
 
 ### License and corresponding source
 
-GPL-3.0; see `LICENSE`. Attribution/provenance files accompany the package. Corresponding source and build scripts for this release are provided separately as **`KEO-1-source.zip`** alongside the release. The original KEO and KenshiQOL source links above identify the authors' code; this package contains a modified integration.
+GPL-3.0; see `LICENSE`. Attribution/provenance files accompany the package. Corresponding source and build scripts are in the shared fork repository: https://github.com/xxxLEOPARDxxx/LEOPARD-Kenshi-Forks/tree/main/KEO . The original KEO and KenshiQOL source links above identify the authors' code; this package contains a modified integration.
 
 ---
 
@@ -144,4 +144,4 @@ GOG работает на поддерживаемой сборке, но ещё
 
 ### Лицензия и соответствующие исходники
 
-GPL-3.0, файл `LICENSE`. Файлы авторства и происхождения кода входят в пакет. Соответствующие исходники и скрипты сборки этого выпуска предоставлены отдельно в **`KEO-1-source.zip`** рядом с выпуском. Ссылки на исходные KEO и KenshiQOL выше указывают код авторов; в этом пакете содержится изменённая интеграция.
+GPL-3.0, файл `LICENSE`. Файлы авторства и происхождения кода входят в пакет. Соответствующие исходники и скрипты сборки находятся в общей репе наших форков: https://github.com/xxxLEOPARDxxx/LEOPARD-Kenshi-Forks/tree/main/KEO . Ссылки на исходные KEO и KenshiQOL выше указывают код авторов; в этом пакете содержится изменённая интеграция.
