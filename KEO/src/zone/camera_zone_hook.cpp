@@ -18,6 +18,7 @@
 #include "navmesh/cache/nm_force_rebuild.h"
 #include "zone/hooks_internal.h"
 #include "diag/mem_probe.h"
+#include "diag/squad_watch.h"
 #include "zone/preload/coverage_stats.h"
 #include "movement/tracking.h"
 #include "movement/formation.h"
@@ -629,6 +630,7 @@ void hook_updateCameraZone(void* zoneMgr, void* cameraPos)
 	if (!CameraZoneTicks(zoneMgr, saveLoading))
 		return;
 	double now = CameraZoneReports(zoneMgr);
+	SquadWatchTick(now, cameraPos);
 	if (!CameraZonePreloadGates(cameraPos))
 		return;
 	if (!CameraZoneFocusAndPreload(zoneMgr, cameraPos, now))

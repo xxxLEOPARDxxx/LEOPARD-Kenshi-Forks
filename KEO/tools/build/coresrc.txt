@@ -28,6 +28,7 @@ src\diag\exit_capture_policy.cpp
 src\diag\fatal_class.cpp
 src\diag\mem_format.cpp
 src\diag\mem_probe.cpp
+src\diag\squad_watch.cpp
 src\diag\module_bases.cpp
 src\diag\physx_pool_probe.cpp
 src\diag\physx_pool_sets.cpp

@@ -1,0 +1,33 @@
+{
+  "status": "private diagnostic, not published",
+  "dll_sha256": "8332cfbd2d003f868ba7d529aac1aff64eef02f8e762a80d047ad6211399d4ed",
+  "previous_dll_sha256": "ea56647bb504a5287ee2589b815d9b1ac1cef6e760d6921048420908ede86751",
+  "dll_bytes": 1812992,
+  "verified_native_imports": 210,
+  "new_native_imports": 0,
+  "gameplay_rules_changed": false,
+  "debug_only": true,
+  "policy_tests": [
+    "Od PASS",
+    "O2 PASS",
+    "20000-observation saturation PASS"
+  ],
+  "native_build": [
+    "DEV PASS",
+    "PROD PASS"
+  ],
+  "native_readiness_regression": "6144 actual-hook cases Od/O2 PASS, negative controls refused",
+  "review": "independent review no blockers after 64-probe bound and fixed detail queue",
+  "performance": "bounded static review only; gameplay timing still needs run",
+  "limits": {
+    "native_entries_per_frame": 32,
+    "detail_lines_per_frame": 2,
+    "detail_rows_per_census": 24,
+    "census_interval_seconds": 10,
+    "faction_scan_cap": 256,
+    "platoon_visits_cap": 8192,
+    "identity_slots": 8192,
+    "identity_probe_cap": 64
+  },
+  "semantics": "rolling observation; firstObserved is not proof of native creation; truncation and omitted diagnostics explicit"
+}
