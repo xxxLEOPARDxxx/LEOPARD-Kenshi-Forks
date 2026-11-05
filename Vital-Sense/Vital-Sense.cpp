@@ -21,6 +21,7 @@
 #include "src/vs_runtime_state.h"
 #include "src/vs_mod_hub.h"
 #include "src/vs_types.h"
+#include "src/vs_animation_cache_guard.h"
 
 #ifndef BOOST_ALL_NO_LIB
 #define BOOST_ALL_NO_LIB
@@ -216,6 +217,17 @@ __declspec(dllexport) void startPlugin()
     vs_config::LoadConfigState(state, kPluginName);
     ++state.configRevision;
     state.lastTintConfigRevision = 0;
+
+    if (state.config.enableCharacterTint)
+    {
+        if (!vs_animation_cache_guard::Install())
+        {
+            state.config.enableCharacterTint = false;
+            vs_log::LogWarn(kPluginName,
+                "Animation cache guard unavailable on this OgreMain_x64.dll build; "
+                "character tint disabled in memory to prevent cross-zone animation cache race crashes.");
+        }
+    }
     const PluginConfig& config = state.config;
 
     std::stringstream info;
