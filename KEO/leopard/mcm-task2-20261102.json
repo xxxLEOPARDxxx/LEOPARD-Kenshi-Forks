@@ -1,0 +1,84 @@
+{
+  "baseline": "49b1550",
+  "status": "Task2 finite-clamp followup host/native PASS; independent rereview pending; Task3 incomplete/not installed",
+  "productionSha256": {
+    "src/gui/mcm_bridge.cpp": "d10ae8088cbe38cb8b383ca002cb3631c708ec20a7443c342735427da660f5e1",
+    "src/gui/mcm_bridge.h": "34e40c19e60999bfe7dcd5cb2bc3c3b4280063ab8219767ff94ea79a311e904f",
+    "src/gui/ModConfigMenu.h": "90060552da7f7144241443de48e12f73023c9c7667762e07b88b7606bf805aa9",
+    "src/gui/requested_settings.cpp": "0a961459eb2426bc0c7199dc42a8af8a95f5f0f4984ddf5899c474f8f5898c68",
+    "src/gui/requested_settings.h": "19fedbc63eeb5e8c5202c06ed12b128004c274a981270a1f3154df8b8becceaa",
+    "src/gui/gui_config.cpp": "a914974046ca6ee453168110f27c79e86b5f38b255e792ef67cb0344f592b264",
+    "src/gui/gui_config.h": "83a934409c4a0b324ad977b1ffa445565309a39500ffcb5ed0683775fee0ee81",
+    "src/gui/settings_layout.cpp": "9b4fcd985d104717d777e3c7057576ada710f6adef762b7c159074b46775d97a",
+    "src/gui/settings_panel.cpp": "8abef5929463982c0a993772af098e0b0e5e6e65d26448a8f954a0d001d5d2fa",
+    "src/base/core.h": "ed1bff98e3a005c3a3b5cace5028c7784d242c902df78f105fe6d92aacd0afe9",
+    "src/base/log.cpp": "9b81345bbd43cad714125df682e90eb78b24bf98b52c4e65e6232f388a7b898d",
+    "src/plugin/plugin_entry.cpp": "b1b15347688b4155c0ff399b0261c2bb1fe45493fa45f52a6af156ce5109360c",
+    "src/render/render_live.cpp": "4bc8369051bcfc6a9c12cbf5c87597be6a60067d87ce4f904a9502330fc41518"
+  },
+  "testSha256": {
+    "tools/tests/mcm_bridge_units.cpp": "0e61a4966ca4ef2c96e64f4e5785c855438dc382dac42ceac7b1f966935e1a18",
+    "leopard/test_mcm_adapter.py": "698c16ffa835d6ca0f6d069b2c94678b26b3d9313354066bd4b7a423b7bbfb45",
+    "leopard/test_mcm_options.py": "60067277c1677c495935cbecec1a5fdf99a9f2dfc6a2a90f14d68c614a21ee1c",
+    "leopard/test_mcm_writer.py": "e897b30e172c031f982ac08f6ed2bf90c6203e421251eff3d65e368820e552c5"
+  },
+  "newPlayerMessagesForTask3": [
+    "Settings are not ready.",
+    "Invalid setting value.",
+    "The setting could not be changed.",
+    "Invalid setting metadata.",
+    "The settings file could not be saved.",
+    "The settings were saved, but could not be applied until restart.",
+    "Settings are saved for the next start. Runtime changes are unavailable on this build.",
+    "Detailed log",
+    "Write detailed diagnostics to KEO.log. Errors are always logged.",
+    "Logging"
+  ],
+  "checks": {
+    "fullCppSuites": 126,
+    "testGuards": "PASS",
+    "mcmCallbacks": "DEV/PROD PASS",
+    "mcmMutants": 8,
+    "flatWriter": 23,
+    "OptionsHooks": 9,
+    "OptionsMutants": 2,
+    "nativeIntermediate": "339sources each DEV/PROD,cacheOFF PASS before final platform/choice guards",
+    "nativeFinal": "340 sources each DEV/PROD,cacheOFF PASS in _mcmclamp;143 KenshiLib imports;startPlugin+MCM_Describe exports;13 frozen MCM and10 budget source/report hashes verified",
+    "finiteClampFollowup": "Observed actual RED nativeAV; own required notes vector for both author clamp passes;DEV/PROD GREEN;2 distinct nullnotes compiled mutants AV;range0/50 exact requested/saveentries/disktext/live/dedup;unrelated sibling clamps do not dirtyapply"
+  },
+  "notCompleted": [
+    "three complete MO catalogs",
+    "detailed producer classification/formatting gates",
+    "late localization summary/log gate",
+    "Debug documentation/template readiness",
+    "independent code review",
+    "live UI/performance acceptance"
+  ],
+  "installed": false,
+  "nativeCandidates": {
+    "dev": {
+      "path": "D:\\DEV\\Kenshi\\forks\\KEO\\build\\KEO_step4_mcmclamp_dev\\KEO.dll",
+      "bytes": 1541120,
+      "sha256": "7754f3516e248a09adb234099c12434542d8dac892e026f904485fb49b0d7775",
+      "exports": [
+        "??0_Mutex@std@@QEAA@W4_Uninitialized@1@@Z",
+        "??4_Init_locks@std@@QEAAAEAV01@AEBV01@@Z",
+        "?startPlugin@@YAXXZ",
+        "MCM_Describe"
+      ],
+      "kenshiLibImports": 143
+    },
+    "prod": {
+      "path": "D:\\DEV\\Kenshi\\forks\\KEO\\build\\KEO_step4_mcmclamp_prod\\KEO.dll",
+      "bytes": 1428480,
+      "sha256": "030bbe587357a2224f99d6f538e0fec104edcd11b46aae53240f60c61f090ebf",
+      "exports": [
+        "??0_Mutex@std@@QEAA@W4_Uninitialized@1@@Z",
+        "??4_Init_locks@std@@QEAAAEAV01@AEBV01@@Z",
+        "?startPlugin@@YAXXZ",
+        "MCM_Describe"
+      ],
+      "kenshiLibImports": 143
+    }
+  }
+}

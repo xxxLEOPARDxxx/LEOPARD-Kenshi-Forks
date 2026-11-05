@@ -1,0 +1,64 @@
+#ifndef KEO_ISLAND_SPAN_POLICY_H
+#define KEO_ISLAND_SPAN_POLICY_H
+
+// The far-span routing rule on ZoneMap::isInIsland, and the classification of
+// what an edge-mode character is doing afterwards. Pure arithmetic, so it is
+// host-testable and the hook, the census and the stuck line share one
+// definition of span.
+
+// Chebyshev distance between two zone-grid cells: the number of cells a
+// direct path has to cross in the worse axis.
+int IslandCellSpan(int ax, int ay, int bx, int by);
+
+// The rule: a vanilla "same island" answer for a labelled pair whose cells
+// are farSpan or more apart is answered false, so setDestination routes to the
+// island edge instead of sending one direct path. farSpan <= 0 is the rule
+// off; span < 0 (not resolvable) and label 0 (neither cell in an island) never
+// flip.
+bool IslandFarSpanFlips(bool vanilla, int labelA, int span, int farSpan);
+// Whether an edge-mode leg starts this frame: in edge mode, and either just entered it, with no leg
+// seen yet, or its waypoint moved more than moveDist since the last leg began (x-z, squared distance).
+bool IslandEdgeLegStarts(bool edge, bool edgePrev, bool haveLeg, float wpMovedSq, float moveDist);
+
+// Flipped-answer span buckets: 1, 2, 3, 4, 5, 6 and wider. Every span the
+// rule can flip (farSpan >= 1) has one, so the buckets sum to the flips.
+const int ISLAND_SPAN_BUCKETS = 6;
+int IslandSpanBucket(int span);   // -1 below 1
+
+// One isInIsland call's answer. planned: the route planner answered for the call (a character walking
+// a plan whose destination the call carries); planFlip: it answered false. spanFlip: the far-span rule
+// would flip vanilla's true. A planned answer is final and replaces the far-span rule; otherwise a
+// far-span flip is final, false and counted; otherwise the hook goes on to its later steps.
+struct IslandDecision { bool answer; bool final; bool countFlip; };
+IslandDecision IslandDecide(bool vanilla, bool planned, bool planFlip, bool spanFlip);
+
+// A character idle in edge mode, far from its order's destination, is parked.
+// CharMovement::halt leaves edge mode set but copies the position into the
+// destination, so a destination on the character is an ended order, not a
+// park. Otherwise, at the edge (pathDestination within reach) is the recorded
+// edge park; with the leg's end still far away the engine found no new edge
+// point to ask for.
+enum IslandEdgePark
+{
+	EDGEPARK_NONE,
+	EDGEPARK_AT_EDGE,      // |pathDestination - pos| < 20
+	EDGEPARK_SHORT_LEG,    // |pathDestination - pos| >= 20
+	EDGEPARK_HALTED        // |destination - pos| < 10: halted with edge mode left set
+};
+const int ISLAND_EDGE_PARK_KINDS = 4;
+IslandEdgePark IslandClassifyEdgePark(bool movingToEdge, bool idle, float haltDist,
+                                      float wpDist, float destDist);
+
+// Whether the edge form of the park test counts. An unplanned character's edge park counts at once; a
+// character the route planner walks stops at its portals between legs, so its edge park counts only
+// once it has held for hysteresisSec (heldSec: how long the edge test has held without a break).
+bool IslandEdgeParkCounts(bool edgeNear, bool planned, double heldSec, double hysteresisSec);
+
+// Whether a tracked order's re-issue goes to the character alone instead of through its formation
+// group. forced: the caller already chose the character path. A member the route planner's merge left
+// alone walks the player's own order while its group gathers, and the group's re-issue refuses a group
+// that has not gathered, so that member is re-issued alone; a gathered group's members, and a member
+// gathering with its group, keep the group path.
+bool IslandReissueCharacterOnly(bool forced, bool memberAlone, bool groupGathered);
+
+#endif // KEO_ISLAND_SPAN_POLICY_H

@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-02",
+  "sourceHead": "ed366bbd1dd850555052615725c466cc6879c2cb",
+  "branch": "leopard",
+  "scope": "startup routing-master OFF maintenance only; no installation, commit/publication, MCM migration, spawning/GOG claims",
+  "candidate": {
+    "path": "D:\\DEV\\Kenshi\\forks\\KEO\\build\\KEO_step4_routingfix_prod\\KEO.dll",
+    "size": 1417728,
+    "sha256": "328fdec4694cb9d4dcef9782b62360bb31ec6dd64395246e20fa6c34fc51ed7b"
+  },
+  "testResults": {
+    "prodChecks": 436,
+    "devChecks": 436,
+    "compiledMutantsRejected": 5,
+    "nativeBuild": "DEV+PROD PASS;336cpp compiled each; object cache disabled",
+    "imports": "x64/startPlugin/143KenshiLib imports compatible0.5.0",
+    "fullHost": "NOT GREEN:111/122CPP;8 existing GUI header failures;3 existing config golden/count failures; object-cache Python shadow test fails in module but passes alone",
+    "baseline": "HEADmovement.cpp reproduces same3 config failures; relevantGUI andobjcache sources unchanged after line-ending normalization"
+  },
+  "files": {
+    "src/movement/movement_config.cpp": "48a1170f901d6e523147fa4e21259a2964aadc661d92e1884580511ce2fc897a",
+    "src/movement/movement_config.h": "23d02ffaa0b9b107a2f5967de3c71d04d265397abf458ca78ead056492a9700d",
+    "leopard/test_routing_switch.py": "3a40e3ee0aacbbe705645fade30da6c1a9407ca3669c69813ed6b2e550785dd9",
+    "leopard/routing_switch_tests.cpp": "c68747fa4e7ce87401e5e54d3c2481ba0a4634c2f21863d4708033bd153fb88d",
+    "leopard/routing-maintenance-20261102.md": "68768ddcdac26d8d64298ac461ef099f56553bc44250bd434f2cd4fbee20ead8"
+  }
+}

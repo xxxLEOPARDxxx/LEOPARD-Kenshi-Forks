@@ -1,0 +1,30 @@
+{
+  "sha256": "eaa75821e941f85fe95b4e3a7ce7fa3fde17c564d03a508a48132b85303b2859",
+  "bytes": 1480192,
+  "exports": [
+    "??0_Mutex@std@@QEAA@W4_Uninitialized@1@@Z",
+    "??4_Init_locks@std@@QEAAAEAV01@AEBV01@@Z",
+    "?startPlugin@@YAXXZ",
+    "MCM_Describe"
+  ],
+  "kenshilib_import_count": 144,
+  "gog_exe_execution_performed": false,
+  "gog_profile": {
+    "address_count": 392,
+    "window_count": 344
+  },
+  "source_baseline": "022bb701 native5f68039 plus explicit native GOG integration",
+  "status": "native tester candidate; no installation or publication by child",
+  "tests": {
+    "gog_actual_file_production_checks": 2673,
+    "runtime_refusal": "PASS; persistent fail-closed after GOG refusal",
+    "steam_priority_checks": 195,
+    "planner_tls_controls_each_build": 51,
+    "planner_job_controls_each_build": 142,
+    "mcm_adapter": "DEV/PROD PASS; deliberate mutants failed as expected",
+    "source_coverage": "392 keys /270 static /11 finite /23 raw /8 literal functional"
+  },
+  "review": "Independent address/byte/raw/lifetime/caller scoped reviews; GOG gameplay unverified",
+  "historical": true,
+  "superseded_reason": "Actual GOG tester exposed missing au global21322B0; profile self-enumeration had not covered complete Resolve global loop. See verification-au-fix-20261105.json."
+}

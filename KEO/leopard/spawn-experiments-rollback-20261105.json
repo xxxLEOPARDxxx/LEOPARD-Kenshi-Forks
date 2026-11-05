@@ -1,0 +1,23 @@
+{
+  "status": "rollback_installed_locally_not_published",
+  "time_msk": "2026-11-05T00:57:43.702096+03:00",
+  "dll_sha256": "32c40117e0271494ef6f84d827d7b18b3da40b9bf3cf325aaab589c76e653423",
+  "dll_bytes": 1441280,
+  "native_exact_baseline": "5f68039",
+  "retained": "MCM + compact RU/EN/ZH labels + navmesh/path priority/pause/TLS/jobcancel fixes",
+  "removed_experiments": [
+    "5772425",
+    "fb8c46a native spawn changes"
+  ],
+  "running_game_unloaded_module_proof": [],
+  "preserved_files": {
+    "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\mods\\KEO\\KEO.ini": "f15de53129ecc2d9537ebf18d465ed2493aa1caa3af1c2573ffed91feec8bd9d",
+    "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\mods\\KEO\\KEOCompat.ini": "2e2aa455c9627aa5a70edfdefc78842420356f82f7bed66a777314e6128dab82",
+    "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\mods\\KEO\\KEOCompat.dll": "2aba97961f99ca33207f7a99e178f8d828528eb9fae9d80e87ea1ddef5272537",
+    "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\mods\\KEO\\RE_Kenshi.json": "46dba618bbfac3e915141a0277a1106a3c30ed2d5fa8e6920782ea89ad6c2e68",
+    "D:\\SteamLibrary\\steamapps\\common\\Kenshi\\data\\mods.cfg": "695237c00c85284290fe1789c5b9131417baa197b28d494afb44eab79f34fa4f"
+  },
+  "backup": "D:\\DEV\\Kenshi\\backup\\keo-spawn-rollback-20261105",
+  "runtime_current_game_KEO": null,
+  "next_launch_restores_KEO": true
+}

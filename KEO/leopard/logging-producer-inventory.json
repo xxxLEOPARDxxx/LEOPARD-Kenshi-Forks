@@ -1,0 +1,2762 @@
+[
+  {
+    "file": "src/base/config.cpp",
+    "line": 103,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 118,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 128,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 133,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 159,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 181,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 203,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 216,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 229,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 237,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 250,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/base/config.cpp",
+    "line": 261,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/base/log.cpp",
+    "line": 146,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/base/log.cpp",
+    "line": 172,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/base/prologue.cpp",
+    "line": 83,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/base/prologue.cpp",
+    "line": 99,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/base/prologue.cpp",
+    "line": 111,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 68,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 80,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 90,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 161,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 164,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_game.cpp",
+    "line": 168,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_pin_run.cpp",
+    "line": 67,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/bench/bench_restore.cpp",
+    "line": 55,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/bench/bench_runner.cpp",
+    "line": 100,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/bench/bench_runner.cpp",
+    "line": 110,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/bench/bench_runner.cpp",
+    "line": 177,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/bench/bench_runner.cpp",
+    "line": 602,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/bench/bench_weather.cpp",
+    "line": 220,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 263,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 273,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 277,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 380,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 384,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 386,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 389,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 391,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/exit_capture.cpp",
+    "line": 403,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/diag/mem_probe.cpp",
+    "line": 232,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/physx_pool_probe.cpp",
+    "line": 263,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/diag/physx_pool_probe.cpp",
+    "line": 269,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/diag/physx_pool_probe.cpp",
+    "line": 333,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/game/game.cpp",
+    "line": 265,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/gui/bench_buttons.cpp",
+    "line": 27,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/bench_buttons.cpp",
+    "line": 48,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/gui/mcm_bridge.cpp",
+    "line": 32,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 151,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 199,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 310,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 330,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 347,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 403,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 439,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 446,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 462,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 475,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 483,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "line": 489,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/backpack_first.cpp",
+    "line": 88,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/backpack_first.cpp",
+    "line": 93,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/backpack_food.cpp",
+    "line": 77,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/backpack_food.cpp",
+    "line": 83,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/backpack_sidecar.cpp",
+    "line": 231,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/backpack_sidecar.cpp",
+    "line": 235,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/backpack_sidecar.cpp",
+    "line": 331,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/backpack_window.cpp",
+    "line": 216,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/backpack_window.cpp",
+    "line": 227,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/backpack_window.cpp",
+    "line": 229,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/dialogue_item_function.cpp",
+    "line": 151,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/dialogue_item_function.cpp",
+    "line": 165,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/dialogue_item_function.cpp",
+    "line": 171,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/job_counters.cpp",
+    "line": 71,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/job_counters.cpp",
+    "line": 76,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/inventory/job_counters.cpp",
+    "line": 134,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/operator_trips.cpp",
+    "line": 163,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/inventory/operator_trips.cpp",
+    "line": 168,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 189,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 320,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 411,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 464,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 659,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 771,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation.cpp",
+    "line": 786,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation_follow.cpp",
+    "line": 83,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation_follow.cpp",
+    "line": 84,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/formation_follow.cpp",
+    "line": 349,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation_pace.cpp",
+    "line": 66,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation_pace.cpp",
+    "line": 72,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/formation_pace.cpp",
+    "line": 76,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/formation_query.cpp",
+    "line": 357,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/islands.cpp",
+    "line": 262,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/islands.cpp",
+    "line": 281,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/islands.cpp",
+    "line": 377,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_components.cpp",
+    "line": 456,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_components.cpp",
+    "line": 471,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_components.cpp",
+    "line": 503,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_orders.cpp",
+    "line": 531,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_reissue.cpp",
+    "line": 87,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_reissue.cpp",
+    "line": 170,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/island_reissue.cpp",
+    "line": 307,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_observe.cpp",
+    "line": 91,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_observe.cpp",
+    "line": 288,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_observe.cpp",
+    "line": 333,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_observe.cpp",
+    "line": 358,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_reissue.cpp",
+    "line": 144,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/k7_reissue.cpp",
+    "line": 183,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/movement_trace.cpp",
+    "line": 97,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/movement_trace.cpp",
+    "line": 342,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/order_outcome.cpp",
+    "line": 22,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/scatter_patch.cpp",
+    "line": 105,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/scatter_patch.cpp",
+    "line": 138,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/scatter_patch.cpp",
+    "line": 188,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/scatter_patch.cpp",
+    "line": 198,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/scatter_patch.cpp",
+    "line": 235,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 105,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 157,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 192,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 252,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 412,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 579,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/movement/tracking.cpp",
+    "line": 592,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 63,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 132,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 134,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 141,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 143,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 151,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 155,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 168,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 173,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 195,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 201,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 208,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/nm_lazy_hooks.cpp",
+    "line": 220,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 341,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 372,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 401,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 433,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 446,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "line": 481,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_hier.cpp",
+    "line": 340,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/astar_hier.cpp",
+    "line": 369,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/gate_pass.cpp",
+    "line": 192,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/gate_pass.cpp",
+    "line": 203,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/pathfind/npc_cap_requester.cpp",
+    "line": 213,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/npc_wait_diag.cpp",
+    "line": 364,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/order_hook.cpp",
+    "line": 47,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/order_hook.cpp",
+    "line": 215,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/order_hook.cpp",
+    "line": 224,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_cache.cpp",
+    "line": 50,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 313,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 331,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 365,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 409,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 448,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "line": 450,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_guard_hooks.cpp",
+    "line": 65,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/pathfind/path_guard_hooks.cpp",
+    "line": 97,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool.cpp",
+    "line": 75,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 141,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 185,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 201,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 216,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 226,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 259,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "line": 335,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_probe.cpp",
+    "line": 22,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_probe.cpp",
+    "line": 45,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/path_probe.cpp",
+    "line": 81,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/player_task_snap.cpp",
+    "line": 303,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/pathfind/player_task_snap.cpp",
+    "line": 778,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 310,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 430,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 470,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 495,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 508,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 517,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 531,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 538,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 551,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "line": 560,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/coarse_graph_live_site.cpp",
+    "line": 314,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_hooks.cpp",
+    "line": 185,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/planner_hooks.cpp",
+    "line": 212,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/planner_hooks.cpp",
+    "line": 217,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_prearrival.cpp",
+    "line": 253,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/planner/planner_report.cpp",
+    "line": 31,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_report.cpp",
+    "line": 33,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_report.cpp",
+    "line": 110,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_report.cpp",
+    "line": 152,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_report.cpp",
+    "line": 197,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/planner/planner_tick.cpp",
+    "line": 527,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/planner_tick.cpp",
+    "line": 605,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/planner/planner_tick.cpp",
+    "line": 615,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/plugin/banner.cpp",
+    "line": 101,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/banner.cpp",
+    "line": 111,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/banner.cpp",
+    "line": 112,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/crash_record.cpp",
+    "line": 215,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 162,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 167,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 174,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 194,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 200,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 217,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 223,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 236,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 261,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 267,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 276,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 297,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 306,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 315,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 323,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 338,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 342,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 360,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 366,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 391,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 397,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 407,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 413,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 424,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 429,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 434,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 447,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 459,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 462,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 476,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 479,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 497,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 500,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 509,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 512,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 515,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 536,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 542,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 548,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 557,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 565,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/hook_manifest.cpp",
+    "line": 572,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 185,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 186,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 192,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 218,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 232,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 259,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 272,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 324,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 336,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 360,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 377,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "line": 420,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/plugin/profiler_image.cpp",
+    "line": 22,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 276,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 288,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 351,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 360,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 373,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 380,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/compositor_lever.cpp",
+    "line": 384,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/d3d_state_skip.cpp",
+    "line": 182,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/d3d_state_skip.cpp",
+    "line": 231,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/d3d_state_skip.cpp",
+    "line": 237,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/gpu_params.cpp",
+    "line": 170,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/gpu_params.cpp",
+    "line": 176,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/gpu_params.cpp",
+    "line": 192,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/gpu_upload.cpp",
+    "line": 394,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/inst_empty_skip.cpp",
+    "line": 82,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/inst_empty_skip.cpp",
+    "line": 88,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/inst_empty_skip.cpp",
+    "line": 108,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/module_hooks.cpp",
+    "line": 25,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/module_hooks.cpp",
+    "line": 37,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/ogre_join_spin.cpp",
+    "line": 153,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/ogre_join_spin.cpp",
+    "line": 170,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/ogre_purge_skip.cpp",
+    "line": 113,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/old_anim_lever.cpp",
+    "line": 285,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/old_anim_lever.cpp",
+    "line": 297,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/particle_levers.cpp",
+    "line": 303,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/particle_levers.cpp",
+    "line": 310,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/reflection_lever.cpp",
+    "line": 94,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_config.cpp",
+    "line": 11,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_config.cpp",
+    "line": 17,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_levers.cpp",
+    "line": 71,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_levers.cpp",
+    "line": 79,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_levers.cpp",
+    "line": 123,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 30,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 37,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 53,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 56,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 65,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 120,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 139,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/render_live.cpp",
+    "line": 144,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/scene_fork_skip.cpp",
+    "line": 198,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/scene_fork_skip.cpp",
+    "line": 291,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/scene_fork_skip.cpp",
+    "line": 313,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/render/shadow_reach.cpp",
+    "line": 311,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/shadow_reach.cpp",
+    "line": 483,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/shadow_reach.cpp",
+    "line": 497,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/render/shadow_reach.cpp",
+    "line": 523,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/camera_zone_hook.cpp",
+    "line": 201,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/camera_zone_hook.cpp",
+    "line": 320,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/camera_zone_hook.cpp",
+    "line": 531,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/camera_zone_hook.cpp",
+    "line": 589,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/grid.cpp",
+    "line": 44,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/grid.cpp",
+    "line": 58,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "line": 154,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "line": 183,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "line": 408,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "line": 417,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "line": 477,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/zone_life.cpp",
+    "line": 72,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/zone_pause.cpp",
+    "line": 78,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/zone_pause.cpp",
+    "line": 119,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/zone_pause.cpp",
+    "line": 123,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/geometry/zone_geometry_epoch.cpp",
+    "line": 182,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_first_time.cpp",
+    "line": 127,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_first_time.cpp",
+    "line": 212,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_first_time.cpp",
+    "line": 266,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_handoff.cpp",
+    "line": 346,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/zone/handoff/zone_handoff.cpp",
+    "line": 441,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_handoff.cpp",
+    "line": 569,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_handoff.cpp",
+    "line": 769,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_lifecycle_hooks.cpp",
+    "line": 142,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_lifecycle_hooks.cpp",
+    "line": 147,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/handoff/zone_lifecycle_hooks.cpp",
+    "line": 162,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/handoff/zone_lifecycle_hooks.cpp",
+    "line": 168,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/handoff/zone_registry.cpp",
+    "line": 97,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_pipe_stats.cpp",
+    "line": 92,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_pipe_stats.cpp",
+    "line": 112,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_prepare.cpp",
+    "line": 275,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_queue.cpp",
+    "line": 235,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_queue.cpp",
+    "line": 289,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_queue.cpp",
+    "line": 342,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_queue.cpp",
+    "line": 385,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/preload_queue.cpp",
+    "line": 444,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "line": 279,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "line": 287,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "line": 317,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "line": 336,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "line": 507,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/readiness/readiness_hook.cpp",
+    "line": 313,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/readiness/readiness_hook.cpp",
+    "line": 396,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/readiness/readiness_hook.cpp",
+    "line": 572,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 60,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 216,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 218,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 221,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 633,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 713,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/reset/preload_saveload.cpp",
+    "line": 819,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_evict.cpp",
+    "line": 159,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_evict.cpp",
+    "line": 214,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_evict.cpp",
+    "line": 245,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_evict.cpp",
+    "line": 265,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_evict.cpp",
+    "line": 408,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_expiry_guard.cpp",
+    "line": 93,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/retention/zone_leak_report.cpp",
+    "line": 227,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_retention.cpp",
+    "line": 366,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_retention.cpp",
+    "line": 446,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_unload.cpp",
+    "line": 98,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/retention/zone_unload.cpp",
+    "line": 340,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/zone/retention/zone_unload.cpp",
+    "line": 375,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/zone/retention/zone_unload.cpp",
+    "line": 714,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 74,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 93,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 99,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 102,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 125,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 137,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_core.cpp",
+    "line": 451,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 494,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 530,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 547,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 559,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 571,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 589,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 634,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 662,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 676,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 691,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 699,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 742,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "line": 807,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_disk_cache.cpp",
+    "line": 175,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "line": 407,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "line": 621,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "line": 692,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "line": 699,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "line": 701,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 127,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 232,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 234,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 255,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 259,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "line": 374,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/wall_splice.cpp",
+    "line": 125,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/construction/wall_splice.cpp",
+    "line": 182,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/construction/wall_splice.cpp",
+    "line": 186,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/wall_splice_drain.cpp",
+    "line": 244,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/construction/wall_splice_drain.cpp",
+    "line": 333,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/generation/nm_fresh_wb.cpp",
+    "line": 352,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/generation/nm_misspar.cpp",
+    "line": 88,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/generation/nm_misspar.cpp",
+    "line": 142,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/generation/nm_misspar.cpp",
+    "line": 243,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/generation/nm_nbr_seeds.cpp",
+    "line": 617,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/generation/nm_nbr_seeds.cpp",
+    "line": 781,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/generation/nm_quality.cpp",
+    "line": 63,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 171,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 368,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 431,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 432,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 435,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 436,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 459,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 462,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "line": 467,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_dispatch.cpp",
+    "line": 94,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_dispatch.cpp",
+    "line": 113,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_job_pipeline.cpp",
+    "line": 656,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_job_pipeline.cpp",
+    "line": 709,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_job_pipeline.cpp",
+    "line": 721,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_job_pipeline.cpp",
+    "line": 725,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_job_pipeline.cpp",
+    "line": 731,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/scheduling/navmesh_sched.cpp",
+    "line": 92,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/scheduling/navmesh_sched.cpp",
+    "line": 487,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency.cpp",
+    "line": 198,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency.cpp",
+    "line": 232,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency.cpp",
+    "line": 237,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency_check.cpp",
+    "line": 76,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency_report.cpp",
+    "line": 57,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency_report.cpp",
+    "line": 77,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/scheduling/nm_adjacency_report.cpp",
+    "line": 91,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 231,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 279,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 313,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 404,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 475,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 484,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/navmesh/workers/nm_worker_pool.cpp",
+    "line": 507,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 235,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 278,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 288,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 451,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 455,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/hull_queue_guard.cpp",
+    "line": 463,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/hull_same_skip.cpp",
+    "line": 126,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/hull_same_skip.cpp",
+    "line": 152,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/hull_same_skip.cpp",
+    "line": 165,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 261,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 392,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 415,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 429,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 442,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 448,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 463,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 470,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/physx_query_guard.cpp",
+    "line": 499,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 248,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 257,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 266,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 287,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 302,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 326,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 339,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 357,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/physx/purecall_record.cpp",
+    "line": 384,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/search/cluster_cross_cost.cpp",
+    "line": 84,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/cluster_cross_cost.cpp",
+    "line": 133,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/search/cluster_cross_cost.cpp",
+    "line": 138,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "line": 108,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "line": 152,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "line": 281,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "line": 287,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "line": 107,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "line": 175,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "line": 294,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "line": 318,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "line": 120,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "line": 163,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "line": 261,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "line": 268,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "line": 85,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "line": 123,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "line": 190,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "line": 195,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_byte_guard.cpp",
+    "line": 231,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_byte_guard.cpp",
+    "line": 288,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_byte_guard.cpp",
+    "line": 391,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_byte_guard.cpp",
+    "line": 416,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 581,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 613,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 650,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 659,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 678,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 695,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 719,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/stitch_source.cpp",
+    "line": 729,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_guard.cpp",
+    "line": 481,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_guard.cpp",
+    "line": 536,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_guard.cpp",
+    "line": 570,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_guard.cpp",
+    "line": 575,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "line": 316,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "line": 347,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "line": 498,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "line": 520,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "line": 525,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "line": 154,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "line": 165,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "line": 239,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "line": 364,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "line": 373,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "line": 96,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "line": 139,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "line": 282,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "line": 291,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "line": 164,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "line": 193,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "line": 273,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "line": 282,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_update_guard.cpp",
+    "line": 429,
+    "channel": "LogErrorDeferrable"
+  },
+  {
+    "file": "src/fixes/streaming/section_key_probe.cpp",
+    "line": 50,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/streaming/section_key_probe.cpp",
+    "line": 96,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/section_key_probe.cpp",
+    "line": 109,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/streaming/section_key_probe.cpp",
+    "line": 118,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/corpse_pin.cpp",
+    "line": 112,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/corpse_pin.cpp",
+    "line": 116,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/corpse_pin.cpp",
+    "line": 136,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/destroy_list_defer.cpp",
+    "line": 220,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/faction_relations.cpp",
+    "line": 157,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/faction_relations.cpp",
+    "line": 191,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/nest_validation.cpp",
+    "line": 128,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/nest_validation.cpp",
+    "line": 133,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/nest_validation.cpp",
+    "line": 144,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/nest_validation.cpp",
+    "line": 149,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/nest_validation.cpp",
+    "line": 156,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/onscreen_stagger.cpp",
+    "line": 142,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/onscreen_stagger.cpp",
+    "line": 200,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/paused_skip.cpp",
+    "line": 100,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/paused_skip.cpp",
+    "line": 119,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/throwout.cpp",
+    "line": 271,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/throwout.cpp",
+    "line": 287,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/throwout.cpp",
+    "line": 293,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/throwout.cpp",
+    "line": 401,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/throwout.cpp",
+    "line": 407,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/town_claim.cpp",
+    "line": 233,
+    "channel": "KEO_DETAIL_DEFERRED"
+  },
+  {
+    "file": "src/fixes/world/town_claim.cpp",
+    "line": 356,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/town_claim.cpp",
+    "line": 359,
+    "channel": "LogError"
+  },
+  {
+    "file": "src/fixes/world/town_claim.cpp",
+    "line": 408,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/town_claim_patch.cpp",
+    "line": 123,
+    "channel": "KEO_DETAIL"
+  },
+  {
+    "file": "src/fixes/world/town_claim_patch.cpp",
+    "line": 141,
+    "channel": "LogError"
+  }
+]

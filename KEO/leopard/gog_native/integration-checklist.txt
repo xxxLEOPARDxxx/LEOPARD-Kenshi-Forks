@@ -1,0 +1,31 @@
+KEO GOG native profile integration - 2026-11-05
+Baseline022bb701: native EXACT5f68039, retained three MCM labels.
+
+DONE: actual pinned GOG/Steam EXEs and unique SAME-SLOT official SDK0.5.0 tables.
+DONE:393 explicit EXE mappings,393 inverse keys,344 actual-GOG32B windows.
+DONE:107 SDK registry entries validated before any hook; unknown GOG key has no Steam fallback.
+DONE: one-time pinned EXE SHA/PE and exact SDK DLL SHA, before native binding resolution.
+DONE: translated TLS once; raw global/scratch/handle sites; container field offsets unchanged.
+DONE: exact functional caller policies and half-open lock-ownership ranges.
+DONE:28 PathPriority windows, inventory interior expressions, overlapping fog+7 window.
+DONE: actual-GOG TownClaim/Stitch/PhysQuery/Dialog builder contracts, no native execution.
+DONE: separate Ogre/PhysX/D3D gates preserved; their RVAs excluded from EXE translation.
+DONE: PhysX GOG diagnostic caller roles report unknown rather than incorrect Steam ranges.
+DONE: final source coverage393 keys,270 static GameAddr,11 finite domains,23 direct raw sites,8 functional literal keys.
+DONE: DEV and PROD345-source builds;148 KenshiLib imports; startPlugin and MCM_Describe exports.
+DONE:2676 GOG actual-file/production checks plus actual Windows persistent-refusal tests.
+DONE: Steam priority195, planner TLS51 each/Od+O2, job cancellation142 each/Od+O2, MCM adapter DEV/PROD; negative controls failed as expected.
+DONE: independent address/raw/byte/lifetime/caller review; encoding corrections retained.
+
+PENDING: actual GOG startup and gameplay by testers. No supplied EXE has been executed.
+PENDING: Steam in-game regression after candidate installation. Source/host tests do not prove FPS or universal leak freedom.
+PENDING: private tester archive packaging/CRC by root; no publication or personal changelog entry.
+
+PROD DLL SHA256:0d0ff2b79838d74db4236662f7d8cefa702e2162bdd732d592be22487fd1d766
+DLL bytes:1489920
+
+2026-11-05 au startup correction: official SDK slot7627 mapping21322B0->2130220.
+Full extracted production Resolve/Add/global loop and startup guard now execute
+against official SDK targets:107 entries,114 checks; old e608 profile RED reproduced.
+Lost au/nested key and wrong/null SDK pointer refuse startup; bypass mutant rejected.
+No runtime guard relaxation and no change to INI or package/install state.

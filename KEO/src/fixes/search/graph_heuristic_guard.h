@@ -1,0 +1,12 @@
+// graph_heuristic_guard.h - The guards on the three unchecked cluster-graph reads inside the
+// A* search's hierarchical heuristic. Installed at startup on the main thread while wanted.
+#ifndef KEO_FIXES_GRAPH_HEURISTIC_GUARD_H
+#define KEO_FIXES_GRAPH_HEURISTIC_GUARD_H
+
+void InstallGraphHeuristicGuard(int* installed, int*);
+// "ON" when all three rows installed, "PARTIAL" when some did, "OFF" when none.
+const char* GraphHeuristicGuardToken();
+// True when the token reads "ON".
+bool GraphHeuristicGuardComplete();
+
+#endif

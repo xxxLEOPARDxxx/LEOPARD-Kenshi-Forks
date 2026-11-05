@@ -1,0 +1,238 @@
+[
+  {
+    "file": "src/bench/bench_pin_run.cpp",
+    "function": "Logf"
+  },
+  {
+    "file": "src/bench/bench_runner.cpp",
+    "function": "Logf"
+  },
+  {
+    "file": "src/gui/settings_panel.cpp",
+    "function": "LogFloorRaised"
+  },
+  {
+    "file": "src/movement/islands.cpp",
+    "function": "LogIslandSpan"
+  },
+  {
+    "file": "src/movement/island_components.cpp",
+    "function": "LogInputsOnce"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "function": "PrintAstarCapLine"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "function": "PrintAstarSlowLine"
+  },
+  {
+    "file": "src/pathfind/astar_cost.cpp",
+    "function": "PrintAstarClassLine"
+  },
+  {
+    "file": "src/pathfind/astar_hier.cpp",
+    "function": "PrintAstarHierLine"
+  },
+  {
+    "file": "src/pathfind/astar_hier.cpp",
+    "function": "PrintAstarHierEvents"
+  },
+  {
+    "file": "src/pathfind/gate_pass.cpp",
+    "function": "PrintRecord"
+  },
+  {
+    "file": "src/pathfind/npc_wait_diag.cpp",
+    "function": "PrintNpcPathWaitLine"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "function": "ReportPathfindWindow"
+  },
+  {
+    "file": "src/pathfind/pathfind_diag_report.cpp",
+    "function": "ReportFindPathInputProbe"
+  },
+  {
+    "file": "src/pathfind/path_pool_report.cpp",
+    "function": "PrintAstarCostLine"
+  },
+  {
+    "file": "src/pathfind/player_task_snap.cpp",
+    "function": "LogPlayerTask"
+  },
+  {
+    "file": "src/pathfind/player_task_snap.cpp",
+    "function": "ReportPlayerStuck"
+  },
+  {
+    "file": "src/planner/coarse_graph_base.cpp",
+    "function": "LogDataRoot"
+  },
+  {
+    "file": "src/planner/planner_tick.cpp",
+    "function": "ReportDrop"
+  },
+  {
+    "file": "src/plugin/plugin_entry.cpp",
+    "function": "LogStartupLayout"
+  },
+  {
+    "file": "src/render/render_config.cpp",
+    "function": "LogRenderConfig"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "function": "LogTransitionTarget"
+  },
+  {
+    "file": "src/zone/transition_hook.cpp",
+    "function": "LogTransitionStart"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "function": "PrintCycle"
+  },
+  {
+    "file": "src/zone/preload/zone_cycle_stats.cpp",
+    "function": "PrintSummary"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogL2MissLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogEdgeMatchParamsLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogEdgeMatchParams2Line"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogGenConfig336Line"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogGenConfig384Line"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogMiscParamsLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogSettingsStatementLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogWorkBufferProbeLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogHkArraySummaryLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogHkArrayEntryLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_cache_report.cpp",
+    "function": "LogHkArrayEmptyLine"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "function": "LogPress"
+  },
+  {
+    "file": "src/navmesh/cache/nm_force_rebuild.cpp",
+    "function": "LogHoldEnd"
+  },
+  {
+    "file": "src/navmesh/construction/splice_seam.cpp",
+    "function": "LogBox"
+  },
+  {
+    "file": "src/navmesh/jobs/nm_buildlock.cpp",
+    "function": "LogOtherCallerOnce"
+  },
+  {
+    "file": "src/fixes/physx/hull_same_skip.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/cluster_cross_cost.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/graph_expand_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/graph_heuristic_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/graph_position_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/search/graph_visitor_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/stitch/unstitch_probe.cpp",
+    "function": "EmitRow"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/streaming/create_instance_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/streaming/mesh_face_guard.cpp",
+    "function": "EmitFireLine"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "function": "EmitHeartbeat"
+  },
+  {
+    "file": "src/fixes/streaming/navmesh_life.cpp",
+    "function": "EmitRow"
+  }
+]

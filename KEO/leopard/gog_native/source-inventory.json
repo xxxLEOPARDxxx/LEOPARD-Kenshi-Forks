@@ -1,0 +1,3227 @@
+{
+  "constants": [
+    {
+      "name": "kAbstractShapeVtableRva",
+      "steam": "0x3b3f90",
+      "path": "src\\fixes\\physx\\physx_query_guard.cpp",
+      "line": 214,
+      "status": "separate_module_not_exe"
+    },
+    {
+      "name": "kConcreteShapeVtableRva",
+      "steam": "0x3b40d0",
+      "path": "src\\fixes\\physx\\physx_query_guard.cpp",
+      "line": 215,
+      "status": "separate_module_not_exe",
+      "steam_function": "0x3b40c0",
+      "function_bytes": 37
+    },
+    {
+      "name": "kPhysQuerySiteRva",
+      "steam": "0x7859f2",
+      "path": "src\\fixes\\physx\\physx_query_guard_policy.cpp",
+      "line": 6,
+      "status": "verified_containing_function",
+      "gog": "0x785322",
+      "steam_function": "0x7857a0",
+      "function_bytes": 743
+    },
+    {
+      "name": "kPhysQueryResumeRva",
+      "steam": "0x7859f8",
+      "path": "src\\fixes\\physx\\physx_query_guard_policy.cpp",
+      "line": 7,
+      "status": "verified_containing_function",
+      "gog": "0x785328",
+      "steam_function": "0x7857a0",
+      "function_bytes": 743
+    },
+    {
+      "name": "kPhysQuerySkipRva",
+      "steam": "0x785a40",
+      "path": "src\\fixes\\physx\\physx_query_guard_policy.cpp",
+      "line": 8,
+      "status": "verified_containing_function",
+      "gog": "0x785370",
+      "steam_function": "0x7857a0",
+      "function_bytes": 743
+    },
+    {
+      "name": "kPurecallRva",
+      "steam": "0x47624",
+      "path": "src\\fixes\\physx\\purecall_layout.cpp",
+      "line": 3,
+      "status": "separate_module_not_exe"
+    },
+    {
+      "name": "kPurecallHandlerPtrRva",
+      "steam": "0x40af80",
+      "path": "src\\fixes\\physx\\purecall_layout.cpp",
+      "line": 4,
+      "status": "separate_module_not_exe",
+      "steam_function": "0x40aec0",
+      "function_bytes": 990
+    },
+    {
+      "name": "GH_RET_HEURISTIC_INIT",
+      "steam": "0xda69a1",
+      "path": "src\\fixes\\search\\graph_heuristic_guard_policy.h",
+      "line": 21,
+      "status": "verified_containing_function",
+      "gog": "0xda60c1",
+      "steam_function": "0xda697f",
+      "function_bytes": 94
+    },
+    {
+      "name": "GH_RET_PATH_EXISTS",
+      "steam": "0xda4713",
+      "path": "src\\fixes\\search\\graph_heuristic_guard_policy.h",
+      "line": 22,
+      "status": "verified_containing_function",
+      "gog": "0xda3e33",
+      "steam_function": "0xda45cc",
+      "function_bytes": 400
+    },
+    {
+      "name": "kStitchByteSiteRva",
+      "steam": "0x3c911e",
+      "path": "src\\fixes\\stitch\\stitch_byte_guard_policy.cpp",
+      "line": 6,
+      "status": "verified_containing_function",
+      "gog": "0x3c8d3e",
+      "steam_function": "0x3c8b70",
+      "function_bytes": 2913
+    },
+    {
+      "name": "kStitchByteResumeRva",
+      "steam": "0x3c9126",
+      "path": "src\\fixes\\stitch\\stitch_byte_guard_policy.cpp",
+      "line": 7,
+      "status": "verified_containing_function",
+      "gog": "0x3c8d46",
+      "steam_function": "0x3c8b70",
+      "function_bytes": 2913
+    },
+    {
+      "name": "kStitchByteBranchRva",
+      "steam": "0x3c8d67",
+      "path": "src\\fixes\\stitch\\stitch_byte_guard_policy.cpp",
+      "line": 8,
+      "status": "verified_containing_function",
+      "gog": "0x3c8987",
+      "steam_function": "0x3c8b70",
+      "function_bytes": 2913
+    },
+    {
+      "name": "CI_RET_GENERATOR_UPDATE",
+      "steam": "0x3c8d64",
+      "path": "src\\fixes\\streaming\\create_instance_guard_policy.h",
+      "line": 57,
+      "status": "verified_containing_function",
+      "gog": "0x3c8984",
+      "steam_function": "0x3c8b70",
+      "function_bytes": 2913
+    },
+    {
+      "name": "CI_RET_ZONE_SECTOR",
+      "steam": "0x3ad9cc",
+      "path": "src\\fixes\\streaming\\create_instance_guard_policy.h",
+      "line": 58,
+      "status": "verified_containing_function",
+      "gog": "0x3ad5ec",
+      "steam_function": "0x3ad800",
+      "function_bytes": 1824
+    },
+    {
+      "name": "CI_RET_ZONE_INTERIOR",
+      "steam": "0x3adbb7",
+      "path": "src\\fixes\\streaming\\create_instance_guard_policy.h",
+      "line": 59,
+      "status": "verified_containing_function",
+      "gog": "0x3ad7d7",
+      "steam_function": "0x3ad800",
+      "function_bytes": 1824
+    },
+    {
+      "name": "kGeneratorZoneMutexRva",
+      "steam": "0x212deb8",
+      "path": "src\\fixes\\streaming\\navmesh_update_guard.cpp",
+      "line": 22,
+      "status": "verified_code_reference",
+      "gog": "0x212bdf8",
+      "evidence_count": 8
+    },
+    {
+      "name": "kTownClaimLeadRva",
+      "steam": "0x57c9ac",
+      "path": "src\\fixes\\world\\town_claim_policy.cpp",
+      "line": 83,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x57ccbc"
+    },
+    {
+      "name": "kTownClaimSiteRva",
+      "steam": "0x57c9b1",
+      "path": "src\\fixes\\world\\town_claim_policy.cpp",
+      "line": 84,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x57ccc1"
+    },
+    {
+      "name": "kTownClaimResumeRva",
+      "steam": "0x57c9be",
+      "path": "src\\fixes\\world\\town_claim_policy.cpp",
+      "line": 85,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x57ccce"
+    },
+    {
+      "name": "kTownClaimKeepRva",
+      "steam": "0x57cc7e",
+      "path": "src\\fixes\\world\\town_claim_policy.cpp",
+      "line": 86,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x57cf8e"
+    },
+    {
+      "name": "RVA_STOP_CHARACTERS_MOVEMENT",
+      "steam": "0x7f58d0",
+      "path": "src\\game\\bindings.h",
+      "line": 196,
+      "status": "official_symbol",
+      "gog": "0x7f5210",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ADD_JOB_SELECTED",
+      "steam": "0x7f4ef0",
+      "path": "src\\game\\bindings.h",
+      "line": 197,
+      "status": "official_symbol",
+      "gog": "0x7f4830",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ADD_TASK_NEAREST",
+      "steam": "0x7fa2d0",
+      "path": "src\\game\\bindings.h",
+      "line": 198,
+      "status": "official_symbol",
+      "gog": "0x7f9c10",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HKAI_KEYCODE_VALIDATE",
+      "steam": "0xe76c30",
+      "path": "src\\game\\game.h",
+      "line": 30,
+      "status": "verified_containing_function",
+      "gog": "0xe76350",
+      "steam_function": "0xe76c30",
+      "function_bytes": 367
+    },
+    {
+      "name": "RVA_CONTENT_STREAM_CALLEE_0X8869",
+      "steam": "0x3a9f20",
+      "path": "src\\game\\offsets.h",
+      "line": 203,
+      "status": "official_symbol",
+      "gog": "0x3a9b40",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ADD_INSTANCE",
+      "steam": "0xd0d8f0",
+      "path": "src\\game\\offsets.h",
+      "line": 208,
+      "status": "verified_containing_function",
+      "gog": "0xd0d010",
+      "steam_function": "0xd0d8f0",
+      "function_bytes": 821
+    },
+    {
+      "name": "RVA_WATER_OCCLUSION_LISTENER",
+      "steam": "0x9d9060",
+      "path": "src\\game\\offsets.h",
+      "line": 211,
+      "status": "verified_containing_function",
+      "gog": "0x9d8780",
+      "steam_function": "0x9d9060",
+      "function_bytes": 123
+    },
+    {
+      "name": "RVA_EFFECTS_MGR",
+      "steam": "0x2127190",
+      "path": "src\\game\\offsets.h",
+      "line": 212,
+      "status": "verified_code_reference",
+      "gog": "0x21251a0",
+      "evidence_count": 12
+    },
+    {
+      "name": "RVA_CSM_SETUP_CASCADE",
+      "steam": "0x862f60",
+      "path": "src\\game\\offsets.h",
+      "line": 213,
+      "status": "verified_containing_function",
+      "gog": "0x8628a0",
+      "steam_function": "0x862f60",
+      "function_bytes": 3401
+    },
+    {
+      "name": "RVA_SKY_INSTANCE",
+      "steam": "0x212f3c0",
+      "path": "src\\game\\offsets.h",
+      "line": 214,
+      "status": "verified_code_reference",
+      "gog": "0x212d300",
+      "evidence_count": 41
+    },
+    {
+      "name": "RVA_RENDERER",
+      "steam": "0x21322b8",
+      "path": "src\\game\\offsets.h",
+      "line": 215,
+      "status": "verified_code_reference",
+      "gog": "0x2130228",
+      "evidence_count": 109
+    },
+    {
+      "name": "RVA_FOG_CONTROLLER",
+      "steam": "0x2127348",
+      "path": "src\\game\\offsets.h",
+      "line": 216,
+      "status": "verified_code_reference",
+      "gog": "0x2125358",
+      "evidence_count": 8
+    },
+    {
+      "name": "RVA_FOG_CONTROLLER_UPDATE",
+      "steam": "0x1096e0",
+      "path": "src\\game\\offsets.h",
+      "line": 217,
+      "status": "verified_containing_function",
+      "gog": "0x1096e0",
+      "steam_function": "0x1096e0",
+      "function_bytes": 40
+    },
+    {
+      "name": "RVA_QUEUE_CUTTER_FOG_CALL",
+      "steam": "0x82c643",
+      "path": "src\\game\\offsets.h",
+      "line": 218,
+      "status": "verified_containing_function",
+      "gog": "0x82bf83",
+      "steam_function": "0x82bd40",
+      "function_bytes": 2492
+    },
+    {
+      "name": "RVA_FOG_UPDATE_THUNK",
+      "steam": "0x10c67",
+      "path": "src\\game\\offsets.h",
+      "line": 219,
+      "status": "verified_code_reference",
+      "gog": "0x10c62",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_PAGED_GEOMETRY_UPDATE",
+      "steam": "0xa29e40",
+      "path": "src\\game\\offsets.h",
+      "line": 220,
+      "status": "verified_containing_function",
+      "gog": "0xa29560",
+      "steam_function": "0xa29e40",
+      "function_bytes": 829
+    },
+    {
+      "name": "RVA_OPTIONS_CREATE",
+      "steam": "0x3f0120",
+      "path": "src\\game\\offsets.h",
+      "line": 223,
+      "status": "official_symbol",
+      "gog": "0x3efd40",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_OPTIONS_SAVE_OPTIONS",
+      "steam": "0x3ec950",
+      "path": "src\\game\\offsets.h",
+      "line": 224,
+      "status": "official_symbol",
+      "gog": "0x3ec570",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DP_SET_LINE_TEXT_BUTTON",
+      "steam": "0x6fe390",
+      "path": "src\\game\\offsets.h",
+      "line": 225,
+      "status": "official_symbol",
+      "gog": "0x6fdcf0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DP_BUTTON_PRESS",
+      "steam": "0x6f60a0",
+      "path": "src\\game\\offsets.h",
+      "line": 226,
+      "status": "official_symbol",
+      "gog": "0x6f5a00",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DP_CHECKBOX_TOGGLE_CALLBACK",
+      "steam": "0x6f8060",
+      "path": "src\\game\\offsets.h",
+      "line": 227,
+      "status": "verified_containing_function",
+      "gog": "0x6f79c0",
+      "steam_function": "0x6f8010",
+      "function_bytes": 109
+    },
+    {
+      "name": "RVA_CAMERA_TELEPORT",
+      "steam": "0x6b00f0",
+      "path": "src\\game\\offsets.h",
+      "line": 231,
+      "status": "official_symbol",
+      "gog": "0x6af190",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CAMERA_ORIENT_ZOOM",
+      "steam": "0x6af0c0",
+      "path": "src\\game\\offsets.h",
+      "line": 232,
+      "status": "official_symbol",
+      "gog": "0x6ae160",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CAMERA_GET_CENTER",
+      "steam": "0x100880",
+      "path": "src\\game\\offsets.h",
+      "line": 233,
+      "status": "official_symbol",
+      "gog": "0x100880",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GW_SET_GAME_SPEED",
+      "steam": "0x787300",
+      "path": "src\\game\\offsets.h",
+      "line": 254,
+      "status": "official_symbol",
+      "gog": "0x786c30",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GW_USER_PAUSE",
+      "steam": "0x787470",
+      "path": "src\\game\\offsets.h",
+      "line": 255,
+      "status": "official_symbol",
+      "gog": "0x786da0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GW_TIMESTAMP_HOURS",
+      "steam": "0x66c180",
+      "path": "src\\game\\offsets.h",
+      "line": 256,
+      "status": "official_symbol",
+      "gog": "0x66c490",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_GUI_IS_LOADING",
+      "steam": "0x6e1db0",
+      "path": "src\\game\\offsets.h",
+      "line": 257,
+      "status": "official_symbol",
+      "gog": "0x6e16c0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GUI_IS_PAUSED",
+      "steam": "0x6e1e60",
+      "path": "src\\game\\offsets.h",
+      "line": 258,
+      "status": "official_symbol",
+      "gog": "0x6e1770",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PROCESS_LOADING",
+      "steam": "0xa0e950",
+      "path": "src\\game\\offsets.h",
+      "line": 259,
+      "status": "official_symbol",
+      "gog": "0xa0e070",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GW_TOGGLE_PAUSE",
+      "steam": "0x787200",
+      "path": "src\\game\\offsets.h",
+      "line": 260,
+      "status": "official_symbol",
+      "gog": "0x786b30",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ESC_MENU_HIDE",
+      "steam": "0x916190",
+      "path": "src\\game\\offsets.h",
+      "line": 261,
+      "status": "verified_containing_function",
+      "gog": "0x9158b0",
+      "steam_function": "0x916190",
+      "function_bytes": 179
+    },
+    {
+      "name": "RVA_OPTIONS_IS_VISIBLE",
+      "steam": "0x3e7100",
+      "path": "src\\game\\offsets.h",
+      "line": 265,
+      "status": "official_symbol",
+      "gog": "0x3e6d20",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_OPTIONS_GET_SINGLETON",
+      "steam": "0x406b90",
+      "path": "src\\game\\offsets.h",
+      "line": 266,
+      "status": "official_symbol",
+      "gog": "0x4067b0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_WEATHER_GET_INSTANCE",
+      "steam": "0xf89a0",
+      "path": "src\\game\\offsets.h",
+      "line": 267,
+      "status": "official_symbol",
+      "gog": "0xf89a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PI_START_TRACK_CHARACTER",
+      "steam": "0x7f4860",
+      "path": "src\\game\\offsets.h",
+      "line": 268,
+      "status": "official_symbol",
+      "gog": "0x7f41a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HAND_GET_ROOT_OBJECT",
+      "steam": "0x79c870",
+      "path": "src\\game\\offsets.h",
+      "line": 269,
+      "status": "official_symbol",
+      "gog": "0x79c1b0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_HAND_GET_CHARACTER",
+      "steam": "0x7974f0",
+      "path": "src\\game\\offsets.h",
+      "line": 270,
+      "status": "official_symbol",
+      "gog": "0x796e30",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARACTER_IS_DEAD",
+      "steam": "0x620b20",
+      "path": "src\\game\\offsets.h",
+      "line": 271,
+      "status": "official_symbol",
+      "gog": "0x620e30",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_ACTIVEPLATOON_CALC_POS",
+      "steam": "0x4fe2c0",
+      "path": "src\\game\\offsets.h",
+      "line": 275,
+      "status": "official_symbol",
+      "gog": "0x4fe5d0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GLOBAL_GUI",
+      "steam": "0x2132750",
+      "path": "src\\game\\offsets.h",
+      "line": 276,
+      "status": "official_symbol",
+      "gog": "0x21306c0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_GLOBAL_INPUT",
+      "steam": "0x2132320",
+      "path": "src\\game\\offsets.h",
+      "line": 277,
+      "status": "official_symbol",
+      "gog": "0x2130290",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_SKYX_CONTROLLER_VTABLE",
+      "steam": "0x16fc420",
+      "path": "src\\game\\offsets.h",
+      "line": 280,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x16fb210"
+    },
+    {
+      "name": "RVA_USER_PAUSE_SPEED",
+      "steam": "0x2131e88",
+      "path": "src\\game\\offsets.h",
+      "line": 281,
+      "status": "verified_code_reference",
+      "gog": "0x212fdf8",
+      "evidence_count": 3
+    },
+    {
+      "name": "RVA_USER_PAUSE_GUARD",
+      "steam": "0x2131e8c",
+      "path": "src\\game\\offsets.h",
+      "line": 282,
+      "status": "verified_code_reference",
+      "gog": "0x212fdfc",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_OPTIONS_INSTANCE",
+      "steam": "0x212e080",
+      "path": "src\\game\\offsets.h",
+      "line": 283,
+      "status": "verified_code_reference",
+      "gog": "0x212bfc0",
+      "evidence_count": 19
+    },
+    {
+      "name": "RVA_WEATHER_INSTANCE",
+      "steam": "0x2127180",
+      "path": "src\\game\\offsets.h",
+      "line": 284,
+      "status": "verified_code_reference",
+      "gog": "0x2125190",
+      "evidence_count": 10
+    },
+    {
+      "name": "RVA_CLOCK_RATE",
+      "steam": "0x16fc7f8",
+      "path": "src\\game\\offsets.h",
+      "line": 288,
+      "status": "verified_code_reference",
+      "gog": "0x16fb5e8",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_SKY_ADVANCE",
+      "steam": "0x66e700",
+      "path": "src\\game\\offsets.h",
+      "line": 289,
+      "status": "verified_containing_function",
+      "gog": "0x66ea10",
+      "steam_function": "0x66e700",
+      "function_bytes": 3518
+    },
+    {
+      "name": "RVA_SKY_DAY_INCREMENT",
+      "steam": "0x66e990",
+      "path": "src\\game\\offsets.h",
+      "line": 291,
+      "status": "verified_containing_function",
+      "gog": "0x66eca0",
+      "steam_function": "0x66e700",
+      "function_bytes": 3518
+    },
+    {
+      "name": "RVA_WEATHER_SETUP",
+      "steam": "0x9dc090",
+      "path": "src\\game\\offsets.h",
+      "line": 293,
+      "status": "official_symbol",
+      "gog": "0x9db7b0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SHOW_LOADING_MESSAGE",
+      "steam": "0x6e9800",
+      "path": "src\\game\\rva.h",
+      "line": 15,
+      "status": "official_symbol",
+      "gog": "0x6e9110",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_IS_CONTENT_PENDING",
+      "steam": "0x3ab4f0",
+      "path": "src\\game\\rva.h",
+      "line": 18,
+      "status": "official_symbol",
+      "gog": "0x3ab110",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_UPDATE_CAMERA_ZONE",
+      "steam": "0xa11da0",
+      "path": "src\\game\\rva.h",
+      "line": 21,
+      "status": "official_symbol",
+      "gog": "0xa114c0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_STATE_MACHINE_DRIVER",
+      "steam": "0xa0e950",
+      "path": "src\\game\\rva.h",
+      "line": 22,
+      "status": "official_symbol",
+      "gog": "0xa0e070",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ADD_ORDER_SELECTED",
+      "steam": "0x7f9280",
+      "path": "src\\game\\rva.h",
+      "line": 25,
+      "status": "official_symbol",
+      "gog": "0x7f8bc0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_LOAD_SINGLE_ZONE",
+      "steam": "0x16243",
+      "path": "src\\game\\rva.h",
+      "line": 28,
+      "status": "verified_code_reference",
+      "gog": "0x1623e",
+      "evidence_count": 3
+    },
+    {
+      "name": "RVA_REGISTER_ZONE_SECTIONS",
+      "steam": "0x2d7b8",
+      "path": "src\\game\\rva.h",
+      "line": 29,
+      "status": "verified_code_reference",
+      "gog": "0x2d826",
+      "evidence_count": 4
+    },
+    {
+      "name": "RVA_FINALIZE_ZONE_RES_ENTRY",
+      "steam": "0x8f5100",
+      "path": "src\\game\\rva.h",
+      "line": 33,
+      "status": "verified_containing_function",
+      "gog": "0x8f4820",
+      "steam_function": "0x8f5100",
+      "function_bytes": 278
+    },
+    {
+      "name": "RVA_TOWNLIST_DESTROY",
+      "steam": "0x92a4f0",
+      "path": "src\\game\\rva.h",
+      "line": 39,
+      "status": "official_symbol",
+      "gog": "0x929c10",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_FLUSH_PENDING_WORK",
+      "steam": "0x2e073",
+      "path": "src\\game\\rva.h",
+      "line": 40,
+      "status": "verified_code_reference",
+      "gog": "0x2e0e1",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_ACTIVATE_ZONEMAP",
+      "steam": "0xa0e1b0",
+      "path": "src\\game\\rva.h",
+      "line": 44,
+      "status": "official_symbol",
+      "gog": "0xa0d8d0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ZONEMAP_UPDATE",
+      "steam": "0xa0a960",
+      "path": "src\\game\\rva.h",
+      "line": 51,
+      "status": "official_symbol",
+      "gog": "0xa0a080",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GLOBAL_FRAME_TIME",
+      "steam": "0x2132730",
+      "path": "src\\game\\rva.h",
+      "line": 56,
+      "status": "verified_code_reference",
+      "gog": "0x21306a0",
+      "evidence_count": 32
+    },
+    {
+      "name": "RVA_GLOBAL_OPTIONS",
+      "steam": "0x2132440",
+      "path": "src\\game\\rva.h",
+      "line": 59,
+      "status": "official_symbol",
+      "gog": "0x21303b0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_GLOBAL_GAME_FRAME_TIME",
+      "steam": "0x2132734",
+      "path": "src\\game\\rva.h",
+      "line": 63,
+      "status": "verified_code_reference",
+      "gog": "0x21306a4",
+      "evidence_count": 43
+    },
+    {
+      "name": "RVA_CHARACTER_UPDATE_ONSCREEN_CHECK",
+      "steam": "0x5c94d0",
+      "path": "src\\game\\rva.h",
+      "line": 66,
+      "status": "official_symbol",
+      "gog": "0x5c97e0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PLAYER_SQ_DIST_FROM_CAMERA",
+      "steam": "0x7f1e80",
+      "path": "src\\game\\rva.h",
+      "line": 69,
+      "status": "official_symbol",
+      "gog": "0x7f17c0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARACTER_PAUSED_UPDATE",
+      "steam": "0x5c7090",
+      "path": "src\\game\\rva.h",
+      "line": 73,
+      "status": "official_symbol",
+      "gog": "0x5c73a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARACTER_IS_PLAYER_CHARACTER",
+      "steam": "0x790b30",
+      "path": "src\\game\\rva.h",
+      "line": 76,
+      "status": "official_symbol",
+      "gog": "0x790470",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ADD_TO_TRACKING_SET",
+      "steam": "0x386190",
+      "path": "src\\game\\rva.h",
+      "line": 80,
+      "status": "verified_containing_function",
+      "gog": "0x385db0",
+      "steam_function": "0x386190",
+      "function_bytes": 471
+    },
+    {
+      "name": "RVA_SET_QUEUES_CLEAR",
+      "steam": "0x579460",
+      "path": "src\\game\\rva.h",
+      "line": 84,
+      "status": "official_symbol",
+      "gog": "0x579770",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_RESOLVE_HANDLE",
+      "steam": "0x3e419",
+      "path": "src\\game\\rva.h",
+      "line": 87,
+      "status": "verified_code_reference",
+      "gog": "0x3e487",
+      "evidence_count": 127
+    },
+    {
+      "name": "RVA_HANDLE_TABLE",
+      "steam": "0x2132f38",
+      "path": "src\\game\\rva.h",
+      "line": 88,
+      "status": "verified_code_reference",
+      "gog": "0x2130ea8",
+      "evidence_count": 193
+    },
+    {
+      "name": "RVA_HANDLE_SENTINEL",
+      "steam": "0x2132f10",
+      "path": "src\\game\\rva.h",
+      "line": 89,
+      "status": "verified_code_reference",
+      "gog": "0x2130e80",
+      "evidence_count": 153
+    },
+    {
+      "name": "RVA_PATH_BUILDER_INIT",
+      "steam": "0x3d136",
+      "path": "src\\game\\rva.h",
+      "line": 92,
+      "status": "verified_code_reference",
+      "gog": "0x3d1a4",
+      "evidence_count": 83
+    },
+    {
+      "name": "RVA_PATH_BUILDER_FINALIZE",
+      "steam": "0x4f8ae",
+      "path": "src\\game\\rva.h",
+      "line": 93,
+      "status": "verified_code_reference",
+      "gog": "0x4f926",
+      "evidence_count": 91
+    },
+    {
+      "name": "RVA_READER_UNLOCK",
+      "steam": "0x2e843",
+      "path": "src\\game\\rva.h",
+      "line": 94,
+      "status": "verified_code_reference",
+      "gog": "0x2e8b1",
+      "evidence_count": 112
+    },
+    {
+      "name": "RVA_QUEUE_LOCK_INIT",
+      "steam": "0x25f350",
+      "path": "src\\game\\rva.h",
+      "line": 99,
+      "status": "verified_containing_function",
+      "gog": "0x25eee0",
+      "steam_function": "0x25f350",
+      "function_bytes": 401
+    },
+    {
+      "name": "RVA_PROCESS_JOB_ALT",
+      "steam": "0x3cbe60",
+      "path": "src\\game\\rva.h",
+      "line": 102,
+      "status": "official_symbol",
+      "gog": "0x3cba80",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DISPATCH_JOB",
+      "steam": "0x3ce030",
+      "path": "src\\game\\rva.h",
+      "line": 103,
+      "status": "official_symbol",
+      "gog": "0x3cdc50",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_GENERATE_ZONEMAP",
+      "steam": "0x3ab700",
+      "path": "src\\game\\rva.h",
+      "line": 106,
+      "status": "official_symbol",
+      "gog": "0x3ab320",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_ADD_JOB_ZONE",
+      "steam": "0x3c66e0",
+      "path": "src\\game\\rva.h",
+      "line": 107,
+      "status": "official_symbol",
+      "gog": "0x3c6300",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_HASH_ZONE",
+      "steam": "0x3a1b70",
+      "path": "src\\game\\rva.h",
+      "line": 108,
+      "status": "official_symbol",
+      "gog": "0x3a1790",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PROCESS_KEYS_GENERATE_RET",
+      "steam": "0x787cf9",
+      "path": "src\\game\\rva.h",
+      "line": 109,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x787629"
+    },
+    {
+      "name": "RVA_SUBMAP_CELL_SIZE_X",
+      "steam": "0x20989f4",
+      "path": "src\\game\\rva.h",
+      "line": 110,
+      "status": "verified_code_reference",
+      "gog": "0x2096a04",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_SUBMAP_CELL_SIZE_Z",
+      "steam": "0x20989f0",
+      "path": "src\\game\\rva.h",
+      "line": 111,
+      "status": "verified_code_reference",
+      "gog": "0x2096a00",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_BUILD_COLLISION",
+      "steam": "0x39810",
+      "path": "src\\game\\rva.h",
+      "line": 112,
+      "status": "verified_code_reference",
+      "gog": "0x39879",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_PARTIAL_FIXUP",
+      "steam": "0x1c418",
+      "path": "src\\game\\rva.h",
+      "line": 113,
+      "status": "verified_code_reference",
+      "gog": "0x1c413",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_ENQUEUE_TO_PROC_QUEUE",
+      "steam": "0x2eeba",
+      "path": "src\\game\\rva.h",
+      "line": 114,
+      "status": "verified_code_reference",
+      "gog": "0x2ef28",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_GAME_NEW",
+      "steam": "0xed563a",
+      "path": "src\\game\\rva.h",
+      "line": 117,
+      "status": "verified_code_reference",
+      "gog": "0xed4d3c",
+      "evidence_count": 786
+    },
+    {
+      "name": "RVA_GAME_DELETE",
+      "steam": "0xed5628",
+      "path": "src\\game\\rva.h",
+      "line": 118,
+      "status": "verified_code_reference",
+      "gog": "0xed4d2a",
+      "evidence_count": 13661
+    },
+    {
+      "name": "RVA_GAME_NEW_ARR",
+      "steam": "0xed5634",
+      "path": "src\\game\\rva.h",
+      "line": 119,
+      "status": "verified_code_reference",
+      "gog": "0xed4d36",
+      "evidence_count": 570
+    },
+    {
+      "name": "RVA_GAME_DEL_ARR",
+      "steam": "0xed562e",
+      "path": "src\\game\\rva.h",
+      "line": 120,
+      "status": "verified_code_reference",
+      "gog": "0xed4d30",
+      "evidence_count": 803
+    },
+    {
+      "name": "RVA_SCRATCH_BUFFER",
+      "steam": "0x212de98",
+      "path": "src\\game\\rva.h",
+      "line": 123,
+      "status": "verified_code_reference",
+      "gog": "0x212bdd8",
+      "evidence_count": 29
+    },
+    {
+      "name": "RVA_SCRATCH_SIZE",
+      "steam": "0x1d2c0d0",
+      "path": "src\\game\\rva.h",
+      "line": 124,
+      "status": "verified_code_reference",
+      "gog": "0x1d2a0d0",
+      "evidence_count": 10
+    },
+    {
+      "name": "RVA_HAVOK_TLS_INDEX",
+      "steam": "0x21369c8",
+      "path": "src\\game\\rva.h",
+      "line": 127,
+      "status": "verified_code_reference",
+      "gog": "0x2134938",
+      "evidence_count": 87
+    },
+    {
+      "name": "RVA_NAVMESH_CTOR",
+      "steam": "0xd32e30",
+      "path": "src\\game\\rva.h",
+      "line": 130,
+      "status": "verified_code_reference",
+      "gog": "0xd32550",
+      "evidence_count": 4
+    },
+    {
+      "name": "RVA_SETTINGS_CTOR",
+      "steam": "0xdd99d0",
+      "path": "src\\game\\rva.h",
+      "line": 132,
+      "status": "verified_containing_function",
+      "gog": "0xdd90f0",
+      "steam_function": "0xdd99d0",
+      "function_bytes": 410
+    },
+    {
+      "name": "RVA_NM_RESULT_POPULATE",
+      "steam": "0xe0aff0",
+      "path": "src\\game\\rva.h",
+      "line": 135,
+      "status": "verified_containing_function",
+      "gog": "0xe0a710",
+      "steam_function": "0xe0aff0",
+      "function_bytes": 49
+    },
+    {
+      "name": "RVA_REAL_GENERATE",
+      "steam": "0xdfc060",
+      "path": "src\\game\\rva.h",
+      "line": 148,
+      "status": "verified_containing_function",
+      "gog": "0xdfb780",
+      "steam_function": "0xdfc060",
+      "function_bytes": 553
+    },
+    {
+      "name": "RVA_HAVOK_CONTEXT_INIT",
+      "steam": "0xba4770",
+      "path": "src\\game\\rva.h",
+      "line": 151,
+      "status": "verified_containing_function",
+      "gog": "0xba3e90",
+      "steam_function": "0xba4770",
+      "function_bytes": 46
+    },
+    {
+      "name": "RVA_HAVOK_GET_MANAGER",
+      "steam": "0xbaf970",
+      "path": "src\\game\\rva.h",
+      "line": 152,
+      "status": "verified_code_reference",
+      "gog": "0xbaf090",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_HAVOK_POST_REG_INIT",
+      "steam": "0xbaecf0",
+      "path": "src\\game\\rva.h",
+      "line": 153,
+      "status": "verified_containing_function",
+      "gog": "0xbae410",
+      "steam_function": "0xbaecf0",
+      "function_bytes": 61
+    },
+    {
+      "name": "RVA_HAVOK_CLEANUP",
+      "steam": "0xbaed40",
+      "path": "src\\game\\rva.h",
+      "line": 154,
+      "status": "verified_containing_function",
+      "gog": "0xbae460",
+      "steam_function": "0xbaed40",
+      "function_bytes": 73
+    },
+    {
+      "name": "RVA_HAVOK_CTX_CLEANUP",
+      "steam": "0xba9580",
+      "path": "src\\game\\rva.h",
+      "line": 155,
+      "status": "official_symbol",
+      "gog": "0xba8ca0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_BUILD_COLLISION_IMPL",
+      "steam": "0x3cb700",
+      "path": "src\\game\\rva.h",
+      "line": 184,
+      "status": "official_symbol",
+      "gog": "0x3cb320",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_BUILD_COLLISION_INTERIOR_IMPL",
+      "steam": "0x3cbab0",
+      "path": "src\\game\\rva.h",
+      "line": 185,
+      "status": "official_symbol",
+      "gog": "0x3cb6d0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_STITCH_UNLOADED_ZONE",
+      "steam": "0x3cb140",
+      "path": "src\\game\\rva.h",
+      "line": 188,
+      "status": "official_symbol",
+      "gog": "0x3cad60",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_STITCH_WITH_INTERIORS",
+      "steam": "0x3c5c10",
+      "path": "src\\game\\rva.h",
+      "line": 189,
+      "status": "official_symbol",
+      "gog": "0x3c5830",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_BC_RET_LAST_NEIGHBOUR",
+      "steam": "0x3cb8f2",
+      "path": "src\\game\\rva.h",
+      "line": 190,
+      "status": "verified_containing_function",
+      "gog": "0x3cb512",
+      "steam_function": "0x3cb700",
+      "function_bytes": 925
+    },
+    {
+      "name": "RVA_BC_RET_TAIL_STITCH",
+      "steam": "0x3cb918",
+      "path": "src\\game\\rva.h",
+      "line": 191,
+      "status": "verified_containing_function",
+      "gog": "0x3cb538",
+      "steam_function": "0x3cb700",
+      "function_bytes": 925
+    },
+    {
+      "name": "RVA_BUILD_COLLISION_IMPL_END",
+      "steam": "0x3cba9d",
+      "path": "src\\game\\rva.h",
+      "line": 193,
+      "status": "verified_containing_function",
+      "gog": "0x3cb6bd",
+      "steam_function": "0x3cb700",
+      "function_bytes": 925
+    },
+    {
+      "name": "RVA_BUILD_COLLISION_INTERIOR_IMPL_END",
+      "steam": "0x3cbe5a",
+      "path": "src\\game\\rva.h",
+      "line": 194,
+      "status": "verified_containing_function",
+      "gog": "0x3cba7a",
+      "steam_function": "0x3cbab0",
+      "function_bytes": 938
+    },
+    {
+      "name": "RVA_NMG_STITCH_UNLOADED_ZONE_END",
+      "steam": "0x3cb6ec",
+      "path": "src\\game\\rva.h",
+      "line": 195,
+      "status": "verified_containing_function",
+      "gog": "0x3cb30c",
+      "steam_function": "0x3cb140",
+      "function_bytes": 1452
+    },
+    {
+      "name": "RVA_SETTINGS_DTOR_BODY",
+      "steam": "0xdd9bc0",
+      "path": "src\\game\\rva.h",
+      "line": 202,
+      "status": "verified_containing_function",
+      "gog": "0xdd92e0",
+      "steam_function": "0xdd9bc0",
+      "function_bytes": 17
+    },
+    {
+      "name": "RVA_NAVMESH_STOP",
+      "steam": "0x3aae90",
+      "path": "src\\game\\rva.h",
+      "line": 208,
+      "status": "official_symbol",
+      "gog": "0x3aaab0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_UNSTITCH_CROSS_SECTION",
+      "steam": "0xd9ab20",
+      "path": "src\\game\\rva.h",
+      "line": 215,
+      "status": "verified_containing_function",
+      "gog": "0xd9a240",
+      "steam_function": "0xd9ab20",
+      "function_bytes": 121
+    },
+    {
+      "name": "RVA_GRAPHINST_RELEASE_FREE_BLOCKS",
+      "steam": "0xd273e0",
+      "path": "src\\game\\rva.h",
+      "line": 220,
+      "status": "verified_containing_function",
+      "gog": "0xd26b00",
+      "steam_function": "0xd273e0",
+      "function_bytes": 55
+    },
+    {
+      "name": "RVA_GRAPHINST_REMOVE_INSTANCED_EDGE",
+      "steam": "0xd279a0",
+      "path": "src\\game\\rva.h",
+      "line": 221,
+      "status": "verified_containing_function",
+      "gog": "0xd270c0",
+      "steam_function": "0xd279a0",
+      "function_bytes": 399
+    },
+    {
+      "name": "RVA_NMG_STITCH",
+      "steam": "0x3c56f0",
+      "path": "src\\game\\rva.h",
+      "line": 228,
+      "status": "official_symbol",
+      "gog": "0x3c5310",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_STITCH_RET_UNLOADED",
+      "steam": "0x3cb461",
+      "path": "src\\game\\rva.h",
+      "line": 229,
+      "status": "verified_containing_function",
+      "gog": "0x3cb081",
+      "steam_function": "0x3cb140",
+      "function_bytes": 1452
+    },
+    {
+      "name": "RVA_STITCH_RET_DISK",
+      "steam": "0x3cb64b",
+      "path": "src\\game\\rva.h",
+      "line": 230,
+      "status": "verified_containing_function",
+      "gog": "0x3cb26b",
+      "steam_function": "0x3cb140",
+      "function_bytes": 1452
+    },
+    {
+      "name": "RVA_STITCH_RET_INTERIORS",
+      "steam": "0x3c5d0b",
+      "path": "src\\game\\rva.h",
+      "line": 231,
+      "status": "verified_containing_function",
+      "gog": "0x3c592b",
+      "steam_function": "0x3c5c3a",
+      "function_bytes": 250
+    },
+    {
+      "name": "RVA_STITCH_RET_SPLICE",
+      "steam": "0x3ca5a4",
+      "path": "src\\game\\rva.h",
+      "line": 232,
+      "status": "verified_containing_function",
+      "gog": "0x3ca1c4",
+      "steam_function": "0x3ca290",
+      "function_bytes": 3754
+    },
+    {
+      "name": "RVA_NMG_UPDATE",
+      "steam": "0x3c8b70",
+      "path": "src\\game\\rva.h",
+      "line": 238,
+      "status": "official_symbol",
+      "gog": "0x3c8790",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SEARCH_SET_NODE_COST",
+      "steam": "0xda6370",
+      "path": "src\\game\\rva.h",
+      "line": 249,
+      "status": "verified_code_reference",
+      "gog": "0xda5a90",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_GRAPH_EXPAND_NODE",
+      "steam": "0xda5860",
+      "path": "src\\game\\rva.h",
+      "line": 259,
+      "status": "verified_containing_function",
+      "gog": "0xda4f80",
+      "steam_function": "0xda5860",
+      "function_bytes": 1585
+    },
+    {
+      "name": "RVA_OPENSET_POP_NEXT",
+      "steam": "0xd2c260",
+      "path": "src\\game\\rva.h",
+      "line": 265,
+      "status": "verified_containing_function",
+      "gog": "0xd2b980",
+      "steam_function": "0xd2c260",
+      "function_bytes": 189
+    },
+    {
+      "name": "RVA_GRAPH_POSITION_LOOKUP",
+      "steam": "0xda4470",
+      "path": "src\\game\\rva.h",
+      "line": 276,
+      "status": "verified_containing_function",
+      "gog": "0xda3b90",
+      "steam_function": "0xda4470",
+      "function_bytes": 173
+    },
+    {
+      "name": "RVA_GRAPH_HEURISTIC_GOAL_ADJACENT",
+      "steam": "0xda6a30",
+      "path": "src\\game\\rva.h",
+      "line": 280,
+      "status": "verified_containing_function",
+      "gog": "0xda6150",
+      "steam_function": "0xda6a30",
+      "function_bytes": 1093
+    },
+    {
+      "name": "RVA_GRAPH_HEURISTIC_CLUSTER_CENTRE",
+      "steam": "0xda6690",
+      "path": "src\\game\\rva.h",
+      "line": 284,
+      "status": "verified_containing_function",
+      "gog": "0xda5db0",
+      "steam_function": "0xda6690",
+      "function_bytes": 156
+    },
+    {
+      "name": "RVA_GRAPH_HEURISTIC_COARSE_SEED",
+      "steam": "0xda5fe0",
+      "path": "src\\game\\rva.h",
+      "line": 288,
+      "status": "verified_containing_function",
+      "gog": "0xda5700",
+      "steam_function": "0xda5fe0",
+      "function_bytes": 351
+    },
+    {
+      "name": "RVA_GRAPH_INSTANCE_CONNECT",
+      "steam": "0xd9ad30",
+      "path": "src\\game\\rva.h",
+      "line": 293,
+      "status": "verified_containing_function",
+      "gog": "0xd9a450",
+      "steam_function": "0xd9ad30",
+      "function_bytes": 57
+    },
+    {
+      "name": "RVA_NAVMESH_FACE_AABB",
+      "steam": "0xcfd610",
+      "path": "src\\game\\rva.h",
+      "line": 300,
+      "status": "verified_containing_function",
+      "gog": "0xcfcd30",
+      "steam_function": "0xcfd610",
+      "function_bytes": 127
+    },
+    {
+      "name": "RVA_NAVMESH_FACE_FROM_INDEX",
+      "steam": "0xcf3180",
+      "path": "src\\game\\rva.h",
+      "line": 304,
+      "status": "verified_code_reference",
+      "gog": "0xcf28a0",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_NAVMESH_EDGE_FROM_INDEX",
+      "steam": "0xcf3120",
+      "path": "src\\game\\rva.h",
+      "line": 309,
+      "status": "verified_code_reference",
+      "gog": "0xcf2840",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_HKAI_AABB_SEED",
+      "steam": "0x2104730",
+      "path": "src\\game\\rva.h",
+      "line": 314,
+      "status": "verified_code_reference",
+      "gog": "0x2102740",
+      "evidence_count": 18
+    },
+    {
+      "name": "RVA_HKAI_NAVMESH_INSTANCE_VFTABLE",
+      "steam": "0x17a9c38",
+      "path": "src\\game\\rva.h",
+      "line": 319,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x17a87f8"
+    },
+    {
+      "name": "RVA_HKAI_NAVMESH_VFTABLE",
+      "steam": "0x17aa658",
+      "path": "src\\game\\rva.h",
+      "line": 320,
+      "status": "verified_code_reference",
+      "gog": "0x17a9218",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_REMOVE_INSTANCE",
+      "steam": "0xd0dc30",
+      "path": "src\\game\\rva.h",
+      "line": 326,
+      "status": "verified_containing_function",
+      "gog": "0xd0d350",
+      "steam_function": "0xd0dc30",
+      "function_bytes": 58
+    },
+    {
+      "name": "RVA_NAVMESH_CREATE_INSTANCE",
+      "steam": "0x3acd20",
+      "path": "src\\game\\rva.h",
+      "line": 334,
+      "status": "official_symbol",
+      "gog": "0x3ac940",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PHYSICS_UPDATE_UT",
+      "steam": "0x4cd040",
+      "path": "src\\game\\rva.h",
+      "line": 340,
+      "status": "official_symbol",
+      "gog": "0x4cd350",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HULL_PUSH_HULL",
+      "steam": "0x4cc210",
+      "path": "src\\game\\rva.h",
+      "line": 345,
+      "status": "verified_containing_function",
+      "gog": "0x4cc520",
+      "steam_function": "0x4cc210",
+      "function_bytes": 82
+    },
+    {
+      "name": "RVA_HULL_PUSH_ENTITY",
+      "steam": "0x7dc170",
+      "path": "src\\game\\rva.h",
+      "line": 346,
+      "status": "verified_containing_function",
+      "gog": "0x7dbab0",
+      "steam_function": "0x7dc170",
+      "function_bytes": 111
+    },
+    {
+      "name": "RVA_HULL_PUSH_SCYTHE",
+      "steam": "0x7dbf20",
+      "path": "src\\game\\rva.h",
+      "line": 347,
+      "status": "verified_containing_function",
+      "gog": "0x7db860",
+      "steam_function": "0x7dbf20",
+      "function_bytes": 380
+    },
+    {
+      "name": "RVA_HULL_PUSH_ROOT",
+      "steam": "0x7dc0b0",
+      "path": "src\\game\\rva.h",
+      "line": 348,
+      "status": "verified_containing_function",
+      "gog": "0x7db9f0",
+      "steam_function": "0x7dc0b0",
+      "function_bytes": 82
+    },
+    {
+      "name": "RVA_HULL_PUSH_BASE",
+      "steam": "0x7dc110",
+      "path": "src\\game\\rva.h",
+      "line": 349,
+      "status": "verified_containing_function",
+      "gog": "0x7dba50",
+      "steam_function": "0x7dc110",
+      "function_bytes": 82
+    },
+    {
+      "name": "RVA_PHYSICS_HULL_APPLY_SLOT",
+      "steam": "0x16dd700",
+      "path": "src\\game\\rva.h",
+      "line": 352,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x16dc4f0"
+    },
+    {
+      "name": "RVA_PHYSICS_HULL_APPLY_THUNK",
+      "steam": "0x259f5",
+      "path": "src\\game\\rva.h",
+      "line": 353,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x25a5e"
+    },
+    {
+      "name": "RVA_PHYSICS_HULL_APPLY",
+      "steam": "0x4cb0e0",
+      "path": "src\\game\\rva.h",
+      "line": 354,
+      "status": "verified_containing_function",
+      "gog": "0x4cb3f0",
+      "steam_function": "0x4cb0e0",
+      "function_bytes": 106
+    },
+    {
+      "name": "RVA_NAVMESH_DELETE_INSTANCE",
+      "steam": "0x3ab8a0",
+      "path": "src\\game\\rva.h",
+      "line": 361,
+      "status": "official_symbol",
+      "gog": "0x3ab4c0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CLEARANCE_RESET_KEYS",
+      "steam": "0xd617d0",
+      "path": "src\\game\\rva.h",
+      "line": 372,
+      "status": "verified_containing_function",
+      "gog": "0xd60ef0",
+      "steam_function": "0xd617d0",
+      "function_bytes": 2092
+    },
+    {
+      "name": "RVA_SECTION_CUT_LOOKUP",
+      "steam": "0xdcaee0",
+      "path": "src\\game\\rva.h",
+      "line": 376,
+      "status": "verified_containing_function",
+      "gog": "0xdca600",
+      "steam_function": "0xdcaee0",
+      "function_bytes": 1729
+    },
+    {
+      "name": "RVA_LOAD_PHYSX_RESOURCE",
+      "steam": "0x7e4850",
+      "path": "src\\game\\rva.h",
+      "line": 383,
+      "status": "official_symbol",
+      "gog": "0x7e4190",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SIMPL_SETTINGS_DTOR",
+      "steam": "0x3da120",
+      "path": "src\\game\\rva.h",
+      "line": 386,
+      "status": "verified_containing_function",
+      "gog": "0x3d9d40",
+      "steam_function": "0x3da120",
+      "function_bytes": 119
+    },
+    {
+      "name": "RVA_SIMPL_SETTINGS_COPY",
+      "steam": "0x3da000",
+      "path": "src\\game\\rva.h",
+      "line": 387,
+      "status": "verified_containing_function",
+      "gog": "0x3d9c20",
+      "steam_function": "0x3da000",
+      "function_bytes": 224
+    },
+    {
+      "name": "RVA_EDGE_PROCESS",
+      "steam": "0xdd92f0",
+      "path": "src\\game\\rva.h",
+      "line": 391,
+      "status": "verified_containing_function",
+      "gog": "0xdd8a10",
+      "steam_function": "0xdd92f0",
+      "function_bytes": 97
+    },
+    {
+      "name": "RVA_SQRTF",
+      "steam": "0xed5f7e",
+      "path": "src\\game\\rva.h",
+      "line": 394,
+      "status": "verified_code_reference",
+      "gog": "0xed567e",
+      "evidence_count": 17
+    },
+    {
+      "name": "RVA_CS_FIND_PATH",
+      "steam": "0x3aa950",
+      "path": "src\\game\\rva.h",
+      "line": 397,
+      "status": "official_symbol",
+      "gog": "0x3aa570",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CS_CHECK_FACE_CONN",
+      "steam": "0x3a5b00",
+      "path": "src\\game\\rva.h",
+      "line": 398,
+      "status": "official_symbol",
+      "gog": "0x3a5720",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_FIND_PATH_FULL",
+      "steam": "0xce56d0",
+      "path": "src\\game\\rva.h",
+      "line": 399,
+      "status": "verified_containing_function",
+      "gog": "0xce4df0",
+      "steam_function": "0xce56d0",
+      "function_bytes": 230
+    },
+    {
+      "name": "RVA_CS_FIND_PATH_FALLBACK",
+      "steam": "0x3aabf0",
+      "path": "src\\game\\rva.h",
+      "line": 400,
+      "status": "official_symbol",
+      "gog": "0x3aa810",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_REQUEST_PATH",
+      "steam": "0x145cb0",
+      "path": "src\\game\\rva.h",
+      "line": 403,
+      "status": "official_symbol",
+      "gog": "0x145bd0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_PATH_REQ_SUBMIT",
+      "steam": "0x3aaef0",
+      "path": "src\\game\\rva.h",
+      "line": 404,
+      "status": "official_symbol",
+      "gog": "0x3aab10",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ENQUEUE_PATH_REQ",
+      "steam": "0x3b6110",
+      "path": "src\\game\\rva.h",
+      "line": 405,
+      "status": "verified_containing_function",
+      "gog": "0x3b5d30",
+      "steam_function": "0x3b6110",
+      "function_bytes": 179
+    },
+    {
+      "name": "RVA_NAVMESH_GET_FACE_KEY_VEC4",
+      "steam": "0x3a1cb0",
+      "path": "src\\game\\rva.h",
+      "line": 406,
+      "status": "official_symbol",
+      "gog": "0x3a18d0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_FACTION_RELATIONS_UPDATE",
+      "steam": "0x6b2480",
+      "path": "src\\game\\rva.h",
+      "line": 410,
+      "status": "official_symbol",
+      "gog": "0x6b1d90",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_ISINISLAND_IMPL",
+      "steam": "0xa07eb0",
+      "path": "src\\game\\rva.h",
+      "line": 425,
+      "status": "official_symbol",
+      "gog": "0xa075d0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_ISINISLAND_THUNK",
+      "steam": "0x2fce8",
+      "path": "src\\game\\rva.h",
+      "line": 426,
+      "status": "verified_code_reference",
+      "gog": "0x2fd56",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_GETISLAND_IMPL",
+      "steam": "0xa09ae0",
+      "path": "src\\game\\rva.h",
+      "line": 427,
+      "status": "official_symbol",
+      "gog": "0xa09200",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GETISLAND_RET_EDGE",
+      "steam": "0x3a3a81",
+      "path": "src\\game\\rva.h",
+      "line": 434,
+      "status": "verified_containing_function",
+      "gog": "0x3a36a1",
+      "steam_function": "0x3a39c0",
+      "function_bytes": 937
+    },
+    {
+      "name": "RVA_GETISLAND_RET_SMELL",
+      "steam": "0x8f4ae3",
+      "path": "src\\game\\rva.h",
+      "line": 435,
+      "status": "verified_containing_function",
+      "gog": "0x8f4203",
+      "steam_function": "0x8f4a10",
+      "function_bytes": 477
+    },
+    {
+      "name": "RVA_LEKTOR_RESERVE",
+      "steam": "0x16630",
+      "path": "src\\game\\rva.h",
+      "line": 436,
+      "status": "verified_code_reference",
+      "gog": "0x1662b",
+      "evidence_count": 2
+    },
+    {
+      "name": "RVA_CALCULATE_ISLANDS",
+      "steam": "0xa09520",
+      "path": "src\\game\\rva.h",
+      "line": 437,
+      "status": "official_symbol",
+      "gog": "0xa08c40",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GET_ZONE_EDGE",
+      "steam": "0x3a39c0",
+      "path": "src\\game\\rva.h",
+      "line": 438,
+      "status": "official_symbol",
+      "gog": "0x3a35e0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SET_DESTINATION_VEC3",
+      "steam": "0x6607e0",
+      "path": "src\\game\\rva.h",
+      "line": 439,
+      "status": "official_symbol",
+      "gog": "0x660af0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SETDEST_RET_EDGE_RECHECK",
+      "steam": "0x660efd",
+      "path": "src\\game\\rva.h",
+      "line": 440,
+      "status": "verified_containing_function",
+      "gog": "0x66120d",
+      "steam_function": "0x6607e0",
+      "function_bytes": 2041
+    },
+    {
+      "name": "RVA_SETDEST_RET_EDGE_COMPUTE",
+      "steam": "0x660f43",
+      "path": "src\\game\\rva.h",
+      "line": 441,
+      "status": "verified_containing_function",
+      "gog": "0x661253",
+      "steam_function": "0x6607e0",
+      "function_bytes": 2041
+    },
+    {
+      "name": "RVA_NAVMESH_GET_CLOSEST_POINT",
+      "steam": "0x3a21c0",
+      "path": "src\\game\\rva.h",
+      "line": 442,
+      "status": "official_symbol",
+      "gog": "0x3a1de0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARMOVEMENT_UPDATE",
+      "steam": "0x65f510",
+      "path": "src\\game\\rva.h",
+      "line": 443,
+      "status": "official_symbol",
+      "gog": "0x65f820",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARSTATS_CALC_SWIM_SPEED",
+      "steam": "0x884fe0",
+      "path": "src\\game\\rva.h",
+      "line": 444,
+      "status": "official_symbol",
+      "gog": "0x884700",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARACTER_GET_WATER_LEVEL",
+      "steam": "0x5c7540",
+      "path": "src\\game\\rva.h",
+      "line": 445,
+      "status": "official_symbol",
+      "gog": "0x5c7850",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_RACEDATA_IS_IMMUNE",
+      "steam": "0x5e7290",
+      "path": "src\\game\\rva.h",
+      "line": 446,
+      "status": "official_symbol",
+      "gog": "0x5e75a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SECTIONMGR_LOOKUP_FROM_POSITION",
+      "steam": "0x8f48a0",
+      "path": "src\\game\\rva.h",
+      "line": 447,
+      "status": "verified_containing_function",
+      "gog": "0x8f3fc0",
+      "steam_function": "0x8f48a0",
+      "function_bytes": 28
+    },
+    {
+      "name": "RVA_GLOBAL_AREA_SECTOR_GRID",
+      "steam": "0x2133098",
+      "path": "src\\game\\rva.h",
+      "line": 448,
+      "status": "official_symbol",
+      "gog": "0x2131008",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_CHARACTER_ADD_JOB",
+      "steam": "0x5c8310",
+      "path": "src\\game\\rva.h",
+      "line": 449,
+      "status": "official_symbol",
+      "gog": "0x5c8620",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SPEED_GROUP_GET_SPEED",
+      "steam": "0x7f4ba0",
+      "path": "src\\game\\rva.h",
+      "line": 450,
+      "status": "official_symbol",
+      "gog": "0x7f44e0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DOOR_HIT_FILTER_VTABLE",
+      "steam": "0x16c9188",
+      "path": "src\\game\\rva.h",
+      "line": 451,
+      "status": "verified_code_reference",
+      "gog": "0x16c7ea8",
+      "evidence_count": 3
+    },
+    {
+      "name": "RVA_IS_ZONE_STILL_LOADING",
+      "steam": "0x3ac810",
+      "path": "src\\game\\rva.h",
+      "line": 452,
+      "status": "official_symbol",
+      "gog": "0x3ac430",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_BUILDER_PLACE",
+      "steam": "0x4d6810",
+      "path": "src\\game\\rva.h",
+      "line": 455,
+      "status": "verified_containing_function",
+      "gog": "0x4d6b20",
+      "steam_function": "0x4d6810",
+      "function_bytes": 2782
+    },
+    {
+      "name": "RVA_CREATE_BUILDING",
+      "steam": "0x57c1e0",
+      "path": "src\\game\\rva.h",
+      "line": 456,
+      "status": "official_symbol",
+      "gog": "0x57c4f0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_SET_MOUNTED_CALLBACK_VTABLE",
+      "steam": "0x16de9d0",
+      "path": "src\\game\\rva.h",
+      "line": 457,
+      "status": "verified_code_reference",
+      "gog": "0x16dd7c0",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_TOWNLIST_NEAREST_WITHIN_RADIUS",
+      "steam": "0x9279c0",
+      "path": "src\\game\\rva.h",
+      "line": 458,
+      "status": "official_symbol",
+      "gog": "0x9270e0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GAMEDATA_GET_BOOL",
+      "steam": "0x6c780",
+      "path": "src\\game\\rva.h",
+      "line": 459,
+      "status": "verified_containing_function",
+      "gog": "0x6c780",
+      "steam_function": "0x6c780",
+      "function_bytes": 486
+    },
+    {
+      "name": "RVA_CHAR_GET_DROPPED",
+      "steam": "0x5cc110",
+      "path": "src\\game\\rva.h",
+      "line": 462,
+      "status": "official_symbol",
+      "gog": "0x5cc420",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_TAKE_OUTSIDE_TICK",
+      "steam": "0x3356a0",
+      "path": "src\\game\\rva.h",
+      "line": 463,
+      "status": "verified_containing_function",
+      "gog": "0x335230",
+      "steam_function": "0x3356a0",
+      "function_bytes": 31
+    },
+    {
+      "name": "RVA_TAKE_OUTSIDE_PATH_IMPOSSIBLE",
+      "steam": "0x33da20",
+      "path": "src\\game\\rva.h",
+      "line": 464,
+      "status": "verified_containing_function",
+      "gog": "0x33d5d0",
+      "steam_function": "0x33da20",
+      "function_bytes": 109
+    },
+    {
+      "name": "RVA_TAKE_OUTSIDE_TOWN_VFTABLE",
+      "steam": "0x16bda48",
+      "path": "src\\game\\rva.h",
+      "line": 465,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x16bc758"
+    },
+    {
+      "name": "RVA_FIND_KO_INTRUDER_TOWN",
+      "steam": "0x99b380",
+      "path": "src\\game\\rva.h",
+      "line": 466,
+      "status": "official_symbol",
+      "gog": "0x99aaa0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GATE_CODE_AT",
+      "steam": "0x2ea5a0",
+      "path": "src\\game\\rva.h",
+      "line": 467,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x2ea130"
+    },
+    {
+      "name": "RVA_GLOBAL_GATES",
+      "steam": "0x212d358",
+      "path": "src\\game\\rva.h",
+      "line": 468,
+      "status": "verified_code_reference",
+      "gog": "0x212b298",
+      "evidence_count": 4
+    },
+    {
+      "name": "RVA_SENSE_ITR_CTOR",
+      "steam": "0x852a90",
+      "path": "src\\game\\rva.h",
+      "line": 469,
+      "status": "official_symbol",
+      "gog": "0x8523d0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_SENSE_ITR_GET_CHARACTER",
+      "steam": "0x290970",
+      "path": "src\\game\\rva.h",
+      "line": 470,
+      "status": "official_symbol",
+      "gog": "0x290500",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SENSE_ITR_INCREMENT",
+      "steam": "0x8527d0",
+      "path": "src\\game\\rva.h",
+      "line": 471,
+      "status": "official_symbol",
+      "gog": "0x852110",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_CHAR_GET_OWNERSHIPS",
+      "steam": "0x794b00",
+      "path": "src\\game\\rva.h",
+      "line": 472,
+      "status": "official_symbol",
+      "gog": "0x794440",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_OWNERSHIPS_IS_MY_TOWN",
+      "steam": "0x620750",
+      "path": "src\\game\\rva.h",
+      "line": 473,
+      "status": "official_symbol",
+      "gog": "0x620a60",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GLOBAL_SECTION_MGR",
+      "steam": "0x2133560",
+      "path": "src\\game\\rva.h",
+      "line": 476,
+      "status": "verified_code_reference",
+      "gog": "0x21314d0",
+      "evidence_count": 77
+    },
+    {
+      "name": "RVA_SAVE_FILE_SYSTEM",
+      "steam": "0x212dc08",
+      "path": "src\\game\\rva.h",
+      "line": 477,
+      "status": "verified_code_reference",
+      "gog": "0x212bb48",
+      "evidence_count": 58
+    },
+    {
+      "name": "RVA_PAUSESTATE_PHYSICS",
+      "steam": "0x21330c8",
+      "path": "src\\game\\rva.h",
+      "line": 483,
+      "status": "verified_code_reference",
+      "gog": "0x2131038",
+      "evidence_count": 56
+    },
+    {
+      "name": "RVA_GLOBAL_PLAYER",
+      "steam": "0x2133630",
+      "path": "src\\game\\rva.h",
+      "line": 484,
+      "status": "verified_code_reference",
+      "gog": "0x21315a0",
+      "evidence_count": 416
+    },
+    {
+      "name": "RVA_GLOBAL_GAMEWORLD",
+      "steam": "0x21330b0",
+      "path": "src\\game\\rva.h",
+      "line": 489,
+      "status": "official_symbol",
+      "gog": "0x2131020",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_DESTROYLIST_INSERT",
+      "steam": "0x799be0",
+      "path": "src\\game\\rva.h",
+      "line": 496,
+      "status": "official_symbol",
+      "gog": "0x799520",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_WALL_ADD_PROGRESS",
+      "steam": "0x5594a0",
+      "path": "src\\game\\rva.h",
+      "line": 499,
+      "status": "official_symbol",
+      "gog": "0x5597b0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_QUEUES_ARE_CLEAR_MT",
+      "steam": "0x173f70",
+      "path": "src\\game\\rva.h",
+      "line": 500,
+      "status": "official_symbol",
+      "gog": "0x174060",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_GENERATE_AABB",
+      "steam": "0x3a6580",
+      "path": "src\\game\\rva.h",
+      "line": 501,
+      "status": "official_symbol",
+      "gog": "0x3a61a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_ZONEMAP_HANDLE_GET_OBJECT",
+      "steam": "0x9f8050",
+      "path": "src\\game\\rva.h",
+      "line": 502,
+      "status": "official_symbol",
+      "gog": "0x9f7770",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_ADD_JOB_AABB",
+      "steam": "0x3c68e0",
+      "path": "src\\game\\rva.h",
+      "line": 503,
+      "status": "official_symbol",
+      "gog": "0x3c6500",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_CHARACTER_GIVE_ITEM",
+      "steam": "0x5ca970",
+      "path": "src\\game\\rva.h",
+      "line": 508,
+      "status": "official_symbol",
+      "gog": "0x5cac80",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_INVENTORY_GET_SECTION_OF_TYPE",
+      "steam": "0x7453b0",
+      "path": "src\\game\\rva.h",
+      "line": 509,
+      "status": "official_symbol",
+      "gog": "0x744ce0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_INVSECTION_LIMITED_COMPATIBLE",
+      "steam": "0x74b0f0",
+      "path": "src\\game\\rva.h",
+      "line": 510,
+      "status": "official_symbol",
+      "gog": "0x74aa20",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_INVENTORY_IS_EMPTY",
+      "steam": "0x745e70",
+      "path": "src\\game\\rva.h",
+      "line": 511,
+      "status": "official_symbol",
+      "gog": "0x7457a0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_INVENTORY_SEARCH_COUNT_CHECK",
+      "steam": "0x745df9",
+      "path": "src\\game\\rva.h",
+      "line": 512,
+      "status": "verified_containing_function",
+      "gog": "0x745729",
+      "steam_function": "0x745de0",
+      "function_bytes": 30
+    },
+    {
+      "name": "RVA_GIVE_ITEM_INVENTORY_CHECK",
+      "steam": "0x5ca980",
+      "path": "src\\game\\rva.h",
+      "line": 513,
+      "status": "verified_containing_function",
+      "gog": "0x5cac90",
+      "steam_function": "0x5ca970",
+      "function_bytes": 274
+    },
+    {
+      "name": "RVA_GET_BACKPACK_ITEMS_CHECK",
+      "steam": "0x70cf01",
+      "path": "src\\game\\rva.h",
+      "line": 514,
+      "status": "verified_containing_function",
+      "gog": "0x70c861",
+      "steam_function": "0x70cee0",
+      "function_bytes": 62
+    },
+    {
+      "name": "RVA_BACKPACK_TYPE_CHECK",
+      "steam": "0x5ca92e",
+      "path": "src\\game\\rva.h",
+      "line": 515,
+      "status": "verified_containing_function",
+      "gog": "0x5cac3e",
+      "steam_function": "0x5ca890",
+      "function_bytes": 210
+    },
+    {
+      "name": "RVA_CHARACTER_IS_ANIMAL_CHECK",
+      "steam": "0x5c921c",
+      "path": "src\\game\\rva.h",
+      "line": 516,
+      "status": "verified_containing_function",
+      "gog": "0x5c952c",
+      "steam_function": "0x5c9210",
+      "function_bytes": 220
+    },
+    {
+      "name": "RVA_SFS_SAVE_GAME",
+      "steam": "0x473380",
+      "path": "src\\game\\rva.h",
+      "line": 519,
+      "status": "official_symbol",
+      "gog": "0x472fa0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SFS_LOAD_GAME",
+      "steam": "0x474340",
+      "path": "src\\game\\rva.h",
+      "line": 520,
+      "status": "official_symbol",
+      "gog": "0x473f60",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SFS_NEW_GAME",
+      "steam": "0x470d00",
+      "path": "src\\game\\rva.h",
+      "line": 521,
+      "status": "official_symbol",
+      "gog": "0x470920",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SFS_WRITE_FILE",
+      "steam": "0x471970",
+      "path": "src\\game\\rva.h",
+      "line": 522,
+      "status": "official_symbol",
+      "gog": "0x471590",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SFS_READ_FILE",
+      "steam": "0x470c20",
+      "path": "src\\game\\rva.h",
+      "line": 523,
+      "status": "official_symbol",
+      "gog": "0x470840",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HANDLE_MANAGER_GET_CHARACTER",
+      "steam": "0x14d8a0",
+      "path": "src\\game\\rva.h",
+      "line": 524,
+      "status": "official_symbol",
+      "gog": "0x14d7c0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GLOBAL_HANDLE_MANAGER",
+      "steam": "0x2132f30",
+      "path": "src\\game\\rva.h",
+      "line": 525,
+      "status": "verified_code_reference",
+      "gog": "0x2130ea0",
+      "evidence_count": 493
+    },
+    {
+      "name": "RVA_HAND_VFTABLE",
+      "steam": "0x16842d0",
+      "path": "src\\game\\rva.h",
+      "line": 526,
+      "status": "verified_code_reference",
+      "gog": "0x16832d0",
+      "evidence_count": 416
+    },
+    {
+      "name": "RVA_SCORE_FIND_FOOD_ON_GROUND",
+      "steam": "0x5972a0",
+      "path": "src\\game\\rva.h",
+      "line": 528,
+      "status": "official_symbol",
+      "gog": "0x5975b0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_INVENTORY_GET_NUM_FOOD_ITEMS",
+      "steam": "0x334480",
+      "path": "src\\game\\rva.h",
+      "line": 529,
+      "status": "official_symbol",
+      "gog": "0x334010",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_INVENTORY_HAS_ITEM_FUNCTION",
+      "steam": "0x7456c0",
+      "path": "src\\game\\rva.h",
+      "line": 530,
+      "status": "official_symbol",
+      "gog": "0x744ff0",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_J_INVENTORY_HAS_ITEM_FUNCTION",
+      "steam": "0x4b812",
+      "path": "src\\game\\rva.h",
+      "line": 531,
+      "status": "verified_code_reference",
+      "gog": "0x4b88a",
+      "evidence_count": 26
+    },
+    {
+      "name": "RVA_OPERATOR_WANT_GONE",
+      "steam": "0x5a2200",
+      "path": "src\\game\\rva.h",
+      "line": 533,
+      "status": "official_symbol",
+      "gog": "0x5a2510",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HAUL_AMOUNT",
+      "steam": "0x356d50",
+      "path": "src\\game\\rva.h",
+      "line": 534,
+      "status": "verified_containing_function",
+      "gog": "0x356900",
+      "steam_function": "0x356d50",
+      "function_bytes": 594
+    },
+    {
+      "name": "RVA_AI_BUILDING_HAS_POWER",
+      "steam": "0x596020",
+      "path": "src\\game\\rva.h",
+      "line": 535,
+      "status": "official_symbol",
+      "gog": "0x596330",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_AI_MACHINE_INPUT_INVALID",
+      "steam": "0x596b40",
+      "path": "src\\game\\rva.h",
+      "line": 536,
+      "status": "official_symbol",
+      "gog": "0x596e50",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_HANDLES_ANYTHING_BUT_BASE",
+      "steam": "0x2676a0",
+      "path": "src\\game\\rva.h",
+      "line": 537,
+      "status": "official_symbol",
+      "gog": "0x267230",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_CHARACTER_WANTS_TO_EAT_NOW",
+      "steam": "0x5c74e0",
+      "path": "src\\game\\rva.h",
+      "line": 538,
+      "status": "official_symbol",
+      "gog": "0x5c77f0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_BACKPACK_LAYOUT_SETUP_SECTIONS",
+      "steam": "0x1502e0",
+      "path": "src\\game\\rva.h",
+      "line": 541,
+      "status": "official_symbol",
+      "gog": "0x150200",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_LAYOUT_MAIN_WIDGET_CHECK",
+      "steam": "0x14e90c",
+      "path": "src\\game\\rva.h",
+      "line": 542,
+      "status": "verified_containing_function",
+      "gog": "0x14e82c",
+      "steam_function": "0x14e830",
+      "function_bytes": 438
+    },
+    {
+      "name": "RVA_BACKPACK_OWNER_READ_CHECK",
+      "steam": "0x70d5b5",
+      "path": "src\\game\\rva.h",
+      "line": 543,
+      "status": "verified_containing_function",
+      "gog": "0x70cf15",
+      "steam_function": "0x70d5ab",
+      "function_bytes": 170
+    },
+    {
+      "name": "RVA_BACKPACK_OWNER_WRITE_CHECK",
+      "steam": "0x70d5ca",
+      "path": "src\\game\\rva.h",
+      "line": 544,
+      "status": "verified_containing_function",
+      "gog": "0x70cf2a",
+      "steam_function": "0x70d5ab",
+      "function_bytes": 170
+    },
+    {
+      "name": "kDialogLeadRva",
+      "steam": "0x678998",
+      "path": "src\\inventory\\dialogue_thunk_policy.cpp",
+      "line": 9,
+      "status": "verified_containing_function",
+      "gog": "0x678ca8",
+      "steam_function": "0x6787fd",
+      "function_bytes": 1088
+    },
+    {
+      "name": "kDialogCallRva",
+      "steam": "0x6789aa",
+      "path": "src\\inventory\\dialogue_thunk_policy.cpp",
+      "line": 10,
+      "status": "verified_containing_function",
+      "gog": "0x678cba",
+      "steam_function": "0x6787fd",
+      "function_bytes": 1088
+    },
+    {
+      "name": "kWallSpliceLeadRva",
+      "steam": "0x5596cb",
+      "path": "src\\navmesh\\construction\\splice_queue_policy.cpp",
+      "line": 71,
+      "status": "verified_containing_function",
+      "gog": "0x5599db",
+      "steam_function": "0x559631",
+      "function_bytes": 401
+    },
+    {
+      "name": "kWallSpliceCallRva",
+      "steam": "0x5596e4",
+      "path": "src\\navmesh\\construction\\splice_queue_policy.cpp",
+      "line": 72,
+      "status": "verified_containing_function",
+      "gog": "0x5599f4",
+      "steam_function": "0x559631",
+      "function_bytes": 401
+    },
+    {
+      "name": "RVA_NMG_GET_SEED_POINTS_ADJ",
+      "steam": "0x3c96e0",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 23,
+      "status": "official_symbol",
+      "gog": "0x3c9300",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_GET_SECTOR",
+      "steam": "0x3ab1f0",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 64,
+      "status": "official_symbol",
+      "gog": "0x3aae10",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_GET_FILENAME",
+      "steam": "0x3a6230",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 65,
+      "status": "official_symbol",
+      "gog": "0x3a5e50",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_LOAD_ZONE",
+      "steam": "0x3a7f10",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 66,
+      "status": "official_symbol",
+      "gog": "0x3a7b30",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NAVMESH_DELETE_SECTOR",
+      "steam": "0x3ac8b0",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 67,
+      "status": "official_symbol",
+      "gog": "0x3ac4d0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_LOCK_ZONE",
+      "steam": "0x3c73b0",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 68,
+      "status": "official_symbol",
+      "gog": "0x3c6fd0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_NMG_UNLOCK_ZONE",
+      "steam": "0x3bf560",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 69,
+      "status": "official_symbol",
+      "gog": "0x3bf180",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_LOCKZONE_RET_UPDATE_ADD",
+      "steam": "0x3ae6cc",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 75,
+      "status": "verified_containing_function",
+      "gog": "0x3ae2ec",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "RVA_LOCKZONE_RET_GEN_SAVE",
+      "steam": "0x3c95a9",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 76,
+      "status": "verified_containing_function",
+      "gog": "0x3c91c9",
+      "steam_function": "0x3c8b70",
+      "function_bytes": 2913
+    },
+    {
+      "name": "RVA_LOCKZONE_RET_UNLOAD",
+      "steam": "0x3ad3b5",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 77,
+      "status": "verified_containing_function",
+      "gog": "0x3acfd5",
+      "steam_function": "0x3ad1c0",
+      "function_bytes": 1071
+    },
+    {
+      "name": "RVA_LOCKZONE_RET_CREATE",
+      "steam": "0x3ae00b",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 78,
+      "status": "verified_containing_function",
+      "gog": "0x3adc2b",
+      "steam_function": "0x3adf30",
+      "function_bytes": 1038
+    },
+    {
+      "name": "RVA_ZM_GET_ZONE_MAP",
+      "steam": "0xa07c10",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 79,
+      "status": "official_symbol",
+      "gog": "0xa07330",
+      "whole_function_verified": false
+    },
+    {
+      "name": "RVA_SORTED_ARRAY_GROW",
+      "steam": "0xba3aa0",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 80,
+      "status": "verified_containing_function",
+      "gog": "0xba31c0",
+      "steam_function": "0xba3aa0",
+      "function_bytes": 83
+    },
+    {
+      "name": "RVA_HK_CONTAINER_HEAP_ALLOC",
+      "steam": "0x21044d8",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 81,
+      "status": "verified_code_reference",
+      "gog": "0x21024e8",
+      "evidence_count": 339
+    },
+    {
+      "name": "RVA_HK_CONTAINER_HEAP_VTBL",
+      "steam": "0x1778f48",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 82,
+      "status": "separate_rtti_leaf_callsite_proof",
+      "gog": "0x1777b08"
+    },
+    {
+      "name": "RVA_GAME_STRING_RELEASE",
+      "steam": "0x69160",
+      "path": "src\\navmesh\\generation\\nbr_seed_bindings.h",
+      "line": 83,
+      "status": "verified_containing_function",
+      "gog": "0x69160",
+      "steam_function": "0x69160",
+      "function_bytes": 49
+    },
+    {
+      "name": "RVA_SUBMAP_CELL_Z",
+      "steam": "0x20989f0",
+      "path": "src\\navmesh\\scheduling\\nm_adjacency.cpp",
+      "line": 38,
+      "status": "verified_code_reference",
+      "gog": "0x2096a00",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_SUBMAP_CELL_X",
+      "steam": "0x20989f4",
+      "path": "src\\navmesh\\scheduling\\nm_adjacency.cpp",
+      "line": 39,
+      "status": "verified_code_reference",
+      "gog": "0x2096a04",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_CONTENT_STREAM",
+      "steam": "0x3ae350",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 17,
+      "status": "official_symbol",
+      "gog": "0x3adf70",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_DEQUEUE_WORK",
+      "steam": "0x3bee40",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 28,
+      "status": "verified_containing_function",
+      "gog": "0x3bea60",
+      "steam_function": "0x3bee40",
+      "function_bytes": 91
+    },
+    {
+      "name": "RVA_ENQUEUE_THREAD_SAFE",
+      "steam": "0x3b6110",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 41,
+      "status": "verified_containing_function",
+      "gog": "0x3b5d30",
+      "steam_function": "0x3b6110",
+      "function_bytes": 179
+    },
+    {
+      "name": "RVA_GATES_UPDATE_CODES",
+      "steam": "0x2ef460",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 50,
+      "status": "verified_containing_function",
+      "gog": "0x2eeff0",
+      "steam_function": "0x2ef460",
+      "function_bytes": 3892
+    },
+    {
+      "name": "RVA_GATES_FIND_PATH",
+      "steam": "0x2ec540",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 56,
+      "status": "verified_containing_function",
+      "gog": "0x2ec0d0",
+      "steam_function": "0x2ec540",
+      "function_bytes": 468
+    },
+    {
+      "name": "RVA_IS_PRIORITY_PATH",
+      "steam": "0x790b30",
+      "path": "src\\pathfind\\path_pool_bindings.h",
+      "line": 61,
+      "status": "official_symbol",
+      "gog": "0x790470",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_BARRIER_SYNC",
+      "steam": "0x3dff40",
+      "path": "src\\render\\scene_fork_skip.cpp",
+      "line": 24,
+      "status": "separate_module_not_exe"
+    },
+    {
+      "name": "RVA_UPDATE_VB",
+      "steam": "0x130490",
+      "path": "src\\render\\scene_fork_skip.cpp",
+      "line": 25,
+      "status": "separate_module_not_exe"
+    },
+    {
+      "name": "RVA_BASE_CULL",
+      "steam": "0x274c0",
+      "path": "src\\render\\scene_fork_skip.cpp",
+      "line": 26,
+      "status": "separate_module_not_exe"
+    },
+    {
+      "name": "RVA_SFS_GET_SINGLETON",
+      "steam": "0x37dd80",
+      "path": "src\\zone\\handoff\\first_time_bindings.h",
+      "line": 25,
+      "status": "official_symbol",
+      "gog": "0x37d9a0",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_SFS_FILE_EXISTS",
+      "steam": "0x470a70",
+      "path": "src\\zone\\handoff\\first_time_bindings.h",
+      "line": 26,
+      "status": "official_symbol",
+      "gog": "0x470690",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_GLOBAL_TOWN_LIST",
+      "steam": "0x21330a0",
+      "path": "src\\zone\\handoff\\first_time_bindings.h",
+      "line": 27,
+      "status": "verified_code_reference",
+      "gog": "0x2131010",
+      "evidence_count": 95
+    },
+    {
+      "name": "RVA_ZONE_IS_READY",
+      "steam": "0xa08e10",
+      "path": "src\\zone\\preload_bindings.h",
+      "line": 14,
+      "status": "official_symbol",
+      "gog": "0xa08530",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_LOOKUP_SECTION",
+      "steam": "0x3bba60",
+      "path": "src\\zone\\readiness\\readiness_bindings.h",
+      "line": 59,
+      "status": "verified_containing_function",
+      "gog": "0x3bb680",
+      "steam_function": "0x3bba60",
+      "function_bytes": 174
+    },
+    {
+      "name": "RVA_BOOST_UNLOCK",
+      "steam": "0x25c3d0",
+      "path": "src\\zone\\readiness\\readiness_bindings.h",
+      "line": 60,
+      "status": "verified_containing_function",
+      "gog": "0x25bf60",
+      "steam_function": "0x25c3d0",
+      "function_bytes": 165
+    },
+    {
+      "name": "RVA_BOOST_UNLOCK_SHARED",
+      "steam": "0x168e10",
+      "path": "src\\zone\\readiness\\readiness_bindings.h",
+      "line": 61,
+      "status": "verified_containing_function",
+      "gog": "0x168f00",
+      "steam_function": "0x168e10",
+      "function_bytes": 163
+    },
+    {
+      "name": "RVA_RESET_UNLOAD_ZONES",
+      "steam": "0x36c1e0",
+      "path": "src\\zone\\reset\\save_load_bindings.h",
+      "line": 34,
+      "status": "official_symbol",
+      "gog": "0x36be00",
+      "whole_function_verified": true
+    },
+    {
+      "name": "RVA_UNLOAD_ZONE_FROM_RESET",
+      "steam": "0x365ed",
+      "path": "src\\zone\\reset\\save_load_bindings.h",
+      "line": 52,
+      "status": "verified_code_reference",
+      "gog": "0x36656",
+      "evidence_count": 1
+    },
+    {
+      "name": "RVA_ZONEMAP_HANDLE_LIST",
+      "steam": "0x2132f50",
+      "path": "src\\zone\\reset\\save_load_bindings.h",
+      "line": 73,
+      "status": "verified_code_reference",
+      "gog": "0x2130ec0",
+      "evidence_count": 166
+    },
+    {
+      "name": "KEYCODE_FLAGS_0",
+      "steam": "0x2148504",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x2146474",
+      "evidence_count": 3
+    },
+    {
+      "name": "KEYCODE_FLAGS_1",
+      "steam": "0x214853e",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x21464ae"
+    },
+    {
+      "name": "KEYCODE_FLAGS_2",
+      "steam": "0x214855f",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x21464cf"
+    },
+    {
+      "name": "KEYCODE_FLAGS_3",
+      "steam": "0x2148540",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x21464b0"
+    },
+    {
+      "name": "KEYCODE_FLAGS_4",
+      "steam": "0x214855d",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "separate_flags_or_town_contract",
+      "gog": "0x21464cd"
+    },
+    {
+      "name": "PATH_PRIORITY_ENQUEUE_RETURN",
+      "steam": "0x3aaf60",
+      "path": "explicit_functional_policy",
+      "line": 0,
+      "status": "verified_containing_function",
+      "gog": "0x3aab80",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_0",
+      "steam": "0x145d39",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 39,
+      "span": 7,
+      "status": "verified_containing_function",
+      "gog": "0x145c59",
+      "steam_function": "0x145cb0",
+      "function_bytes": 339
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_1",
+      "steam": "0x3aaf14",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 40,
+      "span": 7,
+      "status": "verified_containing_function",
+      "gog": "0x3aab34",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_2",
+      "steam": "0x3aaf36",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 41,
+      "span": 7,
+      "status": "verified_containing_function",
+      "gog": "0x3aab56",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_3",
+      "steam": "0x3aaf3d",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 42,
+      "span": 18,
+      "status": "verified_containing_function",
+      "gog": "0x3aab5d",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_4",
+      "steam": "0x3aaf4f",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 43,
+      "span": 12,
+      "status": "verified_containing_function",
+      "gog": "0x3aab6f",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_5",
+      "steam": "0x3b6132",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 44,
+      "span": 14,
+      "status": "verified_containing_function",
+      "gog": "0x3b5d52",
+      "steam_function": "0x3b6110",
+      "function_bytes": 179
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_6",
+      "steam": "0x3b6145",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 45,
+      "span": 8,
+      "status": "verified_containing_function",
+      "gog": "0x3b5d65",
+      "steam_function": "0x3b6110",
+      "function_bytes": 179
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_7",
+      "steam": "0x3bee67",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 46,
+      "span": 7,
+      "status": "verified_containing_function",
+      "gog": "0x3bea87",
+      "steam_function": "0x3bee40",
+      "function_bytes": 91
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_8",
+      "steam": "0x3aafbd",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 47,
+      "span": 7,
+      "status": "verified_containing_function",
+      "gog": "0x3aabdd",
+      "steam_function": "0x3aaf80",
+      "function_bytes": 107
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_9",
+      "steam": "0x3aafc4",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 48,
+      "span": 12,
+      "status": "verified_containing_function",
+      "gog": "0x3aabe4",
+      "steam_function": "0x3aaf80",
+      "function_bytes": 107
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_10",
+      "steam": "0x3aec2f",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 49,
+      "span": 3,
+      "status": "verified_containing_function",
+      "gog": "0x3ae84f",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_11",
+      "steam": "0x3aec42",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 50,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3ae862",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_12",
+      "steam": "0x3aec59",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 51,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3ae879",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_13",
+      "steam": "0x145dc7",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 52,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x145ce7",
+      "steam_function": "0x145cb0",
+      "function_bytes": 339
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_14",
+      "steam": "0x2ac02",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 53,
+      "span": 5,
+      "status": "verified_code_reference",
+      "gog": "0x2ac70",
+      "evidence_count": 1
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_15",
+      "steam": "0x3aaf30",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 54,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3aab50",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_16",
+      "steam": "0x4f8ae",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 55,
+      "span": 5,
+      "status": "verified_code_reference",
+      "gog": "0x4f926",
+      "evidence_count": 91
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_17",
+      "steam": "0x3aaf5b",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 56,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3aab7b",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_18",
+      "steam": "0x2032e",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 57,
+      "span": 5,
+      "status": "verified_code_reference",
+      "gog": "0x203a1",
+      "evidence_count": 4
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_19",
+      "steam": "0x3aaf70",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 58,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3aab90",
+      "steam_function": "0x3aaef0",
+      "function_bytes": 133
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_20",
+      "steam": "0x2e843",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 59,
+      "span": 5,
+      "status": "verified_code_reference",
+      "gog": "0x2e8b1",
+      "evidence_count": 112
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_21",
+      "steam": "0x3aafd0",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 60,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3aabf0",
+      "steam_function": "0x3aaf80",
+      "function_bytes": 107
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_22",
+      "steam": "0x3bee6e",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 61,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3bea8e",
+      "steam_function": "0x3bee40",
+      "function_bytes": 91
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_23",
+      "steam": "0x3bee83",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 62,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3beaa3",
+      "steam_function": "0x3bee40",
+      "function_bytes": 91
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_24",
+      "steam": "0x3aeb98",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 63,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3ae7b8",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_25",
+      "steam": "0x3f81e",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 64,
+      "span": 5,
+      "status": "verified_code_reference",
+      "gog": "0x3f88c",
+      "evidence_count": 1
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_26",
+      "steam": "0x3ae932",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 65,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3ae552",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    },
+    {
+      "name": "PATH_PRIORITY_WINDOW_27",
+      "steam": "0x3aef6a",
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "line": 66,
+      "span": 5,
+      "status": "verified_containing_function",
+      "gog": "0x3aeb8a",
+      "steam_function": "0x3ae350",
+      "function_bytes": 3159
+    }
+  ]
+}

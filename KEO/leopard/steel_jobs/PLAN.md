@@ -1,0 +1,22 @@
+# Steel jobs integration, 2026-11-05 (private candidate)
+
+Scope: independently switchable Gather Output (291), cyclic Waypoints (292), and Stock Shop Counter (293). Stocking is physical delivery to an owned counter, never a monetary sale. New settings default OFF. Native 242 and unrelated AI are untouched.
+
+Implementation ledger:
+- Pure bounded scheduling/waypoint policy: implemented, actual-code RED/GREEN controls.
+- Native Steam/GOG factory and registration: implemented; exact binary contracts, native full factory initialization, no speculative SDK exports. 99 factory and 117 profile controls pass.
+- Runtime adapters/input/save-load: implemented. Selected stable handles captured at click; consumed before KEO routing observers; coordinates restored from native saved hand payload. 310 extracted input/lifecycle/caption/ownership controls pass in Od/O2. Exact TaskData identity keeps foreign implementations untouched during partial/refused admission.
+- Physical transfer: implemented as bounded full-stack detach/offer/exact vacant-source-section restoration; partial native merges are measured truthfully. 116 orchestration + 8 lifecycle controls in each mode; 20 actual PE windows checked. No original takeOne clone/fallible filtered rollback.
+- MCM/config/three locales: implemented, actual cached callbacks verified; 79 translation keys compiled and read back.
+- Full DEV/PROD351-source builds and 180 SDK0.5 imports: pass. Independent component and integration reviews completed; no remaining initial-candidate blockers. Actual Steam/GOG game acceptance remains pending.
+- Initial private candidate installed; user confirmed all three MCM settings. Actual Steam startup exposed strict transfer guard rejecting existing StackSort/Rotate/KEP hooks before job registration. Exact known-module admission now preserves those chains, with 83 shape + 122 extracted startup/hot controls in each build mode; no hot file/module queries. Native game acceptance of the corrected candidate remains pending.
+
+Rulings: new features default OFF and use separate live switches. Native custom-id registration survives OFF so queued rows remain loadable. A refused world lifecycle hook prevents admission. Existing native242 is never migrated. A source-aware native atomic stock API was not available; the bounded native transaction instead reserves the original source footprint/capacity, restores the same remaining original object, verifies resource/charge conservation, and stops after a fault. Unknown inventory callbacks and non-null provenance are refused rather than rewritten. The GOG virtual-PMF error is fixed separately in commit2bf6df9; the GOG startup-only retry package excludes these new jobs until testers confirm the base candidate.
+
+Constraints: bounded fixed actor/route/pending tables, no retained native actor/widget pointers, no native calls while state lock held, epoch invalidation on world change. OFF retains native rows and prevents new assignments/execution. Factory/decoder remain available to load saved rows even when OFF. Refuse simultaneous KenshiQOL ownership. Performance and game save/load acceptance must be reported separately from host controls.
+
+Map and Dynamic Factions remain paused. No publication, release version increment or personal published changelog entry for this private candidate.
+
+Runtime lifecycle follow-up05Nov: early title registration originally required world-only task templates and refused before a save could load. Restored two-phase ownership: early metadata/factory registration supports saved custom types; native template conditions publish once when available, including first saved-task construction before MainTick. No native call/logger under publication lock. 170 actual-source factory checks and 319 runtime controls eachOd/O2 pass; final native acceptance pending.
+
+05Nov actual gameplay: metadata registration succeeded in PID10344, but adding waypoints caused STACK_OVERFLOW at native Move.runAction3545C6. Root and independent review proved the copied vtable had only five base methods; native Move calls derived slots5/6 and aliased the adjacent stored callback/nativeBody. Corrected to bounded storage9 with exact class-specific COL+method extents7/8/6, all original derived entries validated against both EXEs. 188 factory and123 profile checks pass; old truncated-vtable control fails. Actual route repetition/save-load still pending corrected DLL. User confirmed hold-RMB counter command appears/adds; no counter execution acceptance yet.

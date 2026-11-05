@@ -1,0 +1,74 @@
+{
+  "baseHead": "49b1550dc5b270f6c26737659d792b046467976f",
+  "files": {
+    "src/pathfind/path_budget_policy.h": "bb02db23d362bae744c9163e3088cdd1181fff6a528b539ff2dd2d6b2c8b38a6",
+    "src/pathfind/path_budget_policy.cpp": "c1bbab57e6ed6af89b3969e0601d43a6273c00b1021112fe8e2d9ffe80035569",
+    "src/pathfind/pathfind_hooks.cpp": "64c9d29df1d2632e5d38f2e45e1b8ad0d6bffe2995aaf28df4f2a92d2a40fcef",
+    "src/pathfind/pathfind_diag.h": "69743122df580f0c9d6c1aa136d4d0abdab9f8248c63cf9bb46430c7e2da2056",
+    "tools/tests/path_budget_units.cpp": "c9b823c56101e6269aecf0ed05b030204b576e12015c9b481872d9ab198614a7",
+    "tools/build/coresrc.txt": "5bef4fd009d9f334b56713b114498a6da95ef761f938d30319c9d2c16872dc9e",
+    "tools/tests/suites.txt": "be84d9124e5098dc9c5dcd0bd2278cb754a561cbf47ce3bf3f9b68f6c351da97",
+    "leopard/test_path_budget.py": "5a299cd8f3ad1db79f2f2e27512b97efaec4efa048f509dd74f2b19d38fb4675",
+    "leopard/audit_path_budget_native.py": "07f45610258eda7fb89f13c9fab250f27d7a8bc7101c66cb66ce005b8b719812",
+    "leopard/path-budget-maintenance-20261102.md": "6c2eb4d9bbf6c0e174a6628b35af2dc95df02989626fc5eff65083b5ff228af1"
+  },
+  "sharedRegistrationOwnership": "Only appended path_budget source/suite rows; mcm_bridge rows are concurrent MCM adapter work.",
+  "mcmFrozenSource": {
+    "src/gui/mcm_bridge.cpp": "824fffa1abfea5c7fa2bc69f315f3d81c7beccfdf2f6d8d3d8bd039b0f96c3ab",
+    "src/gui/mcm_bridge.h": "34e40c19e60999bfe7dcd5cb2bc3c3b4280063ab8219767ff94ea79a311e904f",
+    "src/gui/ModConfigMenu.h": "90060552da7f7144241443de48e12f73023c9c7667762e07b88b7606bf805aa9",
+    "src/gui/requested_settings.cpp": "0a961459eb2426bc0c7199dc42a8af8a95f5f0f4984ddf5899c474f8f5898c68",
+    "src/gui/requested_settings.h": "19fedbc63eeb5e8c5202c06ed12b128004c274a981270a1f3154df8b8becceaa",
+    "src/gui/gui_config.cpp": "a914974046ca6ee453168110f27c79e86b5f38b255e792ef67cb0344f592b264",
+    "src/gui/gui_config.h": "83a934409c4a0b324ad977b1ffa445565309a39500ffcb5ed0683775fee0ee81",
+    "src/gui/settings_layout.cpp": "9b4fcd985d104717d777e3c7057576ada710f6adef762b7c159074b46775d97a",
+    "src/gui/settings_panel.cpp": "8abef5929463982c0a993772af098e0b0e5e6e65d26448a8f954a0d001d5d2fa",
+    "src/base/core.h": "ed1bff98e3a005c3a3b5cace5028c7784d242c902df78f105fe6d92aacd0afe9",
+    "src/base/log.cpp": "9b81345bbd43cad714125df682e90eb78b24bf98b52c4e65e6232f388a7b898d",
+    "src/plugin/plugin_entry.cpp": "b1b15347688b4155c0ff399b0261c2bb1fe45493fa45f52a6af156ce5109360c",
+    "src/render/render_live.cpp": "4bc8369051bcfc6a9c12cbf5c87597be6a60067d87ce4f904a9502330fc41518"
+  },
+  "candidates": {
+    "dev": {
+      "path": "D:\\DEV\\Kenshi\\forks\\KEO\\build\\KEO_step4_pathbudget_dev\\KEO.dll",
+      "bytes": 1539584,
+      "sha256": "13bb97997b0f54e06bac8afa524c84f496ec91dac1055f980ca706f2a98bc4e7",
+      "exports": [
+        "??0_Mutex@std@@QEAA@W4_Uninitialized@1@@Z",
+        "??4_Init_locks@std@@QEAAAEAV01@AEBV01@@Z",
+        "?startPlugin@@YAXXZ",
+        "MCM_Describe"
+      ],
+      "kenshiLibImports": 143
+    },
+    "prod": {
+      "path": "D:\\DEV\\Kenshi\\forks\\KEO\\build\\KEO_step4_pathbudget_prod\\KEO.dll",
+      "bytes": 1427456,
+      "sha256": "678b4efbb899a0e7afd4dda380028dbc885cbfa34c8753c21a9893cc03b0f338",
+      "exports": [
+        "??0_Mutex@std@@QEAA@W4_Uninitialized@1@@Z",
+        "??4_Init_locks@std@@QEAAAEAV01@AEBV01@@Z",
+        "?startPlugin@@YAXXZ",
+        "MCM_Describe"
+      ],
+      "kenshiLibImports": 143
+    }
+  },
+  "tests": {
+    "actualProductionCallerChecks": 3149,
+    "compiledBudgetMutantsRejected": 10,
+    "routingSuitesIncludingNew": 20,
+    "masterSwitchChecksEachDevProd": 436,
+    "masterSwitchMutantsRejected": 5,
+    "nativeByteWindows": 11,
+    "nativeCallEdges": 7,
+    "nativeCoveredSourceCount": 340,
+    "diffCheck": "PASS",
+    "lowPriorityNativePlayer": "Actual old predicate RED, native-positive budget GREEN; priority label unchanged."
+  },
+  "limits": [
+    "Offline/native build evidence only; no game execution or whole routing symptom acceptance.",
+    "Priority publication race and planner pause clock unchanged.",
+    "Independent review pending."
+  ]
+}

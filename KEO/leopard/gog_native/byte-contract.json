@@ -1,0 +1,959 @@
+{
+  "source_baseline": "022bb701/native EXACT5f68039; short MCM labels retained",
+  "steam_sha256": "504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e",
+  "gog_sha256": "2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681",
+  "gog_timestamp": "0x65d60519",
+  "gog_image_size": "0x232a000",
+  "address_count": 393,
+  "reverse_exact_count": 393,
+  "code_window_count": 344,
+  "manifest_count": 93,
+  "manifest": [
+    {
+      "name": "showLoadingMessage",
+      "steam": "0x6e9800",
+      "gog": "0x6e9110",
+      "kind": "HOOK_FATAL",
+      "steam16": "405356574883ec3048c7442420feffff",
+      "gog16": "405356574883ec3048c7442420feffff"
+    },
+    {
+      "name": "isContentPending",
+      "steam": "0x3ab4f0",
+      "gog": "0x3ab110",
+      "kind": "HOOK_FATAL",
+      "steam16": "40555657415441554881ecb000000048",
+      "gog16": "40555657415441554881ecb000000048"
+    },
+    {
+      "name": "updateCameraZone",
+      "steam": "0xa11da0",
+      "gog": "0xa114c0",
+      "kind": "HOOK_FATAL",
+      "steam16": "488bc448895010488948085556574154",
+      "gog16": "488bc448895010488948085556574154"
+    },
+    {
+      "name": "addOrderSelected",
+      "steam": "0x7f9280",
+      "gog": "0x7f8bc0",
+      "kind": "HOOK_FATAL",
+      "steam16": "488bc448894808554156488d68984881",
+      "gog16": "488bc448894808554156488d68984881"
+    },
+    {
+      "name": "destroyListInsert",
+      "steam": "0x799be0",
+      "gog": "0x799520",
+      "kind": "HOOK_FATAL",
+      "steam16": "4889542410574883ec4048c7442420fe",
+      "gog16": "4889542410574883ec4048c7442420fe"
+    },
+    {
+      "name": "resetUnloadZones",
+      "steam": "0x36c1e0",
+      "gog": "0x36be00",
+      "kind": "HOOK_FATAL",
+      "steam16": "4c8bdc49894b08555657415441554156",
+      "gog16": "4c8bdc49894b08555657415441554156"
+    },
+    {
+      "name": "processLoading",
+      "steam": "0xa0e950",
+      "gog": "0xa0e070",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45541544155488d68a14881ece0",
+      "gog16": "488bc45541544155488d68a14881ece0"
+    },
+    {
+      "name": "calculateCurrentPos",
+      "steam": "0x4fe2c0",
+      "gog": "0x4fe5d0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2420564883ec4083795800488b",
+      "gog16": "48895c2420564883ec4083795800488b"
+    },
+    {
+      "name": "getSpeed",
+      "steam": "0x7f4ba0",
+      "gog": "0x7f44e0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4889542410535541554883ec60488b05",
+      "gog16": "4889542410535541554883ec60488b05"
+    },
+    {
+      "name": "factionRelationsUpdate",
+      "steam": "0x6b2480",
+      "gog": "0x6b1d90",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48837940004c8bc17413488b5138488b",
+      "gog16": "48837940004c8bc17413488b5138488b"
+    },
+    {
+      "name": "Character::giveItem",
+      "steam": "0x5ca970",
+      "gog": "0x5cac80",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c240848896c2410488974241857",
+      "gog16": "48895c240848896c2410488974241857"
+    },
+    {
+      "name": "builderPlace",
+      "steam": "0x4d6810",
+      "gog": "0x4d6b20",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4554154415541564157488da858",
+      "gog16": "488bc4554154415541564157488da858"
+    },
+    {
+      "name": "createBuilding",
+      "steam": "0x57c1e0",
+      "gog": "0x57c4f0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45556574154415541564157488d",
+      "gog16": "488bc45556574154415541564157488d"
+    },
+    {
+      "name": "getDropped",
+      "steam": "0x5cc110",
+      "gog": "0x5cc420",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40574883ec6048c7442420feffffff48",
+      "gog16": "40574883ec6048c7442420feffffff48"
+    },
+    {
+      "name": "takeOutsideTick",
+      "steam": "0x3356a0",
+      "gog": "0x335230",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534883ec20488b8240060000488bda",
+      "gog16": "40534883ec20488b8240060000488bda"
+    },
+    {
+      "name": "takeOutsidePathImpossible",
+      "steam": "0x33da20",
+      "gog": "0x33d5d0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2410564883ec30488bd9488b4a",
+      "gog16": "48895c2410564883ec30488bd9488b4a"
+    },
+    {
+      "name": "findKOIntruderTown",
+      "steam": "0x99b380",
+      "gog": "0x99aaa0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24084889742410574883ec4033",
+      "gog16": "48895c24084889742410574883ec4033"
+    },
+    {
+      "name": "SaveFileSystem::saveGame",
+      "steam": "0x473380",
+      "gog": "0x472fa0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405556574154415541564157488dac24",
+      "gog16": "405556574154415541564157488dac24"
+    },
+    {
+      "name": "SaveFileSystem::loadGame",
+      "steam": "0x474340",
+      "gog": "0x473f60",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec50488bda488bf9",
+      "gog16": "48895c2408574883ec50488bda488bf9"
+    },
+    {
+      "name": "SaveFileSystem::newGame",
+      "steam": "0x470d00",
+      "gog": "0x470920",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24084889742410574883ec5033",
+      "gog16": "48895c24084889742410574883ec5033"
+    },
+    {
+      "name": "BackpackInventoryLayout::setupSections",
+      "steam": "0x1502e0",
+      "gog": "0x150200",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4055535657415441554156488d6c24d9",
+      "gog16": "4055535657415441554156488d6c24d9"
+    },
+    {
+      "name": "activateZoneMap",
+      "steam": "0xa0e1b0",
+      "gog": "0xa0d8d0",
+      "kind": "HOOK_FATAL",
+      "steam16": "40535556574154415541564881eca000",
+      "gog16": "40535556574154415541564881eca000"
+    },
+    {
+      "name": "finalizeZoneResources",
+      "steam": "0x8f5100",
+      "gog": "0x8f4820",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40574883ec5048c7442420feffffff48",
+      "gog16": "40574883ec5048c7442420feffffff48"
+    },
+    {
+      "name": "townListDestroy",
+      "steam": "0x92a4f0",
+      "gog": "0x929c10",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4565741544881eca000000048c7",
+      "gog16": "488bc4565741544881eca000000048c7"
+    },
+    {
+      "name": "zoneMapUpdate",
+      "steam": "0xa0a960",
+      "gog": "0xa0a080",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2410574883ec20488b81880000",
+      "gog16": "48895c2410574883ec20488b81880000"
+    },
+    {
+      "name": "unstitchCrossSection",
+      "steam": "0xd9ab20",
+      "gog": "0xd9a240",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4889542410535741574883ec50488bfa",
+      "gog16": "4889542410535741574883ec50488bfa"
+    },
+    {
+      "name": "nmgStitch",
+      "steam": "0x3c56f0",
+      "gog": "0x3c5310",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405556574154415541564157488dac24",
+      "gog16": "405556574154415541564157488dac24"
+    },
+    {
+      "name": "searchSetNodeCost",
+      "steam": "0xda6370",
+      "gog": "0xda5a90",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4c8b594841f6430e03f3410f111b0f85",
+      "gog16": "4c8b594841f6430e03f3410f111b0f85"
+    },
+    {
+      "name": "graphExpandNode",
+      "steam": "0xda5860",
+      "gog": "0xda4f80",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24184889542410555657415441",
+      "gog16": "48895c24184889542410555657415441"
+    },
+    {
+      "name": "graphPositionLookup",
+      "steam": "0xda4470",
+      "gog": "0xda3b90",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24084c8b09498bd8448bc24d8b",
+      "gog16": "48895c24084c8b09498bd8448bc24d8b"
+    },
+    {
+      "name": "graphHeuristicGoalAdjacent",
+      "steam": "0xda6a30",
+      "gog": "0xda6150",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c240848896c2410488974241857",
+      "gog16": "48895c240848896c2410488974241857"
+    },
+    {
+      "name": "graphHeuristicClusterCentre",
+      "steam": "0xda6690",
+      "gog": "0xda5db0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24084c8b5108448bca498bd841",
+      "gog16": "48895c24084c8b5108448bca498bd841"
+    },
+    {
+      "name": "graphHeuristicCoarseSeed",
+      "steam": "0xda5fe0",
+      "gog": "0xda5700",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24084889742410574883ec208b",
+      "gog16": "48895c24084889742410574883ec208b"
+    },
+    {
+      "name": "graphInstanceConnect",
+      "steam": "0xd9ad30",
+      "gog": "0xd9a450",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4c8bdc4989531049894b0853554881ec",
+      "gog16": "4c8bdc4989531049894b0853554881ec"
+    },
+    {
+      "name": "navMeshFaceAabb",
+      "steam": "0xcfd610",
+      "gog": "0xcfcd30",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4c894424185356415641574881ec9800",
+      "gog16": "4c894424185356415641574881ec9800"
+    },
+    {
+      "name": "removeInstance",
+      "steam": "0xd0dc30",
+      "gog": "0xd0d350",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48896c2410488974241848897c242041",
+      "gog16": "48896c2410488974241848897c242041"
+    },
+    {
+      "name": "createInstance",
+      "steam": "0x3acd20",
+      "gog": "0x3ac940",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405556574154415541564157488d6c24",
+      "gog16": "405556574154415541564157488d6c24"
+    },
+    {
+      "name": "physicsUpdateUT",
+      "steam": "0x4cd040",
+      "gog": "0x4cd350",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405641544883ec28488bf14881c1a001",
+      "gog16": "405641544883ec28488bf14881c1a001"
+    },
+    {
+      "name": "hullPushHull",
+      "steam": "0x4cc210",
+      "gog": "0x4cc520",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec20488b1da76ec6",
+      "gog16": "48895c2408574883ec20488b1d074bc6"
+    },
+    {
+      "name": "hullPushEntity",
+      "steam": "0x7dc170",
+      "gog": "0x7dbab0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec20488b5120488b",
+      "gog16": "48895c2408574883ec20488b5120488b"
+    },
+    {
+      "name": "hullPushScythe",
+      "steam": "0x7dbf20",
+      "gog": "0x7db860",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c240848896c2410488974241848",
+      "gog16": "48895c240848896c2410488974241848"
+    },
+    {
+      "name": "hullPushRoot",
+      "steam": "0x7dc0b0",
+      "gog": "0x7db9f0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec20488b1d077095",
+      "gog16": "48895c2408574883ec20488b1d375695"
+    },
+    {
+      "name": "hullPushBase",
+      "steam": "0x7dc110",
+      "gog": "0x7dba50",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec20488b1da76f95",
+      "gog16": "48895c2408574883ec20488b1dd75595"
+    },
+    {
+      "name": "nmgUpdate",
+      "steam": "0x3c8b70",
+      "gog": "0x3c8790",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4554154415541564157488da8d8",
+      "gog16": "488bc4554154415541564157488da8d8"
+    },
+    {
+      "name": "wallAddProgress",
+      "steam": "0x5594a0",
+      "gog": "0x5597b0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40564881ec8000000083b9700300000b",
+      "gog16": "40564881ec8000000083b9700300000b"
+    },
+    {
+      "name": "navMeshGenerateAabb",
+      "steam": "0x3a6580",
+      "gog": "0x3a61a0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405556574154415541564157488d6c24",
+      "gog16": "405556574154415541564157488d6c24"
+    },
+    {
+      "name": "scoreFindFoodOnGround",
+      "steam": "0x5972a0",
+      "gog": "0x5975b0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534883ec30488bd9488b89f8020000",
+      "gog16": "40534883ec30488bd9488b89f8020000"
+    },
+    {
+      "name": "operatorWantGone",
+      "steam": "0x5a2200",
+      "gog": "0x5a2510",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4565741544883ec7048c7442420",
+      "gog16": "488bc4565741544883ec7048c7442420"
+    },
+    {
+      "name": "deleteInstance",
+      "steam": "0x3ab8a0",
+      "gog": "0x3ab4c0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4055565741544155488d6c24f04881ec",
+      "gog16": "4055565741544155488d6c24f04881ec"
+    },
+    {
+      "name": "clearanceResetKeys",
+      "steam": "0xd617d0",
+      "gog": "0xd60ef0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24184c894c2420488954241055",
+      "gog16": "48895c24184c894c2420488954241055"
+    },
+    {
+      "name": "sectionCutLookup",
+      "steam": "0xdcaee0",
+      "gog": "0xdca600",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4488958204c8940188950104889",
+      "gog16": "488bc4488958204c8940188950104889"
+    },
+    {
+      "name": "loadPhysXResource",
+      "steam": "0x7e4850",
+      "gog": "0x7e4190",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4c8bdc565741544881ec8000000048c7",
+      "gog16": "4c8bdc565741544881ec8000000048c7"
+    },
+    {
+      "name": "haulAmount",
+      "steam": "0x356d50",
+      "gog": "0x356900",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4c8bdc5741544155415641574883ec40",
+      "gog16": "4c8bdc5741544155415641574883ec40"
+    },
+    {
+      "name": "isInIsland",
+      "steam": "0xa07eb0",
+      "gog": "0xa075d0",
+      "kind": "HOOK_FATAL",
+      "steam16": "4885d2740b8b42203941207503b001c3",
+      "gog16": "4885d2740b8b42203941207503b001c3"
+    },
+    {
+      "name": "getIsland",
+      "steam": "0xa09ae0",
+      "gog": "0xa09200",
+      "kind": "HOOK_FATAL",
+      "steam16": "48895c241848896c2420574883ec2048",
+      "gog16": "48895c241848896c2420574883ec2048"
+    },
+    {
+      "name": "setDestinationVec3",
+      "steam": "0x6607e0",
+      "gog": "0x660af0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4055535657415441554156488dac2410",
+      "gog16": "4055535657415441554156488dac2410"
+    },
+    {
+      "name": "getZoneEdge",
+      "steam": "0x3a39c0",
+      "gog": "0x3a35e0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45557415441554156488d68a948",
+      "gog16": "488bc45557415441554156488d68a948"
+    },
+    {
+      "name": "charMovementUpdate",
+      "steam": "0x65f510",
+      "gog": "0x65f820",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45556574154415541564157488d",
+      "gog16": "488bc45556574154415541564157488d"
+    },
+    {
+      "name": "updateOnScreenCheck",
+      "steam": "0x5c94d0",
+      "gog": "0x5c97e0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405341564883ec68440fb6b1a9010000",
+      "gog16": "405341564883ec68440fb6b1a9010000"
+    },
+    {
+      "name": "pausedUpdate",
+      "steam": "0x5c7090",
+      "gog": "0x5c73a0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534883ec30488b010fb691e5000000",
+      "gog16": "40534883ec30488b010fb691e5000000"
+    },
+    {
+      "name": "stopCharactersMovement",
+      "steam": "0x7f58d0",
+      "gog": "0x7f5210",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534883ec204883b92802000000488b",
+      "gog16": "40534883ec204883b92802000000488b"
+    },
+    {
+      "name": "addJobSelected",
+      "steam": "0x7f4ef0",
+      "gog": "0x7f4830",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "405355415641574883ec488bea33d245",
+      "gog16": "405355415641574883ec488bea33d245"
+    },
+    {
+      "name": "addTaskNearest",
+      "steam": "0x7fa2d0",
+      "gog": "0x7f9c10",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534154415641574881ecc80000004c",
+      "gog16": "40534154415641574881ecc80000004c"
+    },
+    {
+      "name": "dispatchJob",
+      "steam": "0x3ce030",
+      "gog": "0x3cdc50",
+      "kind": "HOOK_FATAL",
+      "steam16": "48896c2420564883ec30488da9880000",
+      "gog16": "48896c2420564883ec30488da9880000"
+    },
+    {
+      "name": "navMeshGenerate",
+      "steam": "0x3ab700",
+      "gog": "0x3ab320",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc456574154415541564881ecb000",
+      "gog16": "488bc456574154415541564881ecb000"
+    },
+    {
+      "name": "edgeProcess",
+      "steam": "0xdd92f0",
+      "gog": "0xdd8a10",
+      "kind": "HOOK_FATAL",
+      "steam16": "40534883ec20488bd94883c150e81ff0",
+      "gog16": "40534883ec20488bd94883c150e86df9"
+    },
+    {
+      "name": "nmResultPopulate",
+      "steam": "0xe0aff0",
+      "gog": "0xe0a710",
+      "kind": "HOOK_FATAL",
+      "steam16": "4883ec684c8bd1488d4c2430e81faffe",
+      "gog16": "4883ec684c8bd1488d4c2430e81faffe"
+    },
+    {
+      "name": "processJobAlt",
+      "steam": "0x3cbe60",
+      "gog": "0x3cba80",
+      "kind": "HOOK_FATAL",
+      "steam16": "488bc45556574154415541564157488d",
+      "gog16": "488bc45556574154415541564157488d"
+    },
+    {
+      "name": "buildCollision",
+      "steam": "0x3cb700",
+      "gog": "0x3cb320",
+      "kind": "HOOK_FATAL",
+      "steam16": "405556574154415541564157488d6c24",
+      "gog16": "405556574154415541564157488d6c24"
+    },
+    {
+      "name": "buildCollisionInterior",
+      "steam": "0x3cbab0",
+      "gog": "0x3cb6d0",
+      "kind": "HOOK_FATAL",
+      "steam16": "405556574154415541564157488d6c24",
+      "gog16": "405556574154415541564157488d6c24"
+    },
+    {
+      "name": "stitchUnloadedZone",
+      "steam": "0x3cb140",
+      "gog": "0x3cad60",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40555356574154415541564157488d6c",
+      "gog16": "40555356574154415541564157488d6c"
+    },
+    {
+      "name": "stitchWithInteriors",
+      "steam": "0x3c5c10",
+      "gog": "0x3c5830",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c241848896c2420564154415548",
+      "gog16": "48895c241848896c2420564154415548"
+    },
+    {
+      "name": "lockZone",
+      "steam": "0x3c73b0",
+      "gog": "0x3c6fd0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "4883ec284584c07420488d4c2448e873",
+      "gog16": "4883ec284584c07420488d4c2448e8c1"
+    },
+    {
+      "name": "navMeshStop",
+      "steam": "0x3aae90",
+      "gog": "0x3aaab0",
+      "kind": "HOOK_FATAL",
+      "steam16": "4885c97446534883ec20488bd9c681c8",
+      "gog16": "4885c97446534883ec20488bd9c681c8"
+    },
+    {
+      "name": "getSeedPointsAdjacent",
+      "steam": "0x3c96e0",
+      "gog": "0x3c9300",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45556574154415541564157488d",
+      "gog16": "488bc45556574154415541564157488d"
+    },
+    {
+      "name": "csFindPath",
+      "steam": "0x3aa950",
+      "gog": "0x3aa570",
+      "kind": "HOOK_FATAL",
+      "steam16": "405553565741544155488d6c24984881",
+      "gog16": "405553565741544155488d6c24984881"
+    },
+    {
+      "name": "csCheckFaceConn",
+      "steam": "0x3a5b00",
+      "gog": "0x3a5720",
+      "kind": "HOOK_FATAL",
+      "steam16": "488bc455488d68a14881ecf000000048",
+      "gog16": "488bc455488d68a14881ecf000000048"
+    },
+    {
+      "name": "findPathFull",
+      "steam": "0xce56d0",
+      "gog": "0xce4df0",
+      "kind": "HOOK_FATAL",
+      "steam16": "48894c24085556415441554157488dac",
+      "gog16": "48894c24085556415441554157488dac"
+    },
+    {
+      "name": "requestPath",
+      "steam": "0x145cb0",
+      "gog": "0x145bd0",
+      "kind": "HOOK_FATAL",
+      "steam16": "48895c240848896c2410488974241857",
+      "gog16": "48895c240848896c2410488974241857"
+    },
+    {
+      "name": "pathReqSubmit",
+      "steam": "0x3aaef0",
+      "gog": "0x3aab10",
+      "kind": "HOOK_FATAL",
+      "steam16": "48895424105556574883ec3048c74424",
+      "gog16": "48895424105556574883ec3048c74424"
+    },
+    {
+      "name": "csFindPathFallback",
+      "steam": "0x3aabf0",
+      "gog": "0x3aa810",
+      "kind": "HOOK_FATAL",
+      "steam16": "4055535657415441554156488dac2460",
+      "gog16": "4055535657415441554156488dac2460"
+    },
+    {
+      "name": "contentStreamCallee_0x8869",
+      "steam": "0x3a9f20",
+      "gog": "0x3a9b40",
+      "kind": "HOOK_FATAL",
+      "steam16": "488bc4535557415641574883ec700f57",
+      "gog16": "488bc4535557415641574883ec700f57"
+    },
+    {
+      "name": "addInstance",
+      "steam": "0xd0d8f0",
+      "gog": "0xd0d010",
+      "kind": "HOOK_FATAL",
+      "steam16": "48895c240848896c2410488974241857",
+      "gog16": "48895c240848896c2410488974241857"
+    },
+    {
+      "name": "contentStream",
+      "steam": "0x3ae350",
+      "gog": "0x3adf70",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4554154415541564157488d68b8",
+      "gog16": "488bc4554154415541564157488d68b8"
+    },
+    {
+      "name": "dequeueWork",
+      "steam": "0x3bee40",
+      "gog": "0x3bea60",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c24104889742418574883ec2048",
+      "gog16": "48895c24104889742418574883ec2048"
+    },
+    {
+      "name": "enqueueThreadSafe",
+      "steam": "0x3b6110",
+      "gog": "0x3b5d30",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48895c2408574883ec20488bd9b91000",
+      "gog16": "48895c2408574883ec20488bd9b91000"
+    },
+    {
+      "name": "gatesUpdateCodes",
+      "steam": "0x2ef460",
+      "gog": "0x2eeff0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc4554154415541564157488da8a8",
+      "gog16": "488bc4554154415541564157488da8a8"
+    },
+    {
+      "name": "gatesFindPath",
+      "steam": "0x2ec540",
+      "gog": "0x2ec0d0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40574881ecb000000048c7442420feff",
+      "gog16": "40574881ecb000000048c7442420feff"
+    },
+    {
+      "name": "WaterOcclusionListener::frameRenderingQueued",
+      "steam": "0x9d9060",
+      "gog": "0x9d8780",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40534883ec20c64128008b0570947501",
+      "gog16": "40534883ec20c64128008b05c07c7501"
+    },
+    {
+      "name": "CsmShadowMap::setupCascade",
+      "steam": "0x862f60",
+      "gog": "0x8628a0",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc455535657415441554156415748",
+      "gog16": "488bc455535657415441554156415748"
+    },
+    {
+      "name": "PagedGeometry::update",
+      "steam": "0xa29e40",
+      "gog": "0xa29560",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "48894c24084881ec28010000488b8424",
+      "gog16": "48894c24084881ec28010000488b8424"
+    },
+    {
+      "name": "OptionsWindow::create",
+      "steam": "0x3f0120",
+      "gog": "0x3efd40",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "40554154415541564157488dac246049",
+      "gog16": "40554154415541564157488dac246049"
+    },
+    {
+      "name": "OptionsWindow::saveOptions",
+      "steam": "0x3ec950",
+      "gog": "0x3ec570",
+      "kind": "HOOK_DIAGNOSTIC",
+      "steam16": "488bc45541544155488d68c84881ec20",
+      "gog16": "488bc45541544155488d68c84881ec20"
+    }
+  ],
+  "path_priority_count": 28,
+  "path_priority": [
+    {
+      "steam": "0x145d39",
+      "gog": "0x145c59",
+      "count": 7,
+      "steam_bytes": "83fd02410f94c0",
+      "gog_bytes": "83fd02410f94c0"
+    },
+    {
+      "steam": "0x3aaf14",
+      "gog": "0x3aab34",
+      "count": 7,
+      "steam_bytes": "488da9e0010000",
+      "gog_bytes": "488da9e0010000"
+    },
+    {
+      "steam": "0x3aaf36",
+      "gog": "0x3aab56",
+      "count": 7,
+      "steam_bytes": "c7462800000000",
+      "gog_bytes": "c7462800000000"
+    },
+    {
+      "steam": "0x3aaf3d",
+      "gog": "0x3aab5d",
+      "count": 18,
+      "steam_bytes": "b80a000000b91400000084db0f45c189462c",
+      "gog_bytes": "b80a000000b91400000084db0f45c189462c"
+    },
+    {
+      "steam": "0x3aaf4f",
+      "gog": "0x3aab6f",
+      "count": 12,
+      "steam_bytes": "488d8fb8000000488d542458",
+      "gog_bytes": "488d8fb8000000488d542458"
+    },
+    {
+      "steam": "0x3b6132",
+      "gog": "0x3b5d52",
+      "count": 14,
+      "steam_bytes": "488b1748c7400800000000488910",
+      "gog_bytes": "488b1748c7400800000000488910"
+    },
+    {
+      "steam": "0x3b6145",
+      "gog": "0x3b5d65",
+      "count": 8,
+      "steam_bytes": "488b43184c895808",
+      "gog_bytes": "488b43184c895808"
+    },
+    {
+      "steam": "0x3bee67",
+      "gog": "0x3bea87",
+      "count": 7,
+      "steam_bytes": "488d4e20488bd0",
+      "gog_bytes": "488d4e20488bd0"
+    },
+    {
+      "steam": "0x3aafbd",
+      "gog": "0x3aabdd",
+      "count": 7,
+      "steam_bytes": "c7462cffffffff",
+      "gog_bytes": "c7462cffffffff"
+    },
+    {
+      "steam": "0x3aafc4",
+      "gog": "0x3aabe4",
+      "count": 12,
+      "steam_bytes": "488d8bb8000000488d542458",
+      "gog_bytes": "488d8bb8000000488d542458"
+    },
+    {
+      "steam": "0x3aec2f",
+      "gog": "0x3ae84f",
+      "count": 3,
+      "steam_bytes": "8b562c",
+      "gog_bytes": "8b562c"
+    },
+    {
+      "steam": "0x3aec42",
+      "gog": "0x3ae862",
+      "count": 5,
+      "steam_bytes": "3b512c7e58",
+      "gog_bytes": "3b512c7e58"
+    },
+    {
+      "steam": "0x3aec59",
+      "gog": "0x3ae879",
+      "count": 5,
+      "steam_bytes": "39502c7c16",
+      "gog_bytes": "39502c7c16"
+    },
+    {
+      "steam": "0x145dc7",
+      "gog": "0x145ce7",
+      "count": 5,
+      "steam_bytes": "e8364eeeff",
+      "gog_bytes": "e8844feeff"
+    },
+    {
+      "steam": "0x2ac02",
+      "gog": "0x2ac70",
+      "count": 5,
+      "steam_bytes": "e9e9023800",
+      "gog_bytes": "e99bfe3700"
+    },
+    {
+      "steam": "0x3aaf30",
+      "gog": "0x3aab50",
+      "count": 5,
+      "steam_bytes": "e87949caff",
+      "gog_bytes": "e8d14dcaff"
+    },
+    {
+      "steam": "0x4f8ae",
+      "gog": "0x4f926",
+      "count": 5,
+      "steam_bytes": "e93dfd2000",
+      "gog_bytes": "e955f82000"
+    },
+    {
+      "steam": "0x3aaf5b",
+      "gog": "0x3aab7b",
+      "count": 5,
+      "steam_bytes": "e8ce53c7ff",
+      "gog_bytes": "e82158c7ff"
+    },
+    {
+      "steam": "0x2032e",
+      "gog": "0x203a1",
+      "count": 5,
+      "steam_bytes": "e9dd5d3900",
+      "gog_bytes": "e98a593900"
+    },
+    {
+      "steam": "0x3aaf70",
+      "gog": "0x3aab90",
+      "count": 5,
+      "steam_bytes": "e9ce38c8ff",
+      "gog_bytes": "e91c3dc8ff"
+    },
+    {
+      "steam": "0x2e843",
+      "gog": "0x2e8b1",
+      "count": 5,
+      "steam_bytes": "e988db2200",
+      "gog_bytes": "e9aad62200"
+    },
+    {
+      "steam": "0x3aafd0",
+      "gog": "0x3aabf0",
+      "count": 5,
+      "steam_bytes": "e85953c7ff",
+      "gog_bytes": "e8ac57c7ff"
+    },
+    {
+      "steam": "0x3bee6e",
+      "gog": "0x3bea8e",
+      "count": 5,
+      "steam_bytes": "e83b0ac9ff",
+      "gog_bytes": "e8930ec9ff"
+    },
+    {
+      "steam": "0x3bee83",
+      "gog": "0x3beaa3",
+      "count": 5,
+      "steam_bytes": "e8bbf9c6ff",
+      "gog_bytes": "e809fec6ff"
+    },
+    {
+      "steam": "0x3aeb98",
+      "gog": "0x3ae7b8",
+      "count": 5,
+      "steam_bytes": "e8810cc9ff",
+      "gog_bytes": "e8cf10c9ff"
+    },
+    {
+      "steam": "0x3f81e",
+      "gog": "0x3f88c",
+      "count": 5,
+      "steam_bytes": "e91df63700",
+      "gog_bytes": "e9cff13700"
+    },
+    {
+      "steam": "0x3ae932",
+      "gog": "0x3ae552",
+      "count": 5,
+      "steam_bytes": "e8f719c7ff",
+      "gog_bytes": "e84a1ec7ff"
+    },
+    {
+      "steam": "0x3aef6a",
+      "gog": "0x3aeb8a",
+      "count": 5,
+      "steam_bytes": "e8bf13c7ff",
+      "gog_bytes": "e81218c7ff"
+    }
+  ],
+  "native_runtime_tested": false,
+  "scope": "Includes all107 actual Resolve entries (98 functions+9 globals), with official SDK slot7627 au mapping; GOG gameplay and startup still require tester confirmation.",
+  "sdk_startup_global_count": 9
+}

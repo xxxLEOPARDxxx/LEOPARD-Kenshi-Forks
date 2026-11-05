@@ -1,0 +1,12 @@
+[
+  "Settings are not ready.",
+  "Invalid setting value.",
+  "The setting could not be changed.",
+  "Invalid setting metadata.",
+  "The settings file could not be saved.",
+  "The settings were saved, but could not be applied until restart.",
+  "Settings are saved for the next start. Runtime changes are unavailable on this build.",
+  "Detailed log",
+  "Write detailed diagnostics to KEO.log. Errors are always logged.",
+  "Logging"
+]

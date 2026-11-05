@@ -1,0 +1,72 @@
+# KEO: Kenshi Engine Optimizations
+
+## THIS MOD IS STILL IN BETA
+
+> **Beta.** This mod is still in testing. Stability is not guaranteed.
+
+A performance and stability mod for Kenshi, built as an RE_Kenshi plugin.
+
+KEO makes moving between areas of the map smoother. It loads areas before your squads reach them, gets pathing for new ground ready sooner, and adds frame-rate optimizations that you can switch on and off individually.
+
+- **Area transitions:** about 94 % faster on a first visit (2.5 s → 0.15 s on average), with the world no longer freezing while you travel (58 s of freeze over a test walk → none).
+- **Frame rate:** 13 to 19 fps higher in a swamp, 4 to 7 fps in a town, and 1.5 to 10 fps in a crowded desert town, with every render optimization on against all of them off.
+
+## Features
+
+- **Faster area loading.** Areas around your camera and your squads are loaded ahead of time, so crossing into a new one is much quicker.
+- **Pathing ready sooner.** Walkable ground for a new area is prepared faster and saved to disk, so an area you have visited before is ready right away.
+- **Route planning for long orders.** A move order across several areas is planned over the whole map before your squad sets off, so it crosses area borders without zig-zags or doubling back, and each next stretch of the route is ready before your squad reaches the border.
+- **Water and acid on routes.** Routes weigh water by each character's own swimming speed and keep characters out of acidic water that would burn them.
+- **Better squad movement.** A squad running together gathers on one route and arrives together, a move order onto a building stops at its door, and long move orders the game drops partway are re-issued.
+- **Higher frame rate.** Render and particle optimizations. Any change that causes a noticeable drop in quality is off by default.
+- **Stability fixes** for several of the vanilla bugs and crashes.
+- **KEO tab** in the game's Options window, grouped into sections like the game's own tabs, with an **in-game benchmark** that measures the frame-rate optimizations on your own machine.
+
+## Requirements
+
+- Kenshi 1.0.65 (Steam).
+- [RE_Kenshi](https://github.com/BFrizzleFoShizzle/RE_Kenshi) ([Nexus](https://www.nexusmods.com/kenshi/mods/847)) 0.3.5 or later.
+
+## Installation
+
+- **[Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3802456502):** subscribe, and enable the mod in the launcher.
+- **Manual:** download the latest release, copy the `KEO` folder into Kenshi's `mods\` directory, and launch Kenshi through the RE_Kenshi launcher.
+
+## Configuration
+
+Every setting is optional and has a default. There are two ways to change one:
+
+- the **Options → KEO** tab in game;
+- `KEO.ini` in the mod folder, where each setting is explained above its line. Some settings take effect only after a restart; the file says which.
+
+If you used an earlier version, your settings in `KenshiZoneOpt.ini` are carried into `KEO.ini` once, on the first launch, and the old file is kept as `KenshiZoneOpt.ini.imported`.
+
+## Known defects
+
+- **GOG version not supported.** On the GOG build of Kenshi, KEO stays inactive: it detects the version at startup and changes nothing.
+- **Long move orders can still stop short.** Now and then a squad on a long order stops before its destination; giving the order again continues it.
+
+## Bug reports
+
+If you run into a problem, [open an issue](../../issues/new) and include:
+
+- `KEO.log` and, if present, `crash_dump.txt`, both from the mod's folder;
+- `RE_Kenshi_log.txt`, from the Kenshi game directory;
+- the list of other mods you have enabled;
+- what you were doing when it happened (crossing into a new area, a long move order, loading a save, …).
+
+## Building from source
+
+Requires Visual Studio 2010 (v100 x64 toolset, default install path), Python 3.7 or later, the [KenshiLib v0.5.1](https://github.com/BFrizzleFoShizzle/KenshiLib/releases/tag/v0.5.1) release archive and the Boost 1.60.0 headers.
+
+```bat
+set KENSHILIB=C:\path\to\KenshiLib
+set BOOST_ROOT=C:\path\to\boost_1_60_0
+build_opt_step4.bat
+```
+
+The mod is built into `build\KEO_step4_prod\`. To install it, copy that folder into Kenshi's `mods\` directory. `build.bat` builds the optional `KEOProfiler` diagnostics plugin into `build\KEOProfiler\`, and `tools\tests\build_tests.bat` runs the unit tests. Builds reuse unchanged objects from a cache under `%LOCALAPPDATA%\KEO\objcache` (`KEO_CACHE_DIR` moves it, `BUILD_CACHE=off` makes a clean build); deleting it is always safe.
+
+## License
+
+GPL-3.0; see [LICENSE](LICENSE).

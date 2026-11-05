@@ -1,0 +1,243 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en_GB\n"
+
+msgid "Zone loading"
+msgstr "Zone loading"
+
+msgid "Performance"
+msgstr "Performance"
+
+msgid "Squad movement"
+msgstr "Squad movement"
+
+msgid "Gameplay fixes"
+msgstr "Gameplay fixes"
+
+msgid "Backpacks and jobs"
+msgstr "Backpacks and jobs"
+
+msgid "Other settings"
+msgstr "Other settings"
+
+msgid "Takes effect after restarting the game."
+msgstr "Takes effect after restarting the game."
+
+msgid "Works only while \"%s\" is on."
+msgstr "Works only while \"%s\" is on."
+
+msgid "Fast zone hopping is on (Options, General): the game itself keeps a 3x3 around each of your characters, so this can't go below 1. Turn Fast zone hopping off to set 0."
+msgstr "Fast zone hopping is on (Options, General): the game itself keeps a 3x3 around each of your characters, so this can't go below 1. Turn Fast zone hopping off to set 0."
+
+msgid "Off"
+msgstr "Off"
+
+msgid "Observe"
+msgstr "Observe"
+
+msgid "On"
+msgstr "On"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Weightless"
+msgstr "Weightless"
+
+msgid "Lightweight"
+msgstr "Lightweight"
+
+msgid "Moderate"
+msgstr "Moderate"
+
+msgid "Heavy"
+msgstr "Heavy"
+
+msgid "Overloaded"
+msgstr "Overloaded"
+
+msgid "Prevent NPC from claiming player buildings"
+msgstr "Prevent NPC from claiming player buildings"
+
+msgid "A building placed near an NPC town joins the player's own town or none, never the NPC town. Inside an NPC town's radius, where one of your towns also covers the spot, a building that does not found a town and arrives with no town, or with a town too small to hold the spot, keeps the game's choice: in an unsaved zone that NPC town, whose power it then draws."
+msgstr "A building placed near an NPC town joins the player's own town or none, never the NPC town. Inside an NPC town's radius, where one of your towns also covers the spot, a building that does not found a town and arrives with no town, or with a town too small to hold the spot, keeps the game's choice: in an unsaved zone that NPC town, whose power it then draws."
+
+msgid "Fix guard throwout loop"
+msgstr "Fix guard throwout loop"
+
+msgid "A knocked-out intruder a town throws out is not carried back and forth until it wakes."
+msgstr "A knocked-out intruder a town throws out is not carried back and forth until it wakes."
+
+msgid "Thrown-out hold in game minutes"
+msgstr "Throwout grace period"
+
+msgid "How long a thrown-out body stays off the town's throw-out search if it does not wake first."
+msgstr "Time in game minutes that a thrown-out body stays off the town's throw-out search, unless it wakes first."
+
+msgid "Backpack fixes"
+msgstr "Backpack fixes"
+
+msgid "Picked-up items go into the worn backpack first (each backpack's window can turn that off for its wearer), food and dialogue checks look in the backpack, and machine operators fill up before delivering."
+msgstr "Picked-up items go into the worn backpack first (each backpack's window can turn that off for its wearer), food and dialogue checks look in the backpack, and machine operators fill up before delivering."
+
+msgid "Operators fill up to"
+msgstr "Operators fill up to"
+
+msgid "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
+msgstr "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
+
+msgid "Keep squads together"
+msgstr "Keep squads together"
+
+msgid "Keeps a squad given one move order walking together instead of scattering."
+msgstr "Keeps a squad given one move order walking together instead of scattering."
+
+msgid "Resume move orders after combat"
+msgstr "Resume move orders after combat"
+
+msgid "Holds a player move order that ended as combat took over, and re-issues it once the fight ends, up to 60 seconds. Observe (DEV) only logs what would be held."
+msgstr "Holds a player move order that ended as combat took over, and re-issues it once the fight ends, up to 60 seconds. Observe (DEV) only logs what would be held."
+
+msgid "Arrive together when gathering"
+msgstr "Arrive together when gathering"
+
+msgid "When a squad set to run together gathers before it sets off, the members closer to the gathering point walk slower so everyone arrives at about the same time."
+msgstr "When a squad set to run together gathers before it sets off, the members closer to the gathering point walk slower so everyone arrives at about the same time."
+
+msgid "KEO pathfinding"
+msgstr "KEO pathfinding"
+
+msgid "KEO's changes to how characters find and follow routes: the route planner for long orders, squad cohesion, re-issued move orders and the rest. Off: characters path as in the vanilla game; zone loading, navmesh and the stability fixes stay on."
+msgstr "KEO's changes to how characters find and follow routes: the route planner for long orders, squad cohesion, re-issued move orders and the rest. Off: characters path as in the vanilla game; zone loading, navmesh and the stability fixes stay on."
+
+msgid "Background navmesh threads"
+msgstr "Background navmesh threads"
+
+msgid "Threads that generate and load navmesh tiles in the background. Auto uses half the logical CPUs."
+msgstr "Threads that generate and load navmesh tiles in the background. Auto uses half the logical CPUs."
+
+msgid "Navmesh cache size (MB)"
+msgstr "Navmesh cache size (MB)"
+
+msgid "Size cap of the navmesh_cache folder; past it the oldest files are deleted down to 75% of the cap."
+msgstr "Size cap of the navmesh_cache folder; past it the oldest files are deleted down to 75% of the cap."
+
+msgid "Player buildings properly stitch into navmesh"
+msgstr "Player buildings properly stitch into navmesh"
+
+msgid "Walls and buildings you place join the navmesh right away, including ones across a map-cell edge"
+msgstr "Walls and buildings you place join the navmesh right away, including ones across a map-cell edge"
+
+msgid "Route planner"
+msgstr "Route planner"
+
+msgid "Plans a long squad move over the whole map and walks it leg by leg, so the squad does not stop short where the game cannot see a path. Observe (DEV) only logs the plans."
+msgstr "Plans a long squad move over the whole map and walks it leg by leg, so the squad does not stop short where the game cannot see a path. Observe (DEV) only logs the plans."
+
+msgid "Route tiles to preload"
+msgstr "Route preload"
+
+msgid "Tiles along a planned route queued for preloading ahead of the squad. 0 queues none; default 3."
+msgstr "Tiles along a planned route queued for preloading ahead of the squad. 0 queues none; default 3."
+
+msgid "Preload nearby zones"
+msgstr "Preload nearby zones"
+
+msgid "Loads the zones around the camera and the player's characters before they are needed."
+msgstr "Loads the zones around the camera and the player's characters before they are needed."
+
+msgid "Zones kept around the camera (vanilla 1)"
+msgstr "Zones around camera"
+
+msgid "Radius, in zones around the camera, inside which the zones the mod loaded stay loaded: 1 keeps a 3x3, 2 a 5x5. The game itself keeps a 3x3 around the camera."
+msgstr "Radius, in zones around the camera, inside which the zones the mod loaded stay loaded: 1 keeps a 3x3, 2 a 5x5. The game itself keeps a 3x3 around the camera."
+
+msgid "Zones kept around other squads (vanilla 0)"
+msgstr "Zones around other squads"
+
+msgid "Radius, in zones around each of your characters away from the camera. 0 keeps only the zone each one stands in, as the game does by itself (a 3x3 with its Fast zone hopping option): the mod then loads and keeps nothing extra around them, which saves CPU with many squads spread over the map, and switching the camera to one of them loads its surroundings at that moment. 1 keeps and preloads a 3x3 around each."
+msgstr "Radius, in zones around each of your characters away from the camera. 0 keeps only the zone each one stands in, as the game does by itself (a 3x3 with its Fast zone hopping option): the mod then loads and keeps nothing extra around them, which saves CPU with many squads spread over the map, and switching the camera to one of them loads its surroundings at that moment. 1 keeps and preloads a 3x3 around each."
+
+msgid "Max extra zones kept loaded"
+msgstr "Max extra zones kept loaded"
+
+msgid "How many zones the mod may keep loaded beyond the ones the game keeps by itself (the game keeps none extra). Past it the mod keeps only the zones right around the camera and your characters, and stops preloading around squads away from the camera, until the count falls back."
+msgstr "How many zones the mod may keep loaded beyond the ones the game keeps by itself (the game keeps none extra). Past it the mod keeps only the zones right around the camera and your characters, and stops preloading around squads away from the camera, until the count falls back."
+
+msgid "Cap particle updates at high game speed"
+msgstr "Cap particle updates at high game speed"
+
+msgid "Above a game speed set by particleStepCapSpeed in KEO.ini (3x by default), particle effects advance in capped steps, so smoke and fire animate slower."
+msgstr "Above a game speed set by particleStepCapSpeed in KEO.ini (3x by default), particle effects advance in capped steps, so smoke and fire animate slower."
+
+msgid "Foliage time limit at high speed (ms)"
+msgstr "Foliage time budget"
+
+msgid "Above a game speed set by foliageBudgetSpeed in KEO.ini (3x by default), foliage stops building pages for the rest of a frame once this many milliseconds are spent; trees and grass fill in a few frames later. 0 turns it off."
+msgstr "Above a game speed set by foliageBudgetSpeed in KEO.ini (3x by default), foliage stops building pages for the rest of a frame once this many milliseconds are spent; trees and grass fill in a few frames later. 0 turns it off."
+
+msgid "Settings are not ready."
+msgstr "Settings are not ready."
+
+msgid "Invalid setting value."
+msgstr "Invalid setting value."
+
+msgid "The setting could not be changed."
+msgstr "The setting could not be changed."
+
+msgid "Invalid setting metadata."
+msgstr "Invalid setting metadata."
+
+msgid "The settings file could not be saved."
+msgstr "The settings file could not be saved."
+
+msgid "The settings were saved, but could not be applied until restart."
+msgstr "The settings were saved, but could not be applied until restart."
+
+msgid "Settings are saved for the next start. Runtime changes are unavailable on this build."
+msgstr "Settings are saved for the next start. Runtime changes are unavailable on this build."
+
+msgid "Detailed log"
+msgstr "Detailed log"
+
+msgid "Write detailed diagnostics to KEO.log. Errors are always logged."
+msgstr "Write detailed diagnostics to KEO.log. Errors are always logged."
+
+msgid "Logging"
+msgstr "Logging"
+
+# Optional carried weight; startup-only.
+msgid "Carried body and container weight"
+msgstr "Carried body and container weight"
+
+msgid "Include contents of carried containers and people, and scale body weight by race, size and hunger. Keeps native backpack weight reductions. Off by default; disabled if KenshiQOL.dll is loaded, regardless of its settings. Requires restart."
+msgstr "Include contents of carried containers and people, and scale body weight by race, size and hunger. Keeps native backpack weight reductions. Off by default; disabled if KenshiQOL.dll is loaded, regardless of its settings. Requires restart."
+
+# Three independent live job switches.
+msgid "Gather output"
+msgstr "Gather output"
+
+msgid "Waypoint route"
+msgstr "Waypoint route"
+
+msgid "Stock shop counter"
+msgstr "Stock shop counter"
+
+msgid "Gather Output jobs"
+msgstr "Gather Output jobs"
+
+msgid "Collect machine output using native collection rules. Turning OFF pauses these jobs and blocks new assignments without deleting queued job rows."
+msgstr "Collect machine output using native collection rules. Turning OFF pauses these jobs and blocks new assignments without deleting queued job rows."
+
+msgid "Stock Counter jobs"
+msgstr "Stock Counter jobs"
+
+msgid "Put carried items into your own shop counters. Uses products from your Gather Output jobs, or native resources when none exist. This is physical stocking, not a sale: no money changes hands. Turning OFF keeps queued job rows."
+msgstr "Put carried items into your own shop counters. Uses products from your Gather Output jobs, or native resources when none exist. This is physical stocking, not a sale: no money changes hands. Turning OFF keeps queued job rows."
+
+msgid "Cyclic waypoint jobs"
+msgstr "Cyclic waypoint jobs"
+
+msgid "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."
+msgstr "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."

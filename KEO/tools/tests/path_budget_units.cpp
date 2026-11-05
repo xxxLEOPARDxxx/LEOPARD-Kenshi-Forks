@@ -1,0 +1,13 @@
+#include "pathfind/path_budget_policy.h"
+#include "check.h"
+#include <cstring>
+#include <stdexcept>
+struct TestScope{PathBudgetRequest*&slot;PathBudgetFrame frame;TestScope(PathBudgetRequest*&s,void*p,int pri,bool npc):slot(s){PathBudgetEnter(&frame,slot,p,pri,npc);}~TestScope(){PathBudgetLeave(&frame,slot);}};
+int main(){PathBudgetRequest*current=NULL;PathBudgetDecision d;Check(!PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&!d.request&&!d.expand&&d.playerByReq==-1,"no current request is unknown");
+ int a=0,b=0;{TestScope outer(current,&a,45,false);Check(PathBudgetTake(current,ASTAR_CALLER_GATE,&d)==false&&!d.expand,"gate cannot borrow or consume current player");Check(PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&d.request==&a&&d.expand&&d.playerByReq==1,"current player expanded");Check(!PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&!d.expand,"one request cannot lend to nested character query");}
+ Check(!current,"scope clears after normal return");
+ {TestScope outer(current,&a,45,false);{TestScope inner(current,&b,10,true);Check(PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&d.request==&b&&!d.expand&&d.playerByReq==0,"nested NPC keeps native caps");}Check(PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&d.request==&a&&d.expand,"nested scope restores exact outer");}
+ try{TestScope scope(current,&a,45,false);throw std::runtime_error("fixture");}catch(...){}Check(!current,"C++ unwinding clears request");
+ const AstarCallerClass classes[]={ASTAR_CALLER_GATE,ASTAR_CALLER_GENERATION,ASTAR_CALLER_HAVOK_INTERNAL,ASTAR_CALLER_OTHER};for(unsigned k=0;k<4;++k){TestScope scope(current,&a,45,false);Check(!PathBudgetTake(current,classes[k],&d)&&!d.expand,"non-character caller never expands");}
+ for(int pri=0;pri<46;++pri)for(int npc=0;npc<2;++npc){TestScope scope(current,&a,pri,npc!=0);Check(PathBudgetTake(current,ASTAR_CALLER_CHARACTER_UNKNOWN,&d)&&d.expand==!npc&&d.playerByReq==(pri>=20?1:0),"native player budget independent of unchanged priority label");}
+ unsigned char bytes[192],before[192];std::memset(bytes,0xa5,sizeof(bytes));std::memcpy(before,bytes,sizeof(bytes));Check(!PathBudgetApply(NULL,true)&&!PathBudgetApply(bytes,false)&&!std::memcmp(bytes,before,sizeof(bytes)),"OFF/null preserve every byte");Check(PathBudgetApply(bytes,true),"expanded budget applied");Check(*reinterpret_cast<int*>(bytes+156)==524288&&*reinterpret_cast<int*>(bytes+160)==2361344,"original four-times budget sizes unchanged");std::memcpy(before+156,bytes+156,8);Check(!std::memcmp(bytes,before,sizeof(bytes)),"only budget dwords change");return CheckExit("path_budget_units");}
