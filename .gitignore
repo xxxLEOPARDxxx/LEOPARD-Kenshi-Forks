@@ -7,3 +7,6 @@ Organize-the-Trader/Organize-the-Trader/locale/**/*.mo
 KillCounter/locale/**/*.mo
 KenshiJobManagement/mod/locale/**/*.mo
 BetterLooting/tests/_generated/
+Character-Highlight/Character-Highlight/*.dll
+Character-Highlight/Character-Highlight/locale/**/*.mo
+Character-Highlight/tests/__pycache__/

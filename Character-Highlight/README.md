@@ -4,6 +4,33 @@ While the highlight key is held, characters are tinted by how they stand to
 you: your squad, enemies, allies, neutrals (red to yellow to green by their
 faction's relation).
 
+## Local candidate 4 / Локальная тестовая сборка 4 (2026-11-06)
+
+Not published. Contour appearance and equipment coverage await in-game validation.
+Не опубликовано. Внешний вид контуров и охват снаряжения проверяются в игре.
+
+- Optional highlighting under the cursor: a beige contour, or this mod's relationship colours.
+- Optional contour style for the highlight key (ALT by default) and relationship-coloured hover. Original model tint remains the default.
+- Adjustable tint intensity (0-100%), contour thickness (1-6 pixels) and brightness (0-200%). Contours respect visible surfaces; the existing through-walls option applies to model tint.
+- New settings apply immediately in MCM. Hover is off by default; personal colours and key bindings are retained.
+
+- Необязательная подсветка под курсором: бежевый контур либо цвета отношений этого мода.
+- Контурный стиль для клавиши подсветки (по умолчанию ALT) и наведения с цветами отношений. Привычная окраска модели остаётся стилем по умолчанию.
+- Настраиваемая сила окраски (0-100%), толщина контуров (1-6 пикселей) и яркость (0-200%). Контуры учитывают видимые поверхности; прежний показ сквозь стены относится к окраске модели.
+- Настройки применяются сразу через MCM. Наведение изначально выключено; личные цвета и назначения клавиш сохраняются.
+
+### Renderer implementation notes
+
+At most 512 actors, 4096 material clones and 24 attachment attempts per frame.
+Scene enumeration is bounded to 128 nodes and 64 entities per actor; unsupported
+materials are skipped until replacement. Hair alpha cards are excluded until an
+alpha-aware contour variant exists. Saved SubEntity addresses are comparison
+keys, never restoration targets: restoration enumerates current live objects.
+Native scene access and cleanup are guarded; a renderer failure disables contours
+and reports an error rather than repeatedly attempting a broken pass. Portrait
+renders suspend only the corresponding actor. Shader compilation and native
+import checks do not substitute for visual, FPS and memory validation in-game.
+
 Original: **BFrizzleFoShizzle**, [KenshiLib_Examples](https://github.com/BFrizzleFoShizzle/KenshiLib_Examples)
 (`CharacterHighlight`), GPLv3. This folder keeps the original commits.
 
@@ -14,7 +41,7 @@ Original: **BFrizzleFoShizzle**, [KenshiLib_Examples](https://github.com/BFrizzl
   limit, colours of the squad, enemies, allies and neutrals (by relation or
   one colour). Without MCM - `CharacterHighlight.ini` (made from
   `CharacterHighlight.defaults.ini` on first start, new keys added on update).
-- Text in English, Russian and Chinese (`locale/*/LC_MESSAGES/character_highlight.po`).
+- Text in English, Russian and Chinese (`locale/*/LC_MESSAGES/character_highlight.mo` at runtime; `.po` translation sources).
 - Much less work per frame. The original, every frame, walked every
   character of the update list (hundreds in a town), asked isEnemy /
   areYouGonnaGetMe / isAlly against every player character, wrote two shader
@@ -40,7 +67,8 @@ every frame, so its downed and bounty colours stay on top of these.
 
 ## Build
 
-VC10 + Windows SDK 7.1, KenshiLib 0.2.1 headers, the shared headers of
+VC10 + Windows SDK 7.1, the local KenshiLib SDK header snapshot and imports
+matching installed KenshiLib 0.5.0, the shared headers of
 [LEOPARD-Kenshi-Plugins](https://github.com/xxxLEOPARDxxx/LEOPARD-Kenshi-Plugins) (`shared/`):
 
     .\build.ps1 -SrcDir forks\LEOPARD-Kenshi-Forks\Character-Highlight -Name CharacterHighlight

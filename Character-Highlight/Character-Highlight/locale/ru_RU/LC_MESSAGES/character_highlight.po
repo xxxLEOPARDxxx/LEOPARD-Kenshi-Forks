@@ -115,3 +115,57 @@ msgstr "Цвет дипломатов фракций, #RRGGBB."
 
 msgid "The tint shows while this key is held. NONE (Backspace when assigning) - always on."
 msgstr "Окраска видна, пока зажата эта клавиша. NONE (Backspace при назначении) - всегда."
+
+msgid "Highlight characters by their relationship to you, with model tint or contours."
+msgstr "Подсветка персонажей по отношению к вам: окраска модели или контуры."
+
+msgid "Enable hold-key and hover highlighting."
+msgstr "Включить подсветку по клавише и при наведении курсора."
+
+msgid "Tint intensity, %"
+msgstr "Интенсивность окраски, %"
+
+msgid "100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."
+msgstr "100 - полная окраска; меньшие значения сохраняют детали одежды и кожи. Меняется сила окраски, а не видимость персонажа."
+
+msgid "Contour style"
+msgstr "Контурная подсветка"
+
+msgid "Contours instead of tint"
+msgstr "Контуры вместо окраски"
+
+msgid "Use coloured contours for the show key and relationship-coloured hover. Off keeps the original model tint. Contours follow visible models and equipment."
+msgstr "Цветные контуры по клавише подсветки и при наведении с цветами отношений. Если выключено, сохраняется привычная окраска модели. Контуры обводят видимые модели и экипировку."
+
+msgid "Contour width, px"
+msgstr "Толщина контура, пкс"
+
+msgid "Thickness of both beige and relationship-coloured contours."
+msgstr "Толщина как бежевого контура, так и контуров с цветами отношений."
+
+msgid "Contour brightness, %"
+msgstr "Яркость контура, %"
+
+msgid "Brightness of contours. 100 is the original colour; 0 hides contours. Model tint has its own intensity setting."
+msgstr "Яркость контуров. 100 - исходный цвет; 0 - скрыть контуры. Интенсивность окраски модели настраивается отдельно."
+
+msgid "Under the cursor"
+msgstr "Под курсором"
+
+msgid "Highlight under cursor"
+msgstr "Подсветка под курсором"
+
+msgid "Highlight the character or animal under the cursor without holding the show key. Off by default."
+msgstr "Подсветить персонажа или животное под курсором без удержания клавиши. По умолчанию выключено."
+
+msgid "Hover colours by relation"
+msgstr "Цвет при наведении по отношениям"
+
+msgid "On - use this mod's relationship colours and chosen highlight style. Off - the basic hover contour colour."
+msgstr "Включено - цвета отношений и выбранный стиль подсветки этого мода. Выключено - базовый цвет контура под курсором."
+
+msgid "Basic hover contour colour"
+msgstr "Базовый цвет контура под курсором"
+
+msgid "Colour used under the cursor when relationship colours are disabled."
+msgstr "Цвет под курсором, когда окраска по отношениям выключена."

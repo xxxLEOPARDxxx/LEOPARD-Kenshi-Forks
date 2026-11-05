@@ -18,5 +18,8 @@
     <ClCompile Include="CharacterHighlight.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="HoverOutline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

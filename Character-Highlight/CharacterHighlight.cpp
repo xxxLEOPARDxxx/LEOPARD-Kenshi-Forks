@@ -29,6 +29,8 @@
 #include <Windows.h>
 #include <IniDefaults.h>
 #include <HoldKey.h>
+#include "HighlightPolicy.h"
+#include "HoverOutline.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -50,6 +52,7 @@
 #include <kenshi/util/hand.h>
 #include <kenshi/AI/AI.h>
 #include <kenshi/StateBroadcastData.h>
+#include <kenshi/gui/ForgottenGUI.h>
 #include <core/Functions.h>
 #include <ogre/OgreMaterial.h>
 #include <ogre/OgreTechnique.h>
@@ -80,6 +83,11 @@ namespace
     bool g_showDiplomats = true;        // diplomatic status - before every other kind
     Ogre::ColourValue g_diplomatColour(0.627f, 0.251f, 1.0f, 1.0f);   // #A040FF
     bool g_debug = false;
+    bool g_hoverEnabled=false, g_hoverByRelation=false;
+    float g_tintOpacity=1.f;
+    bool g_contourStyle=false;
+    float g_outlineWidth=2.f, g_outlineBrightness=1.f;
+    Ogre::ColourValue g_hoverColour(0.82f,0.77f,0.65f,1.f);
 
     const int kEvalPerFrame = 40;
     const DWORD kEvalMs = 1000;
@@ -142,6 +150,13 @@ namespace
         g_showNeutrals = GetPrivateProfileIntA(kSec, "ShowNeutrals", 1, ini.c_str()) != 0;
         g_showDiplomats = GetPrivateProfileIntA(kSec, "ShowDiplomats", 1, ini.c_str()) != 0;
         g_diplomatColour = ReadColour(ini, "DiplomatColour", Ogre::ColourValue(0.627f, 0.251f, 1.0f, 1.0f));
+        g_hoverEnabled=GetPrivateProfileIntA(kSec,"HoverHighlight",0,ini.c_str())!=0;
+        g_hoverByRelation=GetPrivateProfileIntA(kSec,"HoverByRelation",0,ini.c_str())!=0;
+        g_tintOpacity=CharacterHighlightPolicy::Opacity(GetPrivateProfileIntA(kSec,"TintIntensity",100,ini.c_str()));
+        g_contourStyle=GetPrivateProfileIntA(kSec,"ContourHighlight",0,ini.c_str())!=0;
+        g_outlineWidth=static_cast<float>(std::max(1,std::min(6,static_cast<int>(GetPrivateProfileIntA(kSec,"OutlineWidth",2,ini.c_str())))));
+        g_outlineBrightness=std::max(0,std::min(200,static_cast<int>(GetPrivateProfileIntA(kSec,"OutlineBrightness",100,ini.c_str()))))/100.f;
+        g_hoverColour=ReadColour(ini,"HoverColour",Ogre::ColourValue(0.82f,0.77f,0.65f,1.f));
         g_debug = GetPrivateProfileIntA(kSec, "Debug", 0, ini.c_str()) != 0;
         KLocLog::SetEnabled(g_debug);
         ForgetColours();                // new colours - re-evaluate everyone
@@ -151,14 +166,18 @@ namespace
     // Shader constants (as the original writes them)
     // ---------------------------------------------------------------
 
-    void WriteTint(Character* character, const Ogre::ColourValue& colour, bool depth)
+    bool WriteTint(Character* character, const Ogre::ColourValue& colour, bool depth)
     {
         Ogre::MaterialPtr& material = character->getAppearance()->bodyMaterial;
         if (material.isNull())
-            return;
+            return false;
         Ogre::Pass* const pass = material->getTechnique(0)->getPass(0);
+        if(!pass->hasFragmentProgram() || !pass->hasVertexProgram())return false;
+        if(!pass->getFragmentProgramParameters()->_findNamedConstantDefinition("coloroverride",false) ||
+           !pass->getVertexProgramParameters()->_findNamedConstantDefinition("overrideDepth",false))return false;
         pass->getFragmentProgramParameters()->setNamedConstant("coloroverride", colour);
         pass->getVertexProgramParameters()->setNamedConstant("overrideDepth", depth);
+        return true;
     }
 
     void ClearTint(Character* character)
@@ -170,8 +189,7 @@ namespace
     {
         __try
         {
-            WriteTint(character, colour, depth);
-            return true;
+            return WriteTint(character, colour, depth);
         }
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
@@ -280,11 +298,13 @@ namespace
     {
         // Explicit: VC10 may leave the plain fields of a value-initialized
         // struct with class members (hand, ColourValue) uninitialised.
-        Entry() : hasColour(false), tinted(false), evaluated(0), applied(0), seen(0) {}
+        Entry() : hasColour(false), tinted(false), appliedDepth(false), evaluated(0), applied(0), seen(0) {}
         hand who;
         Ogre::ColourValue colour;
         bool hasColour;
         bool tinted;                    // our constants are on its material now
+        Ogre::ColourValue appliedColour;
+        bool appliedDepth;
         DWORD evaluated;
         DWORD applied;
         DWORD seen;
@@ -294,6 +314,13 @@ namespace
     bool g_anyTinted = false;
     bool g_forget = false;
     unsigned g_evals = 0, g_writes = 0;
+    Entry g_hoverEntry;
+    hand g_hoverWho;
+    bool g_globalWasActive=false;
+
+    bool SameHand(const hand& a,const hand& b) {
+        return a.type==b.type && a.container==b.container && a.containerSerial==b.containerSerial && a.index==b.index && a.serial==b.serial;
+    }
 
     unsigned long long Key(const hand& h)
     {
@@ -347,21 +374,75 @@ namespace
         }
     }
 
+    Character* HoverTarget() {
+        __try {
+            if(!g_enabled || !g_hoverEnabled || !gui || gui->hasMouse || !gui->cursorAction || !ou || !ou->player)return NULL;
+            return gui->cursorActionTarget.getCharacter();
+        } __except(EXCEPTION_EXECUTE_HANDLER) {return NULL;}
+    }
+
+    void RestoreHover(bool globalActive) {
+        if(!g_hoverEntry.tinted && !g_hoverEntry.hasColour)return;
+        if(g_hoverEntry.tinted) {
+            Character* c=g_hoverEntry.who.getCharacter();
+            if(c) {
+                Entries::const_iterator i=g_entries.find(Key(g_hoverEntry.who));
+                if(globalActive && i!=g_entries.end() && SameHand(i->second.who,g_hoverEntry.who) && i->second.tinted)
+                    SafeWrite(c,i->second.appliedColour,i->second.appliedDepth);
+                else SafeWrite(c,kNoTint,false);
+            }
+        }
+        g_hoverEntry=Entry();
+    }
+
+    void TickHover(bool globalActive,DWORD now) {
+        Character* c=HoverTarget();
+        if(c && (!HasBodyMaterial(c) || (g_maxDistance>0 && SafeOutOfRange(c,ou->getCameraCenter()))))c=NULL;
+        if(!c || !SameHand(c->handle,g_hoverWho)) {
+            RestoreHover(globalActive);
+            if(c)g_hoverWho=c->handle; else g_hoverWho.setNull();
+        }
+        const CharacterHighlightPolicy::Decision d=CharacterHighlightPolicy::Choose(g_enabled,globalActive,g_hoverEnabled,g_hoverByRelation,c!=NULL,g_contourStyle);
+        if(d.outline && !g_hoverByRelation)HoverOutline::Draw(c,g_hoverColour,g_outlineWidth,g_outlineBrightness);
+        if(!c || !g_hoverByRelation || (!d.tint && !d.outline) || (!g_contourStyle && g_tintOpacity<=0)) {RestoreHover(globalActive);return;}
+        Entry& e=g_hoverEntry;
+        if(!e.hasColour || now-e.evaluated>=kEvalMs) {
+            Ogre::ColourValue colour; e.evaluated=now;
+            if(SafeRelationColour(c,colour)) {e.colour=colour;e.hasColour=true;}
+        }
+        if(!e.hasColour || e.colour.a<=0) {RestoreHover(globalActive);return;}
+        if(g_contourStyle) {HoverOutline::Draw(c,e.colour,g_outlineWidth,g_outlineBrightness);return;}
+        Ogre::ColourValue effective=e.colour; effective.a*=g_tintOpacity;
+        if(!e.tinted || e.appliedColour!=effective || now-e.applied>=kReapplyMs) {
+            if(SafeWrite(c,effective,g_throughWalls)) {
+                e.who=c->handle;e.tinted=true;e.applied=now;e.appliedColour=effective;e.appliedDepth=g_throughWalls;
+                ++g_writes;
+            }
+        }
+    }
+
     void Tick(GameWorld* world)
     {
+        HoverOutline::BeginFrame();
         if (g_forget)
         {
             g_forget = false;
             ResetAll();
+            RestoreHover(false);
+            HoverOutline::Clear(); g_hoverWho.setNull();
             g_entries.clear();
         }
         const bool active = g_enabled && KeyHeld() && ou != NULL && ou->player != NULL;
         if (!active)
         {
-            if (g_anyTinted)
+            if (g_globalWasActive && g_anyTinted)
                 ResetAll();
+            g_globalWasActive=false;
+            TickHover(false,GetTickCount());
+            HoverOutline::EndFrame();
             return;
         }
+        g_globalWasActive=true;
 
         const DWORD now = GetTickCount();
         const bool limited = g_maxDistance > 0.0f;
@@ -375,7 +456,7 @@ namespace
                 continue;
             const hand& h = c->handle;
             Entry& e = g_entries[Key(h)];
-            if (e.seen == 0)
+            if (e.seen == 0 || !SameHand(e.who,h))
             {
                 e.who = h;
                 e.hasColour = false;
@@ -408,7 +489,12 @@ namespace
             }
             if (!e.hasColour)
                 continue;               // waits for its turn in the budget
-            if (e.colour.a <= 0.0f)
+            if(g_contourStyle) {
+                if(e.tinted) {SafeWrite(c,kNoTint,false);e.tinted=false;}
+                if(e.colour.a>0.f)HoverOutline::Draw(c,e.colour,g_outlineWidth,g_outlineBrightness);
+                continue;
+            }
+            if (e.colour.a <= 0.0f || g_tintOpacity<=0.f)
             {
                 // its kind is turned off
                 if (e.tinted && SafeWrite(c, kNoTint, false))
@@ -417,15 +503,20 @@ namespace
             }
             if (changed || !e.tinted || now - e.applied >= kReapplyMs)
             {
-                if (SafeWrite(c, e.colour, g_throughWalls))
+                Ogre::ColourValue effective=e.colour; effective.a*=g_tintOpacity;
+                if (SafeWrite(c, effective, g_throughWalls))
                 {
                     ++g_writes;
                     e.tinted = true;
                     e.applied = now;
+                    e.appliedColour=effective; e.appliedDepth=g_throughWalls;
                     g_anyTinted = true;
                 }
             }
         }
+
+        TickHover(true,now);
+        HoverOutline::EndFrame();
 
         // characters gone from the update list - forget (their material was reset on removal)
         for (Entries::iterator it = g_entries.begin(); it != g_entries.end();)
@@ -462,9 +553,15 @@ void GameWorld__mainLoop_GPUSensitiveStuff_hook(GameWorld* thisptr, float time)
 void (*GameWorld_removeFromUpdateListMain_orig)(GameWorld* thisptr, Character* character);
 void GameWorld_removeFromUpdateListMain_hook(GameWorld* thisptr, Character* character)
 {
-    if (!character->getAppearance()->bodyMaterial.isNull())
+    if (character)
     {
-        ClearTint(character);
+        HoverOutline::Remove(character);
+        Entries::const_iterator e=g_entries.find(Key(character->handle));
+        if((e!=g_entries.end() && e->second.tinted) || (g_hoverEntry.tinted && SameHand(g_hoverEntry.who,character->handle)))
+            SafeWrite(character,kNoTint,false);
+        if(SameHand(g_hoverWho,character->handle)) {
+            g_hoverEntry=Entry();g_hoverWho.setNull();
+        }
         g_entries.erase(Key(character->handle));
     }
     GameWorld_removeFromUpdateListMain_orig(thisptr, character);
@@ -475,8 +572,12 @@ void (*RenderToTextureotron_renderCharacter_orig)(RenderToTextureotron* thisptr,
 void RenderToTextureotron_renderCharacter_hook(RenderToTextureotron* thisptr, Character* character, Ogre::SharedPtr<Ogre::Texture> texture, const iVector2& size, const Ogre::TRect<float>& rect)
 {
     Entries::const_iterator it = g_entries.find(Key(character->handle));
-    const bool tinted = it != g_entries.end() && it->second.tinted;
-    const Ogre::ColourValue colour = tinted ? it->second.colour : Ogre::ColourValue::White;
+    const Entry* applied=(g_hoverEntry.tinted && SameHand(g_hoverEntry.who,character->handle))?&g_hoverEntry:
+        it!=g_entries.end() && it->second.tinted?&it->second:NULL;
+    const bool tinted=applied!=NULL;
+    const Ogre::ColourValue colour=tinted?applied->appliedColour:Ogre::ColourValue::White;
+    const bool depth=tinted && applied->appliedDepth;
+    HoverOutline::PortraitBegin(character);
     if (tinted)
     {
         // disable highlight
@@ -484,11 +585,12 @@ void RenderToTextureotron_renderCharacter_hook(RenderToTextureotron* thisptr, Ch
             ClearTint(character);
     }
     RenderToTextureotron_renderCharacter_orig(thisptr, character, texture, size, rect);
+    HoverOutline::PortraitEnd();
     if (tinted)
     {
         // re-enable highlight
         if (!character->getAppearance()->bodyMaterial.isNull())
-            WriteTint(character, colour, g_throughWalls);
+            WriteTint(character, colour, depth);
     }
 }
 
@@ -499,12 +601,21 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     static const std::string ini = IniPath();
     api->beginMod(api, "CharacterHighlight", "Character Highlight", ini.c_str(), &LoadSettings);
     if (api->version >= 2)
-        api->info(api, Tr("While the highlight key is held, characters are tinted by how they stand to you."));
+        api->info(api, Tr("Highlight characters by their relationship to you, with model tint or contours."));
     api->section(api, Tr("General"));
-    api->toggle(api, kSec, "Enabled", Tr("Enabled"), Tr("Tint characters while the highlight key is held."), 1, 0);
+    api->toggle(api, kSec, "Enabled", Tr("Enabled"), Tr("Enable hold-key and hover highlighting."), 1, 0);
     api->hotkey(api, kSec, "HoldKey", Tr("Show key"), Tr("The tint shows while this key is held. NONE (Backspace when assigning) - always on."), "ALT", 0);
     api->toggle(api, kSec, "ShowThroughWalls", Tr("Show through walls"), Tr("Tinted characters are visible through walls and buildings."), 1, 0);
     api->integer(api, kSec, "MaxDistance", Tr("Distance, m"), Tr("Characters farther than this from the centre of the camera are not tinted. 0 - no limit."), 0, 0, 5000, 0);
+    api->integer(api,kSec,"TintIntensity",Tr("Tint intensity, %"),Tr("100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."),100,0,100,0);
+    api->section(api,Tr("Contour style"));
+    api->toggle(api,kSec,"ContourHighlight",Tr("Contours instead of tint"),Tr("Use coloured contours for the show key and relationship-coloured hover. Off keeps the original model tint. Contours follow visible models and equipment."),0,0);
+    api->integer(api,kSec,"OutlineWidth",Tr("Contour width, px"),Tr("Thickness of both beige and relationship-coloured contours."),2,1,6,0);
+    api->integer(api,kSec,"OutlineBrightness",Tr("Contour brightness, %"),Tr("Brightness of contours. 100 is the original colour; 0 hides contours. Model tint has its own intensity setting."),100,0,200,0);
+    api->section(api,Tr("Under the cursor"));
+    api->toggle(api,kSec,"HoverHighlight",Tr("Highlight under cursor"),Tr("Highlight the character or animal under the cursor without holding the show key. Off by default."),0,0);
+    api->toggle(api,kSec,"HoverByRelation",Tr("Hover colours by relation"),Tr("On - use this mod's relationship colours and chosen highlight style. Off - the basic hover contour colour."),0,0);
+    api->colour(api,kSec,"HoverColour",Tr("Basic hover contour colour"),Tr("Colour used under the cursor when relationship colours are disabled."),"#D1C4A6",0);
     api->section(api, Tr("Who"));
     api->toggle(api, kSec, "ShowSquad", Tr("Your squad"), Tr("Tint your own characters."), 1, 0);
     api->toggle(api, kSec, "ShowEnemies", Tr("Enemies"), Tr("Tint those hostile to you."), 1, 0);
