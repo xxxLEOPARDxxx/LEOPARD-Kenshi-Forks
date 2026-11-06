@@ -169,3 +169,9 @@ msgstr "Basic hover contour colour"
 
 msgid "Colour used under the cursor when relationship colours are disabled."
 msgstr "Colour used under the cursor when relationship colours are disabled."
+
+msgid "Edge pass (diagnostics)"
+msgstr "Edge pass (diagnostics)"
+
+msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
+msgstr "Draw the contour over the scene. Off renders only the mask - a performance test."

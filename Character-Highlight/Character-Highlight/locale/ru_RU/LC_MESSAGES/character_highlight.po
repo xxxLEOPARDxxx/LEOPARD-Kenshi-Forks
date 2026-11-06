@@ -169,3 +169,9 @@ msgstr "Базовый цвет контура под курсором"
 
 msgid "Colour used under the cursor when relationship colours are disabled."
 msgstr "Цвет под курсором, когда окраска по отношениям выключена."
+
+msgid "Edge pass (diagnostics)"
+msgstr "Вывод контуров (диагностика)"
+
+msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
+msgstr "Рисовать контур поверх сцены. Выключено - только маска, проверка производительности."

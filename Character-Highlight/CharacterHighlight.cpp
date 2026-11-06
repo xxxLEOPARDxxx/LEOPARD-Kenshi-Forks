@@ -663,6 +663,7 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->colour(api, kSec, "NeutralColour", Tr("Neutral colour"), Tr("Colour of neutrals when they are not coloured by relation, #RRGGBB."), "#FFFF00", 0);
     api->colour(api, kSec, "DiplomatColour", Tr("Diplomat colour"), Tr("Colour of faction diplomats, #RRGGBB."), "#A040FF", 0);
     api->section(api, Tr("Diagnostics"));
+    api->toggle(api,kSec,"DebugEdgePass",Tr("Edge pass (diagnostics)"),Tr("Draw the contour over the scene. Off renders only the mask - a performance test."),1,0);
     api->toggle(api, kSec, "Debug", Tr("Detailed log"), Tr("Every 10 seconds in RE_Kenshi_log.txt: how many characters are known and how much work was done."), 0, 0);
 }
 

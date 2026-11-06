@@ -17,6 +17,7 @@
 #include <ogre/OgreSceneNode.h>
 #include <ogre/OgreSceneManager.h>
 #include <ogre/OgreManualObject.h>
+#include <ogre/OgreRenderQueue.h>
 #include <ogre/OgreCamera.h>
 #include <ogre/OgreRenderTargetListener.h>
 #include <ogre/Math/Simple/OgreAabb.h>
@@ -351,7 +352,7 @@ void EnsureSurface(Renderer* renderer){
  quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
  quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
  quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
- quad->setRenderQueueGroup(84);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
+ quad->setRenderQueueGroup(Ogre::RENDER_QUEUE_OVERLAY);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
  quadNode=scene->getRootSceneNode()->createChildSceneNode();quadNode->attachObject(quad);quad->setVisible(false);
 }
 void UpdateMaskImpl(){
@@ -364,7 +365,7 @@ void UpdateMaskImpl(){
  UpdateWorkspace(maskWorkspace);stage=6;
  if(!callbacksReported)throw std::runtime_error("mask scene callback not invoked");
  rects.clear();
- for(Actors::iterator i=actors.begin();i!=actors.end();++i)if(!i->second.bounds.isNull())AddBounds(i->second.bounds,outlineWidth+2.f);
+ for(Actors::iterator i=actors.begin();i!=actors.end();++i)if(!i->second.bounds.isNull())AddBounds(i->second.bounds,outlineWidth+16.f);
  JoinRects();UpdateRects();
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);

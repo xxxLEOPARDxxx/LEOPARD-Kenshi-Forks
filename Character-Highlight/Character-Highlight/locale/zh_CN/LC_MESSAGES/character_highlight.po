@@ -169,3 +169,9 @@ msgstr "基本悬停轮廓颜色"
 
 msgid "Colour used under the cursor when relationship colours are disabled."
 msgstr "关闭关系颜色时用于鼠标悬停轮廓的颜色。"
+
+msgid "Edge pass (diagnostics)"
+msgstr "轮廓输出（诊断）"
+
+msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
+msgstr "在场景上绘制轮廓。关闭时仅渲染遮罩——性能测试。"
