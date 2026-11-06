@@ -352,12 +352,15 @@ void EnsureSurface(Renderer* renderer){
  quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
  quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
  quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
- quad->setRenderQueueGroup(Ogre::RENDER_QUEUE_OVERLAY);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
+ quad->setRenderQueueGroup(84);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
  quadNode=scene->getRootSceneNode()->createChildSceneNode();quadNode->attachObject(quad);quad->setVisible(false);
 }
 void UpdateMaskImpl(){
  if(failed || actors.empty()){if(quad)quad->setVisible(false);return;}
  if(!ou || !ou->render)return;Renderer* renderer=static_cast<Renderer*>(ou->render);
+ // The mask re-render is the measured cost. Refresh every second frame; the
+ // mask texture, rects and the edge quad keep showing the previous content.
+ static unsigned phase=0;if(++phase&1)return;
  stage=1;EnsureSurface(renderer);createsLeft=64;callbacksReported=false;stage=2;
  // All shader compilation/allocation happens before entering workspace update.
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,NULL);
