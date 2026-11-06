@@ -12,6 +12,8 @@
 #include <ogre/OgreRoot.h>
 #include <ogre/OgreEntity.h>
 #include <ogre/OgreSubEntity.h>
+#include <ogre/OgreTagPoint.h>
+#include <ogre/OgreOldSkeletonInstance.h>
 #include <ogre/OgreSceneNode.h>
 #include <ogre/OgreSceneManager.h>
 #include <ogre/OgreManualObject.h>
@@ -67,8 +69,8 @@ struct Key {
 struct Binding {
  Ogre::SubEntity* address; // Comparison key only; a current live entity is enumerated each draw.
  Ogre::MaterialPtr original,mask;unsigned seen;
- Ogre::ColourValue colour;bool unsupported;
- Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false){}
+ Ogre::ColourValue colour;bool unsupported;bool hasFarClip;
+ Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false),hasFarClip(false){}
 };
 struct Actor {hand who;unsigned seen;Ogre::ColourValue colour;Ogre::AxisAlignedBox bounds;std::vector<Binding> bindings;Actor():seen(0){bounds.setNull();}};
 typedef std::map<Key,Actor> Actors;Actors actors;
@@ -128,6 +130,20 @@ unsigned CollectImpl(Character* c,Ogre::Entity** entities){
    if(!seen)nodes[n++]=child;
   }
  }
+ // Bone-attached equipment and prosthetics hang on skeleton tag points of the
+ // body entity, not on the appearance node tree walked above.
+ if(count<kEntities && body->hasSkeleton() && body->getSkeleton()){
+  const std::tr1::unordered_map<Ogre::MovableObject*,Ogre::TagPoint*>& tags=body->getSkeleton()->getTagPoints();
+  for(std::tr1::unordered_map<Ogre::MovableObject*,Ogre::TagPoint*>::const_iterator it=tags.begin();it!=tags.end() && count<kEntities;++it){
+   Ogre::TagPoint* tp=it->second;
+   if(!tp || tp->getParentEntity()!=body)continue;
+   Ogre::MovableObject* o=tp->getChildObject();
+   if(!o || o->getMovableType()!="Entity")continue;
+   Ogre::Entity* e=static_cast<Ogre::Entity*>(o);bool seen=false;
+   for(unsigned k=0;k<count;++k)if(entities[k]==e){seen=true;break;}
+   if(!seen)entities[count++]=e;
+  }
+ }
  return count;
 }
 unsigned Collect(Character* c,Ogre::Entity** out){__try{return CollectImpl(c,out);}__except(GetExceptionCode()==0xE06D7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return 0;}}
@@ -178,6 +194,7 @@ void Attach(Binding& b,Ogre::SubEntity* sub){
  // The original vertex program, native bone auto-constants, UV/part masks and
  // original fragment alpha-discard remain intact. No pass is added to the model.
  if(p->getVertexProgramParameters()->_findNamedConstantDefinition("overrideDepth",false))p->getVertexProgramParameters()->setNamedConstant("overrideDepth",false);
+ b.hasFarClip=p->getFragmentProgramParameters()->_findNamedConstantDefinition("farClip",false)!=NULL;
  b.unsupported=false;
 }
 void UpdateVertexMask(Ogre::Pass* to,Ogre::Pass* from){
@@ -205,6 +222,9 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
    }
    if(b.mask.isNull())continue;
    Ogre::Pass* p=b.mask->getTechnique(0)->getPass(0);UpdateVertexMask(p,b.original->getTechnique(0)->getPass(0));
+   // The mask depth must share the scene's encoding: radial distance over the
+   // live camera far clip, never a stale clone-time or missing auto constant.
+   if(b.hasFarClip)p->getFragmentProgramParameters()->setNamedConstant("farClip",camera->getFarClipDistance());
    if(b.colour!=a.colour){p->getFragmentProgramParameters()->setNamedConstant("leopardMaskColour",a.colour);b.colour=a.colour;}
    if(viewport){stage=5;scene->_injectRenderWithPass(p,sub,NULL,false,false);++draws;stage=4;}
   }
@@ -308,7 +328,7 @@ void EnsureSurface(Renderer* renderer){
 void UpdateMaskImpl(){
  if(failed || actors.empty()){if(quad)quad->setVisible(false);return;}
  if(!ou || !ou->render)return;Renderer* renderer=static_cast<Renderer*>(ou->render);
- stage=1;EnsureSurface(renderer);createsLeft=8;callbacksReported=false;stage=2;
+ stage=1;EnsureSurface(renderer);createsLeft=64;callbacksReported=false;stage=2;
  // All shader compilation/allocation happens before entering workspace update.
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,NULL);
  stage=3;maskWorkspace->_beginUpdate(false);
@@ -368,7 +388,7 @@ void UpdateMask(){
   static double total=0,maximum=0;static unsigned samples=0;static DWORD last=0;
   const double ms=(end.QuadPart-begin.QuadPart)*1000.0/freq.QuadPart;total+=ms;if(ms>maximum)maximum=ms;++samples;
   DWORD now=GetTickCount();if(now-last>=10000){
-   char note[240];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u size=%ux%u CPU=%.3fms mean %.3fms max",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,width,height,total/samples,maximum);
+   char note[280];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u size=%ux%u farClip=%.1f CPUmean=%.3fms max=%.3fms",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,width,height,camera?camera->getFarClipDistance():0.f,total/samples,maximum);
    DebugLog(note);last=now;total=maximum=0;samples=0;
   }
  }

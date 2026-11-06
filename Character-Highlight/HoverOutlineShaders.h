@@ -17,7 +17,7 @@ static const char fragment[] =
 "float4 main_fs(float4 pos:SV_POSITION,float2 uv:TEXCOORD0):SV_Target0{\n"
 "if(!inRects(pos.xy))discard;\n"
 "int2 p=int2(pos.xy);float4 m=covered(p);\n"
-"if(m.a>0){float scene=depthMap.Load(int3(p,0)).r;if(scene>0 && m.a>scene*1.02+2*invFarClip)discard;return float4(m.rgb*brightness,0.11);}\n"
+"if(m.a>0){float scene=depthMap.Load(int3(p,0)).r;if(scene>0 && m.a>scene*1.02+2*invFarClip)discard;return float4(m.rgb*brightness,0.2);}\n"
 "int r=int(ceil(radius));float best=1e9;float4 edge=float4(0,0,0,0);\n"
 "for(int y=-r;y<=r;++y)for(int x=-r;x<=r;++x){float4 n=covered(p+int2(x,y));if(n.a>0){float d=sqrt(float(x*x+y*y));if(d<best){best=d;edge=n;}}}\n"
 "if(best>radius+0.5)discard;\n"

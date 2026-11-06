@@ -29,16 +29,18 @@ The scheme follows the hover outline of the Meitou client project, adapted to
 the game's Ogre pipeline. The replacement never assigns cloned materials to the
 character. A full-resolution RGBA16 mask uses the current native vertex program
 and a derived fragment program that preserves native alpha-discard while
-writing relationship RGB and radial depth (the native writeDepth encoding, the
-same as GBuffer buf2). A single blended edge pass runs after HDR in queue88,
-before GUI, clipped to the projected bounding boxes of the drawn characters
-with overlapping rectangles joined: outside the silhouette the outline fades
-outward over the configured width without any depth test, inside it a soft tint
-is drawn only where the mask depth is in front of the scene depth. Portrait and
-reflection workspaces exclude that queue. Shader generation/cache are bounded
-(64 programs, 2048 mask materials, 8 new material attempts per frame). Original
-workspace listeners are chained without rewrapping replacements; shutdown
-cleanup runs before Renderer.
+writing relationship RGB and radial depth (the mask's farClip is re-read from
+the live camera every frame so it always matches the scene's GBuffer depth
+encoding). Bone-attached equipment and prosthetics are collected from the body
+skeleton's tag points, since they are not in the appearance node tree. A single
+blended edge pass runs after HDR in queue88, before GUI, clipped to the
+projected character boxes (overlapping rectangles joined): outside the
+silhouette the outline fades outward over the configured width without any
+depth test, inside it a soft tint is drawn only where the mask depth is in
+front of the scene depth. Portrait and reflection workspaces exclude that
+queue. Shader generation/cache are bounded (64 programs, 2048 mask materials,
+64 new material attempts per frame). Original workspace listeners are chained
+without rewrapping replacements; shutdown cleanup runs before Renderer.
 
 Hover observes native characterSelected only inside mouseScan, after the game
 resolves the visible character and chooses its cursor. It keeps a copied full
