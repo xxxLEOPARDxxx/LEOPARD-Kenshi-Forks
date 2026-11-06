@@ -131,17 +131,23 @@ unsigned CollectImpl(Character* c,Ogre::Entity** entities){
   }
  }
  // Bone-attached equipment and prosthetics hang on skeleton tag points of the
- // body entity, not on the appearance node tree walked above.
- if(count<kEntities && body->hasSkeleton() && body->getSkeleton()){
-  const std::tr1::unordered_map<Ogre::MovableObject*,Ogre::TagPoint*>& tags=body->getSkeleton()->getTagPoints();
-  for(std::tr1::unordered_map<Ogre::MovableObject*,Ogre::TagPoint*>::const_iterator it=tags.begin();it!=tags.end() && count<kEntities;++it){
-   Ogre::TagPoint* tp=it->second;
-   if(!tp || tp->getParentEntity()!=body)continue;
-   Ogre::MovableObject* o=tp->getChildObject();
-   if(!o || o->getMovableType()!="Entity")continue;
-   Ogre::Entity* e=static_cast<Ogre::Entity*>(o);bool seen=false;
-   for(unsigned k=0;k<count;++k)if(entities[k]==e){seen=true;break;}
-   if(!seen)entities[count++]=e;
+ // body entity, not on the appearance node tree walked above. Tag points are
+ // old bones of the body's skeleton instance; the bone walk avoids any
+ // cross-DLL STL container layout.
+ if(count<kEntities){
+  Ogre::OldSkeletonInstance* skel=c->getAppearance()->getSkeleton();
+  if(skel){
+   const unsigned short bones=skel->getNumBones();
+   for(unsigned i=0;i<bones && count<kEntities;++i){
+    Ogre::OldBone* bone=skel->getBone(static_cast<unsigned short>(i));
+    Ogre::TagPoint* tp=bone?dynamic_cast<Ogre::TagPoint*>(bone):NULL;
+    if(!tp || tp->getParentEntity()!=body)continue;
+    Ogre::MovableObject* o=tp->getChildObject();
+    if(!o || o->getMovableType()!="Entity")continue;
+    Ogre::Entity* e=static_cast<Ogre::Entity*>(o);bool seen=false;
+    for(unsigned k=0;k<count;++k)if(entities[k]==e){seen=true;break;}
+    if(!seen)entities[count++]=e;
+   }
   }
  }
  return count;
