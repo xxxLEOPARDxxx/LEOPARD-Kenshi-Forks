@@ -20,10 +20,12 @@
 #include <ogre/Math/Simple/OgreAabb.h>
 #include <ogre/OgreHighLevelGpuProgramManager.h>
 #include <ogre/OgreHighLevelGpuProgram.h>
+#include <ogre/OgreUnifiedHighLevelGpuProgram.h>
 #include <ogre/OgreResourceGroupManager.h>
 #include <ogre/OgreMaterialManager.h>
 #include <ogre/OgreTextureManager.h>
 #include <ogre/OgreHardwarePixelBuffer.h>
+#include <ogre/OgreImage.h>
 #include <ogre/OgreRenderTexture.h>
 #include <ogre/OgreTextureUnitState.h>
 #include <ogre/OgreTechnique.h>
@@ -37,6 +39,7 @@
 #include <ogre/Compositor/Pass/PassClear/OgreCompositorPassClearDef.h>
 #include <ogre/Compositor/Pass/PassScene/OgreCompositorPassSceneDef.h>
 #include <Debug.h>
+#include <cmath>
 #include <map>
 #include <vector>
 #include <sstream>
@@ -49,7 +52,11 @@ unsigned frame=0,names=0,materialCount=0,createsLeft=0;
 bool failed=false,defined=false,callbacksReported=false;
 unsigned stage=0;
 DWORD faultCode=0;void* faultAddress=NULL;ULONG_PTR faultAccess=0;
-LONG RecordFault(EXCEPTION_POINTERS* info){faultCode=info->ExceptionRecord->ExceptionCode;faultAddress=info->ExceptionRecord->ExceptionAddress;faultAccess=info->ExceptionRecord->NumberParameters>1?info->ExceptionRecord->ExceptionInformation[1]:0;return EXCEPTION_EXECUTE_HANDLER;}
+float lastFarClip=-1;
+LONG RecordFault(EXCEPTION_POINTERS* info){
+ if(info->ExceptionRecord->ExceptionCode==0xE06D7363)return EXCEPTION_CONTINUE_SEARCH;
+ faultCode=info->ExceptionRecord->ExceptionCode;faultAddress=info->ExceptionRecord->ExceptionAddress;faultAccess=info->ExceptionRecord->NumberParameters>1?info->ExceptionRecord->ExceptionInformation[1]:0;return EXCEPTION_EXECUTE_HANDLER;
+}
 bool debug=false;
 unsigned draws=0;
 struct Key {
@@ -62,9 +69,11 @@ struct Binding {
  Ogre::ColourValue colour;bool unsupported;
  Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false){}
 };
-struct Actor {hand who;unsigned seen;Ogre::ColourValue colour;std::vector<Binding> bindings;Actor():seen(0){}};
+struct Actor {hand who;unsigned seen;Ogre::ColourValue colour;Ogre::AxisAlignedBox bounds;std::vector<Binding> bindings;Actor():seen(0){bounds.setNull();}};
 typedef std::map<Key,Actor> Actors;Actors actors;
 typedef std::map<std::string,Ogre::HighLevelGpuProgramPtr> Programs;Programs programs;
+struct ScreenRect{int left,top,right,bottom;};
+std::vector<ScreenRect> rects;
 Ogre::TexturePtr maskTexture;
 Ogre::MaterialPtr edgeMaterial;
 Ogre::ManualObject* quad=NULL;
@@ -120,7 +129,7 @@ unsigned CollectImpl(Character* c,Ogre::Entity** entities){
  }
  return count;
 }
-unsigned Collect(Character* c,Ogre::Entity** out){__try{return CollectImpl(c,out);}__except(EXCEPTION_EXECUTE_HANDLER){return 0;}}
+unsigned Collect(Character* c,Ogre::Entity** out){__try{return CollectImpl(c,out);}__except(GetExceptionCode()==0xE06D7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return 0;}}
 void Release(Binding& b){
  if(!b.mask.isNull()){Ogre::MaterialManager::getSingleton().remove(b.mask->getHandle());b.mask.setNull();if(materialCount)--materialCount;}
  b.original.setNull();b.unsupported=false;b.colour=Ogre::ColourValue(-1,-1,-1,-1);
@@ -137,10 +146,21 @@ Ogre::HighLevelGpuProgramPtr Program(const std::string& name,const std::string& 
 Ogre::HighLevelGpuProgramPtr MaskProgram(const Ogre::GpuProgramPtr& original){
  const std::string key=original->getName();Programs::iterator i=programs.find(key);if(i!=programs.end())return i->second;
  if(programs.size()>=64)throw std::runtime_error("mask shader cache limit");
- std::string source=original->getSource();
- if(source.empty())source=ReadResource(original->getSourceFile(),original->getGroup());
- source=CharacterMaskSource::Build(source,ReadResource("gbuffer.hlsl",original->getGroup()));
- Ogre::HighLevelGpuProgramPtr p=Program(Unique("MaskFP"),source,Ogre::GPT_FRAGMENT_PROGRAM,original->getParameter("entry_point"),original->getParameter("preprocessor_defines"));
+ // Materials normally name an Ogre 'unified' wrapper. It has no source file;
+ // the already-chosen delegate is the actual native HLSL resource.
+ Ogre::HighLevelGpuProgramPtr native=Ogre::HighLevelGpuProgramManager::getSingleton().getByName(key);
+ if(native.isNull())throw std::runtime_error("native high-level shader not found: "+key);
+ for(unsigned depth=0;depth<8;++depth){
+  Ogre::UnifiedHighLevelGpuProgram* unified=dynamic_cast<Ogre::UnifiedHighLevelGpuProgram*>(native.getPointer());
+  if(!unified)break;
+  native=unified->_getDelegate();
+  if(native.isNull())throw std::runtime_error("native shader delegate unavailable: "+key);
+ }
+ if(native->getSource().empty() && native->getSourceFile().empty())throw std::runtime_error("native shader has no HLSL source: "+key);
+ std::string source=native->getSource();
+ if(source.empty())source=ReadResource(native->getSourceFile(),native->getGroup());
+ source=CharacterMaskSource::Build(source,ReadResource("gbuffer.hlsl",native->getGroup()));
+ Ogre::HighLevelGpuProgramPtr p=Program(Unique("MaskFP"),source,Ogre::GPT_FRAGMENT_PROGRAM,native->getParameter("entry_point"),native->getParameter("preprocessor_defines"));
  programs.insert(std::make_pair(key,p));return p;
 }
 void Attach(Binding& b,Ogre::SubEntity* sub){
@@ -170,6 +190,7 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
  Ogre::Entity* entities[kEntities];unsigned count=Collect(a.who.getCharacter(),entities);
  for(unsigned i=0;i<count;++i){
   Ogre::Entity* e=entities[i];if(!e->isVisible() || !camera->isVisible(Ogre::AxisAlignedBox(e->getWorldAabb().getMinimum(),e->getWorldAabb().getMaximum())))continue;
+  if(viewport)a.bounds.merge(Ogre::AxisAlignedBox(e->getWorldAabb().getMinimum(),e->getWorldAabb().getMaximum()));
   for(unsigned j=0;j<e->getNumSubEntities() && j<kBindings;++j){
    Ogre::SubEntity* sub=e->getSubEntity(j);
    unsigned k=0;for(;k<a.bindings.size();++k)if(a.bindings[k].address==sub)break;
@@ -191,8 +212,54 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
 }
 void RenderMask(Ogre::Viewport* viewport){
  stage=4;
- for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,viewport);
+ for(Actors::iterator i=actors.begin();i!=actors.end();++i){i->second.bounds.setNull();RenderActor(i->second,viewport);}
  callbacksReported=true;
+}
+void AddBounds(const Ogre::AxisAlignedBox& box,float pad){
+ const Ogre::Matrix4 viewProj=camera->getProjectionMatrix()*camera->getViewMatrix(true);
+ const Ogre::Vector3 mn=box.getMinimum(),mx=box.getMaximum();
+ float x0=Ogre::Math::POS_INFINITY,y0=Ogre::Math::POS_INFINITY,x1=Ogre::Math::NEG_INFINITY,y1=Ogre::Math::NEG_INFINITY;
+ for(unsigned i=0;i<8;++i){
+  const Ogre::Vector3 c((i&1)?mx.x:mn.x,(i&2)?mx.y:mn.y,(i&4)?mx.z:mn.z);
+  const Ogre::Vector4 clip=viewProj*Ogre::Vector4(c.x,c.y,c.z,1.f);
+  if(clip.w<=0.01f){ScreenRect full={0,0,static_cast<int>(width),static_cast<int>(height)};rects.push_back(full);return;}
+  const float x=(clip.x/clip.w*0.5f+0.5f)*width,y=(0.5f-clip.y/clip.w*0.5f)*height;
+  if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+ }
+ const int l=static_cast<int>(std::floor(x0-pad)),t=static_cast<int>(std::floor(y0-pad));
+ const int r=static_cast<int>(std::ceil(x1+pad)),b=static_cast<int>(std::ceil(y1+pad));
+ ScreenRect rect={l<0?0:l,t<0?0:t,r>static_cast<int>(width)?static_cast<int>(width):r,b>static_cast<int>(height)?static_cast<int>(height):b};
+ if(rect.right<=rect.left||rect.bottom<=rect.top)return;
+ rects.push_back(rect);
+}
+void JoinRects(){
+ for(bool again=true;again;){again=false;
+  for(size_t i=0;i<rects.size() && !again;++i)for(size_t j=i+1;j<rects.size() && !again;++j){
+   const ScreenRect&a=rects[i];const ScreenRect&b=rects[j];
+   if(a.left>=b.right || b.left>=a.right || a.top>=b.bottom || b.top>=a.bottom)continue;
+   ScreenRect merged={(a.left<b.left)?a.left:b.left,(a.top<b.top)?a.top:b.top,(a.right>b.right)?a.right:b.right,(a.bottom>b.bottom)?a.bottom:b.bottom};
+   rects[i]=merged;rects.erase(rects.begin()+j);again=true;
+  }
+ }
+}
+void RebuildQuad(){
+ quad->clear();
+ if(rects.empty()){quad->setVisible(false);return;}
+ quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
+ unsigned index=0;
+ for(size_t i=0;i<rects.size();++i){
+  const ScreenRect& r=rects[i];
+  const float l=r.left*2.f/width-1.f,rr=r.right*2.f/width-1.f;
+  const float t=1.f-r.top*2.f/height,b=1.f-r.bottom*2.f/height;
+  const float ul=r.left/static_cast<float>(width),ur=r.right/static_cast<float>(width);
+  const float ut=r.top/static_cast<float>(height),ub=r.bottom/static_cast<float>(height);
+  quad->position(l,t,0);quad->textureCoord(ul,ut);
+  quad->position(l,b,0);quad->textureCoord(ul,ub);
+  quad->position(rr,b,0);quad->textureCoord(ur,ub);
+  quad->position(rr,t,0);quad->textureCoord(ur,ut);
+  quad->quad(index,index+1,index+2,index+3);index+=4;
+ }
+ quad->end();quad->setVisible(true);
 }
 void DestroySurface(){
  if(maskWorkspace){Ogre::Root::getSingleton().getCompositorManager2()->removeWorkspace(maskWorkspace);maskWorkspace=NULL;}
@@ -204,7 +271,7 @@ void DestroySurface(){
 void EnsureSurface(Renderer* renderer){
  const unsigned w=static_cast<unsigned>(renderer->getScreenWidth()),h=static_cast<unsigned>(renderer->getScreenHeight());
  if(maskWorkspace && w==width && h==height && renderer->getCamera()==camera && renderer->getSceneManager()==scene && mainWorkspace==surfaceWorkspace)return;
- DestroySurface();surfaceWorkspace=mainWorkspace;scene=renderer->getSceneManager();camera=renderer->getCamera();width=w;height=h;
+ DestroySurface();surfaceWorkspace=mainWorkspace;scene=renderer->getSceneManager();camera=renderer->getCamera();width=w;height=h;lastFarClip=-1;
  if(!width || !height || width>16384 || height>16384)throw std::runtime_error("invalid render size");
  Ogre::CompositorManager2* m=renderer->getRoot()->getCompositorManager2();
  if(!defined){
@@ -216,7 +283,7 @@ void EnsureSurface(Renderer* renderer){
   draw->mVisibilityMask=0;draw->mFirstRQ=draw->mLastRQ=0;draw->mUpdateLodLists=false;draw->mIncludeOverlays=false;
   Ogre::CompositorWorkspaceDef* def=m->addWorkspaceDefinition(Ogre::IdString("LEOPARD_CH_MaskWorkspace"));def->connectOutput(Ogre::IdString("LEOPARD_CH_MaskNode"),0);defined=true;
  }
- maskTexture=Ogre::TextureManager::getSingleton().createManual(Unique("MaskTexture"),Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,Ogre::TEX_TYPE_2D,(width+1)/2,(height+1)/2,0,Ogre::PF_FLOAT16_RGBA,Ogre::TU_RENDERTARGET);
+ maskTexture=Ogre::TextureManager::getSingleton().createManual(Unique("MaskTexture"),Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,Ogre::TEX_TYPE_2D,width,height,0,Ogre::PF_FLOAT16_RGBA,Ogre::TU_RENDERTARGET);
  Ogre::RenderTarget* rt=maskTexture->getBuffer()->getRenderTarget();
  maskWorkspace=m->addWorkspace(scene,rt,camera,Ogre::IdString("LEOPARD_CH_MaskWorkspace"),false);rt->addListener(&maskListener);
  Ogre::HighLevelGpuProgramPtr vp=Ogre::HighLevelGpuProgramManager::getSingleton().getByName("LEOPARD_CH_EdgeVP"),fp=Ogre::HighLevelGpuProgramManager::getSingleton().getByName("LEOPARD_CH_EdgeFP");
@@ -228,10 +295,7 @@ void EnsureSurface(Renderer* renderer){
  Ogre::TextureUnitState* tex=pass->createTextureUnitState(maskTexture->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
  const Ogre::CompositorChannel& gbuffer=mainWorkspace->getGlobalTexture(Ogre::IdString("global_gbuffer"));if(gbuffer.textures.size()<3)throw std::runtime_error("main scene depth unavailable");
  tex=pass->createTextureUnitState(gbuffer.textures[2]->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
- pass->getFragmentProgramParameters()->setNamedConstant("pixel",Ogre::Vector2(1.f/width,1.f/height));
- quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
- quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
- quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
+ quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);quad->end();
  quad->setRenderQueueGroup(88);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
  quadNode=scene->getRootSceneNode()->createChildSceneNode();quadNode->attachObject(quad);quad->setVisible(false);
 }
@@ -244,8 +308,45 @@ void UpdateMaskImpl(){
  stage=3;maskWorkspace->_beginUpdate(false);
  UpdateWorkspace(maskWorkspace);stage=6;
  if(!callbacksReported)throw std::runtime_error("mask scene callback not invoked");
+ rects.clear();
+ for(Actors::iterator i=actors.begin();i!=actors.end();++i)if(!i->second.bounds.isNull())AddBounds(i->second.bounds,outlineWidth+2.f);
+ JoinRects();RebuildQuad();
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
- p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);quad->setVisible(true);
+ p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);
+ const float farClip=camera->getFarClipDistance();
+ if(farClip!=lastFarClip){p->setNamedConstant("invFarClip",farClip>0?1.f/farClip:0.f);lastFarClip=farClip;}
+}
+// Explicit one-shot development request only. Readback never runs as part of
+// normal highlighting, and the request is consumed before any allocation/I/O.
+void CaptureMaskIfRequested(){
+ if(!debug || !draws || maskTexture.isNull())return;
+ static DWORD last=0;DWORD now=GetTickCount();if(now-last<1000)return;last=now;
+ const char* request="mods/Character-Highlight/contour-capture.request";
+ if(GetFileAttributesA(request)==INVALID_FILE_ATTRIBUTES || !DeleteFileA(request))return;
+ Ogre::Image image;maskTexture->convertToImage(image);
+ const unsigned w=static_cast<unsigned>(image.getWidth()),h=static_cast<unsigned>(image.getHeight());
+ if(w>4096 || h>4096 || static_cast<size_t>(w)*h>8388608){DebugLog("Character Highlight capture skipped: size limit");return;}
+ std::vector<float> pixels(w*h*4);Ogre::PixelBox dst(w,h,1,Ogre::PF_FLOAT32_RGBA,&pixels[0]);
+ Ogre::PixelUtil::bulkPixelConversion(image.getPixelBox(),dst);
+ std::vector<unsigned char> rgb(w*h*3);unsigned nonzero=0,coloured=0;float nearDepth=1,farDepth=0;
+ for(unsigned i=0;i<w*h;++i){
+  float* p=&pixels[i*4];if(p[3]>0){++nonzero;if(p[3]<nearDepth)nearDepth=p[3];if(p[3]>farDepth)farDepth=p[3];}
+  if(p[0]!=0 || p[1]!=0 || p[2]!=0)++coloured;
+  for(unsigned j=0;j<3;++j)rgb[i*3+j]=static_cast<unsigned char>((std::max)(0.f,(std::min)(1.f,p[j]))*255);
+ }
+ Ogre::Image preview;preview.loadDynamicImage(&rgb[0],w,h,1,Ogre::PF_BYTE_RGB,false);
+ preview.save("mods/Character-Highlight/contour-mask.png");
+ char note[512];sprintf_s(note,"Character Highlight capture: mask=%ux%u alphaPixels=%u rgbPixels=%u depth=%.6f..%.6f draws=%u rects=%u quadVisible=%u queue=%u",w,h,nonzero,coloured,nearDepth,farDepth,draws,static_cast<unsigned>(rects.size()),quad->isVisible()?1:0,quad->getRenderQueueGroup());DebugLog(note);
+ unsigned reported=0;
+ for(Actors::iterator i=actors.begin();i!=actors.end() && reported<4;++i)for(unsigned j=0;j<i->second.bindings.size() && reported<4;++j){
+  Binding& b=i->second.bindings[j];if(b.mask.isNull() || b.original.isNull())continue;
+  Ogre::GpuProgramParametersSharedPtr p=b.mask->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
+  Ogre::GpuProgramParametersSharedPtr original=b.original->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
+  const Ogre::GpuConstantDefinition* d=p->_findNamedConstantDefinition("farClip",false);
+  const Ogre::GpuConstantDefinition* o=original->_findNamedConstantDefinition("farClip",false);
+  unsigned farAuto=0;if(d){const Ogre::GpuProgramParameters::AutoConstantList& list=p->getAutoConstantList();for(size_t a=0;a<list.size();++a)if(list[a].physicalIndex==d->physicalIndex)farAuto=static_cast<unsigned>(list[a].paramType)+1;}
+  sprintf_s(note,"Character Highlight capture params: material=%.80s cameraFar=%.3f maskFar=%.3f nativeFar=%.3f maskAutos=%u nativeAutos=%u farAutoTypePlusOne=%u",b.original->getName().c_str(),camera->getFarClipDistance(),d?*p->getFloatPointer(d->physicalIndex):-1.f,o?*original->getFloatPointer(o->physicalIndex):-1.f,static_cast<unsigned>(p->getAutoConstantCount()),static_cast<unsigned>(original->getAutoConstantCount()),farAuto);DebugLog(note);++reported;
+ }
 }
 bool UpdateNative(){__try{UpdateMaskImpl();return true;}__except(RecordFault(GetExceptionInformation())){return false;}}
 void UpdateMask(){
@@ -255,13 +356,13 @@ void UpdateMask(){
  GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,reinterpret_cast<const char*>(faultAddress),&mod);
  if(mod)GetModuleFileNameA(mod,path,MAX_PATH);const char* name=strrchr(path,'\\');name=name?name+1:path;
  sprintf_s(note,"native fault code=%08lX stage=%u %s+0x%llX access=0x%llX",faultCode,stage,name,reinterpret_cast<ULONG_PTR>(faultAddress)-reinterpret_cast<ULONG_PTR>(mod),faultAccess);LogFailure(note);
- }}catch(const std::exception& e){LogFailure(e.what());}catch(...){LogFailure("render failure");}
+ }else CaptureMaskIfRequested();}catch(const std::exception& e){LogFailure(e.what());}catch(...){LogFailure("render failure");}
  if(debug && !actors.empty()){
   QueryPerformanceCounter(&end);QueryPerformanceFrequency(&freq);
   static double total=0,maximum=0;static unsigned samples=0;static DWORD last=0;
   const double ms=(end.QuadPart-begin.QuadPart)*1000.0/freq.QuadPart;total+=ms;if(ms>maximum)maximum=ms;++samples;
   DWORD now=GetTickCount();if(now-last>=10000){
-   char note[240];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u size=%ux%u CPU=%.3fms mean %.3fms max",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,width/2,height/2,total/samples,maximum);
+   char note[240];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u size=%ux%u CPU=%.3fms mean %.3fms max",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,width,height,total/samples,maximum);
    DebugLog(note);last=now;total=maximum=0;samples=0;
   }
  }
