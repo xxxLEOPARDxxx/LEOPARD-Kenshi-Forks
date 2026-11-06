@@ -228,9 +228,9 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
    }
    if(b.mask.isNull())continue;
    Ogre::Pass* p=b.mask->getTechnique(0)->getPass(0);UpdateVertexMask(p,b.original->getTechnique(0)->getPass(0));
-   // The mask depth must share the scene's encoding: radial distance over the
-   // live camera far clip, never a stale clone-time or missing auto constant.
-   if(b.hasFarClip)p->getFragmentProgramParameters()->setNamedConstant("farClip",camera->getFarClipDistance());
+   // The mask depth is pinned to a fixed 500 m range so the FP16 mask keeps
+   // precision; the edge pass compares both depths in metres.
+   if(b.hasFarClip)p->getFragmentProgramParameters()->setNamedConstant("farClip",500.f);
    if(b.colour!=a.colour){p->getFragmentProgramParameters()->setNamedConstant("leopardMaskColour",a.colour);b.colour=a.colour;}
    if(viewport){stage=5;scene->_injectRenderWithPass(p,sub,NULL,false,false);++draws;stage=4;}
   }
@@ -345,8 +345,9 @@ void UpdateMaskImpl(){
  JoinRects();UpdateRects();
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);
+ if(lastFarClip<=0){p->setNamedConstant("maskFar",500.f);}
  const float farClip=camera->getFarClipDistance();
- if(farClip!=lastFarClip){p->setNamedConstant("invFarClip",farClip>0?1.f/farClip:0.f);lastFarClip=farClip;}
+ if(farClip!=lastFarClip){p->setNamedConstant("sceneFar",farClip>0?farClip:1.f);lastFarClip=farClip;}
 }
 // Explicit one-shot development request only. Readback never runs as part of
 // normal highlighting, and the request is consumed before any allocation/I/O.
@@ -394,7 +395,9 @@ void UpdateMask(){
   static double total=0,maximum=0;static unsigned samples=0;static DWORD last=0;
   const double ms=(end.QuadPart-begin.QuadPart)*1000.0/freq.QuadPart;total+=ms;if(ms>maximum)maximum=ms;++samples;
   DWORD now=GetTickCount();if(now-last>=10000){
-   char note[280];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u size=%ux%u farClip=%.1f CPUmean=%.3fms max=%.3fms",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,width,height,camera?camera->getFarClipDistance():0.f,total/samples,maximum);
+   unsigned unsup=0;
+   for(Actors::const_iterator i=actors.begin();i!=actors.end();++i)for(unsigned k=0;k<i->second.bindings.size();++k)if(i->second.bindings[k].unsupported)++unsup;
+   char note[280];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u unsupported=%u size=%ux%u farClip=%.1f CPUmean=%.3fms max=%.3fms",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,unsup,width,height,camera?camera->getFarClipDistance():0.f,total/samples,maximum);
    DebugLog(note);last=now;total=maximum=0;samples=0;
   }
  }
