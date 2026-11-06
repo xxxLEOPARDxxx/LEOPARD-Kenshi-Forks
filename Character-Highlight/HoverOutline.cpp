@@ -69,8 +69,8 @@ struct Key {
 struct Binding {
  Ogre::SubEntity* address; // Comparison key only; a current live entity is enumerated each draw.
  Ogre::MaterialPtr original,mask;unsigned seen;
- Ogre::ColourValue colour;bool unsupported;
- Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false){}
+ Ogre::ColourValue colour;bool unsupported;bool hasDepth;float depth;
+ Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false),hasDepth(false),depth(-1){}
 };
 struct Actor {hand who;unsigned seen;Ogre::ColourValue colour;Ogre::AxisAlignedBox bounds;std::vector<Binding> bindings;Actor():seen(0){bounds.setNull();}};
 typedef std::map<Key,Actor> Actors;Actors actors;
@@ -213,6 +213,7 @@ void Attach(Binding& b,Ogre::SubEntity* sub){
  // The original vertex program, native bone auto-constants, UV/part masks and
  // original fragment alpha-discard remain intact. No pass is added to the model.
  if(p->getVertexProgramParameters()->_findNamedConstantDefinition("overrideDepth",false))p->getVertexProgramParameters()->setNamedConstant("overrideDepth",false);
+ b.hasDepth=p->getFragmentProgramParameters()->_findNamedConstantDefinition("leopardMaskDepth",false)!=NULL;
  b.unsupported=false;
 }
 void UpdateVertexMask(Ogre::Pass* to,Ogre::Pass* from){
@@ -240,6 +241,13 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
    }
    if(b.mask.isNull())continue;
    Ogre::Pass* p=b.mask->getTechnique(0)->getPass(0);UpdateVertexMask(p,b.original->getTechnique(0)->getPass(0));
+   // The mask alpha is this binding's own radial distance (500 m range), so
+   // the edge pass compares it against the scene depth in metres per pixel.
+   if(b.hasDepth){
+    const Ogre::Aabb box=e->getWorldAabb();
+    const float d=((box.getMinimum()+box.getMaximum())*0.5f-camera->getDerivedPosition()).length()/500.f;
+    if(b.depth!=d){p->getFragmentProgramParameters()->setNamedConstant("leopardMaskDepth",d);b.depth=d;}
+   }
    if(b.colour!=a.colour){p->getFragmentProgramParameters()->setNamedConstant("leopardMaskColour",a.colour);b.colour=a.colour;}
    if(viewport){stage=5;scene->_injectRenderWithPass(p,sub,NULL,false,false);++draws;stage=4;}
   }
@@ -292,18 +300,14 @@ void UpdateRects(){
   rects.erase(rects.begin()+second);
  }
  float data[32];std::memset(data,0,sizeof(data));
- float depths[8];std::memset(depths,0,sizeof(depths));
  for(size_t i=0;i<rects.size();++i){
   data[i*4]=static_cast<float>(rects[i].left);data[i*4+1]=static_cast<float>(rects[i].top);
   data[i*4+2]=static_cast<float>(rects[i].right);data[i*4+3]=static_cast<float>(rects[i].bottom);
-  depths[i]=rects[i].depth;
  }
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  const Ogre::GpuConstantDefinition* d=p->_findNamedConstantDefinition("rectList",false);
- const Ogre::GpuConstantDefinition* dd=p->_findNamedConstantDefinition("rectDepth",false);
- if(!d || !dd)throw std::runtime_error("edge rect constant missing");
+ if(!d)throw std::runtime_error("edge rect constant missing");
  std::memcpy(p->getFloatPointer(d->physicalIndex),data,sizeof(data));
- std::memcpy(p->getFloatPointer(dd->physicalIndex),depths,sizeof(depths));
  p->setNamedConstant("rectCount",static_cast<float>(rects.size()));
  quad->setVisible(true);
 }
@@ -346,7 +350,7 @@ void EnsureSurface(Renderer* renderer){
  quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
  quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
  quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
- quad->setRenderQueueGroup(88);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
+ quad->setRenderQueueGroup(84);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
  quadNode=scene->getRootSceneNode()->createChildSceneNode();quadNode->attachObject(quad);quad->setVisible(false);
 }
 void UpdateMaskImpl(){

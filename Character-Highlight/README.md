@@ -28,19 +28,22 @@ visual and performance acceptance is still pending, and release3 remains public.
 The scheme follows the hover outline of the Meitou client project, adapted to
 the game's Ogre pipeline. The replacement never assigns cloned materials to the
 character. A full-resolution RGBA16 mask uses the current native vertex program
-and a derived fragment program that preserves native alpha-discard while
-writing relationship RGB and radial depth (the mask's farClip is re-read from
-the live camera every frame so it always matches the scene's GBuffer depth
-encoding). Bone-attached equipment and prosthetics are collected from the body
-skeleton's tag points, since they are not in the appearance node tree. A single
-blended edge pass runs after HDR in queue88, before GUI, clipped to the
-projected character boxes (overlapping rectangles joined): outside the
-silhouette the outline fades outward over the configured width without any
-depth test, inside it a soft tint is drawn only where the mask depth is in
-front of the scene depth. Portrait and reflection workspaces exclude that
-queue. Shader generation/cache are bounded (64 programs, 2048 mask materials,
-64 new material attempts per frame). Original workspace listeners are chained
-without rewrapping replacements; shutdown cleanup runs before Renderer.
+and, per material, either a shared constant-colour fragment (most materials) or
+a derived fragment that preserves native alpha-discard (hair and feather
+cards). The mask alpha carries the binding's own radial distance in a 500 m
+range (the native farClip is an auto constant and cannot be trusted), so the
+edge pass compares depths against the scene's GBuffer buf2 in metres. A single
+blended edge pass rides the fog/particles range (queue 84) of the HDR node -
+no extra scene pass and no Debug-node dependency - clipped to the projected
+character boxes (overlapping rectangles joined): outside the silhouette the
+outline fades outward over the configured width without any depth test, inside
+it a soft tint is drawn only where the actor is not behind the scene.
+Portrait and reflection workspaces exclude that range. Bone-attached equipment
+and prosthetics are collected from the body skeleton's tag points, since they
+are not in the appearance node tree. Shader generation/cache are bounded (64
+programs, 2048 mask materials, 64 new material attempts per frame). Original
+workspace listeners are chained without rewrapping replacements; shutdown
+cleanup runs before Renderer.
 
 Hover observes native characterSelected only inside mouseScan, after the game
 resolves the visible character and chooses its cursor. It keeps a copied full
