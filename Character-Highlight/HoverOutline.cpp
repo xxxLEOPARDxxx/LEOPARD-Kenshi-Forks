@@ -358,9 +358,6 @@ void EnsureSurface(Renderer* renderer){
 void UpdateMaskImpl(){
  if(failed || actors.empty()){if(quad)quad->setVisible(false);return;}
  if(!ou || !ou->render)return;Renderer* renderer=static_cast<Renderer*>(ou->render);
- // The mask re-render is the measured cost. Refresh every second frame; the
- // mask texture, rects and the edge quad keep showing the previous content.
- static unsigned phase=0;if(++phase&1)return;
  stage=1;EnsureSurface(renderer);createsLeft=64;callbacksReported=false;stage=2;
  // All shader compilation/allocation happens before entering workspace update.
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,NULL);
