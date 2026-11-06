@@ -160,6 +160,7 @@ namespace
         g_debug = GetPrivateProfileIntA(kSec, "Debug", 0, ini.c_str()) != 0;
         KLocLog::SetEnabled(g_debug);
         HoverOutline::SetDebug(g_debug);
+        HoverOutline::SetEdgePass(GetPrivateProfileIntA(kSec,"DebugEdgePass",1,ini.c_str())!=0);
         ForgetColours();                // new colours - re-evaluate everyone
     }
 

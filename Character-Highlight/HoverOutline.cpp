@@ -61,6 +61,7 @@ LONG RecordFault(EXCEPTION_POINTERS* info){
  faultCode=info->ExceptionRecord->ExceptionCode;faultAddress=info->ExceptionRecord->ExceptionAddress;faultAccess=info->ExceptionRecord->NumberParameters>1?info->ExceptionRecord->ExceptionInformation[1]:0;return EXCEPTION_EXECUTE_HANDLER;
 }
 bool debug=false;
+bool edgePassEnabled=true;
 unsigned draws=0;
 struct Key {
  unsigned v[5];explicit Key(const hand& h){v[0]=h.type;v[1]=h.container;v[2]=h.containerSerial;v[3]=h.index;v[4]=h.serial;}
@@ -288,7 +289,7 @@ void JoinRects(){
  }
 }
 void UpdateRects(){
- if(rects.empty()){quad->setVisible(false);return;}
+ if(!edgePassEnabled || rects.empty()){quad->setVisible(false);return;}
  // At most eight: merge the two most distant until it fits.
  while(rects.size()>8){
   size_t deepest=0;for(size_t i=1;i<rects.size();++i)if(rects[i].depth>rects[deepest].depth)deepest=i;
@@ -434,6 +435,7 @@ void ClearImpl(){
 }
 void BeginFrame(){if(++frame==0){Clear();frame=1;}}
 void SetDebug(bool enabled){debug=enabled;}
+void SetEdgePass(bool enabled){edgePassEnabled=enabled;if(!enabled && quad)quad->setVisible(false);}
 void Draw(Character* c,const Ogre::ColourValue& colour,float w,float brightness){
  if(!c || failed || colour.a<=0 || w<=0 || brightness<=0)return;
  Actors::iterator i=actors.find(Key(c->handle));if(i==actors.end()){if(actors.size()>=kActors)return;i=actors.insert(std::make_pair(Key(c->handle),Actor())).first;i->second.who=c->handle;}

@@ -9,6 +9,7 @@ void Remove(Character* target);
 void Clear();
 void Shutdown();
 void SetDebug(bool enabled);
+void SetEdgePass(bool enabled);
 void PortraitBegin(Character* target);
 void PortraitEnd();
 }
