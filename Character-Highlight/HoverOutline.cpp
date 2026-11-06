@@ -53,7 +53,7 @@
 namespace HoverOutline {
 namespace {
 const unsigned kActors=512,kMaterials=2048,kEntities=64,kBindings=128;
-unsigned frame=0,names=0,materialCount=0,createsLeft=0;
+unsigned frame=0,names=0,materialCount=0,createsLeft=0,surfaceRebuilds=0;
 bool failed=false,defined=false,callbacksReported=false;
 unsigned stage=0;
 DWORD faultCode=0;void* faultAddress=NULL;ULONG_PTR faultAccess=0;
@@ -320,7 +320,7 @@ void DestroySurface(){
 void EnsureSurface(Renderer* renderer){
  const unsigned w=static_cast<unsigned>(renderer->getScreenWidth()),h=static_cast<unsigned>(renderer->getScreenHeight());
  if(maskViewport && w==width && h==height && renderer->getCamera()==camera && renderer->getSceneManager()==scene && mainWorkspace==surfaceWorkspace)return;
- DestroySurface();surfaceWorkspace=mainWorkspace;scene=renderer->getSceneManager();camera=renderer->getCamera();width=w;height=h;lastFarClip=-1;
+ DestroySurface();surfaceWorkspace=mainWorkspace;scene=renderer->getSceneManager();camera=renderer->getCamera();width=w;height=h;lastFarClip=-1;++surfaceRebuilds;
  if(!width || !height || width>16384 || height>16384)throw std::runtime_error("invalid render size");
  maskTexture=Ogre::TextureManager::getSingleton().createManual(Unique("MaskTexture"),Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,Ogre::TEX_TYPE_2D,width,height,0,Ogre::PF_FLOAT16_RGBA,Ogre::TU_RENDERTARGET);
  maskRT=maskTexture->getBuffer()->getRenderTarget();
@@ -346,6 +346,9 @@ void EnsureSurface(Renderer* renderer){
 void UpdateMaskImpl(){
  if(failed || actors.empty()){if(quad)quad->setVisible(false);return;}
  if(!ou || !ou->render)return;Renderer* renderer=static_cast<Renderer*>(ou->render);
+ // The crowd mask re-render is the measured per-object cost. Refresh every
+ // third frame; the mask texture, rects and the edge quad keep the last content.
+ static unsigned phase=0;if(++phase%3)return;
  stage=1;EnsureSurface(renderer);createsLeft=64;callbacksReported=false;stage=2;
  // All shader compilation/allocation happens before entering workspace update.
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,NULL);
@@ -416,7 +419,7 @@ void UpdateMask(){
   DWORD now=GetTickCount();if(now-last>=10000){
    unsigned unsup=0;
    for(Actors::const_iterator i=actors.begin();i!=actors.end();++i)for(unsigned k=0;k<i->second.bindings.size();++k)if(i->second.bindings[k].unsupported)++unsup;
-   char note[280];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u unsupported=%u size=%ux%u farClip=%.1f CPUmean=%.3fms max=%.3fms",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,unsup,width,height,camera?camera->getFarClipDistance():0.f,total/samples,maximum);
+   char note[280];sprintf_s(note,"Character Highlight mask: actors=%u materials=%u programs=%u draws=%u unsupported=%u size=%ux%u farClip=%.1f rebuilds=%u CPUmean=%.3fms max=%.3fms",static_cast<unsigned>(actors.size()),materialCount,static_cast<unsigned>(programs.size()),draws,unsup,width,height,camera?camera->getFarClipDistance():0.f,surfaceRebuilds,total/samples,maximum);
    DebugLog(note);last=now;total=maximum=0;samples=0;
   }
  }
