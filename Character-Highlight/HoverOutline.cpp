@@ -78,6 +78,7 @@ typedef std::map<std::string,Ogre::HighLevelGpuProgramPtr> Programs;Programs pro
 struct ScreenRect{int left,top,right,bottom;};
 std::vector<ScreenRect> rects;
 Ogre::TexturePtr maskTexture;
+Ogre::TexturePtr sceneDepth;
 Ogre::MaterialPtr edgeMaterial;
 Ogre::ManualObject* quad=NULL;
 Ogre::SceneNode* quadNode=NULL;
@@ -297,6 +298,7 @@ void DestroySurface(){
  if(quadNode){scene->destroySceneNode(quadNode);quadNode=NULL;}
  if(!edgeMaterial.isNull()){Ogre::MaterialManager::getSingleton().remove(edgeMaterial->getHandle());edgeMaterial.setNull();}
  if(!maskTexture.isNull()){Ogre::TextureManager::getSingleton().remove(maskTexture->getHandle());maskTexture.setNull();}
+ sceneDepth.setNull();
 }
 void EnsureSurface(Renderer* renderer){
  const unsigned w=static_cast<unsigned>(renderer->getScreenWidth()),h=static_cast<unsigned>(renderer->getScreenHeight());
@@ -324,7 +326,8 @@ void EnsureSurface(Renderer* renderer){
  pass->setDepthCheckEnabled(false);pass->setDepthWriteEnabled(false);pass->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);pass->setCullingMode(Ogre::CULL_NONE);
  Ogre::TextureUnitState* tex=pass->createTextureUnitState(maskTexture->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
  const Ogre::CompositorChannel& gbuffer=mainWorkspace->getGlobalTexture(Ogre::IdString("global_gbuffer"));if(gbuffer.textures.size()<3)throw std::runtime_error("main scene depth unavailable");
- tex=pass->createTextureUnitState(gbuffer.textures[2]->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
+ sceneDepth=gbuffer.textures[2];
+ tex=pass->createTextureUnitState(sceneDepth->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
  quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
  quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
  quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
@@ -370,6 +373,29 @@ void CaptureMaskIfRequested(){
  Ogre::Image preview;preview.loadDynamicImage(&rgb[0],w,h,1,Ogre::PF_BYTE_RGB,false);
  preview.save("mods/Character-Highlight/contour-mask.png");
  char note[512];sprintf_s(note,"Character Highlight capture: mask=%ux%u alphaPixels=%u rgbPixels=%u depth=%.6f..%.6f draws=%u rects=%u quadVisible=%u queue=%u",w,h,nonzero,coloured,nearDepth,farDepth,draws,static_cast<unsigned>(rects.size()),quad->isVisible()?1:0,quad->getRenderQueueGroup());DebugLog(note);
+ // Decisive tint evidence: replay the edge pass's depth test on the CPU over
+ // every covered pixel, against the actual scene depth texture content.
+ if(!sceneDepth.isNull() && nonzero){
+  Ogre::Image dimg;sceneDepth->convertToImage(dimg);
+  const unsigned dw=static_cast<unsigned>(dimg.getWidth()),dh=static_cast<unsigned>(dimg.getHeight());
+  if(dw && dh && static_cast<size_t>(dw)*dh<=8388608){
+   std::vector<float> dpx(static_cast<size_t>(dw)*dh);Ogre::PixelBox ddst(dw,dh,1,Ogre::PF_FLOAT32_R,&dpx[0]);
+   Ogre::PixelUtil::bulkPixelConversion(dimg.getPixelBox(),ddst);
+   const float sceneFar=camera->getFarClipDistance();
+   unsigned tintPass=0,tintFail=0;double sx=0,sy=0;
+   for(unsigned y=0;y<h;++y)for(unsigned x=0;x<w;++x){
+    const float a=pixels[(static_cast<size_t>(y)*w+x)*4+3];if(a<=0)continue;
+    sx+=x;sy+=y;
+    const size_t dx=static_cast<size_t>(x)*dw/w,dy=static_cast<size_t>(y)*dh/h;
+    const float scene=dpx[dy*dw+dx]*sceneFar;
+    if(scene<=0 || a*500.f<=scene*1.02f+2.f)++tintPass;else ++tintFail;
+   }
+   const unsigned cx=static_cast<unsigned>(sx/nonzero),cy=static_cast<unsigned>(sy/nonzero);
+   const float cm=pixels[(static_cast<size_t>(cy)*w+cx)*4+3]*500.f;
+   const float cs=dpx[static_cast<size_t>(cy)*dh/h*dw+static_cast<size_t>(cx)*dw/w]*sceneFar;
+   sprintf_s(note,"Character Highlight capture tint: pass=%u fail=%u centroid=(%u,%u) maskM=%.2f sceneM=%.2f sceneFar=%.1f",tintPass,tintFail,cx,cy,cm,cs,sceneFar);DebugLog(note);
+  }
+ }
  unsigned reported=0;
  for(Actors::iterator i=actors.begin();i!=actors.end() && reported<4;++i)for(unsigned j=0;j<i->second.bindings.size() && reported<4;++j){
   Binding& b=i->second.bindings[j];if(b.mask.isNull() || b.original.isNull())continue;
