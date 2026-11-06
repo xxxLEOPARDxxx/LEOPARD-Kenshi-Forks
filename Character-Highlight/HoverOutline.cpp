@@ -20,6 +20,7 @@
 #include <ogre/OgreRenderQueue.h>
 #include <ogre/OgreCamera.h>
 #include <ogre/OgreRenderTargetListener.h>
+#include <ogre/OgreViewport.h>
 #include <ogre/Math/Simple/OgreAabb.h>
 #include <ogre/OgreHighLevelGpuProgramManager.h>
 #include <ogre/OgreHighLevelGpuProgram.h>
@@ -86,20 +87,14 @@ Ogre::ManualObject* quad=NULL;
 Ogre::SceneNode* quadNode=NULL;
 Ogre::SceneManager* scene=NULL;
 Ogre::Camera* camera=NULL;
-Ogre::CompositorWorkspace* maskWorkspace=NULL;
+Ogre::RenderTarget* maskRT=NULL;
+Ogre::Viewport* maskViewport=NULL;
 Ogre::CompositorWorkspace* mainWorkspace=NULL;
 Ogre::CompositorWorkspace* surfaceWorkspace=NULL;
 unsigned width=0,height=0;
 float outlineWidth=2,outlineBrightness=1;
 void RenderMask(Ogre::Viewport* viewport);
 void UpdateMask();
-void UpdateWorkspace(Ogre::CompositorWorkspace* ws){
- __try {ws->_update();}
- __finally {ws->_endUpdate(false);}
-}
-struct MaskListener:Ogre::RenderTargetListener {
- void postViewportUpdate(const Ogre::RenderTargetViewportEvent& event){RenderMask(event.source);}
-} maskListener;
 struct MainListener:Ogre::CompositorWorkspaceListener {
  Ogre::CompositorWorkspaceListener* prior;
  MainListener():prior(NULL){}
@@ -314,7 +309,8 @@ void UpdateRects(){
  quad->setVisible(true);
 }
 void DestroySurface(){
- if(maskWorkspace){Ogre::Root::getSingleton().getCompositorManager2()->removeWorkspace(maskWorkspace);maskWorkspace=NULL;}
+ if(maskViewport){maskViewport->getTarget()->removeViewport(maskViewport);maskViewport=NULL;}
+ maskRT=NULL;
  if(quad){quadNode->detachObject(quad);scene->destroyManualObject(quad);quad=NULL;}
  if(quadNode){scene->destroySceneNode(quadNode);quadNode=NULL;}
  if(!edgeMaterial.isNull()){Ogre::MaterialManager::getSingleton().remove(edgeMaterial->getHandle());edgeMaterial.setNull();}
@@ -323,22 +319,14 @@ void DestroySurface(){
 }
 void EnsureSurface(Renderer* renderer){
  const unsigned w=static_cast<unsigned>(renderer->getScreenWidth()),h=static_cast<unsigned>(renderer->getScreenHeight());
- if(maskWorkspace && w==width && h==height && renderer->getCamera()==camera && renderer->getSceneManager()==scene && mainWorkspace==surfaceWorkspace)return;
+ if(maskViewport && w==width && h==height && renderer->getCamera()==camera && renderer->getSceneManager()==scene && mainWorkspace==surfaceWorkspace)return;
  DestroySurface();surfaceWorkspace=mainWorkspace;scene=renderer->getSceneManager();camera=renderer->getCamera();width=w;height=h;lastFarClip=-1;
  if(!width || !height || width>16384 || height>16384)throw std::runtime_error("invalid render size");
- Ogre::CompositorManager2* m=renderer->getRoot()->getCompositorManager2();
- if(!defined){
-  Ogre::CompositorNodeDef* node=m->addNodeDefinition("LEOPARD_CH_MaskNode");
-  node->addTextureSourceName("output",0,Ogre::TextureDefinitionBase::TEXTURE_INPUT);node->setNumTargetPass(1);
-  Ogre::CompositorTargetDef* target=node->addTargetPass("output");target->setNumPasses(2);
-  Ogre::CompositorPassClearDef* clear=static_cast<Ogre::CompositorPassClearDef*>(target->addPass(Ogre::PASS_CLEAR));clear->mColourValue=Ogre::ColourValue(0,0,0,0);
-  Ogre::CompositorPassSceneDef* draw=static_cast<Ogre::CompositorPassSceneDef*>(target->addPass(Ogre::PASS_SCENE));
-  draw->mVisibilityMask=0;draw->mFirstRQ=draw->mLastRQ=0;draw->mUpdateLodLists=false;draw->mIncludeOverlays=false;
-  Ogre::CompositorWorkspaceDef* def=m->addWorkspaceDefinition(Ogre::IdString("LEOPARD_CH_MaskWorkspace"));def->connectOutput(Ogre::IdString("LEOPARD_CH_MaskNode"),0);defined=true;
- }
  maskTexture=Ogre::TextureManager::getSingleton().createManual(Unique("MaskTexture"),Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME,Ogre::TEX_TYPE_2D,width,height,0,Ogre::PF_FLOAT16_RGBA,Ogre::TU_RENDERTARGET);
- Ogre::RenderTarget* rt=maskTexture->getBuffer()->getRenderTarget();
- maskWorkspace=m->addWorkspace(scene,rt,camera,Ogre::IdString("LEOPARD_CH_MaskWorkspace"),false);rt->addListener(&maskListener);
+ maskRT=maskTexture->getBuffer()->getRenderTarget();
+ maskViewport=maskRT->addViewport();
+ maskViewport->setOverlaysEnabled(false);
+ maskViewport->_setVisibilityMask(0);
  Ogre::HighLevelGpuProgramPtr vp=Ogre::HighLevelGpuProgramManager::getSingleton().getByName("LEOPARD_CH_EdgeVP"),fp=Ogre::HighLevelGpuProgramManager::getSingleton().getByName("LEOPARD_CH_EdgeFP");
  if(vp.isNull())vp=Program("LEOPARD_CH_EdgeVP",HoverOutlineShaders::vertex,Ogre::GPT_VERTEX_PROGRAM,"main_vs","");
  if(fp.isNull())fp=Program("LEOPARD_CH_EdgeFP",HoverOutlineShaders::fragment,Ogre::GPT_FRAGMENT_PROGRAM,"main_fs","");
@@ -358,14 +346,15 @@ void EnsureSurface(Renderer* renderer){
 void UpdateMaskImpl(){
  if(failed || actors.empty()){if(quad)quad->setVisible(false);return;}
  if(!ou || !ou->render)return;Renderer* renderer=static_cast<Renderer*>(ou->render);
- // The mask re-render is the measured per-object cost. Refresh every second
- // frame; the mask texture, rects and the edge quad keep the previous content.
- static unsigned phase=0;if(++phase&1)return;
  stage=1;EnsureSurface(renderer);createsLeft=64;callbacksReported=false;stage=2;
  // All shader compilation/allocation happens before entering workspace update.
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)RenderActor(i->second,NULL);
- stage=3;maskWorkspace->_beginUpdate(false);
- UpdateWorkspace(maskWorkspace);stage=6;
+ stage=3;
+ // Plain Ogre viewport phases instead of a whole compositor workspace.
+ maskViewport->clear(Ogre::FBT_COLOUR|Ogre::FBT_DEPTH,Ogre::ColourValue(0,0,0,0));
+ maskViewport->_updateCullPhase01(camera,camera,0,0);
+ maskViewport->_updateRenderPhase02(camera,camera,0,0);
+ RenderMask(maskViewport);stage=6;
  if(!callbacksReported)throw std::runtime_error("mask scene callback not invoked");
  rects.clear();
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)if(!i->second.bounds.isNull())AddBounds(i->second.bounds,outlineWidth+16.f);
@@ -466,7 +455,7 @@ void EndFrame(){
 void Remove(Character* c){if(!c)return;Actors::iterator i=actors.find(Key(c->handle));if(i!=actors.end()){for(unsigned k=0;k<i->second.bindings.size();++k)Release(i->second.bindings[k]);actors.erase(i);}}
 void Clear(){try{ClearImpl();}catch(...){LogFailure("cleanup failed");}}
 void Shutdown(){
- if(!quad && !maskWorkspace && actors.empty() && programs.empty() && trivialProgram.isNull())return;
+ if(!quad && !maskViewport && actors.empty() && programs.empty() && trivialProgram.isNull())return;
  try{
   ClearImpl();DestroySurface();
   for(Programs::iterator i=programs.begin();i!=programs.end();++i)Ogre::HighLevelGpuProgramManager::getSingleton().remove(i->second->getHandle());
