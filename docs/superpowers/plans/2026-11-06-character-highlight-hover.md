@@ -18,3 +18,24 @@ Risks to review: material replacement during zone transitions, stale target whil
 2026-11-06: VC10 x64 /GL /LTCG native build passed. Nine HLSL variants compiled with D3DCompile_47. Intensity boundaries and 12 explicit player-facing mode scenarios passed under /Od and /O2. All 53 MCM strings resolve in each of en_GB, ru_RU and zh_CN; all three compiled MO catalogues were parsed independently by gettext. x64/plugin exports and all 70 imported KenshiLib/Ogre/MyGUI functions match the installed runtime. Native read-only evidence confirms ordinary cursor updates reset cursorAction and clear both targets; action-target overload sets them again. Independent renderer review completed and its cleanup/cache/portrait/budget findings addressed.
 
 Candidate SHA256 F48716D722C59B206AFEC4637A19E5E69CC344E674B50068054F1FABB540C744 installed locally with previous DLL/settings backup; personal INI and RE_Kenshi.json hashes unchanged at installation. Verified candidate module path in running process PID30568 and its MCM registration. User visual test requested; contour appearance, complete equipment coverage, FPS and long-run memory still pending. No public publication, package upload or personal released changelog entry.
+
+## Owner test rejected first candidate
+
+2026-11-06: owner reports approximately130FPS loss, black/filled clothing with
+hull outlines and no hover. Hull pass removed rather than repackaged. Second
+local candidate uses a separate half-resolution mask, derived native fragment
+clipping and one queue88 edge pass, leaving original materials untouched.
+Production mask-source tests verify unchanged native fragment remainder; seven
+derived native fragment variants and two edge shaders compile offline.
+Independent review corrected listener recursion/re-wrapping and ensured
+workspace endUpdate using finally; explicit shutdown cleanup added.
+
+Second game test still failed: renderer caught a native access error before
+any mask materials/programs were accepted; basic physics-hit hover also stayed
+null. No visual/performance acceptance is claimed. Instrumented candidate
+SHA256952B00CAD5B388DCF9BA77C1EAC8F7C15302C211F8D63E28295F835303994865
+installed without changing INI. It records native fault module/RVA/stage and
+captures canonical characterSelected during native mouseScan. Native read-only
+evidence confirms characterSelected chooses cursors and handles left-click
+separately; this is the cursor path suggested by the owner. User asked to
+load scene/hover/ALT briefly; response pending. None of this is published.

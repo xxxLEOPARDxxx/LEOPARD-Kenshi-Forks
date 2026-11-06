@@ -21,15 +21,26 @@ Not published. Contour appearance and equipment coverage await in-game validatio
 
 ### Renderer implementation notes
 
-At most 512 actors, 4096 material clones and 24 attachment attempts per frame.
-Scene enumeration is bounded to 128 nodes and 64 entities per actor; unsupported
-materials are skipped until replacement. Hair alpha cards are excluded until an
-alpha-aware contour variant exists. Saved SubEntity addresses are comparison
-keys, never restoration targets: restoration enumerates current live objects.
-Native scene access and cleanup are guarded; a renderer failure disables contours
-and reports an error rather than repeatedly attempting a broken pass. Portrait
-renders suspend only the corresponding actor. Shader compilation and native
-import checks do not substitute for visual, FPS and memory validation in-game.
+The first hull candidate failed the owner's game test (filled/black clothing,
+large FPS loss and inactive hover). It is superseded locally by a mask candidate;
+visual and performance acceptance is still pending, and release3 remains public.
+
+The replacement never assigns cloned materials to the character. A separate
+half-resolution RGBA16 mask uses the current native vertex program and a derived
+fragment program that preserves native clipping while writing relationship RGB
+and normalized depth. A single blended edge pass runs after HDR in queue88,
+before GUI, and compares the main scene depth. Portrait and reflection workspaces
+exclude that queue. Shader generation/cache are bounded (64 programs, 2048 mask
+materials, 8 new material attempts per frame). Original workspace listeners are
+chained without rewrapping replacements; shutdown cleanup runs before Renderer.
+
+Hover observes native characterSelected only inside mouseScan, after the game
+resolves the visible character and chooses its cursor. It keeps a copied full
+handle with short expiry and adds no extra ray/world scan. Raw physics hit
+selection was rejected after the game test; native floor/occlusion rules win.
+`cursorActionTarget` was rejected by an actual read-only game sample: it stays
+empty over ordinary characters. Detailed logging reports hover hits and mask CPU
+work; those measurements are not a substitute for total GPU/FPS validation.
 
 Original: **BFrizzleFoShizzle**, [KenshiLib_Examples](https://github.com/BFrizzleFoShizzle/KenshiLib_Examples)
 (`CharacterHighlight`), GPLv3. This folder keeps the original commits.

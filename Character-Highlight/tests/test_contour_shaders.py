@@ -17,14 +17,11 @@ def blob(p):
 def release(p):
  if p:
   table=C.cast(p,C.POINTER(C.POINTER(C.c_void_p))).contents;C.WINFUNCTYPE(C.c_ulong,C.c_void_p)(table[2])(p)
-for variant in range(9):
- name='fragment' if variant==8 else 'vertex'; code=shader(name).encode();macros=(Macro*4)();n=0
- if variant<8:
-  for bit,define in [(1,b'MASKED'),(2,b'COLLAPSE_SIDE'),(4,b'SKINNED')]:
-   if variant&bit:macros[n]=Macro(define,b'1');n+=1
- out=C.c_void_p();err=C.c_void_p();hr=dll.D3DCompile(code,len(code),b'CharacterHighlightContour',macros,None,b'main_fs' if name=='fragment' else b'main_vs',b'ps_4_0' if name=='fragment' else b'vs_4_0',8|2048,0,C.byref(out),C.byref(err))
+for name in ['vertex','fragment']:
+ code=shader(name).encode()
+ out=C.c_void_p();err=C.c_void_p();hr=dll.D3DCompile(code,len(code),b'CharacterHighlightEdge',None,None,b'main_fs' if name=='fragment' else b'main_vs',b'ps_4_0' if name=='fragment' else b'vs_4_0',8|2048,0,C.byref(out),C.byref(err))
  try:
   detail=blob(err).decode(errors='replace') if err else ''
-  assert hr>=0,(variant,detail)
-  print('PASS shader',name,variant,'bytes',len(blob(out)))
+  assert hr>=0,(name,detail)
+  print('PASS edge shader',name,'bytes',len(blob(out)))
  finally:release(out);release(err)

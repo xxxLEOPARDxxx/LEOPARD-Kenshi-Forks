@@ -159,6 +159,7 @@ namespace
         g_hoverColour=ReadColour(ini,"HoverColour",Ogre::ColourValue(0.82f,0.77f,0.65f,1.f));
         g_debug = GetPrivateProfileIntA(kSec, "Debug", 0, ini.c_str()) != 0;
         KLocLog::SetEnabled(g_debug);
+        HoverOutline::SetDebug(g_debug);
         ForgetColours();                // new colours - re-evaluate everyone
     }
 
@@ -317,6 +318,14 @@ namespace
     Entry g_hoverEntry;
     hand g_hoverWho;
     bool g_globalWasActive=false;
+    hand g_hoverTrace;
+    DWORD g_hoverTraceAt=0;
+    __declspec(thread) bool g_inMouseScan=false;
+
+    void CaptureHover(Character* c){
+        __try{if(c){g_hoverTrace=c->handle;g_hoverTraceAt=GetTickCount();}}
+        __except(EXCEPTION_EXECUTE_HANDLER){g_hoverTrace.setNull();}
+    }
 
     bool SameHand(const hand& a,const hand& b) {
         return a.type==b.type && a.container==b.container && a.containerSerial==b.containerSerial && a.index==b.index && a.serial==b.serial;
@@ -376,8 +385,8 @@ namespace
 
     Character* HoverTarget() {
         __try {
-            if(!g_enabled || !g_hoverEnabled || !gui || gui->hasMouse || !gui->cursorAction || !ou || !ou->player)return NULL;
-            return gui->cursorActionTarget.getCharacter();
+            if(!g_enabled || !g_hoverEnabled || !gui || gui->hasMouse || !ou || !ou->player || GetTickCount()-g_hoverTraceAt>250)return NULL;
+            return g_hoverTrace.getCharacter();
         } __except(EXCEPTION_EXECUTE_HANDLER) {return NULL;}
     }
 
@@ -540,6 +549,27 @@ namespace
     }
 }
 
+void (*PlayerInterface_mouseScan_orig)(PlayerInterface*);
+void PlayerInterface_mouseScan_hook(PlayerInterface* self) {
+    if(!g_enabled || !g_hoverEnabled) {PlayerInterface_mouseScan_orig(self);return;}
+    g_hoverTrace.setNull();g_hoverTraceAt=GetTickCount();
+    g_inMouseScan=true;
+    try {PlayerInterface_mouseScan_orig(self);}
+    catch(...) {g_inMouseScan=false;throw;}
+    g_inMouseScan=false;
+    static DWORD last=0;DWORD now=GetTickCount();
+    if(g_debug && now-last>=2000){
+        char note[140];sprintf_s(note,"Character Highlight hover: canonical type=%u index=%u serial=%u",static_cast<unsigned>(g_hoverTrace.type),g_hoverTrace.index,g_hoverTrace.serial);DebugLog(note);last=now;
+    }
+}
+void (*PlayerInterface_characterSelected_orig)(PlayerInterface*,Character*);
+void PlayerInterface_characterSelected_hook(PlayerInterface* self,Character* target){
+    if(g_inMouseScan)CaptureHover(target);
+    PlayerInterface_characterSelected_orig(self,target);
+}
+void (*Renderer_shutDown_orig)(Renderer*);
+void Renderer_shutDown_hook(Renderer* self){HoverOutline::Shutdown();Renderer_shutDown_orig(self);}
+
 void (*GameWorld__mainLoop_GPUSensitiveStuff_orig)(GameWorld* thisptr, float time);
 void GameWorld__mainLoop_GPUSensitiveStuff_hook(GameWorld* thisptr, float time)
 {
@@ -638,6 +668,12 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
 __declspec(dllexport) void startPlugin()
 {
     LoadSettings();
+    if(KenshiLib::SUCCESS!=KenshiLib::AddHook(KenshiLib::GetRealAddress(&Renderer::shutDown),&Renderer_shutDown_hook,&Renderer_shutDown_orig))
+        ErrorLog("Character Highlight: could not install renderer cleanup hook");
+    if(KenshiLib::SUCCESS!=KenshiLib::AddHook(KenshiLib::GetRealAddress(&PlayerInterface::mouseScan),&PlayerInterface_mouseScan_hook,&PlayerInterface_mouseScan_orig))
+        ErrorLog("Character Highlight: could not install mouse-scan hook");
+    if(KenshiLib::SUCCESS!=KenshiLib::AddHook(KenshiLib::GetRealAddress(&PlayerInterface::characterSelected),&PlayerInterface_characterSelected_hook,&PlayerInterface_characterSelected_orig))
+        ErrorLog("Character Highlight: could not install character-cursor hook");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff), &GameWorld__mainLoop_GPUSensitiveStuff_hook, &GameWorld__mainLoop_GPUSensitiveStuff_orig))
         ErrorLog("Character Highlight: could not install hook!");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(KenshiLib::GetRealAddress(&GameWorld::removeFromUpdateListMain), &GameWorld_removeFromUpdateListMain_hook, &GameWorld_removeFromUpdateListMain_orig))

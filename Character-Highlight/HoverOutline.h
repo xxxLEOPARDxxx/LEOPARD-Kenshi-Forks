@@ -7,6 +7,8 @@ void Draw(Character* target,const Ogre::ColourValue& colour,float width,float br
 void EndFrame();
 void Remove(Character* target);
 void Clear();
+void Shutdown();
+void SetDebug(bool enabled);
 void PortraitBegin(Character* target);
 void PortraitEnd();
 }
