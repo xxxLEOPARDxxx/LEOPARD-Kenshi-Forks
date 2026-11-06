@@ -40,6 +40,7 @@
 #include <ogre/Compositor/Pass/PassScene/OgreCompositorPassSceneDef.h>
 #include <Debug.h>
 #include <cmath>
+#include <cstring>
 #include <map>
 #include <vector>
 #include <sstream>
@@ -242,24 +243,27 @@ void JoinRects(){
   }
  }
 }
-void RebuildQuad(){
- quad->clear();
+void UpdateRects(){
  if(rects.empty()){quad->setVisible(false);return;}
- quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
- unsigned index=0;
- for(size_t i=0;i<rects.size();++i){
-  const ScreenRect& r=rects[i];
-  const float l=r.left*2.f/width-1.f,rr=r.right*2.f/width-1.f;
-  const float t=1.f-r.top*2.f/height,b=1.f-r.bottom*2.f/height;
-  const float ul=r.left/static_cast<float>(width),ur=r.right/static_cast<float>(width);
-  const float ut=r.top/static_cast<float>(height),ub=r.bottom/static_cast<float>(height);
-  quad->position(l,t,0);quad->textureCoord(ul,ut);
-  quad->position(l,b,0);quad->textureCoord(ul,ub);
-  quad->position(rr,b,0);quad->textureCoord(ur,ub);
-  quad->position(rr,t,0);quad->textureCoord(ur,ut);
-  quad->quad(index,index+1,index+2,index+3);index+=4;
+ if(rects.size()>8){
+  ScreenRect u=rects[0];
+  for(size_t i=1;i<rects.size();++i){
+   if(rects[i].left<u.left)u.left=rects[i].left;if(rects[i].top<u.top)u.top=rects[i].top;
+   if(rects[i].right>u.right)u.right=rects[i].right;if(rects[i].bottom>u.bottom)u.bottom=rects[i].bottom;
+  }
+  rects.clear();rects.push_back(u);
  }
- quad->end();quad->setVisible(true);
+ float data[32];std::memset(data,0,sizeof(data));
+ for(size_t i=0;i<rects.size();++i){
+  data[i*4]=static_cast<float>(rects[i].left);data[i*4+1]=static_cast<float>(rects[i].top);
+  data[i*4+2]=static_cast<float>(rects[i].right);data[i*4+3]=static_cast<float>(rects[i].bottom);
+ }
+ Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
+ const Ogre::GpuConstantDefinition* d=p->_findNamedConstantDefinition("rectList",false);
+ if(!d)throw std::runtime_error("edge rect constant missing");
+ std::memcpy(p->getFloatPointer(d->physicalIndex),data,sizeof(data));
+ p->setNamedConstant("rectCount",static_cast<float>(rects.size()));
+ quad->setVisible(true);
 }
 void DestroySurface(){
  if(maskWorkspace){Ogre::Root::getSingleton().getCompositorManager2()->removeWorkspace(maskWorkspace);maskWorkspace=NULL;}
@@ -295,7 +299,9 @@ void EnsureSurface(Renderer* renderer){
  Ogre::TextureUnitState* tex=pass->createTextureUnitState(maskTexture->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
  const Ogre::CompositorChannel& gbuffer=mainWorkspace->getGlobalTexture(Ogre::IdString("global_gbuffer"));if(gbuffer.textures.size()<3)throw std::runtime_error("main scene depth unavailable");
  tex=pass->createTextureUnitState(gbuffer.textures[2]->getName());tex->setTextureAddressingMode(Ogre::TextureUnitState::TAM_CLAMP);tex->setTextureFiltering(Ogre::TFO_NONE);
- quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);quad->end();
+ quad=scene->createManualObject();quad->begin(edgeMaterial->getName(),Ogre::RenderOperation::OT_TRIANGLE_LIST);
+ quad->position(-1,1,0);quad->textureCoord(0,0);quad->position(-1,-1,0);quad->textureCoord(0,1);
+ quad->position(1,-1,0);quad->textureCoord(1,1);quad->position(1,1,0);quad->textureCoord(1,0);quad->quad(0,1,2,3);quad->end();
  quad->setRenderQueueGroup(88);quad->setLocalAabb(Ogre::Aabb::BOX_INFINITE);
  quadNode=scene->getRootSceneNode()->createChildSceneNode();quadNode->attachObject(quad);quad->setVisible(false);
 }
@@ -310,7 +316,7 @@ void UpdateMaskImpl(){
  if(!callbacksReported)throw std::runtime_error("mask scene callback not invoked");
  rects.clear();
  for(Actors::iterator i=actors.begin();i!=actors.end();++i)if(!i->second.bounds.isNull())AddBounds(i->second.bounds,outlineWidth+2.f);
- JoinRects();RebuildQuad();
+ JoinRects();UpdateRects();
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);
  const float farClip=camera->getFarClipDistance();

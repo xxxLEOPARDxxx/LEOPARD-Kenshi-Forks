@@ -8,11 +8,14 @@ static const char vertex[] =
 // Depth map: the main scene GBuffer buf2 (same radial encoding, R32F).
 // Inside the mask a soft tint is drawn only where the character is in front of
 // the scene depth; outside it the outline fades outward over radius pixels and
-// is never depth-tested, so it stays visible through walls.
+// is never depth-tested, so it stays visible through walls. rectList clips the
+// pass to the projected character boxes, so the search never runs screen-wide.
 static const char fragment[] =
-"Texture2D maskMap:register(t0);Texture2D depthMap:register(t1);float radius;float brightness;float invFarClip;\n"
+"Texture2D maskMap:register(t0);Texture2D depthMap:register(t1);float radius;float brightness;float invFarClip;float rectCount;float4 rectList[8];\n"
 "float4 covered(int2 p){float4 m=maskMap.Load(int3(p,0));return m.a>0?m:float4(0,0,0,0);}\n"
+"bool inRects(float2 p){for(int i=0;i<8;++i){if(float(i)>=rectCount)break;float4 r=rectList[i];if(p.x>=r.x && p.x<r.z && p.y>=r.y && p.y<r.w)return true;}return false;}\n"
 "float4 main_fs(float4 pos:SV_POSITION,float2 uv:TEXCOORD0):SV_Target0{\n"
+"if(!inRects(pos.xy))discard;\n"
 "int2 p=int2(pos.xy);float4 m=covered(p);\n"
 "if(m.a>0){float scene=depthMap.Load(int3(p,0)).r;if(scene>0 && m.a>scene*1.02+2*invFarClip)discard;return float4(m.rgb*brightness,0.11);}\n"
 "int r=int(ceil(radius));float best=1e9;float4 edge=float4(0,0,0,0);\n"
