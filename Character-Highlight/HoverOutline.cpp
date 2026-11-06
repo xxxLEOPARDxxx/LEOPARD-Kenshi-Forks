@@ -69,13 +69,13 @@ struct Key {
 struct Binding {
  Ogre::SubEntity* address; // Comparison key only; a current live entity is enumerated each draw.
  Ogre::MaterialPtr original,mask;unsigned seen;
- Ogre::ColourValue colour;bool unsupported;bool hasFarClip;
- Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false),hasFarClip(false){}
+ Ogre::ColourValue colour;bool unsupported;
+ Binding():address(NULL),seen(0),colour(-1,-1,-1,-1),unsupported(false){}
 };
 struct Actor {hand who;unsigned seen;Ogre::ColourValue colour;Ogre::AxisAlignedBox bounds;std::vector<Binding> bindings;Actor():seen(0){bounds.setNull();}};
 typedef std::map<Key,Actor> Actors;Actors actors;
 typedef std::map<std::string,Ogre::HighLevelGpuProgramPtr> Programs;Programs programs;
-struct ScreenRect{int left,top,right,bottom;};
+struct ScreenRect{int left,top,right,bottom;float depth;};
 std::vector<ScreenRect> rects;
 Ogre::TexturePtr maskTexture;
 Ogre::TexturePtr sceneDepth;
@@ -167,9 +167,14 @@ Ogre::HighLevelGpuProgramPtr Program(const std::string& name,const std::string& 
  p->setParameter("column_major_matrices","false");p->setParameter("enable_backwards_compatibility","true");if(!defines.empty())p->setParameter("preprocessor_defines",defines);
  p->load();if(p->hasCompileError())throw std::runtime_error("mask shader compilation failed");return p;
 }
+Ogre::HighLevelGpuProgramPtr trivialProgram;
+std::map<std::string,bool> trivialByShader;
 Ogre::HighLevelGpuProgramPtr MaskProgram(const Ogre::GpuProgramPtr& original){
- const std::string key=original->getName();Programs::iterator i=programs.find(key);if(i!=programs.end())return i->second;
- if(programs.size()>=64)throw std::runtime_error("mask shader cache limit");
+ const std::string key=original->getName();
+ std::map<std::string,bool>::iterator ti=trivialByShader.find(key);
+ if(ti!=trivialByShader.end() && ti->second)return trivialProgram;
+ Programs::iterator i=programs.find(key);if(i!=programs.end())return i->second;
+ if(programs.size()+trivialByShader.size()>=64)throw std::runtime_error("mask shader cache limit");
  // Materials normally name an Ogre 'unified' wrapper. It has no source file;
  // the already-chosen delegate is the actual native HLSL resource.
  Ogre::HighLevelGpuProgramPtr native=Ogre::HighLevelGpuProgramManager::getSingleton().getByName(key);
@@ -183,6 +188,13 @@ Ogre::HighLevelGpuProgramPtr MaskProgram(const Ogre::GpuProgramPtr& original){
  if(native->getSource().empty() && native->getSourceFile().empty())throw std::runtime_error("native shader has no HLSL source: "+key);
  std::string source=native->getSource();
  if(source.empty())source=ReadResource(native->getSourceFile(),native->getGroup());
+ // No alpha-clip in the source: one shared constant-colour fragment covers
+ // every such material, instead of a derived compile per shader.
+ if(source.find("discard")==std::string::npos && source.find("clip(")==std::string::npos){
+  if(trivialProgram.isNull())trivialProgram=Program(Unique("MaskFP"),HoverOutlineShaders::maskTrivial,Ogre::GPT_FRAGMENT_PROGRAM,"main_fs","");
+  trivialByShader.insert(std::make_pair(key,true));return trivialProgram;
+ }
+ trivialByShader.insert(std::make_pair(key,false));
  source=CharacterMaskSource::Build(source,ReadResource("gbuffer.hlsl",native->getGroup()));
  Ogre::HighLevelGpuProgramPtr p=Program(Unique("MaskFP"),source,Ogre::GPT_FRAGMENT_PROGRAM,native->getParameter("entry_point"),native->getParameter("preprocessor_defines"));
  programs.insert(std::make_pair(key,p));return p;
@@ -201,7 +213,6 @@ void Attach(Binding& b,Ogre::SubEntity* sub){
  // The original vertex program, native bone auto-constants, UV/part masks and
  // original fragment alpha-discard remain intact. No pass is added to the model.
  if(p->getVertexProgramParameters()->_findNamedConstantDefinition("overrideDepth",false))p->getVertexProgramParameters()->setNamedConstant("overrideDepth",false);
- b.hasFarClip=p->getFragmentProgramParameters()->_findNamedConstantDefinition("farClip",false)!=NULL;
  b.unsupported=false;
 }
 void UpdateVertexMask(Ogre::Pass* to,Ogre::Pass* from){
@@ -229,9 +240,6 @@ void RenderActor(Actor& a,Ogre::Viewport* viewport){
    }
    if(b.mask.isNull())continue;
    Ogre::Pass* p=b.mask->getTechnique(0)->getPass(0);UpdateVertexMask(p,b.original->getTechnique(0)->getPass(0));
-   // The mask depth is pinned to a fixed 500 m range so the FP16 mask keeps
-   // precision; the edge pass compares both depths in metres.
-   if(b.hasFarClip)p->getFragmentProgramParameters()->setNamedConstant("farClip",500.f);
    if(b.colour!=a.colour){p->getFragmentProgramParameters()->setNamedConstant("leopardMaskColour",a.colour);b.colour=a.colour;}
    if(viewport){stage=5;scene->_injectRenderWithPass(p,sub,NULL,false,false);++draws;stage=4;}
   }
@@ -246,17 +254,18 @@ void RenderMask(Ogre::Viewport* viewport){
 void AddBounds(const Ogre::AxisAlignedBox& box,float pad){
  const Ogre::Matrix4 viewProj=camera->getProjectionMatrix()*camera->getViewMatrix(true);
  const Ogre::Vector3 mn=box.getMinimum(),mx=box.getMaximum();
+ const float depth=(box.getCenter()-camera->getDerivedPosition()).length();
  float x0=Ogre::Math::POS_INFINITY,y0=Ogre::Math::POS_INFINITY,x1=Ogre::Math::NEG_INFINITY,y1=Ogre::Math::NEG_INFINITY;
  for(unsigned i=0;i<8;++i){
   const Ogre::Vector3 c((i&1)?mx.x:mn.x,(i&2)?mx.y:mn.y,(i&4)?mx.z:mn.z);
   const Ogre::Vector4 clip=viewProj*Ogre::Vector4(c.x,c.y,c.z,1.f);
-  if(clip.w<=0.01f){ScreenRect full={0,0,static_cast<int>(width),static_cast<int>(height)};rects.push_back(full);return;}
+  if(clip.w<=0.01f){ScreenRect full={0,0,static_cast<int>(width),static_cast<int>(height),depth};rects.push_back(full);return;}
   const float x=(clip.x/clip.w*0.5f+0.5f)*width,y=(0.5f-clip.y/clip.w*0.5f)*height;
   if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
  }
  const int l=static_cast<int>(std::floor(x0-pad)),t=static_cast<int>(std::floor(y0-pad));
  const int r=static_cast<int>(std::ceil(x1+pad)),b=static_cast<int>(std::ceil(y1+pad));
- ScreenRect rect={l<0?0:l,t<0?0:t,r>static_cast<int>(width)?static_cast<int>(width):r,b>static_cast<int>(height)?static_cast<int>(height):b};
+ ScreenRect rect={l<0?0:l,t<0?0:t,r>static_cast<int>(width)?static_cast<int>(width):r,b>static_cast<int>(height)?static_cast<int>(height):b,depth};
  if(rect.right<=rect.left||rect.bottom<=rect.top)return;
  rects.push_back(rect);
 }
@@ -265,30 +274,36 @@ void JoinRects(){
   for(size_t i=0;i<rects.size() && !again;++i)for(size_t j=i+1;j<rects.size() && !again;++j){
    const ScreenRect&a=rects[i];const ScreenRect&b=rects[j];
    if(a.left>=b.right || b.left>=a.right || a.top>=b.bottom || b.top>=a.bottom)continue;
-   ScreenRect merged={(a.left<b.left)?a.left:b.left,(a.top<b.top)?a.top:b.top,(a.right>b.right)?a.right:b.right,(a.bottom>b.bottom)?a.bottom:b.bottom};
+   ScreenRect merged={(a.left<b.left)?a.left:b.left,(a.top<b.top)?a.top:b.top,(a.right>b.right)?a.right:b.right,(a.bottom>b.bottom)?a.bottom:b.bottom,(a.depth<b.depth)?a.depth:b.depth};
    rects[i]=merged;rects.erase(rects.begin()+j);again=true;
   }
  }
 }
 void UpdateRects(){
  if(rects.empty()){quad->setVisible(false);return;}
- if(rects.size()>8){
-  ScreenRect u=rects[0];
-  for(size_t i=1;i<rects.size();++i){
-   if(rects[i].left<u.left)u.left=rects[i].left;if(rects[i].top<u.top)u.top=rects[i].top;
-   if(rects[i].right>u.right)u.right=rects[i].right;if(rects[i].bottom>u.bottom)u.bottom=rects[i].bottom;
-  }
-  rects.clear();rects.push_back(u);
+ // At most eight: merge the two most distant until it fits.
+ while(rects.size()>8){
+  size_t deepest=0;for(size_t i=1;i<rects.size();++i)if(rects[i].depth>rects[deepest].depth)deepest=i;
+  size_t second=deepest?0:1;for(size_t i=0;i<rects.size();++i)if(i!=deepest && rects[i].depth>rects[second].depth)second=i;
+  ScreenRect&a=rects[deepest];const ScreenRect&b=rects[second];
+  if(b.left<a.left)a.left=b.left;if(b.top<a.top)a.top=b.top;
+  if(b.right>a.right)a.right=b.right;if(b.bottom>a.bottom)a.bottom=b.bottom;
+  if(b.depth<a.depth)a.depth=b.depth;
+  rects.erase(rects.begin()+second);
  }
  float data[32];std::memset(data,0,sizeof(data));
+ float depths[8];std::memset(depths,0,sizeof(depths));
  for(size_t i=0;i<rects.size();++i){
   data[i*4]=static_cast<float>(rects[i].left);data[i*4+1]=static_cast<float>(rects[i].top);
   data[i*4+2]=static_cast<float>(rects[i].right);data[i*4+3]=static_cast<float>(rects[i].bottom);
+  depths[i]=rects[i].depth;
  }
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  const Ogre::GpuConstantDefinition* d=p->_findNamedConstantDefinition("rectList",false);
- if(!d)throw std::runtime_error("edge rect constant missing");
+ const Ogre::GpuConstantDefinition* dd=p->_findNamedConstantDefinition("rectDepth",false);
+ if(!d || !dd)throw std::runtime_error("edge rect constant missing");
  std::memcpy(p->getFloatPointer(d->physicalIndex),data,sizeof(data));
+ std::memcpy(p->getFloatPointer(dd->physicalIndex),depths,sizeof(depths));
  p->setNamedConstant("rectCount",static_cast<float>(rects.size()));
  quad->setVisible(true);
 }
@@ -348,7 +363,6 @@ void UpdateMaskImpl(){
  JoinRects();UpdateRects();
  Ogre::GpuProgramParametersSharedPtr p=edgeMaterial->getTechnique(0)->getPass(0)->getFragmentProgramParameters();
  p->setNamedConstant("radius",outlineWidth);p->setNamedConstant("brightness",outlineBrightness);
- if(lastFarClip<=0){p->setNamedConstant("maskFar",500.f);}
  const float farClip=camera->getFarClipDistance();
  if(farClip!=lastFarClip){p->setNamedConstant("sceneFar",farClip>0?farClip:1.f);lastFarClip=farClip;}
 }
@@ -364,37 +378,18 @@ void CaptureMaskIfRequested(){
  if(w>4096 || h>4096 || static_cast<size_t>(w)*h>8388608){DebugLog("Character Highlight capture skipped: size limit");return;}
  std::vector<float> pixels(w*h*4);Ogre::PixelBox dst(w,h,1,Ogre::PF_FLOAT32_RGBA,&pixels[0]);
  Ogre::PixelUtil::bulkPixelConversion(image.getPixelBox(),dst);
- std::vector<unsigned char> rgb(w*h*3);unsigned nonzero=0,coloured=0;float nearDepth=1,farDepth=0;
+ std::vector<unsigned char> rgb(w*h*3);unsigned nonzero=0,coloured=0;
  for(unsigned i=0;i<w*h;++i){
-  float* p=&pixels[i*4];if(p[3]>0){++nonzero;if(p[3]<nearDepth)nearDepth=p[3];if(p[3]>farDepth)farDepth=p[3];}
+  float* p=&pixels[i*4];if(p[3]>0)++nonzero;
   if(p[0]!=0 || p[1]!=0 || p[2]!=0)++coloured;
   for(unsigned j=0;j<3;++j)rgb[i*3+j]=static_cast<unsigned char>((std::max)(0.f,(std::min)(1.f,p[j]))*255);
  }
  Ogre::Image preview;preview.loadDynamicImage(&rgb[0],w,h,1,Ogre::PF_BYTE_RGB,false);
  preview.save("mods/Character-Highlight/contour-mask.png");
- char note[512];sprintf_s(note,"Character Highlight capture: mask=%ux%u alphaPixels=%u rgbPixels=%u depth=%.6f..%.6f draws=%u rects=%u quadVisible=%u queue=%u",w,h,nonzero,coloured,nearDepth,farDepth,draws,static_cast<unsigned>(rects.size()),quad->isVisible()?1:0,quad->getRenderQueueGroup());DebugLog(note);
- // Decisive tint evidence: replay the edge pass's depth test on the CPU over
- // every covered pixel, against the actual scene depth texture content.
- if(!sceneDepth.isNull() && nonzero){
-  Ogre::Image dimg;sceneDepth->convertToImage(dimg);
-  const unsigned dw=static_cast<unsigned>(dimg.getWidth()),dh=static_cast<unsigned>(dimg.getHeight());
-  if(dw && dh && static_cast<size_t>(dw)*dh<=8388608){
-   std::vector<float> dpx(static_cast<size_t>(dw)*dh);Ogre::PixelBox ddst(dw,dh,1,Ogre::PF_FLOAT32_R,&dpx[0]);
-   Ogre::PixelUtil::bulkPixelConversion(dimg.getPixelBox(),ddst);
-   const float sceneFar=camera->getFarClipDistance();
-   unsigned tintPass=0,tintFail=0;double sx=0,sy=0;
-   for(unsigned y=0;y<h;++y)for(unsigned x=0;x<w;++x){
-    const float a=pixels[(static_cast<size_t>(y)*w+x)*4+3];if(a<=0)continue;
-    sx+=x;sy+=y;
-    const size_t dx=static_cast<size_t>(x)*dw/w,dy=static_cast<size_t>(y)*dh/h;
-    const float scene=dpx[dy*dw+dx]*sceneFar;
-    if(scene<=0 || a*500.f<=scene*1.02f+2.f)++tintPass;else ++tintFail;
-   }
-   const unsigned cx=static_cast<unsigned>(sx/nonzero),cy=static_cast<unsigned>(sy/nonzero);
-   const float cm=pixels[(static_cast<size_t>(cy)*w+cx)*4+3]*500.f;
-   const float cs=dpx[static_cast<size_t>(cy)*dh/h*dw+static_cast<size_t>(cx)*dw/w]*sceneFar;
-   sprintf_s(note,"Character Highlight capture tint: pass=%u fail=%u centroid=(%u,%u) maskM=%.2f sceneM=%.2f sceneFar=%.1f",tintPass,tintFail,cx,cy,cm,cs,sceneFar);DebugLog(note);
-  }
+ char note[512];sprintf_s(note,"Character Highlight capture: mask=%ux%u alphaPixels=%u rgbPixels=%u draws=%u rects=%u quadVisible=%u queue=%u",w,h,nonzero,coloured,draws,static_cast<unsigned>(rects.size()),quad->isVisible()?1:0,quad->getRenderQueueGroup());DebugLog(note);
+ for(size_t i=0;i<rects.size();++i){
+  const ScreenRect& r=rects[i];
+  sprintf_s(note,"Character Highlight capture rect %u: (%d,%d)-(%d,%d) depth=%.2fm",static_cast<unsigned>(i),r.left,r.top,r.right,r.bottom,r.depth);DebugLog(note);
  }
  unsigned reported=0;
  for(Actors::iterator i=actors.begin();i!=actors.end() && reported<4;++i)for(unsigned j=0;j<i->second.bindings.size() && reported<4;++j){
@@ -461,11 +456,13 @@ void EndFrame(){
 void Remove(Character* c){if(!c)return;Actors::iterator i=actors.find(Key(c->handle));if(i!=actors.end()){for(unsigned k=0;k<i->second.bindings.size();++k)Release(i->second.bindings[k]);actors.erase(i);}}
 void Clear(){try{ClearImpl();}catch(...){LogFailure("cleanup failed");}}
 void Shutdown(){
- if(!quad && !maskWorkspace && actors.empty() && programs.empty())return;
+ if(!quad && !maskWorkspace && actors.empty() && programs.empty() && trivialProgram.isNull())return;
  try{
   ClearImpl();DestroySurface();
   for(Programs::iterator i=programs.begin();i!=programs.end();++i)Ogre::HighLevelGpuProgramManager::getSingleton().remove(i->second->getHandle());
   programs.clear();
+  if(!trivialProgram.isNull()){Ogre::HighLevelGpuProgramManager::getSingleton().remove(trivialProgram->getHandle());trivialProgram.setNull();}
+  trivialByShader.clear();
   Ogre::HighLevelGpuProgramManager& manager=Ogre::HighLevelGpuProgramManager::getSingleton();
   if(!manager.getByName("LEOPARD_CH_EdgeVP").isNull())manager.remove("LEOPARD_CH_EdgeVP");
   if(!manager.getByName("LEOPARD_CH_EdgeFP").isNull())manager.remove("LEOPARD_CH_EdgeFP");

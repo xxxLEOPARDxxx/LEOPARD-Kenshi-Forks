@@ -16,7 +16,7 @@ inline std::string Build(std::string source,std::string header){
  if(at==std::string::npos)throw std::runtime_error("native character shader has no supported GBuffer include");
  ReplaceBody(header,"writeAlbedo","{buffer.buf0=leopardMaskColour;}");
  ReplaceBody(header,"writeMetalness","{}");ReplaceBody(header,"writeGloss","{}");ReplaceBody(header,"writeNormal","{}");
- ReplaceBody(header,"writeDepth","{buffer.buf0.a=value;}");
+ ReplaceBody(header,"writeDepth","{}");
  source.replace(at,include.size(),"uniform float4 leopardMaskColour;\n"+header);
  return source;
 }
