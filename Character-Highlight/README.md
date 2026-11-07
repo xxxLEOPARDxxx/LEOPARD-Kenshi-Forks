@@ -4,54 +4,22 @@ While the highlight key is held, characters are tinted by how they stand to
 you: your squad, enemies, allies, neutrals (red to yellow to green by their
 faction's relation).
 
-## Local candidate 5 / Локальная тестовая сборка 5 (2026-11-06)
+## Contour experiment rolled back / Откат контурной ветки (2026-11-07)
 
-Not published. Contour appearance and equipment coverage await in-game validation.
-Не опубликовано. Внешний вид контуров и охват снаряжения проверяются в игре.
+The Meitou-style contour work is removed wholesale. The fork again does only
+the original model tint, plus the optional hover highlight with the same
+relationship colours. No separate render pass, no mask, no contour shaders.
 
-- Optional highlighting under the cursor: a beige contour, or this mod's relationship colours.
-- Optional contour style for the highlight key (ALT by default) and relationship-coloured hover. Original model tint remains the default.
-- Adjustable tint intensity (0-100%), contour thickness (1-6 pixels) and brightness (0-200%). The outline shows through walls and fades outward from the silhouette; a light tint covers only the parts not hidden by the world.
-- New settings apply immediately in MCM. Hover is off by default; personal colours and key bindings are retained.
-
-- Необязательная подсветка под курсором: бежевый контур либо цвета отношений этого мода.
-- Контурный стиль для клавиши подсветки (по умолчанию ALT) и наведения с цветами отношений. Привычная окраска модели остаётся стилем по умолчанию.
-- Настраиваемая сила окраски (0-100%), толщина контуров (1-6 пикселей) и яркость (0-200%). Контур виден сквозь стены и затухает от силуэта наружу; лёгкий оттенок покрывает только не скрытые миром части.
-- Настройки применяются сразу через MCM. Наведение изначально выключено; личные цвета и назначения клавиш сохраняются.
-
-### Renderer implementation notes
-
-The first hull candidate failed the owner's game test (filled/black clothing,
-large FPS loss and inactive hover). It is superseded locally by a mask candidate;
-visual and performance acceptance is still pending, and release3 remains public.
-
-The scheme follows the hover outline of the Meitou client project, adapted to
-the game's Ogre pipeline. The replacement never assigns cloned materials to the
-character. A full-resolution RGBA16 mask uses the current native vertex program
-and, per material, either a shared constant-colour fragment (most materials) or
-a derived fragment that preserves native alpha-discard (hair and feather
-cards). The mask alpha carries the binding's own radial distance in a 500 m
-range (the native farClip is an auto constant and cannot be trusted), so the
-edge pass compares depths against the scene's GBuffer buf2 in metres. A single
-blended edge pass rides the fog/particles range (queue 84) of the HDR node -
-no extra scene pass and no Debug-node dependency - clipped to the projected
-character boxes (overlapping rectangles joined): outside the silhouette the
-outline fades outward over the configured width without any depth test, inside
-it a soft tint is drawn only where the actor is not behind the scene.
-Portrait and reflection workspaces exclude that range. Bone-attached equipment
-and prosthetics are collected from the body skeleton's tag points, since they
-are not in the appearance node tree. Shader generation/cache are bounded (64
-programs, 2048 mask materials, 64 new material attempts per frame). Original
-workspace listeners are chained without rewrapping replacements; shutdown
-cleanup runs before Renderer.
+Откат всей контурной ветки. Осталась только обычная окраска по отношениям,
+в том числе по наведении курсора. Никаких отдельных проходов, масок и шейдеров
+контуров — и никакой их стоимости по FPS.
 
 Hover observes native characterSelected only inside mouseScan, after the game
 resolves the visible character and chooses its cursor. It keeps a copied full
 handle with short expiry and adds no extra ray/world scan. Raw physics hit
 selection was rejected after the game test; native floor/occlusion rules win.
 `cursorActionTarget` was rejected by an actual read-only game sample: it stays
-empty over ordinary characters. Detailed logging reports hover hits and mask CPU
-work; those measurements are not a substitute for total GPU/FPS validation.
+empty over ordinary characters. Detailed logging reports hover hits only.
 
 Original: **BFrizzleFoShizzle**, [KenshiLib_Examples](https://github.com/BFrizzleFoShizzle/KenshiLib_Examples)
 (`CharacterHighlight`), GPLv3. This folder keeps the original commits.
