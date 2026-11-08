@@ -409,6 +409,7 @@ struct CanExecuteDiagnostics
     bool targetIsPlayerCharacter;
     bool targetIsIncapacitated;
     bool targetIsDead;
+    bool targetIsBeingCarried;
     bool targetIsDown;
     bool targetIsUnconscious;
     bool targetIsLiterallyUnconscious;
@@ -834,6 +835,10 @@ static const char* DescribeCanExecuteFailure(const CanExecuteDiagnostics& diagno
     {
         return "target_dead";
     }
+    if (diagnostics.targetIsBeingCarried)
+    {
+        return "target_carried";
+    }
     if (diagnostics.targetIsPlayerCharacter)
     {
         return "target_is_player_character";
@@ -989,7 +994,8 @@ static bool TryEvaluateCharacterExecuteFlags(
     bool* targetIsDeadOut,
     bool* targetIsDownOut,
     bool* targetIsUnconsciousOut,
-    bool* targetIsLiterallyUnconsciousOut)
+    bool* targetIsLiterallyUnconsciousOut,
+    bool* targetIsBeingCarriedOut)
 {
     if (!targetCharacter
         || !targetIsEnemyOut
@@ -999,7 +1005,8 @@ static bool TryEvaluateCharacterExecuteFlags(
         || !targetIsDeadOut
         || !targetIsDownOut
         || !targetIsUnconsciousOut
-        || !targetIsLiterallyUnconsciousOut)
+        || !targetIsLiterallyUnconsciousOut
+        || !targetIsBeingCarriedOut)
     {
         return false;
     }
@@ -1014,6 +1021,7 @@ static bool TryEvaluateCharacterExecuteFlags(
         *targetIsDownOut = false;
         *targetIsUnconsciousOut = false;
         *targetIsLiterallyUnconsciousOut = false;
+        *targetIsBeingCarriedOut = false;
 
         if (!*targetIsDeadOut)
         {
@@ -1031,6 +1039,7 @@ static bool TryEvaluateCharacterExecuteFlags(
                 *targetIsEnemyByActorOut = actor->isEnemy(targetCharacter, true);
             }
             *targetIsEnemyOut = *targetIsEnemyByPlayerOut || *targetIsEnemyByActorOut;
+            *targetIsBeingCarriedOut = targetCharacter->isBeingCarried();
         }
 
         return true;
@@ -1149,7 +1158,8 @@ static bool CanExecuteTarget(
             &diagnostics.targetIsDead,
             &diagnostics.targetIsDown,
             &diagnostics.targetIsUnconscious,
-            &diagnostics.targetIsLiterallyUnconscious))
+            &diagnostics.targetIsLiterallyUnconscious,
+            &diagnostics.targetIsBeingCarried))
         {
             diagnostics.targetIsIncapacitated = diagnostics.targetIsDown
                 || diagnostics.targetIsUnconscious
@@ -1168,6 +1178,7 @@ static bool CanExecuteTarget(
             diagnostics.targetIsPlayerCharacter = false;
             diagnostics.targetIsIncapacitated = false;
             diagnostics.targetIsDead = false;
+            diagnostics.targetIsBeingCarried = false;
             diagnostics.targetIsDown = false;
             diagnostics.targetIsUnconscious = false;
             diagnostics.targetIsLiterallyUnconscious = false;
