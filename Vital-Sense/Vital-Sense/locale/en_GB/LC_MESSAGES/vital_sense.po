@@ -421,3 +421,9 @@ msgstr "Max markers"
 
 msgid "How many markers can be on screen at once; the nearest to the camera centre get them first"
 msgstr "How many markers can be on screen at once; the nearest to the camera centre get them first"
+
+msgid "State symbol anchor offset"
+msgstr "State symbol anchor offset"
+
+msgid "Vertical world-anchor offset for state text and icons"
+msgstr "Vertical world-anchor offset for state text and icons"

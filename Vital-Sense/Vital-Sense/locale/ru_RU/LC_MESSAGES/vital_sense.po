@@ -421,3 +421,9 @@ msgstr "Значков на экране"
 
 msgid "How many markers can be on screen at once; the nearest to the camera centre get them first"
 msgstr "Сколько значков может быть на экране одновременно; при нехватке - ближайшим к центру камеры"
+
+msgid "State symbol anchor offset"
+msgstr "Высота состояния над персонажем"
+
+msgid "Vertical world-anchor offset for state text and icons"
+msgstr "Как высоко над персонажем висят текст и значки состояния"
