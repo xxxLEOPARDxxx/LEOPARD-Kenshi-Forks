@@ -544,6 +544,20 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "block_execute_carried")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                configOut->blockExecuteCarried = parsedBool;
+                pos = valuePos;
+            }
+            else if (!SkipJsonValue(body, &pos))
+            {
+                return RecordConfigSyntaxError(diagnostics, pos);
+            }
+        }
         else if (key == "execute_distance_units" || key == "execute_distance_meters")
         {
             bool clamped = false;
@@ -1137,6 +1151,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"debug_execute_logging\": " << (config.debugExecuteLogging ? "true" : "false") << ",\n";
     out << "  \"enable_execute_all\": " << (config.enableExecuteAll ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
+    out << "  \"block_execute_carried\": " << (config.blockExecuteCarried ? "true" : "false") << ",\n";
     out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_all_radius_units\": " << config.executeAllRadiusUnits << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";

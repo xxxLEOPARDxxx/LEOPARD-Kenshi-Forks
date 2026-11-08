@@ -142,6 +142,7 @@ static PluginConfig g_config = {
     false,
     true,
     false,
+    true,
     kQueuedExecuteDefaultDistanceMeters,
     kExecuteAllRadiusDefaultUnits,
     kExecuteButtonDefaultWidth,
@@ -1190,7 +1191,8 @@ static bool CanExecuteTarget(
         && !diagnostics.targetIsPlayerCharacter
         && passesAllianceCheck
         && diagnostics.targetIsIncapacitated
-        && !diagnostics.targetIsDead;
+        && !diagnostics.targetIsDead
+        && (!g_config.blockExecuteCarried || !diagnostics.targetIsBeingCarried);
 
     if (diagnosticsOut)
     {

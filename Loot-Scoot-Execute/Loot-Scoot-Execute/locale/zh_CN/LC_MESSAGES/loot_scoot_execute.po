@@ -91,3 +91,9 @@ msgstr "处决"
 
 msgid "Execute All"
 msgstr "全部处决"
+
+msgid "Block execute on carried targets"
+msgstr "禁止处决被扛起的角色"
+
+msgid "Never execute characters being carried on someone's shoulder"
+msgstr "不要处决正被他人扛在肩上的角色"

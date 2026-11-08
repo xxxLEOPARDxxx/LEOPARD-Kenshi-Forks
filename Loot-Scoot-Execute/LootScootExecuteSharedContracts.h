@@ -13,6 +13,7 @@ struct PluginConfig
     bool debugExecuteLogging;
     bool enableExecuteAll;
     bool ignoreExecuteAllianceCheck;
+    bool blockExecuteCarried;
     int executeDistanceMeters;
     int executeAllRadiusUnits;
     int executeButtonWidthPx;

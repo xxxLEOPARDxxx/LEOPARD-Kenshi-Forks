@@ -13,6 +13,7 @@ const char* kModHubSettingExecuteKillSoundId = "enable_execute_kill_sound";
 const char* kModHubSettingDebugExecuteLoggingId = "debug_execute_logging";
 const char* kModHubSettingEnableExecuteAllId = "enable_execute_all";
 const char* kModHubSettingIgnoreExecuteAllianceCheckId = "ignore_execute_alliance_check";
+const char* kModHubSettingBlockExecuteCarriedId = "block_execute_carried";
 const char* kModHubSettingExecuteDistanceId = "execute_distance_units";
 const char* kModHubSettingExecuteAllRadiusId = "execute_all_radius_units";
 const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
@@ -286,6 +287,21 @@ static EMC_Result __cdecl HubSetIgnoreExecuteAllianceCheck(void* user_data, int3
         err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetBlockExecuteCarried(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->blockExecuteCarried, out_value);
+}
+
+static EMC_Result __cdecl HubSetBlockExecuteCarried(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolConfigValue(
+        user_data,
+        value,
+        &g_modHubState.config->blockExecuteCarried,
+        err_buf,
+        err_buf_size);
+}
+
 static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out_value)
 {
     return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonWidthPx, out_value);
@@ -506,6 +522,14 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetIgnoreExecuteAllianceCheck,
         &HubSetIgnoreExecuteAllianceCheck};
 
+    static const EMC_BoolSettingDefV1 kBlockExecuteCarriedSettingDef = {
+        kModHubSettingBlockExecuteCarriedId,
+        "Block execute on carried targets",
+        "Never execute characters being carried on someone's shoulder",
+        &g_modHubState,
+        &HubGetBlockExecuteCarried,
+        &HubSetBlockExecuteCarried};
+
     static const EMC_IntSettingDefV1 kExecuteDistanceSettingDef = {
         kModHubSettingExecuteDistanceId,
         "Execute distance",
@@ -528,82 +552,15 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetExecuteAllRadius,
         &HubSetExecuteAllRadius};
 
-    static const EMC_IntSettingDefV1 kExecuteButtonWidthSettingDef = {
-        kModHubSettingExecuteButtonWidthId,
-        "Execute button width",
-        "Execute button width in pixels (default 310)",
-        &g_modHubState,
-        kExecuteButtonRuntimeWidthMin,
-        kExecuteButtonWidthMax,
-        1,
-        &HubGetExecuteButtonWidth,
-        &HubSetExecuteButtonWidth};
-
-    static const EMC_IntSettingDefV1 kExecuteButtonHeightSettingDef = {
-        kModHubSettingExecuteButtonHeightId,
-        "Execute button height",
-        "Execute button height in pixels (default 56)",
-        &g_modHubState,
-        kExecuteButtonRuntimeHeightMin,
-        kExecuteButtonHeightMax,
-        1,
-        &HubGetExecuteButtonHeight,
-        &HubSetExecuteButtonHeight};
-
-    static const EMC_IntSettingDefV1 kExecuteButtonGapSettingDef = {
-        kModHubSettingExecuteButtonGapId,
-        "Execute button gap",
-        "Vertical gap in pixels between Execute rows; use negative values to overlap (default -8)",
-        &g_modHubState,
-        kExecuteButtonGapMin,
-        kExecuteButtonGapMax,
-        1,
-        &HubGetExecuteButtonGap,
-        &HubSetExecuteButtonGap};
-
-    static const EMC_IntSettingDefV1 kExecuteButtonXSettingDef = {
-        kModHubSettingExecuteButtonXId,
-        "Execute button X",
-        "Horizontal offset in pixels from the default anchored position",
-        &g_modHubState,
-        kExecuteButtonOffsetMin,
-        kExecuteButtonOffsetMax,
-        1,
-        &HubGetExecuteButtonX,
-        &HubSetExecuteButtonX};
-
-    static const EMC_IntSettingDefV1 kExecuteButtonYSettingDef = {
-        kModHubSettingExecuteButtonYId,
-        "Execute button Y",
-        "Vertical offset in pixels from the default anchored position",
-        &g_modHubState,
-        kExecuteButtonOffsetMin,
-        kExecuteButtonOffsetMax,
-        1,
-        &HubGetExecuteButtonY,
-        &HubSetExecuteButtonY};
-
-    static const EMC_ActionRowDefV1 kResetExecuteButtonDefaultsActionDef = {
-        kModHubActionResetExecuteButtonDefaultsId,
-        "Reset Execute button defaults",
-        "Restore Execute button defaults to 310 width, 56 height, gap -8, X 0, and Y 0",
-        &g_modHubState,
-        EMC_ACTION_FORCE_REFRESH,
-        &HubResetExecuteButtonDefaults};
-
     static const emc::ModHubClientSettingRowV1 kSettingRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnableExecuteAllSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kIgnoreExecuteAllianceCheckSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kBlockExecuteCarriedSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteDistanceSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonWidthSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonHeightSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonGapSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonXSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteButtonYSettingDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef }
         // «Кнопка по умолчанию» убрана (08.10.2026): в MCM есть «Сбросить
         // по умолчанию» на всю страницу.
     };
