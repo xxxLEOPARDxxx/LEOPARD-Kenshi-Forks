@@ -6,6 +6,7 @@ namespace Ogre
 {
 class Entity;
 }
+class AnimationClass;
 
 // Experimental reverse-engineered layout used only for shader tinting.
 class AppearanceBase
@@ -25,6 +26,8 @@ public:
     virtual void func0x58();
     virtual void func0x60();
     virtual void updateCharaterTexture();
+
+    AnimationClass* getAnimationSystem() const; // public RVA = 0x607B10
 
     void* slot;
     unsigned char _reserved10[0x40];

@@ -10,6 +10,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
+#include <kenshi/Animation/AnimationClass.h>
 #include <kenshi/RaceData.h>
 #include <kenshi/Damages.h>
 #include <kenshi/Faction.h>
@@ -2145,8 +2146,12 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
     bool slaveAnimTriggered = false;
     __try
     {
-        actor->runSlaveAnim(kQueuedExecuteSlaveAnimName, 1.0f, 0.0f);
-        slaveAnimTriggered = true;
+        AnimationClass* anims = actor->getAppearance()->getAnimationSystem();
+        if (anims && anims->hasAnimation(kQueuedExecuteSlaveAnimName))
+        {
+            anims->startAnimation(kQueuedExecuteSlaveAnimName, 1.0f, 1.0f);
+            slaveAnimTriggered = true;
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
