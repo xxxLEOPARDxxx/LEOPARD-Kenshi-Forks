@@ -2143,28 +2143,10 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
         return false;
     }
 
-    bool slaveAnimTriggered = false;
-    __try
-    {
-        AnimationClass* anims = actor->getAppearance()->getAnimationSystem();
-        if (anims && anims->hasAnimation(kQueuedExecuteSlaveAnimName))
-        {
-            anims->startAnimation(kQueuedExecuteSlaveAnimName, 1.0f, 1.0f);
-            slaveAnimTriggered = true;
-        }
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        slaveAnimTriggered = false;
-    }
+    // The finisher is the real focused attack order issued on arrival; no
+    // extra manual animation is started on top of the combat animation.
+    g_queuedExecuteSlaveAnimPlaying = false;
 
-    g_queuedExecuteSlaveAnimPlaying = slaveAnimTriggered;
-    if (slaveAnimTriggered)
-    {
-        g_queuedExecuteAnimationMode = "slave_anim_heavy_downcut";
-        LogQueuedExecuteAnimationProbe(actor, target, true, true, false);
-        return true;
-    }
 
     Ogre::Vector3 actorPos;
     const bool actorPosResolved = TryReadRootObjectPosition(actor, &actorPos);
@@ -4506,47 +4488,17 @@ static bool DispatchExecuteTarget(
             if (!hasFailure)
             {
                 Character* targetCharacter = static_cast<Character*>(target);
-                directDamageDispatchSucceeded = TryApplyDirectDamageExecuteFallback(targetCharacter);
-                if (!directDamageDispatchSucceeded)
-                {
-                    failureReason = "direct_damage_dispatch_failed";
-                    hasFailure = true;
-                }
-                else if (!TryIsCharacterDead(targetCharacter, &targetDeadAfterDamageCheck))
-                {
-                    failureReason = "post_damage_dead_check_failed";
-                    hasFailure = true;
-                }
-                else if (!targetDeadAfterDamageCheck)
-                {
-                    declareDeadAttempted = true;
-                    declareDeadCallSucceeded = TryDeclareCharacterDead(targetCharacter);
-                    if (!declareDeadCallSucceeded)
-                    {
-                        failureReason = "declare_dead_failed";
-                        hasFailure = true;
-                    }
-                    else if (!TryIsCharacterDead(targetCharacter, &targetDeadAfterFinalizeCheck))
-                    {
-                        failureReason = "post_finalize_dead_check_failed";
-                        hasFailure = true;
-                    }
-                    else if (!targetDeadAfterFinalizeCheck)
-                    {
-                        failureReason = "target_still_alive_after_dispatch";
-                        hasFailure = true;
-                    }
-                }
-                else
-                {
-                    targetDeadAfterFinalizeCheck = true;
-                }
+                // The finisher is a real focused attack on the downed target:
+                // the game plays the combat animation and the target dies by damage.
+                actor->addOrder(0, FOCUSED_MELEE_ATTACK, target, false, true, targetCharacter->getPosition());
+                directDamageDispatchSucceeded = true;
+                targetDeadAfterFinalizeCheck = false; // dies by the attack, not instantly
             }
         }
     }
 
     const bool dispatchSucceeded = directDamageDispatchSucceeded && !hasFailure;
-    if (dispatchSucceeded && targetDeadAfterFinalizeCheck && killSoundEnabled)
+    if (dispatchSucceeded && killSoundEnabled)
     {
         Character* targetCharacter = static_cast<Character*>(target);
         killSoundPlayed = TryPlayExecuteKillSound(actor, targetCharacter, &killSoundEvent, &killSoundEmitter);
