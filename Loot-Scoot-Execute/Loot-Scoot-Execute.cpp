@@ -74,7 +74,7 @@ static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
 static const DWORD kCustomExecutePanelFallbackTickMinGapMs = 100;
 static const DWORD kCustomExecutePanelPredicateRefreshMs = 100;
-static const std::string kQueuedExecuteSlaveAnimName = "salute";
+static const std::string kQueuedExecuteSlaveAnimName = "heavy downcut";
 // Kill sound: Wwise events that really exist in the game's banks (checked by
 // FNV-1 hash in data/audio/*.bnk, 09.10.2026). The original list tried
 // "Heavy_Hit"/"Light_Hit" first - there are no such events, so nothing was
@@ -2154,7 +2154,7 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
     g_queuedExecuteSlaveAnimPlaying = slaveAnimTriggered;
     if (slaveAnimTriggered)
     {
-        g_queuedExecuteAnimationMode = "slave_anim_salute";
+        g_queuedExecuteAnimationMode = "slave_anim_heavy_downcut";
         LogQueuedExecuteAnimationProbe(actor, target, true, true, false);
         return true;
     }
