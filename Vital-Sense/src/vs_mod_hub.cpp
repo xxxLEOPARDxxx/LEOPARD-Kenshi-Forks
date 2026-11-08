@@ -191,6 +191,7 @@ HubIntSettingDescriptor g_stateIconSizeSettingDescriptors[] = {
 
 HubIntSettingDescriptor g_bountyIntSettingDescriptors[] = {
     { "bounty_symbol_live_anchor_y_offset_cm", "Live symbol anchor offset", "Vertical world-anchor offset for live bounty symbols", &PluginConfig::bountySymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
+    { "state_symbol_live_anchor_y_offset_cm", "State symbol anchor offset", "Vertical world-anchor offset for state text and icons", &PluginConfig::stateSymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
     { "bounty_tier_trivial_max", "Bounty trivial max", "Upper bound for the trivial bounty tier", &PluginConfig::bountyTierTrivialMax, 0, 1000000, 1 },
     { "bounty_tier_low_max", "Bounty low max", "Upper bound for the low bounty tier", &PluginConfig::bountyTierLowMax, 0, 1000000, 1 },
     { "bounty_tier_modest_max", "Bounty modest max", "Upper bound for the modest bounty tier", &PluginConfig::bountyTierModestMax, 0, 1000000, 1 },

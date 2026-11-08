@@ -87,6 +87,7 @@ struct PluginConfig
     MyGUI::Colour bountyTierEliteColour;
     MyGUI::Colour bountyTierLegendaryColour;
     DWORD bountySymbolLiveAnchorYOffsetCm;
+    DWORD stateSymbolLiveAnchorYOffsetCm;
 };
 
 struct CachedKoTarget

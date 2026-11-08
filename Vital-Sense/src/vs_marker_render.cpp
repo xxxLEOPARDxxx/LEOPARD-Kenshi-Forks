@@ -1658,7 +1658,7 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
         Ogre::Vector3 markerAnchor = characterWorldPos;
         const float liveAnchorYOffsetWorld = isBountyOnlyState
             ? (static_cast<float>(state.config.bountySymbolLiveAnchorYOffsetCm) * kKoCentimetersToWorldUnits)
-            : 0.0f;
+            : (static_cast<float>(state.config.stateSymbolLiveAnchorYOffsetCm) * kKoCentimetersToWorldUnits);
         const float markerAnchorYOffsetWorld = kKoMarkerHeadAnchorYOffset + liveAnchorYOffsetWorld;
         markerAnchor.y += markerAnchorYOffsetWorld;
 

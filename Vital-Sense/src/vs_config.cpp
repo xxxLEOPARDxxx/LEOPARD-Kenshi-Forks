@@ -228,6 +228,7 @@ void ApplyDefaultConfig(PluginConfig& config)
     config.bountyTierEliteColour = MyGUI::Colour(1.000000f, 0.541176f, 0.168627f, 0.980392f);
     config.bountyTierLegendaryColour = MyGUI::Colour(0.878431f, 0.192157f, 0.192157f, 1.000000f);
     config.bountySymbolLiveAnchorYOffsetCm = kDefaultBountySymbolLiveAnchorYOffsetCm;
+    config.stateSymbolLiveAnchorYOffsetCm = 0;
 }
 
 bool SaveConfigToFile(const std::string& configPath, const PluginConfig& config)
@@ -271,6 +272,7 @@ bool SaveConfigToFile(const std::string& configPath, const PluginConfig& config)
         config.placeBountySymbolBeforeStateIcon ? "before_state_icon" : "before_state_text",
         true);
     WriteJsonUnsigned(out, "bounty_symbol_live_anchor_y_offset_cm", config.bountySymbolLiveAnchorYOffsetCm, true);
+    WriteJsonUnsigned(out, "state_symbol_live_anchor_y_offset_cm", config.stateSymbolLiveAnchorYOffsetCm, true);
     WriteJsonUnsigned(out, "bounty_tier_trivial_max", config.bountyTierTrivialMax, true);
     WriteJsonUnsigned(out, "bounty_tier_low_max", config.bountyTierLowMax, true);
     WriteJsonUnsigned(out, "bounty_tier_modest_max", config.bountyTierModestMax, true);
@@ -575,6 +577,20 @@ bool LoadConfigState(RuntimeStateView& state, const char* pluginName)
         else
         {
             state.config.bountySymbolLiveAnchorYOffsetCm = parsedBountySymbolLiveAnchorYOffsetCm;
+        }
+    }
+
+    DWORD parsedStateSymbolLiveAnchorYOffsetCm = 0;
+    if (ParseUnsignedFromJsonSafe(body, "state_symbol_live_anchor_y_offset_cm", &parsedStateSymbolLiveAnchorYOffsetCm))
+    {
+        if (parsedStateSymbolLiveAnchorYOffsetCm > 20000)
+        {
+            state.config.stateSymbolLiveAnchorYOffsetCm = 20000;
+            vs_log::LogWarn(pluginName, "state_symbol_live_anchor_y_offset_cm too high; clamped to 20000");
+        }
+        else
+        {
+            state.config.stateSymbolLiveAnchorYOffsetCm = parsedStateSymbolLiveAnchorYOffsetCm;
         }
     }
 
