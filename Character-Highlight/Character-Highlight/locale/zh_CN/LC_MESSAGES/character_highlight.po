@@ -116,8 +116,8 @@ msgstr "派系外交官的颜色，#RRGGBB。"
 msgid "The tint shows while this key is held. NONE (Backspace when assigning) - always on."
 msgstr "按住此键时显示着色。NONE（设置时按 Backspace）- 始终显示。"
 
-msgid "Highlight characters by their relationship to you, with model tint or contours."
-msgstr "根据与你的关系高亮角色，可选择模型染色或轮廓。"
+msgid "Highlight characters and show NPC names in relationship colours."
+msgstr "按关系颜色高亮角色并显示 NPC 名称。"
 
 msgid "Enable hold-key and hover highlighting."
 msgstr "启用按键高亮和鼠标悬停高亮。"
@@ -175,3 +175,30 @@ msgstr "轮廓输出（诊断）"
 
 msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
 msgstr "在场景上绘制轮廓。关闭时仅渲染遮罩——性能测试。"
+
+msgid "NPC names"
+msgstr "NPC 名称"
+
+msgid "Show NPC names"
+msgstr "显示 NPC 名称"
+
+msgid "Show relationship-coloured names above visible NPCs while holding the names key. Your squad keeps its usual labels."
+msgstr "按住名称快捷键时，在画面中的 NPC 头顶以关系颜色显示名称。玩家队员保留原有名称标签。"
+
+msgid "Names key"
+msgstr "名称快捷键"
+
+msgid "Hold this key to show NPC names. NONE leaves names visible while enabled."
+msgstr "按住此键显示 NPC 名称。设为 NONE 时，开启功能后持续显示名称。"
+
+msgid "Names horizontal offset, px"
+msgstr "名称水平偏移，像素"
+
+msgid "Positive values move names to the right."
+msgstr "正值使名称向右移动。"
+
+msgid "Names vertical offset, px"
+msgstr "名称垂直偏移，像素"
+
+msgid "Positive values move names up."
+msgstr "正值使名称向上移动。"

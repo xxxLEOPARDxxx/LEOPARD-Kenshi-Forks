@@ -29,9 +29,11 @@
 #include <Windows.h>
 #include <IniDefaults.h>
 #include <HoldKey.h>
+#include <WidgetRef.h>
 #include "HighlightPolicy.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cstdio>
 #include <map>
 #include <string>
@@ -58,6 +60,11 @@
 #include <ogre/OgreEntity.h>
 #include <ogre/OgreMaterialManager.h>
 #include <ogre/OgreSharedPtr.h>
+#include <ogre/OgreCamera.h>
+#include <ogre/Math/Simple/OgreAabb.h>
+#include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_RenderManager.h>
+#include <mygui/MyGUI_TextBox.h>
 #include <Debug.h>
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
@@ -84,6 +91,10 @@ namespace
     bool g_debug = false;
     bool g_hoverEnabled=false;
     float g_tintOpacity=1.f;
+    bool g_namesEnabled = false;
+    HoldKey::Key g_namesKey;
+    int g_nameOffsetX = 0;
+    int g_nameOffsetY = 8;
 
     const int kEvalPerFrame = 40;
     const DWORD kEvalMs = 1000;
@@ -148,6 +159,11 @@ namespace
         g_diplomatColour = ReadColour(ini, "DiplomatColour", Ogre::ColourValue(0.627f, 0.251f, 1.0f, 1.0f));
         g_hoverEnabled=GetPrivateProfileIntA(kSec,"HoverHighlight",0,ini.c_str())!=0;
         g_tintOpacity=CharacterHighlightPolicy::Opacity(GetPrivateProfileIntA(kSec,"TintIntensity",100,ini.c_str()));
+        g_namesEnabled = GetPrivateProfileIntA(kSec, "NamesEnabled", 0, ini.c_str()) != 0;
+        GetPrivateProfileStringA(kSec, "NamesKey", "CTRL+N", key, sizeof(key), ini.c_str());
+        g_namesKey = HoldKey::Parse(key);
+        g_nameOffsetX = std::max(-120, std::min(120, static_cast<int>(GetPrivateProfileIntA(kSec, "NameOffsetX", 0, ini.c_str()))));
+        g_nameOffsetY = std::max(-120, std::min(120, static_cast<int>(GetPrivateProfileIntA(kSec, "NameOffsetY", 8, ini.c_str()))));
         g_debug = GetPrivateProfileIntA(kSec, "Debug", 0, ini.c_str()) != 0;
         KLocLog::SetEnabled(g_debug);
         ForgetColours();                // new colours - re-evaluate everyone
@@ -326,6 +342,21 @@ namespace
         return (static_cast<unsigned long long>(h.index) << 32) | h.serial;
     }
 
+    bool SafeNameColour(Character* character, Ogre::ColourValue& colour)
+    {
+        if (g_globalWasActive)
+        {
+            const hand& handle = character->handle;
+            const Entries::const_iterator entry = g_entries.find(Key(handle));
+            if (entry != g_entries.end() && entry->second.hasColour && SameHand(entry->second.who, handle))
+            {
+                colour = entry->second.colour;
+                return true;
+            }
+        }
+        return SafeRelationColour(character, colour);
+    }
+
     void ForgetColours() { g_forget = true; }
 
     void ResetAll()
@@ -415,6 +446,177 @@ namespace
                 e.who=c->handle;e.tinted=true;e.applied=now;e.appliedColour=effective;e.appliedDepth=g_throughWalls;
                 ++g_writes;
             }
+        }
+    }
+
+    // One owned MyGUI tree and a fixed pool. A single unlink listener tracks
+    // the parent; it does not search the game's widget tree.
+    const unsigned kNameSlots = 96;
+    const unsigned kNameScanLimit = 4096;
+    struct NameSlot
+    {
+        NameSlot() : label(NULL), evaluated(0), hasColour(false) {}
+        hand character;
+        MyGUI::TextBox* label;
+        DWORD evaluated;
+        bool hasColour;
+        Ogre::ColourValue colour;
+    };
+    WidgetRef g_namesRoot;
+    NameSlot g_nameSlots[kNameSlots];
+    hand g_nameCandidates[kNameSlots];
+    unsigned g_nameCount = 0;
+    DWORD g_nameScanAt = 0;
+    bool g_namesWereActive = false;
+    bool g_namesFailed = false;
+
+    bool NamePosition(Character* character, const Ogre::Matrix4& projection,
+                      const MyGUI::IntSize& view, MyGUI::IntPoint& position)
+    {
+        AppearanceBase* appearance = character->getAppearance();
+        Ogre::Entity* body = appearance ? appearance->body : NULL;
+        if (!body || !body->isVisible())
+            return false;
+        const Ogre::Aabb bounds = body->getWorldAabb();
+        const Ogre::Vector3& center = bounds.mCenter;
+        const Ogre::Vector4 clip = projection * Ogre::Vector4(center.x, bounds.getMaximum().y, center.z, 1.f);
+        if (!(clip.w > 0.f && clip.w <= FLT_MAX && clip.x >= -clip.w && clip.x <= clip.w
+              && clip.y >= -clip.w && clip.y <= clip.w && clip.z >= -clip.w && clip.z <= clip.w))
+            return false;
+        position.left = static_cast<int>((clip.x / clip.w + 1.f) * view.width * .5f) + g_nameOffsetX;
+        position.top = static_cast<int>((1.f - clip.y / clip.w) * view.height * .5f) - g_nameOffsetY;
+        return true;
+    }
+
+    void HideNames()
+    {
+        if (g_namesWereActive && g_namesRoot.get())
+            g_namesRoot.get()->setVisible(false);
+        g_namesWereActive = false;
+        g_nameCount = 0;
+    }
+
+    void TickNames(GameWorld* world)
+    {
+        if (g_namesFailed || !g_enabled || !g_namesEnabled || !HoldKey::Held(g_namesKey)
+            || !world || !world->player || !world->render || !gui || gui->isLoading()
+            || !gui->isVisible() || gui->isCharacterEditorMode())
+        {
+            HideNames();
+            return;
+        }
+        MyGUI::Gui* manager = MyGUI::Gui::getInstancePtr();
+        MyGUI::RenderManager* render = MyGUI::RenderManager::getInstancePtr();
+        Ogre::Camera* camera = static_cast<Renderer*>(world->render)->getCamera();
+        if (!manager || !render || !camera)
+        {
+            HideNames();
+            return;
+        }
+        const MyGUI::IntSize view = render->getViewSize();
+        if (view.width <= 0 || view.height <= 0)
+        {
+            HideNames();
+            return;
+        }
+        const Ogre::Matrix4 projection = camera->getProjectionMatrix() * camera->getViewMatrix();
+        const DWORD now = GetTickCount();
+        if (!g_namesWereActive || now - g_nameScanAt >= 120)
+        {
+            g_nameScanAt = now;
+            g_nameCount = 0;
+            unsigned scanned = 0;
+            const ogre_unordered_set<Character*>::type& characters = world->getCharacterUpdateList();
+            for (ogre_unordered_set<Character*>::type::const_iterator it = characters.begin();
+                 it != characters.end() && scanned < kNameScanLimit && g_nameCount < kNameSlots;
+                 ++it, ++scanned)
+            {
+                Character* character = *it;
+                MyGUI::IntPoint position;
+                if (character && !character->isPlayerCharacter()
+                    && NamePosition(character, projection, view, position))
+                    g_nameCandidates[g_nameCount++] = character->handle;
+            }
+        }
+        g_namesWereActive = true;
+        MyGUI::Widget* root = g_namesRoot.get();
+        if (!root)
+        {
+            if (!g_nameCount)
+                return;
+            root = manager->createWidget<MyGUI::Widget>("PanelEmpty", MyGUI::IntCoord(0, 0, view.width, view.height),
+                                                       MyGUI::Align::Default, "Back");
+            root->setNeedMouseFocus(false);
+            root->setNeedKeyFocus(false);
+            g_namesRoot.set(root);
+            if (!g_namesRoot.get())
+            {
+                manager->destroyWidget(root);
+                return;
+            }
+            for (unsigned i = 0; i < kNameSlots; ++i)
+                g_nameSlots[i] = NameSlot();
+        }
+        if (root->getSize() != view)
+            root->setSize(view);
+        if (!root->getVisible())
+            root->setVisible(true);
+        unsigned colourBudget = 12;
+        unsigned createBudget = 8;
+        for (unsigned i = 0; i < kNameSlots; ++i)
+        {
+            NameSlot& slot = g_nameSlots[i];
+            Character* character = i < g_nameCount ? g_nameCandidates[i].getCharacter() : NULL;
+            MyGUI::IntPoint position;
+            bool show = character && !character->isPlayerCharacter()
+                && NamePosition(character, projection, view, position);
+            if (show && !slot.label && createBudget)
+            {
+                --createBudget;
+                slot.label = root->createWidget<MyGUI::TextBox>("Kenshi_TextboxStandardText",
+                    MyGUI::IntCoord(0, 0, 280, 24), MyGUI::Align::Default);
+                slot.label->setNeedMouseFocus(false);
+                slot.label->setNeedKeyFocus(false);
+                slot.label->setTextAlign(MyGUI::Align::Center);
+                slot.label->setTextShadow(true);
+                slot.label->setVisible(false);
+            }
+            if (!slot.label)
+                continue;
+            if (show)
+            {
+                const bool changed = !slot.hasColour || !SameHand(slot.character, character->handle);
+                if ((changed || now - slot.evaluated >= kEvalMs) && colourBudget)
+                {
+                    --colourBudget;
+                    slot.evaluated = now;
+                    Ogre::ColourValue colour;
+                    if (SafeNameColour(character, colour))
+                    {
+                        const MyGUI::UString caption(character->getName());
+                        if (slot.label->getCaption() != caption)
+                            slot.label->setCaption(caption);
+                        if (changed || slot.colour != colour)
+                        {
+                            slot.label->setTextColour(MyGUI::Colour(colour.r, colour.g, colour.b));
+                            slot.label->setAlpha(colour.a);
+                            slot.colour = colour;
+                        }
+                        slot.character = character->handle;
+                        slot.hasColour = true;
+                    }
+                }
+                show = slot.hasColour && SameHand(slot.character, character->handle) && slot.colour.a > 0.f;
+                if (show)
+                {
+                    const MyGUI::IntPoint leftTop(position.left - slot.label->getWidth() / 2,
+                                                  position.top - slot.label->getHeight());
+                    if (slot.label->getPosition() != leftTop)
+                        slot.label->setPosition(leftTop);
+                }
+            }
+            if (slot.label->getVisible() != show)
+                slot.label->setVisible(show);
         }
     }
 
@@ -555,6 +757,13 @@ void GameWorld__mainLoop_GPUSensitiveStuff_hook(GameWorld* thisptr, float time)
     // after the main loop and so stays on top of these colours.
     Tick(thisptr);
     GameWorld__mainLoop_GPUSensitiveStuff_orig(thisptr, time);
+    try { TickNames(thisptr); }
+    catch (const std::exception& error)
+    {
+        g_namesFailed = true;
+        HideNames();
+        ErrorLog(std::string("Character Highlight: nameplates stopped: ") + error.what());
+    }
 }
 
 // fix for dead bodies not updating
@@ -606,7 +815,7 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     static const std::string ini = IniPath();
     api->beginMod(api, "CharacterHighlight", "Character Highlight", ini.c_str(), &LoadSettings);
     if (api->version >= 2)
-        api->info(api, Tr("Highlight characters by their relationship to you."));
+        api->info(api, Tr("Highlight characters and show NPC names in relationship colours."));
     api->section(api, Tr("General"));
     api->toggle(api, kSec, "Enabled", Tr("Enabled"), Tr("Enable hold-key and hover highlighting."), 1, 0);
     api->hotkey(api, kSec, "HoldKey", Tr("Show key"), Tr("The tint shows while this key is held. NONE (Backspace when assigning) - always on."), "ALT", 0);
@@ -615,6 +824,11 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->integer(api,kSec,"TintIntensity",Tr("Tint intensity, %"),Tr("100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."),100,0,100,0);
     api->section(api,Tr("Under the cursor"));
     api->toggle(api,kSec,"HoverHighlight",Tr("Highlight under cursor"),Tr("Highlight the character or animal under the cursor without holding the show key. Off by default."),0,0);
+    api->section(api, Tr("NPC names"));
+    api->toggle(api, kSec, "NamesEnabled", Tr("Show NPC names"), Tr("Show relationship-coloured names above visible NPCs while holding the names key. Your squad keeps its usual labels."), 0, 0);
+    api->hotkey(api, kSec, "NamesKey", Tr("Names key"), Tr("Hold this key to show NPC names. NONE leaves names visible while enabled."), "CTRL+N", 0);
+    api->integer(api, kSec, "NameOffsetX", Tr("Names horizontal offset, px"), Tr("Positive values move names to the right."), 0, -120, 120, 0);
+    api->integer(api, kSec, "NameOffsetY", Tr("Names vertical offset, px"), Tr("Positive values move names up."), 8, -120, 120, 0);
     api->section(api, Tr("Who"));
     api->toggle(api, kSec, "ShowSquad", Tr("Your squad"), Tr("Tint your own characters."), 1, 0);
     api->toggle(api, kSec, "ShowEnemies", Tr("Enemies"), Tr("Tint those hostile to you."), 1, 0);

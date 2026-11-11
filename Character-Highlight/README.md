@@ -24,6 +24,22 @@ empty over ordinary characters. Detailed logging reports hover hits only.
 Original: **BFrizzleFoShizzle**, [KenshiLib_Examples](https://github.com/BFrizzleFoShizzle/KenshiLib_Examples)
 (`CharacterHighlight`), GPLv3. This folder keeps the original commits.
 
+## NPC names
+
+Enable **Show NPC names** in MCM and hold the separate names key (Ctrl+N by
+default). NPC names in the camera frame use the relationship colours. Your
+squad keeps its normal labels. Horizontal and vertical offsets are in pixels.
+The view reuses up to 96 labels and discovers candidates every 120 ms while active.
+In the maintainer's in-game comparison, the name display had no noticeable FPS
+drop. The mod that inspired the feature cost about 60 FPS on the same PC.
+
+Включите **Показывать имена NPC** в MCM и удерживайте отдельную клавишу
+(по умолчанию Ctrl+N). Имена NPC в кадре используют цвета отношений. У вашего
+отряда остаются штатные подписи. Смещение по обеим осям задаётся в пикселях.
+Плагин переиспользует до 96 подписей и ищет NPC раз в 120 мс, пока показ включён.
+В игровом сравнении автора форка показ имён не дал заметной просадки FPS.
+Мод, который подсказал идею, снизил FPS примерно на 60 кадров на том же ПК.
+
 ## Changes in this fork
 
 - Settings in Mod Config Menu (Options window, MCM tab): on/off, the show key

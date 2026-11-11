@@ -116,8 +116,8 @@ msgstr "Цвет дипломатов фракций, #RRGGBB."
 msgid "The tint shows while this key is held. NONE (Backspace when assigning) - always on."
 msgstr "Окраска видна, пока зажата эта клавиша. NONE (Backspace при назначении) - всегда."
 
-msgid "Highlight characters by their relationship to you, with model tint or contours."
-msgstr "Подсветка персонажей по отношению к вам: окраска модели или контуры."
+msgid "Highlight characters and show NPC names in relationship colours."
+msgstr "Подсветка персонажей и имена NPC в цветах отношений."
 
 msgid "Enable hold-key and hover highlighting."
 msgstr "Включить подсветку по клавише и при наведении курсора."
@@ -175,3 +175,30 @@ msgstr "Вывод контуров (диагностика)"
 
 msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
 msgstr "Рисовать контур поверх сцены. Выключено - только маска, проверка производительности."
+
+msgid "NPC names"
+msgstr "Имена NPC"
+
+msgid "Show NPC names"
+msgstr "Показывать имена NPC"
+
+msgid "Show relationship-coloured names above visible NPCs while holding the names key. Your squad keeps its usual labels."
+msgstr "Пока нажата клавиша имён, над NPC в кадре видны их имена в цветах отношений. У вашего отряда остаются штатные подписи."
+
+msgid "Names key"
+msgstr "Клавиша имён"
+
+msgid "Hold this key to show NPC names. NONE leaves names visible while enabled."
+msgstr "Удерживайте клавишу, чтобы показать имена NPC. NONE показывает имена постоянно, пока опция включена."
+
+msgid "Names horizontal offset, px"
+msgstr "Сдвиг имён по горизонтали, пикс."
+
+msgid "Positive values move names to the right."
+msgstr "Положительное значение сдвигает имена вправо."
+
+msgid "Names vertical offset, px"
+msgstr "Сдвиг имён по вертикали, пикс."
+
+msgid "Positive values move names up."
+msgstr "Положительное значение сдвигает имена вверх."

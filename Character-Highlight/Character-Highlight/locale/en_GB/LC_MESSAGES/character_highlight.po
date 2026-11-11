@@ -116,8 +116,8 @@ msgstr "Colour of faction diplomats, #RRGGBB."
 msgid "The tint shows while this key is held. NONE (Backspace when assigning) - always on."
 msgstr "The tint shows while this key is held. NONE (Backspace when assigning) - always on."
 
-msgid "Highlight characters by their relationship to you, with model tint or contours."
-msgstr "Highlight characters by their relationship to you, with model tint or contours."
+msgid "Highlight characters and show NPC names in relationship colours."
+msgstr "Highlight characters and show NPC names in relationship colours."
 
 msgid "Enable hold-key and hover highlighting."
 msgstr "Enable hold-key and hover highlighting."
@@ -175,3 +175,30 @@ msgstr "Edge pass (diagnostics)"
 
 msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
 msgstr "Draw the contour over the scene. Off renders only the mask - a performance test."
+
+msgid "NPC names"
+msgstr "NPC names"
+
+msgid "Show NPC names"
+msgstr "Show NPC names"
+
+msgid "Show relationship-coloured names above visible NPCs while holding the names key. Your squad keeps its usual labels."
+msgstr "Show relationship-coloured names above visible NPCs while holding the names key. Your squad keeps its usual labels."
+
+msgid "Names key"
+msgstr "Names key"
+
+msgid "Hold this key to show NPC names. NONE leaves names visible while enabled."
+msgstr "Hold this key to show NPC names. NONE leaves names visible while enabled."
+
+msgid "Names horizontal offset, px"
+msgstr "Names horizontal offset, px"
+
+msgid "Positive values move names to the right."
+msgstr "Positive values move names to the right."
+
+msgid "Names vertical offset, px"
+msgstr "Names vertical offset, px"
+
+msgid "Positive values move names up."
+msgstr "Positive values move names up."
