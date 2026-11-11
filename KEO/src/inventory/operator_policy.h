@@ -25,6 +25,11 @@ float OperatorHoldThreshold(int tier);
 // True when the operator is past its tier: mult < the tier's threshold. Never for overloaded or a
 // value outside the enum; never for a NaN multiplier, so the hold goes on.
 bool OperatorTooHeavy(float encumbranceMult, int tier);
+inline bool OperatorFillPercentValid(unsigned percent)
+{
+	return percent >= 5 && percent <= 100 && percent % 5 == 0;
+}
+bool OperatorFillReached(unsigned occupied, unsigned capacity, int percent);
 
 enum OperatorReason
 {
@@ -39,6 +44,7 @@ enum OperatorReason
 	OR_HUNGRY,
 	OR_TOO_HEAVY,         // past the operatorHoldUntil tier
 	OR_NO_PRODUCT,
+	OR_FILL_REACHED,
 	OR_NO_ROOM,
 	OR_COUNT
 };
@@ -46,7 +52,7 @@ enum OperatorReason
 struct OperatorFacts
 {
 	bool vanillaTrue, isPlayer, haveMachine, ownsMachine, isResource, powered, inputsValid, hungry,
-	     tooHeavy, haveProduct, hasRoom;
+	     tooHeavy, haveProduct, fillReached, hasRoom;
 };
 
 // The first failing guard in the enum's order, or OR_HOLD. A fact after the first failure is

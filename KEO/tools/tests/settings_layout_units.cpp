@@ -200,16 +200,17 @@ static void CheckGroups()
 	SettingsStaging st;
 	StageAll(&st);
 	std::vector<SettingsRow> prod = Rows(&st, false, NULL);
-	static const char* const kMembers[6][2] =
+	static const char* const kMembers[7][2] =
 	{
 		{ "throwOutFix", "throwOutHoldMinutes" },
 		{ "backpackFixes", "operatorHoldUntil" },
+		{ "backpackFixes", "operatorFillPercent" },
 		{ "keoRouting", "groupCohesion" }, { "keoRouting", "formationGatherPace" },
 		{ "keoRouting", "k7PostDeathHold" }, { "keoRouting", "plannerMode" }
 	};
-	const int memberOffset[] = { 1, 1, 1, 2, 3, 4 };
+	const int memberOffset[] = { 1, 1, 2, 1, 2, 3, 4 };
 	bool follows = true;
-	for (int g = 0; g < 6; ++g)
+	for (int g = 0; g < 7; ++g)
 	{
 		int head = OnlyRowOf(prod, kMembers[g][0]);
 		int member = OnlyRowOf(prod, kMembers[g][1]);
@@ -230,7 +231,7 @@ static void CheckGroups()
 			continue;
 		++gatedRows;
 		bool known = false;
-		for (int g = 0; g < 6; ++g)
+		for (int g = 0; g < 7; ++g)
 		{
 			std::vector<int> heads = RowsOf(prod, kMembers[g][0]);
 			std::vector<int> members = RowsOf(prod, kMembers[g][1]);
@@ -244,7 +245,7 @@ static void CheckGroups()
 		}
 		gated = gated && known && (size_t)h < prod.size() && prod[h].kind == SR_CHECKBOX;
 	}
-	Check(gated && gatedRows == 6, "groups: each member's enabledByRow is its head's row, a checkbox");
+	Check(gated && gatedRows == 7, "groups: each member's enabledByRow is its head's row, a checkbox");
 
 	// The table with the throw-out slider placed before its checkbox.
 	std::vector<keo_gui::SettingsPlace> places;

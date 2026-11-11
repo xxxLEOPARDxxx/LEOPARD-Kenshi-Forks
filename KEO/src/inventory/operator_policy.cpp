@@ -16,6 +16,7 @@ OperatorReason OperatorReasonOf(const OperatorFacts& f)
 	if (f.hungry)        return OR_HUNGRY;
 	if (f.tooHeavy)      return OR_TOO_HEAVY;
 	if (!f.haveProduct)  return OR_NO_PRODUCT;
+	if (f.fillReached)  return OR_FILL_REACHED;
 	if (!f.hasRoom)      return OR_NO_ROOM;
 	return OR_HOLD;
 }
@@ -51,6 +52,12 @@ bool OperatorTooHeavy(float encumbranceMult, int tier)
 	return encumbranceMult < OperatorHoldThreshold(tier);
 }
 
+bool OperatorFillReached(unsigned occupied, unsigned capacity, int percent)
+{
+	return capacity && occupied <= capacity && percent != 100 && OperatorFillPercentValid(percent)
+	    && occupied * 100ULL >= capacity * (unsigned long long)percent;
+}
+
 const char* OperatorReasonName(OperatorReason r)
 {
 	switch (r)
@@ -66,6 +73,7 @@ const char* OperatorReasonName(OperatorReason r)
 	case OR_HUNGRY:         return "hungry";
 	case OR_TOO_HEAVY:      return "heavy";
 	case OR_NO_PRODUCT:     return "noProduct";
+	case OR_FILL_REACHED:  return "fillReached";
 	case OR_NO_ROOM:        return "noRoom";
 	default:                return "?";
 	}

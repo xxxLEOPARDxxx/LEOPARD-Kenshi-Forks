@@ -136,6 +136,7 @@ static const Owner kOwners[] =
 	{ "backpackDialogueFunction", "inventory" },
 	{ "operatorFillBeforeDeliver", "inventory" },
 	{ "operatorHoldUntil", "inventory" },
+	{ "operatorFillPercent", "inventory" },
 	{ "backpackFixes", "inventory" },
 	{ "carriedWeight", "inventory" },
 	{ "gatherOutputJob", "inventory" },
@@ -320,7 +321,7 @@ static bool LiveOffsetRowAllowed(const char* module, const char* key)
 {
 	if (!strcmp(module, "gui")) return !strcmp(key, "Debug");
 	if (!strcmp(module, "inventory"))
-		return !strcmp(key, "operatorHoldUntil") || !strcmp(key, "backpackFixes") || !strcmp(key, "gatherOutputJob") || !strcmp(key, "stockCounterJob") || !strcmp(key, "waypointRouteJob");
+		return !strcmp(key, "operatorHoldUntil") || !strcmp(key, "operatorFillPercent") || !strcmp(key, "backpackFixes") || !strcmp(key, "gatherOutputJob") || !strcmp(key, "stockCounterJob") || !strcmp(key, "waypointRouteJob");
 	if (!strcmp(module, "zone"))
 		return !strcmp(key, "zoneLifeRetainRadius") || !strcmp(key, "zoneLifeSquadRadius")
 		    || !strcmp(key, "zoneRetentionMaxHeld");
@@ -419,7 +420,7 @@ int main()
 		}
 		if (i == CONFIG_STAGE_MAX) Fail(mod.name, "no table end within stage capacity");
 	}
-	Check(moduleKeys == 120 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
+	Check(moduleKeys == 121 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
 	const char* const removed[] = { "npcFailMemo", "rqStructClear", "ogreWorkerPriority", "factionSelfGuard" };
 	for (int i = 0; i < 4; ++i)
 		Check(FindConfigKey(removed[i], NULL) == NULL, "removed switches have no config row");

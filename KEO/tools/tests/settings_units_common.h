@@ -43,11 +43,14 @@ static const ProdRow kProdPage[] =
 	{ "k7PostDeathHold", "Squad movement" }, { "plannerMode", "Squad movement" },
 	{ "townClaimFix", "Gameplay fixes" }, { "throwOutFix", "Gameplay fixes" },
 	{ "throwOutHoldMinutes", "Gameplay fixes" }, { "wallSpliceFix", "Gameplay fixes" },
-	{ "gatherOutputJob", "Backpacks and jobs" }, { "stockCounterJob", "Backpacks and jobs" }, { "waypointRouteJob", "Backpacks and jobs" }, { "carriedWeight", "Backpacks and jobs" }, { "backpackFixes", "Backpacks and jobs" }, { "operatorHoldUntil", "Backpacks and jobs" },
+	{ "backpackFixes", "Backpacks and jobs" }, { "operatorHoldUntil", "Backpacks and jobs" },
+	{ "operatorFillPercent", "Backpacks and jobs" }, { "gatherOutputJob", "Backpacks and jobs" },
+	{ "stockCounterJob", "Backpacks and jobs" }, { "waypointRouteJob", "Backpacks and jobs" },
+	{ "carriedWeight", "Backpacks and jobs" },
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 25;
+static const int PROD_PAGE_ROWS = 26;
 static const char* const PROD_SECTIONS[] = { "Zone loading", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 

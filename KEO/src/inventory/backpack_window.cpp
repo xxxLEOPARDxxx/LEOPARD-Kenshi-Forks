@@ -17,12 +17,16 @@
 #include "inventory/backpack_reader.h"
 #include "inventory/backpack_sidecar.h"
 #include "inventory/inventory_config.h"
+#include "inventory/operator_trips.h"
+#include "inventory/operator_policy.h"
 #include "game/game.h"
 #include "game/klib_member_contract.h"
 #include "game/hand_key.h"
 #include "plugin/hook_manifest.h"
 #include "base/core.h"
+#include "base/keo_tr.h"
 #include <windows.h>
+#include <algorithm>
 #include <string>
 #include <cstdio>
 #include <string.h>
@@ -30,6 +34,10 @@
 #include <mygui/MyGUI_Widget.h>
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_Delegate.h>
+#include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_LayerManager.h>
+#include <mygui/MyGUI_ScrollBar.h>
+#include <mygui/MyGUI_TextBox.h>
 #include "base/klib_include_end.h"
 
 namespace backpack_window_detail {
@@ -51,6 +59,7 @@ static const int    DATA_TYPE_CHARACTER        = 1;
 static const int    DATA_TYPE_CONTAINER        = 46;
 static const char*  const BOX_NAME_SUFFIX      = "keo_backpackFirst";
 static const char*  const BOX_KEY              = "keo_key";
+static const char*  const FILL_ROOT            = "keo_fill_root";
 static const char*  const ARRANGE_SUFFIX       = "ArrangeButton";
 
 // Instructions whose bytes encode the three offsets above: the layout's main widget, the window's
@@ -104,27 +113,37 @@ static MyGUI::Widget* FindBySuffix(MyGUI::Widget* parent, const char* suffix, in
 // Main thread, from MyGUI's click dispatch. Flips the owner's choice and the box; nothing is
 // thrown back into the game. The box's key is followed to its character's live hand first, and
 // the table re-keyed, so the write updates the entry the character's pickups read.
+static bool GetWearerKey(MyGUI::Widget* widget, game::HandKey* key, bool requireLive = true)
+{
+	const std::string& text = widget->getUserString(BOX_KEY);
+	if (!HandKeyParse(text.c_str(), (int)text.size(), key))
+		return false;
+	game::HandKey live;
+	const bool resolved = BackpackResolveKey(*key, &live);
+	if (!resolved && requireLive)
+		return false;
+	if (resolved && !game::HandKeyEqual(live, *key))
+	{
+		char buf[64] = { 0 };
+		HandKeyFormat(live, buf, (int)sizeof(buf));
+		widget->setUserString(BOX_KEY, buf);
+		*key = live;
+	}
+	BackpackRekeyNow(false);
+	return true;
+}
+
 static void OnBackpackFirstClick(MyGUI::Widget* sender)
 {
 	try
 	{
 		MyGUI::Button* box = sender ? sender->castType<MyGUI::Button>(false) : NULL;
-		const std::string& text = sender ? sender->getUserString(BOX_KEY) : std::string();
 		game::HandKey key;
-		if (!box || !HandKeyParse(text.c_str(), (int)text.size(), &key))
+		if (!box || !GetWearerKey(box, &key, false))
 		{
 			InterlockedIncrement(&s_clickFailed);
 			return;
 		}
-		game::HandKey live;
-		if (BackpackResolveKey(key, &live) && !game::HandKeyEqual(live, key))
-		{
-			char buf[64] = { 0 };
-			HandKeyFormat(live, buf, (int)sizeof(buf));
-			sender->setUserString(BOX_KEY, buf);
-			key = live;
-		}
-		BackpackRekeyNow(false);
 		int cur = BackpackFirstGet(key);
 		bool on = cur < 0 ? g_inventoryCfg.backpackFirstDefault : cur != 0;
 		if (!BackpackFirstSet(key, on ? 0 : 1))
@@ -139,6 +158,169 @@ static void OnBackpackFirstClick(MyGUI::Widget* sender)
 	{
 		InterlockedIncrement(&s_clickFailed);
 	}
+}
+
+static const char* kFillSliderSuffix = "slider";
+static const char* kFillTextSuffix = "value";
+static const char* kFillApplySuffix = "apply";
+static const char* kFillGlobalSuffix = "global";
+
+static void ShowPersonalFillIndicator(MyGUI::Button* box, bool personal)
+{
+	const std::string name = box->getName() + "_personal";
+	MyGUI::Widget* indicator = box->findWidget(name);
+	if (!indicator && personal)
+	{
+		indicator = box->createWidget<MyGUI::Widget>("WhiteSkin",
+		    MyGUI::IntCoord(4, box->getHeight() - 5, box->getWidth() - 8, 3),
+		    MyGUI::Align::HStretch | MyGUI::Align::Bottom, name);
+		indicator->setNeedMouseFocus(false);
+		indicator->setColour(MyGUI::Colour(0.25f, 1.0f, 0.1f));
+	}
+	box->setColour(personal ? MyGUI::Colour(0.35f, 1.0f, 0.25f) : MyGUI::Colour::White);
+	if (indicator)
+		indicator->setVisible(personal);
+}
+
+static void UpdateFillValue(MyGUI::Widget* panel, size_t index)
+{
+	MyGUI::Widget* widget = panel->findWidget(panel->getName() + kFillTextSuffix);
+	MyGUI::TextBox* label = widget ? widget->castType<MyGUI::TextBox>(false) : NULL;
+	if (!label)
+		return;
+	char value[8];
+	sprintf_s(value, "%u%%", (unsigned)(index + 1) * 5);
+	label->setCaption(value);
+}
+
+static void OnFillSlider(MyGUI::ScrollBar* slider, size_t index)
+{
+	try { UpdateFillValue(slider->getParent(), index); }
+	catch (...) { InterlockedIncrement(&s_clickFailed); }
+}
+
+static void OnFillChoice(MyGUI::Widget* sender)
+{
+	try
+	{
+		MyGUI::Widget* panel = sender->getParent();
+		MyGUI::Button* box = panel->getParent()->castType<MyGUI::Button>(false);
+		MyGUI::Widget* widget = panel->findWidget(panel->getName() + kFillSliderSuffix);
+		MyGUI::ScrollBar* slider = widget ? widget->castType<MyGUI::ScrollBar>(false) : NULL;
+		const bool inherit = sender->getName() == panel->getName() + kFillGlobalSuffix;
+		game::HandKey key;
+		const int percent = slider && !inherit ? (int)(slider->getScrollPosition() + 1) * 5 : 0;
+		if (!box || !slider || !GetWearerKey(box, &key) || !BackpackOperatorFillSet(key, percent))
+		{
+			InterlockedIncrement(&s_clickFailed);
+			return;
+		}
+		panel->setVisible(false);
+		ShowPersonalFillIndicator(box, percent != 0);
+	}
+	catch (...) { InterlockedIncrement(&s_clickFailed); }
+}
+
+static MyGUI::Widget* CreateFillPopup(MyGUI::Button* box, const std::string& name, const MyGUI::IntCoord& coord)
+{
+	// Use the same layer as the game's drop-down lists. The checkbox still owns
+	// this popup, so closing the backpack also retires its controls and delegates.
+	MyGUI::Widget* panel = box->createWidget<MyGUI::Widget>(
+	    MyGUI::WidgetStyle::Popup, "Kenshi_GenericTextBoxSkin", coord, MyGUI::Align::Default, "Popup", name);
+	try
+	{
+		panel->setVisible(false);
+		const int width = coord.width;
+		const bool narrow = width < 240;
+		const MyGUI::Align align = MyGUI::Align::Default;
+		MyGUI::TextBox* title = panel->createWidget<MyGUI::TextBox>("Kenshi_TextboxPaintedText",
+		    MyGUI::IntCoord(8, 6, width - 16, 24), align, name + "title");
+		title->setCaption(KeoTr("Personal operator fill"));
+		title->setTextAlign(MyGUI::Align::Center);
+		title->setNeedMouseFocus(false);
+		MyGUI::ScrollBar* slider = panel->createWidget<MyGUI::ScrollBar>("Kenshi_ScrollBar",
+		    MyGUI::IntCoord(6, 32, width - 64, 34), align, name + kFillSliderSuffix);
+		slider->setScrollRange(20);
+		slider->setScrollPage(1);
+		slider->setScrollViewPage(1);
+		slider->setMoveToClick(true);
+		slider->eventScrollChangePosition += MyGUI::newDelegate(&OnFillSlider);
+		MyGUI::TextBox* value = panel->createWidget<MyGUI::TextBox>("Kenshi_TextboxPaintedText",
+		    MyGUI::IntCoord(width - 58, 36, 50, 24), align, name + kFillTextSuffix);
+		value->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
+		value->setNeedMouseFocus(false);
+		const int middle = width / 2;
+		MyGUI::Button* apply = panel->createWidget<MyGUI::Button>("Kenshi_Button1",
+		    MyGUI::IntCoord(8, 74, narrow ? width - 16 : middle - 12, 28), align, name + kFillApplySuffix);
+		MyGUI::Button* inherit = panel->createWidget<MyGUI::Button>("Kenshi_Button1",
+		    MyGUI::IntCoord(narrow ? 8 : middle + 4, narrow ? 106 : 74,
+		                   narrow ? width - 16 : width - middle - 12, 28), align, name + kFillGlobalSuffix);
+		apply->setCaption(KeoTr("Apply"));
+		inherit->setCaption(KeoTr("Use global limit"));
+		apply->eventMouseButtonClick += MyGUI::newDelegate(&OnFillChoice);
+		inherit->eventMouseButtonClick += MyGUI::newDelegate(&OnFillChoice);
+	}
+	catch (...)
+	{
+		MyGUI::Gui::getInstance().destroyWidget(panel);
+		throw;
+	}
+	return panel;
+}
+
+static void OnBackpackRightClick(MyGUI::Widget* sender, int, int, MyGUI::MouseButton button)
+{
+	if (button != MyGUI::MouseButton::Right || !g_inventoryCfg.backpackFixesEnabled || !OperatorFillInstalled())
+		return;
+	try
+	{
+		MyGUI::Button* box = sender->castType<MyGUI::Button>(false);
+		if (!box)
+			return;
+		MyGUI::Widget* root = box->getParent();
+		while (root && !root->isUserString(FILL_ROOT))
+			root = root->getParent();
+		if (!root || root->getWidth() < 160 || root->getHeight() < 120)
+			return;
+		const std::string name = box->getName() + "_fill";
+		MyGUI::Widget* panel = box->findWidget(name);
+		if (panel && panel->getVisible())
+		{
+			panel->setVisible(false);
+			return;
+		}
+		game::HandKey key;
+		if (!GetWearerKey(box, &key))
+			return;
+		const int width = root->getWidth() > 292 ? 280 : root->getWidth() - 12;
+		const int height = width < 240 ? 144 : 112;
+		// A Popup is owned by the checkbox but laid out in screen coordinates.
+		const int left = (std::max)(4, root->getAbsoluteLeft() + (root->getWidth() - width) / 2);
+		const int top = (std::max)(4, box->getAbsoluteTop() - height - 8);
+		const MyGUI::IntCoord coord(left, top, width, height);
+		if (panel && panel->getWidth() != width)
+		{
+			MyGUI::Gui::getInstance().destroyWidget(panel);
+			panel = NULL;
+		}
+		if (!panel)
+			panel = CreateFillPopup(box, name, coord);
+		else
+			panel->setCoord(coord);
+		MyGUI::Widget* widget = panel->findWidget(name + kFillSliderSuffix);
+		MyGUI::ScrollBar* slider = widget ? widget->castType<MyGUI::ScrollBar>(false) : NULL;
+		if (!slider)
+			return;
+		const int personal = BackpackOperatorFillGet(key);
+		ShowPersonalFillIndicator(box, personal != 0);
+		const int percent = personal ? personal : g_inventoryCfg.operatorFillPercent;
+		const size_t index = OperatorFillPercentValid(percent) ? (size_t)percent / 5 - 1 : 19;
+		slider->setScrollPosition(index);
+		UpdateFillValue(panel, index);
+		panel->setVisible(true);
+		MyGUI::LayerManager::getInstance().upLayerItem(panel);
+	}
+	catch (...) { InterlockedIncrement(&s_clickFailed); }
 }
 
 // Main thread, once per backpack window, after setupSections built its sections and buttons.
@@ -190,8 +372,12 @@ static void AddBackpackFirstBox(void* layout, void* gui)
 
 	int cur = BackpackFirstGet(key);
 	box->setStateSelected(cur < 0 ? g_inventoryCfg.backpackFirstDefault : cur != 0);
+	if (BackpackOperatorFillGet(key))
+		ShowPersonalFillIndicator(box, true);
 
 	box->eventMouseButtonClick += MyGUI::newDelegate(&OnBackpackFirstClick);
+	root->setUserString(FILL_ROOT, "1");
+	box->eventMouseButtonReleased += MyGUI::newDelegate(&OnBackpackRightClick);
 	InterlockedIncrement(&s_boxes);
 }
 

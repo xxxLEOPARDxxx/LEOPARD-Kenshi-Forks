@@ -15,6 +15,7 @@ const InventoryConfig kInventoryDefaults =
 	true, // backpackDialogueFunctionEnabled
 	true, // operatorFillBeforeDeliverEnabled
 	OPERATOR_HOLD_HEAVY, // operatorHoldUntil
+	100, // operatorFillPercent
 	true, // backpackFixesEnabled
 	false, // carriedWeightEnabled: optional candidate, requires restart
 	false, // gatherOutputJobEnabled: live, independent
@@ -38,6 +39,29 @@ static const ConfigChoice kOperatorHoldChoices[] =
 	{ "moderate", OPERATOR_HOLD_MODERATE, "Moderate" }, { "heavy", OPERATOR_HOLD_HEAVY, "Heavy" },
 	{ "overloaded", OPERATOR_HOLD_OVERLOADED, "Overloaded" }
 };
+
+#define FILL_CHOICE(percent) { #percent, percent, #percent "%" }
+static const ConfigChoice kOperatorFillChoices[] =
+{
+	FILL_CHOICE(5), FILL_CHOICE(10), FILL_CHOICE(15), FILL_CHOICE(20), FILL_CHOICE(25),
+	FILL_CHOICE(30), FILL_CHOICE(35), FILL_CHOICE(40), FILL_CHOICE(45), FILL_CHOICE(50),
+	FILL_CHOICE(55), FILL_CHOICE(60), FILL_CHOICE(65), FILL_CHOICE(70), FILL_CHOICE(75),
+	FILL_CHOICE(80), FILL_CHOICE(85), FILL_CHOICE(90), FILL_CHOICE(95), FILL_CHOICE(100)
+};
+#undef FILL_CHOICE
+
+static bool ParseOperatorFillPercent(const std::string& val, ConfigLogFn)
+{
+	for (int i = 0; i < CFG_COUNT(kOperatorFillChoices); ++i)
+	{
+		if (val == kOperatorFillChoices[i].ini)
+		{
+			g_inventoryCfg.operatorFillPercent = kOperatorFillChoices[i].value;
+			return true;
+		}
+	}
+	return false;
+}
 
 // operatorHoldUntil: one of kOperatorHoldChoices' words, any case; anything else is refused and the
 // key keeps its value. Main thread, at load.
@@ -73,9 +97,13 @@ const ConfigKey g_inventoryConfigKeys[] =
 	  "Operators fill up before delivering",
 	  "A machine operator collects until its inventory and backpack are full or its load passes the weight tier set below, then delivers; not while hungry."),
 	CFG_OCUSTOM_CHOICES_LIVE("operatorHoldUntil", InventoryConfig, operatorHoldUntil, ParseOperatorHoldUntil, DOC, SHOW,
-	  "Operators fill up to",
-	  "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it.",
+	  "Operator weight limit",
+	  "Weight tier shown on the character panel. When exceeded, KEO lets the game resume normal delivery. Overloaded disables the weight limit.",
 	  kOperatorHoldChoices),
+	CFG_OCUSTOM_CHOICES_LIVE("operatorFillPercent", InventoryConfig, operatorFillPercent, ParseOperatorFillPercent, DOC, SHOW,
+	  "Operator inventory fill",
+	  "Occupied cells in the main inventory and worn backpack. When either limit is reached, KEO lets the game resume normal delivery. At 100%, the game checks whether more product fits. Right-click the backpack checkbox to set a personal cell limit.",
+	  kOperatorFillChoices),
 	CFG_OBOOL("carriedWeight", InventoryConfig, carriedWeightEnabled, DOC, SHOW,
 	  "Carried body and container weight",
 	  "Include contents of carried containers and people, and scale body weight by race, size and hunger. Keeps native backpack weight reductions. Off by default; disabled if KenshiQOL.dll is loaded, regardless of its settings. Requires restart."),

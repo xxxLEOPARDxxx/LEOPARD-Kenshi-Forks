@@ -84,8 +84,8 @@ msgstr "拾取物品时优先放入穿戴的背包（可在各背包窗口为使
 msgid "Operators fill up to"
 msgstr "操作员装货上限"
 
-msgid "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
-msgstr "机器操作员持续收集，负重超过角色面板中此等级后才送货。选择超负重时，负重不会触发送货。"
+msgid "Weight tier shown on the character panel. When exceeded, KEO lets the game resume normal delivery. Overloaded disables the weight limit."
+msgstr "以角色面板显示的负重等级为准。超过此等级后，KEO 允许游戏恢复正常交货。选择超载可关闭重量限制。"
 
 msgid "Keep squads together"
 msgstr "保持小队集结"
@@ -241,3 +241,21 @@ msgstr "循环路点任务"
 
 msgid "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."
 msgstr "按住 SHIFT 点击地面，将路点加入循环路线。路点使用原版任务行，并随游戏存档保存。关闭后暂停路线并禁止添加新路点，但不删除队列。"
+
+msgid "Operator weight limit"
+msgstr "操作员负重上限"
+
+msgid "Operator inventory fill"
+msgstr "已占用储物格（%）"
+
+msgid "Occupied cells in the main inventory and worn backpack. When either limit is reached, KEO lets the game resume normal delivery. At 100%, the game checks whether more product fits. Right-click the backpack checkbox to set a personal cell limit."
+msgstr "计算主物品栏和已装备背包的占用格数。达到任一限制时，KEO 允许游戏恢复正常交货。设为 100% 时，游戏检查产物是否还放得下。右键点击背包复选框可设置个人格数限制。"
+
+msgid "Personal operator fill"
+msgstr "个人格数限制"
+
+msgid "Apply"
+msgstr "应用"
+
+msgid "Use global limit"
+msgstr "使用全局上限"

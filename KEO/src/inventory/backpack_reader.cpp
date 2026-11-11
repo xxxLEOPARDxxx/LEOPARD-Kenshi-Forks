@@ -11,6 +11,7 @@
 #include "inventory/backpack_reader.h"
 #include "inventory/byte_check_policy.h"
 #include "game/game.h"
+#include <windows.h>
 #include <string.h>
 
 namespace backpack_reader_detail {
@@ -46,6 +47,7 @@ static const int ATTACH_BACKPACK_SLOT = 12;
 static const int ATTACH_NONE_SLOT     = 7;
 static const int ITEM_TYPE_CONTAINER  = 46;
 static const int MAX_SEARCH_SECTIONS  = 64;
+static const unsigned MAX_CARGO_CELLS = 8192;
 
 static const ByteCheck kChecks[] =
 {
@@ -140,7 +142,12 @@ void* ItemInventory(void* item)
 
 bool InventoryIsEmpty(void* inventory)
 {
-	return !inventory || ReadAt<unsigned>(inventory, OFF_INV_ALL_ITEMS_COUNT) == 0;
+	return InventoryItemCount(inventory) == 0;
+}
+
+unsigned InventoryItemCount(const void* inventory)
+{
+	return inventory ? ReadAt<unsigned>(inventory, OFF_INV_ALL_ITEMS_COUNT) : 0;
 }
 
 // Character::isAnimal returns a pointer, non-NULL for an animal.
@@ -192,6 +199,103 @@ bool InventoryWouldAutoEquip(void* inventory, void* item)
 			return true;
 	}
 	return false;
+}
+
+static bool s_fillReaderReady = false;
+
+bool InventoryFillReaderInit()
+{
+	// Identical field reads in the verified Steam and GOG functions, past their entries.
+	static const unsigned char dimensions[] = {0x49,0x63,0x41,0x30,0x48,0x63,0x49,0x34};
+	static const unsigned char strideAndX[] = {0x48,0x83,0xC0,0x10,0x48,0x3B,0xC1,0x75,0xF2,
+	                                         0x48,0x3B,0xC1,0x74,0xD2,0x44,0x0F,0xB7,0x48,0x08};
+	static const unsigned char width[] = {0x0F,0xB7,0x48,0x0C};
+	static const unsigned char yAndHeight[] = {0x44,0x0F,0xB7,0x50,0x0A,0x44,0x0F,0xB7,0x58,0x0E};
+	static const unsigned char enabled[] = {0x0F,0xB6,0x81,0xD0,0,0,0,0xC3};
+	static const unsigned char equipment[] = {0x88,0x85,0xB4,0,0,0};
+	const bool gog = NativeProfileIsGog();
+	const uintptr_t remove = gameBase + (gog ? 0x748810 : 0x748EE0);
+	s_fillReaderReady =
+	    memcmp((const void*)(gameBase + (gog ? 0x745E1A : 0x7464EA)), dimensions, sizeof(dimensions)) == 0
+	 && memcmp((const void*)(remove + 0x35), strideAndX, sizeof(strideAndX)) == 0
+	 && memcmp((const void*)(remove + 0x48), width, sizeof(width)) == 0
+	 && memcmp((const void*)(remove + 0x5B), yAndHeight, sizeof(yAndHeight)) == 0
+	 && memcmp((const void*)(gameBase + (gog ? 0x748390 : 0x748A60) + 0xFB), equipment, sizeof(equipment)) == 0
+	 && memcmp((const void*)(gameBase + (gog ? 0x14D910 : 0x14D9F0)), enabled, sizeof(enabled)) == 0;
+	return s_fillReaderReady;
+}
+
+bool InventoryFillReaderReady() { return s_fillReaderReady; }
+
+struct CargoEntry
+{
+	uintptr_t item;
+	unsigned short x, y, width, height;
+};
+static_assert(sizeof(CargoEntry) == 16, "Kenshi inventory entry stride");
+
+static bool AccumulateCargoSection(const void* section, unsigned* occupied, unsigned* capacity)
+{
+	if (ReadAt<int>(section, OFF_SECTION_LIMITED_SLOT) != ATTACH_NONE_SLOT
+	    || ReadAt<unsigned char>(section, 0xB4)
+	    || !ReadAt<unsigned char>(section, 0xD0))
+		return true;
+	const unsigned width = ReadAt<unsigned>(section, 0x30);
+	const unsigned height = ReadAt<unsigned>(section, 0x34);
+	if (!width || !height)
+		return true;
+	if (*capacity > MAX_CARGO_CELLS || width > MAX_CARGO_CELLS
+	    || height > (MAX_CARGO_CELLS - *capacity) / width)
+		return false;
+	const unsigned area = width * height;
+	const uintptr_t begin = ReadAt<uintptr_t>(section, OFF_SECTION_ITEMS_FIRST);
+	const uintptr_t end = ReadAt<uintptr_t>(section, OFF_SECTION_ITEMS_LAST);
+	if (end < begin || (end != begin && !begin) || (end - begin) % sizeof(CargoEntry)
+	    || (end - begin) / sizeof(CargoEntry) > area)
+		return false;
+	unsigned used = 0;
+	for (uintptr_t at = begin; at < end; at += sizeof(CargoEntry))
+	{
+		const CargoEntry& item = *(const CargoEntry*)at;
+		const unsigned w = item.width, h = item.height;
+		if (!item.item || !w || !h || item.x + w > width || item.y + h > height)
+			return false;
+		used += w * h;
+		if (used > area)
+			return false;
+	}
+	if (begin != ReadAt<uintptr_t>(section, OFF_SECTION_ITEMS_FIRST)
+	    || end != ReadAt<uintptr_t>(section, OFF_SECTION_ITEMS_LAST))
+		return false;
+	*occupied += used;
+	*capacity += area;
+	return true;
+}
+
+bool AccumulateInventoryFill(const void* inventory, unsigned* occupied, unsigned* capacity)
+{
+	if (!inventory)
+		return true;
+	__try
+	{
+		const int count = ReadAt<int>(inventory, OFF_INV_SEARCH_COUNT);
+		void* const* sections = ReadAt<void* const*>(inventory, OFF_INV_SEARCH_DATA);
+		if (count < 0 || count > MAX_SEARCH_SECTIONS || (count && !sections))
+			return false;
+		for (int i = 0; i < count; ++i)
+		{
+			const void* section = sections[i];
+			if (!section || !AccumulateCargoSection(section, occupied, capacity))
+				return false;
+		}
+		return count == ReadAt<int>(inventory, OFF_INV_SEARCH_COUNT)
+		    && sections == ReadAt<void* const*>(inventory, OFF_INV_SEARCH_DATA);
+	}
+	__except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION || GetExceptionCode() == EXCEPTION_IN_PAGE_ERROR
+	        ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+	{
+		return false;
+	}
 }
 
 } // namespace keo_inventory

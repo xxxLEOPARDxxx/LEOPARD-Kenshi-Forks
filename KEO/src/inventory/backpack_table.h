@@ -7,6 +7,7 @@
 #define KEO_INVENTORY_BACKPACK_TABLE_H
 
 #include "game/hand_key.h"
+#include <stddef.h>
 
 namespace keo_inventory {
 
@@ -19,14 +20,19 @@ int  BackpackFirstGet(const game::HandKey& k);
 // Main thread only. Updates k's entry, else takes the lowest free slot. False when the table
 // is full (counted).
 bool BackpackFirstSet(const game::HandKey& k, int on);
+// Personal operator limit in five-percent steps, or 0 to inherit the global setting.
+int  BackpackOperatorFillGet(const game::HandKey& k);
+bool BackpackOperatorFillSet(const game::HandKey& k, int percent);
+bool BackpackHasOperatorFillOverrides();
 // Main thread only. Slot i's key and value while it is in use; false for a free slot or an
 // index out of range.
-bool BackpackFirstEntry(int i, game::HandKey* k, int* on);
+bool BackpackFirstEntry(int i, game::HandKey* k, int* on, int* percent = NULL);
 // Main thread only. Moves slot i to key k. When another slot already holds k, the slot already
 // holding k wins and slot i is erased.
 void BackpackFirstRekey(int i, const game::HandKey& k);
 void BackpackFirstErase(int i);   // main thread only
 void BackpackFirstClear();        // main thread only
+unsigned BackpackSettingsGeneration(); // any thread; changes when the save table is cleared
 
 int  BackpackFirstSlotCount();    // one past the highest slot ever used: the scan bound
 int  BackpackFirstEntryCount();   // slots in use

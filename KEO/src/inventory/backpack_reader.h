@@ -22,6 +22,7 @@ const char* BackpackReaderSharedCallees();
 void* CharacterInventory(void* character);         // Character's main Inventory*, or NULL
 void* ItemInventory(void* item);                   // the item's own Inventory* (a container), or NULL
 bool  InventoryIsEmpty(void* inventory);           // no items
+unsigned InventoryItemCount(const void* inventory); // native all-item count, no walk
 bool  CharacterIsAnimal(void* character);
 // The first item of the main inventory's ATTACH_BACKPACK section when it is a container, else NULL.
 void* WornBackpack(void* character);
@@ -31,6 +32,14 @@ void* WornBackpackInventory(void* character);
 // tryAddItem would equip it there. True also when the section list cannot be read, so every
 // doubt keeps vanilla's order.
 bool  InventoryWouldAutoEquip(void* inventory, void* item);
+
+// Additional startup proof for the storage-cell reader. The existing backpack fixes may
+// still install if this optional proof is refused.
+bool  InventoryFillReaderInit();
+bool  InventoryFillReaderReady();
+// Adds occupied/available grid cells, excluding equipment and disabled sections. A false
+// result invalidates the entire sample. This never dereferences an item or calls game code.
+bool  AccumulateInventoryFill(const void* inventory, unsigned* occupied, unsigned* capacity);
 
 } // namespace keo_inventory
 

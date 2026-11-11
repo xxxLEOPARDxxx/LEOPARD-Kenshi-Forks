@@ -34,6 +34,10 @@ struct InventoryConfig
 	// AI back thread.
 	int operatorHoldUntil;
 
+	// Occupied storage cells across the main inventory and worn backpack, in steps of 5%.
+	// At 100 the native room check decides when stacks can still accept product.
+	int operatorFillPercent;
+
 	// backpackFixes: the backpack fixes as one switch: pickups into the worn backpack first, the food
 	// and dialogue checks that look in it, operators that fill up before delivering, and the backpack
 	// window's box. On by default. Live: the KEO tab's close stores it on the main thread; each part

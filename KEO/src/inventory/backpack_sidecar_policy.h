@@ -14,10 +14,11 @@ const char* const SIDECAR_HEADER    = "KEO_backpacks 1";
 // The largest file read; a full table at the widest keys formats to at most about 29 KB.
 const int SIDECAR_MAX_BYTES = 262144;
 
-struct SidecarEntry { game::HandKey key; int on; };
+struct SidecarEntry { game::HandKey key; int on; int operatorFillPercent; };
 
 // The version line, then "<type> <container> <containerSerial> <index> <serial> <0|1>" for every
-// entry, in the given order, each ended by "\n". An empty list is the version line alone. An
+// explicit pickup preference, plus an optional "# fill <key> <percent>" line for each operator
+// limit. Older readers ignore the comment. An empty list is the version line alone. An
 // entry whose key fails to format is skipped and counted in *formatFailed (when not NULL).
 std::string SidecarFormat(const SidecarEntry* entries, int n, int* formatFailed);
 
@@ -29,7 +30,7 @@ struct SidecarParseResult
 	int  duplicates;   // a key seen again: its last line wins
 	int  overflow;     // well-formed lines past max
 };
-// CR before LF is accepted; blank lines and lines starting with '#' are skipped; a last line
+// CR before LF is accepted; blank lines and ordinary comments are skipped; a last line
 // without a newline is read.
 SidecarParseResult SidecarParse(const char* text, int len, SidecarEntry* out, int max);
 

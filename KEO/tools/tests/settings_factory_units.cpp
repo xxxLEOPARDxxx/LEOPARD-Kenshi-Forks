@@ -34,7 +34,7 @@ static const char* const SUITE_NAME = "settings_factory_units";
 #else
 static const char* const SUITE_NAME = "settings_factory_prod_units";
 #endif
-static const size_t CORE_ROWS_DEV = 108;
+static const size_t CORE_ROWS_DEV = 113;
 static const int DEV_ONLY_ROWS = 108;
 
 // ---- Sections --------------------------------------------------------------
@@ -165,7 +165,7 @@ static void CheckRowCounts()
 	Check(Section(dev, RENDER_TITLE).size() == 21, "render rows dev");
 	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Performance").size() == 2
 	      && Section(prod, "Squad movement").size() == 5 && Section(prod, "Gameplay fixes").size() == 4
-	      && Section(prod, "Backpacks and jobs").size() == 2, "player section rows prod");
+	      && Section(prod, "Backpacks and jobs").size() == 7, "player section rows prod");
 }
 
 // ---- Restart and devOnly ---------------------------------------------------
@@ -205,7 +205,7 @@ static void CheckRestart()
 		ok = ok && r && !EndsWith(r->label, " *") && !r->restart;
 		++live;
 	}
-	Check(ok && live > 0 && liveCore == 14, "Restart");
+	Check(ok && live > 0 && liveCore == 18, "Restart");
 }
 
 static bool OnProdPage(const char* name)

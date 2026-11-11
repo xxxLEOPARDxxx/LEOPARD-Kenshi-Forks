@@ -24,6 +24,10 @@ The settings are grouped as follows:
 
 MCM marks settings requiring a restart. The carried-weight option requires one; the three job switches take effect during play. Advanced settings are documented in the packaged `KEO.defaults.ini` template. KEO creates your personal `KEO.ini` for configuration. Preserve that personal file when updating.
 
+### Operator cargo limit
+
+Under **Backpacks and jobs**, set the operator cargo limit from 5% to 100% in 5% increments. The limit counts occupied cells in the main inventory and worn backpack. The weight limit still applies. Right-click the existing backpack checkbox to set a separate limit for its wearer. A green mark on the checkbox indicates an active personal limit. Use **Use global limit** to restore the global value for that character. Personal limits travel with the save.
+
 ### Optional carried weight and jobs
 
 This package combines KEO with useful features adapted from **KenshiQOL by Steel**. Thank you to Steel for releasing the original features and source.

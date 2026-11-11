@@ -10,6 +10,7 @@
 #include "inventory/operator_trips.h"
 #include "inventory/operator_policy.h"
 #include "inventory/backpack_reader.h"
+#include "inventory/backpack_table.h"
 #include "inventory/byte_check_policy.h"
 #include "inventory/inventory_config.h"
 #include "plugin/hook_manifest.h"
@@ -73,6 +74,43 @@ static float EncumbranceOf(void* me)
 	return stats ? *(const float*)((const char*)stats + kStatsEncumbrance) : 1.0f;
 }
 
+struct FillSample
+{
+	game::HandKey actor;
+	uintptr_t inventory, backpack;
+	DWORD tick;
+	unsigned generation, mainItems, bagItems, occupied, capacity;
+	bool valid;
+};
+
+static const unsigned kFillCacheSize = 64;
+static const DWORD kFillRefreshMs = 150;
+static __declspec(thread) FillSample t_fillCache[kFillCacheSize];
+
+static bool CargoLimitReached(const game::HandKey& actor, void* inventory, void* backpack, int percent)
+{
+	// Count changes invalidate immediately. Replacing an item without changing the count is
+	// covered by the short expiry. Cache entries only retain identities and arithmetic results.
+	const unsigned generation = BackpackSettingsGeneration();
+	const unsigned mainItems = InventoryItemCount(inventory);
+	const unsigned bagItems = InventoryItemCount(backpack);
+	const DWORD now = GetTickCount();
+	const uintptr_t mainId = (uintptr_t)inventory, bagId = (uintptr_t)backpack;
+	FillSample& sample = t_fillCache[(actor.index ^ actor.serial ^ actor.container) % kFillCacheSize];
+	if (sample.inventory != mainId || sample.backpack != bagId || sample.generation != generation
+	    || !game::HandKeyEqual(sample.actor, actor) || sample.mainItems != mainItems
+	    || sample.bagItems != bagItems || DWORD(now - sample.tick) >= kFillRefreshMs)
+	{
+		FillSample next = { actor, mainId, bagId, now, generation, mainItems, bagItems, 0, 0, false };
+		next.valid = AccumulateInventoryFill(inventory, &next.occupied, &next.capacity)
+		          && AccumulateInventoryFill(backpack, &next.occupied, &next.capacity)
+		          && mainItems == InventoryItemCount(inventory)
+		          && bagItems == InventoryItemCount(backpack);
+		sample = next;
+	}
+	return sample.valid && OperatorFillReached(sample.occupied, sample.capacity, percent);
+}
+
 // Fills f in OperatorReasonOf's order and stops at the first fact that fails. Vanilla getters
 // only; every pointer read is NULL-checked.
 static OperatorReason GatherOperatorFacts(void* ai, const void* subject, const void* v, OperatorFacts* f)
@@ -101,10 +139,28 @@ static OperatorReason GatherOperatorFacts(void* ai, const void* subject, const v
 	f->haveProduct = item != NULL;
 	if (!f->haveProduct) return OperatorReasonOf(*f);
 	void* inv = VGet(me, kVtGetInventory);
+	void* bag = NULL;
+	bool readBag = false;
+	const int global = g_inventoryCfg.operatorFillPercent;
+	const bool hasOverrides = BackpackHasOperatorFillOverrides();
+	if (inv && InventoryFillReaderReady() && (global != 100 || hasOverrides))
+	{
+		const game::HandKey actor = game::HandKeyOfObject(me);
+		const int personal = hasOverrides ? BackpackOperatorFillGet(actor) : 0;
+		const int percent = personal ? personal : global;
+		if (percent < 100 && OperatorFillPercentValid(percent))
+		{
+			bag = WornBackpackInventory(me);
+			readBag = true;
+			f->fillReached = CargoLimitReached(actor, inv, bag, percent);
+			if (f->fillReached) return OperatorReasonOf(*f);
+		}
+	}
 	bool room = inv && ((hasRoom_t)(*(void***)inv)[kVtHasRoom / 8])(inv, item);
 	if (!room)
 	{
-		void* bag = WornBackpackInventory(me);
+		if (!readBag)
+			bag = WornBackpackInventory(me);
 		room = bag && ((hasRoom_t)(*(void***)bag)[kVtHasRoom / 8])(bag, item);
 	}
 	f->hasRoom = room;
@@ -157,6 +213,8 @@ void InstallOperatorTrips(int* installed, int*)
 		fn_isMachineInputInvalid = (aiCheck_t)GameAddr(RVA_AI_MACHINE_INPUT_INVALID);
 		fn_wantsToEatNow         = (wantsToEatNow_t)GameAddr(RVA_CHARACTER_WANTS_TO_EAT_NOW);
 		s_handleManager          = (void*)GameAddr(RVA_GLOBAL_HANDLE_MANAGER);
+		if (!InventoryFillReaderInit())
+			LogError("OperatorTrips: storage-cell layout refused; weight and native room limits retained");
 		why = HookInstall(HOOK_OPERATOR_WANT_GONE, hook_operatorWantGone, &orig_operatorWantGone, installed, true);
 	}
 	if (!why)
@@ -178,5 +236,7 @@ void OperatorTripsCountersRead(long* out, int n)
 	for (int i = 0; i < n && i < OR_COUNT; ++i)
 		out[i] = InterlockedCompareExchange(&s_reason[i], 0, 0);
 }
+
+bool OperatorFillInstalled() { return orig_operatorWantGone && InventoryFillReaderReady(); }
 
 } // namespace keo_inventory

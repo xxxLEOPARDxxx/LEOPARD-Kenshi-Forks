@@ -33,7 +33,7 @@ static void Describe(MCM_Api&api){rows.clear();KeoMcmDescribe(&api);}
 int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;api.info=Info;api.toggleFn=Toggle;api.integerFn=Integer;api.choiceFn=Choice;api.numberFn=Number;api.defaultValue=Default;
  KeoMcmDescribe(NULL);Describe(api);Check(rows.empty(),"early discovery has no unsafe callbacks");
  movement::g_movementCfg.routingEnabled=false;movement::g_movementCfg.groupCohesionEnabled=true;Check(CaptureRequestedSettings(),"requested captured before runtime refusal");movement::ApplyRoutingSwitch(NULL);
- api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==25&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 exact compact25 and Debug last");
+ api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==26&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 exact compact26 and Debug last");
  api.version=5;Describe(api);unsigned restart=0;for(size_t i=0;i<rows.size();++i){restart+=(rows[i].flags&MCM_RESTART)!=0;Check(rows[i].label.find('*')==std::string::npos,"MCM owns restart marker");}Check(restart==14&&rows.back().flags==0&&rows.back().def=="0","14 startup rows and live defaultOFF Debug");
  for(unsigned p=0;keo_gui::kSettingsPlaces[p].section;++p){const ConfigKey*k=FindConfigKey(keo_gui::kSettingsPlaces[p].key,NULL);Row*r=Find(k->name);Check(r&&r->flags==(k->live?0:MCM_RESTART),"each original player row preserves exact live/restart classification");if(r&&r->kind==2)Check(r->lo==int(k->lo)&&r->hi==int(k->hi),"integer range comes from original loader metadata");}
  Check(Find("carriedWeight")&&Find("carriedWeight")->def=="0"&&Find("carriedWeight")->flags==MCM_RESTART&&!keo_inventory::g_inventoryCfg.carriedWeightEnabled,"carried weight defaultOFF and restart-only, no runtime activation");
@@ -66,6 +66,12 @@ int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;a
  StagedRender(&afterSibling).foliageBudgetSpeed=liveSpeed;Check(PublishRequestedSettings(afterSibling),"owned stale sibling fixture retired");
  before=saves;Check(foliage.sf(foliage.ud,std::numeric_limits<float>::quiet_NaN(),err,sizeof(err))!=0&&saves==before,"NaN rejected before persistence");
  Row debug=rows.back();Check(!debug.si(debug.ud,1,err,sizeof(err))&&detailed,"live cached logger switch");Row choice=*Find("operatorHoldUntil");before=saves;Check(choice.si(choice.ud,123456,err,sizeof(err))!=0&&saves==before,"invalid custom choice rejected");
+ Row fill=*Find("operatorFillPercent");
+ bool fillSteps=fill.choices.size()==20;
+ for(size_t i=0;fillSteps&&i<fill.choices.size();++i)fillSteps=fill.choices[i]==int(i+1)*5;
+ Check(fillSteps&&fill.def=="100"&&!fill.flags,"fill: all 5 percent steps, live, native room by default");
+ Check(fill.si(fill.ud,7,err,sizeof(err))!=0&&saves==before,"fill: rejects an intermediate value without writing");
+ Check(!fill.si(fill.ud,55,err,sizeof(err))&&saves==before+1&&keo_inventory::g_inventoryCfg.operatorFillPercent==55,"fill: writes exact stepped value and applies live");
  Check(child.gi(NULL,&got)!=0&&child.gi(child.ud,NULL)!=0,"callback context and destinations bounded");mainThread=false;before=saves;unsigned translated=translations;Check(child.si(child.ud,0,err,sizeof(err))!=0&&saves==before&&translations==translated,"off-thread callback refuses without native localization");mainThread=true;
  Check(child.si(reinterpret_cast<char*>(child.ud)+1,0,err,sizeof(err))!=0,"misaligned context rejects without dereference");
  before=saves;unsigned floorBefore=floorReads,applyBefore=applies,trBefore=translations;for(unsigned n=0;n<100;++n)for(size_t i=0;i<rows.size();++i){if(rows[i].gi)rows[i].gi(rows[i].ud,&got);else{float f;rows[i].gf(rows[i].ud,&f);}}Check(saves==before&&floorReads==floorBefore&&applies==applyBefore&&translations==trBefore,"repeated getters do no IO/native floor/apply/translation work");

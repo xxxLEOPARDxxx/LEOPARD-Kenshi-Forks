@@ -17,9 +17,9 @@ static HandKey Key(unsigned type, unsigned container, unsigned containerSerial, 
 	return k;
 }
 
-static SidecarEntry Entry(const HandKey& k, int on)
+static SidecarEntry Entry(const HandKey& k, int on, int fill = 0)
 {
-	SidecarEntry e = { k, on };
+	SidecarEntry e = { k, on, fill };
 	return e;
 }
 
@@ -34,9 +34,9 @@ static bool Counts(const SidecarParseResult& r, bool refused, int accepted, int 
 	    && r.duplicates == duplicates && r.overflow == overflow;
 }
 
-static bool Holds(const SidecarEntry& e, const HandKey& k, int on)
+static bool Holds(const SidecarEntry& e, const HandKey& k, int on, int fill = 0)
 {
-	return game::HandKeyEqual(e.key, k) && e.on == on;
+	return game::HandKeyEqual(e.key, k) && e.on == on && e.operatorFillPercent == fill;
 }
 
 static void CheckParseRefusals()
@@ -169,6 +169,14 @@ static void CheckRoundTrip()
 
 int main()
 {
+	SidecarEntry fill[] = { Entry(Key(2, 7, 31, 405, 1), -1, 85), Entry(Key(2, 7, 31, 406, 2), 1, 30) };
+	SidecarEntry parsed[2];
+	const std::string written = SidecarFormat(fill, 2, NULL);
+	CHECK(written == "KEO_backpacks 1\n# fill 2 7 31 405 1 85\n2 7 31 406 2 1\n# fill 2 7 31 406 2 30\n",
+	      "fill: preserves version-1 pickup rows and uses a backwards-compatible comment");
+	const SidecarParseResult result = Parse(written + "# fill 2 7 31 406 2 77\n# fill 2 7 31 406 2 35\n", parsed, 2);
+	CHECK(Counts(result, false, 2, 1, 1, 0) && Holds(parsed[0], fill[0].key, -1, 85)
+	      && Holds(parsed[1], fill[1].key, 1, 35), "fill: separate pickup and fill values survive round-trip, invalid steps are skipped");
 	CheckParseRefusals();
 	CheckParseLines();
 	CheckFormat();

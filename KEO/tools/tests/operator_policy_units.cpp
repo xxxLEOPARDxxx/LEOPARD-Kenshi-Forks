@@ -23,6 +23,7 @@ static OperatorFacts AllHold()
 	f.hungry      = false;
 	f.tooHeavy    = false;
 	f.haveProduct = true;
+	f.fillReached = false;
 	f.hasRoom     = true;
 	return f;
 }
@@ -59,6 +60,8 @@ static void CheckGuards()
 	CHECK(DeliversWith(f, OR_TOO_HEAVY), "guard: too heavy delivers");
 	f = all; f.haveProduct = false;
 	CHECK(DeliversWith(f, OR_NO_PRODUCT), "guard: no product delivers");
+	f = all; f.fillReached = true;
+	CHECK(DeliversWith(f, OR_FILL_REACHED), "guard: reaching the configured inventory fill delivers");
 	f = all; f.hasRoom = false;
 	CHECK(DeliversWith(f, OR_NO_ROOM), "guard: no room delivers");
 }
@@ -127,6 +130,7 @@ static void CheckConjunction()
 		f.tooHeavy    = (m & 256) != 0;
 		f.haveMachine = true;
 		f.haveProduct = true;
+		f.fillReached = false;
 		const bool hold = HoldDelivery(f.vanillaTrue, f.isPlayer, f.ownsMachine, f.isResource,
 		                               f.hasRoom, f.powered, f.inputsValid, f.hungry, f.tooHeavy);
 		ok = ok && hold == (OperatorReasonOf(f) == OR_HOLD);
@@ -136,8 +140,7 @@ static void CheckConjunction()
 
 static void CheckNoJammed()
 {
-	// Eleven bools and nothing else: a jamming fact would be a twelfth member.
-	Check(sizeof(OperatorFacts) == 11, "jammed is not an input");
+	Check(sizeof(OperatorFacts) == 12, "jammed is not an input");
 }
 
 static void CheckTiers()
@@ -194,7 +197,7 @@ static void CheckNames()
 	static const char* const kNames[OR_COUNT] =
 	{
 		"hold", "vanilla", "notPlayer", "noMachine", "notOwned", "notResource", "unpowered",
-		"inputs", "hungry", "heavy", "noProduct", "noRoom"
+		"inputs", "hungry", "heavy", "noProduct", "fillReached", "noRoom"
 	};
 	bool ok = true;
 	for (int r = 0; r < OR_COUNT; ++r)
@@ -208,6 +211,13 @@ static void CheckNames()
 
 int main()
 {
+	CHECK(!OperatorFillReached(49, 100, 50) && OperatorFillReached(50, 100, 50),
+	      "fill: exact percentage boundary");
+	CHECK(!OperatorFillReached(1, 3, 35) && OperatorFillReached(1, 3, 30),
+	      "fill: preserves sub-percent precision");
+	CHECK(!OperatorFillReached(0, 0, 5) && !OperatorFillReached(100, 100, 100),
+	      "fill: no grid or 100 percent keeps native room and stacking checks");
+	CHECK(!OperatorFillReached(10, 100, 7), "fill: rejects limits outside the five-percent steps");
 	CheckGuards();
 	CheckVanillaFalse();
 	CheckOrder();

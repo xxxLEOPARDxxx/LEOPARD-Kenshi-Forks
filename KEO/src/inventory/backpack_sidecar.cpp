@@ -86,10 +86,12 @@ static bool SidecarWrite(void* sfs)
 		{
 			game::HandKey k;
 			int on = 0;
-			if (BackpackFirstEntry(i, &k, &on))
+			int percent = 0;
+			if (BackpackFirstEntry(i, &k, &on, &percent))
 			{
 				entries[n].key = k;
 				entries[n].on = on;
+				entries[n].operatorFillPercent = percent;
 				++n;
 			}
 		}
@@ -156,7 +158,12 @@ static void SidecarRead(void* sfs)
 		}
 		BackpackFirstClear();
 		for (int i = 0; i < r.accepted; ++i)
-			BackpackFirstSet(entries[i].key, entries[i].on);
+		{
+			if (entries[i].on >= 0)
+				BackpackFirstSet(entries[i].key, entries[i].on);
+			if (entries[i].operatorFillPercent)
+				BackpackOperatorFillSet(entries[i].key, entries[i].operatorFillPercent);
+		}
 		++s_read;
 		s_badLines   += r.badLines;
 		s_duplicates += r.duplicates;

@@ -7,6 +7,7 @@ namespace keo_inventory {
 
 // Main thread, a startup install step: the row while operatorFillBeforeDeliver is on.
 void InstallOperatorTrips(int* installed, int* total);
+bool OperatorFillInstalled();
 // Any thread: per-reason counts of the detour's verdicts (OR_COUNT entries).
 void OperatorTripsCountersRead(long* out, int n);
 

@@ -25,6 +25,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Gameplay fixes",     "navmesh",   "wallSpliceFix" },
 	{ "Backpacks and jobs", "inventory", "backpackFixes",       "backpack" },
 	{ "Backpacks and jobs", "inventory", "operatorHoldUntil",   "backpack" },
+	{ "Backpacks and jobs", "inventory", "operatorFillPercent", "backpack" },
 	{ "Backpacks and jobs", "inventory", "carriedWeight" },
 	{ "Backpacks and jobs", "inventory", "gatherOutputJob" },
 	{ "Backpacks and jobs", "inventory", "stockCounterJob" },

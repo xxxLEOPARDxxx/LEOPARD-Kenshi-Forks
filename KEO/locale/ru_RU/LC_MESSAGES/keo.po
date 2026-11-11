@@ -84,8 +84,8 @@ msgstr "Подобранные вещи сначала кладутся в на�
 msgid "Operators fill up to"
 msgstr "Операторы набирают до"
 
-msgid "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
-msgstr "Оператор машины собирает, пока груз не превысит эту ступень (слово на панели персонажа), и только потом несёт. Перегруз: по весу не уходит никогда."
+msgid "Weight tier shown on the character panel. When exceeded, KEO lets the game resume normal delivery. Overloaded disables the weight limit."
+msgstr "Порог веса по шкале перегруза персонажа. При превышении оператор может отнести груз на склад. Перегружен - вес больше не ограничивает сбор."
 
 msgid "Keep squads together"
 msgstr "Держать отряд вместе"
@@ -241,3 +241,21 @@ msgstr "Циклический маршрут"
 
 msgid "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."
 msgstr "SHIFT + щелчки по земле добавляют точки циклического маршрута. Точки остаются штатными строками задач и сохраняются вместе с игрой. Выключение приостанавливает маршрут и запрещает новые точки, не удаляя очередь."
+
+msgid "Operator weight limit"
+msgstr "Вес груза оператора"
+
+msgid "Operator inventory fill"
+msgstr "Занятые ячейки (%)"
+
+msgid "Occupied cells in the main inventory and worn backpack. When either limit is reached, KEO lets the game resume normal delivery. At 100%, the game checks whether more product fits. Right-click the backpack checkbox to set a personal cell limit."
+msgstr "Доля занятых ячеек основного инвентаря и надетого рюкзака. При достижении любого порога KEO разрешает штатную сдачу на склад. При 100% проверяется, помещается ли ещё продукция. ПКМ по галочке рюкзака задаёт личный порог по ячейкам."
+
+msgid "Personal operator fill"
+msgstr "Личный лимит ячеек"
+
+msgid "Apply"
+msgstr "Применить"
+
+msgid "Use global limit"
+msgstr "Общий лимит"

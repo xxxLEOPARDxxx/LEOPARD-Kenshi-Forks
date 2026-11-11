@@ -84,8 +84,8 @@ msgstr "Picked-up items go into the worn backpack first (each backpack's window 
 msgid "Operators fill up to"
 msgstr "Operators fill up to"
 
-msgid "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
-msgstr "A machine operator keeps collecting until its load passes this tier, the word on its character panel, then delivers. Overloaded: weight never sends it."
+msgid "Weight tier shown on the character panel. When exceeded, KEO lets the game resume normal delivery. Overloaded disables the weight limit."
+msgstr "Weight tier shown on the character panel. When exceeded, KEO lets the game resume normal delivery. Overloaded disables the weight limit."
 
 msgid "Keep squads together"
 msgstr "Keep squads together"
@@ -241,3 +241,21 @@ msgstr "Cyclic waypoint jobs"
 
 msgid "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."
 msgstr "Use SHIFT + ground clicks to queue a cyclic route. Waypoints remain native job rows and are saved with the game. Turning OFF pauses the route and blocks new waypoints without deleting queued rows."
+
+msgid "Operator weight limit"
+msgstr "Operator weight limit"
+
+msgid "Operator inventory fill"
+msgstr "Occupied storage cells (%)"
+
+msgid "Occupied cells in the main inventory and worn backpack. When either limit is reached, KEO lets the game resume normal delivery. At 100%, the game checks whether more product fits. Right-click the backpack checkbox to set a personal cell limit."
+msgstr "Occupied cells in the main inventory and worn backpack. When either limit is reached, KEO lets the game resume normal delivery. At 100%, the game checks whether more product fits. Right-click the backpack checkbox to set a personal cell limit."
+
+msgid "Personal operator fill"
+msgstr "Personal cell limit"
+
+msgid "Apply"
+msgstr "Apply"
+
+msgid "Use global limit"
+msgstr "Use global limit"

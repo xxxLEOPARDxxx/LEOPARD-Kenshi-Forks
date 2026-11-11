@@ -245,6 +245,28 @@ static void CheckFood()
 	      "food: vanilla not wanting is never changed");
 }
 
+static void CheckPersonalFill()
+{
+	const game::HandKey first = Key(2, 1, 2, 5, 6);
+	const game::HandKey moved = Key(2, 8, 3, 5, 6);
+	CHECK(!BackpackHasOperatorFillOverrides() && BackpackOperatorFillGet(first) == 0,
+	      "fill: empty table inherits global");
+	CHECK(!BackpackOperatorFillSet(first, 73) && BackpackOperatorFillSet(first, 75)
+	      && BackpackHasOperatorFillOverrides() && BackpackOperatorFillGet(first) == 75
+	      && BackpackFirstGet(first) == -1, "fill: overrides preserve default pickup");
+	CHECK(BackpackFirstSet(moved, 0), "fill: create explicit pickup setting");
+	BackpackFirstRekey(0, moved);
+	CHECK(BackpackOperatorFillGet(first) == 0 && BackpackOperatorFillGet(moved) == 75
+	      && BackpackFirstGet(moved) == 0, "fill: merges independently across squad movement");
+	CHECK(BackpackOperatorFillSet(moved, 0) && !BackpackHasOperatorFillOverrides()
+	      && BackpackOperatorFillGet(moved) == 0 && BackpackFirstGet(moved) == 0,
+	      "fill: return to global leaves pickup preference intact");
+	const unsigned generation = BackpackSettingsGeneration();
+	BackpackFirstClear();
+	CHECK(BackpackSettingsGeneration() != generation && BackpackFirstGet(moved) == -1,
+	      "fill: clearing the save table advances the cache epoch");
+}
+
 static void CheckDialog()
 {
 	// Arguments: mainHas (the main inventory's answer), wearsBackpack.
@@ -262,6 +284,7 @@ int main()
 	CheckFields();
 	CheckKey();
 	CheckTable();
+	CheckPersonalFill();
 	CheckFood();
 	CheckDialog();
 	return CheckExit("backpack_policy_units");
