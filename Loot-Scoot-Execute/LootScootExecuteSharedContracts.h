@@ -14,6 +14,7 @@ struct PluginConfig
     bool enableExecuteAll;
     bool ignoreExecuteAllianceCheck;
     bool blockExecuteCarried;
+    bool dropCarriedCorpseBeforeExecute;
     int executeDistanceMeters;
     int executeAllRadiusUnits;
     int executeButtonWidthPx;
@@ -35,6 +36,7 @@ struct ConfigParseDiagnostics
     bool invalidEnableExecuteAll;
     bool foundIgnoreExecuteAllianceCheck;
     bool invalidIgnoreExecuteAllianceCheck;
+    bool invalidDropCarriedCorpseBeforeExecute;
     bool foundExecuteDistanceMeters;
     bool usedLegacyExecuteDistanceMetersKey;
     bool invalidExecuteDistanceMeters;

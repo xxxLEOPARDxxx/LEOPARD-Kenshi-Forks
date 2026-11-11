@@ -10,6 +10,7 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
+#include <kenshi/Animation/AnimationClass.h>
 #include <kenshi/RaceData.h>
 #include <kenshi/Damages.h>
 #include <kenshi/Faction.h>
@@ -56,6 +57,9 @@ static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
 static const DWORD kQueuedExecuteRepathIntervalMs = 1000;   // было 200: задача персонажа мелькала
 static const DWORD kQueuedExecuteAttackWindupMs = 180;
 static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
+static const DWORD kFinisherStartGraceMs = 250;
+static const float kFinisherStrikeProgress = 0.60f;
+static const std::string kFinisherAnimationName("chop down static");
 static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
 static const DWORD kQueuedExecuteFacingGraceMs = 1500;
 static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
@@ -74,7 +78,6 @@ static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
 static const DWORD kCustomExecutePanelFallbackTickMinGapMs = 100;
 static const DWORD kCustomExecutePanelPredicateRefreshMs = 100;
-static const std::string kQueuedExecuteSlaveAnimName = "heavy downcut";
 // Kill sound: Wwise events that really exist in the game's banks (checked by
 // FNV-1 hash in data/audio/*.bnk, 09.10.2026). The original list tried
 // "Heavy_Hit"/"Light_Hit" first - there are no such events, so nothing was
@@ -142,6 +145,7 @@ static PluginConfig g_config = {
     false,
     true,
     false,
+    true,
     true,
     kQueuedExecuteDefaultDistanceMeters,
     kExecuteAllRadiusDefaultUnits,
@@ -282,6 +286,13 @@ static bool g_lastCanExecuteDecisionResult = false;
 // прежних глобальных переменных - макросы на поля ТЕКУЩЕГО задания
 // (g_executeJobIndex): весь код очереди ниже работает с одним заданием, как
 // и раньше, а покадровый проход и постановка выбирают задание сами.
+enum ExecuteFinisherPhase
+{
+    ExecuteFinisher_FALLBACK,
+    ExecuteFinisher_SWING,
+    ExecuteFinisher_FOLLOW_THROUGH
+};
+
 struct ExecuteJob
 {
     bool queuedActive;
@@ -294,16 +305,18 @@ struct ExecuteJob
     bool attackTriggered;
     DWORD attackTriggeredMs;
     DWORD inRangeSinceMs;
+    DWORD pauseStartedMs;
+    ExecuteFinisherPhase finisherPhase;
     const char* animationMode;
-    bool slaveAnimPlaying;
     bool batchActive;               // «Добить всех»: после цели - следующая из общего пула
     hand batchActorHandle;
     uintptr_t batchActorPtr;
 
     ExecuteJob()
         : queuedActive(false), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
-          attackTriggered(false), attackTriggeredMs(0), inRangeSinceMs(0), animationMode("none"),
-          slaveAnimPlaying(false), batchActive(false), batchActorPtr(0)
+          attackTriggered(false), attackTriggeredMs(0), inRangeSinceMs(0), pauseStartedMs(0),
+          finisherPhase(ExecuteFinisher_FALLBACK), animationMode("none"),
+          batchActive(false), batchActorPtr(0)
     {
     }
 };
@@ -320,8 +333,8 @@ static size_t g_executeJobIndex = 0;
 #define g_queuedExecuteAttackTriggered (g_executeJobs[g_executeJobIndex].attackTriggered)
 #define g_queuedExecuteAttackTriggeredMs (g_executeJobs[g_executeJobIndex].attackTriggeredMs)
 #define g_queuedExecuteInRangeSinceMs (g_executeJobs[g_executeJobIndex].inRangeSinceMs)
+#define g_queuedExecuteFinisherPhase (g_executeJobs[g_executeJobIndex].finisherPhase)
 #define g_queuedExecuteAnimationMode (g_executeJobs[g_executeJobIndex].animationMode)
-#define g_queuedExecuteSlaveAnimPlaying (g_executeJobs[g_executeJobIndex].slaveAnimPlaying)
 #define g_executeAllBatchActive (g_executeJobs[g_executeJobIndex].batchActive)
 #define g_executeAllBatchActorHandle (g_executeJobs[g_executeJobIndex].batchActorHandle)
 #define g_executeAllBatchActorPtr (g_executeJobs[g_executeJobIndex].batchActorPtr)
@@ -509,6 +522,7 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->invalidEnableExecuteAll = false;
     diagnostics->foundIgnoreExecuteAllianceCheck = false;
     diagnostics->invalidIgnoreExecuteAllianceCheck = false;
+    diagnostics->invalidDropCarriedCorpseBeforeExecute = false;
     diagnostics->foundExecuteDistanceMeters = false;
     diagnostics->usedLegacyExecuteDistanceMetersKey = false;
     diagnostics->invalidExecuteDistanceMeters = false;
@@ -563,6 +577,7 @@ static void LoadConfigState()
     g_config.debugExecuteLogging = false;
     g_config.enableExecuteAll = true;
     g_config.ignoreExecuteAllianceCheck = false;
+    g_config.dropCarriedCorpseBeforeExecute = true;
     g_config.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
     g_config.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
@@ -1553,22 +1568,6 @@ static bool TryPlayExecuteKillSound(
     return played;
 }
 
-static void TryEndQueuedExecuteSlaveAnim(Character* actor)
-{
-    if (!actor)
-    {
-        return;
-    }
-
-    __try
-    {
-        actor->endSlaveAnim(kQueuedExecuteSlaveAnimName);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-}
-
 static void ResetExecuteAllBatchState()
 {
     g_executeAllBatchActive = false;
@@ -1611,10 +1610,6 @@ static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
     }
 
     Character* actor = TryResolveCharacterFromHandleSafe(g_executeAllBatchActorHandle);
-    if (!actor && g_executeAllBatchActorPtr != 0)
-    {
-        actor = reinterpret_cast<Character*>(g_executeAllBatchActorPtr);
-    }
     if (!actor)
     {
         ResetExecuteAllBatchState();
@@ -1684,16 +1679,6 @@ static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
 
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
 {
-    Character* queuedActor = TryResolveCharacterFromHandleSafe(g_queuedExecuteActorHandle);
-    if (!queuedActor && g_queuedExecuteActorPtr != 0)
-    {
-        queuedActor = reinterpret_cast<Character*>(g_queuedExecuteActorPtr);
-    }
-    if (g_queuedExecuteSlaveAnimPlaying && queuedActor)
-    {
-        TryEndQueuedExecuteSlaveAnim(queuedActor);
-    }
-
     if (verboseLog && g_queuedExecuteActive && ShouldLogExecuteDebug())
     {
         std::stringstream logline;
@@ -1714,8 +1699,9 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
+    g_executeJobs[g_executeJobIndex].pauseStartedMs = 0;
+    g_queuedExecuteFinisherPhase = ExecuteFinisher_FALLBACK;
     g_queuedExecuteAnimationMode = "none";
-    g_queuedExecuteSlaveAnimPlaying = false;
 
     if (IsExecuteAllBatchContinuationReason(reason))
     {
@@ -1982,7 +1968,7 @@ static void LogQueuedExecuteAnimationProbe(
     Character* actor,
     RootObject* target,
     bool targetIsCharacter,
-    bool slaveAnimTriggered,
+    bool nativeAnimTriggered,
     bool fallbackQueued)
 {
     if (!ShouldLogExecuteDebug())
@@ -1996,7 +1982,7 @@ static void LogQueuedExecuteAnimationProbe(
          << " target=0x" << reinterpret_cast<uintptr_t>(target)
          << std::dec
          << " target_is_character=" << (targetIsCharacter ? "true" : "false")
-         << " slave_anim_triggered=" << (slaveAnimTriggered ? "true" : "false")
+         << " native_anim_triggered=" << (nativeAnimTriggered ? "true" : "false")
          << " fallback_queued=" << (fallbackQueued ? "true" : "false")
          << " animation_mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none");
     PluginLog(line.str().c_str());
@@ -2126,6 +2112,60 @@ static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vect
     return false;
 }
 
+static AnimationClass* GetActiveFinisherAnimations(Character* actor)
+{
+    AnimationClass* animations = actor->getAnimationClass();
+    return animations && animations->getIsActivated() && animations->getAnimationDatasList() ? animations : 0;
+}
+
+static bool TryStartNativeFinisher(Character* actor)
+{
+    __try
+    {
+        if (actor->isCarryingSomething || actor->isBeingCarried())
+        {
+            return false;
+        }
+        AnimationClass* animations = GetActiveFinisherAnimations(actor);
+        if (!animations || !animations->isVisibleEntity() || animations->hasAction())
+        {
+            return false;
+        }
+        AnimationData* data = animations->getAnimationData(kFinisherAnimationName);
+        if (data && data->animName == kFinisherAnimationName && data->layername == UPPER
+            && !data->relocates && data->slave.empty() && animations->hasAnimation(data->animName)
+            && !animations->getAnimationPlaying(data))
+        {
+            // The typed start uses the game's one-shot path even for a training loop.
+            animations->startAnimation(data, 1.0f, 1.0f);
+            return animations->getAnimationPlaying(data) != 0;
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+    return false;
+}
+
+static float ReadNativeFinisherProgress(Character* actor)
+{
+    __try
+    {
+        AnimationClass* animations = GetActiveFinisherAnimations(actor);
+        AnimationData* data = animations ? animations->getAnimationData(kFinisherAnimationName) : 0;
+        if (data && animations->getAnimationPlaying(data))
+        {
+            return animations->getAnimationProgress(data);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return -1.0f;
+    }
+    return -1.0f;
+}
+
 static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target)
 {
     if (!actor || !target)
@@ -2142,7 +2182,13 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
         return false;
     }
 
-    g_queuedExecuteSlaveAnimPlaying = false;
+    if (TryStartNativeFinisher(actor))
+    {
+        g_queuedExecuteFinisherPhase = ExecuteFinisher_SWING;
+        g_queuedExecuteAnimationMode = "vanilla_chop_down";
+        LogQueuedExecuteAnimationProbe(actor, target, true, true, false);
+        return true;
+    }
 
     Ogre::Vector3 actorPos;
     const bool actorPosResolved = TryReadRootObjectPosition(actor, &actorPos);
@@ -4050,6 +4096,31 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
     return anyQueued;
 }
 
+static void DropCarriedCorpseForExecute(Character* actor)
+{
+    if (!g_config.dropCarriedCorpseBeforeExecute)
+        return;
+
+    __try
+    {
+        if (!actor || !actor->isCarryingSomething || !actor->isPlayerCharacter()
+            || actor->isDead() || actor->isUnconcious())
+        {
+            return;
+        }
+
+        Character* carried = actor->getCarryingObject().getCharacter();
+        if (carried && carried != actor && carried->isBeingCarried() && carried->isDead())
+        {
+            actor->dropCarriedObject(true, false);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Loot-Scoot-Execute: failed to drop carried corpse before execute");
+    }
+}
+
 static bool QueueExecuteTarget(
     ExecutePredicateEntryPoint entryPoint,
     Character* actor,
@@ -4097,8 +4168,7 @@ static bool QueueExecuteTarget(
         return true;
     }
 
-    // If a different execute queue is already active, tear it down first so
-    // any running slave animation is ended on the old actor.
+    // A different target replaces the actor's current execute order.
     if (g_queuedExecuteActive)
     {
         DisarmQueuedExecuteAction("queue_replaced", false);
@@ -4126,9 +4196,10 @@ static bool QueueExecuteTarget(
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
     g_queuedExecuteInRangeSinceMs = 0;
+    g_executeJobs[g_executeJobIndex].pauseStartedMs = 0;
+    g_queuedExecuteFinisherPhase = ExecuteFinisher_FALLBACK;
     g_queuedExecuteAnimationMode = "none";
-    g_queuedExecuteSlaveAnimPlaying = false;
-
+    DropCarriedCorpseForExecute(actor);
     bool initialApproachIssued = false;
     if (TryIssueQueuedExecuteApproach(actor, target))
     {
@@ -4250,6 +4321,38 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
     }
 
     const DWORD nowMs = GetTickCount();
+    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
+    if (ou && ou->isPaused())
+    {
+        if (job.pauseStartedMs == 0)
+            job.pauseStartedMs = nowMs;
+        return;
+    }
+    if (job.pauseStartedMs != 0)
+    {
+        const DWORD pausedForMs = nowMs - job.pauseStartedMs;
+        if (job.armedMs != 0) job.armedMs += pausedForMs;
+        if (job.lastApproachCommandMs != 0) job.lastApproachCommandMs += pausedForMs;
+        if (job.attackTriggeredMs != 0) job.attackTriggeredMs += pausedForMs;
+        if (job.inRangeSinceMs != 0) job.inRangeSinceMs += pausedForMs;
+        job.pauseStartedMs = 0;
+    }
+
+    const bool postTriggerTimedOut = g_queuedExecuteAttackTriggeredMs != 0
+        && DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecutePostTriggerMaxDurationMs);
+
+    if (g_queuedExecuteFinisherPhase == ExecuteFinisher_FOLLOW_THROUGH)
+    {
+        Character* actor = TryResolveCharacterFromHandleSafe(g_queuedExecuteActorHandle);
+        if (!postTriggerTimedOut && reinterpret_cast<uintptr_t>(actor) == g_queuedExecuteActorPtr
+            && actor && ReadNativeFinisherProgress(actor) >= 0.0f)
+        {
+            return;
+        }
+        DisarmQueuedExecuteAction("queue_completed", true);
+        return;
+    }
+
     if (g_queuedExecuteArmedMs != 0
         && DebounceWindowElapsed(nowMs, g_queuedExecuteArmedMs, kQueuedExecuteMaxLifetimeMs))
     {
@@ -4301,10 +4404,8 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
     const bool inRange = distanceSq <= maxDistanceSq;
     const bool inPostTriggerDispatchRange = distanceSq <= postTriggerDispatchDistanceSq;
     const bool postTriggerAbortDistanceExceeded = distanceSq > postTriggerAbortDistanceSq;
-    const bool postTriggerTimedOut = g_queuedExecuteAttackTriggeredMs != 0
-        && DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecutePostTriggerMaxDurationMs);
-
-    if (g_queuedExecuteAttackTriggered && postTriggerTimedOut)
+    if (g_queuedExecuteAttackTriggered && postTriggerTimedOut
+        && g_queuedExecuteFinisherPhase == ExecuteFinisher_FALLBACK)
     {
         LogQueuedExecuteSimpleProbe("queue_post_trigger_timeout", "post_trigger_timeout", actor, target);
         DisarmQueuedExecuteAction("post_trigger_timeout", true);
@@ -4372,7 +4473,19 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
         g_queuedExecuteAttackTriggeredMs = attackTriggered ? nowMs : 0;
     }
 
-    if (g_queuedExecuteAttackTriggeredMs != 0
+    if (g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING)
+    {
+        if (!postTriggerTimedOut)
+        {
+            const float progress = ReadNativeFinisherProgress(actor);
+            if (progress >= 0.0f ? progress < kFinisherStrikeProgress
+                                 : !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kFinisherStartGraceMs))
+            {
+                return;
+            }
+        }
+    }
+    else if (g_queuedExecuteAttackTriggeredMs != 0
         && !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecuteAttackWindupMs))
     {
         return;
@@ -4382,6 +4495,11 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
     const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
     if (dispatched)
     {
+        if (g_executeAllBatchActive && g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING && !postTriggerTimedOut)
+        {
+            g_queuedExecuteFinisherPhase = ExecuteFinisher_FOLLOW_THROUGH;
+            return;
+        }
         DisarmQueuedExecuteAction("queue_completed", true);
     }
     else
@@ -5667,9 +5785,18 @@ static bool TryAddNativeExecuteOptions(ContextMenu* menu, RootObject* target, Ch
     {
         // один раз на показ меню
         const size_t n = parts.list->getChildCount();
+        int visibleBottom = 0;
         for (size_t i = 0; i < n; ++i)
         {
             MyGUI::Widget* const slot = parts.list->getChildAt(i);
+            if (slot && slot->getVisible())
+            {
+                const int slotBottom = slot->getTop() + slot->getHeight();
+                if (slotBottom > visibleBottom)
+                {
+                    visibleBottom = slotBottom;
+                }
+            }
             for (size_t j = 0; slot && j < slot->getChildCount(); ++j)
             {
                 if (slot->getChildAt(j)->isUserString(kNativeExecuteTag))
@@ -5685,15 +5812,8 @@ static bool TryAddNativeExecuteOptions(ContextMenu* menu, RootObject* target, Ch
             height = 26;
         }
         const int gap = 2;
-        int y = 0;
-        if (n > 0)
-        {
-            MyGUI::Widget* const last = parts.list->getChildAt(n - 1);
-            if (last)
-            {
-                y = last->getTop() + last->getHeight() + gap;
-            }
-        }
+        // The game keeps hidden spare slots and does not order children by Y.
+        const int y = visibleBottom > 0 ? visibleBottom + gap : 0;
 
         if (!AddNativeExecuteOption(parts, y, height, Tr("Execute"), "one"))
         {

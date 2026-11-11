@@ -4,6 +4,7 @@
   "debug_execute_logging": false,
   "enable_execute_all": true,
   "ignore_execute_alliance_check": false,
+  "drop_carried_corpse_before_execute": true,
   "execute_distance_units": 2,
   "execute_all_radius_units": 10,
   "execute_button_width": 310,

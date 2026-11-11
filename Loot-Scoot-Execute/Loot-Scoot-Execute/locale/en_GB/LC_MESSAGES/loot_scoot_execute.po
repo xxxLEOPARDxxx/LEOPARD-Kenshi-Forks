@@ -97,3 +97,9 @@ msgstr "Block execute on carried targets"
 
 msgid "Never execute characters being carried on someone's shoulder"
 msgstr "Never execute characters being carried on someone's shoulder"
+
+msgid "Drop carried corpse before executing"
+msgstr "Drop carried corpse before executing"
+
+msgid "Put down a dead body before approaching the target. Living characters stay on your shoulder."
+msgstr "Put down a dead body before approaching the target. Living characters stay on your shoulder."

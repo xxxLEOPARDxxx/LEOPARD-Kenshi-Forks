@@ -544,6 +544,24 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "drop_carried_corpse_before_execute")
+        {
+            bool parsedBool = false;
+            size_t valuePos = pos;
+            if (ParseJsonBoolValue(body, &valuePos, &parsedBool))
+            {
+                configOut->dropCarriedCorpseBeforeExecute = parsedBool;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidDropCarriedCorpseBeforeExecute = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "block_execute_carried")
         {
             bool parsedBool = false;
@@ -1091,6 +1109,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing key \"ignore_execute_alliance_check\"; using default");
     }
+    if (diagnostics.invalidDropCarriedCorpseBeforeExecute)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid key \"drop_carried_corpse_before_execute\"; using default");
+    }
     if (!diagnostics.foundExecuteDistanceMeters || diagnostics.invalidExecuteDistanceMeters || diagnostics.clampedExecuteDistanceMeters)
     {
         needsWriteBack = true;
@@ -1152,6 +1175,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"enable_execute_all\": " << (config.enableExecuteAll ? "true" : "false") << ",\n";
     out << "  \"ignore_execute_alliance_check\": " << (config.ignoreExecuteAllianceCheck ? "true" : "false") << ",\n";
     out << "  \"block_execute_carried\": " << (config.blockExecuteCarried ? "true" : "false") << ",\n";
+    out << "  \"drop_carried_corpse_before_execute\": " << (config.dropCarriedCorpseBeforeExecute ? "true" : "false") << ",\n";
     out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_all_radius_units\": " << config.executeAllRadiusUnits << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";

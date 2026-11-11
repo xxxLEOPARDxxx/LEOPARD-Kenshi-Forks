@@ -14,6 +14,7 @@ const char* kModHubSettingDebugExecuteLoggingId = "debug_execute_logging";
 const char* kModHubSettingEnableExecuteAllId = "enable_execute_all";
 const char* kModHubSettingIgnoreExecuteAllianceCheckId = "ignore_execute_alliance_check";
 const char* kModHubSettingBlockExecuteCarriedId = "block_execute_carried";
+const char* kModHubSettingDropCarriedCorpseId = "drop_carried_corpse_before_execute";
 const char* kModHubSettingExecuteDistanceId = "execute_distance_units";
 const char* kModHubSettingExecuteAllRadiusId = "execute_all_radius_units";
 const char* kModHubSettingExecuteButtonWidthId = "execute_button_width";
@@ -302,6 +303,21 @@ static EMC_Result __cdecl HubSetBlockExecuteCarried(void* user_data, int32_t val
         err_buf_size);
 }
 
+static EMC_Result __cdecl HubGetDropCarriedCorpse(void* user_data, int32_t* out_value)
+{
+    return HubGetBoolConfigValue(user_data, &g_modHubState.config->dropCarriedCorpseBeforeExecute, out_value);
+}
+
+static EMC_Result __cdecl HubSetDropCarriedCorpse(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetBoolConfigValue(
+        user_data,
+        value,
+        &g_modHubState.config->dropCarriedCorpseBeforeExecute,
+        err_buf,
+        err_buf_size);
+}
+
 static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out_value)
 {
     return HubGetIntConfigValue(user_data, &g_modHubState.config->executeButtonWidthPx, out_value);
@@ -530,6 +546,14 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetBlockExecuteCarried,
         &HubSetBlockExecuteCarried};
 
+    static const EMC_BoolSettingDefV1 kDropCarriedCorpseSettingDef = {
+        kModHubSettingDropCarriedCorpseId,
+        "Drop carried corpse before executing",
+        "Put down a dead body before approaching the target. Living characters stay on your shoulder.",
+        &g_modHubState,
+        &HubGetDropCarriedCorpse,
+        &HubSetDropCarriedCorpse};
+
     static const EMC_IntSettingDefV1 kExecuteDistanceSettingDef = {
         kModHubSettingExecuteDistanceId,
         "Execute distance",
@@ -555,12 +579,13 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const emc::ModHubClientSettingRowV1 kSettingRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnableExecuteAllSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kIgnoreExecuteAllianceCheckSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kBlockExecuteCarriedSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDropCarriedCorpseSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteDistanceSettingDef },
-        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef }
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef }
         // «Кнопка по умолчанию» убрана (08.10.2026): в MCM есть «Сбросить
         // по умолчанию» на всю страницу.
     };

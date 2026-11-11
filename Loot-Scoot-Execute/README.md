@@ -4,6 +4,7 @@ Adds an Execute action for downed enemies in Kenshi's right-click context flow.
 Current status: implemented for Kenshi `1.0.65` using:
 - a custom Execute row aligned to the context menu flow,
 - queued execute dispatch with range and facing checks,
+- a single vanilla downward strike on compatible character rigs, timed to the motion,
 - an `Execute All` panel action that chains nearby unconscious enemies around the selected target,
 - Mod Hub integration for settings and Execute button layout when `Emkejs-Mod-Core.dll` is installed.
 - no save-load pause behavior (that remains exclusive to Auto-Pause on Load).
@@ -88,6 +89,7 @@ Supported keys:
 - `debug_execute_logging` (bool, default `false`; enables focused execute investigation logs in `RE_Kenshi_log.txt` for target eligibility and dispatch failures)
 - `enable_execute_all` (bool, default `true`; shows the `Execute All` button and allows batch execute behavior)
 - `ignore_execute_alliance_check` (bool, default `false`; allows execute on incapacitated non-hostiles and allies, but still blocks player characters)
+- `drop_carried_corpse_before_execute` (bool, default `true`). Put down a dead body before approaching an execution target. The setting takes effect immediately in MCM.
 - `execute_distance_units` (int, default `2`; required distance before queued execute triggers, clamped to `1..200`; legacy `execute_distance_meters` is still accepted)
 - `execute_all_radius_units` (int, default `10`; search radius used by `Execute All` around the selected target, clamped to `1..200`)
 - `execute_button_width` (int, default `310`; pixel width for the Execute button panel)
@@ -102,6 +104,7 @@ For faction-specific execute failures, set `debug_execute_logging` to `true`, re
 
 ## Изменения форка (ветка leopard)
 - Настройки - во вкладке MCM окна «Настройки»; Mod Hub не нужен.
+- Добивание сопровождается одним штатным рубящим взмахом, если у персонажа есть эта анимация.
 - v2: подписи кнопок Execute / Execute All идут через перевод (Tr) - en/ru/zh в locale.
 
 ## License
@@ -121,6 +124,16 @@ It uses KenshiLib, which is released under GPLv3.
 Localization diagnostics / Журнал локализации (2026-11-01)
 Locale and catalogue-size summaries are written only while this plugin's Detailed log is enabled. Enabling it after translations have loaded reports the existing catalogue once. Loading/format errors remain visible with detailed logging off.
 Сводка языка и числа переводов записывается только при включённом подробном журнале этого плагина. Включение журнала после загрузки переводов выводит сводку существующего каталога один раз. Ошибки загрузки и формата видны и при выключенном подробном журнале.
+
+## Local changes / Локальные изменения (2026-11-11)
+
+- A character puts down a dead body before carrying out an Execute order. This is enabled by default and can be turned off in MCM. A living captive stays on the character's shoulder.
+- The Execute actions appear immediately below the last visible context menu option, even when the game has reserved hidden rows.
+- A batch ends cleanly if its executor is no longer available.
+
+- Перед добиванием персонаж опускает мёртвое тело с плеч. Опция включена по умолчанию и отключается в MCM. Живой пленник остаётся на плечах.
+- Пункты добивания появляются сразу под последней видимой строкой контекстного меню, даже если игра оставила запас скрытых строк.
+- Серия добиваний прекращается, если исполнитель больше недоступен.
 
 ## Prepared release 6 / Подготовленный выпуск 6 (2026-11-02)
 
