@@ -2130,10 +2130,10 @@ static const char* StartNativeFinisher(Character* actor)
 
         AnimationData* data = animations->getAnimationData(kFinisherAnimationName);
         if (!data) return "clip_not_registered";
-        if (data->animName != kFinisherAnimationName) return "clip_name_changed";
         if (data->layername != UPPER) return "clip_layer_changed";
         if (data->relocates || !data->slave.empty()) return "clip_requires_movement_or_partner";
-        if (!animations->hasAnimation(data->animName)) return "clip_not_on_skeleton";
+        // The engine maps the logical name to the rig's actual clip name.
+        if (!animations->hasAnimation(kFinisherAnimationName)) return "clip_not_on_skeleton";
         if (animations->getAnimationPlaying(data)) return "clip_already_playing";
 
         // The typed start uses the game's one-shot path even for a training loop.

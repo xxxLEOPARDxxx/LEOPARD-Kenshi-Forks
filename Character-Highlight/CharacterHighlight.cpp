@@ -350,7 +350,9 @@ namespace
             const Entries::const_iterator entry = g_entries.find(Key(handle));
             if (entry != g_entries.end() && entry->second.hasColour && SameHand(entry->second.who, handle))
             {
-                colour = entry->second.colour;
+                const Entry& tint = entry->second;
+                colour = tint.tinted && tint.colour.a > 0.f ? tint.appliedColour : tint.colour;
+                colour.a = tint.colour.a;
                 return true;
             }
         }
@@ -593,6 +595,8 @@ namespace
                     Ogre::ColourValue colour;
                     if (SafeNameColour(character, colour))
                     {
+                        // MyGUI packs the text channels into bytes, unlike the tint shader.
+                        colour.saturate();
                         const MyGUI::UString caption(character->getName());
                         if (slot.label->getCaption() != caption)
                             slot.label->setCaption(caption);
