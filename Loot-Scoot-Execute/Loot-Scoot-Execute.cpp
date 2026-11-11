@@ -1967,9 +1967,7 @@ static void LogQueuedExecuteArmProbe(
 static void LogQueuedExecuteAnimationProbe(
     Character* actor,
     RootObject* target,
-    bool targetIsCharacter,
-    bool nativeAnimTriggered,
-    bool fallbackQueued)
+    const char* reason)
 {
     if (!ShouldLogExecuteDebug())
     {
@@ -1981,10 +1979,8 @@ static void LogQueuedExecuteAnimationProbe(
          << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
          << " target=0x" << reinterpret_cast<uintptr_t>(target)
          << std::dec
-         << " target_is_character=" << (targetIsCharacter ? "true" : "false")
-         << " native_anim_triggered=" << (nativeAnimTriggered ? "true" : "false")
-         << " fallback_queued=" << (fallbackQueued ? "true" : "false")
-         << " animation_mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none");
+         << " animation_mode=" << g_queuedExecuteAnimationMode
+         << " result=" << (reason ? reason : "started");
     PluginLog(line.str().c_str());
 }
 
@@ -2118,34 +2114,40 @@ static AnimationClass* GetActiveFinisherAnimations(Character* actor)
     return animations && animations->getIsActivated() && animations->getAnimationDatasList() ? animations : 0;
 }
 
-static bool TryStartNativeFinisher(Character* actor)
+// A result is logged once per execution when detailed logging is enabled.
+static const char* StartNativeFinisher(Character* actor)
 {
     __try
     {
         if (actor->isCarryingSomething || actor->isBeingCarried())
-        {
-            return false;
-        }
-        AnimationClass* animations = GetActiveFinisherAnimations(actor);
-        if (!animations || !animations->isVisibleEntity() || animations->hasAction())
-        {
-            return false;
-        }
+            return "carrying_or_carried";
+        AnimationClass* animations = actor->getAnimationClass();
+        if (!animations) return "no_animation_system";
+        if (!animations->getIsActivated()) return "animation_system_inactive";
+        if (!animations->getAnimationDatasList()) return "no_animation_list";
+        if (!animations->isVisibleEntity()) return "actor_not_visible";
+        if (animations->hasAction()) return "native_action_active";
+
         AnimationData* data = animations->getAnimationData(kFinisherAnimationName);
-        if (data && data->animName == kFinisherAnimationName && data->layername == UPPER
-            && !data->relocates && data->slave.empty() && animations->hasAnimation(data->animName)
-            && !animations->getAnimationPlaying(data))
-        {
-            // The typed start uses the game's one-shot path even for a training loop.
-            animations->startAnimation(data, 1.0f, 1.0f);
-            return animations->getAnimationPlaying(data) != 0;
-        }
+        if (!data) return "clip_not_registered";
+        if (data->animName != kFinisherAnimationName) return "clip_name_changed";
+        if (data->layername != UPPER) return "clip_layer_changed";
+        if (data->relocates || !data->slave.empty()) return "clip_requires_movement_or_partner";
+        if (!animations->hasAnimation(data->animName)) return "clip_not_on_skeleton";
+        if (animations->getAnimationPlaying(data)) return "clip_already_playing";
+
+        // The typed start uses the game's one-shot path even for a training loop.
+        animations->startAnimation(data, 1.0f, 1.0f);
+        if (animations->getAnimationPlaying(data))
+            return 0;
+        return animations->getAnimationPlaying_animName(data->animName)
+            ? "same_clip_with_different_animation_data" : "start_returned_no_instance";
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        return false;
+        ErrorLog("Loot-Scoot-Execute: native finisher start failed");
+        return "native_exception";
     }
-    return false;
 }
 
 static float ReadNativeFinisherProgress(Character* actor)
@@ -2182,11 +2184,12 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
         return false;
     }
 
-    if (TryStartNativeFinisher(actor))
+    const char* const fallbackReason = StartNativeFinisher(actor);
+    if (!fallbackReason)
     {
         g_queuedExecuteFinisherPhase = ExecuteFinisher_SWING;
         g_queuedExecuteAnimationMode = "vanilla_chop_down";
-        LogQueuedExecuteAnimationProbe(actor, target, true, true, false);
+        LogQueuedExecuteAnimationProbe(actor, target, 0);
         return true;
     }
 
@@ -2196,7 +2199,7 @@ static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject*
     const bool queueToFront = true;
     actor->addOrder(0, CROUCH, actor, false, queueToFront, crouchLocation);
     g_queuedExecuteAnimationMode = "crouch_order_fallback";
-    LogQueuedExecuteAnimationProbe(actor, target, true, false, true);
+    LogQueuedExecuteAnimationProbe(actor, target, fallbackReason);
     return true;
 }
 
@@ -4471,10 +4474,13 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
             && TryTriggerQueuedExecuteAttackAnimation(actor, target);
         g_queuedExecuteAttackTriggered = true;
         g_queuedExecuteAttackTriggeredMs = attackTriggered ? nowMs : 0;
+        if (g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING)
+            return;
     }
 
     if (g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING)
     {
+        const char* result = "watchdog";
         if (!postTriggerTimedOut)
         {
             const float progress = ReadNativeFinisherProgress(actor);
@@ -4483,7 +4489,9 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
             {
                 return;
             }
+            result = progress >= 0.0f ? "contact" : "instance_lost";
         }
+        LogQueuedExecuteSimpleProbe("animation_finished_waiting", result, actor, target);
     }
     else if (g_queuedExecuteAttackTriggeredMs != 0
         && !DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecuteAttackWindupMs))
