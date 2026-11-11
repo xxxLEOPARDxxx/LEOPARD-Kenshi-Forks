@@ -417,7 +417,7 @@ static void hook_OptionsCreate(OptionsWindow* win)
 	s_staged = false;
 	s_buttonCount = s_gatedCount = 0;
 	s_origCreate(win);
-	if (s_active && (DEV_BUILD || !KeoMcmAvailable()))
+	if (s_active && !KeoMcmAvailable())
 		BuildTab(win);
 }
 

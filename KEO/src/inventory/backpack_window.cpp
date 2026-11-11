@@ -167,19 +167,7 @@ static const char* kFillGlobalSuffix = "global";
 
 static void ShowPersonalFillIndicator(MyGUI::Button* box, bool personal)
 {
-	const std::string name = box->getName() + "_personal";
-	MyGUI::Widget* indicator = box->findWidget(name);
-	if (!indicator && personal)
-	{
-		indicator = box->createWidget<MyGUI::Widget>("WhiteSkin",
-		    MyGUI::IntCoord(4, box->getHeight() - 5, box->getWidth() - 8, 3),
-		    MyGUI::Align::HStretch | MyGUI::Align::Bottom, name);
-		indicator->setNeedMouseFocus(false);
-		indicator->setColour(MyGUI::Colour(0.25f, 1.0f, 0.1f));
-	}
 	box->setColour(personal ? MyGUI::Colour(0.35f, 1.0f, 0.25f) : MyGUI::Colour::White);
-	if (indicator)
-		indicator->setVisible(personal);
 }
 
 static void UpdateFillValue(MyGUI::Widget* panel, size_t index)
@@ -226,7 +214,7 @@ static MyGUI::Widget* CreateFillPopup(MyGUI::Button* box, const std::string& nam
 	// Use the same layer as the game's drop-down lists. The checkbox still owns
 	// this popup, so closing the backpack also retires its controls and delegates.
 	MyGUI::Widget* panel = box->createWidget<MyGUI::Widget>(
-	    MyGUI::WidgetStyle::Popup, "Kenshi_GenericTextBoxSkin", coord, MyGUI::Align::Default, "Popup", name);
+	    MyGUI::WidgetStyle::Popup, "Kenshi_FrameSkin", coord, MyGUI::Align::Default, "Popup", name);
 	try
 	{
 		panel->setVisible(false);
@@ -234,27 +222,27 @@ static MyGUI::Widget* CreateFillPopup(MyGUI::Button* box, const std::string& nam
 		const bool narrow = width < 240;
 		const MyGUI::Align align = MyGUI::Align::Default;
 		MyGUI::TextBox* title = panel->createWidget<MyGUI::TextBox>("Kenshi_TextboxPaintedText",
-		    MyGUI::IntCoord(8, 6, width - 16, 24), align, name + "title");
+		    MyGUI::IntCoord(12, 8, width - 24, 24), align, name + "title");
 		title->setCaption(KeoTr("Personal operator fill"));
 		title->setTextAlign(MyGUI::Align::Center);
 		title->setNeedMouseFocus(false);
 		MyGUI::ScrollBar* slider = panel->createWidget<MyGUI::ScrollBar>("Kenshi_ScrollBar",
-		    MyGUI::IntCoord(6, 32, width - 64, 34), align, name + kFillSliderSuffix);
+		    MyGUI::IntCoord(12, 34, width - 76, 34), align, name + kFillSliderSuffix);
 		slider->setScrollRange(20);
 		slider->setScrollPage(1);
 		slider->setScrollViewPage(1);
 		slider->setMoveToClick(true);
 		slider->eventScrollChangePosition += MyGUI::newDelegate(&OnFillSlider);
 		MyGUI::TextBox* value = panel->createWidget<MyGUI::TextBox>("Kenshi_TextboxPaintedText",
-		    MyGUI::IntCoord(width - 58, 36, 50, 24), align, name + kFillTextSuffix);
+		    MyGUI::IntCoord(width - 60, 38, 48, 24), align, name + kFillTextSuffix);
 		value->setTextAlign(MyGUI::Align::Right | MyGUI::Align::VCenter);
 		value->setNeedMouseFocus(false);
 		const int middle = width / 2;
 		MyGUI::Button* apply = panel->createWidget<MyGUI::Button>("Kenshi_Button1",
-		    MyGUI::IntCoord(8, 74, narrow ? width - 16 : middle - 12, 28), align, name + kFillApplySuffix);
+		    MyGUI::IntCoord(12, 76, narrow ? width - 24 : middle - 16, 28), align, name + kFillApplySuffix);
 		MyGUI::Button* inherit = panel->createWidget<MyGUI::Button>("Kenshi_Button1",
-		    MyGUI::IntCoord(narrow ? 8 : middle + 4, narrow ? 106 : 74,
-		                   narrow ? width - 16 : width - middle - 12, 28), align, name + kFillGlobalSuffix);
+		    MyGUI::IntCoord(narrow ? 12 : middle + 4, narrow ? 108 : 76,
+		                   narrow ? width - 24 : width - middle - 16, 28), align, name + kFillGlobalSuffix);
 		apply->setCaption(KeoTr("Apply"));
 		inherit->setCaption(KeoTr("Use global limit"));
 		apply->eventMouseButtonClick += MyGUI::newDelegate(&OnFillChoice);
@@ -293,7 +281,7 @@ static void OnBackpackRightClick(MyGUI::Widget* sender, int, int, MyGUI::MouseBu
 		if (!GetWearerKey(box, &key))
 			return;
 		const int width = root->getWidth() > 292 ? 280 : root->getWidth() - 12;
-		const int height = width < 240 ? 144 : 112;
+		const int height = width < 240 ? 150 : 118;
 		// A Popup is owned by the checkbox but laid out in screen coordinates.
 		const int left = (std::max)(4, root->getAbsoluteLeft() + (root->getWidth() - width) / 2);
 		const int top = (std::max)(4, box->getAbsoluteTop() - height - 8);
