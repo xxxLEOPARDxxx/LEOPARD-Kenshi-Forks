@@ -434,8 +434,7 @@ namespace
             RestoreHover(globalActive);
             if(c)g_hoverWho=c->handle; else g_hoverWho.setNull();
         }
-        const CharacterHighlightPolicy::Decision d=CharacterHighlightPolicy::Choose(g_enabled,globalActive,g_hoverEnabled,true,c!=NULL,false);
-        if(!c || !d.tint || g_tintOpacity<=0) {RestoreHover(globalActive);return;}
+        if(!c || g_tintOpacity<=0) {RestoreHover(globalActive);return;}
         Entry& e=g_hoverEntry;
         if(!e.hasColour || now-e.evaluated>=kEvalMs) {
             Ogre::ColourValue colour; e.evaluated=now;

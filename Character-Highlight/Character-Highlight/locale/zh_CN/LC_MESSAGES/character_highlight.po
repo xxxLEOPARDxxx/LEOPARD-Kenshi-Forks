@@ -128,27 +128,6 @@ msgstr "染色强度，%"
 msgid "100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."
 msgstr "100 为完全染色；较低数值保留衣物和皮肤细节。此项改变染色强度，不会让角色变透明。"
 
-msgid "Contour style"
-msgstr "轮廓高亮"
-
-msgid "Contours instead of tint"
-msgstr "使用轮廓代替染色"
-
-msgid "Use coloured contours for the show key and relationship-coloured hover. Off keeps the original model tint. Contours follow visible models and equipment."
-msgstr "按高亮键或使用关系颜色悬停时显示彩色轮廓。关闭后保留原有模型染色。轮廓沿可见模型和装备绘制。"
-
-msgid "Contour width, px"
-msgstr "轮廓宽度，像素"
-
-msgid "Thickness of both beige and relationship-coloured contours."
-msgstr "米色轮廓和关系颜色轮廓的宽度。"
-
-msgid "Contour brightness, %"
-msgstr "轮廓亮度，%"
-
-msgid "Brightness of contours. 100 is the original colour; 0 hides contours. Model tint has its own intensity setting."
-msgstr "轮廓亮度。100 为原始颜色，0 隐藏轮廓。模型染色另有强度设置。"
-
 msgid "Under the cursor"
 msgstr "鼠标悬停"
 
@@ -157,24 +136,6 @@ msgstr "高亮鼠标下的角色"
 
 msgid "Highlight the character or animal under the cursor without holding the show key. Off by default."
 msgstr "无需按住高亮键即可高亮鼠标下的角色或动物。默认关闭。"
-
-msgid "Hover colours by relation"
-msgstr "悬停时使用关系颜色"
-
-msgid "On - use this mod's relationship colours and chosen highlight style. Off - the basic hover contour colour."
-msgstr "开启时使用本模组的关系颜色和所选高亮样式。关闭时使用基本悬停轮廓颜色。"
-
-msgid "Basic hover contour colour"
-msgstr "基本悬停轮廓颜色"
-
-msgid "Colour used under the cursor when relationship colours are disabled."
-msgstr "关闭关系颜色时用于鼠标悬停轮廓的颜色。"
-
-msgid "Edge pass (diagnostics)"
-msgstr "轮廓输出（诊断）"
-
-msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
-msgstr "在场景上绘制轮廓。关闭时仅渲染遮罩——性能测试。"
 
 msgid "NPC names"
 msgstr "NPC 名称"

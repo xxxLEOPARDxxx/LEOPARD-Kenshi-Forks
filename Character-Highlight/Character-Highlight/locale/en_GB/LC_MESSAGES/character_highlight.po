@@ -128,27 +128,6 @@ msgstr "Tint intensity, %"
 msgid "100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."
 msgstr "100 - full colour; lower values preserve clothing and skin detail. This changes the tint, not the character's visibility."
 
-msgid "Contour style"
-msgstr "Contour style"
-
-msgid "Contours instead of tint"
-msgstr "Contours instead of tint"
-
-msgid "Use coloured contours for the show key and relationship-coloured hover. Off keeps the original model tint. Contours follow visible models and equipment."
-msgstr "Use coloured contours for the show key and relationship-coloured hover. Off keeps the original model tint. Contours follow visible models and equipment."
-
-msgid "Contour width, px"
-msgstr "Contour width, px"
-
-msgid "Thickness of both beige and relationship-coloured contours."
-msgstr "Thickness of both beige and relationship-coloured contours."
-
-msgid "Contour brightness, %"
-msgstr "Contour brightness, %"
-
-msgid "Brightness of contours. 100 is the original colour; 0 hides contours. Model tint has its own intensity setting."
-msgstr "Brightness of contours. 100 is the original colour; 0 hides contours. Model tint has its own intensity setting."
-
 msgid "Under the cursor"
 msgstr "Under the cursor"
 
@@ -157,24 +136,6 @@ msgstr "Highlight under cursor"
 
 msgid "Highlight the character or animal under the cursor without holding the show key. Off by default."
 msgstr "Highlight the character or animal under the cursor without holding the show key. Off by default."
-
-msgid "Hover colours by relation"
-msgstr "Hover colours by relation"
-
-msgid "On - use this mod's relationship colours and chosen highlight style. Off - the basic hover contour colour."
-msgstr "On - use this mod's relationship colours and chosen highlight style. Off - the basic hover contour colour."
-
-msgid "Basic hover contour colour"
-msgstr "Basic hover contour colour"
-
-msgid "Colour used under the cursor when relationship colours are disabled."
-msgstr "Colour used under the cursor when relationship colours are disabled."
-
-msgid "Edge pass (diagnostics)"
-msgstr "Edge pass (diagnostics)"
-
-msgid "Draw the contour over the scene. Off renders only the mask - a performance test."
-msgstr "Draw the contour over the scene. Off renders only the mask - a performance test."
 
 msgid "NPC names"
 msgstr "NPC names"
