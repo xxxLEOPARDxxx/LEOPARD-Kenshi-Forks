@@ -218,6 +218,44 @@ static void PlayerInterface_moveWaypoint_hook(PlayerInterface* thisptr, const Og
     PlayerInterface_moveWaypoint_orig(thisptr, location, dest);
 }
 
+typedef std::map<float, Tasker*, std::less<float>,
+    Ogre::STLAllocator<std::pair<const float, Tasker*>, Ogre::GeneralAllocPolicy> > ExecuteGoalList;
+
+static void (*choosePermaJob_orig)(AITaskSytem*, ExecuteGoalList&, TaskMatch&, bool, bool) = 0;
+
+static void choosePermaJob_hook(AITaskSytem* tasks, ExecuteGoalList& goals,
+                                TaskMatch& current, bool urgent, bool jobsEnabled)
+{
+    if (!ExecuteSuppressesPermanentWork(tasks))
+        choosePermaJob_orig(tasks, goals, current, urgent, jobsEnabled);
+}
+
+static void (*clearWorld_orig)(GameWorld*) = 0;
+
+static void clearWorld_hook(GameWorld* world)
+{
+    InterlockedExchange64(&g_executeWorkMask, 0);
+    InterlockedIncrement(&g_executeWorldGeneration);
+    clearWorld_orig(world);
+}
+
+static bool InstallExecutePermanentWorkHook()
+{
+    const HMODULE lib = GetModuleHandleW(L"KenshiLib.dll");
+    if (!lib)
+        return false;
+
+    // Resolve the SDK export directly: the C++ header exposes this member
+    // as protected, and GetRealAddress expects the SDK's own function stub.
+    const FARPROC stub = GetProcAddress(lib,
+        "?choosePermaJob@AITaskSytem@@QEAAXAEAV?$map@MPEAVTasker@@U?$less@M@std@@V?$STLAllocator@U?$pair@$$CBMPEAVTasker@@@std@@V?$CategorisedAllocPolicy@$0A@@Ogre@@@Ogre@@@std@@AEAVTaskMatch@@_N2@Z");
+    if (!stub)
+        return false;
+    const intptr_t address = KenshiLib::GetRealAddress(reinterpret_cast<void*>(stub));
+    return address && KenshiLib::SUCCESS == KenshiLib::AddHook(
+        address, choosePermaJob_hook, &choosePermaJob_orig);
+}
+
 __declspec(dllexport) void startPlugin()
 {
     PluginLog("Loot-Scoot-Execute: startPlugin()");
@@ -276,6 +314,13 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Loot-Scoot-Execute WARN: could not hook move orders - a ground click will not cancel executes");
     }
+
+    const bool worldHookInstalled = KenshiLib::SUCCESS == KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&GameWorld::_clearAndDestroyGameWorldStuff),
+        clearWorld_hook, &clearWorld_orig);
+    g_executeWorkHookInstalled = worldHookInstalled && InstallExecutePermanentWorkHook();
+    if (!g_executeWorkHookInstalled)
+        ErrorLog("Loot-Scoot-Execute: permanent work coordination hook unavailable");
 
     bool contextMenuShowHookInstalled = false;
     bool contextMenuUpdateHookInstalled = false;

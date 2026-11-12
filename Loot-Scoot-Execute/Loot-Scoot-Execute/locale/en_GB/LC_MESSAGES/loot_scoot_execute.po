@@ -41,8 +41,8 @@ msgstr "Allows executing downed neutrals too; your own characters never"
 msgid "Execute distance"
 msgstr "Execute distance"
 
-msgid "How close to approach before striking (1 to 3; default 2)."
-msgstr "How close to approach before striking (1 to 3; default 2)."
+msgid "Maximum strike distance from 1 to 20. Default is 2."
+msgstr "Maximum strike distance from 1 to 20. Default is 2."
 
 msgid "Execute All radius"
 msgstr "Execute All radius"

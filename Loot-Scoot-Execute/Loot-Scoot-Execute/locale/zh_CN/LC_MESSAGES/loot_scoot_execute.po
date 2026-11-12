@@ -41,8 +41,8 @@ msgstr "允许处决倒地的中立角色；自己的角色永远不行"
 msgid "Execute distance"
 msgstr "处决距离"
 
-msgid "How close to approach before striking (1 to 3; default 2)."
-msgstr "出手前必须靠近目标的距离（1 至 3，默认 2）。"
+msgid "Maximum strike distance from 1 to 20. Default is 2."
+msgstr "出手的最大距离为 1 至 20，默认为 2。"
 
 msgid "Execute All radius"
 msgstr "全部处决半径"

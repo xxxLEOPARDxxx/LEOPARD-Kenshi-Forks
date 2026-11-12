@@ -41,8 +41,8 @@ msgstr "Можно добивать и лежащих нейтральных; с
 msgid "Execute distance"
 msgstr "Дистанция добивания"
 
-msgid "How close to approach before striking (1 to 3; default 2)."
-msgstr "Насколько близко подойти перед ударом (от 1 до 3, по умолчанию 2)."
+msgid "Maximum strike distance from 1 to 20. Default is 2."
+msgstr "Максимальная дистанция удара от 1 до 20. По умолчанию 2."
 
 msgid "Execute All radius"
 msgstr "Радиус Добить всех"

@@ -90,7 +90,7 @@ Supported keys:
 - `enable_execute_all` (bool, default `true`; shows the `Execute All` button and allows batch execute behavior)
 - `ignore_execute_alliance_check` (bool, default `false`; allows execute on incapacitated non-hostiles and allies, but still blocks player characters)
 - `drop_carried_corpse_before_execute` (bool, default `true`). Put down a dead body before approaching an execution target. The setting takes effect immediately in MCM.
-- `execute_distance_units` (int, default `2`; contact distance before striking, limited to `1..3` in game; legacy `execute_distance_meters` is still accepted)
+- `execute_distance_units` (int, default `2`; contact distance before striking, limited to `1..20` in game; legacy `execute_distance_meters` is still accepted)
 - `execute_all_radius_units` (int, default `10`; search radius used by `Execute All` around the selected target, clamped to `1..200`)
 - `execute_all_max_actors` (int, default `16`; up to `50` selected characters per `Execute All` order)
 - `execute_button_width` (int, default `310`; pixel width for the Execute button panel)

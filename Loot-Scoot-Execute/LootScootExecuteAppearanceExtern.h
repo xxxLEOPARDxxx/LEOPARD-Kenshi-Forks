@@ -1,13 +1,16 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 
 namespace Ogre
 {
 class Entity;
 }
 
-// Experimental reverse-engineered layout used only for shader tinting.
+class AttachedEntity;
+
+// Native members used by shader tinting and the finisher weapon probe.
 class AppearanceBase
 {
 public:
@@ -25,6 +28,8 @@ public:
     virtual void func0x58();
     virtual void func0x60();
     virtual void updateCharaterTexture();
+
+    AttachedEntity* getAttachedEntity(const std::string& slot) const;
 
     void* slot;
     unsigned char _reserved10[0x40];

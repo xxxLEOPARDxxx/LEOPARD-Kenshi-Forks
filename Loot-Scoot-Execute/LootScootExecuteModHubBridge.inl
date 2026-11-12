@@ -325,11 +325,7 @@ static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out
 
 static EMC_Result __cdecl HubGetExecuteDistance(void* user_data, int32_t* out_value)
 {
-    const EMC_Result result = HubGetIntConfigValue(
-        user_data, &g_modHubState.config->executeDistanceMeters, out_value);
-    if (result == EMC_OK && *out_value > kQueuedExecuteContactDistanceMax)
-        *out_value = kQueuedExecuteContactDistanceMax;
-    return result;
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeDistanceMeters, out_value);
 }
 
 static EMC_Result __cdecl HubSetExecuteDistance(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
@@ -338,7 +334,7 @@ static EMC_Result __cdecl HubSetExecuteDistance(void* user_data, int32_t value, 
         user_data,
         value,
         kQueuedExecuteDistanceMinMeters,
-        kQueuedExecuteContactDistanceMax,
+        kQueuedExecuteDistanceMaxMeters,
         &g_modHubState.config->executeDistanceMeters,
         err_buf,
         err_buf_size);
@@ -578,10 +574,10 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_IntSettingDefV1 kExecuteDistanceSettingDef = {
         kModHubSettingExecuteDistanceId,
         "Execute distance",
-        "How close to approach before striking (1 to 3; default 2).",
+        "Maximum strike distance from 1 to 20. Default is 2.",
         &g_modHubState,
         kQueuedExecuteDistanceMinMeters,
-        kQueuedExecuteContactDistanceMax,
+        kQueuedExecuteDistanceMaxMeters,
         1,
         &HubGetExecuteDistance,
         &HubSetExecuteDistance};
