@@ -1,9 +1,10 @@
-# Building maintenance release 1
+# Building the maintenance release
 
-This source tree corresponds to the KEO v1 maintenance package. The production
-DLL was built from code commit `7609b76e125ab0709a804325fc7e631064875eeb`;
-the release-preparation commit changes documentation only. Its SHA-256 is
-`ea56647bb504a5287ee2589b815d9b1ac1cef6e760d6921048420908ede86751`.
+The production DLL for KEO v2 was built from code commit `e68e2a6927c1ebfb90e36a8736c60f92f9cbf3b9`.
+Its SHA-256 is `9f5392092d45494e05bde1473975fdda4504c837f2a4692040353cd10ff171f4`.
+
+The KEO v1 DLL was built from `7609b76e125ab0709a804325fc7e631064875eeb`
+with SHA-256 `ea56647bb504a5287ee2589b815d9b1ac1cef6e760d6921048420908ede86751`.
 
 Use Windows x64, Visual C++ 2010 x64 and Windows SDK 7.1. Set `KENSHILIB`
 to the KenshiLib development tree containing `Include/kenshi/GameWorld.h`

@@ -6,7 +6,7 @@ Current status: implemented for Kenshi `1.0.65` using:
 - queued execute dispatch with range and facing checks,
 - a single vanilla downward strike on compatible character rigs, timed to the motion,
 - an `Execute All` panel action that chains nearby unconscious enemies around the selected target,
-- Mod Hub integration for settings and Execute button layout when `Emkejs-Mod-Core.dll` is installed.
+- In-game settings through the MCM tab.
 - no save-load pause behavior (that remains exclusive to Auto-Pause on Load).
 
 ## Setup
@@ -79,9 +79,7 @@ After deploy, expected files:
 At runtime, the plugin reads:
 - `[Kenshi install dir]\mods\Loot-Scoot-Execute\mod-config.json`
 
-If `Emkejs-Mod-Core.dll` is present, these same settings are also exposed in the Mod Hub menu under:
-- Namespace: `Emkej QoL`
-- Mod: `Loot-Scoot-Execute`
+These settings are available in **Options > MCM > Loot-Scoot-Execute**.
 
 Supported keys:
 - `enabled` (bool)
@@ -149,3 +147,19 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Release 7 / Выпуск 7
+
+### English
+
+- Finishers start faster and approach the target before striking. Characters finish the assigned batch before returning to standing jobs.
+- Supported characters use a native strike animation and keep their equipped melee weapon in hand through the swing. A melee weapon in the second slot can be used if a crossbow is in the first.
+- Set the maximum finishing distance up to 20 and the number of selected executioners up to 50. Optionally put down a carried corpse before approaching. Carried targets are excluded by default.
+- Execution commands align with the game's visible context-menu rows.
+
+### Русский
+
+- Команда добивания выполняется быстрее. Персонаж подходит вплотную, добивает все назначенные цели и только потом возвращается к постоянным задачам.
+- Для подходящих персонажей используется штатная анимация удара. Оружие ближнего боя видно весь взмах. Если в первом слоте арбалет, можно достать оружие из второго.
+- Дистанция добивания настраивается до 20, число исполнителей до 50. Можно включить сброс переносимого тела перед подходом. Добивание целей, которых несут, по умолчанию выключено.
+- Команды добивания выровнены по строкам штатного контекстного меню.

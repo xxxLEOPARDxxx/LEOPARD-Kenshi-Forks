@@ -422,8 +422,8 @@ msgstr "Значков на экране"
 msgid "How many markers can be on screen at once; the nearest to the camera centre get them first"
 msgstr "Сколько значков может быть на экране одновременно; при нехватке - ближайшим к центру камеры"
 
-msgid "State symbol anchor offset"
-msgstr "Высота состояния над персонажем"
+msgid "State marker height offset (cm)"
+msgstr "Смещение меток состояния (см)"
 
-msgid "Vertical world-anchor offset for state text and icons"
-msgstr "Как высоко над персонажем висят текст и значки состояния"
+msgid "Raise state text and icons above their usual position. A bounty symbol shown beside them moves with them. Set to 0 for the usual position."
+msgstr "Поднимает текст и значки состояния. Символ награды рядом с ними смещается вместе с ними. При 0 сохраняется обычное положение."

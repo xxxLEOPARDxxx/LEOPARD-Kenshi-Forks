@@ -1,4 +1,4 @@
-# KEO (MCM fork) (QoL) - release 1
+# KEO (MCM fork) (QoL) - release 2
 
 ## English
 
@@ -149,3 +149,17 @@ GOG работает на поддерживаемой сборке, но ещё
 ### Лицензия и соответствующие исходники
 
 GPL-3.0, файл `LICENSE`. Файлы авторства и происхождения кода входят в пакет. Соответствующие исходники и скрипты сборки находятся в общей репе наших форков: https://github.com/xxxLEOPARDxxx/LEOPARD-Kenshi-Forks/tree/main/KEO . Ссылки на исходные KEO и KenshiQOL выше указывают код авторов; в этом пакете содержится изменённая интеграция.
+
+## Release 2 / Выпуск 2
+
+### English
+
+- Set operator cargo limits by weight and occupied inventory and backpack cells in steps of 5%. A supported operator delivers when either limit is reached.
+- Right-click the backpack checkmark to set an individual cell limit or restore the global one. A green checkmark indicates an individual limit.
+- With MCM installed, KEO settings are available on its MCM page. The standalone tab is available without MCM.
+
+### Русский
+
+- Для операторов поддерживаемых станков можно настроить предел по весу и долю занятых ячеек инвентаря и рюкзака с шагом 5%. Доставка начинается по первому достигнутому пределу.
+- ПКМ по галочке рюкзака открывает личный лимит ячеек и позволяет вернуться к общему. Зелёная галочка показывает, что задан личный лимит.
+- При установленном MCM настройки доступны на странице KEO в MCM. Отдельная вкладка доступна без MCM.

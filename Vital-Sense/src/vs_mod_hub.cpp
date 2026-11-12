@@ -145,6 +145,7 @@ HubIntSettingDescriptor g_intSettingDescriptors[] = {
     { "max_highlight_distance_m", "Max highlight distance", "Maximum horizontal distance from camera center for highlights", &PluginConfig::maxHighlightDistanceMeters, 5, 20000, 100 },
     { "max_markers", "Max markers", "How many markers can be on screen at once; the nearest to the camera centre get them first", &PluginConfig::maxMarkers, 8, 256, 8 },
     { "bounty_symbol_size_px", "Bounty symbol size", "Base font height for the bounty symbol", &PluginConfig::bountySymbolTextSizePx, 8, 128, 1 },
+    { "state_symbol_live_anchor_y_offset_cm", "State marker height offset (cm)", "Raise state text and icons above their usual position. A bounty symbol shown beside them moves with them. Set to 0 for the usual position.", &PluginConfig::stateSymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
     { "unconscious_text_size_px", "Unconscious text size", "Font height for the unconscious label", &PluginConfig::unconsciousTextSizePx, 8, 128, 1 },
     { "recovery_coma_text_size_px", "Recovery coma text size", "Font height for the recovery coma label", &PluginConfig::recoveryComaTextSizePx, 8, 128, 1 },
     { "dying_text_size_px", "Dying text size", "Font height for the dying label", &PluginConfig::dyingTextSizePx, 8, 128, 1 },
@@ -191,7 +192,6 @@ HubIntSettingDescriptor g_stateIconSizeSettingDescriptors[] = {
 
 HubIntSettingDescriptor g_bountyIntSettingDescriptors[] = {
     { "bounty_symbol_live_anchor_y_offset_cm", "Live symbol anchor offset", "Vertical world-anchor offset for live bounty symbols", &PluginConfig::bountySymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
-    { "state_symbol_live_anchor_y_offset_cm", "State symbol anchor offset", "Vertical world-anchor offset for state text and icons", &PluginConfig::stateSymbolLiveAnchorYOffsetCm, 0, 20000, 10 },
     { "bounty_tier_trivial_max", "Bounty trivial max", "Upper bound for the trivial bounty tier", &PluginConfig::bountyTierTrivialMax, 0, 1000000, 1 },
     { "bounty_tier_low_max", "Bounty low max", "Upper bound for the low bounty tier", &PluginConfig::bountyTierLowMax, 0, 1000000, 1 },
     { "bounty_tier_modest_max", "Bounty modest max", "Upper bound for the modest bounty tier", &PluginConfig::bountyTierModestMax, 0, 1000000, 1 },
@@ -666,6 +666,7 @@ void InitializeSettingDefinitions()
     // key button of Mod Config Menu takes a combination (CTRL+X) itself; the
     // modifiers travel with the key value (Get/SetKeybindSettingValue).
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[1].setting_id, &g_intSettingDefs[1], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[1], kHubSectionCoreId, kHubSectionCoreLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[2].setting_id, &g_intSettingDefs[2], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[2], kHubSectionCoreId, kHubSectionCoreLabel);
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[9].setting_id, &g_boolSettingDefs[9], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[9], kHubSectionCoreId, kHubSectionCoreLabel);
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[10].setting_id, &g_boolSettingDefs[10], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[10], kHubSectionCoreId, kHubSectionCoreLabel);
 
@@ -678,7 +679,7 @@ void InitializeSettingDefinitions()
     {
         SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[i].setting_id, &g_textSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2, &g_textSettingDefsV2[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
-    for (size_t i = 3u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
+    for (size_t i = 4u; i < VS_ARRAY_COUNT(g_intSettingDescriptors); ++i)
     {
         SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[i].setting_id, &g_intSettingDefs[i], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[i], kHubSectionStatesId, kHubSectionStatesLabel);
     }
@@ -696,7 +697,7 @@ void InitializeSettingDefinitions()
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[12].setting_id, &g_boolSettingDefs[12], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[12], kHubSectionBountyId, kHubSectionBountyLabel);
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, g_boolSettingDefs[14].setting_id, &g_boolSettingDefs[14], emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL_V2, &g_boolSettingDefsV2[14], kHubSectionBountyId, kHubSectionBountyLabel);
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT, g_textSettingDefs[0].setting_id, &g_textSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_TEXT_V2, &g_textSettingDefsV2[0], kHubSectionBountyId, kHubSectionBountyLabel);
-    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[2].setting_id, &g_intSettingDefs[2], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[2], kHubSectionBountyId, kHubSectionBountyLabel);
+    SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_INT, g_intSettingDefs[3].setting_id, &g_intSettingDefs[3], emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &g_intSettingDefs[3], kHubSectionBountyId, kHubSectionBountyLabel);
     SetHubRows(rowIndex++, emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT, g_selectSettingDefs[0].setting_id, &g_selectSettingDefs[0], emc::MOD_HUB_CLIENT_SETTING_KIND_SELECT_V2, &g_selectSettingDefsV2[0], kHubSectionBountyId, kHubSectionBountyLabel);
     for (size_t i = 0u; i < VS_ARRAY_COUNT(g_bountyIntSettingDefs); ++i)
     {

@@ -51,10 +51,10 @@ msgid "Search radius for Execute All around the selected target (default 10, max
 msgstr "На каком расстоянии вокруг цели Добить всех ищет лежащих врагов. По умолчанию 10"
 
 msgid "Execute All participants"
-msgstr "Исполнители «Добить всех»"
+msgstr "Исполнители массового добивания"
 
 msgid "Maximum selected characters assigned to one Execute All order."
-msgstr "Сколько выделенных персонажей могут выполнять один приказ «Добить всех»."
+msgstr "Сколько выделенных персонажей могут выполнять один приказ массового добивания."
 
 msgid "Execute button width"
 msgstr "Ширина кнопки"

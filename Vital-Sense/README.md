@@ -73,6 +73,7 @@ Current keys:
 - `bounty_symbol_size_px` (number): base bounty symbol font height (`$` gets a small automatic readability bump, and higher tiers scale up slightly).
 - `bounty_symbol_position` (string): `before_state_icon` or `before_state_text`.
 - `bounty_symbol_live_anchor_y_offset_cm` (number): vertical world-anchor offset for live/non-downed `$` marker (stable across scroll/zoom), default `420`, max `20000`.
+- `state_symbol_live_anchor_y_offset_cm` (number): additional height in centimetres for the status text and icons. A bounty symbol shown beside them follows the group. In MCM, see **States → State marker height offset (cm)**. The default `0` keeps the usual position.
 - `bounty_tier_trivial_max`, `bounty_tier_low_max`, `bounty_tier_modest_max`, `bounty_tier_notable_max`, `bounty_tier_high_value_max`, `bounty_tier_elite_max` (number): ascending tier boundaries.
 - `bounty_color_trivial_hex`, `bounty_color_low_hex`, `bounty_color_modest_hex`, `bounty_color_notable_hex`, `bounty_color_high_value_hex`, `bounty_color_elite_hex`, `bounty_color_legendary_hex` (hex string): per-tier bounty symbol colors (`#RRGGBB` or `#RRGGBBAA`).
 - `enable_unconscious`, `enable_recovery_coma`, `enable_dying`, `enable_playing_dead`, `enable_dead` (bool): per-state visibility toggles.
@@ -159,3 +160,13 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Release 8 / Выпуск 8
+
+### English
+
+- Adjust the height of state text and icons above characters. The standalone bounty symbol keeps its own height setting.
+
+### Русский
+
+- Добавлена настройка высоты текста и значков состояния над персонажами. У отдельного значка награды сохраняется своя настройка высоты.

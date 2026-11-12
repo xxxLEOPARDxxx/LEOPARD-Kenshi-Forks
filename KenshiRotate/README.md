@@ -110,11 +110,11 @@ RotationKey=MMB
 Debug=0
 ```
 
-Rotation is saved with the item in the native save, without a separate rotation-state file. Split stacks inherit orientation. The upstream drag/drop rules prevent stacking opposite orientations; right-click quick transfer may merge into the destination stack's orientation. Removing the plugin restores default item shapes on load, so items that no longer fit may be dropped or equipped by the game. Do not run the original Rotate Items DLL alongside this fork. Requires RE_Kenshi/KenshiLib.
+Rotation is saved with the item in the native save, without a separate rotation-state file. Split stacks inherit orientation. Dragging onto a stack requires matching orientations. Quick transfer and automatic storage jobs can merge otherwise compatible items into a stack in its existing orientation. Any remaining items still need space in their own orientation. Removing the plugin restores default item shapes on load, so items that no longer fit may be dropped or equipped by the game. Do not run the original Rotate Items DLL alongside this fork. Requires RE_Kenshi/KenshiLib.
 
 ## Справочник: сохранения и стопки
 
-Поворот записывается вместе с предметом в обычное сохранение, отдельного файла состояния нет. Разделённая стопка наследует ориентацию. Исходная логика перетаскивания не объединяет противоположные ориентации; быстрый перенос правой кнопкой допускает объединение с ориентацией целевой стопки. Квадратные и надетые предметы не вращаются. Значок поворачивается вместе с предметом, полоски заряда обрабатываются по прежней логике. Если удалить плагин, при загрузке вернутся исходные размеры; вещи, переставшие помещаться, игра может выбросить или экипировать.
+Поворот записывается вместе с предметом в обычное сохранение, отдельного файла состояния нет. Разделённая стопка наследует ориентацию. При перетаскивании на стопку ориентации должны совпадать. При быстром переносе и автоматической сдаче на склад совместимые предметы складываются в существующую стопку с её ориентацией. Для остатка требуется место под его текущую ориентацию. Квадратные и надетые предметы не вращаются. Значок поворачивается вместе с предметом, полоски заряда обрабатываются по прежней логике. Если удалить плагин, при загрузке вернутся исходные размеры; вещи, переставшие помещаться, игра может выбросить или экипировать.
 
 ## Source, credits and history / Исходники, авторство и история
 
@@ -156,3 +156,15 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Release 3 / Выпуск 3
+
+### English
+
+- Workers can automatically unload rotated items into storage. Quick transfers and automatic unloading can merge compatible items into an existing stack in its current orientation.
+- Dragging onto a stack still requires matching orientations.
+
+### Русский
+
+- Работники автоматически разгружают перевёрнутые предметы на склад. При быстрой и автоматической передаче совместимые предметы объединяются с существующей стопкой в её ориентации.
+- При перетаскивании на стопку ориентации предметов должны совпадать.

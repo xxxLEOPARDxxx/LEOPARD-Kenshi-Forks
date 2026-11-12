@@ -243,6 +243,27 @@ static void TryRotateItem(Item* item, InventoryGUI* sourceGUI)
 		ou->showPlayerAMessage(Tr(TR_ERR_NO_SPACE), false);
 }
 
+// Orientation policy for the native stack hooks.
+static __declspec(thread) bool g_inManualPlacement = false;
+static __declspec(thread) bool g_inQuickTransfer = false;
+static bool g_manualPlacementHookOK = false;
+
+class ScopedTransferFlag
+{
+    bool& flag;
+    const bool previous;
+public:
+    ScopedTransferFlag(bool& target, bool value) : flag(target), previous(target) { flag = value; }
+    ~ScopedTransferFlag() { flag = previous; }
+};
+
+static bool RequireMatchingRotation()
+{
+    // Without the placement hook we cannot distinguish drag placement from a
+    // native transfer. Keep the original conservative policy in that case.
+    return !g_inQuickTransfer && (g_inManualPlacement || !g_manualPlacementHookOK);
+}
+
 bool (*placeItemFromMouse_orig)(InventoryGUI*, const std::string,
 	const MyGUI::types::TPoint<int>&) = NULL;
 
@@ -252,6 +273,7 @@ bool (*placeItemFromMouse_orig)(InventoryGUI*, const std::string,
 bool placeItemFromMouse_hook(InventoryGUI* thisptr, const std::string sectionName,
 	const MyGUI::types::TPoint<int>& mousePos)
 {
+    ScopedTransferFlag placement(g_inManualPlacement, true);
 	Item* prevCursorItem = CursorState::GetItem();
     bool result;
     if(PairTraceOnUIThread())
@@ -265,11 +287,6 @@ bool placeItemFromMouse_hook(InventoryGUI* thisptr, const std::string sectionNam
 	return result;
 }
 
-// Kenshi's RClickAutoTrade returns TradeResult (hidden-return-ptr ABI, unhookable),
-// so we hook the mouse-release dispatcher and set this flag during right-click dispatch.
-// canStackWith/addQuantity consult it to let quick-transfer merge across rotation.
-static bool g_inQuickTransfer = false;
-
 static bool g_lastTriggerState = false;
 
 // Hook failures — surfaced once on first inventory open. Required hooks
@@ -281,11 +298,8 @@ void (*sectionMouseButtonReleased_orig)(InventoryGUI*, MyGUI::Widget*, int, int,
 
 void sectionMouseButtonReleased_hook(InventoryGUI* thisptr, MyGUI::Widget* sender, int left, int top, MyGUI::MouseButton id)
 {
-	bool wasRight = (id == MyGUI::MouseButton::Right);
-	bool prev = g_inQuickTransfer;
-	if (wasRight) g_inQuickTransfer = true;
+    ScopedTransferFlag transfer(g_inQuickTransfer, g_inQuickTransfer || id == MyGUI::MouseButton::Right);
 	sectionMouseButtonReleased_orig(thisptr, sender, left, top, id);
-	if (wasRight) g_inQuickTransfer = prev;
 }
 
 bool (*canStackWith_orig)(InventoryItemBase*, InventoryItemBase*) = NULL;
@@ -297,9 +311,10 @@ bool canStackWith_hook(InventoryItemBase* thisptr, InventoryItemBase* other)
 
     const bool nativeResult=canStackWith_orig(thisptr,other);
     bool result=nativeResult;
-    // Preserve original evaluation: no rotation lookup for a native rejection
-    // or quick transfer. Diagnostics do not participate in this decision.
-    if(nativeResult && !g_inQuickTransfer)
+    // Native inventory transfers merge into the existing footprint. Keep
+    // their compatibility check and quantity update in agreement, including
+    // callers that check compatibility before offering an item to the section.
+    if (nativeResult && RequireMatchingRotation())
     {
         const bool thisRotated=RotationState::IsRotated(static_cast<Item*>(thisptr));
         const bool otherRotated=RotationState::IsRotated(static_cast<Item*>(other));
@@ -315,7 +330,7 @@ void (*addQuantity_orig)(InventoryItemBase*, int*, Item*, InventorySection*) = N
 
 void addQuantity_hook(InventoryItemBase* thisptr, int* amount, Item* addedItem, InventorySection* section)
 {
-	if (addedItem && !g_inQuickTransfer)
+	if (addedItem && RequireMatchingRotation())
 	{
 		bool thisRotated = RotationState::IsRotated(static_cast<Item*>(thisptr));
 		bool addedRotated = RotationState::IsRotated(addedItem);
@@ -677,7 +692,7 @@ __declspec(dllexport) void startPlugin()
 	DetectLanguage();
 	RotateSettings::Init();
 
-	// okFlag is non-NULL only for the required hooks (RotationState::HooksReady).
+	// okFlag records the hooks required for rotation or a scoped merge policy.
 	struct HookEntry
 	{
 		const char* name;
@@ -703,7 +718,7 @@ __declspec(dllexport) void startPlugin()
 		HOOK_ENTRY("InventorySectionGUI::getBestPositionSlot", InventorySectionGUI::getBestPositionSlot,      getBestPositionSlot_hook,          getBestPositionSlot_orig,          NULL),
 		HOOK_ENTRY("Item::serialiseInInventory",              Item::_NV_serialiseInInventory,                 Item_serialiseInv_hook,            Item_serialiseInv_orig,            &RotationState::hookSaveOK),
 		HOOK_ENTRY("Item::loadFromSerialiseInInventory",      Item::_NV_loadFromSerialiseInInventory,         Item_loadInv_hook,                 Item_loadInv_orig,                 &RotationState::hookLoadOK),
-		HOOK_ENTRY("InventoryGUI::placeItemFromMouse",        InventoryGUIAccess::placeItemFromMouse,         placeItemFromMouse_hook,           placeItemFromMouse_orig,           NULL),
+		HOOK_ENTRY("InventoryGUI::placeItemFromMouse",        InventoryGUIAccess::placeItemFromMouse,         placeItemFromMouse_hook,           placeItemFromMouse_orig,           &g_manualPlacementHookOK),
 		HOOK_ENTRY("InventoryItemBase::canStackWith",         InventoryItemBase::canStackWith,                canStackWith_hook,                 canStackWith_orig,                 NULL),
 		HOOK_ENTRY("RootObjectFactory::copyItem",             RootObjectFactory::copyItem,                    copyItem_hook,                     copyItem_orig,                     &RotationState::hookCopyOK),
 		HOOK_ENTRY("InventoryItemBase::addQuantity",          InventoryItemBase::addQuantity,                 addQuantity_hook,                  addQuantity_orig,                  NULL),

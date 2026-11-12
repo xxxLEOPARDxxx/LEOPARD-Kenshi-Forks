@@ -27,6 +27,7 @@
 #include <ogre/OgreSubEntity.h>
 #include <ogre/OgreTechnique.h>
 
+#include <stdint.h>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -1406,7 +1407,10 @@ bool TryReadAppearanceMaterialField(AppearanceBase* appearance, int offsetBytes,
 
 bool TryReadPointerValue(const void* address, void** valueOut)
 {
-    if (!address || !valueOut)
+    // The material scan treats adjacent appearance fields as candidate object
+    // pointers. Reject values that cannot address an aligned Windows x64 object.
+    const uintptr_t candidate = reinterpret_cast<uintptr_t>(address);
+    if (!valueOut || candidate < 0x10000 || (candidate & (sizeof(void*) - 1)) != 0)
     {
         return false;
     }

@@ -8,7 +8,11 @@ $env:INCLUDE="$vc/include;$sdk/Include;$module/src;$out"
 $env:LIB="$vc/lib/amd64;$sdk/Lib/x64"
 $env:PATH="$vc/bin/amd64;$env:PATH"
 $source=[IO.File]::ReadAllText("$module/src/KenshiRotate.cpp")
-foreach($part in @(@('bool canStackWith_hook(','// Defense-in-depth','pair_hook_under_test.h'),@('bool placeItemFromMouse_hook(','// Kenshi''s RClickAutoTrade','place_hook_under_test.h'))){
+foreach($part in @(
+ @('// Orientation policy for the native stack hooks.','bool (*placeItemFromMouse_orig)','transfer_policy_under_test.h'),
+ @('void sectionMouseButtonReleased_hook(','// Every stack split','stack_hooks_under_test.h'),
+ @('bool placeItemFromMouse_hook(','static bool g_lastTriggerState','place_hook_under_test.h')
+)){
  $begin=$source.IndexOf($part[0]);$end=$source.IndexOf($part[1],$begin)
  if($begin -lt 0 -or $end -lt $begin){throw 'Production boundary missing'}
  [IO.File]::WriteAllText("$out/$($part[2])",$source.Substring($begin,$end-$begin))

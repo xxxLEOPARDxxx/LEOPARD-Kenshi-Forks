@@ -4,15 +4,7 @@ While the highlight key is held, characters are tinted by how they stand to
 you: your squad, enemies, allies, neutrals (red to yellow to green by their
 faction's relation).
 
-## Contour experiment rolled back / Откат контурной ветки (2026-11-07)
-
-The Meitou-style contour work is removed wholesale. The fork again does only
-the original model tint, plus the optional hover highlight with the same
-relationship colours. No separate render pass, no mask, no contour shaders.
-
-Откат всей контурной ветки. Осталась только обычная окраска по отношениям,
-в том числе по наведении курсора. Никаких отдельных проходов, масок и шейдеров
-контуров — и никакой их стоимости по FPS.
+## Hover highlight / Подсветка при наведении
 
 Hover observes native characterSelected only inside mouseScan, after the game
 resolves the visible character and chooses its cursor. It keeps a copied full
@@ -97,3 +89,17 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Release 4 / Выпуск 4
+
+### English
+
+- Optional NPC names in relationship colours, with a separate Ctrl+N hotkey and adjustable horizontal and vertical offsets. In the maintainer's test scene, enabling names caused no noticeable FPS drop.
+- Optional relationship tint when hovering over a character, with adjustable tint intensity so clothing and equipment remain visible.
+- Fixed name colours when a highlight palette component exceeds the normal range.
+
+### Русский
+
+- Имена NPC окрашиваются по отношениям. Есть отдельное сочетание Ctrl+N и смещение по обеим осям. В тестовой сцене автора форка показ имён не вызвал заметной просадки FPS.
+- Можно включить окраску по отношениям при наведении курсора. Интенсивность регулируется, чтобы одежда и экипировка оставались видны.
+- Исправлены неверные цвета имён при выходе значения цвета за допустимый диапазон.

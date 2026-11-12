@@ -422,8 +422,8 @@ msgstr "最大标记数"
 msgid "How many markers can be on screen at once; the nearest to the camera centre get them first"
 msgstr "屏幕上同时显示的标记数量；不够时优先给离镜头中心最近的角色"
 
-msgid "State symbol anchor offset"
-msgstr "状态标记高度"
+msgid "State marker height offset (cm)"
+msgstr "状态标记高度偏移（厘米）"
 
-msgid "Vertical world-anchor offset for state text and icons"
-msgstr "状态文字和图标相对角色的垂直偏移"
+msgid "Raise state text and icons above their usual position. A bounty symbol shown beside them moves with them. Set to 0 for the usual position."
+msgstr "将状态文字和图标向上移动。旁边的悬赏符号会一起移动。设为 0 时保持原来的位置。"
