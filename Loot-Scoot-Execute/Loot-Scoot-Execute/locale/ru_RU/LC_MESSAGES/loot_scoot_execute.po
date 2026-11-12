@@ -41,14 +41,20 @@ msgstr "Можно добивать и лежащих нейтральных; с
 msgid "Execute distance"
 msgstr "Дистанция добивания"
 
-msgid "Required distance before queued execute triggers (default 2, max 200)"
-msgstr "На какое расстояние палач подходит перед ударом. По умолчанию 2"
+msgid "How close to approach before striking (1 to 3; default 2)."
+msgstr "Насколько близко подойти перед ударом (от 1 до 3, по умолчанию 2)."
 
 msgid "Execute All radius"
 msgstr "Радиус Добить всех"
 
 msgid "Search radius for Execute All around the selected target (default 10, max 200)"
 msgstr "На каком расстоянии вокруг цели Добить всех ищет лежащих врагов. По умолчанию 10"
+
+msgid "Execute All participants"
+msgstr "Исполнители «Добить всех»"
+
+msgid "Maximum selected characters assigned to one Execute All order."
+msgstr "Сколько выделенных персонажей могут выполнять один приказ «Добить всех»."
 
 msgid "Execute button width"
 msgstr "Ширина кнопки"

@@ -631,6 +631,32 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
                 }
             }
         }
+        else if (key == "execute_all_max_actors")
+        {
+            bool clamped = false;
+            int parsedValue = 0;
+            size_t valuePos = pos;
+            if (ParseJsonSignedIntValue(
+                    body,
+                    &valuePos,
+                    kExecuteAllActorsMin,
+                    kExecuteAllActorsMax,
+                    &parsedValue,
+                    &clamped))
+            {
+                diagnostics->invalidExecuteAllMaxActors = clamped;
+                configOut->executeAllMaxActors = parsedValue;
+                pos = valuePos;
+            }
+            else
+            {
+                diagnostics->invalidExecuteAllMaxActors = true;
+                if (!SkipJsonValue(body, &pos))
+                {
+                    return RecordConfigSyntaxError(diagnostics, pos);
+                }
+            }
+        }
         else if (key == "execute_button_width")
         {
             bool clamped = false;
@@ -808,7 +834,8 @@ static bool ParseConfigJson(const std::string& body, PluginConfig* configOut, Co
 static bool RunInternalSelfChecks()
 {
     // Keep this intentionally small: sanity-check parser helpers.
-    PluginConfig parsedConfig = { true, true, false, true, false, 0, 0, 0, 0, 0, 0, 0 };
+    PluginConfig parsedConfig = {};
+    parsedConfig.executeAllMaxActors = kExecuteAllActorsDefault;
     ConfigParseDiagnostics diagnostics;
     ResetConfigParseDiagnostics(&diagnostics);
 
@@ -837,6 +864,7 @@ static bool RunInternalSelfChecks()
         || !parsedConfig.ignoreExecuteAllianceCheck
         || parsedConfig.executeDistanceMeters != 3
         || parsedConfig.executeAllRadiusUnits != 10
+        || parsedConfig.executeAllMaxActors != kExecuteAllActorsDefault
         || parsedConfig.executeButtonWidthPx != 320
         || parsedConfig.executeButtonHeightPx != 44
         || parsedConfig.executeButtonGapPx != -8
@@ -1029,6 +1057,20 @@ static bool RunInternalSelfChecks()
         return false;
     }
 
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_all_max_actors\":50}", &parsedConfig, &diagnostics)
+        || parsedConfig.executeAllMaxActors != 50 || diagnostics.invalidExecuteAllMaxActors)
+    {
+        return false;
+    }
+
+    ResetConfigParseDiagnostics(&diagnostics);
+    if (!ParseConfigJson("{\"execute_all_max_actors\":0}", &parsedConfig, &diagnostics)
+        || parsedConfig.executeAllMaxActors != 1 || !diagnostics.invalidExecuteAllMaxActors)
+    {
+        return false;
+    }
+
     if (!DebounceWindowElapsed(100, 0, 50) || DebounceWindowElapsed(20, 0, 50))
     {
         return false;
@@ -1128,6 +1170,11 @@ static bool ReadConfigFromFile(
         needsWriteBack = true;
         ErrorLog("Loot-Scoot-Execute WARN: invalid/missing/clamped key \"execute_all_radius_units\"; using normalized value");
     }
+    if (diagnostics.invalidExecuteAllMaxActors)
+    {
+        needsWriteBack = true;
+        ErrorLog("Loot-Scoot-Execute WARN: invalid key \"execute_all_max_actors\"; using normalized value");
+    }
     if (!diagnostics.foundExecuteButtonWidthPx || diagnostics.invalidExecuteButtonWidthPx || diagnostics.clampedExecuteButtonWidthPx)
     {
         needsWriteBack = true;
@@ -1178,6 +1225,7 @@ static bool SaveConfigToFile(const std::string& configPath, const PluginConfig& 
     out << "  \"drop_carried_corpse_before_execute\": " << (config.dropCarriedCorpseBeforeExecute ? "true" : "false") << ",\n";
     out << "  \"execute_distance_units\": " << config.executeDistanceMeters << ",\n";
     out << "  \"execute_all_radius_units\": " << config.executeAllRadiusUnits << ",\n";
+    out << "  \"execute_all_max_actors\": " << config.executeAllMaxActors << ",\n";
     out << "  \"execute_button_width\": " << config.executeButtonWidthPx << ",\n";
     out << "  \"execute_button_height\": " << config.executeButtonHeightPx << ",\n";
     out << "  \"execute_button_gap\": " << config.executeButtonGapPx << ",\n";

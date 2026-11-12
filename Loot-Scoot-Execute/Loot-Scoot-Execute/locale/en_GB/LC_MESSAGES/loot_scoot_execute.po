@@ -41,14 +41,20 @@ msgstr "Allows executing downed neutrals too; your own characters never"
 msgid "Execute distance"
 msgstr "Execute distance"
 
-msgid "Required distance before queued execute triggers (default 2, max 200)"
-msgstr "How close the executioner must come before striking. Default 2"
+msgid "How close to approach before striking (1 to 3; default 2)."
+msgstr "How close to approach before striking (1 to 3; default 2)."
 
 msgid "Execute All radius"
 msgstr "Execute All radius"
 
 msgid "Search radius for Execute All around the selected target (default 10, max 200)"
 msgstr "How far around the target Execute All looks for downed enemies. Default 10"
+
+msgid "Execute All participants"
+msgstr "Execute All participants"
+
+msgid "Maximum selected characters assigned to one Execute All order."
+msgstr "Maximum selected characters assigned to one Execute All order."
 
 msgid "Execute button width"
 msgstr "Execute button width"

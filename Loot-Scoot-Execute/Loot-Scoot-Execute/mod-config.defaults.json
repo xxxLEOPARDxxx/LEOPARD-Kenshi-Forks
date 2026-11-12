@@ -7,6 +7,7 @@
   "drop_carried_corpse_before_execute": true,
   "execute_distance_units": 2,
   "execute_all_radius_units": 10,
+  "execute_all_max_actors": 16,
   "execute_button_width": 310,
   "execute_button_height": 56,
   "execute_button_gap": -8,

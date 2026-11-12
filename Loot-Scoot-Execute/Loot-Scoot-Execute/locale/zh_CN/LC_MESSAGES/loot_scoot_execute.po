@@ -41,14 +41,20 @@ msgstr "允许处决倒地的中立角色；自己的角色永远不行"
 msgid "Execute distance"
 msgstr "处决距离"
 
-msgid "Required distance before queued execute triggers (default 2, max 200)"
-msgstr "处决者出手前需要靠近的距离。默认 2"
+msgid "How close to approach before striking (1 to 3; default 2)."
+msgstr "出手前必须靠近目标的距离（1 至 3，默认 2）。"
 
 msgid "Execute All radius"
 msgstr "全部处决半径"
 
 msgid "Search radius for Execute All around the selected target (default 10, max 200)"
 msgstr "全部处决在目标周围搜索倒地敌人的范围。默认 10"
+
+msgid "Execute All participants"
+msgstr "全部处决人数上限"
+
+msgid "Maximum selected characters assigned to one Execute All order."
+msgstr "一次「全部处决」命令最多分配给多少名选中的角色。"
 
 msgid "Execute button width"
 msgstr "按钮宽度"

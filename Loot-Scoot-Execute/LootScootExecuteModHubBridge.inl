@@ -325,7 +325,11 @@ static EMC_Result __cdecl HubGetExecuteButtonWidth(void* user_data, int32_t* out
 
 static EMC_Result __cdecl HubGetExecuteDistance(void* user_data, int32_t* out_value)
 {
-    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeDistanceMeters, out_value);
+    const EMC_Result result = HubGetIntConfigValue(
+        user_data, &g_modHubState.config->executeDistanceMeters, out_value);
+    if (result == EMC_OK && *out_value > kQueuedExecuteContactDistanceMax)
+        *out_value = kQueuedExecuteContactDistanceMax;
+    return result;
 }
 
 static EMC_Result __cdecl HubSetExecuteDistance(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
@@ -334,7 +338,7 @@ static EMC_Result __cdecl HubSetExecuteDistance(void* user_data, int32_t value, 
         user_data,
         value,
         kQueuedExecuteDistanceMinMeters,
-        kQueuedExecuteDistanceMaxMeters,
+        kQueuedExecuteContactDistanceMax,
         &g_modHubState.config->executeDistanceMeters,
         err_buf,
         err_buf_size);
@@ -353,6 +357,23 @@ static EMC_Result __cdecl HubSetExecuteAllRadius(void* user_data, int32_t value,
         kExecuteAllRadiusMinUnits,
         kExecuteAllRadiusMaxUnits,
         &g_modHubState.config->executeAllRadiusUnits,
+        err_buf,
+        err_buf_size);
+}
+
+static EMC_Result __cdecl HubGetExecuteAllActors(void* user_data, int32_t* out_value)
+{
+    return HubGetIntConfigValue(user_data, &g_modHubState.config->executeAllMaxActors, out_value);
+}
+
+static EMC_Result __cdecl HubSetExecuteAllActors(void* user_data, int32_t value, char* err_buf, uint32_t err_buf_size)
+{
+    return HubSetIntConfigValue(
+        user_data,
+        value,
+        kExecuteAllActorsMin,
+        kExecuteAllActorsMax,
+        &g_modHubState.config->executeAllMaxActors,
         err_buf,
         err_buf_size);
 }
@@ -557,10 +578,10 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
     static const EMC_IntSettingDefV1 kExecuteDistanceSettingDef = {
         kModHubSettingExecuteDistanceId,
         "Execute distance",
-        "Required distance before queued execute triggers (default 2, max 200)",
+        "How close to approach before striking (1 to 3; default 2).",
         &g_modHubState,
         kQueuedExecuteDistanceMinMeters,
-        kQueuedExecuteDistanceMaxMeters,
+        kQueuedExecuteContactDistanceMax,
         1,
         &HubGetExecuteDistance,
         &HubSetExecuteDistance};
@@ -576,6 +597,17 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         &HubGetExecuteAllRadius,
         &HubSetExecuteAllRadius};
 
+    static const EMC_IntSettingDefV1 kExecuteAllActorsSettingDef = {
+        "execute_all_max_actors",
+        "Execute All participants",
+        "Maximum selected characters assigned to one Execute All order.",
+        &g_modHubState,
+        kExecuteAllActorsMin,
+        kExecuteAllActorsMax,
+        1,
+        &HubGetExecuteAllActors,
+        &HubSetExecuteAllActors};
+
     static const emc::ModHubClientSettingRowV1 kSettingRows[] = {
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kEnabledSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kExecuteKillSoundSettingDef },
@@ -585,6 +617,7 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDropCarriedCorpseSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteDistanceSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllRadiusSettingDef },
+        { emc::MOD_HUB_CLIENT_SETTING_KIND_INT, &kExecuteAllActorsSettingDef },
         { emc::MOD_HUB_CLIENT_SETTING_KIND_BOOL, &kDebugExecuteLoggingSettingDef }
         // «Кнопка по умолчанию» убрана (08.10.2026): в MCM есть «Сбросить
         // по умолчанию» на всю страницу.

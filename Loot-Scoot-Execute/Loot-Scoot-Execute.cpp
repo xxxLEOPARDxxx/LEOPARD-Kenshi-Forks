@@ -10,6 +10,14 @@
 #include <kenshi/Globals.h>
 #include <kenshi/Kenshi.h>
 #include <kenshi/Character.h>
+#include <kenshi/AI/AI.h>
+#include <kenshi/AI/AITaskSystem.h>
+#include <kenshi/CharBody.h>
+#include <kenshi/CharMovement.h>
+#include <kenshi/Tasker.h>
+#include <kenshi/Gear.h>
+#include <kenshi/Inventory.h>
+#include <kenshi/MedicalSystem.h>
 #include <kenshi/Animation/AnimationClass.h>
 #include <kenshi/RaceData.h>
 #include <kenshi/Damages.h>
@@ -35,6 +43,7 @@
 #include <ogre/OgreSubEntity.h>
 #include <ogre/OgreTechnique.h>
 
+#include <algorithm>
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -42,6 +51,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "LootScootExecuteAppearanceExtern.h"
@@ -54,26 +64,27 @@ static const char* kConfigFileName = "mod-config.json";
 static const DWORD kCanExecuteDecisionMinIntervalMs = 300;
 static const DWORD kNativeMenuExecuteArmMaxAgeMs = 2500;
 static const DWORD kQueuedExecuteMaxLifetimeMs = 45000;
-static const DWORD kQueuedExecuteRepathIntervalMs = 1000;   // было 200: задача персонажа мелькала
+static const DWORD kQueuedExecuteRepathIntervalMs = 180;
+static const DWORD kQueuedExecuteUpdateIntervalMs = 32;
+static const unsigned int kQueuedExecuteMaxApproachAttempts = 4;
+static const unsigned int kExecuteBatchOperationsPerFrame = 6;
 static const DWORD kQueuedExecuteAttackWindupMs = 180;
 static const DWORD kQueuedExecutePostTriggerMaxDurationMs = 4000;
 static const DWORD kFinisherStartGraceMs = 250;
 static const float kFinisherStrikeProgress = 0.60f;
 static const std::string kFinisherAnimationName("chop down static");
-static const DWORD kQueuedExecuteInRangeConfirmMs = 0;
-static const DWORD kQueuedExecuteFacingGraceMs = 1500;
-static const float kQueuedExecuteFacingDotGraceMin = 0.75f;
 static const int kQueuedExecuteDistanceMinMeters = 1;
-static const int kQueuedExecuteDistanceMaxMeters = 200;
+static const int kQueuedExecuteDistanceMaxMeters = 200; // Accepted from older config files.
+static const int kQueuedExecuteContactDistanceMax = 3;
 static const int kQueuedExecuteDefaultDistanceMeters = 2;
 static const int kExecuteAllRadiusMinUnits = 1;
 static const int kExecuteAllRadiusMaxUnits = 200;
 static const int kExecuteAllRadiusDefaultUnits = 10;
+static const int kExecuteAllActorsMin = 1;
+static const int kExecuteAllActorsMax = 50;
+static const int kExecuteAllActorsDefault = 16;
 static const size_t kExecuteAllHoverTintMaxTargets = 12;
-static const float kQueuedExecuteApproachInsetMaxMeters = 1.0f;
-static const float kQueuedExecutePostTriggerDispatchExtraDistanceMeters = 1.5f;
-static const float kQueuedExecutePostTriggerAbortExtraDistanceMeters = 6.0f;
-static const float kQueuedExecuteFacingDotMin = 0.90f;
+static const float kQueuedExecuteContactHeightMax = 3.0f;
 static const DWORD kCustomExecutePanelDispatchDedupMs = 250;
 static const DWORD kCustomExecutePanelHoverActionMinDwellMs = 100;
 static const DWORD kCustomExecutePanelFallbackTickMinGapMs = 100;
@@ -149,6 +160,7 @@ static PluginConfig g_config = {
     true,
     kQueuedExecuteDefaultDistanceMeters,
     kExecuteAllRadiusDefaultUnits,
+    kExecuteAllActorsDefault,
     kExecuteButtonDefaultWidth,
     kExecuteButtonDefaultHeight,
     kExecuteButtonDefaultGapPx,
@@ -304,23 +316,28 @@ struct ExecuteJob
     DWORD lastApproachCommandMs;
     bool attackTriggered;
     DWORD attackTriggeredMs;
-    DWORD inRangeSinceMs;
+    DWORD lastUpdateMs;
+    unsigned int approachAttempts;
+    Tasker* approachOrder;
+    Ogre::Vector3 approachPosition;
     DWORD pauseStartedMs;
     ExecuteFinisherPhase finisherPhase;
     const char* animationMode;
+    hand drawnFinisherWeapon;
     bool batchActive;               // «Добить всех»: после цели - следующая из общего пула
     hand batchActorHandle;
     uintptr_t batchActorPtr;
 
     ExecuteJob()
         : queuedActive(false), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
-          attackTriggered(false), attackTriggeredMs(0), inRangeSinceMs(0), pauseStartedMs(0),
+          attackTriggered(false), attackTriggeredMs(0), lastUpdateMs(0), approachAttempts(0),
+          approachOrder(0), approachPosition(Ogre::Vector3::ZERO), pauseStartedMs(0),
           finisherPhase(ExecuteFinisher_FALLBACK), animationMode("none"),
           batchActive(false), batchActorPtr(0)
     {
     }
 };
-static const size_t kExecuteJobMax = 16;
+static const size_t kExecuteJobMax = kExecuteAllActorsMax;
 static ExecuteJob g_executeJobs[kExecuteJobMax];
 static size_t g_executeJobIndex = 0;
 #define g_queuedExecuteActive (g_executeJobs[g_executeJobIndex].queuedActive)
@@ -332,14 +349,13 @@ static size_t g_executeJobIndex = 0;
 #define g_queuedExecuteLastApproachCommandMs (g_executeJobs[g_executeJobIndex].lastApproachCommandMs)
 #define g_queuedExecuteAttackTriggered (g_executeJobs[g_executeJobIndex].attackTriggered)
 #define g_queuedExecuteAttackTriggeredMs (g_executeJobs[g_executeJobIndex].attackTriggeredMs)
-#define g_queuedExecuteInRangeSinceMs (g_executeJobs[g_executeJobIndex].inRangeSinceMs)
 #define g_queuedExecuteFinisherPhase (g_executeJobs[g_executeJobIndex].finisherPhase)
 #define g_queuedExecuteAnimationMode (g_executeJobs[g_executeJobIndex].animationMode)
 #define g_executeAllBatchActive (g_executeJobs[g_executeJobIndex].batchActive)
 #define g_executeAllBatchActorHandle (g_executeJobs[g_executeJobIndex].batchActorHandle)
 #define g_executeAllBatchActorPtr (g_executeJobs[g_executeJobIndex].batchActorPtr)
 
-// Задание этого исполнителя (или свободное). false - все 16 заняты.
+// Задание этого исполнителя (или свободное). false - все задания заняты.
 static bool SelectExecuteJobForActor(uintptr_t actorPtr)
 {
     for (size_t i = 0; i < kExecuteJobMax; ++i)
@@ -470,8 +486,7 @@ static float ComputeSquaredDistanceXZ(const Ogre::Vector3& a, const Ogre::Vector
 static bool TryGetRootObjectHandleSafe(RootObject* object, hand* handleOut);
 static RootObject* TryResolveRootObjectFromHandleSafe(const hand& rootObjectHandle);
 static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle);
-static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* target, bool targetIsCharacter);
-static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos);
+static float ComputeQueuedExecuteDistanceMeters();
 static bool TryTriggerQueuedExecuteAttackAnimation(Character* actor, RootObject* target);
 static bool TryPlayCharacterAudioEvent(Character* character, const char* eventName, SoundRange range);
 static bool IsAnimalCharacterSafe(Character* candidate);
@@ -530,6 +545,7 @@ static void ResetConfigParseDiagnostics(ConfigParseDiagnostics* diagnostics)
     diagnostics->foundExecuteAllRadiusUnits = false;
     diagnostics->invalidExecuteAllRadiusUnits = false;
     diagnostics->clampedExecuteAllRadiusUnits = false;
+    diagnostics->invalidExecuteAllMaxActors = false;
     diagnostics->foundExecuteButtonWidthPx = false;
     diagnostics->invalidExecuteButtonWidthPx = false;
     diagnostics->clampedExecuteButtonWidthPx = false;
@@ -580,6 +596,7 @@ static void LoadConfigState()
     g_config.dropCarriedCorpseBeforeExecute = true;
     g_config.executeDistanceMeters = kQueuedExecuteDefaultDistanceMeters;
     g_config.executeAllRadiusUnits = kExecuteAllRadiusDefaultUnits;
+    g_config.executeAllMaxActors = kExecuteAllActorsDefault;
     g_config.executeButtonWidthPx = kExecuteButtonDefaultWidth;
     g_config.executeButtonHeightPx = kExecuteButtonDefaultHeight;
     g_config.executeButtonOffsetXPx = kExecuteButtonDefaultAbsoluteX;
@@ -1602,15 +1619,17 @@ static bool IsExecuteAllBatchContinuationReason(const char* reason)
         || std::strcmp(reason, "target_not_executable") == 0;
 }
 
+static bool CanActOnExecuteOrder(Character* actor)
+{
+    return actor && !actor->isDead() && !actor->isDown() && !actor->isBeingCarried();
+}
+
 static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
 {
-    if (!g_executeAllBatchActive)
-    {
-        return false;
-    }
-
     Character* actor = TryResolveCharacterFromHandleSafe(g_executeAllBatchActorHandle);
-    if (!actor)
+    if (!g_config.enableExecuteAll || !g_effectiveEnableExecuteAction
+        || reinterpret_cast<uintptr_t>(actor) != g_executeAllBatchActorPtr
+        || !CanActOnExecuteOrder(actor))
     {
         ResetExecuteAllBatchState();
         return false;
@@ -1619,46 +1638,36 @@ static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
     // Следующая цель - БЛИЖАЙШАЯ к исполнителю из ещё не взятых (раньше - по
     // порядку сбора, и персонаж бегал по куче от дальнего к дальнему). Взятую
     // другим исполнителем не трогаем - каждый идёт к своей.
-    while (true)
+    Ogre::Vector3 actorPos;
+    const bool haveActorPos = TryReadRootObjectPosition(actor, &actorPos);
+    std::pair<float, size_t> candidates[kExecuteAllBatchMaxTargets];
+    size_t candidateCount = 0;
+    for (size_t i = 0; i < g_executeAllBatchTargetCount; ++i)
     {
-        Ogre::Vector3 actorPos;
-        const bool haveActorPos = TryReadRootObjectPosition(actor, &actorPos);
-        size_t targetIndex = g_executeAllBatchTargetCount;
-        float bestDistanceSq = 0.0f;
-        for (size_t i = 0; i < g_executeAllBatchTargetCount; ++i)
-        {
-            if (g_executeAllBatchTargetClaimed[i])
-            {
-                continue;
-            }
-            RootObject* candidate = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[i]);
-            Ogre::Vector3 candidatePos;
-            if (!candidate || !TryReadRootObjectPosition(candidate, &candidatePos))
-            {
-                g_executeAllBatchTargetClaimed[i] = true;
-                continue;
-            }
-            const float d = haveActorPos ? ComputeSquaredDistanceXZ(actorPos, candidatePos) : 0.0f;
-            if (targetIndex == g_executeAllBatchTargetCount || d < bestDistanceSq)
-            {
-                targetIndex = i;
-                bestDistanceSq = d;
-            }
-        }
-        if (targetIndex == g_executeAllBatchTargetCount)
-        {
-            break;
-        }
-        g_executeAllBatchTargetClaimed[targetIndex] = true;
+        if (g_executeAllBatchTargetClaimed[i])
+            continue;
 
-        RootObject* target = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[targetIndex]);
-        if (!target)
+        RootObject* candidate = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[i]);
+        Ogre::Vector3 candidatePos;
+        if (!candidate || !TryReadRootObjectPosition(candidate, &candidatePos))
         {
+            g_executeAllBatchTargetClaimed[i] = true;
             continue;
         }
 
-        if (QueueExecuteFromNativeMenuSelection(actor, target, verboseLog))
+        const float distanceSq = haveActorPos ? ComputeSquaredDistanceXZ(actorPos, candidatePos) : 0.0f;
+        if (_finite(distanceSq))
+            candidates[candidateCount++] = std::make_pair(distanceSq, i);
+    }
+    std::sort(candidates, candidates + candidateCount);
+
+    for (size_t i = 0; i < candidateCount; ++i)
+    {
+        const size_t targetIndex = candidates[i].second;
+        RootObject* target = TryResolveRootObjectFromHandleSafe(g_executeAllBatchTargetHandles[targetIndex]);
+        if (target && QueueExecuteFromNativeMenuSelection(actor, target, verboseLog))
         {
+            g_executeAllBatchTargetClaimed[targetIndex] = true;
             if (ShouldLogExecuteDebug())
             {
                 std::stringstream line;
@@ -1677,6 +1686,65 @@ static bool TryQueueNextExecuteAllBatchTarget(bool verboseLog)
     return false;
 }
 
+// Only compare the address of the old task. The game may have retired it already.
+static bool IsOwnedExecuteApproach(const ExecuteJob& job, const Tasker* first)
+{
+    return first && first == job.approachOrder && first->key() == MOVE_CUS_ORDERED
+        && (first->getLocation() - job.approachPosition).squaredLength() < 0.01f;
+}
+
+static void ReleaseExecuteApproach(const ExecuteJob& job, Character* actor)
+{
+    if (!job.approachOrder || !actor)
+        return;
+
+    __try
+    {
+        OrdersReceiver* orders = actor->getOrdersReciever();
+        if (orders && IsOwnedExecuteApproach(job, orders->getFirstOrder())
+            && orders->orders.isOnlyOne() && orders->jobs.size() == 0)
+        {
+            AI* ai = actor->getAI();
+            AITaskSytem* tasks = ai ? ai->getTaskSystem() : 0;
+            const Tasker* action = tasks && tasks->body ? tasks->body->currentAction : 0;
+            // TaskMatch has no coordinates. Compare the live action's point
+            // before clearing a currently executing goal.
+            if ((!action && !orders->getCurrentGoal().taskData)
+                || (action && action->key() == MOVE_CUS_ORDERED
+                    && (action->getLocation() - job.approachPosition).squaredLength() < 0.01f))
+            {
+                orders->clearOrders();
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Loot-Scoot-Execute: approach release failed");
+    }
+}
+
+static void RestoreFinisherWeapon(ExecuteJob& job, Character* actor)
+{
+    if (job.drawnFinisherWeapon.isNull())
+        return;
+
+    __try
+    {
+        if (actor
+            && !actor->isDown() && !actor->isRagdoll()
+            && !actor->isCarryingSomething && !actor->isBeingCarried()
+            && !actor->isInCombatMode(true, true)
+            && job.drawnFinisherWeapon == actor->getCurrentWeapon())
+        {
+            actor->sheatheWeapon();
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Loot-Scoot-Execute: finisher weapon restoration failed");
+    }
+}
+
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
 {
     if (verboseLog && g_queuedExecuteActive && ShouldLogExecuteDebug())
@@ -1689,6 +1757,18 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
         PluginLog(logline.str().c_str());
     }
 
+    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
+    if (job.approachOrder || !job.drawnFinisherWeapon.isNull())
+    {
+        Character* actor = TryResolveCharacterFromHandleSafe(job.actorHandle);
+        if (reinterpret_cast<uintptr_t>(actor) == job.actorPtr)
+        {
+            ReleaseExecuteApproach(job, actor);
+            RestoreFinisherWeapon(job, actor);
+        }
+    }
+    job.approachOrder = 0;
+    job.drawnFinisherWeapon.setNull();
     g_queuedExecuteActive = false;
     g_queuedExecuteActorHandle.setNull();
     g_queuedExecuteTargetHandle.setNull();
@@ -1698,20 +1778,16 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     g_queuedExecuteLastApproachCommandMs = 0;
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
-    g_queuedExecuteInRangeSinceMs = 0;
-    g_executeJobs[g_executeJobIndex].pauseStartedMs = 0;
+    job.pauseStartedMs = 0;
+    job.lastUpdateMs = 0;
+    job.approachAttempts = 0;
     g_queuedExecuteFinisherPhase = ExecuteFinisher_FALLBACK;
     g_queuedExecuteAnimationMode = "none";
 
-    if (IsExecuteAllBatchContinuationReason(reason))
-    {
-        if (TryQueueNextExecuteAllBatchTarget(verboseLog))
-        {
-            return;
-        }
-    }
-
-    ResetExecuteAllBatchState();
+    // Continue on a later game update so simultaneous contacts don't run
+    // every actor's next target search in one frame.
+    if (!g_executeAllBatchActive || !IsExecuteAllBatchContinuationReason(reason))
+        ResetExecuteAllBatchState();
 }
 
 static bool TryResolveQueuedExecuteParticipants(
@@ -1808,78 +1884,6 @@ static float ComputeSquaredDistanceXZ(const Ogre::Vector3& a, const Ogre::Vector
     const float dx = a.x - b.x;
     const float dz = a.z - b.z;
     return (dx * dx) + (dz * dz);
-}
-
-static bool ComputeFacingDotToTarget(Character* actor, RootObject* target, float* dotOut)
-{
-    if (!actor || !target || !dotOut)
-    {
-        return false;
-    }
-
-    Ogre::Vector3 actorPos;
-    Ogre::Vector3 targetPos;
-    if (!TryReadRootObjectPosition(actor, &actorPos)
-        || !TryReadRootObjectPosition(target, &targetPos))
-    {
-        return false;
-    }
-
-    Ogre::Vector3 toTarget = targetPos - actorPos;
-    toTarget.y = 0.0f;
-    const float toTargetLenSq = toTarget.squaredLength();
-    if (toTargetLenSq <= 1.0e-6f)
-    {
-        *dotOut = 1.0f;
-        return true;
-    }
-
-    Ogre::Vector3 facingDir(0.0f, 0.0f, 0.0f);
-    __try
-    {
-        facingDir = actor->getMovementDirection();
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        return false;
-    }
-
-    facingDir.y = 0.0f;
-    const float facingLenSq = facingDir.squaredLength();
-    if (facingLenSq <= 1.0e-6f)
-    {
-        *dotOut = -1.0f;
-        return true;
-    }
-
-    const float invToTarget = 1.0f / std::sqrt(toTargetLenSq);
-    const float invFacing = 1.0f / std::sqrt(facingLenSq);
-    toTarget *= invToTarget;
-    facingDir *= invFacing;
-    *dotOut = facingDir.dotProduct(toTarget);
-    return true;
-}
-
-static void LogQueuedExecuteApproachSkip(
-    Character* actor,
-    RootObject* target,
-    float executeDistance,
-    float currentDistance)
-{
-    if (!ShouldLogExecuteDebug())
-    {
-        return;
-    }
-
-    std::stringstream line;
-    line << "[investigate][execute] approach_skip"
-         << " reason=already_in_range"
-         << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-         << " target=0x" << reinterpret_cast<uintptr_t>(target)
-         << std::dec
-         << " execute_distance=" << executeDistance
-         << " current_distance=" << currentDistance;
-    PluginLog(line.str().c_str());
 }
 
 static void LogQueuedExecuteApproach(
@@ -1980,6 +1984,7 @@ static void LogQueuedExecuteAnimationProbe(
          << " target=0x" << reinterpret_cast<uintptr_t>(target)
          << std::dec
          << " animation_mode=" << g_queuedExecuteAnimationMode
+         << " weapon_drawn=" << (!g_executeJobs[g_executeJobIndex].drawnFinisherWeapon.isNull())
          << " result=" << (reason ? reason : "started");
     PluginLog(line.str().c_str());
 }
@@ -1988,9 +1993,7 @@ static void LogQueuedExecuteDispatchProbe(
     Character* actor,
     RootObject* target,
     float executeDistance,
-    float distanceSq,
-    bool queueReadyByRange,
-    bool facingTarget)
+    float distanceSq)
 {
     if (!ShouldLogExecuteDebug())
     {
@@ -2005,113 +2008,127 @@ static void LogQueuedExecuteDispatchProbe(
          << " config_execute_distance=" << g_config.executeDistanceMeters
          << " effective_execute_distance=" << executeDistance
          << " current_distance=" << std::sqrt(distanceSq)
-         << " queue_ready=" << (queueReadyByRange ? "true" : "false")
-         << " facing_target=" << (facingTarget ? "true" : "false")
+
          << " attack_triggered=" << (g_queuedExecuteAttackTriggered ? "true" : "false")
          << " animation_mode=" << (g_queuedExecuteAnimationMode ? g_queuedExecuteAnimationMode : "none");
     PluginLog(line.str().c_str());
 }
 
-static bool TryIssueQueuedExecuteApproach(Character* actor, RootObject* target)
+static bool IsWithinExecuteRange(
+    const Ogre::Vector3& actorPos, const Ogre::Vector3& targetPos, float distance)
 {
-    if (!actor || !target)
-    {
-        return false;
-    }
+    return ComputeSquaredDistanceXZ(actorPos, targetPos) <= distance * distance
+        && std::fabs(actorPos.y - targetPos.y) <= kQueuedExecuteContactHeightMax;
+}
 
-    Ogre::Vector3 actorPos;
-    Ogre::Vector3 targetPos;
-    if (!TryReadRootObjectPosition(actor, &actorPos)
-        || !TryReadRootObjectPosition(target, &targetPos))
-    {
-        return false;
-    }
-
-    itemType targetType = NULL_ITEM;
-    const bool targetIsCharacter = TryGetRootObjectTypeForExecutePredicate(target, &targetType)
-        && IsCharacterDataType(targetType);
-    const float executeDistance = ComputeQueuedExecuteDistanceMeters(actor, target, targetIsCharacter);
-
-    const float dx = actorPos.x - targetPos.x;
-    const float dz = actorPos.z - targetPos.z;
-    const float distanceSq = (dx * dx) + (dz * dz);
-    const float executeDistanceSq = executeDistance * executeDistance;
-    const float distance = distanceSq > 1.0e-6f ? std::sqrt(distanceSq) : 0.0f;
-    if (distanceSq <= executeDistanceSq)
-    {
-        if (g_queuedExecuteLastApproachCommandMs == 0)
-        {
-            LogQueuedExecuteApproachSkip(actor, target, executeDistance, distance);
-        }
-        return false;
-    }
-
-    float approachInset = executeDistance * 0.5f;
-    if (approachInset > kQueuedExecuteApproachInsetMaxMeters)
-    {
-        approachInset = kQueuedExecuteApproachInsetMaxMeters;
-    }
-
-    float approachDistance = executeDistance - approachInset;
-    if (approachDistance < 0.0f)
-    {
-        approachDistance = 0.0f;
-    }
-
+static bool TryIssueQueuedExecuteApproach(
+    Character* actor, RootObject* target, const Ogre::Vector3& actorPos,
+    const Ogre::Vector3& targetPos, float executeDistance, DWORD nowMs)
+{
+    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
     Ogre::Vector3 approachPos = targetPos;
+    const float distance = std::sqrt(ComputeSquaredDistanceXZ(actorPos, targetPos));
+    // Start just short of the body. Retry at its centre if the navmesh
+    // projected the first point too far away.
+    const float approachDistance = job.approachAttempts == 0
+        ? (std::min)(0.5f, executeDistance * 0.25f) : 0.0f;
     if (distance > 1.0e-6f)
     {
-        const float scale = approachDistance / distance;
-        approachPos.x = targetPos.x + (dx * scale);
-        approachPos.z = targetPos.z + (dz * scale);
+        approachPos.x += (actorPos.x - targetPos.x) * approachDistance / distance;
+        approachPos.z += (actorPos.z - targetPos.z) * approachDistance / distance;
     }
 
     bool moveIssued = false;
-    // Задачи ИИ сбрасываем только первым приказом: на каждом повторе (раз в
-    // 200 мс) сброс давал мелькание «цель / двигаюсь к цели» - ИИ возвращал
-    // свою задачу, мы снова её снимали.
-    const bool firstApproach = g_queuedExecuteLastApproachCommandMs == 0;
     __try
     {
-        if (firstApproach)
-        {
-            actor->clearAllAIGoals();
-        }
-        actor->setDestination(approachPos, false);
-        moveIssued = true;
+        OrdersReceiver* orders = actor->getOrdersReciever();
+        if (!orders)
+            return false;
+
+        Tasker* first = orders->getFirstOrder();
+        if (IsOwnedExecuteApproach(job, first))
+            return true;
+        if (job.approachAttempts != 0 && first)
+            return false;
+
+        ++job.approachAttempts;
+        job.lastApproachCommandMs = nowMs;
+        // A new explicit command replaces prior manual orders. Permanent work
+        // stays in the engine's separate permanent-job list.
+        actor->addOrder(0, MOVE_CUS_ORDERED, 0, false, first != 0, approachPos);
+        job.approachPosition = approachPos;
+        job.approachOrder = orders->getFirstOrder();
+        moveIssued = IsOwnedExecuteApproach(job, job.approachOrder);
+        if (!moveIssued)
+            job.approachOrder = 0;
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        moveIssued = false;
+        ErrorLog("Loot-Scoot-Execute: native approach order failed");
+        return false;
     }
 
-    if (g_queuedExecuteLastApproachCommandMs == 0 || !moveIssued)
-    {
-        LogQueuedExecuteApproach(
-            actor,
-            target,
-            executeDistance,
-            approachDistance,
-            distance,
-            moveIssued,
-            actorPos,
-            targetPos,
-            approachPos);
-    }
+    LogQueuedExecuteApproach(actor, target, executeDistance, approachDistance,
+        distance, moveIssued, actorPos, targetPos, approachPos);
     return moveIssued;
 }
 
-static bool TryIssueQueuedExecuteFacingAdjust(Character* actor, const Ogre::Vector3& targetPos)
+static void FaceExecuteTarget(Character* actor, Ogre::Vector3 direction)
 {
-    (void)actor;
-    (void)targetPos;
-    return false;
+    direction.y = 0.0f;
+    if (direction.squaredLength() <= 1.0e-6f)
+        return;
+
+    __try
+    {
+        CharMovement* movement = actor->getMovement();
+        if (movement)
+        {
+            direction.normalise();
+            movement->faceDirection(direction);
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Loot-Scoot-Execute: finisher facing update failed");
+    }
 }
 
 static AnimationClass* GetActiveFinisherAnimations(Character* actor)
 {
     AnimationClass* animations = actor->getAnimationClass();
     return animations && animations->getIsActivated() && animations->getAnimationDatasList() ? animations : 0;
+}
+
+static void DrawEquippedFinisherWeapon(Character* actor, hand& drawnWeapon)
+{
+    if (actor->isAnimal() || actor->isInCombatMode(true, true)
+        || actor->getCurrentWeapon() || actor->isRagdoll())
+    {
+        return;
+    }
+
+    MedicalSystem* medical = actor->getMedical();
+    Inventory* inventory = actor->getInventory();
+    if (!medical || !medical->rightArmOk || !medical->leftArmOk || !inventory)
+        return;
+
+    Weapon* weapon = inventory->getPrimaryWeapon();
+    if (!weapon || weapon->isCrossbow())
+        weapon = inventory->getSecondaryWeapon();
+    if (!weapon || weapon->isCrossbow())
+        return;
+
+    const InventorySection* slot = inventory->getSection(weapon->inventorySection);
+    hand weaponHandle;
+    if (slot && slot->limitedSlot == ATTACH_WEAPON
+        && TryGetRootObjectHandleSafe(weapon, &weaponHandle) && !weaponHandle.isNull())
+    {
+        drawnWeapon = weaponHandle;
+        actor->drawWeapon(weapon, weapon->inventorySection);
+        if (actor->getCurrentWeapon() != weapon)
+            drawnWeapon.setNull();
+    }
 }
 
 // A result is logged once per execution when detailed logging is enabled.
@@ -2137,7 +2154,8 @@ static const char* StartNativeFinisher(Character* actor)
         if (animations->getAnimationPlaying(data)) return "clip_already_playing";
 
         // The typed start uses the game's one-shot path even for a training loop.
-        animations->startAnimation(data, 1.0f, 1.0f);
+        DrawEquippedFinisherWeapon(actor, g_executeJobs[g_executeJobIndex].drawnFinisherWeapon);
+        animations->startAnimation(data, 1.2f, 1.0f);
         if (animations->getAnimationPlaying(data))
             return 0;
         return animations->getAnimationPlaying_animName(data->animName)
@@ -2239,22 +2257,9 @@ static Character* TryResolveCharacterFromHandleSafe(const hand& characterHandle)
     return resolved;
 }
 
-static float ComputeQueuedExecuteDistanceMeters(Character* actor, RootObject* target, bool targetIsCharacter)
+static float ComputeQueuedExecuteDistanceMeters()
 {
-    (void)actor;
-    (void)target;
-    (void)targetIsCharacter;
-    if (g_config.executeDistanceMeters < kQueuedExecuteDistanceMinMeters)
-    {
-        return static_cast<float>(kQueuedExecuteDistanceMinMeters);
-    }
-
-    if (g_config.executeDistanceMeters > kQueuedExecuteDistanceMaxMeters)
-    {
-        return static_cast<float>(kQueuedExecuteDistanceMaxMeters);
-    }
-
-    return static_cast<float>(g_config.executeDistanceMeters);
+    return static_cast<float>((std::min)(g_config.executeDistanceMeters, kQueuedExecuteContactDistanceMax));
 }
 
 static float ComputeExecuteAllRadiusUnits()
@@ -4014,20 +4019,26 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
     }
 
     // Исполнители - все выделенные свои персонажи (и тот, кого выбрала игра).
+    const size_t actorLimit = static_cast<size_t>(g_config.executeAllMaxActors);
     std::vector<Character*> actors;
-    actors.push_back(actor);
+    actors.reserve(actorLimit);
+    if (CanActOnExecuteOrder(actor))
+        actors.push_back(actor);
     if (ou != 0 && ou->player != 0)
     {
         for (ogre_unordered_set<hand>::type::const_iterator it = ou->player->selectedCharacters.begin();
-             it != ou->player->selectedCharacters.end(); ++it)
+             it != ou->player->selectedCharacters.end() && actors.size() < actorLimit; ++it)
         {
             Character* const selected = TryResolveCharacterFromHandleSafe(*it);
-            if (selected != 0 && std::find(actors.begin(), actors.end(), selected) == actors.end())
+            if (CanActOnExecuteOrder(selected) && std::find(actors.begin(), actors.end(), selected) == actors.end())
             {
                 actors.push_back(selected);
             }
         }
     }
+
+    if (actors.empty())
+        return false;
 
     // Прежние «Добить всех» этих персонажей - снять; пул - собрать заново.
     for (size_t a = 0; a < actors.size(); ++a)
@@ -4048,7 +4059,7 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
     g_executeJobIndex = 0;
     ResetExecuteAllBatchState();
     g_executeAllBatchTargetCount = CollectExecuteAllTargets(
-        actor,
+        actors.front(),
         target,
         verboseLog,
         g_executeAllBatchTargetHandles,
@@ -4063,7 +4074,8 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
         return false;
     }
 
-    // Каждому - ближайшая к нему свободная цель.
+    // Register the actors now. Target assignment and movement are spread over
+    // game updates, including when a number of characters finish together.
     bool anyQueued = false;
     for (size_t a = 0; a < actors.size(); ++a)
     {
@@ -4076,14 +4088,7 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
         g_executeAllBatchActive = true;
         g_executeAllBatchActorHandle = actorHandle;
         g_executeAllBatchActorPtr = reinterpret_cast<uintptr_t>(actors[a]);
-        if (TryQueueNextExecuteAllBatchTarget(verboseLog))
-        {
-            anyQueued = true;
-        }
-        else
-        {
-            g_executeAllBatchActive = false;
-        }
+        anyQueued = true;
     }
 
     if (ShouldLogExecuteDebug())
@@ -4144,10 +4149,8 @@ static bool QueueExecuteTarget(
     {
         actor = ResolveExecuteActorForPredicateWithTarget(target, true);
     }
-    if (!actor)
-    {
+    if (!CanActOnExecuteOrder(actor))
         return false;
-    }
 
     const uintptr_t actorPtr = reinterpret_cast<uintptr_t>(actor);
     const uintptr_t targetPtr = reinterpret_cast<uintptr_t>(target);
@@ -4198,61 +4201,30 @@ static bool QueueExecuteTarget(
     g_queuedExecuteLastApproachCommandMs = 0;
     g_queuedExecuteAttackTriggered = false;
     g_queuedExecuteAttackTriggeredMs = 0;
-    g_queuedExecuteInRangeSinceMs = 0;
-    g_executeJobs[g_executeJobIndex].pauseStartedMs = 0;
+    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
+    job.lastUpdateMs = 0;
+    job.approachAttempts = 0;
+    job.pauseStartedMs = 0;
     g_queuedExecuteFinisherPhase = ExecuteFinisher_FALLBACK;
     g_queuedExecuteAnimationMode = "none";
     DropCarriedCorpseForExecute(actor);
-    bool initialApproachIssued = false;
-    if (TryIssueQueuedExecuteApproach(actor, target))
+    Ogre::Vector3 actorPos;
+    Ogre::Vector3 targetPos;
+    const float executeDistance = ComputeQueuedExecuteDistanceMeters();
+    const bool havePositions = TryReadRootObjectPosition(actor, &actorPos)
+        && TryReadRootObjectPosition(target, &targetPos);
+    // Dispatch a single movement order on click. The update loop staggers mass
+    // orders so one click cannot submit dozens of path requests in one frame.
+    const bool initialApproachIssued = havePositions && !g_executeAllBatchActive
+        && !IsWithinExecuteRange(actorPos, targetPos, executeDistance)
+        && TryIssueQueuedExecuteApproach(actor, target, actorPos, targetPos, executeDistance, nowMs);
+    if (ShouldLogExecuteDebug())
     {
-        initialApproachIssued = true;
-        g_queuedExecuteLastApproachCommandMs = nowMs;
+        const float currentDistance = havePositions
+            ? std::sqrt(ComputeSquaredDistanceXZ(actorPos, targetPos)) : -1.0f;
+        LogQueuedExecuteArmProbe(entryPoint, actor, target, diagnostics,
+            initialApproachIssued, executeDistance, currentDistance);
     }
-
-    if (verboseLog && ShouldLogExecuteDebug())
-    {
-        float executeDistance = -1.0f;
-        float currentDistance = -1.0f;
-        Ogre::Vector3 actorPos;
-        Ogre::Vector3 targetPos;
-        if (TryReadRootObjectPosition(actor, &actorPos)
-            && TryReadRootObjectPosition(target, &targetPos))
-        {
-            executeDistance = ComputeQueuedExecuteDistanceMeters(actor, target, diagnostics.targetIsCharacter);
-            currentDistance = std::sqrt(ComputeSquaredDistanceXZ(actorPos, targetPos));
-        }
-
-        std::stringstream logline;
-        logline << "Loot-Scoot-Execute DEBUG: queued_execute_armed"
-                << " source=" << ExecutePredicateEntryPointToString(entryPoint)
-                << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor)
-                << " target=0x" << reinterpret_cast<uintptr_t>(target)
-                << std::dec
-                << " can_execute=true"
-                << " execute_distance=" << executeDistance
-                << " current_distance=" << currentDistance;
-        PluginLog(logline.str().c_str());
-    }
-
-    float armExecuteDistance = -1.0f;
-    float armCurrentDistance = -1.0f;
-    Ogre::Vector3 armActorPos;
-    Ogre::Vector3 armTargetPos;
-    if (TryReadRootObjectPosition(actor, &armActorPos)
-        && TryReadRootObjectPosition(target, &armTargetPos))
-    {
-        armExecuteDistance = ComputeQueuedExecuteDistanceMeters(actor, target, diagnostics.targetIsCharacter);
-        armCurrentDistance = std::sqrt(ComputeSquaredDistanceXZ(armActorPos, armTargetPos));
-    }
-    LogQueuedExecuteArmProbe(
-        entryPoint,
-        actor,
-        target,
-        diagnostics,
-        initialApproachIssued,
-        armExecuteDistance,
-        armCurrentDistance);
 
     return true;
 }
@@ -4262,16 +4234,29 @@ static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* ta
     return QueueExecuteTarget(ExecutePredicateEntryPoint_NATIVE_MENU, actor, target, verboseLog);
 }
 
-static void TickQueuedExecuteJob(PlayerInterface* player);
+static void TickQueuedExecuteJob(DWORD nowMs, bool paused, unsigned int& operationBudget);
 
 static void TickQueuedExecuteAction(PlayerInterface* player)
 {
+    if (!player)
+        return;
+
+    const DWORD nowMs = GetTickCount();
+    const bool paused = ou && ou->isPaused();
+    unsigned int operationBudget = kExecuteBatchOperationsPerFrame;
     for (size_t i = 0; i < kExecuteJobMax; ++i)
     {
-        if (g_executeJobs[i].queuedActive)
+        ExecuteJob& job = g_executeJobs[i];
+        if (job.queuedActive)
         {
             g_executeJobIndex = i;
-            TickQueuedExecuteJob(player);
+            TickQueuedExecuteJob(nowMs, paused, operationBudget);
+        }
+        else if (job.batchActive && !paused && operationBudget != 0)
+        {
+            --operationBudget;
+            g_executeJobIndex = i;
+            (void)TryQueueNextExecuteAllBatchTarget(ShouldLogExecuteDebug());
         }
     }
 }
@@ -4297,12 +4282,6 @@ static void CancelExecuteForSelectedCharacters(const char* reason)
         for (size_t i = 0; i < kExecuteJobMax; ++i)
         {
             ExecuteJob& job = g_executeJobs[i];
-            // Только что выданное добивание не снимаем: приказ мог прийти от
-            // того же щелчка меню.
-            if (job.queuedActive && job.armedMs != 0 && GetTickCount() - job.armedMs < 500)
-            {
-                continue;
-            }
             if ((job.queuedActive && job.actorPtr == ptr) || (job.batchActive && job.batchActorPtr == ptr))
             {
                 g_executeJobIndex = i;
@@ -4316,16 +4295,15 @@ static void CancelExecuteForSelectedCharacters(const char* reason)
     }
 }
 
-static void TickQueuedExecuteJob(PlayerInterface* player)
+static void TickQueuedExecuteJob(DWORD nowMs, bool paused, unsigned int& operationBudget)
 {
-    if (!player || !g_queuedExecuteActive)
+    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
+    if (!g_effectiveEnableExecuteAction)
     {
+        DisarmQueuedExecuteAction("execute_disabled", false);
         return;
     }
-
-    const DWORD nowMs = GetTickCount();
-    ExecuteJob& job = g_executeJobs[g_executeJobIndex];
-    if (ou && ou->isPaused())
+    if (paused)
     {
         if (job.pauseStartedMs == 0)
             job.pauseStartedMs = nowMs;
@@ -4337,9 +4315,11 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
         if (job.armedMs != 0) job.armedMs += pausedForMs;
         if (job.lastApproachCommandMs != 0) job.lastApproachCommandMs += pausedForMs;
         if (job.attackTriggeredMs != 0) job.attackTriggeredMs += pausedForMs;
-        if (job.inRangeSinceMs != 0) job.inRangeSinceMs += pausedForMs;
         job.pauseStartedMs = 0;
     }
+    if (!DebounceWindowElapsed(nowMs, job.lastUpdateMs, kQueuedExecuteUpdateIntervalMs))
+        return;
+    job.lastUpdateMs = nowMs;
 
     const bool postTriggerTimedOut = g_queuedExecuteAttackTriggeredMs != 0
         && DebounceWindowElapsed(nowMs, g_queuedExecuteAttackTriggeredMs, kQueuedExecutePostTriggerMaxDurationMs);
@@ -4396,80 +4376,53 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
         return;
     }
 
-    const float executeDistance = ComputeQueuedExecuteDistanceMeters(actor, target, diagnostics.targetIsCharacter);
-
-    const float distanceSq = ComputeSquaredDistanceXZ(actorPos, targetPos);
-    const float maxDistanceSq = executeDistance * executeDistance;
-    const float postTriggerDispatchDistance = executeDistance + kQueuedExecutePostTriggerDispatchExtraDistanceMeters;
-    const float postTriggerDispatchDistanceSq = postTriggerDispatchDistance * postTriggerDispatchDistance;
-    const float postTriggerAbortDistance = executeDistance + kQueuedExecutePostTriggerAbortExtraDistanceMeters;
-    const float postTriggerAbortDistanceSq = postTriggerAbortDistance * postTriggerAbortDistance;
-    const bool inRange = distanceSq <= maxDistanceSq;
-    const bool inPostTriggerDispatchRange = distanceSq <= postTriggerDispatchDistanceSq;
-    const bool postTriggerAbortDistanceExceeded = distanceSq > postTriggerAbortDistanceSq;
-    if (g_queuedExecuteAttackTriggered && postTriggerTimedOut
-        && g_queuedExecuteFinisherPhase == ExecuteFinisher_FALLBACK)
+    if (!CanActOnExecuteOrder(actor))
     {
-        LogQueuedExecuteSimpleProbe("queue_post_trigger_timeout", "post_trigger_timeout", actor, target);
-        DisarmQueuedExecuteAction("post_trigger_timeout", true);
+        DisarmQueuedExecuteAction("actor_unavailable", true);
         return;
     }
 
-    if (g_queuedExecuteAttackTriggered && postTriggerAbortDistanceExceeded)
-    {
-        LogQueuedExecuteSimpleProbe("queue_post_trigger_abort", "post_trigger_drift_too_far", actor, target);
-        DisarmQueuedExecuteAction("post_trigger_drift_too_far", true);
-        return;
-    }
-
-    if (inRange)
-    {
-        if (g_queuedExecuteInRangeSinceMs == 0)
-        {
-            g_queuedExecuteInRangeSinceMs = nowMs;
-        }
-    }
-    else
-    {
-        g_queuedExecuteInRangeSinceMs = 0;
-    }
-    const bool inRangeGraceElapsed = g_queuedExecuteInRangeSinceMs != 0
-        && DebounceWindowElapsed(nowMs, g_queuedExecuteInRangeSinceMs, kQueuedExecuteFacingGraceMs);
-    const bool inRangeConfirmed = g_queuedExecuteInRangeSinceMs != 0
-        && DebounceWindowElapsed(nowMs, g_queuedExecuteInRangeSinceMs, kQueuedExecuteInRangeConfirmMs);
-
-    float facingDot = -1.0f;
-    const bool facingResolved = ComputeFacingDotToTarget(actor, target, &facingDot);
-    const bool facingTargetStrict = facingResolved && facingDot >= kQueuedExecuteFacingDotMin;
-    const bool facingTargetGrace = facingResolved
-        && facingDot >= kQueuedExecuteFacingDotGraceMin
-        && inRangeGraceElapsed;
-    const bool facingTargetFallback = inRangeGraceElapsed;
-    const bool facingTarget = facingTargetStrict || facingTargetGrace || facingTargetFallback;
-    const bool queueReadyByRange = inRangeConfirmed || (g_queuedExecuteAttackTriggered && inPostTriggerDispatchRange);
-
+    const float executeDistance = ComputeQueuedExecuteDistanceMeters();
+    const bool inRange = IsWithinExecuteRange(actorPos, targetPos, executeDistance);
     if (!inRange)
     {
-        const bool postTriggerCommitHold = g_queuedExecuteAttackTriggered;
-        const bool shouldIssueApproach = !postTriggerCommitHold
-            && (g_queuedExecuteLastApproachCommandMs == 0
-                || DebounceWindowElapsed(nowMs, g_queuedExecuteLastApproachCommandMs, kQueuedExecuteRepathIntervalMs));
-        if (shouldIssueApproach && TryIssueQueuedExecuteApproach(actor, target))
+        if (g_queuedExecuteAttackTriggered)
         {
-            g_queuedExecuteLastApproachCommandMs = nowMs;
-        }
-        if (!postTriggerCommitHold || !inPostTriggerDispatchRange)
-        {
+            // The target or actor moved during the strike. The command must
+            // never apply damage outside the contact range.
+            DisarmQueuedExecuteAction("target_left_contact_range", true);
             return;
         }
-    }
-    if (!queueReadyByRange)
-    {
+
+        OrdersReceiver* orders = actor->getOrdersReciever();
+        Tasker* first = orders ? orders->getFirstOrder() : 0;
+        if (IsOwnedExecuteApproach(job, first))
+            return;
+
+        if (job.approachAttempts >= kQueuedExecuteMaxApproachAttempts
+            || (job.approachAttempts != 0 && first))
+        {
+            DisarmQueuedExecuteAction("approach_stopped", true);
+            return;
+        }
+
+        if (operationBudget != 0 && DebounceWindowElapsed(
+                nowMs, job.lastApproachCommandMs, kQueuedExecuteRepathIntervalMs))
+        {
+            --operationBudget;
+            if (!TryIssueQueuedExecuteApproach(actor, target, actorPos, targetPos, executeDistance, nowMs))
+                DisarmQueuedExecuteAction("approach_unavailable", true);
+        }
         return;
     }
 
     if (!g_queuedExecuteAttackTriggered)
     {
+        if (operationBudget == 0)
+            return;
+        --operationBudget;
+
+        FaceExecuteTarget(actor, targetPos - actorPos);
         const bool attackTriggered = diagnostics.targetIsCharacter
             && TryTriggerQueuedExecuteAttackAnimation(actor, target);
         g_queuedExecuteAttackTriggered = true;
@@ -4499,11 +4452,12 @@ static void TickQueuedExecuteJob(PlayerInterface* player)
         return;
     }
 
-    LogQueuedExecuteDispatchProbe(actor, target, executeDistance, distanceSq, queueReadyByRange, facingTarget);
+    LogQueuedExecuteDispatchProbe(actor, target, executeDistance,
+        ComputeSquaredDistanceXZ(actorPos, targetPos));
     const bool dispatched = DispatchExecuteFromNativeMenuSelection(actor, target, true);
     if (dispatched)
     {
-        if (g_executeAllBatchActive && g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING && !postTriggerTimedOut)
+        if (g_queuedExecuteFinisherPhase == ExecuteFinisher_SWING && !postTriggerTimedOut)
         {
             g_queuedExecuteFinisherPhase = ExecuteFinisher_FOLLOW_THROUGH;
             return;

@@ -17,6 +17,7 @@ struct PluginConfig
     bool dropCarriedCorpseBeforeExecute;
     int executeDistanceMeters;
     int executeAllRadiusUnits;
+    int executeAllMaxActors;
     int executeButtonWidthPx;
     int executeButtonHeightPx;
     int executeButtonGapPx;
@@ -44,6 +45,7 @@ struct ConfigParseDiagnostics
     bool foundExecuteAllRadiusUnits;
     bool invalidExecuteAllRadiusUnits;
     bool clampedExecuteAllRadiusUnits;
+    bool invalidExecuteAllMaxActors;
     bool foundExecuteButtonWidthPx;
     bool invalidExecuteButtonWidthPx;
     bool clampedExecuteButtonWidthPx;
