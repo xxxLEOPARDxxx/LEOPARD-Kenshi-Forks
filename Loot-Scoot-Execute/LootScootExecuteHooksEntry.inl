@@ -235,6 +235,7 @@ static void (*clearWorld_orig)(GameWorld*) = 0;
 static void clearWorld_hook(GameWorld* world)
 {
     InterlockedExchange64(&g_executeWorkMask, 0);
+    InterlockedExchange64(&g_finisherWeaponHoldMask, 0);
     InterlockedIncrement(&g_executeWorldGeneration);
     clearWorld_orig(world);
 }
@@ -254,6 +255,49 @@ static bool InstallExecutePermanentWorkHook()
     const intptr_t address = KenshiLib::GetRealAddress(reinterpret_cast<void*>(stub));
     return address && KenshiLib::SUCCESS == KenshiLib::AddHook(
         address, choosePermaJob_hook, &choosePermaJob_orig);
+}
+
+static void (*executeAutoSheathe_orig)(Tasker*, CharBody*) = 0;
+
+static void executeAutoSheathe_hook(Tasker* task, CharBody* body)
+{
+    if (!KeepWeaponForFinisher(body))
+        executeAutoSheathe_orig(task, body);
+}
+
+static bool InstallFinisherWeaponHoldHook(unsigned int platform)
+{
+    // Task_SheatheWeapon::runAction is absent from the SDK. Verify its
+    // complete body in the stock and RE-patched executables before hooking.
+    static const unsigned char expected[] = {
+        0x48, 0x83, 0xec, 0x28, 0x48, 0x8b, 0x02, 0x48, 0x8b, 0xca,
+        0xff, 0x50, 0x48, 0x48, 0x8b, 0xc8, 0x48, 0x8b, 0x10, 0x48,
+        0x83, 0xc4, 0x28, 0x48, 0xff, 0xa2, 0xd0, 0x02, 0x00, 0x00
+    };
+    static const size_t steamRvas[] = {0x336bc0, 0x336c00};
+    static const size_t gogRvas[] = {0x336750, 0x3365a0};
+    const size_t* candidates = platform == KenshiLib::BinaryVersion::STEAM ? steamRvas : gogRvas;
+    const unsigned char* image = reinterpret_cast<const unsigned char*>(GetModuleHandleW(0));
+    if (!image)
+        return false;
+
+    __try
+    {
+        for (size_t i = 0; i < 2; ++i)
+        {
+            const unsigned char* target = image + candidates[i];
+            if (std::memcmp(target, expected, sizeof(expected)) == 0)
+            {
+                return KenshiLib::SUCCESS == KenshiLib::AddHook(
+                    reinterpret_cast<intptr_t>(target), executeAutoSheathe_hook, &executeAutoSheathe_orig);
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+    return false;
 }
 
 __declspec(dllexport) void startPlugin()
@@ -321,6 +365,10 @@ __declspec(dllexport) void startPlugin()
     g_executeWorkHookInstalled = worldHookInstalled && InstallExecutePermanentWorkHook();
     if (!g_executeWorkHookInstalled)
         ErrorLog("Loot-Scoot-Execute: permanent work coordination hook unavailable");
+
+    g_finisherWeaponHoldInstalled = worldHookInstalled && InstallFinisherWeaponHoldHook(platform);
+    if (!g_finisherWeaponHoldInstalled)
+        ErrorLog("Loot-Scoot-Execute: automatic weapon sheathe hook unavailable");
 
     bool contextMenuShowHookInstalled = false;
     bool contextMenuUpdateHookInstalled = false;

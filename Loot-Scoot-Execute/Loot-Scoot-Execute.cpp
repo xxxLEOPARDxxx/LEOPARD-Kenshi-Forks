@@ -74,6 +74,8 @@ static const DWORD kFinisherStartGraceMs = 250;
 static const float kFinisherStrikeProgress = 0.60f;
 static const std::string kFinisherAnimationName("chop down static");
 static const std::string kFinisherWeaponSlot("hands");
+static const std::string kFinisherPrimaryWeaponSection("back");
+static const std::string kFinisherSecondaryWeaponSection("hip");
 static const int kQueuedExecuteDistanceMinMeters = 1;
 static const int kQueuedExecuteDistanceMaxMeters = 20;
 static const int kQueuedExecuteDefaultDistanceMeters = 2;
@@ -355,7 +357,73 @@ __declspec(align(8)) static volatile LONG64 g_executeWorkMask = 0;
 static bool g_executeWorkHookInstalled = false;
 static volatile LONG g_executeWorldGeneration = 0;
 static LONG g_executeQueueGeneration = 0;
-static_assert(kExecuteJobMax <= 64, "Execution work mask overflow");
+static_assert(kExecuteJobMax <= 64, "Execution masks overflow");
+
+struct FinisherWeaponHold
+{
+    Character* volatile actor;
+    Weapon* volatile weapon;
+    volatile LONG deferredAutoSheathe;
+};
+static FinisherWeaponHold g_finisherWeaponHolds[kExecuteJobMax];
+__declspec(align(8)) static volatile LONG64 g_finisherWeaponHoldMask = 0;
+static bool g_finisherWeaponHoldInstalled = false;
+
+static void PublishFinisherWeaponHold(Character* actor, Weapon* weapon, size_t slot)
+{
+    if (!g_finisherWeaponHoldInstalled)
+        return;
+
+    FinisherWeaponHold& hold = g_finisherWeaponHolds[slot];
+    hold.actor = actor;
+    hold.weapon = weapon;
+    hold.deferredAutoSheathe = 0;
+    InterlockedOr64(&g_finisherWeaponHoldMask, 1LL << slot);
+}
+
+static void ReleaseFinisherWeaponHold(size_t slot)
+{
+    const LONG64 bit = 1LL << slot;
+    if ((g_finisherWeaponHoldMask & bit) == 0)
+        return;
+
+    InterlockedAnd64(&g_finisherWeaponHoldMask, ~bit);
+    g_finisherWeaponHolds[slot].actor = 0;
+    g_finisherWeaponHolds[slot].weapon = 0;
+}
+
+// Called only by the stock AI sheathe action. Compare the native actor
+// and weapon; the saved inventory and all direct sheathe calls are untouched.
+static bool KeepWeaponForFinisher(CharBody* body)
+{
+    unsigned __int64 bits = static_cast<unsigned __int64>(g_finisherWeaponHoldMask);
+    if (!bits || !body)
+        return false;
+
+    Character* actor = body->getCharacter();
+    if (!actor)
+        return false;
+
+    unsigned long slot;
+    while (_BitScanForward64(&slot, bits))
+    {
+        FinisherWeaponHold& hold = g_finisherWeaponHolds[slot];
+        Weapon* expected = hold.weapon;
+        if (hold.actor == actor && expected && actor->getCurrentWeapon() == expected
+            && !actor->isDead() && !actor->isDown() && !actor->isRagdoll()
+            && !actor->isBeingCarried() && !actor->isCarryingSomething
+            && !actor->isInCombatMode(true, true)
+            && (g_finisherWeaponHoldMask & (1LL << slot))
+            && hold.actor == actor && hold.weapon == expected)
+        {
+            if (hold.deferredAutoSheathe == 0)
+                InterlockedExchange(&hold.deferredAutoSheathe, 1);
+            return true;
+        }
+        bits &= bits - 1;
+    }
+    return false;
+}
 
 static bool ExecuteSuppressesPermanentWork(const AITaskSytem* tasks)
 {
@@ -1684,6 +1752,7 @@ static void SynchronizeExecuteWorld()
 
     g_executeQueueGeneration = generation;
     InterlockedExchange64(&g_executeWorkMask, 0);
+    InterlockedExchange64(&g_finisherWeaponHoldMask, 0);
     for (size_t i = 0; i < kExecuteJobMax; ++i)
         g_executeJobs[i] = ExecuteJob();
     g_executeJobIndex = 0;
@@ -1891,6 +1960,7 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     }
 
     ExecuteJob& job = g_executeJobs[g_executeJobIndex];
+    ReleaseFinisherWeaponHold(g_executeJobIndex);
     const bool workBlocked = ReleasePermanentWorkForExecute(g_executeJobIndex);
     if (workBlocked || job.approachOrder || !job.drawnFinisherWeapon.isNull())
     {
@@ -2238,33 +2308,57 @@ static AnimationClass* GetActiveFinisherAnimations(Character* actor)
     return animations && animations->getIsActivated() && animations->getAnimationDatasList() ? animations : 0;
 }
 
+static Weapon* FindEquippedFinisherMeleeWeapon(
+    Inventory* inventory, Weapon* preferred, const std::string& sectionName)
+{
+    const InventorySection* section = inventory->getSection(sectionName);
+    if (!section || section->limitedSlot != ATTACH_WEAPON)
+        return 0;
+
+    if (preferred && preferred->inventorySection == sectionName && !preferred->isCrossbow())
+        return preferred;
+
+    const Ogre::vector<InventorySection::SectionItem>::type& items = section->getItems();
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+        Item* item = items[i].item;
+        if (!item || item->inventorySection != sectionName)
+            continue;
+        Weapon* weapon = item->isWeapon();
+        if (weapon && !weapon->isCrossbow())
+            return weapon;
+    }
+    return 0;
+}
+
 static void DrawEquippedFinisherWeapon(Character* actor, hand& drawnWeapon)
 {
-    if (actor->isAnimal() || actor->isInCombatMode(true, true)
-        || actor->getCurrentWeapon() || actor->isRagdoll())
-    {
+    if (actor->isAnimal() || actor->isInCombatMode(true, true) || actor->isRagdoll())
         return;
-    }
+
+    Weapon* held = actor->getCurrentWeapon();
+    if (held && !held->isCrossbow())
+        return;
 
     MedicalSystem* medical = actor->getMedical();
     Inventory* inventory = actor->getInventory();
     if (!medical || !medical->rightArmOk || !medical->leftArmOk || !inventory)
         return;
 
-    Weapon* weapon = inventory->getPrimaryWeapon();
-    if (!weapon || weapon->isCrossbow())
-        weapon = inventory->getSecondaryWeapon();
-    if (!weapon || weapon->isCrossbow())
-        return;
+    Weapon* weapon = FindEquippedFinisherMeleeWeapon(
+        inventory, inventory->getPrimaryWeapon(), kFinisherPrimaryWeaponSection);
+    if (!weapon)
+        weapon = FindEquippedFinisherMeleeWeapon(
+            inventory, inventory->getSecondaryWeapon(), kFinisherSecondaryWeaponSection);
 
-    const InventorySection* slot = inventory->getSection(weapon->inventorySection);
     hand weaponHandle;
-    if (slot && slot->limitedSlot == ATTACH_WEAPON
-        && TryGetRootObjectHandleSafe(weapon, &weaponHandle) && !weaponHandle.isNull())
+    if (weapon && TryGetRootObjectHandleSafe(weapon, &weaponHandle) && !weaponHandle.isNull())
     {
         drawnWeapon = weaponHandle;
         actor->drawWeapon(weapon, weapon->inventorySection);
-        if (actor->getCurrentWeapon() != weapon)
+        if (actor->getCurrentWeapon() == weapon)
+            PublishFinisherWeaponHold(actor, weapon, g_executeJobIndex);
+        else
             drawnWeapon.setNull();
     }
 }
@@ -2299,7 +2393,10 @@ static void LogFinisherWeaponState(Character* actor, const hand& weapon, const c
     std::stringstream line;
     line << "[investigate][execute] weapon"
          << " stage=" << stage << " held=" << held << " hand_attachment=" << attached
-         << " goal=" << goal << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor);
+         << " goal=" << goal
+         << " auto_sheathe_deferred=" << ((g_finisherWeaponHoldMask & (1LL << g_executeJobIndex))
+             && g_finisherWeaponHolds[g_executeJobIndex].deferredAutoSheathe != 0)
+         << " actor=0x" << std::hex << reinterpret_cast<uintptr_t>(actor);
     PluginLog(line.str().c_str());
 }
 
