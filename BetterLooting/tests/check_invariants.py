@@ -13,18 +13,34 @@ def extract(src,name):
   while depth:depth+=(src[i]=='{')-(src[i]=='}');i+=1
   return src[m.start():i]
  raise ValueError(name)
-guard='''
-    if (IsBetterLootingBlockedLootInventory(sourceInventory))
-    {
-        BlTrace("BetterLooting: TRANSFER_SKIP protected player building inventory");
-        return;
-    }
-'''
 def nonblank(s):return '\n'.join(line for line in s.splitlines() if line.strip())
-assert nonblank(extract(new,'ExecuteLootCandidate').replace(guard,'',1))==nonblank(extract(old,'ExecuteLootCandidate'))
-for name in ['EnumerateInventoryCandidates','CollectBetterLootingRadiusTargets','RunBetterLootingStoreAll','EvaluateBetterLootingStoreSourceInventory','QueueSmartLoot']:
+
+def transfer_core(src):
+ current=extract(src,'ExecuteLootCandidate')
+ current=current.replace('InventoryGUI* destinationWindow', 'const BetterLootingDestinations& destinations')
+ current=current.replace('!destinationWindow', '!destinations.first')
+ current=current.replace('destinationWindow,', 'destinations,')
+ # Only destination selection changes. Compare the entire remaining transfer,
+ # merge-success accounting, owner/theft handling and rollback with the baseline.
+ current=re.sub(
+  r'            (?:InventoryGUI\* secondaryWindow|Inventory\* secondaryInventory) =.*?(?=                if \(secondaryPlacement.found\))',
+  '            /* current secondary inventory selection */\n',current,flags=re.S)
+ current=re.sub(
+  r'                    Character\* centerCharacter =.*?(?=                    BetterLootingEmergencyStorageResult emergency =)',
+  '                    /* current actor for emergency storage */\n',current,flags=re.S)
+ current=re.sub(
+  r'LootDestinationName\(\s*(?:secondaryWindow|secondaryInventory, destinations)\s*\)',
+  'LootDestinationName(SECONDARY)',current)
+ current=re.sub(
+  r'LootDestinationName\(\s*(?:placement.window|placement.inventory, destinations)\s*\)',
+  'LootDestinationName(PLACEMENT)',current)
+ guard='    if (IsBetterLootingBlockedLootInventory(sourceInventory))\n    {\n        BlTrace("BetterLooting: TRANSFER_SKIP protected player building inventory");\n        return;\n    }'
+ return nonblank(current.replace(guard,'',1))
+
+assert transfer_core(new)==transfer_core(old), 'Transfer/rollback/ownership logic changed beyond current destination lookup'
+for name in ['EnumerateInventoryCandidates','CollectBetterLootingRadiusTargets','RunBetterLootingStoreAll','EvaluateBetterLootingStoreSourceInventory']:
  assert extract(new,name)==extract(old,name),name
-for name in ['TryBetterLootingNearestCompatiblePlayerStorage','BuildBetterLootingTargetQueue','BuildBetterLootingStoreTargetQueue']:
+for name in ['TryBetterLootingNearestCompatiblePlayerStorage','BuildBetterLootingStoreTargetQueue']:
  current=extract(new,name)
  current=re.sub(r'    static BetterLootingRadiusScratch scratch;.*?    lektor<RootObject\*>& buildingTargets = scratch.buildings;', '    lektor<RootObject*> characterTargets;\n    lektor<RootObject*> buildingTargets;', current,flags=re.S)
  assert nonblank(current)==nonblank(extract(old,name)),name
@@ -37,4 +53,4 @@ for lang in ['en_GB','ru_RU','zh_CN']:
  missing=sorted(k for k in keys if k not in t._catalog or not t._catalog[k])
  assert not missing,(lang,missing)
  print(lang,'all',len(keys),'UI keys translated;',len(t._catalog),'catalog records')
-print('PASS: entire original ExecuteLootCandidate preserved after entry-only storage guard; enumeration/sort, Deposit source/runner, radius discovery and direct queue unchanged; preset source byte-identical')
+print('PASS: transfer/merge-success accounting/rollback/ownership preserved beyond live destination lookup; enumeration, deposit, radius discovery and preset source preserved')

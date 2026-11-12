@@ -18,7 +18,7 @@ struct Inventory;struct RootObject{virtual~RootObject(){}virtual itemType getDat
 struct Building:RootObject{bool valid,player;Building*parent;Faction*faction;Inventory*inventory;Building():valid(true),player(false),parent(NULL),faction(NULL),inventory(NULL){}bool isValid(){return valid;}bool isThePlayer(){return player;}Faction*getFaction(){return faction;}Building*furnitureParentBuilding(){return parent;}itemType getDataType(){return BUILDING;}BuildingFunction getSpecialFunction(){return BF_GENERAL_STORAGE;}Inventory*getInventory(){return inventory;}};
 struct Inventory{RootObject*owner;RootObject*callback;Inventory():owner(NULL),callback(NULL){}int getNumItems(){return 3;}RootObject*getOwner(){++ownerReads;return owner;}RootObject*getCallbackObject(){++ownerReads;return callback;}};
 struct Rules{bool ignorePlayerStorage;Rules():ignorePlayerStorage(true){}}g_betterLootingRules;
-struct InventoryGUI{};struct BetterLootingCandidate{void*item;};bool g_betterLootingTransferFault=false;void BlTrace(const char*){}
+struct InventoryGUI{};struct BetterLootingDestinations{Inventory* first;};struct BetterLootingCandidate{void*item;};bool g_betterLootingTransferFault=false;void BlTrace(const char*){}
 #define CHECK(x) do{if(!(x)){printf("FAIL line %d: %s\n",__LINE__,#x);return 1;}}while(0)
 '''
 for name in ['IsBetterLootingPlayerBuildingSource','IsBetterLootingBlockedLootInventory']:
@@ -29,7 +29,7 @@ code+='\n'+function('EvaluateTargetInventory').split('    const lektor<Inventory
 code+=r'''
 int main(){Faction player;player.player=true;Inventory inventory;Building chest;chest.player=true;chest.faction=&player;chest.inventory=&inventory;inventory.owner=&chest;
 CHECK(!IsBetterLootingBuildingTarget(&chest));g_betterLootingRules.ignorePlayerStorage=false;CHECK(IsBetterLootingBuildingTarget(&chest));
-g_betterLootingRules.ignorePlayerStorage=true;InventoryGUI destination;BetterLootingCandidate candidate;candidate.item=(void*)1;g_betterLootingTransferFault=true;ExecuteLootCandidate((Inventory*)1,&destination,candidate,0);EvaluateTargetInventory(NULL,(Inventory*)1,&destination);CHECK(ownerReads==0);g_betterLootingTransferFault=false;ExecuteLootCandidate(NULL,&destination,candidate,0);EvaluateTargetInventory(NULL,NULL,&destination);CHECK(ownerReads==0);ExecuteLootCandidate(&inventory,&destination,candidate,0);CHECK(ownerReads>0);
+g_betterLootingRules.ignorePlayerStorage=true;BetterLootingDestinations destination; destination.first=&inventory;BetterLootingCandidate candidate;candidate.item=(void*)1;g_betterLootingTransferFault=true;ExecuteLootCandidate((Inventory*)1,destination,candidate,0);EvaluateTargetInventory((Inventory*)1,destination);CHECK(ownerReads==0);g_betterLootingTransferFault=false;ExecuteLootCandidate(NULL,destination,candidate,0);EvaluateTargetInventory(NULL,destination);CHECK(ownerReads==0);ExecuteLootCandidate(&inventory,destination,candidate,0);CHECK(ownerReads>0);
 puts("PASS: protected player storage excluded from radial loot; live opt-out restores original storage target behavior");return 0;}
 '''
 p=base/'storage_guard_test.cpp';p.write_text(code,encoding='utf-8');vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC');sdk=Path(r'C:\Program Files\Microsoft SDKs\Windows\v7.1');env=os.environ.copy();env['INCLUDE']=f'{vc/"include"};{sdk/"Include"}';env['LIB']=f'{vc/"lib/amd64"};{sdk/"Lib/x64"}';env['PATH']=str(vc/'bin/amd64')+';'+env['PATH']

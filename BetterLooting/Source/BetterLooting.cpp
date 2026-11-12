@@ -1,4 +1,4 @@
-#include <LocalizationLog.h>
+﻿#include <LocalizationLog.h>
 #define BOOST_ALL_NO_LIB
 #define BOOST_SYSTEM_NO_LIB
 #define BOOST_ERROR_CODE_HEADER_ONLY
@@ -169,47 +169,6 @@ static bool IsBetterLootingBlockedLootInventory(Inventory* inventory)
 }
 
 // v100 не знает scoped enum, см. fix_bl_vc10.py.
-enum InventoryKind
-{
-    UNKNOWN,
-    PLAYER_MAIN,
-    PLAYER_BACKPACK,
-    CHARACTER_TARGET,
-    CONTAINER_TARGET
-};
-
-
-typedef InventoryGUI* (*ShowInventoryFn)(
-    ForgottenGUI*,
-    const hand&,
-    bool,
-    float,
-    float
-);
-
-
-typedef InventoryGUI* (*ShowSimpleInventoryFn)(
-    ForgottenGUI*,
-    const hand&
-);
-
-
-static ShowInventoryFn g_origShowInventory = NULL;
-
-static ShowSimpleInventoryFn
-    g_origShowInventoryNPC = NULL;
-
-static ShowSimpleInventoryFn
-    g_origShowInventoryBuilding = NULL;
-
-static ShowSimpleInventoryFn
-    g_origShowTraderInventory = NULL;
-
-
-static InventoryGUI* g_playerMainWindow = NULL;
-static InventoryGUI* g_playerBackpackWindow = NULL;
-
-
 // Dedicated per-call-site scan scratch. KenshiLib lektor does not free its
 // allocation in a destructor. Reuse bounded buffers, but never let a reentrant
 // scan overwrite the outer caller's collection. All three callers run on GUI.
@@ -234,117 +193,55 @@ struct BetterLootingRadiusScratchUse
     }
 };
 
-static InventoryGUI* SelectLootDestination()
+// Inventory destinations exist only during a synchronous transfer. Never retain
+// an InventoryGUI after its native callback: closing it destroys the window.
+struct BetterLootingDestinations
 {
-    if (g_betterLootingRules.preferBackpack)
+    Character* character;
+    Inventory* main;
+    Inventory* backpack;
+    Inventory* first;
+    Inventory* second;
+};
+
+static Inventory* GetBetterLootingValidatedBackpackInventory(Character* character)
+{
+    ContainerItem* backpack = character ? character->hasABackpackOn() : NULL;
+    return backpack ? backpack->getInventory() : NULL;
+}
+
+static BetterLootingDestinations GetBetterLootingDestinations(Character* character)
+{
+    BetterLootingDestinations result = { NULL, NULL, NULL, NULL, NULL };
+    if (!character || !character->isPlayerCharacter())
+        return result;
+
+    result.character = character;
+    result.main = character->getInventory();
+    result.backpack = GetBetterLootingValidatedBackpackInventory(character);
+    if (result.backpack == result.main)
+        result.backpack = NULL;
+
+    result.first = g_betterLootingRules.preferBackpack ? result.backpack : result.main;
+    result.second = g_betterLootingRules.preferBackpack ? result.main : result.backpack;
+    if (!result.first)
     {
-        if (g_playerBackpackWindow)
-            return g_playerBackpackWindow;
-
-        if (g_playerMainWindow)
-            return g_playerMainWindow;
+        result.first = result.second;
+        result.second = NULL;
     }
-    else
-    {
-        if (g_playerMainWindow)
-            return g_playerMainWindow;
-
-        if (g_playerBackpackWindow)
-            return g_playerBackpackWindow;
-    }
-
-    return NULL;
+    return result;
 }
 
 static const char* LootDestinationName(
-    InventoryGUI* destination
-)
+    Inventory* destination,
+    const BetterLootingDestinations& destinations)
 {
-    if (
-        destination &&
-        destination == g_playerBackpackWindow
-    )
-    {
+    if (destination && destination == destinations.backpack)
         return "PLAYER_BACKPACK";
-    }
-
-    if (
-        destination &&
-        destination == g_playerMainWindow
-    )
-    {
+    if (destination && destination == destinations.main)
         return "PLAYER_MAIN";
-    }
-
     return "NONE";
 }
-
-static const char* InventoryKindName(
-    InventoryKind kind
-)
-{
-    switch (kind)
-    {
-        case InventoryKind::PLAYER_MAIN:
-            return "PLAYER_MAIN";
-
-        case InventoryKind::PLAYER_BACKPACK:
-            return "PLAYER_BACKPACK";
-
-        case InventoryKind::CHARACTER_TARGET:
-            return "CHARACTER_TARGET";
-
-        case InventoryKind::CONTAINER_TARGET:
-            return "CONTAINER_TARGET";
-
-        default:
-            return "UNKNOWN";
-    }
-}
-
-
-static InventoryKind ClassifyInventory(
-    InventoryGUI* guiWindow,
-    const hand& owner
-)
-{
-    if (!guiWindow)
-        return InventoryKind::UNKNOWN;
-
-    Inventory* inventory =
-        guiWindow->getInventory();
-
-    if (!inventory)
-        return InventoryKind::UNKNOWN;
-
-    Character* character =
-        guiWindow->getCallbackCharacter();
-
-    if (character)
-    {
-        if (character->isPlayerCharacter())
-        {
-            if (inventory->isAContainer())
-                return InventoryKind::PLAYER_BACKPACK;
-
-            return InventoryKind::PLAYER_MAIN;
-        }
-
-        return InventoryKind::CHARACTER_TARGET;
-    }
-
-    if (owner.getBuilding())
-        return InventoryKind::CONTAINER_TARGET;
-
-    if (inventory->isAContainer())
-        return InventoryKind::CONTAINER_TARGET;
-
-    return InventoryKind::UNKNOWN;
-}
-
-
-
-
 
 struct BetterLootingItemLocation
 {
@@ -1642,7 +1539,6 @@ static bool g_betterLootingTransferFault = false;
 
 struct BetterLootingDirectPlacement
 {
-    InventoryGUI* window;
     Inventory* inventory;
     InventorySection* section;
     int x;
@@ -1654,8 +1550,8 @@ struct BetterLootingDirectPlacement
 
 
 static BetterLootingDirectPlacement
-FindBetterLootingDirectPlacementInWindow(
-    InventoryGUI* window,
+FindBetterLootingDirectPlacementInInventory(
+    Inventory* inventory,
     Item* item,
     GameData* itemData,
     int quantity,
@@ -1663,7 +1559,6 @@ FindBetterLootingDirectPlacementInWindow(
 )
 {
     BetterLootingDirectPlacement result = {
-        nullptr,
         nullptr,
         nullptr,
         0,
@@ -1675,21 +1570,11 @@ FindBetterLootingDirectPlacementInWindow(
 
 
     if (
-        !window ||
+        !inventory ||
         !item ||
         !itemData ||
         quantity <= 0
     )
-    {
-        return result;
-    }
-
-
-    Inventory* inventory =
-        window->getInventory();
-
-
-    if (!inventory)
     {
         return result;
     }
@@ -1798,7 +1683,6 @@ FindBetterLootingDirectPlacementInWindow(
         }
 
 
-        result.window = window;
         result.inventory = inventory;
         result.section = section;
         result.x = x;
@@ -1818,73 +1702,19 @@ FindBetterLootingDirectPlacementInWindow(
 
 static BetterLootingDirectPlacement
 FindBetterLootingDirectPlacement(
-    InventoryGUI* preferredWindow,
+    const BetterLootingDestinations& destinations,
     Item* item,
     GameData* itemData,
-    int quantity
-)
+    int quantity)
 {
     BetterLootingDirectPlacement result =
-        FindBetterLootingDirectPlacementInWindow(
-            preferredWindow,
-            item,
-            itemData,
-            quantity,
-            false
-        );
-
-
-    if (result.found)
+        FindBetterLootingDirectPlacementInInventory(
+            destinations.first, item, itemData, quantity, false);
+    if (!result.found && destinations.second)
     {
-        return result;
+        result = FindBetterLootingDirectPlacementInInventory(
+            destinations.second, item, itemData, quantity, false);
     }
-
-
-    InventoryGUI* secondaryWindow =
-        NULL;
-
-
-    if (
-        preferredWindow ==
-            g_playerBackpackWindow
-    )
-    {
-        secondaryWindow =
-            g_playerMainWindow;
-    }
-    else if (
-        preferredWindow ==
-            g_playerMainWindow
-    )
-    {
-        secondaryWindow =
-            g_playerBackpackWindow;
-    }
-
-
-    if (
-        secondaryWindow &&
-        secondaryWindow !=
-            preferredWindow
-    )
-    {
-        result =
-            FindBetterLootingDirectPlacementInWindow(
-                secondaryWindow,
-                item,
-                itemData,
-                quantity,
-                false
-            );
-
-
-        if (result.found)
-        {
-            return result;
-        }
-    }
-
-
     return result;
 }
 
@@ -2633,7 +2463,7 @@ static void LogBetterLootingTransferInvariantFault(
 
 static void ExecuteLootCandidate(
     Inventory* sourceInventory,
-    InventoryGUI* destinationWindow,
+    const BetterLootingDestinations& destinations,
     const BetterLootingCandidate& candidate,
     std::size_t candidateIndex
 )
@@ -2650,7 +2480,7 @@ static void ExecuteLootCandidate(
 
     if (
         !sourceInventory ||
-        !destinationWindow ||
+        !destinations.first ||
         !candidate.item
     )
     {
@@ -2786,7 +2616,7 @@ static void ExecuteLootCandidate(
 
         BetterLootingDirectPlacement placement =
             FindBetterLootingDirectPlacement(
-                destinationWindow,
+                destinations,
                 sourceItem,
                 itemData,
                 1
@@ -3153,43 +2983,15 @@ static void ExecuteLootCandidate(
             destinationDelta == 0
         )
         {
-            InventoryGUI* secondaryWindow =
-                NULL;
+            Inventory* secondaryInventory =
+                placement.inventory == destinations.first
+                    ? destinations.second : destinations.first;
 
-
-            if (
-                placement.window ==
-                    g_playerBackpackWindow
-            )
-            {
-                secondaryWindow =
-                    g_playerMainWindow;
-            }
-            else if (
-                placement.window ==
-                    g_playerMainWindow
-            )
-            {
-                secondaryWindow =
-                    g_playerBackpackWindow;
-            }
-
-
-            if (
-                secondaryWindow &&
-                secondaryWindow !=
-                    placement.window
-            )
+            if (secondaryInventory && secondaryInventory != placement.inventory)
             {
                 BetterLootingDirectPlacement secondaryPlacement =
-                    FindBetterLootingDirectPlacementInWindow(
-                        secondaryWindow,
-                        detachedItem,
-                        itemData,
-                        1,
-                        false
-                    );
-
+                    FindBetterLootingDirectPlacementInInventory(
+                        secondaryInventory, detachedItem, itemData, 1, false);
 
                 if (secondaryPlacement.found)
                 {
@@ -3282,7 +3084,7 @@ static void ExecuteLootCandidate(
                         fallbackMessage,
                         "BetterLooting: TRANSFER_RUNTIME_FALLBACK destination=%s engineReturn=%d exact=%d source=%d->%d destination=%d->%d quantity=%d",
                         LootDestinationName(
-                            secondaryWindow
+                            secondaryInventory, destinations
                         ),
                         secondaryEngineAdded ? 1 : 0,
                         secondaryExactMove ? 1 : 0,
@@ -3542,23 +3344,7 @@ static void ExecuteLootCandidate(
                     }
 
 
-                    Character* centerCharacter =
-                        destinationWindow
-                            ? destinationWindow->
-                                getCallbackCharacter()
-                            : NULL;
-
-
-                    if (
-                        !centerCharacter &&
-                        g_playerMainWindow
-                    )
-                    {
-                        centerCharacter =
-                            g_playerMainWindow->
-                                getCallbackCharacter();
-                    }
-
+                    Character* centerCharacter = destinations.character;
 
                     BetterLootingEmergencyStorageResult emergency =
                         TryBetterLootingNearestCompatiblePlayerStorage(
@@ -3756,7 +3542,7 @@ static void ExecuteLootCandidate(
             ),
             transferPass,
             LootDestinationName(
-                placement.window
+                placement.inventory, destinations
             ),
             detachedQuantity,
             movedTotal,
@@ -3880,9 +3666,8 @@ static int GetBetterLootingEffectiveItemFunctionValue(
 }
 
 static void EvaluateTargetInventory(
-    InventoryGUI* sourceWindow,
     Inventory* inventory,
-    InventoryGUI* destinationWindow
+    const BetterLootingDestinations& destinations
 )
 {
     if (
@@ -4094,7 +3879,7 @@ static void EvaluateTargetInventory(
         {
             ExecuteLootCandidate(
                 inventory,
-                destinationWindow,
+                destinations,
                 candidate,
                 static_cast<unsigned int>(candidateIndex)
             );
@@ -4487,15 +4272,6 @@ if (g_betterLootingRules.minValue < 0)
 
 
 
-static bool ShouldRunSmartLoot()
-{
-    return (
-        GetAsyncKeyState(
-            g_betterLootingRules.activationVirtualKey
-        ) & 0x8000
-    ) != 0;
-}
-
 typedef void (*InventoryGUIUpdateFn)(
     InventoryGUI*
 );
@@ -4503,97 +4279,6 @@ typedef void (*InventoryGUIUpdateFn)(
 
 static InventoryGUIUpdateFn
     g_origInventoryGUIUpdate = NULL;
-
-
-static InventoryGUI* g_pendingLootSource = NULL;
-static Inventory* g_pendingLootInventory = NULL;
-static InventoryGUI* g_pendingLootDestination = NULL;
-
-static InventoryGUI* g_lastLootTargetWindow = NULL;
-static Inventory* g_lastLootTargetInventory = NULL;
-
-static int g_pendingLootFrames = 0;
-
-static bool g_pendingLootRunning = false;
-
-static bool g_radialAfterDirectPending = false;
-static Inventory* g_radialAfterDirectExcludedInventory = NULL;
-
-
-static void QueueSmartLoot(
-    InventoryGUI* sourceWindow,
-    InventoryGUI* destinationWindow
-)
-{
-    if (
-        !sourceWindow ||
-        !destinationWindow ||
-        sourceWindow == destinationWindow
-    )
-    {
-        BlTrace(
-            "BetterLooting: SMART_LOOT QUEUE_SKIP invalid route"
-        );
-
-        return;
-    }
-
-
-    Inventory* sourceInventory =
-        sourceWindow == g_lastLootTargetWindow
-            ? g_lastLootTargetInventory
-            : NULL;
-
-    if (!sourceInventory)
-    {
-        BlTrace(
-            "BetterLooting: SMART_LOOT QUEUE_SKIP invalid source inventory"
-        );
-
-        return;
-    }
-
-
-    if (
-        g_pendingLootRunning ||
-        g_pendingLootSource ||
-        g_pendingLootInventory
-    )
-    {
-        BlTrace(
-            "BetterLooting: SMART_LOOT QUEUE_SKIP busy"
-        );
-
-        return;
-    }
-
-
-    g_pendingLootSource =
-        sourceWindow;
-
-    g_pendingLootInventory =
-        sourceInventory;
-
-    g_pendingLootDestination =
-        destinationWindow;
-
-    g_pendingLootFrames = 1;
-
-
-    g_radialAfterDirectPending = true;
-
-    g_radialAfterDirectExcludedInventory =
-        sourceInventory;
-
-
-    BlTrace(
-        "BetterLooting: SMART_LOOT QUEUED"
-    );
-
-    BlTrace(
-        "BetterLooting: SMART_LOOT DIRECT_THEN_RADIAL_QUEUED"
-    );
-}
 
 
 static Character* GetBetterLootingRadiusCenter(
@@ -4827,8 +4512,9 @@ static void CollectBetterLootingRadiusTargets(
 
 struct BetterLootingRadiusTarget
 {
-    RootObject* object;
+    hand owner;
     itemType type;
+    float distanceSquared;
 };
 
 
@@ -5105,8 +4791,7 @@ static bool IsBetterLootingBuildingTarget(
 
 static void BuildBetterLootingTargetQueue(
     Character* centerCharacter,
-    std::vector<BetterLootingRadiusTarget>& queue,
-    Inventory* excludedInventory
+    std::vector<BetterLootingRadiusTarget>& queue
 )
 {
     queue.clear();
@@ -5173,20 +4858,6 @@ static void BuildBetterLootingTargetQueue(
         }
 
 
-        if (
-            excludedInventory &&
-            target->getInventory() ==
-                excludedInventory
-        )
-        {
-            BlTrace(
-                "BetterLooting: RADIAL_TARGET SKIP direct target inventory"
-            );
-
-            continue;
-        }
-
-
         Character* character =
             static_cast<Character*>(
                 target
@@ -5222,8 +4893,10 @@ static void BuildBetterLootingTargetQueue(
 
         BetterLootingRadiusTarget entry;
 
-        entry.object = target;
+        entry.owner = hand(target);
         entry.type = CHARACTER;
+        entry.distanceSquared = (GetBetterLootingObjectWorldPosition(target, CHARACTER) -
+            centerCharacter->getPosition()).squaredLength();
 
         queue.push_back(entry);
     }
@@ -5250,20 +4923,6 @@ static void BuildBetterLootingTargetQueue(
                 seenTargets.end()
         )
         {
-            continue;
-        }
-
-
-        if (
-            excludedInventory &&
-            target->getInventory() ==
-                excludedInventory
-        )
-        {
-            BlTrace(
-                "BetterLooting: RADIAL_TARGET SKIP direct target inventory"
-            );
-
             continue;
         }
 
@@ -5299,8 +4958,10 @@ static void BuildBetterLootingTargetQueue(
 
         BetterLootingRadiusTarget entry;
 
-        entry.object = target;
+        entry.owner = hand(target);
         entry.type = BUILDING;
+        entry.distanceSquared = (GetBetterLootingObjectWorldPosition(target, BUILDING) -
+            centerCharacter->getPosition()).squaredLength();
 
         queue.push_back(entry);
     }
@@ -5310,51 +4971,13 @@ static void BuildBetterLootingTargetQueue(
     // One INSERT: nearest valid targets first.
     //
 
-    const Ogre::Vector3 queueCenterPosition =
-        centerCharacter->getPosition();
-
-
     std::stable_sort(
-        queue.begin(),
-        queue.end(),
-        [queueCenterPosition](
-            const BetterLootingRadiusTarget& left,
-            const BetterLootingRadiusTarget& right
-        ) -> bool
+        queue.begin(), queue.end(),
+        [](const BetterLootingRadiusTarget& left,
+           const BetterLootingRadiusTarget& right) -> bool
         {
-            if (!left.object)
-                return false;
-
-            if (!right.object)
-                return true;
-
-
-            const float leftDistance =
-                (
-                    GetBetterLootingObjectWorldPosition(
-                        left.object,
-                        left.type
-                    ) -
-                    queueCenterPosition
-                ).length();
-
-
-            const float rightDistance =
-                (
-                    GetBetterLootingObjectWorldPosition(
-                        right.object,
-                        right.type
-                    ) -
-                    queueCenterPosition
-                ).length();
-
-
-            return
-                leftDistance <
-                rightDistance;
-        }
-    );
-
+            return left.distanceSquared < right.distanceSquared;
+        });
 
     BlTrace(
         "BetterLooting: RADIAL_QUEUE SORTED_NEAREST_FIRST"
@@ -5368,14 +4991,18 @@ static std::vector<BetterLootingRadiusTarget>
 
 static std::size_t g_radialLootIndex = 0;
 
-static InventoryGUI*
-    g_radialLootDestination = NULL;
+static hand g_radialLootOwner;
+// Comparison-only window identity. It is never cast back to a pointer or read.
+// Native hide/destruction cancels the operation, even if an address is reused.
+static uintptr_t g_radialLootWindowIdentity = 0;
+static bool g_inventoryLifecycleReady = false;
+static unsigned g_inventoryLifecycleRevision = 0;
 
 static int g_radialLootWaitFrames = 0;
 
 static bool g_radialLootActive = false;
 
-static Character* g_radialLootCenterCharacter = NULL;
+
 
 
 static void FinishBetterLootingRadiusRun()
@@ -5400,11 +5027,12 @@ static void FinishBetterLootingRadiusRun()
 
     g_radialLootIndex = 0;
 
-    g_radialLootDestination = NULL;
+    g_radialLootOwner.setNull();
+    g_radialLootWindowIdentity = 0;
 
     g_radialLootWaitFrames = 0;
 
-    g_radialLootCenterCharacter = NULL;
+
 
     g_radialLootActive = false;
 }
@@ -5563,9 +5191,8 @@ static unsigned QueueBetterLootingGroundPickups(Character* character)
 }
 
 static bool StartBetterLootingRadiusRun(
-    InventoryGUI* destinationWindow,
-    Character* centerCharacter,
-    Inventory* excludedInventory
+    InventoryGUI* livePlayerWindow,
+    Character* centerCharacter
 )
 {
     if (g_betterLootingTransferFault)
@@ -5579,8 +5206,9 @@ static bool StartBetterLootingRadiusRun(
 
 
     if (
-        !destinationWindow ||
         !centerCharacter ||
+        !livePlayerWindow ||
+        !g_inventoryLifecycleReady ||
         g_radialLootActive
     )
     {
@@ -5593,8 +5221,7 @@ static bool StartBetterLootingRadiusRun(
 
     BuildBetterLootingTargetQueue(
         centerCharacter,
-        g_radialLootQueue,
-        excludedInventory
+        g_radialLootQueue
     );
 
 
@@ -5667,13 +5294,12 @@ static bool StartBetterLootingRadiusRun(
 
     g_radialLootIndex = 0;
 
-    g_radialLootDestination =
-        destinationWindow;
+    g_radialLootOwner = hand(centerCharacter);
+    g_radialLootWindowIdentity = reinterpret_cast<uintptr_t>(livePlayerWindow);
 
     g_radialLootWaitFrames = 1;
 
-    g_radialLootCenterCharacter =
-        centerCharacter;
+
 
     g_radialLootActive = true;
 
@@ -5698,7 +5324,33 @@ static bool StartBetterLootingRadiusRun(
 }
 
 
-static void ProcessBetterLootingRadiusRun()
+typedef void (*InventoryGUIShowFn)(InventoryGUI*, bool);
+typedef void (*InventoryGUIDestroyFn)(InventoryGUI*);
+static InventoryGUIShowFn g_origInventoryGUIShow = NULL;
+static InventoryGUIDestroyFn g_origInventoryGUIDestroy = NULL;
+
+static void CancelBetterLootingForWindow(InventoryGUI* window)
+{
+    ++g_inventoryLifecycleRevision;
+    if (g_radialLootActive &&
+        reinterpret_cast<uintptr_t>(window) == g_radialLootWindowIdentity)
+        FinishBetterLootingRadiusRun();
+}
+
+static void InventoryGUIShow_hook(InventoryGUI* self, bool visible)
+{
+    if (!visible)
+        CancelBetterLootingForWindow(self);
+    g_origInventoryGUIShow(self, visible);
+}
+
+static void InventoryGUIDestroy_hook(InventoryGUI* self)
+{
+    CancelBetterLootingForWindow(self);
+    g_origInventoryGUIDestroy(self);
+}
+
+static void ProcessBetterLootingRadiusRun(InventoryGUI* livePlayerWindow)
 {
     if (!g_radialLootActive)
     {
@@ -5706,7 +5358,11 @@ static void ProcessBetterLootingRadiusRun()
     }
 
 
-    if (!g_radialLootDestination)
+    Character* centerCharacter = g_radialLootOwner.getCharacter();
+    InventoryGUI* registeredWindow = gui && centerCharacter
+        ? gui->getInventoryWindow(g_radialLootOwner) : NULL;
+    if (!registeredWindow || !centerCharacter->isPlayerCharacter() ||
+        !registeredWindow->isVisible())
     {
         BlTrace(
             "BetterLooting: RADIAL_RUN ABORT invalid destination"
@@ -5717,6 +5373,24 @@ static void ProcessBetterLootingRadiusRun()
         return;
     }
 
+
+    // Another open actor's callback must never consume this actor's queue.
+    if (reinterpret_cast<uintptr_t>(registeredWindow) != g_radialLootWindowIdentity)
+    {
+        FinishBetterLootingRadiusRun();
+        return;
+    }
+    if (livePlayerWindow != registeredWindow ||
+        livePlayerWindow->getCallbackCharacter() != centerCharacter)
+        return;
+
+    const BetterLootingDestinations destinations =
+        GetBetterLootingDestinations(centerCharacter);
+    if (!destinations.first || livePlayerWindow->getInventory() != destinations.main)
+    {
+        FinishBetterLootingRadiusRun();
+        return;
+    }
 
     if (g_radialLootWaitFrames > 0)
     {
@@ -5748,7 +5422,21 @@ static void ProcessBetterLootingRadiusRun()
     ++g_radialLootIndex;
 
 
-    if (!target.object)
+    RootObject* object = NULL;
+    if (target.type == CHARACTER)
+    {
+        Character* character = target.owner.getCharacter();
+        if (IsBetterLootingCharacterTarget(character))
+            object = character;
+    }
+    else if (target.type == BUILDING)
+    {
+        Building* building = target.owner.getBuilding();
+        if (IsBetterLootingBuildingTarget(building))
+            object = building;
+    }
+
+    if (!object)
     {
         BlTrace(
             "BetterLooting: RADIAL_TARGET SKIP null object"
@@ -5761,11 +5449,10 @@ static void ProcessBetterLootingRadiusRun()
 
 
     if (
-        !g_radialLootCenterCharacter ||
         !IsBetterLootingInsideConfiguredRadius(
-            target.object,
+            object,
             target.type,
-            g_radialLootCenterCharacter
+            centerCharacter
         )
     )
     {
@@ -5780,7 +5467,7 @@ static void ProcessBetterLootingRadiusRun()
 
 
     Inventory* inventory =
-        target.object->getInventory();
+        object->getInventory();
 
 
     if (
@@ -5835,10 +5522,12 @@ static void ProcessBetterLootingRadiusRun()
 
 
     EvaluateTargetInventory(
-        NULL,
         inventory,
-        g_radialLootDestination
+        destinations
     );
+
+    if (!g_radialLootActive)
+        return;
 
 
     if (g_betterLootingTransferFault)
@@ -7692,41 +7381,6 @@ static void EvaluateBetterLootingStoreSourceInventory(
 }
 
 
-static Inventory*
-GetBetterLootingValidatedBackpackInventory(
-    Character* character
-)
-{
-    if (
-        !character ||
-        !g_playerBackpackWindow
-    )
-    {
-        return NULL;
-    }
-
-
-    Character* callback =
-        g_playerBackpackWindow->
-            getCallbackCharacter();
-
-
-    if (
-        callback != character ||
-        !callback->
-            isPlayerCharacter()
-    )
-    {
-        return NULL;
-    }
-
-
-    return
-        g_playerBackpackWindow->
-            getInventory();
-}
-
-
 static void RunBetterLootingStoreAll(
     InventoryGUI* livePlayerWindow
 )
@@ -7886,22 +7540,32 @@ static void InventoryGUIUpdate_hook(
     InventoryGUI* self
 )
 {
-    g_origInventoryGUIUpdate(self);
-
-
-    //
-    // Solo el InventoryGUI raíz procesa entrada.
-    // Los hijos son mochila, contenedor, loot, etc.
-    //
-
-    if (
-        !self ||
-        self->ownerInventory != NULL
-    )
+    static bool processing = false;
+    if (processing)
     {
+        g_origInventoryGUIUpdate(self);
         return;
     }
+    struct UpdateGuard
+    {
+        bool& active;
+        explicit UpdateGuard(bool& value) : active(value) { active = true; }
+        ~UpdateGuard() { active = false; }
+    } updateGuard(processing);
 
+    const unsigned lifecycleRevision = g_inventoryLifecycleRevision;
+    const bool rootWindow = self && self->ownerInventory == NULL;
+    Character* callback = rootWindow ? self->getCallbackCharacter() : NULL;
+    hand owner = callback && callback->isPlayerCharacter() ? hand(callback) : hand();
+
+    g_origInventoryGUIUpdate(self);
+
+    // The native update may close or replace this inventory.
+    Character* liveOwner = owner.getCharacter();
+    if (lifecycleRevision != g_inventoryLifecycleRevision ||
+        !rootWindow || !liveOwner || !gui ||
+        gui->getInventoryWindow(owner) != self || !self->isVisible())
+        return;
 
     // Клавиша «разложить»: одно срабатывание на нажатие. Пока она зажата,
     // клавиша сбора (у ALT+INSERT это тот же Insert) не срабатывает.
@@ -7936,7 +7600,7 @@ static void InventoryGUIUpdate_hook(
             0
         );
 
-        DebugLog("BetterLooting: deposit request dropped - no player character inventory within a second");
+        BlTrace("BetterLooting: deposit request dropped - no player character inventory within a second");
     }
 
 
@@ -7966,9 +7630,6 @@ static void InventoryGUIUpdate_hook(
         ) != 0 &&
         storeTriggerIsPlayerMain &&
         !g_storeAllRunning &&
-        !g_pendingLootRunning &&
-        !g_pendingLootSource &&
-        !g_pendingLootInventory &&
         !g_radialLootActive
     )
     {
@@ -7986,6 +7647,10 @@ static void InventoryGUIUpdate_hook(
         RunBetterLootingStoreAll(
             self
         );
+        if (lifecycleRevision != g_inventoryLifecycleRevision ||
+            owner.getCharacter() != liveOwner || !gui ||
+            gui->getInventoryWindow(owner) != self || !self->isVisible())
+            return;
     }
 
 
@@ -8004,16 +7669,12 @@ static void InventoryGUIUpdate_hook(
 
 
     //
-    // El target ya fue clasificado por los hooks showInventory*.
-    // Aquí el trigger se procesa por frame, no durante apertura GUI.
+    // Process the hotkey only in a live player's inventory callback.
     //
 
     if (
         activationDown &&
         !g_smartLootInsertConsumed &&
-        !g_pendingLootRunning &&
-        !g_pendingLootSource &&
-        !g_pendingLootInventory &&
         !g_radialLootActive
     )
     {
@@ -8052,40 +7713,16 @@ static void InventoryGUIUpdate_hook(
         }
 
 
-        InventoryGUI* destination =
-            SelectLootDestination();
-
-
-        if (!destination)
-        {
-            BlTrace(
-                "BetterLooting: SMART_LOOT RADIAL_ONLY_NO_DESTINATION"
-            );
-
-            g_smartLootInsertConsumed =
-                true;
-
-            return;
-        }
-
-
-        g_radialAfterDirectPending =
-            false;
-
-        g_radialAfterDirectExcludedInventory =
-            NULL;
-
-
         // Consume the key before native order callbacks can re-enter GUI code.
         g_smartLootInsertConsumed = true;
         QueueBetterLootingGroundPickups(livePlayerCharacter);
 
-        const bool radialStarted =
-            StartBetterLootingRadiusRun(
-                destination,
-                livePlayerCharacter,
-                NULL
-            );
+        livePlayerCharacter = owner.getCharacter();
+        InventoryGUI* liveWindow = gui && livePlayerCharacter
+            ? gui->getInventoryWindow(owner) : NULL;
+        const bool radialStarted = lifecycleRevision == g_inventoryLifecycleRevision &&
+            liveWindow == self && livePlayerCharacter && liveWindow->isVisible() &&
+            StartBetterLootingRadiusRun(liveWindow, livePlayerCharacter);
 
 
         g_smartLootInsertConsumed =
@@ -8108,297 +7745,10 @@ static void InventoryGUIUpdate_hook(
 
 
     //
-    ProcessBetterLootingRadiusRun();
+    ProcessBetterLootingRadiusRun(self);
 
 
-    // Ejecutar transferencia pendiente.
-    //
-
-    if (
-        g_pendingLootRunning ||
-        !g_pendingLootInventory
-    )
-    {
-        return;
-    }
-
-
-    if (g_pendingLootFrames > 0)
-    {
-        --g_pendingLootFrames;
-
-        return;
-    }
-
-
-    Inventory* inventory =
-        g_pendingLootInventory;
-
-    InventoryGUI* destinationWindow =
-        g_pendingLootDestination;
-
-
-    g_pendingLootSource = NULL;
-    g_pendingLootInventory = NULL;
-    g_pendingLootDestination = NULL;
-
-    g_lastLootTargetWindow = NULL;
-    g_lastLootTargetInventory = NULL;
-
-    g_pendingLootRunning = true;
-
-
-    if (
-        destinationWindow &&
-        inventory
-    )
-    {
-        BlTrace(
-            "BetterLooting: SMART_LOOT DEFERRED_RUN"
-        );
-
-        EvaluateTargetInventory(
-            NULL,
-            inventory,
-            destinationWindow
-        );
-    }
-    else
-    {
-        BlTrace(
-            "BetterLooting: SMART_LOOT DEFERRED_SKIP invalid state"
-        );
-    }
-
-
-    g_pendingLootRunning = false;
-
-
-    if (g_radialAfterDirectPending)
-    {
-        Inventory* excludedInventory =
-            g_radialAfterDirectExcludedInventory;
-
-
-        g_radialAfterDirectPending = false;
-
-        g_radialAfterDirectExcludedInventory = NULL;
-
-
-        if (g_betterLootingTransferFault)
-        {
-            BlTrace(
-                "BetterLooting: SMART_LOOT DIRECT_THEN_RADIAL_SKIP transfer fault"
-            );
-        }
-        else
-        {
-            Character* livePlayerCharacter =
-                GetBetterLootingRadiusCenter(self);
-
-
-            const bool radialStarted =
-                livePlayerCharacter &&
-                destinationWindow &&
-                StartBetterLootingRadiusRun(
-                    destinationWindow,
-                    livePlayerCharacter,
-                    excludedInventory
-                );
-
-
-            char chainMessage[256];
-
-            sprintf_s(
-                chainMessage,
-                "BetterLooting: SMART_LOOT DIRECT_THEN_RADIAL_START started=%d",
-                radialStarted ? 1 : 0
-            );
-
-            BlTrace(chainMessage);
-        }
-    }
 }
-
-static void LogClassification(
-    const char* source,
-    InventoryGUI* guiWindow,
-    const hand& owner
-)
-{
-    InventoryKind kind =
-        ClassifyInventory(
-            guiWindow,
-            owner
-        );
-
-    Inventory* inventory =
-        guiWindow
-            ? guiWindow->getInventory()
-            : NULL;
-
-    char message[512];
-
-    sprintf_s(
-        message,
-        "BetterLooting: CLASS source=%s kind=%s gui=%p inventory=%p items=%d",
-        source,
-        InventoryKindName(kind),
-        guiWindow,
-        inventory,
-        inventory
-            ? inventory->getNumItems()
-            : -1
-    );
-
-    BlTrace(message);
-
-
-    if (kind == InventoryKind::PLAYER_MAIN)
-    {
-        g_playerMainWindow = guiWindow;
-    }
-    else if (
-        kind == InventoryKind::PLAYER_BACKPACK
-    )
-    {
-        g_playerBackpackWindow = guiWindow;
-    }
-
-
-    if (
-        kind == InventoryKind::CHARACTER_TARGET ||
-        kind == InventoryKind::CONTAINER_TARGET
-    )
-    {
-        g_lastLootTargetWindow =
-            guiWindow;
-
-        g_lastLootTargetInventory =
-            guiWindow
-                ? guiWindow->getInventory()
-                : NULL;
-
-        InventoryGUI* destination =
-            SelectLootDestination();
-
-        char routeMessage[256];
-
-        sprintf_s(
-            routeMessage,
-            "BetterLooting: ROUTE source=%p destination=%p destinationKind=%s",
-            guiWindow,
-            destination,
-            LootDestinationName(destination)
-        );
-
-        BlTrace(routeMessage);
-
-        BlTrace(
-            "BetterLooting: SMART_LOOT TARGET_CACHE_ONLY"
-        );
-    }
-}
-
-InventoryGUI* ShowInventory_hook(
-    ForgottenGUI* self,
-    const hand& owner,
-    bool autoPosition,
-    float x,
-    float y
-)
-{
-
-    /* Smart Loot uses INSERT state at target classification */
-    InventoryGUI* result =
-        g_origShowInventory(
-            self,
-            owner,
-            autoPosition,
-            x,
-            y
-        );
-
-    LogClassification(
-        "showInventory",
-        result,
-        owner
-    );
-
-    return result;
-}
-
-
-InventoryGUI* ShowInventoryNPC_hook(
-    ForgottenGUI* self,
-    const hand& owner
-)
-{
-
-    /* Smart Loot uses INSERT state at target classification */
-    InventoryGUI* result =
-        g_origShowInventoryNPC(
-            self,
-            owner
-        );
-
-    LogClassification(
-        "showInventoryNPC",
-        result,
-        owner
-    );
-
-    return result;
-}
-
-
-InventoryGUI* ShowInventoryBuilding_hook(
-    ForgottenGUI* self,
-    const hand& owner
-)
-{
-
-    /* Smart Loot uses INSERT state at target classification */
-    InventoryGUI* result =
-        g_origShowInventoryBuilding(
-            self,
-            owner
-        );
-
-    LogClassification(
-        "showInventoryBuilding",
-        result,
-        owner
-    );
-
-    return result;
-}
-
-
-InventoryGUI* ShowTraderInventory_hook(
-    ForgottenGUI* self,
-    const hand& owner
-)
-{
-
-    /* Smart Loot uses INSERT state at target classification */
-    InventoryGUI* result =
-        g_origShowTraderInventory(
-            self,
-            owner
-        );
-
-    LogClassification(
-        "showTraderInventory",
-        result,
-        owner
-    );
-
-    return result;
-}
-
-
-
 
 
 // ============================================================
@@ -8722,41 +8072,16 @@ __declspec(dllexport) void startPlugin()
         &g_origInventoryGUIUpdate
     );
 
-    KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(
-            &ForgottenGUI::showInventory
-        ),
-        ShowInventory_hook,
-        &g_origShowInventory
-    );
+    const bool hideHookReady = KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&InventoryGUI::_NV_show),
+        InventoryGUIShow_hook, &g_origInventoryGUIShow) == KenshiLib::SUCCESS;
+    const bool destroyHookReady = KenshiLib::AddHook(
+        KenshiLib::GetRealAddress(&InventoryGUI::_DESTRUCTOR),
+        InventoryGUIDestroy_hook, &g_origInventoryGUIDestroy) == KenshiLib::SUCCESS;
+    g_inventoryLifecycleReady = hideHookReady && destroyHookReady;
+    if (!g_inventoryLifecycleReady)
+        ErrorLog("BetterLooting: ERROR inventory lifetime hooks unavailable; radial loot disabled");
+    BlTrace("BetterLooting: live inventory update hook installed");
 
-    KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(
-            &ForgottenGUI::showInventoryNPC
-        ),
-        ShowInventoryNPC_hook,
-        &g_origShowInventoryNPC
-    );
-
-    KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(
-            &ForgottenGUI::showInventoryBuilding
-        ),
-        ShowInventoryBuilding_hook,
-        &g_origShowInventoryBuilding
-    );
-
-    KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(
-            &ForgottenGUI::showTraderInventory
-        ),
-        ShowTraderInventory_hook,
-        &g_origShowTraderInventory
-    );
-
-    BlTrace(
-        "BetterLooting: classifier hooks installed"
-    );
-
-    // Окна настроек и SHIFT+L больше нет: настройки - во вкладке MCM.
+    // Настройки доступны во вкладке MCM.
 }

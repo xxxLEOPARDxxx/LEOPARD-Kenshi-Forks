@@ -2,7 +2,7 @@
 
 These checks use the real source functions or headers with narrow engine boundaries. Run with Python and the configured VC10 / Windows SDK7.1 development stand at D:/DEV/Kenshi. Generated harnesses go into `_generated/`.
 
-Run test_rules.py, test_storage_guard.py, test_ground.py, test_config.py, test_scratch.py, then check_invariants.py. The invariant check compares preserved transfer/deposit paths against Git commit15bdb01. Generate the three gettext MO catalogs before checking translations.
+Run test_rules.py, test_storage_guard.py, test_ground.py, test_config.py, test_scratch.py, test_inventory_lifetime.py, then check_invariants.py. The invariant check compares preserved transfer/deposit paths against Git commit15bdb01. Generate the three gettext MO catalogs before checking translations.
 
 No test changes the installed player INI, loads a save or proves native pickup behavior. A real game smoke test is required for ground orders.
 
@@ -13,3 +13,10 @@ No test changes the installed player INI, loads a save or proves native pickup b
 Before the fix the new nearby-versus-expensive fixture failed at `actor.orders[1]==&route[0]&&actor.orders[2]==&route[1]`: ground candidates used value-per-weight before distance. The old single-origin distance sort also did not build a route from each preceding target. The corrected implementation chooses the nearest eligible candidate at each step and leaves inventory-loot value sorting untouched.
 
 The boundary double records submission order only. It does **not** prove that Kenshi executes orders FIFO or LIFO. Steam table resolution found Character::addOrder RVA 0x5D1640 and OrdersReceiver::addOrder RVA 0x5078F0, but no live game remained when the read-only disassembly was attempted; the protected disk image does not match those live entry points. No reversal was inferred. The existing native addOrder call is preserved, and an actual walk through the route remains an in-game verification step. Debug-only `GROUND_ROUTE` lines record each submitted position for that comparison.
+
+
+## Inventory window lifetime regression (13 November 2026)
+
+test_inventory_lifetime.py compiles the actual destination, queue processor, finish and cancellation functions with narrow native boundaries. Cases cover backpack preference and fallback, equipped backpack replacement/removal, another actor's UI callback, unloaded/reused/revived/out-of-radius targets, hidden/closed/reopened windows, actor unload and a building target. Native hide/destruction hooks cancel work without dereferencing an old window. The active callback is revalidated after native GUI update, deposit and ground-order dispatch.
+
+check_invariants.py compares the full transfer implementation against commit15bdb01 after explicitly normalizing the replaced GUI destination lookup and original entry guard. Stack success, ownership/theft and rollback logic remain byte-for-byte equivalent after that normalization. The original unused raw-pointer direct queue and classification hooks were removed. Native teardown and the reported gameplay sequence still require an in-game check.

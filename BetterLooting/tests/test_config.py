@@ -10,6 +10,7 @@ def extract(name):
  return src[start:i]
 code=r'''
 #include <Windows.h>
+namespace KLocLog { void SetEnabled(bool) {} }
 #include <cstdio>
 #include <cstdlib>
 #include <string>
