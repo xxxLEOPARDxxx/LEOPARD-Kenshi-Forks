@@ -9,6 +9,72 @@ Current status: implemented for Kenshi `1.0.65` using:
 - In-game settings through the MCM tab.
 - no save-load pause behavior (that remains exclusive to Auto-Pause on Load).
 
+## Persistent execution jobs
+An ordinary click keeps the existing one-shot behavior. **Shift + Execute** adds
+`Execute own defeats` to that character's native Jobs list. It executes only
+targets that this character actually knocked unconscious with a melee hit,
+projectile or successful stealth knockout. Waking clears that permission; hitting
+someone who is already unconscious does not claim them. A target knocked out
+before this plugin observed the event has no verified owner and is skipped.
+
+**Shift + Execute All** adds `Execute enemies` to the selected characters' Jobs
+lists, within the existing maximum-actors setting. It finds eligible unconscious
+enemies around each executor using the configured Execute All radius. This
+automatic job always requires hostility. Both jobs follow native job priority,
+wait until their executor has finished fighting, respect Jobs off and direct
+player orders, and recheck eligibility before the strike. Remove their Jobs rows
+to stop them. Existing work rows are preserved. Jobs and confirmed knockout
+ownership survive native save/load; a recovered target loses its old ownership.
+
+Executing a non-hostile target when the alliance-check setting allows it now
+registers murder on the executor. Native witnesses, guards, faction loyalty,
+bounties and betrayal determine the response; unseen NPCs are not forced hostile.
+
+**Shift-задания:** Shift + «Добить» добавляет в список работ «Добивать своих
+поверженных» - только тех, кого этот исполнитель действительно нокаутировал
+в бою, выстрелом или успешным скрытым ударом. Пробуждение снимает эту метку;
+удар по уже лежащему её не передаёт. Старый нокаут, который мод не наблюдал,
+своим не считается. Shift + «Добить всех» добавляет выделенным персонажам работу
+«Добивать врагов» с текущими радиусом и ограничением числа исполнителей.
+Автоматическая работа требует враждебности цели. Обе работы выполняются после
+боя, учитывают штатную очередность работ и переключатель «Работы», уступают
+прямым приказам и сохраняются вместе с подтверждённой меткой нокаута. Чтобы
+отключить работу, удалите её строку. Остальные работы сохраняются.
+
+Намеренное добивание нейтрала или союзника при разрешающей настройке теперь
+заявляет штатное преступление «Убийство» на исполнителя. Реакцию увидевших это
+стражников и сторонников жертвы определяет игра, включая предательство и награду
+за голову. Агрессия всем персонажам принудительно не назначается.
+
+### Runtime and validation notes
+Native task IDs **294/295** are stable save identifiers. Registration refuses an
+occupied ID; types 291-293 and other mods' rows are left alone. The two task
+metadata records are registered before loading characters. The native default
+factory creates `Task_Blank`; its selected `runAction` hands off to the existing
+bounded temporary-order/finisher queue on the main thread. The native chooser
+owns priority; a cached candidate alone never starts an execution.
+
+At most 50 opted-in loaded actors are scheduled. One retained local-query buffer
+is reused, with at most 128 returned candidates and one query per 250 ms globally.
+At 50 actors a full scan round can take **12.5 seconds** (16 actors: 4 seconds),
+plus native job scheduling. Offers expire after 20 seconds and are revalidated at
+handoff and contact. There is no per-frame world traversal. The fixed knockout
+ledger has 1024 entries and at most 16 probes per lookup. Overflow discards
+permission rather than attributing another character's target. With an empty
+ledger, the global medical observer takes only its disabled/empty branch.
+World clearing resets transient identities, offers, requests and attribution;
+native character records restore only still-unconscious confirmed targets.
+
+`python tests/test_jobs.py` compiles extracted production scheduler, attribution
+and RTTI lookup code with fixtures. The native PE check maps the Steam executable
+as data, applies relocations and checks exact actions without executing game
+code. The GOG stealth-action binary is unavailable for an equivalent offline
+check; runtime RTTI/body validation fails closed with one startup error if its
+contract differs. This development build still needs actual game checks for
+native job ordering, stealth KO, save/load, visible/unseen crime witnesses,
+resumed combat, CPU/FPS and memory over a long session. It has not been installed
+or published as part of this change.
+
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, while the Mod Hub SDK still uses the `tools/mod-hub-sdk` submodule.
 `tools/build-scripts` is the shared source of truth. Top-level `scripts/` entrypoints are local compatibility wrappers that delegate into `tools/build-scripts`, plus a few repo-specific helper scripts such as Mod Hub SDK sync and runtime smoke checks.

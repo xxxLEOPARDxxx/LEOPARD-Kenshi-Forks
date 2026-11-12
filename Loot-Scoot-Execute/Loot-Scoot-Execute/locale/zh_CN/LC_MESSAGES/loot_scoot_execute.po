@@ -98,6 +98,12 @@ msgstr "处决"
 msgid "Execute All"
 msgstr "全部处决"
 
+msgid "Execute own defeats"
+msgstr "处决自己击倒的目标"
+
+msgid "Execute enemies"
+msgstr "处决敌人"
+
 msgid "Block execute on carried targets"
 msgstr "禁止处决被扛起的角色"
 

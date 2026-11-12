@@ -98,6 +98,12 @@ msgstr "Добить"
 msgid "Execute All"
 msgstr "Добить всех"
 
+msgid "Execute own defeats"
+msgstr "Добивать своих поверженных"
+
+msgid "Execute enemies"
+msgstr "Добивать врагов"
+
 msgid "Block execute on carried targets"
 msgstr "Не добивать несущихся"
 

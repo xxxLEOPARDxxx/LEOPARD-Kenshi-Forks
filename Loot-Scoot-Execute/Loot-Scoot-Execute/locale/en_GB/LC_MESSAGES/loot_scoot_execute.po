@@ -98,6 +98,12 @@ msgstr "Execute"
 msgid "Execute All"
 msgstr "Execute All"
 
+msgid "Execute own defeats"
+msgstr "Execute own defeats"
+
+msgid "Execute enemies"
+msgstr "Execute enemies"
+
 msgid "Block execute on carried targets"
 msgstr "Block execute on carried targets"
 

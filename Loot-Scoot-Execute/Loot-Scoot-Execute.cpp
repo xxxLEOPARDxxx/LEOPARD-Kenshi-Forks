@@ -21,6 +21,14 @@
 #include <kenshi/Animation/AnimationClass.h>
 #include <kenshi/RaceData.h>
 #include <kenshi/Damages.h>
+#include <kenshi/Bounty.h>
+#include <kenshi/GameSaveState.h>
+#include <kenshi/GameData.h>
+#include <kenshi/AI/TaskRepertoire.h>
+#include <kenshi/InputHandler.h>
+#include <kenshi/gui/TitleScreen.h>
+#include <kenshi/gui/ForgottenGUI.h>
+#include <ois/OISKeyboard.h>
 #include <kenshi/Faction.h>
 #include <kenshi/PlayerInterface.h>
 #include <kenshi/RootObject.h>
@@ -46,6 +54,7 @@
 #include <algorithm>
 #include <cctype>
 #include <climits>
+#include <cfloat>
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -56,6 +65,7 @@
 
 #include "LootScootExecuteAppearanceExtern.h"
 #include "LootScootExecuteSharedContracts.h"
+#include "LootScootExecuteJobsPolicy.h"
 #include "emc/mod_hub_api.h"
 #include "emc/mod_hub_client.h"
 
@@ -310,6 +320,7 @@ enum ExecuteFinisherPhase
 struct ExecuteJob
 {
     bool queuedActive;
+    int permanentMode;             // 0: explicit click; otherwise native saved job type
     hand actorHandle;
     hand targetHandle;
     uintptr_t actorPtr;
@@ -334,7 +345,7 @@ struct ExecuteJob
     uintptr_t batchActorPtr;
 
     ExecuteJob()
-        : queuedActive(false), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
+        : queuedActive(false), permanentMode(0), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
           attackTriggered(false), attackTriggeredMs(0), lastUpdateMs(0), approachAttempts(0),
           approachOrder(0), approachPosition(Ogre::Vector3::ZERO), animalContactOffset(0.0f), pauseStartedMs(0),
           finisherPhase(ExecuteFinisher_FALLBACK), animationMode("none"), arrivalPrepared(false), weaponPrepared(false),
@@ -617,6 +628,9 @@ static bool DispatchExecuteFromNativeMenuSelection(Character* actor, RootObject*
 static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog);
 static bool QueueExecuteFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
 static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject* target, bool verboseLog);
+static bool DispatchExecuteMenuAction(Character* actor, RootObject* target, bool all, bool verboseLog);
+static bool PermanentExecuteStillValid(Character* actor, Character* target, int mode);
+static void RegisterExecutionCrime(Character* actor, Character* target, bool enemy);
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryResolvePlayerInterface(PlayerInterface** playerOut);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
@@ -4549,6 +4563,7 @@ static bool QueueExecuteTarget(
 
     const DWORD nowMs = GetTickCount();
     g_queuedExecuteActive = true;
+    g_executeJobs[g_executeJobIndex].permanentMode = 0;
     g_queuedExecuteActorPtr = actorPtr;
     g_queuedExecuteTargetPtr = targetPtr;
     g_queuedExecuteArmedMs = nowMs;
@@ -4741,6 +4756,12 @@ static void TickQueuedExecuteJob(DWORD nowMs, bool paused, unsigned int& operati
     if (!CanActOnExecuteOrder(actor))
     {
         DisarmQueuedExecuteAction("actor_unavailable", true);
+        return;
+    }
+
+    if (job.permanentMode && !PermanentExecuteStillValid(actor,static_cast<Character*>(target),job.permanentMode))
+    {
+        DisarmQueuedExecuteAction("permanent_job_paused",true);
         return;
     }
 
@@ -4959,8 +4980,23 @@ static bool DispatchExecuteTarget(
             if (!hasFailure)
             {
                 Character* targetCharacter = static_cast<Character*>(target);
-                directDamageDispatchSucceeded = TryApplyDirectDamageExecuteFallback(targetCharacter);
-                if (!directDamageDispatchSucceeded)
+                const ExecuteJob& activeJob=g_executeJobs[g_executeJobIndex];
+                if(activeJob.queuedActive && activeJob.actorPtr==actorPtr && activeJob.permanentMode
+                    && !PermanentExecuteStillValid(actor,targetCharacter,activeJob.permanentMode))
+                {
+                    failureReason="permanent_job_changed_before_strike";
+                    hasFailure=true;
+                }
+                if(!hasFailure)
+                {
+                    RegisterExecutionCrime(actor,targetCharacter,canExecuteDiagnostics.targetIsEnemy);
+                    directDamageDispatchSucceeded = TryApplyDirectDamageExecuteFallback(targetCharacter);
+                }
+                if (hasFailure)
+                {
+                    // Keep the admission failure; no damage or death fallback.
+                }
+                else if (!directDamageDispatchSucceeded)
                 {
                     failureReason = "direct_damage_dispatch_failed";
                     hasFailure = true;
@@ -5190,9 +5226,7 @@ static bool DispatchCustomExecutePanelAction(CustomExecutePanelAction action)
         return false;
     }
 
-    const bool queued = (action == CustomExecutePanelAction_EXECUTE_ALL)
-        ? QueueExecuteAllFromNativeMenuSelection(actor, target, true)
-        : QueueExecuteFromNativeMenuSelection(actor, target, true);
+    const bool queued = DispatchExecuteMenuAction(actor,target,action == CustomExecutePanelAction_EXECUTE_ALL,true);
     if (queued)
     {
         g_customExecutePanelLastDispatchMs = nowMs;
@@ -6079,14 +6113,7 @@ static void OnNativeExecuteReleased(MyGUI::Widget* sender, int left, int top, My
         {
             actor = ResolveExecuteActorForPredicateWithTarget(target, false);
         }
-        if (all)
-        {
-            (void)QueueExecuteAllFromNativeMenuSelection(actor, target, ShouldLogExecuteDebug());
-        }
-        else
-        {
-            (void)QueueExecuteFromNativeMenuSelection(actor, target, ShouldLogExecuteDebug());
-        }
+        (void)DispatchExecuteMenuAction(actor,target,all,ShouldLogExecuteDebug());
     }
     // закрыть меню, как обычный выбор пункта
     if (ou != 0 && ou->player != 0)
@@ -6202,6 +6229,7 @@ static bool TryAddNativeExecuteOptions(ContextMenu* menu, RootObject* target, Ch
     }
 }
 
+#include "LootScootExecuteJobs.inl"
 #include "LootScootExecuteModHubClient.inl"
 #include "LootScootExecuteModHubBridge.inl"
 #include "LootScootExecuteHooksEntry.inl"

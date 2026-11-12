@@ -195,6 +195,7 @@ static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
                 nowMs);
         }
     }
+    lse_jobs_runtime::Tick();
     TickQueuedExecuteAction(thisptr);
 }
 
@@ -234,6 +235,7 @@ static void (*clearWorld_orig)(GameWorld*) = 0;
 
 static void clearWorld_hook(GameWorld* world)
 {
+    lse_jobs_runtime::Reset();
     InterlockedExchange64(&g_executeWorkMask, 0);
     InterlockedExchange64(&g_finisherWeaponHoldMask, 0);
     InterlockedIncrement(&g_executeWorldGeneration);
@@ -365,6 +367,9 @@ __declspec(dllexport) void startPlugin()
     g_executeWorkHookInstalled = worldHookInstalled && InstallExecutePermanentWorkHook();
     if (!g_executeWorkHookInstalled)
         ErrorLog("Loot-Scoot-Execute: permanent work coordination hook unavailable");
+
+    if (!lse_jobs_runtime::Install(g_executeWorkHookInstalled,platform))
+        ErrorLog("Loot-Scoot-Execute: native saved-job/attribution contract unavailable; Shift jobs disabled");
 
     g_finisherWeaponHoldInstalled = worldHookInstalled && InstallFinisherWeaponHoldHook(platform);
     if (!g_finisherWeaponHoldInstalled)
