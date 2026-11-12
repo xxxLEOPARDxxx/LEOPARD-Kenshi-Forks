@@ -30,6 +30,7 @@ static bool g_betterLootingDebugLog = false;
 static bool BlIsProblem(const char* message)
 {
     return std::strstr(message, "FAIL") != NULL
+        || std::strstr(message, "FAULT") != NULL
         || std::strstr(message, "ERROR") != NULL
         || std::strstr(message, "fault") != NULL
         || std::strstr(message, "failed") != NULL;
@@ -1644,13 +1645,14 @@ FindBetterLootingDirectPlacementInInventory(
         int y = 0;
 
 
+        // getValidInventoryPosition only clamps coordinates to section bounds;
+        // it does not inspect occupied cells. The generic GameData hint can
+        // miss a rotated Item, so retain that case only when the native Item
+        // footprint search proves an empty slot and a new row is permitted.
         const bool positionOk =
-            section->
-                getValidInventoryPosition(
-                    item,
-                    x,
-                    y
-                );
+            !roomHint &&
+            !section->getItemsLimitReached() &&
+            section->findNearestPlaceForItem(item, x, y);
 
 
         if (
@@ -1659,8 +1661,10 @@ FindBetterLootingDirectPlacementInInventory(
         )
         {
             BlTrace(
-                "BetterLooting: PLACEMENT_ENGINE_PROBE roomHint=0 positionOk=0"
+                "BetterLooting: PLACEMENT_SKIP roomHint=0 emptyFootprint=0 sourceUnchanged=1"
             );
+
+            continue;
         }
         else if (
             !roomHint &&
@@ -1668,7 +1672,7 @@ FindBetterLootingDirectPlacementInInventory(
         )
         {
             BlTrace(
-                "BetterLooting: PLACEMENT_RECOVER positionOk=1 roomHint=0"
+                "BetterLooting: PLACEMENT_RECOVER emptyFootprint=1 roomHint=0"
             );
         }
 
@@ -4459,9 +4463,23 @@ static bool IsBetterLootingInsideConfiguredRadius(
         10.0f;
 
 
-    return
+    const bool accepted =
         distance >= 0.0f &&
         distance <= radiusInternal;
+
+    if (g_betterLootingDebugLog && object && centerCharacter)
+    {
+        const Ogre::Vector3 origin = centerCharacter->getPosition();
+        const Ogre::Vector3 target = GetBetterLootingObjectWorldPosition(object, type);
+        char message[384];
+        sprintf_s(message,
+            "BetterLooting: RADIUS_CHECK type=%s distanceMeters=%.2f limitMeters=%.2f accepted=%d center=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f)",
+            type == BUILDING ? "BUILDING" : "CHARACTER",
+            distance / 10.0f, g_betterLootingRules.lootRadius, accepted ? 1 : 0,
+            origin.x, origin.y, origin.z, target.x, target.y, target.z);
+        BlTrace(message);
+    }
+    return accepted;
 }
 
 

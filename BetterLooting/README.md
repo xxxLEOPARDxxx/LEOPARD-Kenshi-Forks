@@ -42,8 +42,12 @@ Inherited gameplay features are described in the player guide; the list below re
 ## Pending local fix / Правка на локальной проверке
 
 - Исправлена причина вылета по Insert после смены окна инвентаря: сбор и раскладка берут текущий надетый рюкзак персонажа. Закрытие окна отменяет оставшуюся очередь сбора.
+- Перед отделением вещи проверяется место в выбранном инвентаре, включая фактический повёрнутый размер. Полный инвентарь пропускается до изменения исходной стопки.
+- Ошибки переноса видны и без подробного журнала. При включённом журнале отдельно показываются координаты и расстояние до проверяемых целей.
 - Цели повторно проверяются перед сбором. Выгруженный труп и повторно использованный идентификатор пропускаются. Приоритет рюкзака, фильтры, правила кражи и учёт переноса сохранены.
 - Fixed the Insert crash caused by retaining a closed inventory window. Loot and deposit resolve the actor's currently equipped backpack. Closing the inventory cancels remaining radial work.
+- A destination must have room before splitting the source item, including its actual rotated footprint. A full destination is skipped before changing the source stack.
+- Transfer faults remain visible with detailed logging off. Detailed logging adds coordinates and the measured distance to each checked target.
 - Deferred targets are resolved again before transfer. Unloaded or replaced targets are skipped. Backpack priority, filters, theft rules and transfer accounting are preserved.
 
 The production-extracted regression checks pass. Repeating loot -> deposit -> close/reopen inventory -> loot another corpse in Kenshi remains required. / Проверки извлечённого production-кода проходят. Повторный игровой прогон сбора, разгрузки, закрытия/открытия инвентаря и сбора следующего трупа ещё требуется.

@@ -28,11 +28,21 @@ assert source.index("updateGuard(processing)") < source.index("g_origInventoryGU
 code = r"""
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <vector>
 #include <stdint.h>
 
 #define CHECK(x) do { if (!(x)) { printf("FAIL line %d: %s\n", __LINE__, #x); return 1; } } while (0)
 enum itemType { CHARACTER, BUILDING };
+namespace Ogre {
+struct Vector3 {
+    float x,y,z;
+    Vector3(float a=0,float b=0,float c=0) : x(a),y(b),z(c) {}
+    Vector3 operator-(const Vector3& value) const { return Vector3(x-value.x,y-value.y,z-value.z); }
+    float length() const { return std::sqrt(x*x+y*y+z*z); }
+};
+}
+
 struct RootObject;
 struct Character;
 struct Building;
@@ -54,9 +64,10 @@ struct ContainerItem {
     Inventory* getInventory() { return inventory; }
 };
 struct RootObject {
-    unsigned serial; bool loaded; bool eligible; bool inRadius; itemType type; Inventory* inventory;
+    unsigned serial; bool loaded; bool eligible; bool inRadius; itemType type; Inventory* inventory; Ogre::Vector3 position;
     RootObject(itemType value) : serial(1), loaded(true), eligible(true), inRadius(true), type(value), inventory(NULL) {}
     Inventory* getInventory() { return inventory; }
+    Ogre::Vector3 getPosition() { return position; }
 };
 struct Character : RootObject {
     bool player; ContainerItem* backpack;
@@ -89,12 +100,14 @@ struct GUI {
     }
 } nativeGui;
 GUI* gui = &nativeGui;
-struct Rules { bool preferBackpack; Rules() : preferBackpack(true) {} } g_betterLootingRules;
+struct Rules { bool preferBackpack; float lootRadius; Rules() : preferBackpack(true), lootRadius(100) {} } g_betterLootingRules;
+bool g_betterLootingDebugLog = false;
+static Ogre::Vector3 GetBetterLootingObjectWorldPosition(RootObject* object,itemType) { return object->getPosition(); }
 void BlTrace(const char*) {}
 """
 a = source.index("struct BetterLootingDestinations")
 b = source.index("struct BetterLootingItemLocation", a)
-code += source[a:b] + "\n" + target + ";\n"
+code += function("BlIsProblem") + "\n" + source[a:b] + "\n" + target + ";\n"
 code += r"""
 static std::vector<BetterLootingRadiusTarget> g_radialLootQueue;
 static std::size_t g_radialLootIndex = 0;
@@ -109,11 +122,13 @@ static Inventory* usedFirst = NULL;
 static Inventory* usedSecond = NULL;
 static bool IsBetterLootingCharacterTarget(Character* value) { return value && value->eligible; }
 static bool IsBetterLootingBuildingTarget(Building* value) { return value && value->eligible; }
-static bool IsBetterLootingInsideConfiguredRadius(RootObject* value, itemType, Character*) { return value->inRadius; }
+
 static void EvaluateTargetInventory(Inventory*, const BetterLootingDestinations& dest) {
     ++transfers; usedFirst = dest.first; usedSecond = dest.second;
 }
 """
+code += "\n" + function("GetBetterLootingWorldDistanceToCharacter")
+code += "\n" + function("IsBetterLootingInsideConfiguredRadius")
 code += "\n" + function("FinishBetterLootingRadiusRun")
 code += "\n" + function("CancelBetterLootingForWindow")
 code += "\n" + function("ProcessBetterLootingRadiusRun")
@@ -126,8 +141,23 @@ static void Arm(Character& actor, InventoryGUI& window, RootObject& victim) {
     nativeGui.actor = &actor; nativeGui.window = &window; g_radialLootActive = true; transfers = 0;
 }
 int main() {
+    CHECK(BlIsProblem("TRANSFER_INVARIANT_FAULT"));
+    CHECK(BlIsProblem("transfer invariant fault"));
+    CHECK(!BlIsProblem("RADIAL_RUN START"));
     Inventory main, bag, replacement, loot;
     Character actor, corpse, other; actor.inventory = &main; corpse.inventory = &loot;
+    corpse.position = Ogre::Vector3(1000,0,0);
+    CHECK(IsBetterLootingInsideConfiguredRadius(&corpse,CHARACTER,&actor));
+    corpse.position = Ogre::Vector3(1001,0,0);
+    CHECK(!IsBetterLootingInsideConfiguredRadius(&corpse,CHARACTER,&actor));
+    corpse.position = Ogre::Vector3(800,0,800);
+    CHECK(!IsBetterLootingInsideConfiguredRadius(&corpse,CHARACTER,&actor));
+    corpse.position = Ogre::Vector3(600,0,800);
+    CHECK(IsBetterLootingInsideConfiguredRadius(&corpse,CHARACTER,&actor));
+    g_betterLootingDebugLog = true;
+    CHECK(IsBetterLootingInsideConfiguredRadius(&corpse,CHARACTER,&actor));
+    g_betterLootingDebugLog = false;
+    corpse.position = Ogre::Vector3();
     ContainerItem backpack; backpack.inventory = &bag; actor.backpack = &backpack;
     InventoryGUI window(&actor, &main), otherWindow(&other, &main), reopened(&actor, &main);
     BetterLootingDestinations dest = GetBetterLootingDestinations(&actor);
@@ -165,9 +195,9 @@ int main() {
     Arm(actor, window, corpse); corpse.eligible = false;
     ProcessBetterLootingRadiusRun(&window); CHECK(transfers == 0);
     corpse.eligible = true;
-    Arm(actor, window, corpse); corpse.inRadius = false;
+    Arm(actor, window, corpse); corpse.position = Ogre::Vector3(1001,0,0);
     ProcessBetterLootingRadiusRun(&window); CHECK(transfers == 0);
-    corpse.inRadius = true;
+    corpse.position = Ogre::Vector3();
 
     Arm(actor, window, corpse); window.visible = false;
     ProcessBetterLootingRadiusRun(&window); CHECK(transfers == 0 && !g_radialLootActive);
