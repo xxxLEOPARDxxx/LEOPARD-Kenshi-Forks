@@ -322,6 +322,7 @@ struct ExecuteJob
     unsigned int approachAttempts;
     Tasker* approachOrder;
     Ogre::Vector3 approachPosition;
+    float animalContactOffset;
     DWORD pauseStartedMs;
     ExecuteFinisherPhase finisherPhase;
     const char* animationMode;
@@ -335,7 +336,7 @@ struct ExecuteJob
     ExecuteJob()
         : queuedActive(false), actorPtr(0), targetPtr(0), armedMs(0), lastApproachCommandMs(0),
           attackTriggered(false), attackTriggeredMs(0), lastUpdateMs(0), approachAttempts(0),
-          approachOrder(0), approachPosition(Ogre::Vector3::ZERO), pauseStartedMs(0),
+          approachOrder(0), approachPosition(Ogre::Vector3::ZERO), animalContactOffset(0.0f), pauseStartedMs(0),
           finisherPhase(ExecuteFinisher_FALLBACK), animationMode("none"), arrivalPrepared(false), weaponPrepared(false),
           batchActive(false), batchActorPtr(0)
     {
@@ -1987,6 +1988,7 @@ static void DisarmQueuedExecuteAction(const char* reason, bool verboseLog)
     job.pauseStartedMs = 0;
     job.lastUpdateMs = 0;
     job.approachAttempts = 0;
+    job.animalContactOffset = 0.0f;
     job.arrivalPrepared = false;
     job.weaponPrepared = false;
     g_queuedExecuteFinisherPhase = ExecuteFinisher_FALLBACK;
@@ -2120,8 +2122,10 @@ static void LogQueuedExecuteApproach(
          << " current_distance=" << currentDistance
          << " move_issued=" << (moveIssued ? "true" : "false")
          << " actor_x=" << actorPos.x
+         << " actor_y=" << actorPos.y
          << " actor_z=" << actorPos.z
          << " target_x=" << targetPos.x
+         << " target_y=" << targetPos.y
          << " target_z=" << targetPos.z
          << " approach_x=" << approachPos.x
          << " approach_z=" << approachPos.z;
@@ -2222,11 +2226,74 @@ static void LogQueuedExecuteDispatchProbe(
     PluginLog(line.str().c_str());
 }
 
-static bool IsWithinExecuteRange(
-    const Ogre::Vector3& actorPos, const Ogre::Vector3& targetPos, float distance)
+static float ReadAnimalContactOffset(Character* actor, Character* target)
 {
-    return ComputeSquaredDistanceXZ(actorPos, targetPos) <= distance * distance
-        && std::fabs(actorPos.y - targetPos.y) <= kQueuedExecuteContactHeightMax;
+    __try
+    {
+        if (!target->isAnimal())
+            return 0.0f;
+
+        // Native movement radius includes the creature's scale.
+        const float targetRadius = target->getRadius();
+        const float actorRadius = actor->getRadius();
+        const float offset = targetRadius + actorRadius;
+        if (!_finite(offset) || targetRadius <= 0.0f || actorRadius < 0.0f
+            || offset > kExecuteAllRadiusMaxUnits)
+            return 0.0f;
+
+        return offset;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ErrorLog("Loot-Scoot-Execute: native animal contact radius read failed");
+        return 0.0f;
+    }
+}
+
+static bool SameContactBuilding(const hand& a, const hand& b)
+{
+    return a.isNull() ? b.isNull() : a.type == b.type && a.index == b.index
+        && a.serial == b.serial && a.container == b.container && a.containerSerial == b.containerSerial;
+}
+
+static bool SameExecuteFloor(const Character* actor, const Character* target)
+{
+    __try
+    {
+        if (actor->getFloor() != target->getFloor())
+            return false;
+        const hand& a = actor->isIndoors();
+        const hand& b = target->isIndoors();
+        return SameContactBuilding(a, b) && (!a.isNull()
+            || SameContactBuilding(actor->isStandingOnBuilding(), target->isStandingOnBuilding()));
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        static bool logged = false;
+        if (!logged)
+        {
+            logged = true;
+            ErrorLog("Loot-Scoot-Execute: native contact floor read failed");
+        }
+        return false;
+    }
+}
+
+static bool IsWithinExecuteRange(
+    const Character* actor, const RootObject* target, const Ogre::Vector3& actorPos,
+    const Ogre::Vector3& targetPos, float distance, float animalContactOffset)
+{
+    if (!(ComputeSquaredDistanceXZ(actorPos, targetPos) <= distance * distance))
+        return false;
+
+    const float height = std::fabs(actorPos.y - targetPos.y);
+    if (height <= kQueuedExecuteContactHeightMax)
+        return true;
+
+    // A ragdoll's origin can sit above or below the contact point of its body.
+    // Allow that offset for nearby animals on the same floor, up to two metres.
+    return height <= (std::min)(animalContactOffset, 20.0f)
+        && SameExecuteFloor(actor, static_cast<const Character*>(target));
 }
 
 static bool TryIssueQueuedExecuteApproach(
@@ -2236,10 +2303,11 @@ static bool TryIssueQueuedExecuteApproach(
     ExecuteJob& job = g_executeJobs[g_executeJobIndex];
     Ogre::Vector3 approachPos = targetPos;
     const float distance = std::sqrt(ComputeSquaredDistanceXZ(actorPos, targetPos));
-    // Start just short of the body. Retry at its centre if the navmesh
-    // projected the first point too far away.
-    const float approachDistance = job.approachAttempts == 0
-        ? (std::min)(0.5f, executeDistance * 0.25f) : 0.0f;
+    // An animal's centre can be inside its collision footprint. Approach
+    // the edge first, then retry with less clearance.
+    const float margin = job.approachAttempts == 0
+        ? (std::min)(0.5f, (executeDistance - job.animalContactOffset) * 0.25f) : 0.0f;
+    const float approachDistance = (std::min)(distance, job.animalContactOffset + margin);
     if (distance > 1.0e-6f)
     {
         approachPos.x += (actorPos.x - targetPos.x) * approachDistance / distance;
@@ -4490,6 +4558,7 @@ static bool QueueExecuteTarget(
     ExecuteJob& job = g_executeJobs[g_executeJobIndex];
     job.lastUpdateMs = 0;
     job.approachAttempts = 0;
+    job.animalContactOffset = ReadAnimalContactOffset(actor, static_cast<Character*>(target));
     job.arrivalPrepared = false;
     job.weaponPrepared = false;
     job.pauseStartedMs = 0;
@@ -4499,14 +4568,15 @@ static bool QueueExecuteTarget(
     DropCarriedCorpseForExecute(actor);
     Ogre::Vector3 actorPos;
     Ogre::Vector3 targetPos;
-    const float executeDistance = ComputeQueuedExecuteDistanceMeters();
+    const float configuredDistance = ComputeQueuedExecuteDistanceMeters();
+    const float executeDistance = configuredDistance + job.animalContactOffset;
     const bool havePositions = TryReadRootObjectPosition(actor, &actorPos)
         && TryReadRootObjectPosition(target, &targetPos);
     // Dispatch a single movement order on click. The update loop staggers mass
     // orders so one click cannot submit dozens of path requests in one frame.
-    const float preferredDistance = (std::min)(executeDistance, static_cast<float>(kQueuedExecuteDefaultDistanceMeters));
+    const float preferredDistance = (std::min)(configuredDistance, static_cast<float>(kQueuedExecuteDefaultDistanceMeters));
     const bool initialApproachIssued = havePositions && !g_executeAllBatchActive
-        && !IsWithinExecuteRange(actorPos, targetPos, preferredDistance)
+        && !IsWithinExecuteRange(actor, target, actorPos, targetPos, preferredDistance, 0.0f)
         && TryIssueQueuedExecuteApproach(actor, target, actorPos, targetPos, executeDistance, nowMs);
     if (ShouldLogExecuteDebug())
     {
@@ -4674,8 +4744,9 @@ static void TickQueuedExecuteJob(DWORD nowMs, bool paused, unsigned int& operati
         return;
     }
 
-    const float executeDistance = ComputeQueuedExecuteDistanceMeters();
-    const bool inRange = IsWithinExecuteRange(actorPos, targetPos, executeDistance);
+    const float configuredDistance = ComputeQueuedExecuteDistanceMeters();
+    const float executeDistance = configuredDistance + job.animalContactOffset;
+    const bool inRange = IsWithinExecuteRange(actor, target, actorPos, targetPos, executeDistance, job.animalContactOffset);
     bool ownedApproach = false;
     bool anotherOrder = false;
     if (!job.attackTriggered && !ObserveExecuteOrder(job, actor, ownedApproach, anotherOrder))
@@ -4689,9 +4760,9 @@ static void TickQueuedExecuteJob(DWORD nowMs, bool paused, unsigned int& operati
         return;
     }
 
-    const float preferredDistance = (std::min)(executeDistance, static_cast<float>(kQueuedExecuteDefaultDistanceMeters));
+    const float preferredDistance = (std::min)(configuredDistance, static_cast<float>(kQueuedExecuteDefaultDistanceMeters));
     const bool needsApproach = !inRange || (!job.attackTriggered && job.approachAttempts == 0
-        && !IsWithinExecuteRange(actorPos, targetPos, preferredDistance));
+        && !IsWithinExecuteRange(actor, target, actorPos, targetPos, preferredDistance, 0.0f));
     if (needsApproach)
     {
         if (g_queuedExecuteAttackTriggered)
