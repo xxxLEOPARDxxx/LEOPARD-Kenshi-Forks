@@ -122,7 +122,7 @@ English
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
 
 
-## Local execution compatibility work (2026-11-13, not published)
+## Execution compatibility / Совместимость добиваний
 
 Successful executions reported by an optional compatible plugin can now count as
 kills. Confirmation uses the real dead victim and resolved player character; it
@@ -168,5 +168,17 @@ and extracts production pending-death processing. It covers packet validation,
 identity serials, confirmed death, player ownership, duplicate/order races, KO
 restoration, destruction, disabled mode, queue limits, cross-thread handoff,
 cleanup-generation races and bounded receipts. The test does not execute game
-code. Actual in-game counter display/save/load, FPS and long-run memory checks
-remain pending. No release version was changed or package published.
+code. The owner confirmed actual in-game finisher credit without duplicate
+counting. Separate save/load, FPS and long-run memory measurements were not made.
+
+## Release 3 / Выпуск 3
+
+English
+
+- Added finisher credit from the updated Loot-Scoot-Execute: the actual executor receives the kill, including after another character knocked the victim out.
+- The same kill is not counted twice, and the original knockout credit is preserved. Loot-Scoot-Execute remains optional for ordinary counter operation.
+
+Русский
+
+- Добавлен учёт добиваний из обновлённого Loot-Scoot-Execute: убийство засчитывается фактическому исполнителю, в том числе после чужого оглушения.
+- Повторное начисление одного убийства исключено; авторство первоначального оглушения сохраняется. Loot-Scoot-Execute необязателен для обычной работы счётчика.

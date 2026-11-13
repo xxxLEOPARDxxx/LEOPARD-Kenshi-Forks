@@ -2,21 +2,6 @@
 
 Vital-Sense is a RE_Kenshi native plugin that highlights downed characters with state markers, optional body tint, and configurable bounty indicators.
 
-## Local validation candidate - 13 November 2026
-
-The state label keeps its own measured width when a bounty symbol is visible.
-The icon, bounty symbol, state caption and outline use a combined width for
-positioning, including screen-edge placement. Font measurement is cached when
-the visual state/configuration changes; moving a marker does not remeasure it.
-The owner confirmed the reported three-character label is complete in game
-beside both the icon and bounty symbol on 13 November 2026.
-
-Текст состояния сохраняет свою ширину рядом со знаком награды. Общая ширина
-значка, символа и текста учитывается при размещении у края экрана. Замер шрифта
-кэшируется при смене состояния или настроек, а не при движении маркера.
-13.11.2026 владелец подтвердил: трёхсимвольная подпись целиком видна в игре
-рядом с иконкой и знаком награды.
-
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-script submodule init step is required.
 
@@ -185,3 +170,15 @@ English
 ### Русский
 
 - Добавлена настройка высоты текста и значков состояния над персонажами. У отдельного значка награды сохраняется своя настройка высоты.
+
+## Release 9 / Выпуск 9
+
+English
+
+- State captions are no longer clipped beside the bounty symbol: the icon, symbol and caption each have enough room.
+- Caption length, font size and the combined marker width are respected when placing markers near screen edges.
+
+Русский
+
+- Текст состояния больше не обрезается рядом со знаком награды: иконка, символ и подпись получают достаточно места.
+- Учитываются длина подписи, размер шрифта и ширина всего маркера при размещении у края экрана.

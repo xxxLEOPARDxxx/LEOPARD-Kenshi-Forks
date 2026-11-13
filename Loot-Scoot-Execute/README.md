@@ -257,3 +257,21 @@ English
 - Для подходящих персонажей используется штатная анимация удара. Оружие ближнего боя видно весь взмах. Если в первом слоте арбалет, можно достать оружие из второго.
 - Дистанция добивания настраивается до 20, число исполнителей до 50. Можно включить сброс переносимого тела перед подходом. Добивание целей, которых несут, по умолчанию выключено.
 - Команды добивания выровнены по строкам штатного контекстного меню.
+
+## Release 8 / Выпуск 8
+
+English
+
+- Shift + Execute adds a persistent job for targets personally knocked out by that executor in combat or stealth. Shift + Execute All adds a job for downed enemies.
+- Persistent jobs run after combat, respect job priority and yield to direct orders. Non-hostile permission applies to verified own knockouts; the enemy job remains hostile-only.
+- Restored finishers on downed animals. Search radius now uses metres; strike distance is configured separately.
+- For permitted neutral or allied murders, the crime window lasts at least 20 seconds. Witnesses and their reactions are handled by the game.
+- The updated Kill Counter credits finishers to their executor without double counting. Kill Counter is optional; tooltips were clarified in all three languages.
+
+Русский
+
+- Shift + «Добить» добавляет постоянную работу по целям, которых этот исполнитель лично оглушил в бою или скрытности. Shift + «Добить всех» добавляет работу по лежащим врагам.
+- Постоянные работы выполняются после боя, учитывают приоритет работ и уступают прямым приказам. Разрешение не-врагов действует на собственные подтверждённые оглушения; работа по врагам остаётся только для врагов.
+- Восстановлено добивание поверженных животных. Радиус поиска теперь соответствует метрам; дистанция самого удара настраивается отдельно.
+- При разрешённом убийстве нейтрала или союзника окно нарушения закона длится не менее 20 секунд. Свидетелей и их реакцию определяет игра.
+- Обновлённый Kill Counter засчитывает добивание исполнителю без двойного начисления. Kill Counter необязателен; подсказки уточнены на трёх языках.

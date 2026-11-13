@@ -39,7 +39,7 @@ Inherited gameplay features are described in the player guide; the list below re
 
 <!-- fork-publication:end -->
 
-## Pending local fix / Правка на локальной проверке
+## Repeated-looting fix / Исправление повторного сбора
 
 - Исправлена причина вылета по Insert после смены окна инвентаря: сбор и раскладка берут текущий надетый рюкзак персонажа. Закрытие окна отменяет оставшуюся очередь сбора.
 - Перед отделением вещи проверяется место в выбранном инвентаре, включая фактический повёрнутый размер. Полный инвентарь пропускается до изменения исходной стопки.
@@ -50,7 +50,7 @@ Inherited gameplay features are described in the player guide; the list below re
 - Transfer faults remain visible with detailed logging off. Detailed logging adds coordinates and the measured distance to each checked target.
 - Deferred targets are resolved again before transfer. Unloaded or replaced targets are skipped. Backpack priority, filters, theft rules and transfer accounting are preserved.
 
-The production-extracted regression checks pass. Repeating loot -> deposit -> close/reopen inventory -> loot another corpse in Kenshi remains required. / Проверки извлечённого production-кода проходят. Повторный игровой прогон сбора, разгрузки, закрытия/открытия инвентаря и сбора следующего трупа ещё требуется.
+The production-extracted regressions pass, and the owner confirmed repeated in-game looting no longer crashes. / Проверки извлечённого production-кода проходят; владелец подтвердил, что повторный сбор в игре больше не вызывает вылет.
 
 BetterLooting is a native RE_Kenshi plugin for Kenshi.
 
@@ -177,3 +177,15 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+## Release 6 / Выпуск 6
+
+English
+
+- Fixed crashes during repeated Insert looting after unloading, closing or switching inventory windows, and changing backpacks.
+- Destination room is checked before splitting an item from its stack. Loot that does not fit stays in the source.
+
+Русский
+
+- Исправлены вылеты при повторном сборе по Insert после разгрузки, закрытия или смены окон инвентаря и замены рюкзака.
+- Перед отделением предмета от стопки проверяется место в инвентаре назначения. Непоместившаяся добыча остаётся в источнике.
