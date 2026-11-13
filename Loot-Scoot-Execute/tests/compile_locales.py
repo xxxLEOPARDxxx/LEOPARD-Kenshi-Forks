@@ -6,10 +6,25 @@ import re
 import struct
 
 root = Path(__file__).resolve().parents[1]
-required = {
-    'Execute own defeats', 'Execute enemies', 'Execute All search radius, m',
-    'Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance.'
-}
+# Validate the actual active MCM registration, not a hand-maintained subset.
+# Old button-geometry keys may remain in catalogs but are not visible settings.
+hub = (root/'LootScootExecuteModHubBridge.inl').read_text(encoding='utf-8-sig')
+quoted = r'("(?:[^"\\]|\\.)*")'
+definition = r'static const EMC_(?:Bool|Int)SettingDefV1\s+(\w+)\s*=\s*\{\s*(?:"[^"\n]*"|\w+),\s*' + quoted + r',\s*' + quoted
+labels = {name: (ast.literal_eval(label), ast.literal_eval(tip))
+          for name, label, tip in re.findall(definition, hub)}
+rows = re.findall(r'\{\s*emc::MOD_HUB_CLIENT_SETTING_KIND_\w+,\s*&(\w+)\s*\}', hub)
+assert len(rows) == len(set(rows)) and set(rows) == set(labels), (rows, labels)
+assert rows[-1] == 'kDebugExecuteLoggingSettingDef', 'Detailed log must stay last'
+required = {text for name in rows for text in labels[name]}
+info = re.search(r'MCM_MODHUB_BRIDGE_TABLE\(GetModHubTableRegistration\(\),\s*' + quoted + r'\)', hub)
+assert info, 'MCM information text missing'
+required.add(ast.literal_eval(info.group(1)))
+for filename in ('Loot-Scoot-Execute.cpp', 'LootScootExecuteJobs.inl'):
+    source = (root/filename).read_text(encoding='utf-8-sig')
+    required.update(ast.literal_eval(text) for text in re.findall(r'\bTr\(' + quoted + r'\)', source))
+print(len(rows), 'active MCM rows;', len(required), 'active message keys extracted from production')
+expected_keys = None
 for language in ('en_GB', 'ru_RU', 'zh_CN'):
     po = root/'Loot-Scoot-Execute/locale'/language/'LC_MESSAGES/loot_scoot_execute.po'
     catalog = {}
@@ -32,6 +47,8 @@ for language in ('en_GB', 'ru_RU', 'zh_CN'):
         else:
             assert not line.startswith(('msgid_plural', 'msgstr[')), 'Plural parser required'
     assert required <= catalog.keys(), required-catalog.keys()
+    if expected_keys is None: expected_keys = set(catalog)
+    assert set(catalog) == expected_keys, ('locale key mismatch', language, set(catalog)^expected_keys)
     assert all(not key or value for key, value in catalog.items())
     if language == 'ru_RU':
         assert all(not re.search('[\u2010-\u2015\u2212]', value) for value in catalog.values())

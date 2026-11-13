@@ -11,13 +11,15 @@ Current status: implemented for Kenshi `1.0.65` using:
 
 ## Persistent execution jobs
 An ordinary click keeps the existing one-shot behavior. **Shift + Execute** adds
-`Execute own defeats` to that character's native Jobs list. It executes only
+`Execute own knockouts` to that character's native Jobs list. It executes only
 targets that this character actually knocked unconscious with a melee hit,
 projectile or successful stealth knockout. Waking clears that permission; hitting
 someone who is already unconscious does not claim them. A target knocked out
 before this plugin observed the event has no verified owner and is skipped.
+With non-hostile execution enabled, this job can also finish its own confirmed
+neutral or allied knockouts; the enemy job remains hostile-only.
 
-**Shift + Execute All** adds `Execute enemies` to the selected characters' Jobs
+**Shift + Execute All** adds `Execute downed enemies` to the selected characters' Jobs
 lists, within the existing maximum-actors setting. It finds eligible unconscious
 enemies around each executor using the configured Execute All radius. This
 automatic job always requires hostility. Both jobs follow native job priority,
@@ -39,13 +41,15 @@ With the updated Kill Counter installed, confirmed finishers are credited to
 their actual executor once, including kills after another character's knockout.
 Kill Counter remains optional and normal executions work without it.
 
-**Shift-задания:** Shift + «Добить» добавляет в список работ «Добивать своих
-поверженных» - только тех, кого этот исполнитель действительно нокаутировал
+**Shift-задания:** Shift + «Добить» добавляет в список работ «Добивать лично
+оглушённых» - только тех, кого этот исполнитель действительно нокаутировал
 в бою, выстрелом или успешным скрытым ударом. Пробуждение снимает эту метку;
 удар по уже лежащему её не передаёт. Старый нокаут, который мод не наблюдал,
 своим не считается. Shift + «Добить всех» добавляет выделенным персонажам работу
-«Добивать врагов» с текущими радиусом и ограничением числа исполнителей.
-Автоматическая работа требует враждебности цели. Обе работы выполняются после
+«Добивать лежащих врагов» с текущими радиусом и ограничением числа исполнителей.
+Работа по врагам всегда требует враждебности цели. Разрешение не-врагов действует
+на работу по личным оглушениям только при подтверждённом оглушении этим исполнителем.
+Обе работы выполняются после
 боя, учитывают штатную очередность работ и переключатель «Работы», уступают
 прямым приказам и сохраняются вместе с подтверждённой меткой нокаута. Чтобы
 отключить работу, удалите её строку. Остальные работы сохраняются.

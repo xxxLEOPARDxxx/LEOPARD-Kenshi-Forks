@@ -6,55 +6,55 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 msgid "Adds an Execute action for downed enemies to the right-click menu."
-msgstr "Adds an Execute action for downed enemies to the right-click menu."
+msgstr "Execute is a one-time order for the chosen downed target. Shift+Execute adds a permanent job for this worker's own knockouts recorded by the mod; waking removes that mark. Permanent jobs wait until combat ends, Jobs are enabled and direct orders have finished."
 
 msgid "Enabled"
 msgstr "Enabled"
 
 msgid "Enable Loot-Scoot-Execute"
-msgstr "Turns the whole mod on and off"
+msgstr "Enables execution commands and both permanent execution jobs. An updated, enabled KillCounter optionally credits confirmed executions to the actual finisher."
 
 msgid "Enable execute kill sound"
-msgstr "Kill sound"
+msgstr "Execution sound"
 
 msgid "Play execute kill sound when execute dispatch succeeds"
-msgstr "Plays a sound when an execution succeeds"
+msgstr "Adds an impact and character voice or metal sound after a successful execution with confirmed death."
 
 msgid "Debug execute logging"
 msgstr "Detailed log"
 
 msgid "Enable focused execute investigation logs in RE_Kenshi_log.txt"
-msgstr "Writes execution details to RE_Kenshi_log.txt"
+msgstr "Writes target eligibility, permanent-job selection, approach, execution, crime and KillCounter attribution details to RE_Kenshi_log.txt. Off by default."
 
 msgid "Enable Execute All"
-msgstr "Execute All"
+msgstr "Execute All and enemy job"
 
 msgid "Show the Execute All button and allow batch execute behavior"
-msgstr "A button that executes all downed enemies around the target"
+msgstr "Enables one-time Execute All around the selected target. Shift+Execute All adds the permanent enemy-execution job to selected workers. Disabling this pauses that job; the personal-knockout job remains available."
 
 msgid "Ignore execute alliance check"
-msgstr "Execute non-hostiles too"
+msgstr "Allow non-hostile targets"
 
 msgid "Allow execute on incapacitated non-hostiles; player characters remain blocked"
-msgstr "Allows executing downed neutrals too; your own characters never"
+msgstr "Allows one-time execution of downed neutrals and allies, and the personal-knockout job to finish its own confirmed non-hostile targets. The enemy job still requires enemies; player characters are excluded. When the game accepts a non-hostile murder, its crime window lasts at least 20 seconds; witnesses determine the response."
 
 msgid "Execute distance"
-msgstr "Execute distance"
+msgstr "Finishing distance"
 
 msgid "Maximum strike distance from 1 to 20. Default is 2."
-msgstr "Maximum strike distance from 1 to 20. Default is 2."
+msgstr "Allowed finishing distance from 1 to 20; default 2. The executor still approaches the target before striking. Independent of the target search radius."
 
 msgid "Execute All search radius, m"
-msgstr "Execute All search radius, m"
+msgstr "Target search radius, m"
 
 msgid "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
-msgstr "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
+msgstr "Search radius 1-200 metres, default 10. One-time Execute All searches around the selected victim; both permanent jobs search around their executor. Single Execute uses the selected target. Does not increase strike distance."
 
 msgid "Execute All participants"
-msgstr "Execute All participants"
+msgstr "Selected executioners limit"
 
 msgid "Maximum selected characters assigned to one Execute All order."
-msgstr "Maximum selected characters assigned to one Execute All order."
+msgstr "Maximum selected workers for one Execute All order or Shift+Execute All job assignment: 1-50, default 16."
 
 msgid "Execute button width"
 msgstr "Execute button width"
@@ -99,19 +99,19 @@ msgid "Execute All"
 msgstr "Execute All"
 
 msgid "Execute own defeats"
-msgstr "Execute own defeats"
+msgstr "Execute own knockouts"
 
 msgid "Execute enemies"
-msgstr "Execute enemies"
+msgstr "Execute downed enemies"
 
 msgid "Block execute on carried targets"
-msgstr "Block execute on carried targets"
+msgstr "Exclude carried targets"
 
 msgid "Never execute characters being carried on someone's shoulder"
-msgstr "Never execute characters being carried on someone's shoulder"
+msgstr "Excludes a victim being carried on someone's shoulder from one-time commands and both permanent jobs. Turning this off allows such targets."
 
 msgid "Drop carried corpse before executing"
 msgstr "Drop carried corpse before executing"
 
 msgid "Put down a dead body before approaching the target. Living characters stay on your shoulder."
-msgstr "Put down a dead body before approaching the target. Living characters stay on your shoulder."
+msgstr "The executor puts a carried corpse down before approaching an execution target. A living passenger stays on the executor's shoulder. Applies to one-time commands and permanent jobs."

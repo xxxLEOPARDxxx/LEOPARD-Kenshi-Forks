@@ -6,55 +6,55 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 msgid "Adds an Execute action for downed enemies to the right-click menu."
-msgstr "在右键菜单中为倒地的敌人添加处决动作。"
+msgstr "“处决”是针对所选倒地目标的一次性命令。Shift+“处决”添加长期工作，只处理模组确认由该执行者亲手击倒的目标；目标苏醒后记录失效。长期工作在战斗结束、启用“工作”且没有直接命令时执行。"
 
 msgid "Enabled"
 msgstr "启用"
 
 msgid "Enable Loot-Scoot-Execute"
-msgstr "开启或关闭整个模组"
+msgstr "启用处决命令和两种长期处决工作。若安装并启用了新版KillCounter，确认成功的处决会计入实际执行者的击杀数。"
 
 msgid "Enable execute kill sound"
 msgstr "处决音效"
 
 msgid "Play execute kill sound when execute dispatch succeeds"
-msgstr "处决成功时播放音效"
+msgstr "处决成功并确认目标死亡后，附加打击声以及角色语音或金属音效。"
 
 msgid "Debug execute logging"
 msgstr "详细日志"
 
 msgid "Enable focused execute investigation logs in RE_Kenshi_log.txt"
-msgstr "将处决的详细信息写入 RE_Kenshi_log.txt"
+msgstr "将目标资格、长期工作选择、接近、处决、犯罪和KillCounter归属详情写入RE_Kenshi_log.txt。默认关闭。"
 
 msgid "Enable Execute All"
-msgstr "全部处决"
+msgstr "全部处决与敌人处决工作"
 
 msgid "Show the Execute All button and allow batch execute behavior"
-msgstr "处决目标周围所有倒地敌人的按钮"
+msgstr "启用以选中目标为中心的一次性“全部处决”。Shift+“全部处决”为选中的执行者添加长期敌人处决工作。关闭此项会暂停该工作；亲手击倒目标的工作仍可使用。"
 
 msgid "Ignore execute alliance check"
-msgstr "也可处决非敌对者"
+msgstr "允许处决非敌对目标"
 
 msgid "Allow execute on incapacitated non-hostiles; player characters remain blocked"
-msgstr "允许处决倒地的中立角色；自己的角色永远不行"
+msgstr "允许一次性处决倒地的中立者和盟友，也允许亲手击倒目标的工作处决已确认归属于该执行者的非敌对目标。敌人处决工作仍只选择敌人；玩家角色始终被排除。游戏接受对非敌对者的谋杀犯罪后，犯罪窗口至少持续20秒；反应取决于目击者。"
 
 msgid "Execute distance"
 msgstr "处决距离"
 
 msgid "Maximum strike distance from 1 to 20. Default is 2."
-msgstr "出手的最大距离为 1 至 20，默认为 2。"
+msgstr "允许的处决距离为1至20，默认2。执行者仍会先接近目标再出手。与目标搜索半径分开设置。"
 
 msgid "Execute All search radius, m"
-msgstr "处决搜索半径（米）"
+msgstr "目标搜索半径（米）"
 
 msgid "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
-msgstr "搜索半径以米为单位：一次性命令以选中目标为中心，长期工作以执行者为中心。默认10，最大200。不增加攻击距离。"
+msgstr "搜索半径为1至200米，默认10米。一次性“全部处决”以选中的目标为中心；两种长期工作以执行者为中心。单次“处决”使用选中的目标。此项不增加攻击距离。"
 
 msgid "Execute All participants"
-msgstr "全部处决人数上限"
+msgstr "选中执行者人数上限"
 
 msgid "Maximum selected characters assigned to one Execute All order."
-msgstr "一次「全部处决」命令最多分配给多少名选中的角色。"
+msgstr "一次“全部处决”命令或Shift+“全部处决”工作分配最多使用的选中执行者人数：1至50，默认16。"
 
 msgid "Execute button width"
 msgstr "按钮宽度"
@@ -99,19 +99,19 @@ msgid "Execute All"
 msgstr "全部处决"
 
 msgid "Execute own defeats"
-msgstr "处决自己击倒的目标"
+msgstr "处决亲手击倒者"
 
 msgid "Execute enemies"
-msgstr "处决敌人"
+msgstr "处决倒地敌人"
 
 msgid "Block execute on carried targets"
-msgstr "禁止处决被扛起的角色"
+msgstr "排除被扛起的目标"
 
 msgid "Never execute characters being carried on someone's shoulder"
-msgstr "不要处决正被他人扛在肩上的角色"
+msgstr "在一次性命令和两种长期工作中，排除正被扛在肩上的目标。关闭后可选择这类目标。"
 
 msgid "Drop carried corpse before executing"
 msgstr "处决前放下扛着的尸体"
 
 msgid "Put down a dead body before approaching the target. Living characters stay on your shoulder."
-msgstr "接近目标前放下肩上的尸体。活着的角色会继续扛在肩上。"
+msgstr "执行者接近处决目标前会放下扛着的尸体。活着的角色仍留在执行者肩上。适用于一次性命令和长期工作。"

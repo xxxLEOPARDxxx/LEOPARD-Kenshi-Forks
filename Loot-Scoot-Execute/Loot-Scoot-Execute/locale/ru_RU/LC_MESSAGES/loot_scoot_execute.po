@@ -6,55 +6,55 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 msgid "Adds an Execute action for downed enemies to the right-click menu."
-msgstr "Добавляет в меню правой кнопки действие Добить для лежащих врагов."
+msgstr "\"Добить\" - разовый приказ выбранной лежащей цели. Shift+\"Добить\" добавляет работу по личным оглушениям, которые мод наблюдал; пробуждение снимает отметку. Постоянные работы выполняются после боя, при включённых \"Работах\" и отсутствии прямого приказа."
 
 msgid "Enabled"
 msgstr "Включено"
 
 msgid "Enable Loot-Scoot-Execute"
-msgstr "Включает и выключает весь мод"
+msgstr "Включает команды и обе постоянные работы добивания. Если установлен и включён обновлённый KillCounter, подтверждённое убийство засчитывается исполнителю добивания."
 
 msgid "Enable execute kill sound"
 msgstr "Звук добивания"
 
 msgid "Play execute kill sound when execute dispatch succeeds"
-msgstr "Звук, когда добивание удалось"
+msgstr "Добавляет звук удара и голос жертвы либо металлический звук после успешного добивания с подтверждённой смертью."
 
 msgid "Debug execute logging"
 msgstr "Подробный журнал"
 
 msgid "Enable focused execute investigation logs in RE_Kenshi_log.txt"
-msgstr "Пишет подробности добивания в RE_Kenshi_log.txt"
+msgstr "Пишет в RE_Kenshi_log.txt подробности выбора целей и постоянных работ, подхода, добивания, преступлений и учёта в KillCounter. По умолчанию выключено."
 
 msgid "Enable Execute All"
-msgstr "Добить всех"
+msgstr "Добить всех / работа по врагам"
 
 msgid "Show the Execute All button and allow batch execute behavior"
-msgstr "Кнопка, которая добивает всех лежащих врагов вокруг цели"
+msgstr "Включает разовое \"Добить всех\" вокруг выбранной цели. Shift+\"Добить всех\" добавляет выделенным исполнителям постоянную работу по врагам. Выключение приостанавливает эту работу; работа по личным оглушениям остаётся доступна."
 
 msgid "Ignore execute alliance check"
-msgstr "Добивать и не врагов"
+msgstr "Добивать нейтралов и союзников"
 
 msgid "Allow execute on incapacitated non-hostiles; player characters remain blocked"
-msgstr "Можно добивать и лежащих нейтральных; своих - никогда"
+msgstr "Разрешает добивание лежащих нейтралов и союзников. В работе по личным оглушениям нужны подтверждённые оглушения этим исполнителем; работа по врагам всё равно требует врагов. Персонажи игрока исключены. Если игра регистрирует такое убийство, окно преступления длится не менее 20 секунд; реакция зависит от свидетелей."
 
 msgid "Execute distance"
 msgstr "Дистанция добивания"
 
 msgid "Maximum strike distance from 1 to 20. Default is 2."
-msgstr "Максимальная дистанция удара от 1 до 20. По умолчанию 2."
+msgstr "Допустимая дистанция завершающего удара от 1 до 20, по умолчанию 2. Перед ударом исполнитель подходит к цели. Радиус поиска целей задаётся отдельно."
 
 msgid "Execute All search radius, m"
-msgstr "Радиус поиска добивания, м"
+msgstr "Радиус поиска целей, м"
 
 msgid "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
-msgstr "Радиус поиска в метрах: вокруг выбранной цели для разового приказа, вокруг исполнителя для постоянной работы. По умолчанию 10, максимум 200. Не увеличивает дистанцию удара."
+msgstr "Радиус поиска 1-200 метров, по умолчанию 10. Разовое \"Добить всех\" ищет вокруг выбранной жертвы; обе постоянные работы - вокруг исполнителя. Одиночное \"Добить\" действует на выбранную цель. Радиус не увеличивает дистанцию удара."
 
 msgid "Execute All participants"
-msgstr "Исполнители массового добивания"
+msgstr "Лимит выделенных исполнителей"
 
 msgid "Maximum selected characters assigned to one Execute All order."
-msgstr "Сколько выделенных персонажей могут выполнять один приказ массового добивания."
+msgstr "Сколько выделенных исполнителей назначать на один приказ \"Добить всех\" или добавление работы через Shift+\"Добить всех\": 1-50, по умолчанию 16."
 
 msgid "Execute button width"
 msgstr "Ширина кнопки"
@@ -99,19 +99,19 @@ msgid "Execute All"
 msgstr "Добить всех"
 
 msgid "Execute own defeats"
-msgstr "Добивать своих поверженных"
+msgstr "Добивать лично оглушённых"
 
 msgid "Execute enemies"
-msgstr "Добивать врагов"
+msgstr "Добивать лежащих врагов"
 
 msgid "Block execute on carried targets"
-msgstr "Не добивать несущихся"
+msgstr "Исключать переносимые цели"
 
 msgid "Never execute characters being carried on someone's shoulder"
-msgstr "Не выполнять добивание тех, кого несут на плечах"
+msgstr "Исключает жертву, которую несут на плечах, из разовых команд и обеих постоянных работ. Снятие флажка разрешает такие цели."
 
 msgid "Drop carried corpse before executing"
-msgstr "Опускать тело перед добиванием"
+msgstr "Опускать переносимый труп"
 
 msgid "Put down a dead body before approaching the target. Living characters stay on your shoulder."
-msgstr "Персонаж опускает мёртвое тело с плеч перед подходом к цели. Живых продолжает нести."
+msgstr "Исполнитель опускает переносимый труп перед подходом к цели добивания. Живой персонаж остаётся у него на плечах. Действует для разовых команд и постоянных работ."
