@@ -120,3 +120,53 @@ English
 - Необязательная диагностика языка. Сводки языка и каталога переводов подчиняются настройке подробного журнала этого плагина, выключенной по умолчанию.
 - Ошибки остаются видимыми. Ошибки загрузки и формата переводов записываются и при выключенном подробном журнале. Включение настройки после загрузки выводит сохранённую сводку один раз без перезагрузки переводов.
 - Чистый пакет обновления. Английский, русский и упрощённый китайский используют по одному скомпилированному рабочему каталогу. Личные настройки и игровые сохранения сохраняются.
+
+
+## Local execution compatibility work (2026-11-13, not published)
+
+Successful executions reported by an optional compatible plugin can now count as
+kills. Confirmation uses the real dead victim and resolved player character; it
+does not simulate melee attacks or modify damage, combat experience or limb totals.
+Existing saved counter fields and MCM settings remain unchanged. A finisher gets
+the kill without losing an unrelated knockout. Repeated reports count once.
+
+Подтверждённые добивания совместимого плагина могут учитываться как убийства.
+Проверяются реальная смерть цели и личность персонажа игрока. Обычный удар не
+имитируется: урон, боевой опыт и счётчик конечностей не меняются. Существующие поля
+сохранения и настройки MCM сохраняются. Убийство получает исполнитель, без потери
+его постороннего нокаута. Повторные сообщения не дают повторное убийство.
+
+### Optional integration ABI
+
+`ExecutionBridge.h` declares the C export `KillCounter_RecordExecutionV1`. The
+48-byte POD contains size=48, version=1, actor[5], victim[5]; identities contain
+type, container, containerSerial, index, serial. No game object pointers, Kenshi
+hand vtables or STL objects cross the interface. Call once after the execution
+has succeeded and actual death is confirmed. Return 0 means rejected, disabled
+or capacity unavailable; 1 means accepted (possibly queued), 2 means duplicate.
+The optional caller must work normally when this DLL/export is absent.
+
+Same-world-thread calls validate and credit synchronously. Other threads publish
+at most 64 POD requests under a short lock; native resolution and attribution
+run in the existing world-update hook. Calls before an active world-update thread
+or during reset are rejected. An internal world generation rejects producers
+that overlap cleanup, even if a later world reuses saved handles/thread IDs.
+
+Death attribution is shared with ordinary native-hit pending kills. Receipts
+retain prior killer/KO ownership for a late execution report: an earlier kill
+credit transfers to the actual finisher, and an incorrectly undone old KO is
+restored. Receipts deduplicate both paths. At most 4096 loaded victims are retained;
+none are evicted while loaded. If capacity is exhausted, new execution reports
+fail closed until world reset; ordinary native counting continues. Destruction
+removes victim receipts and clears referenced actors before pointer reuse.
+World cleanup clears transient receipts and queued requests. There is no new
+world scan or per-frame traversal of the receipt map. Hooks must all be installed
+for optional attribution to activate.
+
+Verification: `python tests/test_execution_bridge.py` compiles the actual bridge
+and extracts production pending-death processing. It covers packet validation,
+identity serials, confirmed death, player ownership, duplicate/order races, KO
+restoration, destruction, disabled mode, queue limits, cross-thread handoff,
+cleanup-generation races and bounded receipts. The test does not execute game
+code. Actual in-game counter display/save/load, FPS and long-run memory checks
+remain pending. No release version was changed or package published.

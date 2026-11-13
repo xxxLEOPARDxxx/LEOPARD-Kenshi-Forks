@@ -152,7 +152,9 @@ static void DebugSummary(DWORD now, bool paused)
     std::stringstream log;
     log << "Loot-Scoot-Execute DEBUG: permanent_job_scheduler elapsed_ms=" << elapsed
         << " ready=" << ready << " live=" << live << " paused=" << paused
-        << " enabled=" << g_effectiveEnableExecuteAction << " slots=" << slots
+        << " enabled=" << g_effectiveEnableExecuteAction
+        << " allow_nonhostiles=" << g_config.ignoreExecuteAllianceCheck
+        << " credited_targets=" << ledgerCount << " slots=" << slots
         << " own_offers=" << ownOffers << " enemy_offers=" << enemyOffers;
     for (unsigned index = 0; index < DBG_COUNT; ++index)
     {
@@ -1292,19 +1294,4 @@ static bool DispatchExecuteMenuAction(Character* actor, RootObject* target, bool
         gui->updateToOrdersPanel();
     }
     return added;
-}
-static void RegisterExecutionCrime(Character* actor, Character* target, bool enemy)
-{
-    if (!actor || !target || enemy)
-    {
-        return;
-    }
-    // Publish the real crime on the murderer. Native perception decides who
-    // witnesses it, raises bounties and betrayal, and selects retaliation.
-    const bool accepted = actor->crimes.setCrime(CRIME_MURDER, target->getFaction(), target->getHandle());
-    if (ShouldLogExecuteDebug())
-    {
-        PluginLog(accepted ? "Loot-Scoot-Execute: execution murder registered"
-                           : "Loot-Scoot-Execute: native murder registration declined");
-    }
 }

@@ -34,6 +34,10 @@ distance: the executor still approaches the target before the finisher.
 Executing a non-hostile target when the alliance-check setting allows it now
 registers murder on the executor. Native witnesses, guards, faction loyalty,
 bounties and betrayal determine the response; unseen NPCs are not forced hostile.
+The crime window lasts at least 20 seconds; an existing longer window is kept.
+With the updated Kill Counter installed, confirmed finishers are credited to
+their actual executor once, including kills after another character's knockout.
+Kill Counter remains optional and normal executions work without it.
 
 **Shift-задания:** Shift + «Добить» добавляет в список работ «Добивать своих
 поверженных» - только тех, кого этот исполнитель действительно нокаутировал
@@ -55,6 +59,10 @@ bounties and betrayal determine the response; unseen NPCs are not forced hostile
 заявляет штатное преступление «Убийство» на исполнителя. Реакцию увидевших это
 стражников и сторонников жертвы определяет игра, включая предательство и награду
 за голову. Агрессия всем персонажам принудительно не назначается.
+Окно нарушения закона длится не менее 20 секунд; более длинный текущий срок
+не сокращается. При установленном обновлённом Kill Counter подтверждённое
+добивание один раз засчитывается настоящему исполнителю, в том числе после
+чужого оглушения. Kill Counter необязателен для работы добиваний.
 
 ### Runtime and validation notes
 Native task IDs **294/295** are stable save identifiers. Registration refuses an

@@ -56,9 +56,9 @@ class AI {public:Character* c;AITaskSytem* tasks;Character* getCharacter(){retur
 struct CharBody {Character* character;Tasker* currentAction;unsigned completions;CharBody():character(0),currentAction(0),completions(0){}
  void notifyBodyTaskComplete(){++completions;currentAction=0;}};
 class Character:public RootObject {public:
- hand id;bool player,down,dead,carried,ragdoll,combat,underAttack,enemy;int attackers;
+ hand id;bool player,down,dead,carried,ragdoll,combat,underAttack,enemy,allied;int attackers;
  AITaskSytem tasks;AI ai;CharBody body;
- Character(unsigned n):id(n),player(true),down(false),dead(false),carried(false),ragdoll(false),combat(false),underAttack(false),enemy(false),attackers(0){registry[n]=this;ai.c=this;ai.tasks=&tasks;body.character=this;}
+ Character(unsigned n):id(n),player(true),down(false),dead(false),carried(false),ragdoll(false),combat(false),underAttack(false),enemy(false),allied(false),attackers(0){registry[n]=this;ai.c=this;ai.tasks=&tasks;body.character=this;}
  const hand& getHandle(){++handleReads;return id;}bool isPlayerCharacter(){return player;}bool isDead(){return dead;}bool isUnconcious(){return down;}
  bool isDown(){return down;}bool isBeingCarried(){return carried;}bool isRagdoll(){return ragdoll;}
  bool isInCombatMode(bool,bool){return combat;}bool isLiterallyUnderMeleeAttackRightNowForSure(){return underAttack;}
@@ -179,6 +179,29 @@ int main(){
  Stealth(&own,&c.body);CHECK(!ledger.Owns(Id(victim.id),Id(c.id)));Medical(&medical,0);CHECK(ledger.Owns(Id(victim.id),Id(c.id)));
  CHECK(damageActor==0&&damageVictim==0);
  medical.armed=false;victim.down=false;Medical(&medical,0);CHECK(!ledger.Owns(Id(victim.id),Id(c.id)));
+ // OWN294 follows the shared non-hostile permission for both neutral/allied
+ // NPCs, while ALL295 remains enemy-only. Credit must come from a real native
+ // stealth knockout, including collapse in a later medical update.
+ for(unsigned alliance=0;alliance<2;++alliance)for(unsigned permission=0;permission<2;++permission){
+  Clean(c);ObserveActor(&c);g_config.ignoreExecuteAllianceCheck=permission!=0;
+  victim.player=false;victim.allied=alliance!=0;victim.enemy=false;victim.down=false;medical.armed=false;
+  own.subject=victim.id;stealthMedical=&medical;Stealth(&own,&c.body);
+  CHECK(ledger.Find(Id(victim.id))&&ledger.Find(Id(victim.id))->pending);
+  CHECK(!ledger.Owns(Id(victim.id),Id(c.id)));Tick();CHECK(Score(&own,&c.ai)==0);
+  Medical(&medical,0);CHECK(ledger.Owns(Id(victim.id),Id(c.id)));testNow+=250;Tick();
+  CHECK(Score(&own,&c.ai)==(permission?0.73f:0.0f));CHECK(Score(&all,&c.ai)==0);
+  CHECK(Allowed(&c,&victim,OWN_DEFEATS)==(permission!=0));CHECK(!Allowed(&c,&victim,ALL_ENEMIES));
+  if(permission){c.body.currentAction=&own;BlankAction(&own,&c.body);Tick();CHECK(queued==1);
+   g_config.ignoreExecuteAllianceCheck=false;CHECK(!AutomaticQueueValid(&c,&victim,OWN_DEFEATS));}
+ }
+ // Enemy permission does not require the non-hostile override. A player's
+ // character, an old unobserved KO and somebody else's KO are never ours.
+ Clean(c);ObserveActor(&c);g_config.ignoreExecuteAllianceCheck=false;victim.enemy=true;victim.player=false;victim.down=false;medical.armed=false;
+ Stealth(&own,&c.body);Medical(&medical,0);Tick();CHECK(Score(&own,&c.ai)==0.73f);CHECK(Score(&all,&c.ai)==0.73f);
+ g_config.ignoreExecuteAllianceCheck=true;victim.player=true;CHECK(!Allowed(&c,&victim,OWN_DEFEATS));victim.player=false;
+ Clean(c);ObserveActor(&c);victim.enemy=false;victim.down=true;Tick();CHECK(Score(&own,&c.ai)==0);CHECK(!Allowed(&c,&victim,OWN_DEFEATS));
+ ledger.Record(Id(victim.id),Id(otherKiller.id),false,testNow);testNow+=250;Tick();CHECK(Score(&own,&c.ai)==0);CHECK(!Allowed(&c,&victim,OWN_DEFEATS));
+ victim.allied=false;victim.enemy=true;medical.armed=false;g_config.ignoreExecuteAllianceCheck=true;
  // Freed Tasker storage reused for an unrelated action cannot consume a handoff.
  Clean(c);ObserveActor(&c);victim.down=true;victim.enemy=true;Tick();c.body.currentAction=&all;BlankAction(&all,&c.body);
  all.taskData=&otherData;Tick();CHECK(queued==0);all.taskData=&allData;

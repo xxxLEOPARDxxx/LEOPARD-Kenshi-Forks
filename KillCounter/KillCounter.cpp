@@ -1,4 +1,4 @@
-#define KLOC_DOMAIN "kill_counter"
+﻿#define KLOC_DOMAIN "kill_counter"
 #include <Localization.h>
 #include <PluginSettings.h>
 #include <PluginDiagnostics.h>
@@ -34,6 +34,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <cstring>
 
 // ---------------------------------------------------------------------------
 // Per-attacker kill stats, keyed by the attacker's Character pointer.
@@ -107,10 +108,13 @@ static std::map<Character*, AssassinRecord> g_assassinTargets; // victim -> assa
 // Entries disappear at character destruction or when tracking is disabled.
 static std::set<Character*> g_attributionParticipants;
 
+#include "ExecutionBridge.inl"
+
 // Forget entries at the object's actual lifetime boundary, before its address
 // can be reused. Zero-stat characters need no persistent map entry at all.
 static void ForgetCharacter(Character* character)
 {
+    ForgetExecutionCharacter(character);
     g_stats.erase(character);
     g_assassinTargets.erase(character);
     g_pendingKills.erase(hand(character));
@@ -391,27 +395,7 @@ static void UpdatePendingKills()
 
         if (med->isDead())
         {
-            Character* killer = it->second.attacker;
-            if (killer != NULL)
-            {
-                ++g_stats[killer].kills;
-                if (PluginDiagnostics::Enabled()) {
-                    char note[160]; sprintf_s(note,"KillCounter: kill credited attacker=%p total=%d",killer,g_stats[killer].kills);
-                    DebugLog(note);
-                }
-                // The downing hit already counted this victim as a KO; if they
-                // died while still down it's the same event, so undo the KO to
-                // avoid double counting - but only when the same character both
-                // knocked the victim out and killed them. A finisher who never
-                // earned the KO shouldn't eat one, and a victim who recovered
-                // before dying keeps their KO as a separate survived event.
-                if (killer == it->second.koCreditor && med->isUnconcious())
-                {
-                    KillStats& ks = g_stats[killer];
-                    if (ks.kos > 0)
-                        --ks.kos;
-                }
-            }
+            CreditConfirmedDeath(victim,it->second,false);
             it = g_pendingKills.erase(it);
             continue;
         }
@@ -593,13 +577,23 @@ static void UpdateStatsWindows()
 
 // Hook the game loop: run death attribution and keep the STA lines live.
 void (*GameWorld_update_orig)(GameWorld* thisptr, float time) = NULL;
+static GameWorld* g_bridgeObservedWorld=NULL;
+static void (*GameWorld_clear_orig)(GameWorld*)=NULL;
+static void GameWorld_clear_hook(GameWorld* world)
+{
+    ResetExecutionBridge();g_bridgeObservedWorld=NULL;
+    g_pendingKills.clear();g_assassinTargets.clear();g_attributionParticipants.clear();
+    GameWorld_clear_orig(world);
+}
 void GameWorld_update_hook(GameWorld* thisptr, float time)
 {
+    if(g_bridgeObservedWorld!=thisptr){ResetExecutionBridge();g_bridgeObservedWorld=thisptr;}
+    InterlockedExchange(&g_bridgeWorldThread,static_cast<LONG>(GetCurrentThreadId()));
     if (GameWorld_update_orig != NULL)
         GameWorld_update_orig(thisptr, time);
 
-    if (g_enabled) UpdatePendingKills();
-    else { g_pendingKills.clear(); g_assassinTargets.clear(); g_attributionParticipants.clear(); }
+    if (g_enabled) { DrainExecutionQueue();UpdatePendingKills(); }
+    else { ClearExecutionQueue();g_pendingKills.clear();g_assassinTargets.clear();g_attributionParticipants.clear(); }
     UpdateStatsWindows();
 
     // Устаревшие записи о попытках оглушения - раз в несколько секунд.
@@ -636,10 +630,14 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
 __declspec(dllexport) void startPlugin()
 {
     LoadSettings();
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+    const bool destructionReady=KenshiLib::SUCCESS==KenshiLib::AddHook(
             KenshiLib::GetRealAddress(&Character::_DESTRUCTOR),
-            (void*)&Character_destroy_hook, (void**)&Character_destroy_orig))
-        ErrorLog("KillCounter: could not hook Character destructor");
+            (void*)&Character_destroy_hook,(void**)&Character_destroy_orig);
+    if(!destructionReady) ErrorLog("KillCounter: could not hook Character destructor");
+    const bool resetReady=KenshiLib::SUCCESS==KenshiLib::AddHook(
+            KenshiLib::GetRealAddress(&GameWorld::_clearAndDestroyGameWorldStuff),
+            (void*)&GameWorld_clear_hook,(void**)&GameWorld_clear_orig);
+    if(!resetReady) ErrorLog("KillCounter: could not hook world cleanup; execution bridge disabled");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
             KenshiLib::GetRealAddress(&Character::_NV_hitByMeleeAttack),
             (void*)&hitByMeleeAttack_hook,
@@ -672,13 +670,12 @@ __declspec(dllexport) void startPlugin()
     else
         PluginDiagnostics::Write("KillCounter: hooked MedicalSystem::knockout");
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
+    const bool updateReady=KenshiLib::SUCCESS==KenshiLib::AddHook(
             KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff),
-            (void*)&GameWorld_update_hook,
-            (void**)&GameWorld_update_orig))
-        ErrorLog("KillCounter: could not hook GameWorld update");
-    else
-        PluginDiagnostics::Write("KillCounter: hooked GameWorld update");
+            (void*)&GameWorld_update_hook,(void**)&GameWorld_update_orig);
+    if(!updateReady) ErrorLog("KillCounter: could not hook GameWorld update; execution bridge disabled");
+    else PluginDiagnostics::Write("KillCounter: hooked GameWorld update");
+    g_bridgeLifecycleReady=destructionReady && resetReady && updateReady;
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
             KenshiLib::GetRealAddress(&Character::_NV_serialise),

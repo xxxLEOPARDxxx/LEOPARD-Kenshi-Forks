@@ -92,6 +92,7 @@ static const std::string kFinisherAnimationName("chop down static");
 static const std::string kFinisherWeaponSlot("hands");
 static const std::string kFinisherPrimaryWeaponSection("back");
 static const std::string kFinisherSecondaryWeaponSection("hip");
+static_assert(offsetof(BountyManager, crimeExpiry) == 0x90, "Native crime timer layout");
 static const int kQueuedExecuteDistanceMinMeters = 1;
 static const int kQueuedExecuteDistanceMaxMeters = 20;
 static const int kQueuedExecuteDefaultDistanceMeters = 2;
@@ -637,6 +638,7 @@ static bool QueueExecuteAllFromNativeMenuSelection(Character* actor, RootObject*
 static bool DispatchExecuteMenuAction(Character* actor, RootObject* target, bool all, bool verboseLog);
 static bool PermanentExecuteStillValid(Character* actor, Character* target, int mode);
 static void RegisterExecutionCrime(Character* actor, Character* target, bool enemy);
+static void NotifyExecutionKillCounter(Character* actor, Character* target);
 static void TickQueuedExecuteAction(PlayerInterface* player);
 static bool TryResolvePlayerInterface(PlayerInterface** playerOut);
 static bool TryReadRootObjectPosition(RootObject* object, Ogre::Vector3* positionOut);
@@ -5073,6 +5075,8 @@ static bool DispatchExecuteTarget(
     }
 
     const bool dispatchSucceeded = directDamageDispatchSucceeded && !hasFailure;
+    if (dispatchSucceeded && targetDeadAfterFinalizeCheck)
+        NotifyExecutionKillCounter(actor, static_cast<Character*>(target));
     if (dispatchSucceeded && targetDeadAfterFinalizeCheck && killSoundEnabled)
     {
         Character* targetCharacter = static_cast<Character*>(target);
@@ -6267,6 +6271,7 @@ static bool TryAddNativeExecuteOptions(ContextMenu* menu, RootObject* target, Ch
     }
 }
 
+#include "LootScootExecuteEffects.inl"
 #include "LootScootExecuteJobs.inl"
 #include "LootScootExecuteModHubClient.inl"
 #include "LootScootExecuteModHubBridge.inl"
