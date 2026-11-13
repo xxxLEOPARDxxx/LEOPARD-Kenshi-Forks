@@ -8,12 +8,14 @@ The state label keeps its own measured width when a bounty symbol is visible.
 The icon, bounty symbol, state caption and outline use a combined width for
 positioning, including screen-edge placement. Font measurement is cached when
 the visual state/configuration changes; moving a marker does not remeasure it.
-The reported three-character label still needs an in-game visual check.
+The owner confirmed the reported three-character label is complete in game
+beside both the icon and bounty symbol on 13 November 2026.
 
 Текст состояния сохраняет свою ширину рядом со знаком награды. Общая ширина
 значка, символа и текста учитывается при размещении у края экрана. Замер шрифта
 кэшируется при смене состояния или настроек, а не при движении маркера.
-Исправление трёхсимвольной подписи ещё требует визуальной проверки в игре.
+13.11.2026 владелец подтвердил: трёхсимвольная подпись целиком видна в игре
+рядом с иконкой и знаком награды.
 
 ## Setup
 Clone normally. Shared build scripts are tracked in `tools/build-scripts` via `git subtree`, so no build-script submodule init step is required.
