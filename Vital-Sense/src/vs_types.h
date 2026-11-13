@@ -213,4 +213,6 @@ struct KoMarkerWidget
     MyGUI::TextBox* fallbackTextOutline[8];
     MyGUI::TextBox* fallbackText;
     KoMarkerVisualState visualState;
+    int textWidthPx;
+    int symbolWidthPx;
 };

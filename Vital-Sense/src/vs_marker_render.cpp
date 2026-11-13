@@ -567,6 +567,47 @@ int ResolveBountySymbolWidthPx(RuntimeStateView& state, int totalBounty)
     return width;
 }
 
+int MeasureKoMarkerTextWidth(MyGUI::TextBox* text)
+{
+    if (!text) return 0;
+    try
+    {
+        const int width = text->getTextSize().width;
+        // The font engine measures actual glyphs (including UTF-8 captions).
+        // Leave room for the shadow/outline and bound malformed font metrics.
+        if (width <= 0) return 0;
+        return (std::min)(4096, width) + 4;
+    }
+    catch (...) { return 0; }
+}
+
+void UpdateKoMarkerTextWidths(KoMarkerWidget& marker, bool showText, bool showSymbol)
+{
+    // Only called from the existing visual/config refresh, never on movement.
+    marker.textWidthPx = showText ? MeasureKoMarkerTextWidth(marker.fallbackText) : 0;
+    marker.symbolWidthPx = showSymbol ? MeasureKoMarkerTextWidth(marker.bountySymbol) : 0;
+}
+
+int ResolveKoMarkerTextWidth(const KoMarkerWidget& marker)
+{
+    // A bounty symbol must not consume the caption's previous content area.
+    return (std::max)(kKoMarkerWidthPx - (kKoMarkerHeightPx + 1), marker.textWidthPx);
+}
+
+int ResolveKoMarkerSymbolWidth(RuntimeStateView& state, const KoMarkerWidget& marker, int totalBounty)
+{
+    return (std::max)(ResolveBountySymbolWidthPx(state, totalBounty), marker.symbolWidthPx);
+}
+
+int ResolveKoMarkerWidth(RuntimeStateView& state, const KoMarkerWidget& marker, int totalBounty,
+                         bool showIcon, bool showText, bool showSymbol)
+{
+    int width = showIcon ? kKoMarkerHeightPx + 1 : 0;
+    if (showText) width += ResolveKoMarkerTextWidth(marker);
+    if (showSymbol) width += ResolveKoMarkerSymbolWidth(state, marker, totalBounty) + kKoBountySymbolGapPx;
+    return (std::max)(kKoMarkerWidthPx, width);
+}
+
 void SetKoMarkerPosition(
     RuntimeStateView& state,
     KoMarkerWidget& marker,
@@ -591,7 +632,8 @@ void SetKoMarkerPosition(
     }
 
     const bool placeSymbolBeforeIcon = showBountySymbol && showStateIcon && state.config.placeBountySymbolBeforeStateIcon;
-    const int symbolWidth = showBountySymbol ? ResolveBountySymbolWidthPx(state, totalBounty) : kKoBountySymbolMinWidthPx;
+    const int symbolWidth = showBountySymbol ? ResolveKoMarkerSymbolWidth(state, marker, totalBounty) : kKoBountySymbolMinWidthPx;
+    const int markerWidth = ResolveKoMarkerWidth(state, marker, totalBounty, showStateIcon, showStateText, showBountySymbol);
     int layoutLeft = left;
     int iconLeft = left;
     int symbolLeft = left;
@@ -599,7 +641,7 @@ void SetKoMarkerPosition(
 
     if (showBountySymbol && isBountyOnlyState && !showStateIcon && !showStateText)
     {
-        symbolLeft = left + ((kKoMarkerWidthPx - symbolWidth) / 2);
+        symbolLeft = left + ((markerWidth - symbolWidth) / 2);
         hasSymbolPlacement = true;
     }
 
@@ -689,15 +731,7 @@ void SetKoMarkerPosition(
     {
         try
         {
-            int textWidth = kKoMarkerWidthPx - (layoutLeft - left);
-            if (textWidth < 0)
-            {
-                textWidth = 0;
-            }
-            if (textWidth > kKoMarkerWidthPx)
-            {
-                textWidth = kKoMarkerWidthPx;
-            }
+            const int textWidth = ResolveKoMarkerTextWidth(marker);
             if (showStateText)
             {
                 marker.fallbackText->setCoord(layoutLeft, top, textWidth, kKoMarkerHeightPx);
@@ -1684,16 +1718,6 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
             break;
         }
 
-        int markerLeft = static_cast<int>(pixelX) - (kKoMarkerWidthPx / 2);
-        int markerTop = static_cast<int>(pixelY) - kKoMarkerYOffsetPx;
-        if (hasViewSize)
-        {
-            const int maxLeft = (viewWidth > kKoMarkerWidthPx) ? (viewWidth - kKoMarkerWidthPx) : 0;
-            const int maxTop = (viewHeight > kKoMarkerHeightPx) ? (viewHeight - kKoMarkerHeightPx) : 0;
-            markerLeft = ClampInt(markerLeft, 0, maxLeft);
-            markerTop = ClampInt(markerTop, 0, maxTop);
-        }
-
         KoMarkerWidget& marker = state.koMarkerWidgets[visibleMarkerCount];
         const bool showStateIcon = state.config.showMarkerIcons && !isBountyOnlyState;
         const bool showStateText = state.config.showMarkerText && !isBountyOnlyState;
@@ -1714,6 +1738,7 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
                 showBountySymbol))
         {
             ApplyKoMarkerVisualState(state, pluginName, marker, cached.markerState, cached.markerRelation, cached.totalBounty, showBountyGlow, showBountySymbol);
+            UpdateKoMarkerTextWidths(marker, showStateText, showBountySymbol);
             UpdateKoMarkerVisualStateCache(
                 marker,
                 state,
@@ -1735,6 +1760,16 @@ void TickKoMarkerRender(RuntimeStateView& state, const char* pluginName)
             {
                 ++gMarkerDiagVisualReuses;
             }
+        }
+        const int markerWidth = ResolveKoMarkerWidth(state, marker, cached.totalBounty, showStateIcon, showStateText, showBountySymbol);
+        int markerLeft = static_cast<int>(pixelX) - (markerWidth / 2);
+        int markerTop = static_cast<int>(pixelY) - kKoMarkerYOffsetPx;
+        if (hasViewSize)
+        {
+            const int maxLeft = (viewWidth > markerWidth) ? (viewWidth - markerWidth) : 0;
+            const int maxTop = (viewHeight > kKoMarkerHeightPx) ? (viewHeight - kKoMarkerHeightPx) : 0;
+            markerLeft = ClampInt(markerLeft, 0, maxLeft);
+            markerTop = ClampInt(markerTop, 0, maxTop);
         }
         SetKoMarkerPosition(state, marker, markerLeft, markerTop, cached.totalBounty, showStateIcon, showStateText, showBountySymbol, isBountyOnlyState);
         SetKoMarkerVisible(state, marker, true, showBountyGlow, showStateIcon, showStateText, showBountySymbol);
