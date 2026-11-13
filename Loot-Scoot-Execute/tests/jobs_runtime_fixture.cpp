@@ -74,8 +74,10 @@ static bool CanExecuteFromNativeMenuSelection(Character*,RootObject* root,CanExe
  return !t->player&&t->down&&!t->dead&&(t->enemy||g_config.ignoreExecuteAllianceCheck);
 }
 static bool CanActOnExecuteOrder(Character* c){return c&&!c->dead&&!c->down&&!c->carried;}
-static bool ShouldLogExecuteDebug(){return false;}
-static void PluginLog(const char*){}
+static bool debugEnabled=false;
+static std::vector<std::string> debugLogs;
+static bool ShouldLogExecuteDebug(){return debugEnabled;}
+static void PluginLog(const char* message){debugLogs.push_back(message);}
 static bool DebounceWindowElapsed(DWORD now,DWORD then,DWORD interval){return DWORD(now-then)>=interval;}
 static bool TryReadRootObjectPosition(RootObject* r,Ogre::Vector3* p){if(!r)return false;*p=r->position;return true;}
 static bool TryGetRootObjectTypeForExecutePredicate(RootObject*,itemType* t){*t=CHARACTER;return true;}
@@ -190,5 +192,29 @@ int main(){
  CHECK(metadata[0]->key==OWN_DEFEATS&&metadata[1]->key==ALL_ENEMIES);
  CHECK(metadata[0]->hasAction&&metadata[0]->_resultsAlwaysFalse&&!metadata[0]->fixed);
  CHECK(metadata[0]->caption=="Execute own defeats"&&metadata[1]->caption=="Execute enemies");
+ // Diagnostics exercise extracted production hooks and scheduler boundaries.
+ // Disabled diagnostics perform no output; enabling starts a bounded window.
+ metadata[0]=&ownData;metadata[1]=&allData;c.tasks.permajobs.clear();c.tasks.permajobs.push(&all);
+ Clean(c);ObserveActor(&c);Tick();CHECK(debugLogs.empty());
+ debugEnabled=true;testNow+=250;Tick();CHECK(debugLogs.empty());
+ CHECK(ObserveActor(&c));
+ CHECK(Score(&all,&c.ai)==0.73f);
+ c.body.currentAction=&all;BlankAction(&all,&c.body);c.tasks.manual=true;Tick();CHECK(queued==0);
+ c.tasks.manual=false;c.combat=true;testNow+=250;Tick();c.combat=false;
+ c.tasks.enabled=false;testNow+=250;Tick();c.tasks.enabled=true;
+ c.tasks.manual=true;testNow+=250;Tick();c.tasks.manual=false;
+ testNow+=250;Tick();CHECK(queries>0);
+ // Offer transitions may log promptly, summaries remain at most once/2s.
+ unsigned summaries=0;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_scheduler")!=std::string::npos)++summaries;
+ CHECK(summaries==0);testNow+=1000;Tick();
+ summaries=0;std::string summary;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_scheduler")!=std::string::npos){++summaries;summary=debugLogs[i];}
+ CHECK(summaries==1);CHECK(summary.find("score=1")!=std::string::npos);CHECK(summary.find("blank=1")!=std::string::npos);
+ CHECK(summary.find("reject_not_ready=1")!=std::string::npos);CHECK(summary.find("combat=2")!=std::string::npos);
+ CHECK(summary.find("jobs_off=2")!=std::string::npos);CHECK(summary.find("manual=3")!=std::string::npos);
+ CHECK(summary.find("observed=1")!=std::string::npos);CHECK(summary.find("query=2")!=std::string::npos);
+ CHECK(summary.find("candidates=2")!=std::string::npos);CHECK(summary.find("offers=2")!=std::string::npos);
+ unsigned transitions=0;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_offer")!=std::string::npos)++transitions;CHECK(transitions==1);
+ for(unsigned i=0;i<100;++i)Tick();summaries=0;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_scheduler")!=std::string::npos)++summaries;CHECK(summaries==1);
+ const size_t beforeDisabled=debugLogs.size();debugEnabled=false;testNow+=3000;Tick();Score(&all,&c.ai);CHECK(debugLogs.size()==beforeDisabled);
  printf("%d extracted jobs runtime checks passed\n",checks);return 0;
 }

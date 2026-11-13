@@ -39,6 +39,88 @@ static DWORD lastScan = 0;
 // scratch buffer for the plugin lifetime, rather than allocating on each scan.
 static lektor<RootObject*> scanScratch;
 static bool ticking = false;
+// Fixed-size counters only in hooks. Formatting and output stay on Tick's
+// thread, outside the actor lock, and stop completely with detailed logging.
+enum DebugCounter
+{
+    DBG_TICK, DBG_LIVE, DBG_OBSERVED, DBG_SLOT_FULL, DBG_PRUNED, DBG_READY,
+    DBG_NO_STATE, DBG_NO_ACTOR, DBG_NOT_PLAYER, DBG_CANNOT_ACT, DBG_RAGDOLL,
+    DBG_COMBAT, DBG_NO_ORDERS, DBG_JOBS_OFF, DBG_MANUAL, DBG_NO_ROW, DBG_MODE_OFF,
+    DBG_POSITION_FAILED, DBG_QUERY, DBG_QUERY_FAILED, DBG_CANDIDATES,
+    DBG_PREDICATE_REJECTED, DBG_POLICY_REJECTED, DBG_ALLOWED, DBG_OFFERS, DBG_SCORE,
+    DBG_SCORE_AVAILABLE, DBG_SCORE_BLOCKED, DBG_BLANK, DBG_BLANK_ACCEPTED,
+    DBG_BLANK_BLOCKED, DBG_BLANK_NO_OFFER, DBG_REQUEST, DBG_DISPATCH,
+    DBG_REJECT_STALE, DBG_REJECT_BUSY, DBG_REJECT_NOT_READY, DBG_REJECT_TARGET,
+    DBG_REJECT_CLAIMED, DBG_REJECT_QUEUE, DBG_COUNT
+};
+static volatile LONG debugCounters[DBG_COUNT] = {0};
+static DWORD debugSummaryStamp = 0;
+static bool debugSummaryActive = false;
+static void DebugCount(DebugCounter counter, LONG amount = 1)
+{
+    if (ShouldLogExecuteDebug())
+    {
+        InterlockedExchangeAdd(&debugCounters[counter], amount);
+    }
+}
+static void DebugSummary(DWORD now, bool paused)
+{
+    if (!ShouldLogExecuteDebug())
+    {
+        debugSummaryActive = false;
+        return;
+    }
+    if (!debugSummaryActive)
+    {
+        debugSummaryActive = true;
+        debugSummaryStamp = now;
+        for (unsigned index = 0; index < DBG_COUNT; ++index)
+        {
+            InterlockedExchange(&debugCounters[index], 0);
+        }
+        return;
+    }
+    if (!DebounceWindowElapsed(now, debugSummaryStamp, 2000))
+    {
+        return;
+    }
+    const DWORD elapsed = now - debugSummaryStamp;
+    debugSummaryStamp = now;
+    LONG counts[DBG_COUNT];
+    for (unsigned index = 0; index < DBG_COUNT; ++index)
+    {
+        counts[index] = InterlockedExchange(&debugCounters[index], 0);
+    }
+    unsigned slots = 0, ownOffers = 0, enemyOffers = 0;
+    AcquireSRWLockShared(&lock);
+    for (unsigned index = 0; index < ACTOR_CAP; ++index)
+    {
+        slots += actors[index].used ? 1 : 0;
+        ownOffers += actors[index].used && actors[index].offered[0] ? 1 : 0;
+        enemyOffers += actors[index].used && actors[index].offered[1] ? 1 : 0;
+    }
+    ReleaseSRWLockShared(&lock);
+    static const char* names[DBG_COUNT] = {
+        "tick", "live_ticks", "observed", "slot_full", "pruned", "actor_ready",
+        "no_state", "no_actor", "not_player", "cannot_act", "ragdoll",
+        "combat", "no_orders", "jobs_off", "manual", "no_row", "mode_off",
+        "position_failed", "query", "query_failed", "candidates",
+        "predicate_rejected", "policy_rejected", "allowed", "offers", "score",
+        "score_available", "score_blocked", "blank", "blank_accepted",
+        "blank_blocked", "blank_no_offer", "request", "dispatch",
+        "reject_stale", "reject_busy", "reject_not_ready", "reject_target",
+        "reject_claimed", "reject_queue"};
+    std::stringstream log;
+    log << "Loot-Scoot-Execute DEBUG: permanent_job_scheduler elapsed_ms=" << elapsed
+        << " ready=" << ready << " live=" << live << " paused=" << paused
+        << " enabled=" << g_effectiveEnableExecuteAction << " slots=" << slots
+        << " own_offers=" << ownOffers << " enemy_offers=" << enemyOffers;
+    for (unsigned index = 0; index < DBG_COUNT; ++index)
+    {
+        log << " " << names[index] << "=" << counts[index];
+    }
+    PluginLog(log.str().c_str());
+}
 static const std::string attributionKey("LSE_confirmed_defeat_by");
 static Identity Id(const hand& handle)
 {
@@ -126,6 +208,7 @@ static bool ObserveActor(Character* character)
         actors[actorIndex].pointer = character;
     }
     ReleaseSRWLockExclusive(&lock);
+    DebugCount(actorIndex >= 0 ? DBG_OBSERVED : DBG_SLOT_FULL);
     return actorIndex >= 0;
 }
 static bool Combat(Character* character)
@@ -136,6 +219,35 @@ static bool Combat(Character* character)
 static bool ActorReady(Character* character, int mode)
 {
     OrdersReceiver* orders = character ? character->getOrdersReciever() : 0;
+    if (ShouldLogExecuteDebug())
+    {
+        // Detailed mode reports all admission flags, not just the first false
+        // operand. These native queries never run under our publication lock.
+        const bool state = ready && live;
+        const bool player = character && character->isPlayerCharacter();
+        const bool canAct = character && CanActOnExecuteOrder(character);
+        const bool ragdoll = character && character->isRagdoll();
+        const bool combat = character && Combat(character);
+        const bool jobs = orders && orders->isJobsEnabled();
+        const bool manual = orders && orders->hasPlayerOrders();
+        const bool row = character && HasRow(character, mode);
+        const bool enabled = mode != ALL_ENEMIES || g_config.enableExecuteAll;
+        if (!state) DebugCount(DBG_NO_STATE);
+        if (!character) DebugCount(DBG_NO_ACTOR);
+        if (character && !player) DebugCount(DBG_NOT_PLAYER);
+        if (character && !canAct) DebugCount(DBG_CANNOT_ACT);
+        if (ragdoll) DebugCount(DBG_RAGDOLL);
+        if (combat) DebugCount(DBG_COMBAT);
+        if (!orders) DebugCount(DBG_NO_ORDERS);
+        if (orders && !jobs) DebugCount(DBG_JOBS_OFF);
+        if (manual) DebugCount(DBG_MANUAL);
+        if (character && !row) DebugCount(DBG_NO_ROW);
+        if (!enabled) DebugCount(DBG_MODE_OFF);
+        const bool accepted = state && player && canAct && !ragdoll && !combat &&
+                              orders && jobs && !manual && row && enabled;
+        if (accepted) DebugCount(DBG_READY);
+        return accepted;
+    }
     return ready && live && character && character->isPlayerCharacter() && CanActOnExecuteOrder(character) &&
            !character->isRagdoll() && !Combat(character) && orders && orders->isJobsEnabled() &&
            !orders->hasPlayerOrders() && HasRow(character, mode) &&
@@ -162,9 +274,12 @@ static bool Allowed(Character* character, Character* target, int mode)
     const bool credited = mode == OWN_DEFEATS && Owns(character, target);
     if (!CanExecuteFromNativeMenuSelection(character, target, &diagnostics, false))
     {
+        DebugCount(DBG_PREDICATE_REJECTED);
         return false;
     }
-    return TargetAllowed(mode, true, diagnostics.targetIsEnemy, credited);
+    const bool result = TargetAllowed(mode, true, diagnostics.targetIsEnemy, credited);
+    if (!result) DebugCount(DBG_POLICY_REJECTED);
+    return result;
 }
 static bool Claimed(Character* character, Character* target)
 {
@@ -212,9 +327,11 @@ static void BlankAction(Tasker* task, CharBody* body)
         blankActionOriginal(task, body);
         return;
     }
+    DebugCount(DBG_BLANK);
     Character* character = body ? body->character : 0;
     if (!ready || !live || !character || body->currentAction != task || Combat(character))
     {
+        DebugCount(DBG_BLANK_BLOCKED);
         if (body && body->currentAction == task)
         {
             body->notifyBodyTaskComplete();
@@ -240,6 +357,7 @@ static void BlankAction(Tasker* task, CharBody* body)
         accepted = true;
     }
     ReleaseSRWLockExclusive(&lock);
+    DebugCount(accepted ? DBG_BLANK_ACCEPTED : DBG_BLANK_NO_OFFER);
     if (!accepted)
     {
         body->notifyBodyTaskComplete();
@@ -252,9 +370,11 @@ static float Score(Tasker* task, AI* ai)
     {
         return scoreOriginal(task, ai);
     }
+    DebugCount(DBG_SCORE);
     Character* character = ai ? ai->getCharacter() : 0;
     if (!ready || !live || !character || Combat(character))
     {
+        DebugCount(DBG_SCORE_BLOCKED);
         return 0.0f;
     }
     const Identity identity = Id(character->getHandle());
@@ -267,6 +387,7 @@ static float Score(Tasker* task, AI* ai)
                 actors[actorIndex].offered[modeIndex] &&
                 static_cast<LONG>(actors[actorIndex].expires[modeIndex] - now) > 0;
     ReleaseSRWLockShared(&lock);
+    if (available) DebugCount(DBG_SCORE_AVAILABLE);
     // Keep the native score/weight and permanent row ordering intact.
     return available ? scoreOriginal(task, ai) : 0.0f;
 }
@@ -290,6 +411,9 @@ static void Tick()
     const DWORD now = GetTickCount();
     const bool paused = !ou || ou->isPaused();
     InterlockedExchange(&live, ready && g_effectiveEnableExecuteAction && !paused ? 1 : 0);
+    DebugCount(DBG_TICK);
+    if (live) DebugCount(DBG_LIVE);
+    DebugSummary(now, paused);
     if (!ready)
     {
         return;
@@ -326,6 +450,7 @@ static void Tick()
     for (unsigned slotIndex = 0; slotIndex < requestTotal; ++slotIndex)
     {
         const Request& request = requests[slotIndex];
+        DebugCount(DBG_REQUEST);
         const int mode = request.mode;
         Character* character = Handle(request.actor).getCharacter();
         Character* victim = Handle(request.target).getCharacter();
@@ -333,6 +458,7 @@ static void Tick()
         if (!character || !body || body->currentAction != request.task || !Ours(body->currentAction) ||
             Type(body->currentAction) != mode)
         {
+            DebugCount(DBG_REJECT_STALE);
             continue;
         }
         bool busy = false;
@@ -344,10 +470,16 @@ static void Tick()
                 busy = true;
             }
         }
-        if (!busy && ActorReady(character, mode) && Allowed(character, victim, mode) &&
-            !Claimed(character, victim) &&
-            QueueExecuteFromNativeMenuSelection(character, victim, ShouldLogExecuteDebug()))
+        DebugCounter rejection = DBG_COUNT;
+        if (busy) rejection = DBG_REJECT_BUSY;
+        else if (!ActorReady(character, mode)) rejection = DBG_REJECT_NOT_READY;
+        else if (!Allowed(character, victim, mode)) rejection = DBG_REJECT_TARGET;
+        else if (Claimed(character, victim)) rejection = DBG_REJECT_CLAIMED;
+        else if (!QueueExecuteFromNativeMenuSelection(character, victim, ShouldLogExecuteDebug()))
+            rejection = DBG_REJECT_QUEUE;
+        if (rejection == DBG_COUNT)
         {
+            DebugCount(DBG_DISPATCH);
             g_executeJobs[g_executeJobIndex].permanentMode = mode;
             if (ShouldLogExecuteDebug())
             {
@@ -358,9 +490,13 @@ static void Tick()
                 PluginLog(log.str().c_str());
             }
         }
-        else if (body->currentAction == request.task)
+        else
         {
-            body->notifyBodyTaskComplete();
+            DebugCount(rejection);
+            if (body->currentAction == request.task)
+            {
+                body->notifyBodyTaskComplete();
+            }
         }
     }
     if (!live || !DebounceWindowElapsed(now, lastScan, 250))
@@ -390,6 +526,7 @@ static void Tick()
     Character* character = Handle(actor).getCharacter();
     if (!character || (!HasRow(character, OWN_DEFEATS) && !HasRow(character, ALL_ENEMIES)))
     {
+        DebugCount(DBG_PRUNED);
         AcquireSRWLockExclusive(&lock);
         if (actors[selectedSlotIndex].request)
         {
@@ -408,15 +545,18 @@ static void Tick()
         Ogre::Vector3 actorPosition;
         if (TryReadRootObjectPosition(character, &actorPosition))
         {
-            TryGetCharactersWithinSphere(&scanScratch,
-                                         actorPosition,
-                                         ComputeExecuteAllRadiusUnits(),
-                                         character,
-                                         kExecuteAllWorldQueryMaxTargets);
+            DebugCount(DBG_QUERY);
+            const bool querySucceeded = TryGetCharactersWithinSphere(&scanScratch,
+                                                                     actorPosition,
+                                                                     ComputeExecuteAllRadiusUnits(),
+                                                                     character,
+                                                                     kExecuteAllWorldQueryMaxTargets);
+            if (!querySucceeded) DebugCount(DBG_QUERY_FAILED);
             for (unsigned scanOffset = 0;
                  scanOffset < scanScratch.size() && scanOffset < kExecuteAllWorldQueryMaxTargets;
                  ++scanOffset)
             {
+                DebugCount(DBG_CANDIDATES);
                 RootObject* root = scanScratch[scanOffset];
                 itemType type;
                 if (!root || !TryGetRootObjectTypeForExecutePredicate(root, &type) ||
@@ -441,6 +581,7 @@ static void Tick()
                     if (modes[modeIndex] && distanceSquared < distances[modeIndex] &&
                         Allowed(character, candidate, modeIndex ? ALL_ENEMIES : OWN_DEFEATS))
                     {
+                        DebugCount(DBG_ALLOWED);
                         best[modeIndex] = Id(candidate->getHandle());
                         found[modeIndex] = true;
                         distances[modeIndex] = distanceSquared;
@@ -449,14 +590,22 @@ static void Tick()
             }
             scanScratch.clear();
         }
+        else
+        {
+            DebugCount(DBG_POSITION_FAILED);
+        }
     }
     bool changed = false;
+    bool modeChanged[2] = {false, false};
+    bool previouslyOffered[2] = {false, false};
     AcquireSRWLockExclusive(&lock);
     ActorSlot& slot = actors[selectedSlotIndex];
     for (int modeIndex = 0; modeIndex < 2; ++modeIndex)
     {
-        changed = changed || slot.offered[modeIndex] != found[modeIndex] ||
-                  (found[modeIndex] && !Same(slot.offer[modeIndex], best[modeIndex]));
+        previouslyOffered[modeIndex] = slot.offered[modeIndex];
+        modeChanged[modeIndex] = slot.offered[modeIndex] != found[modeIndex] ||
+                                (found[modeIndex] && !Same(slot.offer[modeIndex], best[modeIndex]));
+        changed = changed || modeChanged[modeIndex];
         slot.offered[modeIndex] = found[modeIndex];
         if (found[modeIndex])
         {
@@ -465,6 +614,27 @@ static void Tick()
         slot.expires[modeIndex] = now + 20000;
     }
     ReleaseSRWLockExclusive(&lock);
+    if (ShouldLogExecuteDebug())
+    {
+        for (int modeIndex = 0; modeIndex < 2; ++modeIndex)
+        {
+            if (found[modeIndex]) DebugCount(DBG_OFFERS);
+            if (modeChanged[modeIndex])
+            {
+                std::stringstream log;
+                log << "Loot-Scoot-Execute DEBUG: permanent_job_offer mode="
+                    << (modeIndex ? ALL_ENEMIES : OWN_DEFEATS)
+                    << " actor=" << actor.word[3] << "/" << actor.word[4]
+                    << " previous=" << previouslyOffered[modeIndex] << " available=" << found[modeIndex];
+                if (found[modeIndex])
+                {
+                    log << " target=" << best[modeIndex].word[3] << "/" << best[modeIndex].word[4]
+                        << " distance_sq=" << distances[modeIndex];
+                }
+                PluginLog(log.str().c_str());
+            }
+        }
+    }
     if (changed)
     {
         OrdersReceiver* orders = character->getOrdersReciever();
