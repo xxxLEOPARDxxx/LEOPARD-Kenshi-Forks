@@ -584,8 +584,8 @@ static const emc::ModHubClientTableRegistrationV1* GetModHubTableRegistration()
 
     static const EMC_IntSettingDefV1 kExecuteAllRadiusSettingDef = {
         kModHubSettingExecuteAllRadiusId,
-        "Execute All radius",
-        "Search radius for Execute All around the selected target (default 10, max 200)",
+        "Execute All search radius, m",
+        "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance.",
         &g_modHubState,
         kExecuteAllRadiusMinUnits,
         kExecuteAllRadiusMaxUnits,

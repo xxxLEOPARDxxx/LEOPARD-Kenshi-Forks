@@ -1,4 +1,10 @@
 // ModConfigMenu: подписи настроек идут через Tr - перевод в locale/<язык>.
+// TaskData contains native 24-byte AI member pointers. Declare it while AI is
+// incomplete, before headers that would narrow MSVC's PMF representation.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <kenshi/Tasker.h>
 #define KLOC_DOMAIN "loot_scoot_execute"
 #include <Localization.h>
 
@@ -2630,17 +2636,21 @@ static float ComputeQueuedExecuteDistanceMeters()
 
 static float ComputeExecuteAllRadiusUnits()
 {
+    // Keep the legacy configuration key, but expose the search radius in
+    // physical metres, as Better Looting does. Native positions use 10 units/m.
+    // Strike/contact distances are deliberately independent of this search.
+    const float nativeUnitsPerMetre = 10.0f;
     if (g_config.executeAllRadiusUnits < kExecuteAllRadiusMinUnits)
     {
-        return static_cast<float>(kExecuteAllRadiusMinUnits);
+        return static_cast<float>(kExecuteAllRadiusMinUnits) * nativeUnitsPerMetre;
     }
 
     if (g_config.executeAllRadiusUnits > kExecuteAllRadiusMaxUnits)
     {
-        return static_cast<float>(kExecuteAllRadiusMaxUnits);
+        return static_cast<float>(kExecuteAllRadiusMaxUnits) * nativeUnitsPerMetre;
     }
 
-    return static_cast<float>(g_config.executeAllRadiusUnits);
+    return static_cast<float>(g_config.executeAllRadiusUnits) * nativeUnitsPerMetre;
 }
 
 static bool IsExecuteAllEnabled()
@@ -4192,6 +4202,27 @@ static size_t CollectExecuteAllTargets(
         return 0;
     }
 
+    // Native lektor does not own/free its backing allocation. Reuse one
+    // query buffer, retaining no engine objects between calls. Its capacity
+    // follows the largest local query; the native density threshold is not a
+    // hard result limit. Acquire
+    // before native callbacks/output writes and before its first construction:
+    // VC10 local-static initialization is not thread-safe.
+    static volatile LONG nearbyBusy = 0;
+    struct NearbyScratchGuard
+    {
+        volatile LONG* busy;
+        lektor<RootObject*>* targets;
+        bool acquired;
+        NearbyScratchGuard(volatile LONG* gate) : busy(gate), targets(0),
+            acquired(InterlockedCompareExchange(gate, 1, 0) == 0) {}
+        ~NearbyScratchGuard()
+        {
+            if (targets) targets->clear();
+            if (acquired) InterlockedExchange(busy, 0);
+        }
+    } scratchGuard(&nearbyBusy);
+
     for (size_t i = 0; i < maxTargets; ++i)
     {
         targetHandlesOut[i].setNull();
@@ -4215,11 +4246,18 @@ static size_t CollectExecuteAllTargets(
         return 0;
     }
 
+    // Nested/concurrent callers keep their validated primary target only.
+    if (!scratchGuard.acquired)
+    {
+        return targetCount;
+    }
     const float radiusUnits = ComputeExecuteAllRadiusUnits();
     Ogre::Vector3 targetPos;
     if (ou && TryReadRootObjectPosition(target, &targetPos))
     {
-        lektor<RootObject*> nearbyTargets;
+        static lektor<RootObject*> nearbyTargets;
+        scratchGuard.targets = &nearbyTargets;
+        nearbyTargets.clear();
         (void)TryGetCharactersWithinSphere(
             &nearbyTargets,
             targetPos,

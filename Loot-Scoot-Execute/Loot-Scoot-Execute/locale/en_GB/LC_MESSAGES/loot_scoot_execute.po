@@ -44,11 +44,11 @@ msgstr "Execute distance"
 msgid "Maximum strike distance from 1 to 20. Default is 2."
 msgstr "Maximum strike distance from 1 to 20. Default is 2."
 
-msgid "Execute All radius"
-msgstr "Execute All radius"
+msgid "Execute All search radius, m"
+msgstr "Execute All search radius, m"
 
-msgid "Search radius for Execute All around the selected target (default 10, max 200)"
-msgstr "How far around the target Execute All looks for downed enemies. Default 10"
+msgid "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
+msgstr "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
 
 msgid "Execute All participants"
 msgstr "Execute All participants"

@@ -26,6 +26,11 @@ player orders, and recheck eligibility before the strike. Remove their Jobs rows
 to stop them. Existing work rows are preserved. Jobs and confirmed knockout
 ownership survive native save/load; a recovered target loses its old ownership.
 
+The search radius is **1-200 metres**, default 10, matching Better Looting's
+distance scale. One-time Execute All searches around the selected target;
+permanent work searches around its executor. This does not increase the strike
+distance: the executor still approaches the target before the finisher.
+
 Executing a non-hostile target when the alliance-check setting allows it now
 registers murder on the executor. Native witnesses, guards, faction loyalty,
 bounties and betrayal determine the response; unseen NPCs are not forced hostile.
@@ -41,6 +46,11 @@ bounties and betrayal determine the response; unseen NPCs are not forced hostile
 прямым приказам и сохраняются вместе с подтверждённой меткой нокаута. Чтобы
 отключить работу, удалите её строку. Остальные работы сохраняются.
 
+Радиус поиска задаётся в метрах: **1-200 м**, по умолчанию 10 м, в том же
+масштабе расстояний, что Better Looting. Разовый приказ ищет вокруг выбранной
+цели, постоянная работа - вокруг исполнителя. Радиус не увеличивает дистанцию
+удара: перед добиванием персонаж по-прежнему подходит к цели.
+
 Намеренное добивание нейтрала или союзника при разрешающей настройке теперь
 заявляет штатное преступление «Убийство» на исполнителя. Реакцию увидевших это
 стражников и сторонников жертвы определяет игра, включая предательство и награду
@@ -55,7 +65,13 @@ bounded temporary-order/finisher queue on the main thread. The native chooser
 owns priority; a cached candidate alone never starts an execution.
 
 At most 50 opted-in loaded actors are scheduled. One retained local-query buffer
-is reused, with at most 128 returned candidates and one query per 250 ms globally.
+is reused, with at most 128 candidates examined and one query per 250 ms globally.
+The game's query density parameters are not hard result limits: native spatial
+search can return more characters, and a larger physical radius can cost more
+CPU time. The buffer retains its largest local-query allocation for reuse.
+One-time Execute All and its hover preview also reuse one protected buffer,
+instead of losing an allocation after every query. Nested/concurrent collection
+falls back to its validated primary target without touching that shared buffer.
 At 50 actors a full scan round can take **12.5 seconds** (16 actors: 4 seconds),
 plus native job scheduling. Offers expire after 20 seconds and are revalidated at
 handoff and contact. There is no per-frame world traversal. The fixed knockout
@@ -155,7 +171,7 @@ Supported keys:
 - `ignore_execute_alliance_check` (bool, default `false`; allows execute on incapacitated non-hostiles and allies, but still blocks player characters)
 - `drop_carried_corpse_before_execute` (bool, default `true`). Put down a dead body before approaching an execution target. The setting takes effect immediately in MCM.
 - `execute_distance_units` (int, default `2`; contact distance before striking, limited to `1..20` in game; legacy `execute_distance_meters` is still accepted)
-- `execute_all_radius_units` (int, default `10`; search radius used by `Execute All` around the selected target, clamped to `1..200`)
+- `execute_all_radius_units` (legacy key retained; integer physical metres, default `10`, clamped to `1..200`; one-time search is centered on the selected target, permanent work on its executor). Before the 13 November correction this value was incorrectly used as native world units, giving a radius ten times smaller. Existing numeric preferences are retained and now mean metres; a value of 200 now searches 200 m rather than 20 m. Strike/contact settings are independent and unchanged.
 - `execute_all_max_actors` (int, default `16`; up to `50` selected characters per `Execute All` order)
 - `execute_button_width` (int, default `310`; pixel width for the Execute button panel)
 - `execute_button_height` (int, default `56`; pixel height for the Execute button panel)

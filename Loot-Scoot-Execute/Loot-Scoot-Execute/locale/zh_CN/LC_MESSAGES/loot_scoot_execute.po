@@ -44,11 +44,11 @@ msgstr "处决距离"
 msgid "Maximum strike distance from 1 to 20. Default is 2."
 msgstr "出手的最大距离为 1 至 20，默认为 2。"
 
-msgid "Execute All radius"
-msgstr "全部处决半径"
+msgid "Execute All search radius, m"
+msgstr "处决搜索半径（米）"
 
-msgid "Search radius for Execute All around the selected target (default 10, max 200)"
-msgstr "全部处决在目标周围搜索倒地敌人的范围。默认 10"
+msgid "Search radius in metres: around the selected target for one-time orders, around the worker for permanent jobs. Default 10, maximum 200. Does not increase strike distance."
+msgstr "搜索半径以米为单位：一次性命令以选中目标为中心，长期工作以执行者为中心。默认10，最大200。不增加攻击距离。"
 
 msgid "Execute All participants"
 msgstr "全部处决人数上限"

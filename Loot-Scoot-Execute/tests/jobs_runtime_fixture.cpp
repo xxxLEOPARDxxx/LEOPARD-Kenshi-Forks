@@ -6,6 +6,8 @@
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cstring>
+#include <deque>
 #include "LootScootExecuteJobsPolicy.h"
 typedef int TaskType;
 enum itemType { CHARACTER=1, STATS=25 };
@@ -36,12 +38,16 @@ template<class T> struct lektor {
 };
 struct RootObject {Ogre::Vector3 position;virtual ~RootObject(){}};
 enum PermajobType {NOT_A_PERMAJOB,PERMAJOB_NORMAL};
-struct TaskData {TaskType key;bool hasAction,_resultsAlwaysFalse;bool fixed;std::string caption;TaskData(TaskType n=0):key(n),hasAction(false),_resultsAlwaysFalse(false),fixed(true){}
- void setPermaJob(PermajobType,bool f,TaskType,TaskType){fixed=f;}};
-struct Tasker {TaskData* taskData;hand subject;Tasker(TaskData* d=0):taskData(d){}};
+struct TaskData {TaskType key;bool hasAction,_resultsAlwaysFalse;bool fixed,permaJob_FixedTarget,requirementsAlwaysFalse,needsTarget;PermajobType permaJob;int numRequirements,numResults;void* scoreFunction;std::string caption;
+ TaskData(TaskType n=0):key(n),hasAction(false),_resultsAlwaysFalse(false),fixed(true),permaJob_FixedTarget(true),requirementsAlwaysFalse(false),needsTarget(false),permaJob(NOT_A_PERMAJOB),numRequirements(0),numResults(0),scoreFunction(0){}
+ void setPermaJob(PermajobType p,bool f,TaskType,TaskType){fixed=permaJob_FixedTarget=f;permaJob=p;}};
+struct Tasker {TaskData* taskData;hand subject;int priority;float weight;Tasker(TaskData* d=0):taskData(d),priority(2),weight(1){}};
+struct TaskMatch {TaskData* taskData;TaskMatch():taskData(0){}};
 struct OrdersReceiver {
  lektor<Tasker*> permajobs;bool enabled,manual;unsigned updates;
- OrdersReceiver():enabled(true),manual(false),updates(0){}
+ TaskMatch currentGoal;float currentGoalScore;int currentGoalPriority;struct {std::deque<Tasker*> list;}orders;
+ OrdersReceiver():enabled(true),manual(false),updates(0),currentGoalScore(0),currentGoalPriority(0){}
+ const TaskMatch& getCurrentGoal(){return currentGoal;}Tasker* getFirstOrder(){return orders.list.empty()?0:orders.list.front();}
  bool isJobsEnabled()const{return enabled;}bool hasPlayerOrders()const{return manual;}
  void setNeedGOAP(){++updates;}
 };
@@ -105,6 +111,10 @@ static const char* Tr(const char* x){return x;}static unsigned errors=0;static v
 using namespace lse_jobs;using namespace lse_jobs_runtime;
 static float NativeScore(Tasker*,AI*){++forwardedScores;return 0.73f;}
 static void NativeBlank(Tasker*,CharBody*){++forwardedActions;}
+static float nativeGoapResult=0.5f;
+static float NativeGoap(AITaskSytem*,Tasker*,bool,bool){return nativeGoapResult;}
+static bool nativeSetResult=true;
+static bool NativeSet(CharBody* body,Tasker* task){if(nativeSetResult)body->currentAction=task;return nativeSetResult;}
 static void NativeMedical(MedicalSystem* m,float){if(m->armed)m->me->down=true;}
 static void NativeKnockout(MedicalSystem* m,float){m->armed=true;}
 static HitMaterialType NativeMelee(Character* v,CutDirection,Damages& damage,Character*,CombatTechniqueData*,int){if(damage.ko)v->down=true;return HIT_FLESH;}
@@ -198,6 +208,9 @@ int main(){
  Clean(c);ObserveActor(&c);Tick();CHECK(debugLogs.empty());
  debugEnabled=true;testNow+=250;Tick();CHECK(debugLogs.empty());
  CHECK(ObserveActor(&c));
+ runGoapOriginal=NativeGoap;setActionOriginal=NativeSet;
+ CHECK(RunGoap(&c.tasks,&all,true,false)==0.5f);nativeGoapResult=0;CHECK(RunGoap(&c.tasks,&all,true,false)==0);
+ CHECK(SetAction(&c.body,&all));nativeSetResult=false;CHECK(!SetAction(&c.body,&all));nativeSetResult=true;
  CHECK(Score(&all,&c.ai)==0.73f);
  c.body.currentAction=&all;BlankAction(&all,&c.body);c.tasks.manual=true;Tick();CHECK(queued==0);
  c.tasks.manual=false;c.combat=true;testNow+=250;Tick();c.combat=false;
@@ -213,6 +226,10 @@ int main(){
  CHECK(summary.find("jobs_off=2")!=std::string::npos);CHECK(summary.find("manual=3")!=std::string::npos);
  CHECK(summary.find("observed=1")!=std::string::npos);CHECK(summary.find("query=2")!=std::string::npos);
  CHECK(summary.find("candidates=2")!=std::string::npos);CHECK(summary.find("offers=2")!=std::string::npos);
+ CHECK(summary.find("score_positive=1")!=std::string::npos);CHECK(summary.find("last_score=0.73")!=std::string::npos);
+ CHECK(summary.find("goap=2")!=std::string::npos);CHECK(summary.find("goap_positive=1")!=std::string::npos);CHECK(summary.find("goap_failed=1")!=std::string::npos);
+ CHECK(summary.find("set_action=2")!=std::string::npos);CHECK(summary.find("set_action_accepted=1")!=std::string::npos);
+ CHECK(summary.find("mode1=[key:295,action:")!=std::string::npos);CHECK(summary.find(",row:0,priority:2,weight:1]")!=std::string::npos);
  unsigned transitions=0;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_offer")!=std::string::npos)++transitions;CHECK(transitions==1);
  for(unsigned i=0;i<100;++i)Tick();summaries=0;for(unsigned i=0;i<debugLogs.size();++i)if(debugLogs[i].find("permanent_job_scheduler")!=std::string::npos)++summaries;CHECK(summaries==1);
  const size_t beforeDisabled=debugLogs.size();debugEnabled=false;testNow+=3000;Tick();Score(&all,&c.ai);CHECK(debugLogs.size()==beforeDisabled);

@@ -1,5 +1,17 @@
 // Native saved jobs. The native GOAP chooser owns job priority; only a selected
 // Task_Blank action can request the existing main-thread execution queue.
+#include <stddef.h>
+// These are the real game ABI, not the SDK's comments. Including AI before
+// Tasker narrows MSVC's PMF to 16 bytes and moves hasAction to 0x12C, causing
+// native GOAP to see an actionless goal despite valid offers and scores.
+static_assert(sizeof(float (AI::*)(const hand&, const Ogre::Vector3&)) == 24, "Native AI score PMF ABI");
+static_assert(sizeof(TaskData) == 0x178, "Native TaskData size");
+static_assert(offsetof(TaskData, scoreFunction) == 0x108, "Native TaskData score layout");
+static_assert(offsetof(TaskData, justDoOneTarget) == 0x120, "Native TaskData target layout");
+static_assert(offsetof(TaskData, subTask) == 0x128, "Native TaskData subtask layout");
+static_assert(offsetof(TaskData, hasAction) == 0x134, "Native TaskData action layout");
+static_assert(offsetof(TaskData, _findTarget) == 0x160, "Native TaskData finder layout");
+static_assert(sizeof(Tasker) == 0x78 && offsetof(Tasker, taskData) == 0x70, "Native Tasker layout");
 namespace lse_jobs_runtime
 {
 using namespace lse_jobs;
@@ -48,7 +60,9 @@ enum DebugCounter
     DBG_COMBAT, DBG_NO_ORDERS, DBG_JOBS_OFF, DBG_MANUAL, DBG_NO_ROW, DBG_MODE_OFF,
     DBG_POSITION_FAILED, DBG_QUERY, DBG_QUERY_FAILED, DBG_CANDIDATES,
     DBG_PREDICATE_REJECTED, DBG_POLICY_REJECTED, DBG_ALLOWED, DBG_OFFERS, DBG_SCORE,
-    DBG_SCORE_AVAILABLE, DBG_SCORE_BLOCKED, DBG_BLANK, DBG_BLANK_ACCEPTED,
+    DBG_SCORE_AVAILABLE, DBG_SCORE_BLOCKED, DBG_SCORE_POSITIVE, DBG_SCORE_ZERO,
+    DBG_GOAP, DBG_GOAP_POSITIVE, DBG_GOAP_FAILED, DBG_SET_ACTION, DBG_SET_ACTION_ACCEPTED,
+    DBG_SET_ACTION_CURRENT, DBG_BLANK, DBG_BLANK_ACCEPTED,
     DBG_BLANK_BLOCKED, DBG_BLANK_NO_OFFER, DBG_REQUEST, DBG_DISPATCH,
     DBG_REJECT_STALE, DBG_REJECT_BUSY, DBG_REJECT_NOT_READY, DBG_REJECT_TARGET,
     DBG_REJECT_CLAIMED, DBG_REJECT_QUEUE, DBG_COUNT
@@ -56,6 +70,29 @@ enum DebugCounter
 static volatile LONG debugCounters[DBG_COUNT] = {0};
 static DWORD debugSummaryStamp = 0;
 static bool debugSummaryActive = false;
+static volatile LONG debugScoreBits = 0, debugGoapBits = 0;
+struct DebugActorSnapshot
+{
+    bool valid;
+    Identity actor;
+    int goal, action, firstOrder, directOrders, rowIndex[2], rowPriority[2];
+    float rowWeight[2], goalScore;
+    int goalPriority;
+    DebugActorSnapshot() : valid(false), goal(0), action(0), firstOrder(0), directOrders(0),
+                           goalScore(0), goalPriority(0)
+    {
+        rowIndex[0] = rowIndex[1] = -1;
+        rowPriority[0] = rowPriority[1] = 0;
+        rowWeight[0] = rowWeight[1] = 0;
+    }
+};
+static DebugActorSnapshot debugActor;
+static void DebugFloat(volatile LONG* destination, float value)
+{
+    LONG bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    InterlockedExchange(destination, bits);
+}
 static void DebugCount(DebugCounter counter, LONG amount = 1)
 {
     if (ShouldLogExecuteDebug())
@@ -106,7 +143,9 @@ static void DebugSummary(DWORD now, bool paused)
         "combat", "no_orders", "jobs_off", "manual", "no_row", "mode_off",
         "position_failed", "query", "query_failed", "candidates",
         "predicate_rejected", "policy_rejected", "allowed", "offers", "score",
-        "score_available", "score_blocked", "blank", "blank_accepted",
+        "score_available", "score_blocked", "score_positive", "score_zero_or_invalid",
+        "goap", "goap_positive", "goap_failed", "set_action", "set_action_accepted",
+        "set_action_current", "blank", "blank_accepted",
         "blank_blocked", "blank_no_offer", "request", "dispatch",
         "reject_stale", "reject_busy", "reject_not_ready", "reject_target",
         "reject_claimed", "reject_queue"};
@@ -118,6 +157,42 @@ static void DebugSummary(DWORD now, bool paused)
     for (unsigned index = 0; index < DBG_COUNT; ++index)
     {
         log << " " << names[index] << "=" << counts[index];
+    }
+    const LONG scoreBits = InterlockedCompareExchange(&debugScoreBits, 0, 0);
+    const LONG goapBits = InterlockedCompareExchange(&debugGoapBits, 0, 0);
+    float scoreValue, goapValue;
+    std::memcpy(&scoreValue, &scoreBits, sizeof(scoreValue));
+    std::memcpy(&goapValue, &goapBits, sizeof(goapValue));
+    log << " last_score=" << scoreValue << " last_goap=" << goapValue;
+    if (debugActor.valid)
+    {
+        log << " actor=" << debugActor.actor.word[3] << "/" << debugActor.actor.word[4]
+            << " goal=" << debugActor.goal << " action=" << debugActor.action
+            << " goal_score=" << debugActor.goalScore << " goal_priority=" << debugActor.goalPriority
+            << " direct_orders=" << debugActor.directOrders << " first_order=" << debugActor.firstOrder;
+    }
+    for (unsigned modeIndex = 0; modeIndex < 2; ++modeIndex)
+    {
+        const TaskData* data = metadata[modeIndex];
+        log << " mode" << modeIndex << "=[";
+        if (data)
+        {
+            uintptr_t scoreAddress = 0;
+            std::memcpy(&scoreAddress, &data->scoreFunction, sizeof(scoreAddress));
+            log << "key:" << static_cast<int>(data->key) << ",action:" << data->hasAction
+                << ",req:" << data->numRequirements << ",results:" << data->numResults
+                << ",req_false:" << data->requirementsAlwaysFalse << ",results_false:" << data->_resultsAlwaysFalse
+                << ",target:" << data->needsTarget << ",perma:" << static_cast<int>(data->permaJob)
+                << ",fixed:" << data->permaJob_FixedTarget
+                << ",score_fn:" << scoreAddress << ",pmf_bytes:" << sizeof(data->scoreFunction);
+        }
+        else log << "null";
+        if (debugActor.valid)
+        {
+            log << ",row:" << debugActor.rowIndex[modeIndex] << ",priority:" << debugActor.rowPriority[modeIndex]
+                << ",weight:" << debugActor.rowWeight[modeIndex];
+        }
+        log << "]";
     }
     PluginLog(log.str().c_str());
 }
@@ -152,6 +227,43 @@ static bool Ours(const Tasker* task)
 static int Type(const Tasker* task)
 {
     return Ours(task) ? static_cast<int>(task->taskData->key) : 0;
+}
+static void DebugCaptureActor(Character* character)
+{
+    if (!ShouldLogExecuteDebug() || !character) return;
+    DebugActorSnapshot snapshot;
+    snapshot.valid = true;
+    snapshot.actor = Id(character->getHandle());
+    OrdersReceiver* orders = character->getOrdersReciever();
+    CharBody* body = character->getBody();
+    Tasker* action = body ? body->currentAction : 0;
+    snapshot.action = action && action->taskData ? static_cast<int>(action->taskData->key) : 0;
+    if (orders)
+    {
+        const TaskMatch& goal = orders->getCurrentGoal();
+        snapshot.goal = goal.taskData ? static_cast<int>(goal.taskData->key) : 0;
+        snapshot.goalScore = orders->currentGoalScore;
+        snapshot.goalPriority = static_cast<int>(orders->currentGoalPriority);
+        snapshot.directOrders = static_cast<int>(orders->orders.list.size());
+        Tasker* first = snapshot.directOrders ? orders->getFirstOrder() : 0;
+        snapshot.firstOrder = first && first->taskData ? static_cast<int>(first->taskData->key) : 0;
+        if (orders->permajobs.count <= 256 && orders->permajobs.count <= orders->permajobs.maxSize &&
+            (!orders->permajobs.count || orders->permajobs.stuff))
+        {
+            for (unsigned index = 0; index < orders->permajobs.count; ++index)
+            {
+                Tasker* row = orders->permajobs.stuff[index];
+                if (Ours(row))
+                {
+                    const unsigned modeIndex = Type(row) == OWN_DEFEATS ? 0 : 1;
+                    snapshot.rowIndex[modeIndex] = static_cast<int>(index);
+                    snapshot.rowPriority[modeIndex] = static_cast<int>(row->priority);
+                    snapshot.rowWeight[modeIndex] = row->weight;
+                }
+            }
+        }
+    }
+    debugActor = snapshot;
 }
 static int Find(const Identity& identity)
 {
@@ -300,6 +412,7 @@ static void Reset()
     InterlockedExchange(&live, 0);
     AcquireSRWLockExclusive(&lock);
     ledger.Clear();
+    debugActor = DebugActorSnapshot();
     for (unsigned slotIndex = 0; slotIndex < ACTOR_CAP; ++slotIndex)
     {
         actors[slotIndex] = ActorSlot();
@@ -389,7 +502,41 @@ static float Score(Tasker* task, AI* ai)
     ReleaseSRWLockShared(&lock);
     if (available) DebugCount(DBG_SCORE_AVAILABLE);
     // Keep the native score/weight and permanent row ordering intact.
-    return available ? scoreOriginal(task, ai) : 0.0f;
+    const float result = available ? scoreOriginal(task, ai) : 0.0f;
+    if (ShouldLogExecuteDebug() && available)
+    {
+        DebugFloat(&debugScoreBits, result);
+        DebugCount(_finite(result) && result > 0.0f ? DBG_SCORE_POSITIVE : DBG_SCORE_ZERO);
+    }
+    return result;
+}
+static float (*runGoapOriginal)(AITaskSytem*, Tasker*, bool, bool) = 0;
+static float RunGoap(AITaskSytem* tasks, Tasker* task, bool rerun, bool playerOrder)
+{
+    const bool ours = Ours(task);
+    if (ours) DebugCount(DBG_GOAP);
+    const float result = runGoapOriginal(tasks, task, rerun, playerOrder);
+    if (ours && ShouldLogExecuteDebug())
+    {
+        DebugFloat(&debugGoapBits, result);
+        DebugCount(_finite(result) && result > 0.0f ? DBG_GOAP_POSITIVE : DBG_GOAP_FAILED);
+    }
+    return result;
+}
+static bool (*setActionOriginal)(CharBody*, Tasker*) = 0;
+static bool SetAction(CharBody* body, Tasker* task)
+{
+    // The native function may delete task when it retains an existing action.
+    // Remember ownership before forwarding and never dereference task after it.
+    const bool ours = Ours(task);
+    if (ours) DebugCount(DBG_SET_ACTION);
+    const bool result = setActionOriginal(body, task);
+    if (ours && ShouldLogExecuteDebug())
+    {
+        if (result) DebugCount(DBG_SET_ACTION_ACCEPTED);
+        if (body && Ours(body->currentAction)) DebugCount(DBG_SET_ACTION_CURRENT);
+    }
+    return result;
 }
 static void Tick()
 {
@@ -524,6 +671,7 @@ static void Tick()
         return;
     }
     Character* character = Handle(actor).getCharacter();
+    DebugCaptureActor(character);
     if (!character || (!HasRow(character, OWN_DEFEATS) && !HasRow(character, ALL_ENEMIES)))
     {
         DebugCount(DBG_PRUNED);
@@ -625,7 +773,8 @@ static void Tick()
                 log << "Loot-Scoot-Execute DEBUG: permanent_job_offer mode="
                     << (modeIndex ? ALL_ENEMIES : OWN_DEFEATS)
                     << " actor=" << actor.word[3] << "/" << actor.word[4]
-                    << " previous=" << previouslyOffered[modeIndex] << " available=" << found[modeIndex];
+                    << " previous=" << previouslyOffered[modeIndex] << " available=" << found[modeIndex]
+                    << " radius_m=" << ComputeExecuteAllRadiusUnits() / 10.0f;
                 if (found[modeIndex])
                 {
                     log << " target=" << best[modeIndex].word[3] << "/" << best[modeIndex].word[4]
@@ -1046,6 +1195,9 @@ static bool Install(bool worldReady, unsigned platform)
               KenshiLib::SUCCESS ==
                   KenshiLib::AddHook(static_cast<intptr_t>(knockoutAction), Stealth, &stealthOriginal) &&
               HookNative(&Tasker::score, Score, &scoreOriginal) &&
+              HookNative(&AITaskSytem::runGOAP, RunGoap, &runGoapOriginal) &&
+              HookNative(static_cast<bool (CharBody::*)(Tasker*)>(&CharBody::_NV_setCurrentAction),
+                         SetAction, &setActionOriginal) &&
               HookNative(&Character::_NV_hitByMeleeAttack, Melee, &meleeOriginal) &&
               HookNative(&Character::iShotYou, Ranged, &rangedOriginal) &&
               HookNative(&MedicalSystem::knockout, Knockout, &knockoutOriginal) &&
