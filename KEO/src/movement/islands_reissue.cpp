@@ -180,7 +180,10 @@ void IslandReissuePollTick(uintptr_t zm, double now)
 {
 	bool paused = ZonePauseIsPaused();
 	K7RebasePausedClocks(paused, now);
-	if (paused) return;
+	// The master OFF switch also owns the older park/growth/retry forms,
+	// which PollOrders runs independently of K7. Keep tracking and zone
+	// loading intact, but never revive an old move while routing is OFF.
+	if (paused || !movement::g_movementCfg.routingEnabled) return;
 
 	ResolveDueReissueChecks(now);
 	if (K7FormOn())

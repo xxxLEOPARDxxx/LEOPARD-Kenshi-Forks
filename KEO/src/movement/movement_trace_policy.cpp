@@ -7,12 +7,12 @@
 
 #pragma intrinsic(_ReadWriteBarrier, _InterlockedIncrement)
 
-bool TraceSampleDue(bool haveLast, float lastX, float lastZ, float x, float z, bool stateChanged)
+bool TraceSampleDue(bool haveLast, float lastX, float lastZ, float x, float z, bool stateChanged, float spacing)
 {
 	if (!haveLast || stateChanged)
 		return true;
 	float dx = x - lastX, dz = z - lastZ;
-	return dx * dx + dz * dz >= TRACE_SAMPLE_UNITS * TRACE_SAMPLE_UNITS;
+	return dx * dx + dz * dz >= spacing * spacing;
 }
 
 void TraceRingPush(TraceRing* r, const TraceSample& s)

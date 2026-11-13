@@ -51,7 +51,7 @@ static bool ParseFormationFollow(const std::string& val, ConfigLogFn log)
 	return true;
 }
 
-// movementTrace: off or on; anything else is refused.
+// movementTrace: off, on (long routes), or local (one-metre sampling).
 static bool ParseMovementTrace(const std::string& val, ConfigLogFn log)
 {
 	(void)log;
@@ -59,6 +59,8 @@ static bool ParseMovementTrace(const std::string& val, ConfigLogFn log)
 		movement::g_movementCfg.cfg_movementTrace = TRACE_OFF;
 	else if (_stricmp(val.c_str(), "on") == 0)
 		movement::g_movementCfg.cfg_movementTrace = TRACE_ON;
+	else if (_stricmp(val.c_str(), "local") == 0)
+		movement::g_movementCfg.cfg_movementTrace = TRACE_LOCAL;
 	else
 		return false;
 	return true;

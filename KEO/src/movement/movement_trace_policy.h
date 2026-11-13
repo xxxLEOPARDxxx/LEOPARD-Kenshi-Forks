@@ -19,11 +19,12 @@ const double TRACE_ATTRIB_SECONDS = 3.0;     // a result's member is sought amon
 const int    TRACE_ORDER_RESULTS = 1024;    // results one order keeps
 const double TRACE_LINE_SECONDS  = 30.0;    // the Trace: line's period
 
-enum TraceMode { TRACE_OFF = 0, TRACE_ON };
+enum TraceMode { TRACE_OFF = 0, TRACE_ON, TRACE_LOCAL };
 
 // Whether a member at (x, z) is sampled: no sample yet, its path state, character state or leg
 // changed since its last sample (stateChanged), or TRACE_SAMPLE_UNITS or more (x-z) from its last one.
-bool TraceSampleDue(bool haveLast, float lastX, float lastZ, float x, float z, bool stateChanged);
+bool TraceSampleDue(bool haveLast, float lastX, float lastZ, float x, float z, bool stateChanged,
+                    float spacing = TRACE_SAMPLE_UNITS);
 
 struct TraceSample
 {

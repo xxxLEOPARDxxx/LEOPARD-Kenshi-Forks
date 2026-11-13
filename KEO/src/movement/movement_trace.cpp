@@ -82,7 +82,7 @@ static void ArmOnce()
 	if (s_armState != 0)
 		return;
 	s_armState = -1;
-	if (movement::g_movementCfg.cfg_movementTrace != TRACE_ON)
+	if (movement::g_movementCfg.cfg_movementTrace == TRACE_OFF)
 		return;
 	_snprintf_s(s_path, sizeof(s_path), _TRUNCATE, "%s%s", GetDLLDirectory().c_str(), MOVEMENT_TRACE_NAME);
 	s_resultsHook = HookRowInstalled(HOOK_CS_FIND_PATH) && HookRowInstalled(HOOK_CS_FIND_PATH_FALLBACK);
@@ -96,6 +96,9 @@ static void ArmOnce()
 	AppendLine(TraceFormatLaunch(l) + "\n");
 	KEO_DETAIL(s_resultsHook ? "Trace: armed file=KEO.trace.txt resultsHook=ok"
 	                     : "Trace: armed file=KEO.trace.txt resultsHook=off");
+	KEO_DETAIL(movement::g_movementCfg.cfg_movementTrace == TRACE_LOCAL
+	    ? "Trace: local sampling=1m; portal midpoints are not the followed path"
+	    : "Trace: long sampling=7.5m; portal midpoints are not the followed path");
 }
 
 static TraceOrder* FindOrder(int order)
@@ -183,7 +186,8 @@ void MovementTraceSample(uintptr_t character, uintptr_t cm, uintptr_t hc, int ch
 	int ps = *(int*)(KLIB_MEMBER(3, hc, HavokCharacter_pathState, OFF_HC_PATH_STATE));
 	int leg = LegOf(cm);
 	bool changed = m->haveLast && (ps != m->lastPs || characterState != m->lastCs || leg != m->lastLeg);
-	if (!TraceSampleDue(m->haveLast != 0, m->lastX, m->lastZ, x, z, changed))
+	const float spacing = movement::g_movementCfg.cfg_movementTrace == TRACE_LOCAL ? 10.0f : TRACE_SAMPLE_UNITS;
+	if (!TraceSampleDue(m->haveLast != 0, m->lastX, m->lastZ, x, z, changed, spacing))
 		return;
 	if (!m->ring)
 	{

@@ -19,10 +19,10 @@ while depth:
 # The switch is applied on both LoadConfig exits; a startup row must never be
 # applied live to an already-patched process by the built-in settings panel.
 config=(ROOT/'src/base/config.cpp').read_text(encoding='utf-8')
-assert 'movement::ApplyRoutingSwitch(&LogMsg);' in config
+assert 'movement::ApplyRoutingSwitch(&LogDetail);' in config
 assert config.count('FinalizeConfig();')==2
 finalize=config[config.index('void FinalizeConfig()'):]
-assert finalize.index('movement::ApplyRoutingSwitch(&LogMsg);')<finalize.index('GetSystemInfo(')
+assert finalize.index('movement::ApplyRoutingSwitch(&LogDetail);')<finalize.index('GetSystemInfo(')
 manifest=(ROOT/'src/plugin/hook_manifest_rows.inc').read_text(encoding='utf-8')
 for row,want in (
     ('HOOK_CS_FIND_PATH','HOOK_WANT_PATHFIND_DIAG'),

@@ -18,6 +18,14 @@ static void CheckSampling()
 	CHECK(!TraceSampleDue(true, 0.0f, 0.0f, 74.0f, 0.0f, false), "trace: a member 74 units on is not sampled");
 	CHECK(TraceSampleDue(true, 0.0f, 0.0f, 75.0f, 0.0f, false), "trace: a member 75 units on is sampled");
 	CHECK(TraceSampleDue(true, 0.0f, 0.0f, 0.0f, 0.0f, true), "trace: a state change samples a member that has not moved");
+	CHECK(!TraceSampleDue(true, 0.0f, 0.0f, 9.0f, 0.0f, false, 10.0f),
+	      "local trace: less than one metre does not add a sample");
+	CHECK(TraceSampleDue(true, 0.0f, 0.0f, 10.0f, 0.0f, false, 10.0f),
+	      "local trace: one metre movement is captured instead of missing small circles");
+	CHECK(TraceSampleDue(true, 0.0f, 0.0f, 6.0f, 8.0f, false, 10.0f),
+	      "local trace: diagonal sampling uses the same world distance");
+	CHECK(TraceSampleDue(true, 0.0f, 0.0f, 0.0f, 0.0f, true, 10.0f),
+	      "local trace: a stationary state transition is still captured");
 	CHECK((double)TRACE_RING * TRACE_SAMPLE_UNITS >= 250000.0,
 	      "trace: the ring holds a whole long order at the sample spacing");
 	memset(&s_ring, 0, sizeof(s_ring));
