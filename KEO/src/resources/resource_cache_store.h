@@ -15,13 +15,19 @@ private:
     CachedFile& operator=(const CachedFile&);
 };
 typedef std::shared_ptr<const CachedFile> FilePtr;
-struct Stats {
+// VC10 vectorizes aggregate copies with aligned stores; keep callers aligned.
+struct __declspec(align(16)) Stats {
     unsigned __int64 allocatedBytes, hits, misses, queued, rejected, readBytes;
     unsigned entries, pending;
     bool active;
+    unsigned startupRoots, startupFiles, startupProcessed, startupLoaded, startupSkipped;
+    unsigned __int64 startupTotalBytes, startupReadBytes;
+    bool startupScanning, startupDone, startupCapped;
 };
 bool Start(); // before installing archive hook; worker does no engine calls
 void Configure(bool enabled, unsigned __int64 bytes, unsigned megabytesPerSecond);
+void RegisterTextureRoot(const std::string& absolutePath, bool recursive); // copies filesystem location; retained while off
+void ConfigureStartup(bool enabled); // live opt-in; unchanged values do not restart inventory
 FilePtr Find(const std::string& absolutePath); // non-waiting cache lock; validates file identity
 void Observe(const std::string& absolutePath); // only after successful native read-only open
 void Prefetch(const std::string& absolutePath); // explicit verified metadata request, no zone activation

@@ -1,3 +1,4 @@
+#include "resources/resource_geometry.h"
 #include "base/log_admission.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_warm_hud.h"
@@ -181,6 +182,7 @@ static bool      g_resetStateCleared = false;
 // when something was tracked, and a second run finds nothing tracked.
 static void ClearModStateForLoad()
 {
+	resource_geometry::Clear();
 	ResourceForwardReset();
 	ResourceWarmHudCleanup();
 	ClearPreloadStateForLoad();  // also clears formation groups, the island overlay

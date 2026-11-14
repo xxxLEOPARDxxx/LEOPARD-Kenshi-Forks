@@ -363,3 +363,63 @@ msgstr "内存预热"
 
 msgid "VRAM standby"
 msgstr "显存预备"
+
+
+msgid "Warm textures at startup"
+msgstr "启动时预热纹理"
+
+
+msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
+msgstr "从主菜单开始，在后台将游戏和已启用模组注册的资源目录中的纹理读入内存缓存。达到内存上限后停止，不会反复轮换整个资源库。游戏请求优先。需要启用资源文件内存缓存。进度文本显示扫描和已处理文件，包括跳过的文件。"
+
+
+msgid "Startup texture warmup"
+msgstr "启动纹理预热"
+
+
+msgid "Scanning textures"
+msgstr "正在扫描纹理"
+
+
+msgid "Cache limit reached"
+msgstr "已达到缓存上限"
+
+
+msgid "Waiting for resource list"
+msgstr "等待资源列表"
+
+
+msgid "processed"
+msgstr "已处理"
+
+
+msgid "skipped"
+msgstr "已跳过"
+
+
+msgid "Keep loaded model geometry in VRAM"
+msgstr "在显存中保留已加载模型几何体"
+
+
+msgid "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."
+msgstr "保留游戏已加载的受支持模型几何体，以加快再次访问。不会预加载尚未见过的模型或创建NPC。与地形共用显存上限，内存紧张时释放缓存引用。需要启用资源内存缓存。不支持的模型仍正常加载。"
+
+
+msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "模型几何体缓存和地形预备数据共用的上限，并非预先分配量。实际显存预算优先。显存余量较少时请降低。"
+
+
+msgid "VRAM cache"
+msgstr "显存缓存"
+
+
+msgid "models"
+msgstr "模型"
+
+
+msgid "reference hits"
+msgstr "缓存引用命中"
+
+
+msgid "Unavailable"
+msgstr "不可用"

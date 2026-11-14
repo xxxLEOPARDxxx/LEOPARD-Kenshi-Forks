@@ -362,3 +362,7 @@ src/resources/resource_gpu_bridge.cpp
 src/resources/resource_forward.cpp
 src/resources/resource_load_probe.cpp
 src/resources/resource_warm_hud.cpp
+
+src/resources/resource_startup_native.cpp
+
+src/resources/resource_geometry.cpp

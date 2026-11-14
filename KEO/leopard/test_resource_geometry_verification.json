@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-14T18:37:47.2064413+03:00",
+  "scope": "Private stage only; no install, source git or publication",
+  "feature": "Bounded native loaded mesh retention; never-seen model preparation not implemented",
+  "native_ogre_checks": 38,
+  "native_optimizations": [
+    "Od",
+    "O2"
+  ],
+  "gpu_shared_reservation": [
+    "actual production shared arithmetic",
+    "terrain disabled geometry admission",
+    "DXGI existing bytes not charged twice",
+    "RAM and DXGI pressure",
+    "lower cap",
+    "device generation"
+  ],
+  "native_file_contracts": "PASS",
+  "existing_terrain_gpu_regression": "PASS",
+  "expected_red_mutants": 10,
+  "game_FPS_memory_measurement": "Not performed",
+  "sources": [
+    {
+      "path": "src/resources/resource_geometry.cpp",
+      "sha256": "3d55dc430f7324cb8b9ebabc1b2ea6a6dfa48eca2f37bb9d370288ccf78b3f6e"
+    },
+    {
+      "path": "src/resources/resource_geometry.h",
+      "sha256": "68fbeeffabce9d7d125a4c6f0c456ab6f44ff8958a965a1b1c37502cedc8d409"
+    },
+    {
+      "path": "src/resources/resource_gpu_store.cpp",
+      "sha256": "51243b2a8bff14f3458ee07041d14887cb2cd13f67aaf704054cae55b668140f"
+    },
+    {
+      "path": "src/resources/resource_gpu_store.h",
+      "sha256": "f6f31e090cebaa87a4f4b86d05b3bd40136108576a38de8b4e5691bc1fdbad50"
+    },
+    {
+      "path": "leopard/resource-geometry-plan-20261114.md",
+      "sha256": "bdbabe262b5aa64017a457c30896dcb3db689efe3d727bc331a14ed8bcca68d8"
+    },
+    {
+      "path": "leopard/test_resource_geometry.cpp",
+      "sha256": "628224a835f3393814f6228c372327507447890cb4a9e840dedbd91ee9c01f12"
+    },
+    {
+      "path": "leopard/test_resource_geometry.cmd",
+      "sha256": "be45b3963582924c15438a620e6e5baa9c354838eef9fb47a126827ac63f93b0"
+    },
+    {
+      "path": "leopard/test_resource_geometry_gpu.cpp",
+      "sha256": "5be7d9e23bf3d4b0dc96be2f1099f7b5c30f9983c6144429e410eaf9a031336f"
+    },
+    {
+      "path": "leopard/test_resource_geometry_gpu.cmd",
+      "sha256": "1b5c008dcea443f1b75b6252684e9f47a79e1fa2f707d54bae81b7e38cc7d1fa"
+    },
+    {
+      "path": "leopard/test_resource_geometry_native.py",
+      "sha256": "bc1deba2fe55f2c4f43d58d50aa9fc1c89e336ef6c3a028e22f3ac70e26fa60a"
+    },
+    {
+      "path": "leopard/test_resource_geometry_mutants.py",
+      "sha256": "9ebad22ef001c9006492d2b5c2e73607d761e87d53c0b2bd9c66b93259f1bebb"
+    }
+  ]
+}

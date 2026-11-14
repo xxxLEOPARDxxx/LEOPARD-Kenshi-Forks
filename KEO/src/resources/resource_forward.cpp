@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include "resources/resource_forward.h"
+#include "resources/resource_geometry.h"
 #include "resources/resource_forward_policy.h"
 #include "resources/resource_array_job.h"
 #include "resources/resource_biome_manifest.h"
@@ -108,7 +109,7 @@ void ResourceForwardReset(){InterlockedIncrement(&resetPending);}
 void ResourceForwardInit(){
     resource_biome::Status s=resource_biome::Initialize(GetCurrentThreadId());ready=s==resource_biome::Ok;
     if(!ready){std::ostringstream out;out<<"Resource prefetch: metadata contract refused ("<<resource_biome::StatusName(s)<<"); normal loading retained";LogError(out.str());}
-    gpuStarted=resource_gpu::Start();if(!gpuStarted)LogError("Resource GPU warmup: worker startup failed");
+    gpuStarted=resource_gpu::Start();resource_geometry::Init();if(!gpuStarted)LogError("Resource GPU warmup: worker startup failed");
 }
 void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
     double now=ElapsedSec(),frame=lastFrame?now-lastFrame:0;lastFrame=now;
@@ -120,12 +121,14 @@ void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
         ++world;count=0;previousX=previousY=-1;nextConfig=0;memset(seen,0,sizeof(seen));resource_gpu::Configure(false,0,world);
     }
     bool on=ready&&cfg.cfg_resourceRamCache&&cfg.cfg_resourcePrefetch;
+    bool geometryOn=cfg.cfg_resourceRamCache&&cfg.cfg_resourceGeometryWarm;
     if(now>=nextConfig){
         nextConfig=now+1;
-        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&on&&cfg.cfg_resourceGpuWarm);
-        resource_gpu::Configure(gpuAdmitted,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
+        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&((on&&cfg.cfg_resourceGpuWarm)||geometryOn));
+        resource_gpu::Configure(gpuAdmitted&&on&&cfg.cfg_resourceGpuWarm,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
         std::string error;if(resource_gpu::TakeError(&error))LogError("Resource GPU warmup: "+error);
     }
+    resource_geometry::Tick(geometryOn,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
     if(!on){count=0;return;}
     if(!loading&&manager&&resource_forward::CanWarm(now,lastTick,frame,blockedUntil)){
         lastTick=now;

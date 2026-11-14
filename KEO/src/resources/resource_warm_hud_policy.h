@@ -19,9 +19,26 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
         sprintf_s(b,"%.0f/%.0f MiB | ",double(s.gpuBytes)/1048576.,double(s.gpuCap)/1048576.);
         result.text[1]+=b;result.text[1]+=Count(s.gpuReady)+" "+tr("ready")+" | "+Count(s.gpuPending)+" "+tr("remaining");
     } else result.text[1]+=tr("Off");
+    if(s.geometryOn){
+        sprintf_s(b,"%.0f/%.0f MiB | ",double(s.gpuBytes+s.geometryBytes)/1048576.,double(s.gpuCap)/1048576.);
+        result.text[1]=std::string(tr("VRAM cache"))+": "+b+Count(s.geometryModels)+" "+tr("models")+" | "+Count(s.geometryReused)+" "+tr("reference hits");
+        if(!s.geometryAdmitted)result.text[1]+=" | "+std::string(tr("Unavailable"));
+    }
     const bool busy=(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
     result.text[2]=tr(!s.ramOn&&!s.gpuOn?"Off":busy?(s.workPaused?"Paused":"Warming"):"Ready");
-    if (s.gpuOn) result.text[2]+=" | "+Count(s.gpuCreated)+" "+tr("created")+" | "+Count(s.gpuAdopted)+" "+tr("used")+" | "+Count(s.gpuSkipUploads)+" "+tr("uploads skipped");
+    if(s.startupOn&&s.ramOn){
+        result.text[2]=std::string(tr("Startup texture warmup"))+": ";
+        if(s.startupScanning)result.text[2]+=tr("Scanning textures");
+        else if(s.startupDone&&s.startupCapped)result.text[2]+=tr("Cache limit reached");
+        else if(!s.startupFiles)result.text[2]+=tr("Waiting for resource list");
+        else {
+            unsigned percent=unsigned(100ULL*s.startupProcessed/s.startupFiles);if(percent>100)percent=100;
+            result.text[2]+=Count(percent)+"% | "+Count(s.startupProcessed)+"/"+Count(s.startupFiles)+" "+tr("processed");
+            if(s.workPaused&&!s.startupDone)result.text[2]+=" | "+std::string(tr("Paused"));
+        }
+        if(s.startupSkipped)result.text[2]+=" | "+Count(s.startupSkipped)+" "+tr("skipped");
+    }
+    if (s.gpuOn&&!s.startupOn) result.text[2]+=" | "+Count(s.gpuCreated)+" "+tr("created")+" | "+Count(s.gpuAdopted)+" "+tr("used")+" | "+Count(s.gpuSkipUploads)+" "+tr("uploads skipped");
     return result;
 }
 struct Sampler {

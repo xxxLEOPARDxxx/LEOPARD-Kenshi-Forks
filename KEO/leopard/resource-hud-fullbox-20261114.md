@@ -17,3 +17,7 @@ New optional live MCM resourceWarmHud (release defaultOFF): top-left(16,96), bel
 Save-load investigation: existing backpack_sidecar.cpp hook_sfsLoadGame gets actual savePath before characters load. RAMcache survives same-process save reload subject to eviction; new process starts empty. Current nearby scheduler pauses duringloading, GPUjobs invalidated onworldreset. Save parsing, towns/platoons/physics not covered by DDS/mesh/skeleton cache. Bounded per-save consumed-resource manifest is a possible later experiment; not implemented. Starting its reads only at Load may be too late and compete with native IO. Measure first-load native times before promising benefit. No direct live NPCworker or GPUcreation introduced.
 
 Preserve user's currentRAM16GiB/VRAM8GiB/read128MiB/s settings. Locally enable only new HUDflag for requested testing. No releaseZIP, versionbump, Steam/Nexus publication or ALL_CHANGELOG_MODS entry.
+
+
+## Actual acceptance after text-only fix
+User confirmed startup and visible text. runtime-text-accepted/KEO.log saved before another launch: RAM2312119783bytes/1104files,1082hits2312misses; actualGPUconsumer36calls,readyHit1/adopted1/skipUploads42/mismatch0/descRefused0/verifyUs1476. This proves one warmed array consumed and42exact nativeuploads avoided, not whole-world/model acceleration. ResourceFinish40calls>20ms,max130933us; factoryDrainmax186us onlyqueuedwrapper,notallNPCcreation. User clarified target: startup texture RAM prewarm and model geometry VRAM; existingterrainpredictivecacheisnotthatfullfeature.

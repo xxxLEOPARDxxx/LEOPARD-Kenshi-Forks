@@ -363,3 +363,63 @@ msgstr "RAM-кэш"
 
 msgid "VRAM standby"
 msgstr "VRAM-запас"
+
+
+msgid "Warm textures at startup"
+msgstr "Прогрев текстур при запуске"
+
+
+msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
+msgstr "Заранее читает текстуры из папок ресурсов игры и подключённых модов в кэш ОЗУ, начиная с главного меню. При достижении лимита останавливается. Запросы самой игры имеют приоритет. Требуется кэш файлов ресурсов в ОЗУ. Текст прогресса показывает сбор списка и обработанные файлы, включая пропущенные."
+
+
+msgid "Startup texture warmup"
+msgstr "Стартовый прогрев текстур"
+
+
+msgid "Scanning textures"
+msgstr "Сбор списка текстур"
+
+
+msgid "Cache limit reached"
+msgstr "Достигнут лимит кэша"
+
+
+msgid "Waiting for resource list"
+msgstr "Ожидание списка ресурсов"
+
+
+msgid "processed"
+msgstr "обработано"
+
+
+msgid "skipped"
+msgstr "пропущено"
+
+
+msgid "Keep loaded model geometry in VRAM"
+msgstr "Сохранять геометрию моделей в VRAM"
+
+
+msgid "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."
+msgstr "Удерживает уже загруженную геометрию поддерживаемых моделей для повторных посещений. Не загружает неизвестные модели и не создаёт NPC. Использует общий лимит VRAM с рельефом; при нехватке памяти освобождает ссылки кэша. Требуется кэш ресурсов в ОЗУ. Неподдерживаемые модели загружаются штатно."
+
+
+msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Общий предел кэша геометрии моделей и подготовленного рельефа, а не заранее выделенная память. Реальный бюджет видеокарты имеет приоритет. Уменьши лимит, если свободной видеопамяти мало."
+
+
+msgid "VRAM cache"
+msgstr "VRAM-кэш"
+
+
+msgid "models"
+msgstr "моделей"
+
+
+msgid "reference hits"
+msgstr "обращений к кэшу"
+
+
+msgid "Unavailable"
+msgstr "Недоступно"

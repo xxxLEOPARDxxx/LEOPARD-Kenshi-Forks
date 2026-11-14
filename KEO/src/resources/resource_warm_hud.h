@@ -9,6 +9,11 @@ struct Snapshot {
     unsigned gpuReady,gpuPending;
     unsigned __int64 gpuCreated,gpuAdopted,gpuSkipUploads;
     bool workPaused,ramOn,gpuOn;
+    bool startupOn,startupScanning,startupDone,startupCapped;
+    unsigned startupFiles,startupProcessed,startupLoaded,startupSkipped;
+    bool geometryOn,geometryAdmitted;
+    unsigned __int64 geometryBytes,geometryReused;
+    unsigned geometryModels;
 };
 }
 void ResourceWarmHudTick(bool enabled,const resource_warm_hud::Snapshot& snapshot);

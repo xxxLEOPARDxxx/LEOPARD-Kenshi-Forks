@@ -3,10 +3,12 @@
 #endif
 #include <windows.h>
 #include "resources/resource_cache.h"
+#include "resources/resource_geometry.h"
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_load_probe.h"
 #include "resources/resource_warm_hud.h"
+#include "resources/resource_startup_native.h"
 #include "render/module_hooks.h"
 #include "zone/zone_config.h"
 #include "base/core.h"
@@ -63,6 +65,7 @@ void ResourceCacheInit(){
     installed=InstallModuleHook(site,(void*)&Open,(void**)&original,NULL);
     if(!installed){resource_cache::Stop();return;}
     KEO_DETAIL("Resource RAM cache: verified native archive boundary installed (DDS/mesh/skeleton)");
+    ResourceStartupNativeInit();
     ResourceCacheTick(); // honor opt-in INI before the first scene loads
     ResourceForwardInit();
     ResourceLoadProbeInit();
@@ -74,10 +77,17 @@ void ResourceCacheTick(){
     ResourceLoadProbeReport();
     const zone::ZoneConfig&c=zone::g_zoneCfg;
     resource_cache::Configure(c.cfg_resourceRamCache,unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024,c.cfg_resourceReadMBps);
+    if(!c.cfg_resourcePrefetch||ResourceStartupTitleVisible())resource_cache::SetBackgroundAllowed(true); // title has no scene ticks to release a prior pause
+    resource_cache::ConfigureStartup(c.cfg_resourceRamCache&&c.cfg_resourceStartupTextures);
+    resource_geometry::Tick(c.cfg_resourceRamCache&&c.cfg_resourceGeometryWarm,unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024,ResourceWorldGeneration());
     InterlockedExchange(&active,c.cfg_resourceRamCache?1:0);
     resource_warm_hud::Snapshot hud={};
     if(uiTicksAdmitted&&c.cfg_resourceWarmHud){
         resource_cache::Stats r=resource_cache::Snapshot();resource_gpu::Stats g=resource_gpu::Snapshot();ResourceGpuProgress p=ResourceGpuBridgeProgress();
+        hud.startupOn=c.cfg_resourceRamCache&&c.cfg_resourceStartupTextures;hud.startupScanning=r.startupScanning;hud.startupDone=r.startupDone;hud.startupCapped=r.startupCapped;
+        hud.startupFiles=r.startupFiles;hud.startupProcessed=r.startupProcessed;hud.startupLoaded=r.startupLoaded;hud.startupSkipped=r.startupSkipped;
+        resource_geometry::Stats geometry=resource_geometry::Snapshot();
+        hud.geometryOn=c.cfg_resourceRamCache&&c.cfg_resourceGeometryWarm;hud.geometryBytes=geometry.heldBytes;hud.geometryModels=geometry.models;hud.geometryReused=geometry.reused;hud.geometryAdmitted=geometry.admitted;
         hud.ramBytes=r.allocatedBytes;hud.ramCap=unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024;hud.ramReadBytes=r.readBytes;
         hud.ramFiles=r.entries;hud.ramPending=r.pending+(r.active?1:0);hud.ramActive=r.active;
         hud.gpuBytes=g.allocatedBytes;hud.gpuCap=unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024;
@@ -89,7 +99,14 @@ void ResourceCacheTick(){
         lastReport=now;resource_cache::Stats s=resource_cache::Snapshot();std::ostringstream out;
         out<<"Resource RAM cache: on="<<c.cfg_resourceRamCache<<" bytes="<<s.allocatedBytes
            <<" capGiB="<<c.cfg_resourceRamGiB<<" files="<<s.entries<<" pending="<<s.pending
-           <<" hits="<<s.hits<<" misses="<<s.misses<<" queued="<<s.queued<<" rejected="<<s.rejected<<" readBytes="<<s.readBytes;
+           <<" hits="<<s.hits<<" misses="<<s.misses<<" queued="<<s.queued<<" rejected="<<s.rejected<<" readBytes="<<s.readBytes
+           <<" startupRoots="<<s.startupRoots<<" startupFiles="<<s.startupFiles<<" startupProcessed="<<s.startupProcessed
+           <<" startupLoaded="<<s.startupLoaded<<" startupSkipped="<<s.startupSkipped<<" startupTotalBytes="<<s.startupTotalBytes
+           <<" startupReadBytes="<<s.startupReadBytes<<" startupScanning="<<s.startupScanning<<" startupDone="<<s.startupDone<<" startupCapped="<<s.startupCapped;
+        resource_geometry::Stats geometry=resource_geometry::Snapshot();
+        out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
+           <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained
+           <<" geometryReferenceHits="<<geometry.reused<<" geometryEvicted="<<geometry.evicted<<" geometryRejected="<<geometry.rejected<<" geometryPressure="<<geometry.pressure;
         LogDetail(out.str());
     }
 }

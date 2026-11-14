@@ -53,6 +53,8 @@ const ZoneConfig kZoneDefaults =
 	false, // cfg_resourceGpuWarm
 	1, // cfg_resourceGpuGiB
 	false, // cfg_resourceWarmHud
+	false, // cfg_resourceStartupTextures
+	false, // cfg_resourceGeometryWarm
 };
 
 ZoneConfig g_zoneCfg = kZoneDefaults;
@@ -74,12 +76,18 @@ const ConfigKey g_zoneConfigKeys[] =
 	CFG_OBOOL_LIVE("resourceGpuWarm", ZoneConfig, cfg_resourceGpuWarm, DOC, SHOW,
 	  "Terrain VRAM warmup",
 	  "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."),
+	CFG_OBOOL_LIVE("resourceGeometryWarm", ZoneConfig, cfg_resourceGeometryWarm, DOC, SHOW,
+      "Keep loaded model geometry in VRAM",
+      "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."),
 	CFG_OINT_LIVE("resourceGpuGiB", ZoneConfig, cfg_resourceGpuGiB, 1.0f, 8.0f, INT_MIN, DOC, SHOW,
 	  "VRAM warmup limit (GiB)",
-	  "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
+	  "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
 	CFG_OBOOL_LIVE("resourceWarmHud", ZoneConfig, cfg_resourceWarmHud, DOC, SHOW,
       "Show resource warmup text",
 	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."),
+	CFG_OBOOL_LIVE("resourceStartupTextures", ZoneConfig, cfg_resourceStartupTextures, DOC, SHOW,
+      "Warm textures at startup",
+      "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."),
 	CFG_OBOOL_LIVE("resourceRamCache", ZoneConfig, cfg_resourceRamCache, DOC, SHOW,
 	  "Cache resource files in RAM",
 	  "Keeps copies of texture and model files already requested by the game for faster reuse."

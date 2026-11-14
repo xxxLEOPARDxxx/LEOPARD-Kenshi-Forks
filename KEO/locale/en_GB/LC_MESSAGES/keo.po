@@ -363,3 +363,63 @@ msgstr "RAM warm"
 
 msgid "VRAM standby"
 msgstr "VRAM standby"
+
+
+msgid "Warm textures at startup"
+msgstr "Warm textures at startup"
+
+
+msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
+msgstr "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
+
+
+msgid "Startup texture warmup"
+msgstr "Startup texture warmup"
+
+
+msgid "Scanning textures"
+msgstr "Scanning textures"
+
+
+msgid "Cache limit reached"
+msgstr "Cache limit reached"
+
+
+msgid "Waiting for resource list"
+msgstr "Waiting for resource list"
+
+
+msgid "processed"
+msgstr "processed"
+
+
+msgid "skipped"
+msgstr "skipped"
+
+
+msgid "Keep loaded model geometry in VRAM"
+msgstr "Keep loaded model geometry in VRAM"
+
+
+msgid "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."
+msgstr "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."
+
+
+msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+
+
+msgid "VRAM cache"
+msgstr "VRAM cache"
+
+
+msgid "models"
+msgstr "models"
+
+
+msgid "reference hits"
+msgstr "reference hits"
+
+
+msgid "Unavailable"
+msgstr "Unavailable"

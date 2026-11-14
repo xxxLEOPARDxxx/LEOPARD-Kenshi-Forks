@@ -31,6 +31,7 @@ CRITICAL_SECTION lock;bool initialized=false;
 HANDLE eventHandle=NULL,threadHandle=NULL;
 ID3D11Device* device=NULL;
 U64 ceiling=GiB,world=0,touch=0;
+U64 geometryBytes=0,geometryCeiling=GiB;unsigned deviceGeneration=0;
 BudgetProbe probe=&ProbeLocalBudget;void*probeContext=NULL;
 bool pressure=false;
 std::string activeKey,lastError;
@@ -67,7 +68,8 @@ bool Reserve(U64 bytes){
         ReadyPtr drop;
         {Guard g;
             if(!On()||bytes>ceiling)return false;
-            if(CacheRoom(ceiling,Read64(allocated),bytes)&&entries.size()<MaxEntries){
+            const U64 cap=geometryBytes?(std::min)(ceiling,geometryCeiling):ceiling;
+            if(CacheRoom(cap,geometryBytes,bytes)&&CacheRoom(cap-geometryBytes,Read64(allocated),bytes)&&entries.size()<MaxEntries){
                 InterlockedExchangeAdd64(&allocated,LONGLONG(bytes));InterlockedExchangeAdd64(&reserved,LONGLONG(bytes));return true;
             }
             if(entries.empty())return false;
@@ -113,6 +115,27 @@ bool BudgetRoom(U64 budget,U64 usage,U64 extra){
     return budget>reserve&&usage<=budget-reserve&&extra<=budget-reserve-usage;
 }
 bool CacheRoom(U64 cap,U64 used,U64 extra){return extra<=cap&&used<=cap-extra;}
+bool TryGeometryReservation(U64 bytes,U64 sharedCap){
+    if(!initialized)return bytes==0;
+    sharedCap=(std::max)(GiB,(std::min)(sharedCap,8*GiB));
+    Guard g;
+    // Lowering/releasing a reservation must work even after removal/pressure.
+    if(bytes==0||bytes<geometryBytes){geometryBytes=bytes;geometryCeiling=sharedCap;return true;}
+    U64 budget=0,usage=0;
+    if(Read(stopping)||!device||!MemoryAllowsStandby()
+       ||FAILED(device->GetDeviceRemovedReason())
+       ||!CacheRoom(sharedCap,Read64(allocated),bytes)
+       ||!probe||!probe(device,&budget,&usage,probeContext)||!BudgetRoom(budget,usage,0))return false;
+    geometryBytes=bytes;geometryCeiling=sharedCap;return true;
+}
+U64 GeometryReservation(){if(!initialized)return 0;Guard g;return geometryBytes;}
+unsigned DeviceGeneration(){if(!initialized)return 0;Guard g;return deviceGeneration;}
+bool GeometryStandbyAllowed(U64 cap){
+    if(!initialized)return false;Guard g;U64 budget=0,usage=0;
+    return !Read(stopping)&&device&&MemoryAllowsStandby()&&SUCCEEDED(device->GetDeviceRemovedReason())
+      &&CacheRoom(cap,Read64(allocated),geometryBytes)&&probe
+      &&probe(device,&budget,&usage,probeContext)&&BudgetRoom(budget,usage,0);
+}
 bool ProbeLocalBudget(ID3D11Device*d,U64*b,U64*u,void*){
     if(!d||!b||!u)return false;
     Com<IDXGIDevice> xd;Com<IDXGIAdapter>a;Com<BudgetAdapter>a3;
@@ -156,7 +179,8 @@ DWORD WINAPI Worker(void*){
                     }else if(BuildTexture(d.p,work.job,f,&r,&error)){
                         StoreAccess::Charge(r);reservation.HandOff();
                         if(!Cancelled(work.epoch)&&MemoryAllowsStandby()){
-                            Guard g;if(!Cancelled(work.epoch)&&Read64(allocated)<=ceiling&&entries.size()<MaxEntries){Entry e={r,++touch,work.epoch};entries[work.job.key]=e;InterlockedIncrement64(&created);}
+                            Guard g;const U64 cap=geometryBytes?(std::min)(ceiling,geometryCeiling):ceiling;
+                            if(!Cancelled(work.epoch)&&CacheRoom(cap,geometryBytes,Read64(allocated))&&entries.size()<MaxEntries){Entry e={r,++touch,work.epoch};entries[work.job.key]=e;InterlockedIncrement64(&created);}
                         }
                     }else{InterlockedIncrement64(&rejected);if(error.find("CreateTexture2D failed")==0)Error(error);}
                 }else InterlockedIncrement64(&rejected);
@@ -180,7 +204,7 @@ bool Start(){
 bool SetDevice(ID3D11Device*d){
     if(!initialized)return false;
     bool valid=DeviceCanCreateConcurrently(d);if(valid)d->AddRef();ID3D11Device*old=NULL;
-    {Guard g;if(device==d&&valid){d->Release();return true;}old=device;device=valid?d:NULL;requests.clear();InterlockedIncrement(&epoch);}
+    {Guard g;if(device==d&&valid){d->Release();return true;}old=device;device=valid?d:NULL;++deviceGeneration;requests.clear();InterlockedIncrement(&epoch);}
     if(old)old->Release();SetEvent(eventHandle);return valid;
 }
 void SetBudgetProbe(BudgetProbe p,void*c){if(!initialized)return;{Guard g;probe=p?p:&ProbeLocalBudget;probeContext=c;InterlockedIncrement(&epoch);requests.clear();}SetEvent(eventHandle);}
