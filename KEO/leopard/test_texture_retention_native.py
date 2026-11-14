@@ -10,8 +10,9 @@ ROOT=Path(__file__).resolve().parents[1]
 GAME=ROOT.parents[1]
 spec=importlib.util.spec_from_file_location('pe',ROOT/'tools/kenshilib/check_imports.py')
 pem=importlib.util.module_from_spec(spec);spec.loader.exec_module(pem)
-ogre=pem.PE(GAME/'OgreMain_x64.dll');steam=pem.PE(GAME/'RE_Kenshi/Kenshi_x64.exe')
+ogre=pem.PE(GAME/'OgreMain_x64.dll');steam=pem.PE(GAME/'RE_Kenshi/Kenshi_x64.exe');renderer=pem.PE(GAME/'RenderSystem_Direct3D11_x64.dll')
 source=(ROOT/'src/resources/resource_texture_retention.cpp').read_text()
+assert 'GetProcAddress(ogre,"?load@Resource@Ogre@@UEAAX_N@Z")' not in source, 'render-pass Resource::load seam must not be hooked'
 
 def read(pe,rva,n):
     at=pe.offset(rva);return pe.data[at:at+n]
@@ -33,12 +34,34 @@ pe=struct.unpack_from('<I',ogre.data,0x3c)[0]
 check(struct.unpack_from('<I',ogre.data,pe+8)[0]==0x5ca5f929)
 check(struct.unpack_from('<I',ogre.data,pe+24+56)[0]==0x9c9000)
 check('stamp!=0x5ca5f929' in source and 'size!=0x9c9000' in source)
-symbol='?load@Resource@Ogre@@UEAAX_N@Z'
-check(syms[symbol]==0x270650)
+symbol='?load@TextureManager@Ogre@@UEAA?AV?$SharedPtr@VTexture@Ogre@@@2@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0W4TextureType@2@HM_NW4PixelFormat@2@2@Z'
+check(syms[symbol]==0x379890)
 check('GetProcAddress(ogre,"'+symbol+'")' in source)
-expected=bytes(int(v.strip(),16) for v in re.search(r'bytes\[32\]=\{([^}]+)',source)[1].split(','))
+expected=bytes(int(v.strip(),16) for v in re.search(r'managerBytes\[32\]=\{([^}]+)',source)[1].split(','))
 check(len(expected)==32 and read(ogre,syms[symbol],32)==expected)
-check('reinterpret_cast<uintptr_t>(ogre)!=0x270650' in source)
+check('reinterpret_cast<uintptr_t>(managerTarget)-ogreBase!=0x379890' in source)
+check(hashlib.sha256(renderer.data).hexdigest()=='5f224882ded5b6d3f68f14d6bb4e1762267bbb602b7b9733bd153663d1541bb9')
+rp=struct.unpack_from('<I',renderer.data,0x3c)[0]
+check(struct.unpack_from('<I',renderer.data,rp+8)[0]==0x5ca5f9e9)
+check(struct.unpack_from('<I',renderer.data,rp+24+56)[0]==0xbf000)
+check('rendererStamp!=0x5ca5f9e9' in source and 'rendererSize!=0xbf000' in source)
+impl=bytes(int(v.strip(),16) for v in re.search(r'implBytes\[32\]=\{([^}]+)',source)[1].split(','))
+check(len(impl)==32 and read(renderer,0x47d20,32)==impl)
+rbase=renderer.image_base
+check(struct.unpack('<Q',read(renderer,0x7ce08+0x58,8))[0]-rbase==0x47d20)
+check(struct.unpack('<Q',read(renderer,0x7ce00,8))[0]-rbase==0x88248)
+check(struct.unpack('<6I',read(renderer,0x88248,24))==(1,0,0,0xb22c8,0x88270,0x88248))
+textureTypeName=b'.?AVD3D11Texture@Ogre@@\0'
+check(read(renderer,0xb22c8+16,len(textureTypeName))==textureTypeName)
+check('if(!ogre||!renderer)return;' in source and 'DWORD(now-state->lastAdmissionTick)<250' in source and 'TryInstallHooks();' in source)
+# Native manager signature forwards all stack args, calls Resource.load(false)
+# on the returned texture, and returns that same hidden output slot in RAX.
+check(read(ogre,0x3798db,15)==bytes.fromhex('f30f108424e0000000f30f11442448'))
+check(read(ogre,0x379933,11)==bytes.fromhex('488b0b488b0133d2ff5070'))
+check(read(ogre,0x3799b0,3)==bytes.fromhex('488bc3'))
+# Generic Resource::load vslot58 invokes the concrete loadImpl while loading;
+# its LOADED publication occurs later. Repeated loaded calls skip loadImpl.
+check('originalLoad(r,background)' not in source and 'ManagerLoadFn' in source and 'LoadImplFn' in source)
 # Native Resource::getSize returns mSize, not pixel buffers or a force-load.
 check(syms['?getSize@Resource@Ogre@@UEBA_KXZ']==0x667a0)
 check(read(ogre,0x667a0,8)==bytes.fromhex('488b81e0000000c3'))
@@ -83,11 +106,16 @@ mutations=[
     ('ignore-pressure','state->stats.pressure=!resource_gpu::TextureRetentionStandbyAllowed(state->cap);','state->stats.pressure=false;'),
     ('ignore-world','||state->world!=world',''),
     ('ignore-device','||state->device!=device',''),
-    ('double-native-load','originalLoad(r,background);','originalLoad(r,background);originalLoad(r,background);'),
+    ('double-native-load','originalLoadImpl(r);','originalLoadImpl(r);originalLoadImpl(r);'),
     ('ignore-native-mips','*bytes=(std::max)(pixels,accounted);','*bytes=accounted;'),
     ('worker-reads-observer-state','if(!IsMainThread()||!state||!state->on||!r)return;','if(!state||!state->on||!IsMainThread()||!r)return;'),
-    ('worker-reads-wrapper-state','owner&&state&&state->on&&r&&r->isLoaded()','state&&state->on&&owner&&r&&r->isLoaded()'),
-    ('reload-counted-as-reuse','Observe(r,wasLoaded)','Observe(r,true)'),
+    ('worker-reads-wrapper-state','if(CaptureEnabled()&&IsMainThread())try{\n        ++state->stats.managerRequests;','if(CaptureEnabled()&&state->on&&IsMainThread())try{\n        ++state->stats.managerRequests;'),
+    ('reload-counted-as-reuse','++state->stats.loadCompletions;Observe(r,false);','++state->stats.loadCompletions;Observe(r,true);'),
+    ('manager-wrong-float','self,out,name,group,type,mips,gamma,alpha,format,hwGamma);','self,out,name,group,type,mips,2.0f,alpha,format,hwGamma);'),
+    ('manager-wrong-bool','self,out,name,group,type,mips,gamma,alpha,format,hwGamma);','self,out,name,group,type,mips,gamma,!alpha,format,hwGamma);'),
+    ('manager-wrong-return','return result;','return NULL;'),
+    ('disabled-owner-query','if(CaptureEnabled()&&IsMainThread())try{\n        ++state->stats.managerRequests;','if(IsMainThread()&&CaptureEnabled())try{\n        ++state->stats.managerRequests;'),
+    ('double-manager-call','Ogre::TexturePtr*result=originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);','originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);Ogre::TexturePtr*result=originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);'),
 ]
 for name,before,after in mutations:
     check(source.count(before)==1)

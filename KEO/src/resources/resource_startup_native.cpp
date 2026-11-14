@@ -6,6 +6,7 @@
 #include "base/log_admission.h"
 #include "game/klib_bindings.h"
 #include <cstring>
+#include <cstdio>
 #include "render/module_hooks.h"
 #include "base/klib_include.h"
 #include <ogre/OgreRoot.h>
@@ -23,6 +24,7 @@ typedef bool(*TimedFn)(Ogre::Root*,float);
 AddFn originalAdd=NULL;FrameFn originalFrame=NULL;TimedFn originalTimed=NULL;
 static DWORD lastTick=0;static bool ticked=false;
 static LONGLONG menuFrameAt=0,menuSlowAt=0;static bool menuFrameSeen=false,menuSlow=false;
+static LONGLONG menuSeedAt=0;static bool menuSeedSeen=false;
 static void Remember(const Ogre::String&name,const Ogre::String&type,bool recursive,bool readOnly){
     if(type!="FileSystem"||!readOnly||name.empty()||name.size()>=MAX_PATH)return;
     char full[MAX_PATH];DWORD len=GetFullPathNameA(name.c_str(),MAX_PATH,full,NULL);
@@ -35,41 +37,67 @@ void Add(Ogre::ResourceGroupManager*self,const Ogre::String&name,const Ogre::Str
     try{Remember(name,type,recursive,readOnly);}catch(...){}
 }
 static Ogre::StringVector seedGroups;static size_t seedGroup=0,seedOffset=0;static unsigned seedVisits=0;static bool seeded=false;
+static void SeedPhase(const char*phase){
+#ifndef RESOURCE_STARTUP_BOUNDARY_TEST
+    if(DetailedLogEnabled()){
+        char line[160];sprintf_s(line,"Resource startup seed: %s groups=%u groupsVisited=%u locationsVisited=%u",phase,unsigned(seedGroups.size()),unsigned(seedGroup),seedVisits);LogMsg(line);
+    }
+#endif
+}
 static void SeedExisting(){
-    // Only fills the gap before our registration hook. Limit each heartbeat
-    // to 32 entries and the WHOLE seed to 8192 visits/256 groups.
+    // Only fills the gap before our registration hook. Share32 NEW entries
+    // across at most8 group attempts per heartbeat. Empty/removed groups must
+    // not each burn a separate250ms wait. Whole seed:8192 visits/256 groups.
+    if(seeded&&(seedGroup>=seedGroups.size()||seedVisits>=8192))return;
     Ogre::ResourceGroupManager*m=Ogre::ResourceGroupManager::getSingletonPtr();if(!m)return;
-    if(!seeded){seedGroups=m->getResourceGroups();if(seedGroups.size()>256)seedGroups.resize(256);seeded=true;}
+    if(!seeded){seedGroups=m->getResourceGroups();if(seedGroups.size()>256)seedGroups.resize(256);seeded=true;SeedPhase("begin");}
     if(seedGroup>=seedGroups.size()||seedVisits>=8192)return;
-    try{
+    unsigned count=0,groups=0;const LONGLONG begin=QpcNow();
+    while(seedGroup<seedGroups.size()&&seedVisits<8192&&count<32&&groups<8){
+      // Soft deadline between groups; never abandon rewind-to-offset midway
+      // through a large list, which could starve it once offset exceeds a cap.
+      if(groups&&QpcDeltaUs(begin,QpcNow())>=1000)break;
+      ++groups;
+      try{
         const Ogre::ResourceGroupManager::LocationList&list=m->getResourceLocationList(seedGroups[seedGroup]);
         Ogre::ResourceGroupManager::LocationList::const_iterator it=list.begin();size_t skip=0;
         for(;it!=list.end()&&skip<seedOffset;++it,++skip){}
-        unsigned count=0;
-        for(;it!=list.end()&&count<32&&seedVisits<8192;++it,++count,++seedVisits,++seedOffset){
+        while(it!=list.end()&&count<32&&seedVisits<8192){
             const Ogre::ResourceGroupManager::ResourceLocation*r=*it;
             if(r&&r->archive)Remember(r->archive->getName(),r->archive->getType(),r->recursive,true);
+            ++it;++count;++seedVisits;++seedOffset;
+            // Numeric progress is committed before yielding. This budget is
+            // never applied to rewind-to-offset, which must make progress.
+            if(QpcDeltaUs(begin,QpcNow())>=1000)break;
         }
         if(it==list.end()){++seedGroup;seedOffset=0;}
-    }catch(...){++seedGroup;seedOffset=0;} // a removed group never prevents later seeds
-    if(seedGroup>=seedGroups.size()||seedVisits>=8192){Ogre::StringVector empty;seedGroups.swap(empty);}
+      }catch(...){++seedGroup;seedOffset=0;} // removed groups count towards the8attempt budget
+    }
+    if(seedGroup>=seedGroups.size()||seedVisits>=8192){SeedPhase("complete");Ogre::StringVector empty;seedGroups.swap(empty);}
 }
 static void Heartbeat(){
     if(!IsMainThread())return;
     if(InterlockedCompareExchange(&g_navMeshStopSeen,0,0)){resource_cache::SetStartupMenu(false);return;}
     DWORD now=GetTickCount();
-    bool responsive=false;
+    bool responsive=false;LONGLONG frameNow=0;
     if(resource_cache::StartupEnabled()&&ResourceStartupTitleVisible()){
         // GetTickCount can quantize a steady60Hz frame to32ms. Use the native
         // high-resolution clock for responsiveness; DWORD clock is lease only.
-        const LONGLONG frameNow=QpcNow();
+        frameNow=QpcNow();
         if(menuFrameSeen&&QpcDeltaUs(menuFrameAt,frameNow)>=20000){menuSlowAt=frameNow;menuSlow=true;}
         menuFrameAt=frameNow;menuFrameSeen=true;
         responsive=!menuSlow||QpcDeltaUs(menuSlowAt,frameNow)>=1000000;
-    }else {menuFrameSeen=false;menuSlow=false;}
+    }else {menuFrameSeen=false;menuSlow=false;menuSeedSeen=false;}
     resource_cache::SetStartupMenu(responsive);
+    // Only in a responsive title menu: prepare copied location metadata at
+    // most once/16ms. Each slice retains32entries/8groups/soft1ms bounds.
+    // Gameplay/slow-menu slices and ResourceCacheTick retain250ms cadence.
+    if(responsive&&(!menuSeedSeen||QpcDeltaUs(menuSeedAt,frameNow)>=16000)){
+        menuSeedAt=frameNow;menuSeedSeen=true;
+        try{SeedExisting();}catch(...){}
+    }
     if(ticked&&DWORD(now-lastTick)<250)return;ticked=true;lastTick=now;
-    try{SeedExisting();}catch(...){} // optional inventory failure never replaces native loading
+    if(!responsive)try{SeedExisting();}catch(...){} // optional inventory failure never replaces native loading
     ResourceCacheTick();
 }
 bool Frame(Ogre::Root*self){bool ok=originalFrame(self);if(ok)Heartbeat();return ok;}

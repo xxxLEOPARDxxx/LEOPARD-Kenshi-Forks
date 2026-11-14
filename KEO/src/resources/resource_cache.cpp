@@ -99,6 +99,12 @@ void ResourceCacheTick(){
         hud.workPaused=!resource_cache::BackgroundAllowed();hud.ramOn=c.cfg_resourceRamCache;hud.gpuOn=c.cfg_resourceRamCache&&c.cfg_resourcePrefetch&&c.cfg_resourceGpuWarm&&p.admitted;
     }
     if(uiTicksAdmitted)ResourceWarmHudTick(c.cfg_resourceWarmHud,hud);
+    static bool startupReadingReported=false;
+    if(DetailedLogEnabled()){
+        resource_cache::Stats first=resource_cache::Snapshot();
+        if(!first.startupReadBytes)startupReadingReported=false;
+        else if(!startupReadingReported){startupReadingReported=true;LogMsg("Resource startup: first observed texture read (one-second sampling)");}
+    }
     if(DetailedLogEnabled()&&now-lastReport>=10){
         lastReport=now;resource_cache::Stats s=resource_cache::Snapshot();std::ostringstream out;
         out<<"Resource RAM cache: on="<<c.cfg_resourceRamCache<<" bytes="<<s.allocatedBytes
@@ -112,6 +118,7 @@ void ResourceCacheTick(){
         out<<" textureHeldBytes="<<textures.heldBytes<<" textureCount="<<textures.textures<<" textureObserved="<<textures.observed
            <<" textureRetained="<<textures.retained<<" textureReused="<<textures.reused<<" textureEvicted="<<textures.evicted
            <<" textureRejected="<<textures.rejected<<" texturePending="<<textures.pending<<" textureAdmitted="<<textures.admitted<<" texturePressure="<<textures.pressure;
+        out<<" textureManagerRequests="<<textures.managerRequests<<" textureLoadCompletions="<<textures.loadCompletions;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
            <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained
