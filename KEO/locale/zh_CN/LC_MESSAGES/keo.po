@@ -259,3 +259,31 @@ msgstr "应用"
 
 msgid "Use global limit"
 msgstr "使用全局上限"
+
+
+msgid "Resource memory"
+msgstr "资源内存"
+
+
+msgid "Cache resource files in RAM"
+msgstr "在内存中缓存资源文件"
+
+
+msgid "Keeps copies of texture and model files already requested by the game for faster reuse. Does not activate extra zones or NPCs. Helps revisiting areas; first visits still use normal loading. Can be turned off immediately; active reads remain valid until finished."
+msgstr "在内存中保留游戏已请求的纹理和模型文件，供再次读取。不会激活额外区域或 NPC。主要帮助重访区域；首次进入仍使用正常加载。可以随时关闭，正在使用的数据会保留到读取完成。"
+
+
+msgid "Resource RAM cache limit (GiB)"
+msgstr "资源内存缓存上限 (GiB)"
+
+
+msgid "Maximum RAM used for cached resource files, not a preallocation. Stops filling and releases unused files if available physical memory falls below 2 GiB or 20%, whichever is larger. Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."
+msgstr "资源文件缓存的内存上限，不会提前分配全部容量。当可用物理内存低于 2 GiB 或总内存的 20%（取较大值）时，停止填充并释放未使用的文件。游戏的其他数据也需要内存。降低上限后，正在读取的文件可能暂时保留。"
+
+
+msgid "Background resource reading (MiB/s)"
+msgstr "后台资源读取速度 (MiB/s)"
+
+
+msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "限制低优先级后台读取线程的速度，为再次使用准备已请求的文件。如果后台磁盘读取影响游戏，请降低此值。这不是显存上限。"

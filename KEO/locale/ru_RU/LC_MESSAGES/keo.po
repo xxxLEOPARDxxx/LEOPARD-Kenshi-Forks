@@ -259,3 +259,31 @@ msgstr "Применить"
 
 msgid "Use global limit"
 msgstr "Общий лимит"
+
+
+msgid "Resource memory"
+msgstr "Память ресурсов"
+
+
+msgid "Cache resource files in RAM"
+msgstr "Кэш файлов ресурсов в ОЗУ"
+
+
+msgid "Keeps copies of texture and model files already requested by the game for faster reuse. Does not activate extra zones or NPCs. Helps revisiting areas; first visits still use normal loading. Can be turned off immediately; active reads remain valid until finished."
+msgstr "Сохраняет в ОЗУ файлы текстур и моделей, уже запрошенные игрой, для быстрого повторного чтения. Не активирует дополнительные зоны и NPC. Помогает при возвращении в посещённые области; первый вход использует обычную загрузку. Можно выключить сразу; текущие чтения безопасно завершатся."
+
+
+msgid "Resource RAM cache limit (GiB)"
+msgstr "Лимит RAM-кэша (ГиБ)"
+
+
+msgid "Maximum RAM used for cached resource files, not a preallocation. Stops filling and releases unused files if available physical memory falls below 2 GiB or 20%, whichever is larger. Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."
+msgstr "Максимальный объём ОЗУ для кэша файлов, а не заранее выделенная память. При остатке физической памяти менее 2 ГиБ или 20% (берётся большее значение) заполнение прекращается и неиспользуемые файлы освобождаются. Остальные данные игры также требуют памяти. После снижения лимита текущие чтения могут временно удерживать часть кэша."
+
+
+msgid "Background resource reading (MiB/s)"
+msgstr "Фоновое чтение (МиБ/с)"
+
+
+msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Ограничивает скорость фонового потока с низким приоритетом, который подготавливает запрошенные файлы для повторного чтения. Уменьшите значение, если фоновое чтение диска мешает игре. Это не лимит видеопамяти."

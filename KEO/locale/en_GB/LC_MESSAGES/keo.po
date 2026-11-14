@@ -259,3 +259,31 @@ msgstr "Apply"
 
 msgid "Use global limit"
 msgstr "Use global limit"
+
+
+msgid "Resource memory"
+msgstr "Resource memory"
+
+
+msgid "Cache resource files in RAM"
+msgstr "Cache resource files in RAM"
+
+
+msgid "Keeps copies of texture and model files already requested by the game for faster reuse. Does not activate extra zones or NPCs. Helps revisiting areas; first visits still use normal loading. Can be turned off immediately; active reads remain valid until finished."
+msgstr "Keeps copies of texture and model files already requested by the game for faster reuse. Does not activate extra zones or NPCs. Helps revisiting areas; first visits still use normal loading. Can be turned off immediately; active reads remain valid until finished."
+
+
+msgid "Resource RAM cache limit (GiB)"
+msgstr "Resource RAM cache limit (GiB)"
+
+
+msgid "Maximum RAM used for cached resource files, not a preallocation. Stops filling and releases unused files if available physical memory falls below 2 GiB or 20%, whichever is larger. Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."
+msgstr "Maximum RAM used for cached resource files, not a preallocation. Stops filling and releases unused files if available physical memory falls below 2 GiB or 20%, whichever is larger. Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."
+
+
+msgid "Background resource reading (MiB/s)"
+msgstr "Background resource reading (MiB/s)"
+
+
+msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."

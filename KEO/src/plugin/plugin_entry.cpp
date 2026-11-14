@@ -46,6 +46,8 @@
 #include "inventory/dialogue_item_function.h"
 #include "fixes/streaming/section_key_ring.h"
 #include "plugin/crash_record.h"
+#include "resources/resource_cache.h"
+#include "resources/resource_cache_store.h"
 
 // InitLogFile is declared in core.h
 
@@ -88,6 +90,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
 		// here would block under the loader lock. The event is manual-reset,
 		// so one set releases every worker and stays signalled.
 		g_workerShutdown = 1;
+		resource_cache::SignalStop();
 		if (g_jobEvent)
 			SetEvent(g_jobEvent);
 
@@ -487,4 +490,5 @@ __declspec(dllexport) void startPlugin()
 	LogStartupLayout();
 	InitializeRuntimeState(ctx);
 	InstallHooksAndGuards(ctx);
+	ResourceCacheInit();
 }

@@ -1,4 +1,5 @@
 #include "base/log_admission.h"
+#include "resources/resource_cache_store.h"
 // nm_lazy_hooks.cpp - first-dispatch navmesh hooks and stop flag.
 // the stop hook sets its flag before calling the original.
 #include "navmesh/nm_workers.h"
@@ -85,6 +86,7 @@ static void hook_navMeshStop(void* navMesh)
 	// retire's slices belongs to the teardown too; set here, it also keeps the
 	// DEV exit capture from arming when the retire ends the process at its cap.
 	InterlockedExchange(&g_navMeshStopSeen, 1);
+	resource_cache::Stop();
 	// Threads queued for a generation slot see the stop now rather than at
 	// their next poll, and skip the generation.
 	MissParShutdownWake();

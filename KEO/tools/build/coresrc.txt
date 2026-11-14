@@ -353,3 +353,5 @@ src/jobs/steel_jobs_factory.cpp
 src/jobs/steel_jobs_stock.cpp
 src/jobs/steel_jobs_transfer.cpp
 src/jobs/steel_jobs.cpp
+src/resources/resource_cache_store.cpp
+src/resources/resource_cache.cpp

@@ -46,6 +46,9 @@ const ZoneConfig kZoneDefaults =
 	1, // cfg_zoneLifeSquadRadius
 	45, // cfg_zoneRetentionMaxHeld
 	30.0, // cfg_zoneLifeIdleSeconds
+	false, // cfg_resourceRamCache: opt-in until gameplay A/B validation
+	1, // cfg_resourceRamGiB
+	32, // cfg_resourceReadMBps
 };
 
 ZoneConfig g_zoneCfg = kZoneDefaults;
@@ -61,6 +64,20 @@ static_assert(__alignof(ZoneConfig) >= 8, "ZoneConfig must be 8-byte aligned");
 
 const ConfigKey g_zoneConfigKeys[] =
 {
+	CFG_OBOOL_LIVE("resourceRamCache", ZoneConfig, cfg_resourceRamCache, DOC, SHOW,
+	  "Cache resource files in RAM",
+	  "Keeps copies of texture and model files already requested by the game for faster reuse."
+	  " Does not activate extra zones or NPCs. Helps revisiting areas; first visits still use normal loading."
+	  " Can be turned off immediately; active reads remain valid until finished."),
+	CFG_OINT_LIVE("resourceRamGiB", ZoneConfig, cfg_resourceRamGiB, 1.0f, 32.0f, INT_MIN, DOC, SHOW,
+	  "Resource RAM cache limit (GiB)",
+	  "Maximum RAM used for cached resource files, not a preallocation."
+	  " Stops filling and releases unused files if available physical memory falls below 2 GiB or 20%, whichever is larger."
+	  " Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."),
+	CFG_OINT_LIVE("resourceReadMBps", ZoneConfig, cfg_resourceReadMBps, 1.0f, 128.0f, INT_MIN, DOC, SHOW,
+	  "Background resource reading (MiB/s)",
+	  "Limits a low-priority IO worker that prepares requested files for reuse."
+	  " Lower this if background disk access affects the game. This is not a graphics memory budget."),
 	CFG_OBOOL("deferral", ZoneConfig, deferralEnabled,              NDOC, DEVROW,
 	  "Legacy readiness deferral (retired)",
 	  "At zone handoff step 2 or later, readiness stays native for every caller. This legacy key cannot"

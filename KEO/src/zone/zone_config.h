@@ -128,6 +128,9 @@ struct ZoneConfig
 
 	double cfg_zoneLifeIdleSeconds;   // seconds a mod-loaded zone must sit outside the
 	                                  // camera's and the squads' radii before it is unloaded (5-600)
+	bool cfg_resourceRamCache;
+	int cfg_resourceRamGiB;
+	int cfg_resourceReadMBps;
 };
 
 extern ZoneConfig g_zoneCfg;

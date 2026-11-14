@@ -33,10 +33,13 @@ static void Describe(MCM_Api&api){rows.clear();KeoMcmDescribe(&api);}
 int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;api.info=Info;api.toggleFn=Toggle;api.integerFn=Integer;api.choiceFn=Choice;api.numberFn=Number;api.defaultValue=Default;
  KeoMcmDescribe(NULL);Describe(api);Check(rows.empty(),"early discovery has no unsafe callbacks");
  movement::g_movementCfg.routingEnabled=false;movement::g_movementCfg.groupCohesionEnabled=true;Check(CaptureRequestedSettings(),"requested captured before runtime refusal");movement::ApplyRoutingSwitch(NULL);
- api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==26&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 exact compact26 and Debug last");
+ api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==29&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 includes three RAM cache rows and Debug last");
  api.version=5;Describe(api);unsigned restart=0;for(size_t i=0;i<rows.size();++i){restart+=(rows[i].flags&MCM_RESTART)!=0;Check(rows[i].label.find('*')==std::string::npos,"MCM owns restart marker");}Check(restart==14&&rows.back().flags==0&&rows.back().def=="0","14 startup rows and live defaultOFF Debug");
  for(unsigned p=0;keo_gui::kSettingsPlaces[p].section;++p){const ConfigKey*k=FindConfigKey(keo_gui::kSettingsPlaces[p].key,NULL);Row*r=Find(k->name);Check(r&&r->flags==(k->live?0:MCM_RESTART),"each original player row preserves exact live/restart classification");if(r&&r->kind==2)Check(r->lo==int(k->lo)&&r->hi==int(k->hi),"integer range comes from original loader metadata");}
  Check(Find("carriedWeight")&&Find("carriedWeight")->def=="0"&&Find("carriedWeight")->flags==MCM_RESTART&&!keo_inventory::g_inventoryCfg.carriedWeightEnabled,"carried weight defaultOFF and restart-only, no runtime activation");
+ Check(Find("resourceRamCache")&&Find("resourceRamCache")->def=="0"&&Find("resourceRamCache")->flags==0,"RAM cache opt-in and live");
+ Check(Find("resourceRamGiB")&&Find("resourceRamGiB")->lo==1&&Find("resourceRamGiB")->hi==32&&Find("resourceRamGiB")->flags==0,"RAM cap one GiB steps up to32 live");
+ Check(Find("resourceReadMBps")&&Find("resourceReadMBps")->lo==1&&Find("resourceReadMBps")->hi==128&&Find("resourceReadMBps")->def=="32"&&Find("resourceReadMBps")->flags==0,"bounded background IO live");
  Check(Find("k7PostDeathHold")->def=="2","custom choice default uses integer callback value not INI word");
 #ifndef KEO_DEBUG
  Check(Find("k7PostDeathHold")->choices.size()==2,"PROD hides unselected observe choice");
