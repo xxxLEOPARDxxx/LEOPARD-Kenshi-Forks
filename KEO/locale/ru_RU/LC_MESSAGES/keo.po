@@ -313,8 +313,8 @@ msgid "Maximum extra graphics memory held for prepared terrain, not a preallocat
 msgstr "Максимум дополнительной видеопамяти для подготовленного рельефа, а не предварительное выделение всего объёма. Фактический бюджет видеопамяти имеет приоритет. Уменьшите лимит, если на видеокарте мало свободной памяти."
 
 
-msgid "Show resource warmup panel"
-msgstr "Показывать панель прогрева"
+msgid "Show resource warmup text"
+msgstr "Показывать текст прогрева"
 
 
 msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."

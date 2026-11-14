@@ -25,7 +25,7 @@ int main()
     C(sampler.Observe(850,0)==0);C(sampler.Observe(1100,1ULL<<20)==4);
     sampler.Reset();C(sampler.Observe(0xfffffff0u,0)==0);C(sampler.Observe(0xf0u,1ULL<<20)==3.90625);
     C(sampler.Observe(0xf0u,2ULL<<20)==0); // no divide by zero
-    Layout l=Place(1920,1080,680,24);C(l.left==16&&l.top==96&&l.width==716&&l.height==100);
+    Layout l=Place(1920,1080,680,24);C(l.left==16&&l.top==96&&l.width==680&&l.height==72);
     l=Place(320,180,680,24);C(l.left>=0&&l.top>=0&&l.left+l.width<=320&&l.top+l.height<=180);
     l=Place(1,1,680,24);C(l.width<=1&&l.height<=1&&l.left==0&&l.top==0);
     C(!Due(1100,1000,true));C(Due(1250,1000,true));C(Due(1,0,false));C(Due(0xf0,0xfffffff0u,true));

@@ -8,8 +8,8 @@ capacity. `ramPending`/`gpuPending` include in-flight work. `gpuAdopted` and
 
 Call `ResourceWarmHudTick(enabled, snapshot)` only on the admitted UI thread,
 after native GUI readiness, at the existing resource main tick. Disabled state
-destroys the HUD immediately. First enabled frame creates one root and three
-cached text rows; no GUI tree lookup. Painting, measurement and string formatting
+destroys the HUD immediately. First admitted frame creates three independent
+cached root text rows without a frame/panel; no GUI tree lookup. Painting, measurement and string formatting
 are bounded to four times per second; captions and coordinates change only when
 their values change. The actual read rate handles counter reset and DWORD wrap.
 
@@ -23,9 +23,9 @@ clear widget pointers on external deletion. An already destroyed manager is neve
 dereferenced. Caller must keep ticking disabled/cleanup while the feature is off;
 do not put the only cleanup behind the cache enable gate.
 
-All mutable HUD state is one fixed global object; exactly four owned widgets;
+All mutable HUD state is one fixed global object; exactly three owned widgets;
 no entities, world scans, queues, histories or uncapped containers. Widget creation
-failure destroys the partially created root, retires the observer, logs an error,
+failure destroys all partially created rows, retires the observer, logs an error,
 and retries at most once in five seconds. DLL lifetime must include its registered
 unlink observer; invoke Cleanup before any supported plugin unload.
 
@@ -37,17 +37,21 @@ and this snapshot does not know total bytes remaining. Remaining means the
 current queue, not all assets in the world. Created/used/skipped counts are
 observability, not an FPS claim.
 
-Native frame default position is (16,96), below the owner's MSI overlay; three
-18px text rows with native font, white text and black shadow. The background is
-the native `Kenshi_FrameSkin`. Bounds are clamped on screen resize. Vanilla and
-installed Dark UI Advanced XML share the same 16px side/12px top/14px bottom frame;
-18px horizontal and 14px vertical padding keeps text outside the frame borders.
+Default text position is (16,96), below the owner's MSI overlay; three
+18px text rows with native font, white text and black shadow. There is no panel
+or frame. Bounds are clamped on screen resize. `Kenshi_TextBoxEmptySkin` is the
+actual ResourceSkin, with `Kenshi_StandardFont_Medium` assigned explicitly before
+font-height or measurement calls. `Kenshi_TextboxStandardText` is a ResourceLayout
+template, and must not be passed as a skin. The real native font, its resource,
+and the actual skin must exist before any widgets are created; singleton pointers
+alone do not prove readiness. Parent also defers HUD work until a scene tick.
 Very narrow viewports may clip text; no font shrink below 18px is applied.
 
 Verification: `leopard/test_resource_warm_hud.py` builds/runs actual portable
 format/rate/layout code and actual production HUD source against a bounded SDK
-boundary model, rejects five compiled regressions, compiles production with the
-real VC10/MyGUI headers, and inspects actual vanilla/Dark UI XML. Logs under
+boundary model, rejects eight compiled regressions, compiles production with the
+real VC10/MyGUI headers, and inspects actual vanilla/Dark UI skin XML plus the
+template-to-skin/font contract. Logs under
 `build/resource-warm-hud`. Runtime boundary tests model renderer/skin dimensions
 and ownership; they are not screenshots, real-game font rendering, FPS or long-run
 leak measurements. In-game acceptance remains outstanding.

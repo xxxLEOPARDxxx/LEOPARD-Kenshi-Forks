@@ -313,8 +313,8 @@ msgid "Maximum extra graphics memory held for prepared terrain, not a preallocat
 msgstr "用于预备地形的额外显存上限，不会预先分配全部容量。实际显存预算优先。如果显卡空闲显存较少，请降低上限。"
 
 
-msgid "Show resource warmup panel"
-msgstr "显示资源预热面板"
+msgid "Show resource warmup text"
+msgstr "显示资源预热文字"
 
 
 msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."

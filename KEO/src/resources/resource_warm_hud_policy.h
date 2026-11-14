@@ -3,7 +3,6 @@
 #include <string>
 #include <cstdio>
 namespace resource_warm_hud {
-enum { HorizontalPad=18, VerticalPad=14 };
 typedef const char* (*Translate)(const char*);
 struct Lines { std::string text[3]; };
 inline std::string Count(unsigned __int64 n) { char b[32];sprintf_s(b,"%I64u",n);return b; }
@@ -40,8 +39,8 @@ inline int Minimum(int a,int b) {return a<b?a:b;}
 inline int Maximum(int a,int b) {return a>b?a:b;}
 inline Layout Place(int viewWidth,int viewHeight,int textWidth,int lineHeight) {
     Layout r={};viewWidth=Maximum(0,viewWidth);viewHeight=Maximum(0,viewHeight);
-    r.width=Minimum(viewWidth,Maximum(0,textWidth)+2*HorizontalPad);
-    r.height=Minimum(viewHeight,Maximum(0,lineHeight)*3+2*VerticalPad);
+    r.width=Minimum(viewWidth,Maximum(0,textWidth));
+    r.height=Minimum(viewHeight,Maximum(0,lineHeight)*3);
     r.left=Minimum(16,viewWidth-r.width);r.top=Minimum(96,viewHeight-r.height);return r;
 }
 inline bool Due(unsigned now,unsigned at,bool sampled) { return !sampled||unsigned(now-at)>=250; }

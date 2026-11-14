@@ -24,6 +24,7 @@ namespace {
 typedef Ogre::DataStreamPtr* (*ArchiveOpen)(Ogre::FileSystemArchive*,Ogre::DataStreamPtr*,const Ogre::String&,bool);
 ArchiveOpen original=NULL;
 bool installed=false;
+bool uiTicksAdmitted=false; // Init runs before the title's font/resource refresh.
 volatile LONG active=0;
 const ModuleSite site={
     "FileSystemArchive::open RAM cache","OgreMain_x64.dll",
@@ -65,6 +66,7 @@ void ResourceCacheInit(){
     ResourceCacheTick(); // honor opt-in INI before the first scene loads
     ResourceForwardInit();
     ResourceLoadProbeInit();
+    uiTicksAdmitted=true;
 }
 void ResourceCacheTick(){
     if(!installed)return;
@@ -74,7 +76,7 @@ void ResourceCacheTick(){
     resource_cache::Configure(c.cfg_resourceRamCache,unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024,c.cfg_resourceReadMBps);
     InterlockedExchange(&active,c.cfg_resourceRamCache?1:0);
     resource_warm_hud::Snapshot hud={};
-    if(c.cfg_resourceWarmHud){
+    if(uiTicksAdmitted&&c.cfg_resourceWarmHud){
         resource_cache::Stats r=resource_cache::Snapshot();resource_gpu::Stats g=resource_gpu::Snapshot();ResourceGpuProgress p=ResourceGpuBridgeProgress();
         hud.ramBytes=r.allocatedBytes;hud.ramCap=unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024;hud.ramReadBytes=r.readBytes;
         hud.ramFiles=r.entries;hud.ramPending=r.pending+(r.active?1:0);hud.ramActive=r.active;
@@ -82,7 +84,7 @@ void ResourceCacheTick(){
         hud.gpuReady=g.entries;hud.gpuPending=g.pending+(g.active?1:0);hud.gpuCreated=g.created;hud.gpuAdopted=p.adopted;hud.gpuSkipUploads=p.skipped;
         hud.workPaused=!resource_cache::BackgroundAllowed();hud.ramOn=c.cfg_resourceRamCache;hud.gpuOn=c.cfg_resourceRamCache&&c.cfg_resourcePrefetch&&c.cfg_resourceGpuWarm&&p.admitted;
     }
-    ResourceWarmHudTick(c.cfg_resourceWarmHud,hud);
+    if(uiTicksAdmitted)ResourceWarmHudTick(c.cfg_resourceWarmHud,hud);
     if(DetailedLogEnabled()&&now-lastReport>=10){
         lastReport=now;resource_cache::Stats s=resource_cache::Snapshot();std::ostringstream out;
         out<<"Resource RAM cache: on="<<c.cfg_resourceRamCache<<" bytes="<<s.allocatedBytes

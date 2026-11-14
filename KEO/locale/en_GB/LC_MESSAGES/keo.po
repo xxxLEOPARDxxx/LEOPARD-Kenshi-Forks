@@ -313,8 +313,8 @@ msgid "Maximum extra graphics memory held for prepared terrain, not a preallocat
 msgstr "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
 
 
-msgid "Show resource warmup panel"
-msgstr "Show resource warmup panel"
+msgid "Show resource warmup text"
+msgstr "Show resource warmup text"
 
 
 msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."

@@ -78,7 +78,7 @@ const ConfigKey g_zoneConfigKeys[] =
 	  "VRAM warmup limit (GiB)",
 	  "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
 	CFG_OBOOL_LIVE("resourceWarmHud", ZoneConfig, cfg_resourceWarmHud, DOC, SHOW,
-	  "Show resource warmup panel",
+      "Show resource warmup text",
 	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."),
 	CFG_OBOOL_LIVE("resourceRamCache", ZoneConfig, cfg_resourceRamCache, DOC, SHOW,
 	  "Cache resource files in RAM",
