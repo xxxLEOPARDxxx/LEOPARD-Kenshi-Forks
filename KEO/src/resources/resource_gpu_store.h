@@ -44,12 +44,16 @@ bool CacheRoom(U64 cap,U64 allocated,U64 extra); // checked cap arithmetic share
 bool TryGeometryReservation(U64 totalGeometryBytes,U64 sharedCap);
 bool GeometryStandbyAllowed(U64 sharedCap);
 U64 GeometryReservation();
+// Actual loaded texture pins share the SAME cap with geometry and terrain.
+bool TryTextureRetentionReservation(U64 totalTextureBytes,U64 sharedCap);
+bool TextureRetentionStandbyAllowed(U64 sharedCap);
+U64 TextureRetentionReservation();
 unsigned DeviceGeneration();
 struct Stats {U64 allocatedBytes,reservedBytes,created,rejected,retries;unsigned entries,pending;bool deviceReady,pressure,active;};
 bool Start(); // main thread, before configuration; pins worker's module
 bool SetDevice(ID3D11Device*); // main thread; holds AddRef, rejects SINGLETHREADED/nonconcurrent
 void SetBudgetProbe(BudgetProbe,void*); // main thread; context must outlive Stop completion
-void Configure(bool enabled,U64 bytes,U64 worldGeneration); // cap 1..8GiB, live, invalidates jobs
+void Configure(bool enabled,U64 bytes,U64 worldGeneration); // shared cap1..8GiB, live; enabled controls terrain jobs only
 void SetWorkAllowed(bool); // atomic admission gate, initially false; preserves queues/cache
 bool Queue(const Job&); // main thread; nonwaiting, <=32 queued, <=128 standby
 ReadyPtr TakeReady(const std::string& key,U64 worldGeneration); // nonwaiting; transfers standby pin

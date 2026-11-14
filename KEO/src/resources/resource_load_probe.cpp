@@ -71,10 +71,12 @@ static void Invoke(NativeFn native,void*self,Stats&s){
 }
 static void Factory(void*self){Invoke(originalFactory,self,factory);}
 struct ChildTimes {
+    unsigned __int64 factoryProcess;
     unsigned __int64 entity,mesh,tex2D,array,appearanceBody,appearanceAttachment,meshCallback;
     unsigned __int64 morphLookup,morphCreate,morphSwitch,animationBody,attachmentBuild,poseBlend;
 };
 static void ReadChildren(ChildTimes&t){
+    t.factoryProcess=factoryProcess.totalUs;
     t.entity=entityInitialise.totalUs;t.mesh=setMeshData.totalUs;t.tex2D=texture2D.totalUs;
     t.array=textureArray.totalUs;t.appearanceBody=body.totalUs;t.appearanceAttachment=attachment.totalUs;
     t.meshCallback=meshCallback.totalUs;
@@ -92,6 +94,7 @@ static void Resource(void*self){
     if(us<10000)return;
     ChildTimes after;ReadChildren(after);SlowUpdate record;
     record.completedAt=ElapsedSec();record.elapsedUs=us;
+    record.children.factoryProcess=after.factoryProcess-before.factoryProcess;
     record.children.entity=after.entity-before.entity;record.children.mesh=after.mesh-before.mesh;
     record.children.tex2D=after.tex2D-before.tex2D;record.children.array=after.array-before.array;
     record.children.appearanceBody=after.appearanceBody-before.appearanceBody;
@@ -305,6 +308,7 @@ void ResourceLoadProbeReport(){
     for(unsigned n=0;n<slowCount;++n){
         const SlowUpdate&r=slowUpdates[(slowRead+n)%16];std::ostringstream detail;
         detail<<"Resource completion slow update: completedAt="<<r.completedAt<<" elapsedUs="<<r.elapsedUs
+              <<" factoryProcessUs="<<r.children.factoryProcess
               <<" entityUs="<<r.children.entity<<" meshUs="<<r.children.mesh<<" texture2DUs="<<r.children.tex2D
               <<" textureArrayUs="<<r.children.array<<" appearanceBodyUs="<<r.children.appearanceBody
               <<" appearanceAttachmentUs="<<r.children.appearanceAttachment

@@ -152,7 +152,7 @@ int main(){
  Check(output.find("texture2D")!=std::string::npos&&output.find("textureArray")!=std::string::npos&&output.find("appearanceBody")!=std::string::npos&&output.find("appearanceAttachment")!=std::string::npos,"completion child labels present");
  Check(output.find("Resource completion slow update:")!=std::string::npos&&output.find("texture2DUs=4000")!=std::string::npos&&output.find("appearanceBodyUs=6000")!=std::string::npos&&slowCount==0,"slow diagnostics flush only on bounded summary cadence");
  Check(output.find("morphLookup=")!=std::string::npos&&output.find("morphCreate=")!=std::string::npos&&output.find("morphSwitch=")!=std::string::npos&&output.find("animationBody=")!=std::string::npos&&output.find("attachmentBuild=")!=std::string::npos&&output.find("poseBlend=")!=std::string::npos,"all six preparation stage summary labels present");
- Check(resource.windowMaxUs==0&&body.windowMaxUs==0&&morphLookup.windowMaxUs==0&&morphCreate.windowMaxUs==0&&poseBlend.windowMaxUs==0&&resource.maxUs==27000,"window maximum resets without losing cumulative maximum");
+ Check(resource.windowMaxUs==0&&body.windowMaxUs==0&&morphLookup.windowMaxUs==0&&morphCreate.windowMaxUs==0&&poseBlend.windowMaxUs==0&&resource.maxUs==92000,"window maximum resets without losing cumulative maximum");
  size_t size=output.size();seconds=19.9;ResourceLoadProbeReport();Check(output.size()==size,"report rate bounded");enabled=false;seconds=30;ResourceLoadProbeReport();Check(output.size()==size,"debug off report silent");
  printf("PASS %d actual-production-wrapper controls\n",checks);return 0;
 }

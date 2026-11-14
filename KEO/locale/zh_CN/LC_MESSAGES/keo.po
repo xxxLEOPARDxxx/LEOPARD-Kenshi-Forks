@@ -405,8 +405,8 @@ msgid "Keeps supported model geometry already loaded by the game for faster revi
 msgstr "保留游戏已加载的受支持模型几何体，以加快再次访问。不会预加载尚未见过的模型或创建NPC。与地形共用显存上限，内存紧张时释放缓存引用。需要启用资源内存缓存。不支持的模型仍正常加载。"
 
 
-msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
-msgstr "模型几何体缓存和地形预备数据共用的上限，并非预先分配量。实际显存预算优先。显存余量较少时请降低。"
+msgid "Shared limit for retained model geometry, loaded textures and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "模型几何、已加载纹理和预备地形共用的缓存上限，不是预分配。以显卡实际内存预算为准。可用显存较少时请降低此值。"
 
 
 msgid "VRAM cache"
@@ -423,3 +423,15 @@ msgstr "缓存引用命中"
 
 msgid "Unavailable"
 msgstr "不可用"
+
+
+msgid "Keep loaded textures in VRAM"
+msgstr "在显存中保留已加载纹理"
+
+
+msgid "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."
+msgstr "保留游戏已经加载的受支持纹理，以加快再次访问。与模型几何和预备地形共享显存上限，内存紧张时释放缓存引用。不会预加载尚未使用的纹理。需要开启内存资源缓存。生成纹理和渲染目标仍使用正常加载。"
+
+
+msgid "textures"
+msgstr "纹理"

@@ -55,6 +55,7 @@ const ZoneConfig kZoneDefaults =
 	false, // cfg_resourceWarmHud
 	false, // cfg_resourceStartupTextures
 	false, // cfg_resourceGeometryWarm
+	false, // cfg_resourceTextureRetention
 };
 
 ZoneConfig g_zoneCfg = kZoneDefaults;
@@ -81,7 +82,10 @@ const ConfigKey g_zoneConfigKeys[] =
       "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."),
 	CFG_OINT_LIVE("resourceGpuGiB", ZoneConfig, cfg_resourceGpuGiB, 1.0f, 8.0f, INT_MIN, DOC, SHOW,
 	  "VRAM warmup limit (GiB)",
-	  "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
+	  "Shared limit for retained model geometry, loaded textures and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
+	CFG_OBOOL_LIVE("resourceTextureRetention", ZoneConfig, cfg_resourceTextureRetention, DOC, SHOW,
+	  "Keep loaded textures in VRAM",
+	  "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."),
 	CFG_OBOOL_LIVE("resourceWarmHud", ZoneConfig, cfg_resourceWarmHud, DOC, SHOW,
       "Show resource warmup text",
 	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."),

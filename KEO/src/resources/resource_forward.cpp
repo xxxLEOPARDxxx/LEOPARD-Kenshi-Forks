@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "resources/resource_forward.h"
 #include "resources/resource_geometry.h"
+#include "resources/resource_texture_retention.h"
 #include "resources/resource_forward_policy.h"
 #include "resources/resource_array_job.h"
 #include "resources/resource_biome_manifest.h"
@@ -109,7 +110,7 @@ void ResourceForwardReset(){InterlockedIncrement(&resetPending);}
 void ResourceForwardInit(){
     resource_biome::Status s=resource_biome::Initialize(GetCurrentThreadId());ready=s==resource_biome::Ok;
     if(!ready){std::ostringstream out;out<<"Resource prefetch: metadata contract refused ("<<resource_biome::StatusName(s)<<"); normal loading retained";LogError(out.str());}
-    gpuStarted=resource_gpu::Start();resource_geometry::Init();if(!gpuStarted)LogError("Resource GPU warmup: worker startup failed");
+    gpuStarted=resource_gpu::Start();resource_geometry::Init();resource_texture_retention::Init();if(!gpuStarted)LogError("Resource GPU warmup: worker startup failed");
 }
 void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
     double now=ElapsedSec(),frame=lastFrame?now-lastFrame:0;lastFrame=now;
@@ -122,13 +123,15 @@ void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
     }
     bool on=ready&&cfg.cfg_resourceRamCache&&cfg.cfg_resourcePrefetch;
     bool geometryOn=cfg.cfg_resourceRamCache&&cfg.cfg_resourceGeometryWarm;
+    bool textureOn=cfg.cfg_resourceRamCache&&cfg.cfg_resourceTextureRetention;
     if(now>=nextConfig){
         nextConfig=now+1;
-        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&((on&&cfg.cfg_resourceGpuWarm)||geometryOn));
+        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&((on&&cfg.cfg_resourceGpuWarm)||geometryOn||textureOn));
         resource_gpu::Configure(gpuAdmitted&&on&&cfg.cfg_resourceGpuWarm,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
         std::string error;if(resource_gpu::TakeError(&error))LogError("Resource GPU warmup: "+error);
     }
     resource_geometry::Tick(geometryOn,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
+    resource_texture_retention::Tick(textureOn,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
     if(!on){count=0;return;}
     if(!loading&&manager&&resource_forward::CanWarm(now,lastTick,frame,blockedUntil)){
         lastTick=now;

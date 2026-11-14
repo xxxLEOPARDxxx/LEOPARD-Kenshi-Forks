@@ -33,6 +33,16 @@ int main()
     C(Format(s,0,Identity).text[1].find("768/1024 MiB")!=std::string::npos);
     C(Format(s,0,Identity).text[1].find("42 models")!=std::string::npos);
     C(Format(s,0,Identity).text[1].find("3 reference hits")!=std::string::npos);
+    s.textureOn=s.textureAdmitted=true;s.textureBytes=128ULL<<20;s.textureCount=7;s.textureReused=2;
+    C(Format(s,0,Identity).text[1].find("896/1024 MiB")!=std::string::npos);
+    C(Format(s,0,Identity).text[1].find("42 models")!=std::string::npos);
+    C(Format(s,0,Identity).text[1].find("7 textures")!=std::string::npos);
+    C(Format(s,0,Identity).text[1].find("5 reference hits")!=std::string::npos);
+    s.geometryOn=false;
+    C(Format(s,0,Identity).text[1].find("384/1024 MiB")!=std::string::npos);
+    C(Format(s,0,Identity).text[1].find("models")==std::string::npos);
+    s.textureAdmitted=false;C(Format(s,0,Identity).text[1].find("Unavailable")!=std::string::npos);
+    s.textureOn=false;
     s.geometryOn=false;
     s.ramOn=s.gpuOn=false;a=Format(s,0,Identity);C(a.text[0]=="RAM warm: Off");C(a.text[1]=="VRAM standby: Off");C(a.text[2]=="Off");
     C(sampler.Observe(850,0)==0);C(sampler.Observe(1100,1ULL<<20)==4);

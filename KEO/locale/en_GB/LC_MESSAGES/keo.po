@@ -405,8 +405,8 @@ msgid "Keeps supported model geometry already loaded by the game for faster revi
 msgstr "Keeps supported model geometry already loaded by the game for faster revisits. Does not load unseen models or create NPCs. Shares the VRAM limit with prepared terrain and releases cached references under memory pressure. Requires the resource RAM cache. Unsupported models use normal loading."
 
 
-msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
-msgstr "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgid "Shared limit for retained model geometry, loaded textures and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Shared limit for retained model geometry, loaded textures and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
 
 
 msgid "VRAM cache"
@@ -423,3 +423,15 @@ msgstr "reference hits"
 
 msgid "Unavailable"
 msgstr "Unavailable"
+
+
+msgid "Keep loaded textures in VRAM"
+msgstr "Keep loaded textures in VRAM"
+
+
+msgid "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."
+msgstr "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."
+
+
+msgid "textures"
+msgstr "textures"

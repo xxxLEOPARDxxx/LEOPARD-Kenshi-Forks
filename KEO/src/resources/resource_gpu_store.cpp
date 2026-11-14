@@ -32,6 +32,7 @@ HANDLE eventHandle=NULL,threadHandle=NULL;
 ID3D11Device* device=NULL;
 U64 ceiling=GiB,world=0,touch=0;
 U64 geometryBytes=0,geometryCeiling=GiB;unsigned deviceGeneration=0;
+U64 textureRetentionBytes=0,textureRetentionCeiling=GiB;
 BudgetProbe probe=&ProbeLocalBudget;void*probeContext=NULL;
 bool pressure=false;
 std::string activeKey,lastError;
@@ -45,6 +46,14 @@ U64 Read64(volatile LONGLONG&v){return U64(InterlockedCompareExchange64(&v,0,0))
 bool On(){return Read(enabled)&&!Read(stopping);}
 bool Cancelled(LONG token){return !On()||Read(epoch)!=token;}
 bool MemoryAllowsStandby(){return resource_cache::StandbyAllowed();}
+// Caller holds lock. Both owner-thread retention stores and the terrain worker
+// reserve against this single ceiling, never independent full-size budgets.
+U64 RetainedBytes(){return geometryBytes+textureRetentionBytes;}
+U64 SharedCeiling(U64 cap){
+    if(geometryBytes)cap=(std::min)(cap,geometryCeiling);
+    if(textureRetentionBytes)cap=(std::min)(cap,textureRetentionCeiling);
+    return cap;
+}
 void Error(const std::string&s){Guard g;lastError=s;}
 bool Plan(unsigned type,const resource_cache::FilePtr*f,D3D11_TEXTURE2D_DESC*desc,std::vector<Span>*spans,U64*bytes,std::string*error){
     if(!f||type>1){if(error)*error="missing DDS sources or unsupported type";return false;}
@@ -68,8 +77,8 @@ bool Reserve(U64 bytes){
         ReadyPtr drop;
         {Guard g;
             if(!On()||bytes>ceiling)return false;
-            const U64 cap=geometryBytes?(std::min)(ceiling,geometryCeiling):ceiling;
-            if(CacheRoom(cap,geometryBytes,bytes)&&CacheRoom(cap-geometryBytes,Read64(allocated),bytes)&&entries.size()<MaxEntries){
+            const U64 cap=SharedCeiling(ceiling),retained=RetainedBytes();
+            if(CacheRoom(cap,retained,bytes)&&CacheRoom(cap-retained,Read64(allocated),bytes)&&entries.size()<MaxEntries){
                 InterlockedExchangeAdd64(&allocated,LONGLONG(bytes));InterlockedExchangeAdd64(&reserved,LONGLONG(bytes));return true;
             }
             if(entries.empty())return false;
@@ -115,27 +124,41 @@ bool BudgetRoom(U64 budget,U64 usage,U64 extra){
     return budget>reserve&&usage<=budget-reserve&&extra<=budget-reserve-usage;
 }
 bool CacheRoom(U64 cap,U64 used,U64 extra){return extra<=cap&&used<=cap-extra;}
-bool TryGeometryReservation(U64 bytes,U64 sharedCap){
+static bool TryPinnedReservation(U64 bytes,U64 sharedCap,U64&own,U64&ownCeiling,U64 other,U64 otherCeiling){
     if(!initialized)return bytes==0;
     sharedCap=(std::max)(GiB,(std::min)(sharedCap,8*GiB));
-    Guard g;
+    // This is the caller's configured ceiling, not its current admission room.
+    // Keep it even when the other store still advertises an older lower cap.
+    ownCeiling=sharedCap;
     // Lowering/releasing a reservation must work even after removal/pressure.
-    if(bytes==0||bytes<geometryBytes){geometryBytes=bytes;geometryCeiling=sharedCap;return true;}
+    if(bytes==0||bytes<own){own=bytes;return true;}
+    if(other)sharedCap=(std::min)(sharedCap,otherCeiling);
     U64 budget=0,usage=0;
     if(Read(stopping)||!device||!MemoryAllowsStandby()
        ||FAILED(device->GetDeviceRemovedReason())
-       ||!CacheRoom(sharedCap,Read64(allocated),bytes)
+       ||!CacheRoom(sharedCap,other,bytes)
+       ||!CacheRoom(sharedCap-other,Read64(allocated),bytes)
        ||!probe||!probe(device,&budget,&usage,probeContext)||!BudgetRoom(budget,usage,0))return false;
-    geometryBytes=bytes;geometryCeiling=sharedCap;return true;
+    own=bytes;return true;
+}
+bool TryGeometryReservation(U64 bytes,U64 sharedCap){
+    if(!initialized)return bytes==0;Guard g;
+    return TryPinnedReservation(bytes,sharedCap,geometryBytes,geometryCeiling,textureRetentionBytes,textureRetentionCeiling);
+}
+bool TryTextureRetentionReservation(U64 bytes,U64 sharedCap){
+    if(!initialized)return bytes==0;Guard g;
+    return TryPinnedReservation(bytes,sharedCap,textureRetentionBytes,textureRetentionCeiling,geometryBytes,geometryCeiling);
 }
 U64 GeometryReservation(){if(!initialized)return 0;Guard g;return geometryBytes;}
+U64 TextureRetentionReservation(){if(!initialized)return 0;Guard g;return textureRetentionBytes;}
 unsigned DeviceGeneration(){if(!initialized)return 0;Guard g;return deviceGeneration;}
 bool GeometryStandbyAllowed(U64 cap){
     if(!initialized)return false;Guard g;U64 budget=0,usage=0;
     return !Read(stopping)&&device&&MemoryAllowsStandby()&&SUCCEEDED(device->GetDeviceRemovedReason())
-      &&CacheRoom(cap,Read64(allocated),geometryBytes)&&probe
+      &&CacheRoom(SharedCeiling(cap),Read64(allocated),RetainedBytes())&&probe
       &&probe(device,&budget,&usage,probeContext)&&BudgetRoom(budget,usage,0);
 }
+bool TextureRetentionStandbyAllowed(U64 cap){return GeometryStandbyAllowed(cap);}
 bool ProbeLocalBudget(ID3D11Device*d,U64*b,U64*u,void*){
     if(!d||!b||!u)return false;
     Com<IDXGIDevice> xd;Com<IDXGIAdapter>a;Com<BudgetAdapter>a3;
@@ -179,8 +202,8 @@ DWORD WINAPI Worker(void*){
                     }else if(BuildTexture(d.p,work.job,f,&r,&error)){
                         StoreAccess::Charge(r);reservation.HandOff();
                         if(!Cancelled(work.epoch)&&MemoryAllowsStandby()){
-                            Guard g;const U64 cap=geometryBytes?(std::min)(ceiling,geometryCeiling):ceiling;
-                            if(!Cancelled(work.epoch)&&CacheRoom(cap,geometryBytes,Read64(allocated))&&entries.size()<MaxEntries){Entry e={r,++touch,work.epoch};entries[work.job.key]=e;InterlockedIncrement64(&created);}
+                            Guard g;const U64 cap=SharedCeiling(ceiling);
+                            if(!Cancelled(work.epoch)&&CacheRoom(cap,RetainedBytes(),Read64(allocated))&&entries.size()<MaxEntries){Entry e={r,++touch,work.epoch};entries[work.job.key]=e;InterlockedIncrement64(&created);}
                         }
                     }else{InterlockedIncrement64(&rejected);if(error.find("CreateTexture2D failed")==0)Error(error);}
                 }else InterlockedIncrement64(&rejected);
@@ -210,7 +233,14 @@ bool SetDevice(ID3D11Device*d){
 void SetBudgetProbe(BudgetProbe p,void*c){if(!initialized)return;{Guard g;probe=p?p:&ProbeLocalBudget;probeContext=c;InterlockedIncrement(&epoch);requests.clear();}SetEvent(eventHandle);}
 void Configure(bool on,U64 bytes,U64 generation){
     if(!initialized)return;bytes=(std::max)(GiB,(std::min)(bytes,8*GiB));
-    {Guard g;if(Read(enabled)==int(on)&&ceiling==bytes&&world==generation)return;ceiling=bytes;world=generation;requests.clear();InterlockedExchange(&enabled,on?1:0);InterlockedIncrement(&epoch);}
+    {Guard g;
+        // One MCM limit controls all three stores, including unchanged pins.
+        // Raising only terrain's ceiling must not leave idle native pins
+        // advertising their previous cap indefinitely.
+        geometryCeiling=textureRetentionCeiling=bytes;
+        if(Read(enabled)==int(on)&&ceiling==bytes&&world==generation)return;
+        ceiling=bytes;world=generation;requests.clear();InterlockedExchange(&enabled,on?1:0);InterlockedIncrement(&epoch);
+    }
     SetEvent(eventHandle);
 }
 void SetWorkAllowed(bool allow){LONG before=InterlockedExchange(&workAllowed,allow?1:0);if(allow&&!before&&eventHandle)SetEvent(eventHandle);}

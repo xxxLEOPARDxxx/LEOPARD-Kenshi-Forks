@@ -137,6 +137,7 @@ struct ZoneConfig
 	bool cfg_resourceWarmHud;
 	bool cfg_resourceStartupTextures;
 	bool cfg_resourceGeometryWarm;
+	bool cfg_resourceTextureRetention;
 };
 
 extern ZoneConfig g_zoneCfg;

@@ -1,4 +1,5 @@
 #include "resources/resource_geometry.h"
+#include "resources/resource_texture_retention.h"
 #include "base/log_admission.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_warm_hud.h"
@@ -183,6 +184,7 @@ static bool      g_resetStateCleared = false;
 static void ClearModStateForLoad()
 {
 	resource_geometry::Clear();
+	resource_texture_retention::Clear();
 	ResourceForwardReset();
 	ResourceWarmHudCleanup();
 	ClearPreloadStateForLoad();  // also clears formation groups, the island overlay

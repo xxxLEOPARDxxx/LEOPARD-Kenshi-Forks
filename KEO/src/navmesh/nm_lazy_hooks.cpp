@@ -1,4 +1,5 @@
 #include "resources/resource_geometry.h"
+#include "resources/resource_texture_retention.h"
 #include "base/log_admission.h"
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
@@ -90,6 +91,7 @@ static void hook_navMeshStop(void* navMesh)
 	// DEV exit capture from arming when the retire ends the process at its cap.
 	InterlockedExchange(&g_navMeshStopSeen, 1);
 	resource_geometry::Clear();
+	resource_texture_retention::Clear();
 	resource_cache::Stop();
 	resource_gpu::Stop();
 	ResourceGpuBridgeStop();

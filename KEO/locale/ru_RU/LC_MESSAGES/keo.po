@@ -405,8 +405,8 @@ msgid "Keeps supported model geometry already loaded by the game for faster revi
 msgstr "Удерживает уже загруженную геометрию поддерживаемых моделей для повторных посещений. Не загружает неизвестные модели и не создаёт NPC. Использует общий лимит VRAM с рельефом; при нехватке памяти освобождает ссылки кэша. Требуется кэш ресурсов в ОЗУ. Неподдерживаемые модели загружаются штатно."
 
 
-msgid "Shared limit for cached model geometry and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
-msgstr "Общий предел кэша геометрии моделей и подготовленного рельефа, а не заранее выделенная память. Реальный бюджет видеокарты имеет приоритет. Уменьши лимит, если свободной видеопамяти мало."
+msgid "Shared limit for retained model geometry, loaded textures and prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Общий предел кэша геометрии моделей, загруженных текстур и подготовленного рельефа, а не заранее выделенная память. Реальный бюджет видеокарты имеет приоритет. Уменьши лимит, если свободной видеопамяти мало."
 
 
 msgid "VRAM cache"
@@ -423,3 +423,15 @@ msgstr "обращений к кэшу"
 
 msgid "Unavailable"
 msgstr "Недоступно"
+
+
+msgid "Keep loaded textures in VRAM"
+msgstr "Удерживать загруженные текстуры в VRAM"
+
+
+msgid "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."
+msgstr "Сохраняет поддерживаемые текстуры, уже загруженные игрой, для более быстрых повторных посещений. Делит лимит VRAM с геометрией моделей и подготовленным рельефом, освобождает свои ссылки при нехватке памяти. Не загружает невиденные текстуры заранее. Требуется кэш ресурсов в ОЗУ. Создаваемые игрой текстуры и цели рендеринга работают как обычно."
+
+
+msgid "textures"
+msgstr "текстур"

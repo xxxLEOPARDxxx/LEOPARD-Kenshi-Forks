@@ -19,10 +19,15 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
         sprintf_s(b,"%.0f/%.0f MiB | ",double(s.gpuBytes)/1048576.,double(s.gpuCap)/1048576.);
         result.text[1]+=b;result.text[1]+=Count(s.gpuReady)+" "+tr("ready")+" | "+Count(s.gpuPending)+" "+tr("remaining");
     } else result.text[1]+=tr("Off");
-    if(s.geometryOn){
-        sprintf_s(b,"%.0f/%.0f MiB | ",double(s.gpuBytes+s.geometryBytes)/1048576.,double(s.gpuCap)/1048576.);
-        result.text[1]=std::string(tr("VRAM cache"))+": "+b+Count(s.geometryModels)+" "+tr("models")+" | "+Count(s.geometryReused)+" "+tr("reference hits");
-        if(!s.geometryAdmitted)result.text[1]+=" | "+std::string(tr("Unavailable"));
+    if(s.geometryOn||s.textureOn){
+        const unsigned __int64 pinned=(s.geometryOn?s.geometryBytes:0)+(s.textureOn?s.textureBytes:0);
+        const unsigned __int64 reused=(s.geometryOn?s.geometryReused:0)+(s.textureOn?s.textureReused:0);
+        sprintf_s(b,"%.0f/%.0f MiB | ",double(s.gpuBytes+pinned)/1048576.,double(s.gpuCap)/1048576.);
+        result.text[1]=std::string(tr("VRAM cache"))+": "+b;
+        if(s.geometryOn)result.text[1]+=Count(s.geometryModels)+" "+tr("models")+" | ";
+        if(s.textureOn)result.text[1]+=Count(s.textureCount)+" "+tr("textures")+" | ";
+        result.text[1]+=Count(reused)+" "+tr("reference hits");
+        if((s.geometryOn&&!s.geometryAdmitted)||(s.textureOn&&!s.textureAdmitted))result.text[1]+=" | "+std::string(tr("Unavailable"));
     }
     const bool busy=(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
     result.text[2]=tr(!s.ramOn&&!s.gpuOn?"Off":busy?(s.workPaused?"Paused":"Warming"):"Ready");

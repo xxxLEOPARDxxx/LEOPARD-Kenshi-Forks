@@ -14,6 +14,9 @@ struct Snapshot {
     bool geometryOn,geometryAdmitted;
     unsigned __int64 geometryBytes,geometryReused;
     unsigned geometryModels;
+    bool textureOn,textureAdmitted;
+    unsigned __int64 textureBytes,textureReused;
+    unsigned textureCount;
 };
 }
 void ResourceWarmHudTick(bool enabled,const resource_warm_hud::Snapshot& snapshot);

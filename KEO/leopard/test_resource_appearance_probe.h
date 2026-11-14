@@ -38,6 +38,9 @@ static void AppearanceNativeTree(void*self){
  nativeDuration=6000;BuildAttachments(self);
  nativeDuration=7000;PoseBlend(0.125f,self,self,self);
 }
+static void FactoryNativeCompletion(void*self){
+ nativeDuration=91000;resource_load_probe_detail::FactoryProcess(self,self);tick+=1000;
+}
 static void ExerciseAppearancePreparation(void*self,void*data){
  using namespace resource_load_probe_detail;
  void*entity=reinterpret_cast<void*>(0x9988);void*expected=reinterpret_cast<void*>(0x8877);
@@ -74,6 +77,8 @@ static void ExerciseAppearancePreparation(void*self,void*data){
  Check(caught&&ownedCopies==copies+1&&ownedDrops==drops+1,"switch body native-owned16 unwind exactly once");throwsNative=false;originalMorphSwitch=&NativeMorphSwitch;
  slowRead=slowCount=0;originalResource=&AppearanceNativeTree;Resource(self);
  Check(slowCount==1&&slowUpdates[slowRead].elapsedUs==27000&&slowUpdates[slowRead].children.morphLookup==2000&&slowUpdates[slowRead].children.morphCreate==3000&&slowUpdates[slowRead].children.morphSwitch==4000&&slowUpdates[slowRead].children.animationBody==5000&&slowUpdates[slowRead].children.attachmentBuild==6000&&slowUpdates[slowRead].children.poseBlend==7000,"one slow-update record attributes all six production preparation stages");
+ originalResource=&FactoryNativeCompletion;slowRead=slowCount=0;Resource(self);
+ Check(slowCount==1&&slowUpdates[slowRead].elapsedUs==92000&&slowUpdates[slowRead].children.factoryProcess==91000&&slowUpdates[slowRead].children.morphCreate==0&&slowUpdates[slowRead].children.appearanceAttachment==0,"generic completion distinguishes nested factory work from appearance");
  // Leave the existing slow-ring fixture/report expectations intact.
  slowRead=slowCount=0;originalResource=&Native;
 }

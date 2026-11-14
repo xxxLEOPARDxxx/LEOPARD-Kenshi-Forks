@@ -22,6 +22,30 @@ int main(){
     Check(!TryGeometryReservation(GiB-99,GiB),"geometry cannot allocate over terrain+geometry cap");
     {Reservation release(100);}
     Check(TryGeometryReservation(0,GiB)&&GeometryReservation()==0,"geometry release balances");
+    Check(TryGeometryReservation(GiB/2,GiB),"geometry half of three-way cap");
+    Check(TryTextureRetentionReservation(GiB/2-100,GiB),"native textures share remaining cap");
+    Check(TextureRetentionReservation()==GiB/2-100,"texture accounting independent of geometry");
+    Check(Reserve(100),"terrain uses exact remaining three-way100 bytes");
+    Check(!Reserve(1)&&!TryTextureRetentionReservation(GiB/2-99,GiB)&&!TryGeometryReservation(GiB/2+1,GiB),"each cache refuses growth over common geometry+textures+terrain ceiling");
+    Check(!TextureRetentionStandbyAllowed(GiB/2)&&!GeometryStandbyAllowed(GiB/2),"both owner caches see lowered common cap");
+    {Reservation release(100);}
+    Check(TryTextureRetentionReservation(0,GiB)&&TryGeometryReservation(0,GiB),"both pin reservations release independently");
+    SetBudgetProbe(&HeadroomProbe,NULL);
+    Check(TryTextureRetentionReservation(GiB/2,GiB),"existing texture residency not double charged in DXGI");
+    InterlockedExchange(&fixtureRamAllowed,0);
+    Check(!TextureRetentionStandbyAllowed(GiB)&&!TryTextureRetentionReservation(GiB/2+1,GiB),"CPU pressure refuses texture growth");
+    Check(TryTextureRetentionReservation(GiB/4,GiB)&&TryTextureRetentionReservation(0,GiB),"CPU pressure still allows reducing and releasing textures");
+    InterlockedExchange(&fixtureRamAllowed,1);SetBudgetProbe(&Probe,NULL);
+    Check(TryGeometryReservation(GiB/4,GiB)&&TryTextureRetentionReservation(GiB/4,GiB),"two nonempty stores begin at1GiB");
+    Check(TryGeometryReservation(GiB/4,8*GiB)&&TryTextureRetentionReservation(GiB/4,8*GiB),"both stores observe cap increase without dropping references");
+    Check(TryGeometryReservation(2*GiB,8*GiB)&&TryTextureRetentionReservation(2*GiB,8*GiB),"raising cap1to8GiB permits both nonempty stores to grow");
+    Check(TryGeometryReservation(0,GiB)&&TryTextureRetentionReservation(0,GiB),"release grown stores");
+    Check(TryGeometryReservation(GiB/4,GiB)&&TryTextureRetentionReservation(GiB/4,GiB),"refill before terrain-only growth");
+    Configure(true,8*GiB,1);
+    Check(Reserve(2*GiB),"shared configuration propagates raised cap even when native pins stay unchanged");
+    {Reservation release(2*GiB);}
+    Check(TryGeometryReservation(0,GiB)&&TryTextureRetentionReservation(0,GiB),"release after shared setting test");
+    Configure(false,GiB,1);
     Check(TryGeometryReservation(2*GiB,2*GiB),"larger common cap");
     Check(!GeometryStandbyAllowed(GiB),"lower common cap signals existing pressure");
     Check(TryGeometryReservation(0,GiB),"release after lowering cap");

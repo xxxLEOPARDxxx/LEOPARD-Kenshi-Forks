@@ -366,3 +366,4 @@ src/resources/resource_warm_hud.cpp
 src/resources/resource_startup_native.cpp
 
 src/resources/resource_geometry.cpp
+src/resources/resource_texture_retention.cpp

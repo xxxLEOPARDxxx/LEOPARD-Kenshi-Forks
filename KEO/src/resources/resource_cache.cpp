@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "resources/resource_cache.h"
 #include "resources/resource_geometry.h"
+#include "resources/resource_texture_retention.h"
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_load_probe.h"
@@ -80,6 +81,7 @@ void ResourceCacheTick(){
     if(!c.cfg_resourcePrefetch||ResourceStartupTitleVisible())resource_cache::SetBackgroundAllowed(true); // title has no scene ticks to release a prior pause
     resource_cache::ConfigureStartup(c.cfg_resourceRamCache&&c.cfg_resourceStartupTextures);
     resource_geometry::Tick(c.cfg_resourceRamCache&&c.cfg_resourceGeometryWarm,unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024,ResourceWorldGeneration());
+    resource_texture_retention::Tick(c.cfg_resourceRamCache&&c.cfg_resourceTextureRetention,unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024,ResourceWorldGeneration());
     InterlockedExchange(&active,c.cfg_resourceRamCache?1:0);
     resource_warm_hud::Snapshot hud={};
     if(uiTicksAdmitted&&c.cfg_resourceWarmHud){
@@ -88,6 +90,8 @@ void ResourceCacheTick(){
         hud.startupFiles=r.startupFiles;hud.startupProcessed=r.startupProcessed;hud.startupLoaded=r.startupLoaded;hud.startupSkipped=r.startupSkipped;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         hud.geometryOn=c.cfg_resourceRamCache&&c.cfg_resourceGeometryWarm;hud.geometryBytes=geometry.heldBytes;hud.geometryModels=geometry.models;hud.geometryReused=geometry.reused;hud.geometryAdmitted=geometry.admitted;
+        resource_texture_retention::Stats textures=resource_texture_retention::Snapshot();
+        hud.textureOn=c.cfg_resourceRamCache&&c.cfg_resourceTextureRetention;hud.textureBytes=textures.heldBytes;hud.textureCount=textures.textures;hud.textureReused=textures.reused;hud.textureAdmitted=textures.admitted;
         hud.ramBytes=r.allocatedBytes;hud.ramCap=unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024;hud.ramReadBytes=r.readBytes;
         hud.ramFiles=r.entries;hud.ramPending=r.pending+(r.active?1:0);hud.ramActive=r.active;
         hud.gpuBytes=g.allocatedBytes;hud.gpuCap=unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024;
@@ -104,6 +108,10 @@ void ResourceCacheTick(){
            <<" startupLoaded="<<s.startupLoaded<<" startupSkipped="<<s.startupSkipped<<" startupTotalBytes="<<s.startupTotalBytes
            <<" startupReadBytes="<<s.startupReadBytes<<" startupScanning="<<s.startupScanning<<" startupDone="<<s.startupDone<<" startupCapped="<<s.startupCapped
            <<" startupMenuFast="<<s.startupMenuFast<<" startupFastReadBytes="<<s.startupFastReadBytes;
+        resource_texture_retention::Stats textures=resource_texture_retention::Snapshot();
+        out<<" textureHeldBytes="<<textures.heldBytes<<" textureCount="<<textures.textures<<" textureObserved="<<textures.observed
+           <<" textureRetained="<<textures.retained<<" textureReused="<<textures.reused<<" textureEvicted="<<textures.evicted
+           <<" textureRejected="<<textures.rejected<<" texturePending="<<textures.pending<<" textureAdmitted="<<textures.admitted<<" texturePressure="<<textures.pressure;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
            <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained
