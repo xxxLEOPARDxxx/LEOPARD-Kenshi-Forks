@@ -6,6 +6,7 @@
 #include "resources/resource_forward.h"
 #include "resources/resource_adoption_policy.h"
 #include "resources/resource_biome_manifest.h"
+#include "resources/resource_load_probe.h"
 #include "base/core.h"
 #include "base/log_admission.h"
 #include "game/native_profile.h"
@@ -82,7 +83,7 @@ bool EnsureContext(ID3D11Device*d){
     bool ok=Patch(c,48,updateHooks,updates,updateCount);c->Release();return ok;
 }
 struct Scope {Context*old;Scope(Context*c):old(context){context=c;}~Scope(){context=old;}};
-Ogre::TexturePtr* LoadedArray(void*request,Ogre::TexturePtr*out){
+Ogre::TexturePtr* LoadedArrayCore(void*request,Ogre::TexturePtr*out){
     InterlockedIncrement(&consumerCalls);
     if(!IsMainThread()){InterlockedIncrement(&consumerNonMain);return originalArray(request,out);}
     if(!InterlockedCompareExchange(&enabled,0,0)||!currentDevice){InterlockedIncrement(&consumerOff);return originalArray(request,out);}
@@ -94,6 +95,11 @@ Ogre::TexturePtr* LoadedArray(void*request,Ogre::TexturePtr*out){
     // Native Image loading, material objects, SRVs and one manager notification
     // all remain native. Only exact-descriptor allocation and byte-equal uploads change.
     return originalArray(request,out);
+}
+Ogre::TexturePtr* LoadedArray(void*request,Ogre::TexturePtr*out){
+    const __int64 begin=ResourceLoadProbeArrayBegin();
+    Ogre::TexturePtr*result=LoadedArrayCore(request,out);
+    ResourceLoadProbeArrayEnd(begin);return result;
 }
 }
 #ifndef RESOURCE_GPU_BRIDGE_TEST

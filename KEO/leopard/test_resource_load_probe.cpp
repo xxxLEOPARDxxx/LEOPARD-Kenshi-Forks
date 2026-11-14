@@ -20,11 +20,71 @@ void Native(void*p){++nativeCalls;seen=p;tick+=nativeDuration;if(sehNative)Raise
 void* NativeProcess(void*p,void*item){seenSecond=item;Native(p);return reinterpret_cast<void*>(0x4567);}
 void NativeMesh(void*p,const void*data){seenSecond=const_cast<void*>(data);Native(p);}
 void NativeEntity(void*p,bool force){seenForce=force;Native(p);}
+static void*seenThird=NULL;
+void* NativeTexture(void*p,void*out){seenSecond=out;Native(p);return out;}
+void NativeAppearance(void*p,void*resource,void*data){seenSecond=resource;seenThird=data;Native(p);}
 #include "../src/resources/resource_load_probe.cpp"
 static bool CatchNativeSeh(void*p){__try{resource_load_probe_detail::Factory(p);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static bool CatchNewSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::FactoryProcess(p,item);else if(which==1)resource_load_probe_detail::SetMeshData(p,item);else resource_load_probe_detail::EntityInitialise(p,true);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
+static bool CatchCompletionSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::Texture2D(p,item);else if(which==1)resource_load_probe_detail::AppearanceBody(p,item,item);else resource_load_probe_detail::AppearanceAttachment(p,item,item);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static int checks=0;
 void Check(bool b,const char*s){++checks;if(!b){printf("FAIL %s\n",s);exit(1);}}
+static void ExerciseCompletionChildren(void*self,void*item){
+ using namespace resource_load_probe_detail;
+ originalTexture2D=&NativeTexture;originalBody=&NativeAppearance;originalAttachment=&NativeAppearance;
+ void*data=reinterpret_cast<void*>(0x7777);int before=nativeCalls;nativeDuration=22000;
+ Check(Texture2D(self,item)==item&&nativeCalls==before+1&&seen==self&&seenSecond==item,"texture hidden result output exact once");
+ AppearanceBody(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&body.calls==1,"body raw indirect value and third argument exact");
+ AppearanceAttachment(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&attachment.calls==1,"attachment exact forwarding");
+ Check(texture2D.totalUs==22000&&body.totalUs==22000&&attachment.totalUs==22000,"completion children independent timings");
+ enabled=false;int c=clocks,m=mainChecks;before=nativeCalls;
+ Check(Texture2D(self,item)==item,"disabled texture result");AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);
+ __int64 token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
+ Check(token==-1&&nativeCalls==before+3&&clocks==c&&mainChecks==m,"completion debug off has no clocks thread check or changed result");
+ enabled=true;onMain=false;c=clocks;before=nativeCalls;
+ Texture2D(self,item);AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
+ Check(token==-1&&nativeCalls==before+3&&clocks==c,"completion offmain has no clocks");onMain=true;
+ tick=0;token=ResourceLoadProbeArrayBegin();tick+=7000;ResourceLoadProbeArrayEnd(token);
+ Check(token==0&&textureArray.calls==1&&textureArray.totalUs==7000,"array token zero is a valid timestamp");
+ throwsNative=true;c=clocks;before=nativeCalls;bool thrown=false;
+ try{Texture2D(self,item);}catch(int n){thrown=n==17;}Check(thrown&&nativeCalls==before+1&&clocks==c+1&&texture2D.calls==1,"texture exception exact and excluded");
+ thrown=false;c=clocks;before=nativeCalls;try{AppearanceBody(self,item,data);}catch(int n){thrown=n==17;}
+ Check(thrown&&nativeCalls==before+1&&clocks==c+1&&body.calls==1,"body exception exact and excluded");
+ thrown=false;c=clocks;before=nativeCalls;try{AppearanceAttachment(self,item,data);}catch(int n){thrown=n==17;}
+ Check(thrown&&nativeCalls==before+1&&clocks==c+1&&attachment.calls==1,"attachment exception exact and excluded");throwsNative=false;
+ sehNative=true;for(int seam=0;seam<3;++seam){c=clocks;before=nativeCalls;Check(CatchCompletionSeh(seam,self,item)&&nativeCalls==before+1&&clocks==c+1&&texture2D.calls==1&&body.calls==1&&attachment.calls==1,"completion child native SEH unchanged and excluded");}sehNative=false;
+}
+static int ownedCopies=0,ownedDrops=0;static unsigned __int64 ownedSeen=0;
+struct Owned16 {unsigned __int64 a,b;Owned16():a(0x1122334455667788ULL),b(0x8877665544332211ULL){}
+ Owned16(const Owned16&o):a(o.a),b(o.b){++ownedCopies;}~Owned16(){++ownedDrops;}};
+typedef void(*OwnedCallback)(void*,Owned16,void*);
+static __declspec(noinline) void NativeOwned(void*p,Owned16 resource,void*data){ownedSeen=resource.a^resource.b;seenThird=data;Native(p);}
+static void ExerciseOwnedValue(void*self,void*item){
+ using namespace resource_load_probe_detail;
+ originalBody=reinterpret_cast<AppearanceFn>(&NativeOwned);
+ Owned16 source;int c=ownedCopies,d=ownedDrops;nativeDuration=3000;
+ reinterpret_cast<OwnedCallback>(&AppearanceBody)(self,source,item);
+ Check(ownedCopies==c+1&&ownedDrops==d+1&&source.a==0x1122334455667788ULL&&ownedSeen==(source.a^source.b)&&seenThird==item,"VC10 native indirect16 value is forwarded without extra copy or destructor");
+ throwsNative=true;c=ownedCopies;d=ownedDrops;bool thrown=false;
+ try{reinterpret_cast<OwnedCallback>(&AppearanceBody)(self,source,item);}catch(int n){thrown=n==17;}
+ Check(thrown&&ownedCopies==c+1&&ownedDrops==d+1,"VC10 owned temporary unwinds exactly once across raw forwarding");throwsNative=false;
+ originalBody=&NativeAppearance;
+}
+static void NativeCompletion(void*p){
+ using namespace resource_load_probe_detail;
+ nativeDuration=4000;Texture2D(p,p);nativeDuration=6000;AppearanceBody(p,p,p);
+ __int64 token=ResourceLoadProbeArrayBegin();tick+=3000;ResourceLoadProbeArrayEnd(token);tick+=2000;
+}
+static void ExerciseSlowRing(void*self){
+ using namespace resource_load_probe_detail;
+ originalResource=&NativeCompletion;slowRead=slowCount=0;slowOverwritten=0;
+ for(int i=0;i<20;++i){seconds=double(i);Resource(self);}
+ Check(slowCount==16&&slowOverwritten==4&&slowUpdates[slowRead].completedAt==4,"slow update storage bounded and oldest overwritten");
+ const SlowUpdate&r=slowUpdates[slowRead];
+ Check(r.elapsedUs==15000&&r.children.tex2D==4000&&r.children.appearanceBody==6000&&r.children.array==3000&&r.children.entity==0,"slow native update captures exact completed child time deltas");
+ int saved=slowCount;enabled=false;Resource(self);Check(slowCount==saved,"disabled update does not append diagnostic records");enabled=true;
+ originalResource=&Native;seconds=0;
+}
 int main(){
  using namespace resource_load_probe_detail;
  originalFactory=&Native;originalResource=&Native;
@@ -75,7 +135,12 @@ int main(){
  void*actualEntity=AdmitModule(actualOgre,0x5ca5f929,0x9c9000,0xBFAC0,actualEntityBytes);
  Check(actualEntity!=NULL,"actual installed Ogre exact PE build RVA and32bytes admitted without DllMain");
  Check(actualEntity&&reinterpret_cast<void*>(GetProcAddress(actualOgre,"?_initialise@Entity@Ogre@@QEAAX_N@Z"))==actualEntity,"actual Ogre named export matches admitted32byte RVA");FreeLibrary(actualOgre);
+ ExerciseCompletionChildren(self,item);
+ ExerciseOwnedValue(self,item);ExerciseSlowRing(self);
  seconds=0;ResourceLoadProbeReport();Check(output.empty(),"first report establishes cadence");seconds=9.99;ResourceLoadProbeReport();Check(output.empty(),"report waits ten seconds");seconds=10;ResourceLoadProbeReport();Check(output.find("factoryDrain")!=std::string::npos&&output.find("resourceFinish")!=std::string::npos&&output.find("factoryProcess")!=std::string::npos&&output.find("setMeshData")!=std::string::npos&&output.find("entityInitialise")!=std::string::npos&&output.find("inclusiveElapsed")!=std::string::npos,"summary labels preserve attribution scope");
+ Check(output.find("texture2D")!=std::string::npos&&output.find("textureArray")!=std::string::npos&&output.find("appearanceBody")!=std::string::npos&&output.find("appearanceAttachment")!=std::string::npos,"completion child labels present");
+ Check(output.find("Resource completion slow update:")!=std::string::npos&&output.find("texture2DUs=4000")!=std::string::npos&&output.find("appearanceBodyUs=6000")!=std::string::npos&&slowCount==0,"slow diagnostics flush only on bounded summary cadence");
+ Check(resource.windowMaxUs==0&&body.windowMaxUs==0&&resource.maxUs==25000,"window maximum resets without losing cumulative maximum");
  size_t size=output.size();seconds=19.9;ResourceLoadProbeReport();Check(output.size()==size,"report rate bounded");enabled=false;seconds=30;ResourceLoadProbeReport();Check(output.size()==size,"debug off report silent");
  printf("PASS %d actual-production-wrapper controls\n",checks);return 0;
 }

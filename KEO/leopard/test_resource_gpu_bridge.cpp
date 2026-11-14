@@ -5,6 +5,9 @@
 #include "test_resource_gpu.cpp"
 #undef main
 #define RESOURCE_GPU_BRIDGE_TEST
+static int arrayTimingBegin=0,arrayTimingEnd=0;
+__int64 ResourceLoadProbeArrayBegin(){++arrayTimingBegin;return 0;}
+void ResourceLoadProbeArrayEnd(__int64 begin){if(begin==0)++arrayTimingEnd;}
 #include "../src/resources/resource_gpu_bridge.cpp"
 #include "../src/resources/resource_biome_manifest.cpp"
 #include "resources/resource_array_job.h"
@@ -19,6 +22,7 @@ static ID3D11Texture2D*nativeResult=NULL;
 static ID3D11DeviceContext*immediate=NULL;
 static resource_gpu::ReadyPtr expected;
 static bool changeFirst=false;
+static bool nativeArrayThrows=false;
 struct RequestFixture {
     __declspec(align(16)) unsigned char bytes[sizeof(ResourceLoader::TextureArrayLoadData)];
     typedef decltype(((ResourceLoader::TextureArrayLoadData*)0)->filesNames) Paths;
@@ -27,6 +31,7 @@ struct RequestFixture {
     ~RequestFixture(){paths->~Paths();group->~basic_string();name->~basic_string();}
 };
 static Ogre::TexturePtr* FakeNative(void*,Ogre::TexturePtr*out){
+    if(nativeArrayThrows)throw 17;
     D3D11_TEXTURE2D_DESC desc=expected->desc;
     Check(SUCCEEDED(currentDevice->CreateTexture2D(&desc,NULL,&nativeResult)),"actual intercepted device create");
     for(unsigned sub=0;sub<expected->subresources.size();++sub){
@@ -61,6 +66,7 @@ int main(){
         std::aligned_storage<sizeof(Ogre::TexturePtr),__alignof(Ogre::TexturePtr)>::type storage;
         Ogre::TexturePtr*out=reinterpret_cast<Ogre::TexturePtr*>(&storage);
         Check(LoadedArray(request.bytes,out)==out,"actual SDK request, basename key and member hidden-return consumer");out->~SharedPtr();
+        Check(arrayTimingBegin==int(pass+1)&&arrayTimingEnd==int(pass+1),"existing array hook records one successful timing without a second detour");
         Check(nativeResult==identity,"native received actual precreated texture, no duplicate GPU object");
         Check(resource_gpu::Read64(resource_gpu::allocated)==0,"adopted graphics memory detached exactly once");
         Check(skipped-oldSkipped==LONG(pass?0:expected->subresources.size()),"byte-equal arrays skipped; changed source abandons shortcut");
@@ -71,6 +77,10 @@ int main(){
         Check(*static_cast<unsigned char*>(map.pData)==(pass?1:0),"fallback changed pixel actually reached GPU");immediate->Unmap(readback,0);
         readback->Release();nativeResult->Release();nativeResult=NULL;identity->Release();expected.reset();
     }
+    nativeArrayThrows=true;bool caught=false;
+    std::aligned_storage<sizeof(Ogre::TexturePtr),__alignof(Ogre::TexturePtr)>::type failedStorage;
+    try{LoadedArray(request.bytes,reinterpret_cast<Ogre::TexturePtr*>(&failedStorage));}catch(int n){caught=n==17;}
+    Check(caught&&arrayTimingBegin==3&&arrayTimingEnd==2&&context==NULL,"array native exception propagates without a completed sample or stale TLS");
     InterlockedExchange(&enabled,0);currentDevice=NULL;immediate->Release();d->Release();
     std::printf("native bridge TLS/COM/adoption/upload-fallback tests PASS\n");
 }
