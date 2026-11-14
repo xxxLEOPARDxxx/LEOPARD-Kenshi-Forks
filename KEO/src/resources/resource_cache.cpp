@@ -106,7 +106,10 @@ void ResourceCacheTick(){
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
            <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained
-           <<" geometryReferenceHits="<<geometry.reused<<" geometryEvicted="<<geometry.evicted<<" geometryRejected="<<geometry.rejected<<" geometryPressure="<<geometry.pressure;
+           <<" geometryReferenceHits="<<geometry.reused<<" geometryEvicted="<<geometry.evicted<<" geometryRejected="<<geometry.rejected<<" geometryPressure="<<geometry.pressure
+           <<" geometryInputDifferent="<<geometry.inputDifferent<<" geometryQueueFull="<<geometry.queueFull<<" geometryManagerMissing="<<geometry.managerMissing
+           <<" geometryIdentityMismatch="<<geometry.identityMismatch<<" geometryLoadTimeout="<<geometry.loadTimeout<<" geometryManualLod="<<geometry.unsupportedManual
+           <<" geometryDeform="<<geometry.unsupportedDeform<<" geometryUnsupported="<<geometry.unsupportedOther<<" geometryNoGpu="<<geometry.noGpuBuffers<<" geometryAdmissionRefused="<<geometry.admissionRefused;
         LogDetail(out.str());
     }
 }

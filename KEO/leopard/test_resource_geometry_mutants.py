@@ -45,10 +45,11 @@ def run(name,source_path,before,after,gpu=False):
 
 geometry=ROOT/'src/resources/resource_geometry.cpp'
 gpu=ROOT/'src/resources/resource_gpu_store.cpp'
+run('temporary-request-instead-of-entity',geometry,'    Observe(actual);','    Observe(requested);')
 run('no-native-pin',geometry,'Entry e;e.mesh=m;e.desc=d;e.touch=touch;','Entry e;e.desc=d;e.touch=touch;')
 run('no-local-dedup',geometry,'if(d->buffers[i].id==b)return true;','if(false)return true;')
 run('no-cpu-shadow',geometry,'b->hasShadowBuffer()?U64(b->getSizeInBytes()):0','0')
-run('ignore-pose-resources',geometry,'||m->getPoseCount()!=0','')
+run('ignore-pose-resources',geometry,'if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getPoseCount()!=0||m->getNumSubMeshes()>64)return false;','if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getNumSubMeshes()>64)return false;')
 run('ignore-owned-unused-vertices',geometry,'if(!Vertices(s->vertexData,d))return false;','if(!s->useSharedVertices&&!Vertices(s->vertexData,d))return false;')
 run('ignore-pressure',geometry,'state->stats.pressure=!resource_gpu::GeometryStandbyAllowed(state->cap);','state->stats.pressure=false;')
 run('ignore-device-change',geometry,'||state->device!=device','')

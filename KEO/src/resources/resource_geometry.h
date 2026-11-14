@@ -5,6 +5,7 @@ typedef unsigned __int64 U64;
 // alignment keeps caller-owned hidden-return storage valid as well.
 struct __declspec(align(16)) Stats {
     U64 heldBytes,cpuShadowBytes,observed,retained,evicted,reused,rejected;
+    U64 inputDifferent,queueFull,managerMissing,identityMismatch,loadTimeout,unsupportedManual,unsupportedDeform,unsupportedOther,noGpuBuffers,admissionRefused;
     unsigned models,pending;
     bool admitted,enabled,pressure;
 };

@@ -1,0 +1,43 @@
+# NPC creation/resource finalization: focused native follow-up, 2026-11-14
+
+Read-only investigation; no implementation, installation, game input or process-memory access. Read `npc-loading-research-20261114.md` first. Addresses below were resolved from the actual installed KenshiLib named exports, six-byte FF25 stubs starting at RVA 15B46, and the paired 7630-entry Steam RVA table. SDK/GOG comments were not used as Steam addresses. Inspected only the named functions and their bounded callees.
+
+Game image: RE_Kenshi/Kenshi_x64.exe SHA256 `504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e`. OgreMain_x64.dll SHA256 `7d3888d21398647519f10a89b1f300d8606f761ad159e6021a797b1b9b3df5f6`, PE timestamp 5CA5F929, SizeOfImage 9C9000.
+
+## Three useful simple-ABI inclusive timing seams
+
+All signatures below describe Windows x64 detour wrappers; forward all arguments and the original result exactly. Admit exact module/build/function identity and all 32 bytes. Retain stock fallback on refusal or existing-detour conflict. These are proposed measurements, not installed hooks.
+
+1. `factoryProcess`: `RootObjectFactory::process`, Steam RVA 580CE0, slot 6154, symbol `?process@RootObjectFactory@@QEAAPEAVRootObjectBase@@PEAVCreatelistItem@1@@Z`. Raw boundary signature `void* (*)(void* factory, void* item)`; RCX factory, RDX item, RAX result. Admission: `48 8b c4 55 56 57 41 54 41 55 41 56 41 57 48 8d a8 a8 fe ff ff 48 81 ec 20 02 00 00 48 c7 45 c0`.
+2. `entityInitialise`: Ogre export `?_initialise@Entity@Ogre@@QEAAX_N@Z`, Ogre RVA BFAC0. Signature `void (*)(void* entity, bool forceReinitialise)`; RCX entity, DL bool. Admission: `48 8b c4 55 41 54 41 55 41 56 41 57 48 8d 68 a1 48 81 ec e0 00 00 00 48 c7 45 97 fe ff ff ff 48`.
+3. `setMeshData`: static `ResourceLoader::SetMeshData`, Steam RVA 447850, slot 6009, symbol `?SetMeshData@ResourceLoader@@SAXPEAVEntity@Ogre@@AEBVMeshLoadData@1@@Z`. Signature `void (*)(void* entity, const void* meshLoadData)`; RCX entity, RDX data, no loader-this argument. Admission: `48 8b c4 57 48 81 ec 80 00 00 00 48 c7 44 24 20 fe ff ff ff 48 89 58 18 48 89 70 20 48 8b 05 45`.
+
+Use existing debug gate/main-thread guard and fixed-size numeric counters: count, elapsed sum/max, thresholds, and timestamp of interval maximum. No event logs, names, heap allocation, queue copies, native state retention or INI reads per call. Flush outside timed wrappers at the existing interval. Preserve a per-seam nesting guard/depth if recording outermost totals; otherwise clearly label totals inclusive and never sum overlapping seams. Entity initialisation and factory process cover objects beyond NPCs, so neither counter is intrinsically NPC-only. Timings are elapsed wall time, including waits, not CPU utilisation. Debug OFF should immediately forward without QPC.
+
+These three measurements add direct factory coverage and split the already observed resource-finish spikes. They do not isolate every texture upload or appearance callback. A residual in updateMT can still be textures, callback work or native bookkeeping.
+
+## What these functions actually do
+
+`RootObjectFactory::mainThreadUpdate` measures only its at-most-one queued item. `RootObjectFactory::create` directly calls process at 582C1E. Process spans 580CE0..5825EA and has substantial synchronous character work: CharacterHuman constructor call 5819AD -> 5CAF80; CharacterAnimal constructor 581A11 -> 5C76C0; appearance creation/validation and RNG-dependent gender, head, face, hair, body and animation choices; AnimationClass::setAppearanceData at 582180; setupAI at 582320 -> 6210E0; factory callback at 582526; GameWorld::addToUpdateListMain at 582532 -> 787130; and ownership/home-building assignment. A very low factoryDrain therefore does not exclude expensive direct NPC construction. Process is generic, also constructing towns/items/other roots.
+
+Ogre Entity::_initialise spans BFAC0..C0351. Its body includes OldSkeletonInstance construction at BFBC4 -> 1E6800, subentity list construction BFCEE -> C2B30, manual LOD Entity construction, compiled bone assignments C0049 -> 1A5450, AnimationStateSet construction C00AB -> 2A8E0, mesh animation-state setup C00C1 -> 1A5140, and temporary blend-buffer preparation C00C9 -> C2E10. A warm shared Mesh does not eliminate per-entity skeleton, animation and instance setup.
+
+SetMeshData spans 447850..447AFC. It can set skeleton name (4478BD), apply per-entity material (4478D0/4478E5), set render queue, set shared mesh LOD strategy (447916), inspect skeleton/vertex layout, and remove invalid vertex elements. It mutates renderer-owned and shared resource state; it is not a pure data transform suitable for arbitrary worker invocation.
+
+Two native completion routes exist. ResourceLoadRequestMesh::finish, Steam 449590..44960B, slot 6015, calls Entity::_initialise(false) at 4495A6, SetMeshData at 4495B7 and boost callback dispatch at 4495FB -> 458860. ResourceLoader::operationCompleted calls finish at 44ABE9. updateMT separately inlines the same sequence at 44C16B, 44C17C and 44C1BD, so hooking finish alone misses the updateMT route already showing the large spikes.
+
+For later callback attribution, actual Steam AppearanceBase::buildBody is 538590, slot 976; createEntityCallback is 536590, slot 980. BuildBody calls getMorphedBodyMesh (5387B7 -> 7C030), touches scene-node transforms/material/appearance, installs animation body at 539314 -> 5B8910, requests ragdoll update at 539358, and builds attachments at 539372 -> 537BA0. Attachment callback attaches the entity, configures hair/item material and visibility, and updates wetness/portrait. Both use by-value Ogre SharedPtr<Resource>, whose ABI/ownership is more delicate than the three suggested raw simple-ABI seams. If hooked later, compile against the exact SDK type/copy ownership and verify actual native lowering; do not replace by-value SharedPtr with an assumed two-register argument.
+
+## Stock batching already exists; an immediate smaller batch is not proven safe
+
+updateMT sets R12D=20 at 44C018. For each loadedMeshesList entry it initialises Entity, applies mesh data, invokes the callback, destroys and erases the request, then decrements R12D at 44C203 and stops at zero (44C209 -> 44C21F). Thus an 83 ms updateMT call can include up to 20 mesh completions; it is not evidence of one 83 ms NPC.
+
+Critically, ResourceLoader::isLoading, Steam 447390..4473BE, checks loadingMeshQueue count +148, activeMeshLoaders count +C0, texturesLoading count +248 and texturesToLoad count +1E0. It does not check loadedMeshesList count +128. Reducing the existing 20-item batch can therefore increase the span during which completed-but-unfinalised mesh requests remain after isLoading returns false. A time budget or lower constant requires an explicit readiness/lifetime analysis; it cannot be claimed to preserve spawn readiness merely because it leaves requests in a queue. Other native readiness users may add conditions; no bypass or blanket isLoading patch is justified here.
+
+No small behavior-changing spawn optimization is established by the present evidence. Preserve native ordering, RNG, positions, membership, callbacks, AI and readiness; measure the three seams before changing scheduling.
+
+## RAM/VRAM warmup and save-load expectations
+
+The captured combined run demonstrates real RAM cache consumption (2128 hits) and startup texture reads (7294 files, about 14 GB). It does not make save-state parsing, per-character construction, appearance morphing, skeleton/animation instance setup, callbacks, physics or AI registration disappear. Retaining already loaded geometry likewise does not preconstruct those objects, and geometry reference-hit counts do not prove avoided uploads. Minimap squad appearance is a useful correlation point, not proof that its marker rendering or one specific spawn function caused the stall. A controlled cold/warm save-load timing and per-seam measurements are needed before claiming a load-time gain or no gain.
+
+The already demonstrated worker-safe data is owned immutable asset bytes and copied bounded terrain metadata. A future character asset manifest could capture logical mesh/skeleton/material/texture identities on their owner thread, prepare immutable data, and let the native consumer adopt matching results. No proven thread-safe contract presently covers direct factory/world mutation, character-specific morph output, scene entities, skeleton instances, callbacks, AI, physics, faction/platoon ownership or GPU character generation. Moving those calls to a worker or GPU is not an admissible optimization from these findings.

@@ -83,13 +83,24 @@ int main(){
     purge(&m,false);CHECK(!pendingRaw->isLoaded());
     CHECK(reserved==0&&resource_geometry::Snapshot().models==0&&resource_geometry::Snapshot().pending==1);
     TickNow(true,2);TickNow(); // invalidate that weak observation by world generation
+    // The native background request can pass a disposable duplicate while
+    // the returned Entity resolves the registered source by name/group.
+    // Exercise the real selection helper with actual native MeshPtr resources.
+    struct ReturnedEntity {Ogre::MeshPtr actual;const Ogre::MeshPtr&getMesh()const{return actual;}} entity;
+    entity.actual=a;Ogre::MeshPtr temporary=m.createManual("temporary-input","General",&loader);m.remove(temporary->getHandle());
+    resource_geometry::ObserveEntity(&entity,temporary);TickNow();
+    CHECK(resource_geometry::Snapshot().models==1&&reserved==152);
+    CHECK(resource_geometry::Snapshot().inputDifferent==1);
+    resource_geometry::ObserveEntity(&entity,temporary);
+    CHECK(resource_geometry::Snapshot().reused==1&&resource_geometry::Snapshot().inputDifferent==2);
+    resource_geometry::Clear();TickNow();entity.actual.setNull();temporary.setNull();
     unsigned before=a.useCount();resource_geometry::Observe(a);CHECK(a.useCount()==before);
     resource_geometry::Observe(a);CHECK(resource_geometry::Snapshot().pending==1);
     TickNow();CHECK(resource_geometry::Snapshot().models==1&&reserved==152);
     CHECK(a.useCount()==before+1); // ONE actual native controlling reference
     resource_geometry::Observe(b);TickNow();CHECK(resource_geometry::Snapshot().models==2&&reserved==152);
     CHECK(resource_geometry::Snapshot().cpuShadowBytes==120); // globally unique buffer, two meshes
-    resource_geometry::Observe(a);CHECK(resource_geometry::Snapshot().reused==1);
+    resource_geometry::Observe(a);CHECK(resource_geometry::Snapshot().reused==2);
     mainOwner=false;resource_geometry::Observe(b);resource_geometry::Clear();mainOwner=true;
     CHECK(resource_geometry::Snapshot().models==2);
     // Actual native purge vtable+68: the retained MeshPtr excludes otherwise

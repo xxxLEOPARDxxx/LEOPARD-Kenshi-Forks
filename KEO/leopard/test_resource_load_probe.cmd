@@ -14,5 +14,7 @@ cl /nologo /EHsc /MT /O2 /I src leopard\test_resource_load_probe.cpp /Fobuild\re
 if errorlevel 1 exit /b 1
 build\resource_load_probe_test\test_o2.exe
 if errorlevel 1 exit /b 1
-cl /nologo /c /EHsc /MD /O2 /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_ITERATOR_DEBUG_LEVEL=0 /I src /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include\ogre /I D:\DEV\Kenshi\deps\boost_1_60_0 src\resources\resource_load_probe.cpp /Fobuild\resource_load_probe_test\native.obj
+cl /nologo /c /EHsc /MD /O2 /DKEO_DEBUG /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_ITERATOR_DEBUG_LEVEL=0 /I src /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include\ogre /I D:\DEV\Kenshi\deps\boost_1_60_0 src\resources\resource_load_probe.cpp /Fobuild\resource_load_probe_test\native_dev.obj
+if errorlevel 1 exit /b 1
+cl /nologo /c /EHsc /MD /O2 /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_ITERATOR_DEBUG_LEVEL=0 /I src /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include\ogre /I D:\DEV\Kenshi\deps\boost_1_60_0 src\resources\resource_load_probe.cpp /Fobuild\resource_load_probe_test\native_prod.obj
 exit /b %errorlevel%

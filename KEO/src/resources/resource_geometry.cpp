@@ -9,6 +9,7 @@
 #include <kenshi/ResourceLoader.h>
 #endif
 #include <ogre/OgreMesh.h>
+#include <ogre/OgreEntity.h>
 #include <ogre/OgreMeshManager.h>
 #include <ogre/OgreSubMesh.h>
 #include <ogre/OgreVertexIndexData.h>
@@ -133,8 +134,22 @@ static void Observe(const Ogre::MeshPtr&m){
     }
     const Ogre::ResourceHandle handle=m->getHandle();
     for(unsigned n=0;n<state->count;++n)if(state->pending[(state->read+n)%MaxPending].handle==handle)return;
-    if(state->count>=MaxPending){++state->stats.rejected;return;}
+    if(state->count>=MaxPending){++state->stats.rejected;++state->stats.queueFull;return;}
     Candidate&c=state->pending[(state->read+state->count)%MaxPending];c.handle=handle;c.id=m.get();c.time=GetTickCount();++state->count;
+}
+template<class Entity> static void ObserveEntity(Entity*entity,const Ogre::MeshPtr&requested){
+    if(!state||!state->on||!IsMainThread()||!entity)return;
+    // SceneManager::createEntity(MeshPtr) resolves name/group again. A collision
+    // can leave requested as an unregistered disposable duplicate; retain the
+    // actual Entity mesh, not that temporary. getMesh is a passive native getter.
+    const Ogre::MeshPtr&actual=entity->getMesh();
+    if(actual.get()!=requested.get())++state->stats.inputDifferent;
+    Observe(actual);
+}
+static void DescribeRefusal(const Ogre::MeshPtr&m){
+    if(m->hasManualLodLevel())++state->stats.unsupportedManual;
+    else if(m->getNumAnimations()!=0||m->getPoseCount()!=0)++state->stats.unsupportedDeform;
+    else ++state->stats.unsupportedOther;
 }
 void Tick(bool on,U64 cap,U64 world){
     if(!state||!IsMainThread())return;
@@ -170,21 +185,23 @@ void Tick(bool on,U64 cap,U64 world){
         for(unsigned n=0;n<work;++n){
             Candidate c=state->pending[state->read];
             state->read=(state->read+1)%MaxPending;--state->count;
-            Ogre::MeshManager*manager=Ogre::MeshManager::getSingletonPtr();if(!manager)continue;
+            Ogre::MeshManager*manager=Ogre::MeshManager::getSingletonPtr();if(!manager){++state->stats.managerMissing;++state->stats.rejected;continue;}
             Ogre::ResourcePtr resource=manager->getByHandle(c.handle);
-            if(resource.isNull()||resource.get()!=c.id){++state->stats.rejected;continue;}
+            if(resource.isNull()){++state->stats.managerMissing;++state->stats.rejected;continue;}
+            if(resource.get()!=c.id){++state->stats.identityMismatch;++state->stats.rejected;continue;}
             Ogre::MeshPtr mesh=resource.staticCast<Ogre::Mesh>();
             if(!mesh->isLoaded()){
                 if(DWORD(now-c.time)<30000){state->pending[(state->read+state->count)%MaxPending]=c;++state->count;}
-                else ++state->stats.rejected;
+                else {++state->stats.rejected;++state->stats.loadTimeout;}
                 continue;
             }
-            Description d;if(!Describe(mesh,&d)||!d.gpuBytes){++state->stats.rejected;continue;}
+            Description d;if(!Describe(mesh,&d)){++state->stats.rejected;DescribeRefusal(mesh);continue;}
+            if(!d.gpuBytes){++state->stats.rejected;++state->stats.noGpuBuffers;continue;}
             if(state->models.size()>=MaxModels)Oldest();
             bool ok=Promote(mesh,d,++state->clock);
             // Bounded LRU reclamation on cap saturation; no full eviction loop.
             for(unsigned e=0;!ok&&e<2&&!state->models.empty();++e){Oldest();ok=Promote(mesh,d,++state->clock);}
-            if(ok)++state->stats.retained;else ++state->stats.rejected;
+            if(ok)++state->stats.retained;else {++state->stats.rejected;++state->stats.admissionRefused;}
         }
     }catch(...){
         Clear();
@@ -200,7 +217,7 @@ typedef Ogre::Entity*(*CreateFn)(ResourceLoader*,const Ogre::MeshPtr&,const boos
 static CreateFn originalCreate=NULL;
 static Ogre::Entity*Create(ResourceLoader*self,const Ogre::MeshPtr&mesh,const boost::function<void(Ogre::ResourcePtr,void*)>&callback,const ResourceLoader::MeshLoadData&data,Ogre::SceneMemoryMgrTypes type){
     Ogre::Entity*result=originalCreate(self,mesh,callback,data,type);
-    if(result)try{Observe(mesh);}catch(...){} // never replace native success/failure
+    if(result)try{ObserveEntity(result,mesh);}catch(...){} // never replace native success/failure
     return result;
 }
 #endif
