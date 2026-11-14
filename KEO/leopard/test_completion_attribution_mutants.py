@@ -14,7 +14,7 @@ for name,before,after in cases:
  out=root/name;out.mkdir(exist_ok=True);mutant=out/'production.cpp';mutant.write_text(src.replace(before,after),encoding='utf-8')
  test=out/'fixture.cpp';test.write_text(fixture.replace('#include "../src/resources/resource_load_probe.cpp"','#include "'+mutant.as_posix()+'"'),encoding='utf-8')
  exe=out/'fixture.exe'
- args=[str(vc/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MT','/O2','/I'+str(s/'src'),str(test),'/Fo'+str(out)+'\\','/Fe'+str(exe)]
+ args=[str(vc/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MT','/O2','/I'+str(s/'src'),'/I'+str(s/'leopard'),str(test),'/Fo'+str(out)+'\\','/Fe'+str(exe)]
  build=subprocess.run(args,env=env,cwd=s,capture_output=True)
  (out/'build.txt').write_bytes(build.stdout+build.stderr);assert build.returncode==0,(name,'compile failed, not accepted RED')
  run=subprocess.run([str(exe)],env=env,cwd=s,capture_output=True)

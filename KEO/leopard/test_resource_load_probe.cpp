@@ -95,6 +95,7 @@ static void ExerciseSlowRing(void*self){
  int saved=slowCount;enabled=false;Resource(self);Check(slowCount==saved,"disabled update does not append diagnostic records");enabled=true;
  originalResource=&Native;seconds=0;
 }
+#include "test_resource_appearance_probe.h"
 int main(){
  using namespace resource_load_probe_detail;
  originalFactory=&Native;originalResource=&Native;
@@ -146,11 +147,12 @@ int main(){
  Check(actualEntity!=NULL,"actual installed Ogre exact PE build RVA and32bytes admitted without DllMain");
  Check(actualEntity&&reinterpret_cast<void*>(GetProcAddress(actualOgre,"?_initialise@Entity@Ogre@@QEAAX_N@Z"))==actualEntity,"actual Ogre named export matches admitted32byte RVA");FreeLibrary(actualOgre);
  ExerciseCompletionChildren(self,item);
- ExerciseOwnedValue(self,item);ExerciseSlowRing(self);
+ ExerciseOwnedValue(self,item);ExerciseAppearancePreparation(self,item);ExerciseSlowRing(self);
  seconds=0;ResourceLoadProbeReport();Check(output.empty(),"first report establishes cadence");seconds=9.99;ResourceLoadProbeReport();Check(output.empty(),"report waits ten seconds");seconds=10;ResourceLoadProbeReport();Check(output.find("factoryDrain")!=std::string::npos&&output.find("resourceFinish")!=std::string::npos&&output.find("factoryProcess")!=std::string::npos&&output.find("setMeshData")!=std::string::npos&&output.find("entityInitialise")!=std::string::npos&&output.find("inclusiveElapsed")!=std::string::npos,"summary labels preserve attribution scope");
  Check(output.find("texture2D")!=std::string::npos&&output.find("textureArray")!=std::string::npos&&output.find("appearanceBody")!=std::string::npos&&output.find("appearanceAttachment")!=std::string::npos,"completion child labels present");
  Check(output.find("Resource completion slow update:")!=std::string::npos&&output.find("texture2DUs=4000")!=std::string::npos&&output.find("appearanceBodyUs=6000")!=std::string::npos&&slowCount==0,"slow diagnostics flush only on bounded summary cadence");
- Check(resource.windowMaxUs==0&&body.windowMaxUs==0&&resource.maxUs==25000,"window maximum resets without losing cumulative maximum");
+ Check(output.find("morphLookup=")!=std::string::npos&&output.find("morphCreate=")!=std::string::npos&&output.find("morphSwitch=")!=std::string::npos&&output.find("animationBody=")!=std::string::npos&&output.find("attachmentBuild=")!=std::string::npos&&output.find("poseBlend=")!=std::string::npos,"all six preparation stage summary labels present");
+ Check(resource.windowMaxUs==0&&body.windowMaxUs==0&&morphLookup.windowMaxUs==0&&morphCreate.windowMaxUs==0&&poseBlend.windowMaxUs==0&&resource.maxUs==27000,"window maximum resets without losing cumulative maximum");
  size_t size=output.size();seconds=19.9;ResourceLoadProbeReport();Check(output.size()==size,"report rate bounded");enabled=false;seconds=30;ResourceLoadProbeReport();Check(output.size()==size,"debug off report silent");
  printf("PASS %d actual-production-wrapper controls\n",checks);return 0;
 }

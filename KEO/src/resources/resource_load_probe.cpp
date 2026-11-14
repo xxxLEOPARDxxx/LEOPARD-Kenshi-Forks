@@ -22,6 +22,17 @@ static EntityInitialiseFn originalEntityInitialise=NULL;
 static TextureFn originalTexture2D=NULL;
 static AppearanceFn originalBody=NULL,originalAttachment=NULL;
 static AppearanceFn originalMeshCallback=NULL;
+typedef void*(*MorphLookupFn)(void*,void*,void*,bool,float,bool);
+typedef void*(*MorphCreateFn)(const void*,void*,void*,bool);
+typedef void*(*MorphSwitchFn)(void*,void*);
+typedef void(*AnimationBodyFn)(void*,void*);
+typedef void(*PoseBlendFn)(float,const void*,const void*,void*);
+static MorphLookupFn originalMorphLookup=NULL;
+static MorphCreateFn originalMorphCreate=NULL;
+static MorphSwitchFn originalMorphSwitch=NULL;
+static AnimationBodyFn originalAnimationBody=NULL;
+static NativeFn originalAttachmentBuild=NULL;
+static PoseBlendFn originalPoseBlend=NULL;
 struct Stats {
     unsigned __int64 calls,totalUs,maxUs,over2ms,over20ms,windowMaxUs;
     Stats():calls(0),totalUs(0),maxUs(0),over2ms(0),over20ms(0),windowMaxUs(0){}
@@ -30,10 +41,13 @@ static Stats factory,resource;
 static Stats factoryProcess,setMeshData,entityInitialise;
 static Stats texture2D,textureArray,body,attachment;
 static Stats meshCallback;
+static Stats morphLookup,morphCreate,morphSwitch,animationBody,attachmentBuild,poseBlend;
 static bool factoryInstalled=false,resourceInstalled=false;
 static bool factoryProcessInstalled=false,setMeshDataInstalled=false,entityInitialiseInstalled=false;
 static bool texture2DInstalled=false,bodyInstalled=false,attachmentInstalled=false,arrayMeasured=false;
 static bool meshCallbackInstalled=false;
+static bool morphLookupInstalled=false,morphCreateInstalled=false,morphSwitchInstalled=false;
+static bool animationBodyInstalled=false,attachmentBuildInstalled=false,poseBlendInstalled=false;
 static double nextReport=0;
 static unsigned __int64 AddBounded(unsigned __int64 a,unsigned __int64 b){
     const unsigned __int64 cap=~0ULL;return b>cap-a?cap:a+b;
@@ -58,11 +72,14 @@ static void Invoke(NativeFn native,void*self,Stats&s){
 static void Factory(void*self){Invoke(originalFactory,self,factory);}
 struct ChildTimes {
     unsigned __int64 entity,mesh,tex2D,array,appearanceBody,appearanceAttachment,meshCallback;
+    unsigned __int64 morphLookup,morphCreate,morphSwitch,animationBody,attachmentBuild,poseBlend;
 };
 static void ReadChildren(ChildTimes&t){
     t.entity=entityInitialise.totalUs;t.mesh=setMeshData.totalUs;t.tex2D=texture2D.totalUs;
     t.array=textureArray.totalUs;t.appearanceBody=body.totalUs;t.appearanceAttachment=attachment.totalUs;
     t.meshCallback=meshCallback.totalUs;
+    t.morphLookup=morphLookup.totalUs;t.morphCreate=morphCreate.totalUs;t.morphSwitch=morphSwitch.totalUs;
+    t.animationBody=animationBody.totalUs;t.attachmentBuild=attachmentBuild.totalUs;t.poseBlend=poseBlend.totalUs;
 }
 struct SlowUpdate {double completedAt;long elapsedUs;ChildTimes children;};
 static SlowUpdate slowUpdates[16];
@@ -80,6 +97,12 @@ static void Resource(void*self){
     record.children.appearanceBody=after.appearanceBody-before.appearanceBody;
     record.children.appearanceAttachment=after.appearanceAttachment-before.appearanceAttachment;
     record.children.meshCallback=after.meshCallback-before.meshCallback;
+    record.children.morphLookup=after.morphLookup-before.morphLookup;
+    record.children.morphCreate=after.morphCreate-before.morphCreate;
+    record.children.morphSwitch=after.morphSwitch-before.morphSwitch;
+    record.children.animationBody=after.animationBody-before.animationBody;
+    record.children.attachmentBuild=after.attachmentBuild-before.attachmentBuild;
+    record.children.poseBlend=after.poseBlend-before.poseBlend;
     if(slowCount==16){slowRead=(slowRead+1)%16;--slowCount;slowOverwritten=AddBounded(slowOverwritten,1);}
     slowUpdates[(slowRead+slowCount)%16]=record;++slowCount;
 }
@@ -112,6 +135,36 @@ static void InvokeAppearance(AppearanceFn native,void*self,void*resource,void*da
 static void AppearanceBody(void*self,void*resource,void*data){InvokeAppearance(originalBody,self,resource,data,body);}
 static void AppearanceAttachment(void*self,void*resource,void*data){InvokeAppearance(originalAttachment,self,resource,data,attachment);}
 static void MeshCompletionCallback(void*self,void*resource,void*entity){InvokeAppearance(originalMeshCallback,self,resource,entity,meshCallback);}
+// Measurements only: no scene/resource operation is moved between threads.
+// Lookup's fifth/sixth total arguments occupy stack slots, not XMM4/R9.
+static void* GetMorphedBodyMesh(void*self,void*data,void*entity,bool unique,float ugliness,bool shaved){
+    if(!DetailedLogEnabled()||!IsMainThread())return originalMorphLookup(self,data,entity,unique,ugliness,shaved);
+    const LONGLONG begin=QpcNow();void*result=originalMorphLookup(self,data,entity,unique,ugliness,shaved);
+    Sample(morphLookup,QpcDeltaUs(begin,QpcNow()));return result;
+}
+static void* CreateMorphedMesh(const void*name,void*entity,void*data,bool shaved){
+    if(!DetailedLogEnabled()||!IsMainThread())return originalMorphCreate(name,entity,data,shaved);
+    const LONGLONG begin=QpcNow();void*result=originalMorphCreate(name,entity,data,shaved);
+    Sample(morphCreate,QpcDeltaUs(begin,QpcNow()));return result;
+}
+static void* SwitchBodyMesh(void*entity,void*ownedMesh){
+    // Native owns the indirect16 temporary, including its unwind/destruction.
+    // Input Entity may be destroyed/replaced; do not inspect either after call.
+    if(!DetailedLogEnabled()||!IsMainThread())return originalMorphSwitch(entity,ownedMesh);
+    const LONGLONG begin=QpcNow();void*result=originalMorphSwitch(entity,ownedMesh);
+    Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));return result;
+}
+static void SetBodyEntity(void*self,void*entity){
+    if(!DetailedLogEnabled()||!IsMainThread()){originalAnimationBody(self,entity);return;}
+    const LONGLONG begin=QpcNow();originalAnimationBody(self,entity);
+    Sample(animationBody,QpcDeltaUs(begin,QpcNow()));
+}
+static void BuildAttachments(void*self){Invoke(originalAttachmentBuild,self,attachmentBuild);}
+static void PoseBlend(float weight,const void*offsets,const void*normals,void*target){
+    if(!DetailedLogEnabled()||!IsMainThread()){originalPoseBlend(weight,offsets,normals,target);return;}
+    const LONGLONG begin=QpcNow();originalPoseBlend(weight,offsets,normals,target);
+    Sample(poseBlend,QpcDeltaUs(begin,QpcNow()));
+}
 // Startup-only admission. Catch unreadable module headers/bytes, never native
 // wrapper exceptions. Function contracts contain the full 32-byte prefix.
 static bool ImageMatches(HMODULE module,unsigned long stamp,unsigned long size){
@@ -192,6 +245,27 @@ void ResourceLoadProbeInit(){
     // Exact native entry, not the short jump thunk. Same owned16 indirect ABI.
     static const unsigned char callbackBytes[32]={0x48,0x89,0x54,0x24,0x10,0x53,0x48,0x83,0xec,0x50,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x8b,0xda,0x48,0x8b,0xd1,0x48,0x83,0x39,0x00,0x75,0x33,0x48};
     meshCallbackInstalled=InstallAdmitted("meshCompletionCallback",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x458860,callbackBytes):NULL,reinterpret_cast<void*>(&MeshCompletionCallback),reinterpret_cast<void**>(&originalMeshCallback));
+    // Independently admitted immutable native contracts; stock fallback on refusal.
+    static const unsigned char morphLookupBytes[32]={0x48,0x8b,0xc4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0x68,0x98,0x48,0x81,0xec,0x30,0x01,0x00,0x00,0x48,0xc7,0x44,0x24,0x48,0xfe,0xff};
+    void* morphLookupSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x7c030,morphLookupBytes):NULL;
+    morphLookupInstalled=InstallAdmitted("morphLookup",morphLookupSite,reinterpret_cast<void*>(&GetMorphedBodyMesh),reinterpret_cast<void**>(&originalMorphLookup));
+    static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};
+    void* morphCreateSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71a80,morphCreateBytes):NULL;
+    morphCreateInstalled=InstallAdmitted("morphCreate",morphCreateSite,reinterpret_cast<void*>(&CreateMorphedMesh),reinterpret_cast<void**>(&originalMorphCreate));
+    static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
+    void* morphSwitchSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71920,morphSwitchBytes):NULL;
+    morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
+    static const unsigned char animationBodyBytes[32]={0x48,0x89,0x5c,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57,0x41,0x54,0x41,0x55,0x48,0x83,0xec,0x30,0x45,0x33,0xed,0x4c,0x8b,0xe2,0x48,0x8b,0xf1,0x41,0x8b,0xfd,0x44};
+    void* animationBodySite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x5b8910,animationBodyBytes):NULL;
+    animationBodyInstalled=InstallAdmitted("animationBody",animationBodySite,reinterpret_cast<void*>(&SetBodyEntity),reinterpret_cast<void**>(&originalAnimationBody));
+    static const unsigned char attachmentBuildBytes[32]={0x48,0x8b,0xc4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0x68,0xc8,0x48,0x81,0xec,0x10,0x01,0x00,0x00,0x48,0xc7,0x44,0x24,0x30,0xfe,0xff,0xff,0xff};
+    void* attachmentBuildSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x537ba0,attachmentBuildBytes):NULL;
+    attachmentBuildInstalled=InstallAdmitted("attachmentBuild",attachmentBuildSite,reinterpret_cast<void*>(&BuildAttachments),reinterpret_cast<void**>(&originalAttachmentBuild));
+    static const unsigned char poseBlendBytes[32]={0x48,0x8b,0xc4,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x48,0x83,0xec,0x60,0x48,0xc7,0x44,0x24,0x30,0xfe,0xff,0xff,0xff,0x48,0x89,0x58,0x10,0x48,0x89,0x68,0x18};
+    void* poseBlendSite=steam?AdmitModule(ogre,0x5ca5f929,0x9c9000,0x1a9be0,poseBlendBytes):NULL;
+    if(poseBlendSite&&reinterpret_cast<void*>(GetProcAddress(ogre,"?softwareVertexPoseBlend@Mesh@Ogre@@SAXMAEBV?$map@_KVVector3@Ogre@@U?$less@_K@std@@V?$STLAllocator@U?$pair@$$CB_KVVector3@Ogre@@@std@@V?$CategorisedAllocPolicy@$0A@@Ogre@@@2@@std@@0PEAVVertexData@2@@Z"))!=poseBlendSite)poseBlendSite=NULL;
+    poseBlendInstalled=InstallAdmitted("poseBlend",poseBlendSite,reinterpret_cast<void*>(&PoseBlend),reinterpret_cast<void**>(&originalPoseBlend));
+    KEO_DETAIL("Resource appearance probe: six preparation seams measured; native threads, ownership, scheduling and stock morph cache unchanged");
     // Prefer the common completion boundary. Do not touch a body site already
     // modified by an unknown component. Body-specific timing is fallback only.
     if(!meshCallbackInstalled)bodyInstalled=InstallAdmitted("appearanceBody",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x538590,bodyBytes):NULL,reinterpret_cast<void*>(&AppearanceBody),reinterpret_cast<void**>(&originalBody));
@@ -216,10 +290,18 @@ void ResourceLoadProbeReport(){
     Append(out,"appearanceBody",body,bodyInstalled);
     Append(out,"appearanceAttachment",attachment,attachmentInstalled);
     Append(out,"meshCompletionCallback",meshCallback,meshCallbackInstalled);
+    Append(out,"morphLookup",morphLookup,morphLookupInstalled);
+    Append(out,"morphCreate",morphCreate,morphCreateInstalled);
+    Append(out,"morphSwitch",morphSwitch,morphSwitchInstalled);
+    Append(out,"animationBody",animationBody,animationBodyInstalled);
+    Append(out,"attachmentBuild",attachmentBuild,attachmentBuildInstalled);
+    Append(out,"poseBlend",poseBlend,poseBlendInstalled);
     LogMsg(out.str());
     factory.windowMaxUs=resource.windowMaxUs=factoryProcess.windowMaxUs=setMeshData.windowMaxUs=entityInitialise.windowMaxUs=0;
     texture2D.windowMaxUs=textureArray.windowMaxUs=body.windowMaxUs=attachment.windowMaxUs=0;
     meshCallback.windowMaxUs=0;
+    morphLookup.windowMaxUs=morphCreate.windowMaxUs=morphSwitch.windowMaxUs=0;
+    animationBody.windowMaxUs=attachmentBuild.windowMaxUs=poseBlend.windowMaxUs=0;
     for(unsigned n=0;n<slowCount;++n){
         const SlowUpdate&r=slowUpdates[(slowRead+n)%16];std::ostringstream detail;
         detail<<"Resource completion slow update: completedAt="<<r.completedAt<<" elapsedUs="<<r.elapsedUs
@@ -227,6 +309,9 @@ void ResourceLoadProbeReport(){
               <<" textureArrayUs="<<r.children.array<<" appearanceBodyUs="<<r.children.appearanceBody
               <<" appearanceAttachmentUs="<<r.children.appearanceAttachment
               <<" meshCallbackUs="<<r.children.meshCallback
+              <<" morphLookupUs="<<r.children.morphLookup<<" morphCreateUs="<<r.children.morphCreate
+              <<" morphSwitchUs="<<r.children.morphSwitch<<" animationBodyUs="<<r.children.animationBody
+              <<" attachmentBuildUs="<<r.children.attachmentBuild<<" poseBlendUs="<<r.children.poseBlend
               <<" inclusive children overlap; last16 ring, overwritten="<<slowOverwritten;
         LogMsg(detail.str());
     }
