@@ -22,6 +22,7 @@ typedef bool(*FrameFn)(Ogre::Root*);
 typedef bool(*TimedFn)(Ogre::Root*,float);
 AddFn originalAdd=NULL;FrameFn originalFrame=NULL;TimedFn originalTimed=NULL;
 static DWORD lastTick=0;static bool ticked=false;
+static LONGLONG menuFrameAt=0,menuSlowAt=0;static bool menuFrameSeen=false,menuSlow=false;
 static void Remember(const Ogre::String&name,const Ogre::String&type,bool recursive,bool readOnly){
     if(type!="FileSystem"||!readOnly||name.empty()||name.size()>=MAX_PATH)return;
     char full[MAX_PATH];DWORD len=GetFullPathNameA(name.c_str(),MAX_PATH,full,NULL);
@@ -54,8 +55,20 @@ static void SeedExisting(){
     if(seedGroup>=seedGroups.size()||seedVisits>=8192){Ogre::StringVector empty;seedGroups.swap(empty);}
 }
 static void Heartbeat(){
-    if(!IsMainThread()||InterlockedCompareExchange(&g_navMeshStopSeen,0,0))return;
-    DWORD now=GetTickCount();if(ticked&&DWORD(now-lastTick)<250)return;ticked=true;lastTick=now;
+    if(!IsMainThread())return;
+    if(InterlockedCompareExchange(&g_navMeshStopSeen,0,0)){resource_cache::SetStartupMenu(false);return;}
+    DWORD now=GetTickCount();
+    bool responsive=false;
+    if(resource_cache::StartupEnabled()&&ResourceStartupTitleVisible()){
+        // GetTickCount can quantize a steady60Hz frame to32ms. Use the native
+        // high-resolution clock for responsiveness; DWORD clock is lease only.
+        const LONGLONG frameNow=QpcNow();
+        if(menuFrameSeen&&QpcDeltaUs(menuFrameAt,frameNow)>=20000){menuSlowAt=frameNow;menuSlow=true;}
+        menuFrameAt=frameNow;menuFrameSeen=true;
+        responsive=!menuSlow||QpcDeltaUs(menuSlowAt,frameNow)>=1000000;
+    }else {menuFrameSeen=false;menuSlow=false;}
+    resource_cache::SetStartupMenu(responsive);
+    if(ticked&&DWORD(now-lastTick)<250)return;ticked=true;lastTick=now;
     try{SeedExisting();}catch(...){} // optional inventory failure never replaces native loading
     ResourceCacheTick();
 }

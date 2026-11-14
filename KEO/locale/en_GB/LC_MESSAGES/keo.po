@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "Background resource reading (MiB/s)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
 
 
 msgid "Prepare nearby terrain"

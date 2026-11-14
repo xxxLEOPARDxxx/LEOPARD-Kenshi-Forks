@@ -23,11 +23,15 @@ struct __declspec(align(16)) Stats {
     unsigned startupRoots, startupFiles, startupProcessed, startupLoaded, startupSkipped;
     unsigned __int64 startupTotalBytes, startupReadBytes;
     bool startupScanning, startupDone, startupCapped;
+    unsigned __int64 startupFastReadBytes;
+    bool startupMenuFast;
 };
 bool Start(); // before installing archive hook; worker does no engine calls
 void Configure(bool enabled, unsigned __int64 bytes, unsigned megabytesPerSecond);
 void RegisterTextureRoot(const std::string& absolutePath, bool recursive); // copies filesystem location; retained while off
 void ConfigureStartup(bool enabled); // live opt-in; unchanged values do not restart inventory
+bool StartupEnabled();
+void SetStartupMenu(bool); // main owner heartbeat; short lease expires if rendering stops
 FilePtr Find(const std::string& absolutePath); // non-waiting cache lock; validates file identity
 void Observe(const std::string& absolutePath); // only after successful native read-only open
 void Prefetch(const std::string& absolutePath); // explicit verified metadata request, no zone activation

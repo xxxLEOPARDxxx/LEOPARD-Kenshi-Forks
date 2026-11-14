@@ -8,11 +8,14 @@
 static unsigned checks=0;static bool mainThread=true,stop=false;static DWORD now=1000;static unsigned ticks=0,observed=0,nativeCalls=0;static bool failNative=false;
 #define C(x) do{++checks;if(!(x)){printf("FAIL %u %s\n",__LINE__,#x);return 1;}}while(0)
 DWORD Clock(){return now;}
+static LONGLONG preciseNow=1000000;LONGLONG QpcNow(){return preciseNow;}long QpcDeltaUs(LONGLONG a,LONGLONG b){return b>a?long(b-a):0;}
 #define GetTickCount Clock
 bool IsMainThread(){return mainThread;}
 LONG g_navMeshStopSeen=0;
 void ResourceCacheTick(){++ticks;}
-namespace resource_cache{void RegisterTextureRoot(const std::string&p,bool recursive){if(p.find("texture")!=std::string::npos&&recursive)++observed;}}
+static bool menuLease=false,titleShown=false;static unsigned menuUpdates=0;
+bool ResourceStartupTitleVisible(){return titleShown;}
+namespace resource_cache{void RegisterTextureRoot(const std::string&p,bool recursive){if(p.find("texture")!=std::string::npos&&recursive)++observed;}bool StartupEnabled(){return true;}void SetStartupMenu(bool on){menuLease=on;++menuUpdates;}}
 namespace Ogre{typedef std::string String;typedef std::vector<String> StringVector;struct Archive{String getName()const{return "D:/texture";}String getType()const{return "FileSystem";}};struct Root{};
 struct ResourceGroupManager{struct ResourceLocation{Archive*archive;bool recursive;};typedef std::list<ResourceLocation*> LocationList;static ResourceGroupManager*instance;LocationList locs;static ResourceGroupManager*getSingletonPtr(){return instance;}StringVector getResourceGroups(){StringVector v;v.push_back("General");v.push_back("Removed");v.push_back("Later");return v;}const LocationList&getResourceLocationList(const String&s){if(s=="Removed")throw std::runtime_error("removed");return locs;}};}
 Ogre::ResourceGroupManager*Ogre::ResourceGroupManager::instance=NULL;
@@ -40,4 +43,11 @@ int main(){using namespace resource_startup_native;originalAdd=NativeAdd;origina
  for(int i=0;i<260;++i){now+=250;Frame(NULL);}
  C(seedVisits==8192&&seedGroups.empty());unsigned held=observed;
  now+=250;Frame(NULL);C(observed==held);
+ menuFrameSeen=false;titleShown=true;now+=1000;C(Frame(NULL));C(menuLease);unsigned tickBefore=ticks;
+ now+=5;preciseNow+=5000;C(Frame(NULL));C(menuLease&&ticks==tickBefore);titleShown=false;now+=5;preciseNow+=5000;C(Frame(NULL));C(!menuLease&&ticks==tickBefore);
+ titleShown=true;now+=5;preciseNow+=5000;C(Frame(NULL));C(menuLease);
+ now+=25;preciseNow+=25000;C(Frame(NULL));C(!menuLease);for(int i=0;i<201;++i){now+=5;preciseNow+=5000;Frame(NULL);}C(menuLease);
+ menuFrameSeen=false;menuSlow=false;unsigned coarseStart=now;LONGLONG qpcStart=preciseNow;
+ for(int i=0;i<600;++i){preciseNow=qpcStart+LONGLONG(i)*16667;now=coarseStart+DWORD((i*16667/15625)*15625/1000);C(Frame(NULL));C(menuLease);}
+ g_navMeshStopSeen=1;C(Frame(NULL));C(!menuLease);
  printf("startup native wrapper %u checks PASS\n",checks);return 0;}

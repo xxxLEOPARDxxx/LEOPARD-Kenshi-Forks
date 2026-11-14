@@ -20,6 +20,8 @@ bool initialized=false;
 HANDLE eventHandle=NULL, threadHandle=NULL;
 volatile LONG stopping=0, enabled=0, generation=0, rate=32;
 volatile LONG backgroundAllowed=1, startupEnabled=0, startupGeneration=0;
+volatile LONG startupMenu=0,startupMenuAt=0;
+size_t startupBurstBytes=0; // IO-worker only, cumulative across small files
 __declspec(align(8)) volatile LONGLONG ceiling=0;
 struct PathLess {bool operator()(const std::string&a,const std::string&b)const{return _stricmp(a.c_str(),b.c_str())<0;}};
 typedef std::list<std::string> LruList;
@@ -33,6 +35,10 @@ struct Guard {Guard(){EnterCriticalSection(&lock);}~Guard(){LeaveCriticalSection
 LONG Load(volatile LONG& v){return InterlockedCompareExchange(&v,0,0);}
 LONGLONG Load64(volatile LONGLONG&v){return InterlockedCompareExchange64(&v,0,0);}
 bool On(){return Load(enabled)!=0 && Load(stopping)==0;}
+bool StartupUnpaced(bool startup,DWORD now){
+    return startup&&On()&&Load(startupEnabled)&&Load(backgroundAllowed)&&Load(startupMenu)
+        &&DWORD(now-DWORD(Load(startupMenuAt)))<=250;
+}
 // All startup inventory/cursors belong to the IO worker. Other threads change
 // only the copied root table, epoch, and small published counters under lock.
 std::map<std::string,bool,PathLess> roots;
@@ -188,7 +194,10 @@ ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1){
         DWORD start=GetTickCount();
         if(!ReadFile(h.h,&f->data[offset],count,&got,NULL)||got!=count)return ReadSkipped;
         offset+=got;InterlockedExchangeAdd64(&readBytes,got);
-        if(startup){Guard g;if(!StartupCancelled(startupEpoch))progress.startupReadBytes+=got;}
+        const bool menuFast=StartupUnpaced(startup,GetTickCount());
+        if(startup){Guard g;if(!StartupCancelled(startupEpoch)){progress.startupReadBytes+=got;if(menuFast)progress.startupFastReadBytes+=got;}}
+        if(menuFast){startupBurstBytes+=got;if(startupBurstBytes>=4*1024*1024){startupBurstBytes=0;Sleep(0);}continue;}
+        startupBurstBytes=0;
         unsigned speed=(std::max)(1L,Load(rate));
         DWORD span=DWORD((unsigned __int64(count)*1000+speed*MiB-1)/(speed*MiB));
         DWORD elapsed=GetTickCount()-start;
@@ -362,10 +371,12 @@ Stats Snapshot(){
     Stats s={0};
     s.allocatedBytes=unsigned __int64(Load64(allocated));s.hits=unsigned __int64(Load64(hits));s.misses=unsigned __int64(Load64(misses));
     s.queued=unsigned __int64(Load64(queued));s.rejected=unsigned __int64(Load64(rejected));s.readBytes=unsigned __int64(Load64(readBytes));
+    s.startupMenuFast=StartupUnpaced(true,GetTickCount());
     if(initialized&&TryEnterCriticalSection(&lock)){
         s.entries=unsigned(files.size());s.pending=unsigned(requests.size());s.active=!active.empty();
         s.startupRoots=progress.startupRoots;s.startupFiles=progress.startupFiles;s.startupProcessed=progress.startupProcessed;s.startupLoaded=progress.startupLoaded;s.startupSkipped=progress.startupSkipped;
         s.startupTotalBytes=progress.startupTotalBytes;s.startupReadBytes=progress.startupReadBytes;s.startupScanning=progress.startupScanning;s.startupDone=progress.startupDone;s.startupCapped=progress.startupCapped;
+        s.startupFastReadBytes=progress.startupFastReadBytes;
         LeaveCriticalSection(&lock);
     }return s;
 }
@@ -373,6 +384,11 @@ void Prefetch(const std::string&p){Observe(p);}
 bool StandbyAllowed(){return On()&&Load64(allocated)<=Load64(ceiling)&&MemoryRoom(0);}
 void SetBackgroundAllowed(bool allow){LONG before=InterlockedExchange(&backgroundAllowed,allow?1:0);if(allow&&!before&&eventHandle)SetEvent(eventHandle);}
 bool BackgroundAllowed(){return Load(backgroundAllowed)!=0;}
+bool StartupEnabled(){return On()&&Load(startupEnabled)!=0;}
+void SetStartupMenu(bool menu){
+    if(menu){InterlockedExchange(&startupMenuAt,LONG(GetTickCount()));InterlockedExchange(&startupMenu,1);}
+    else InterlockedExchange(&startupMenu,0);
+}
 void SignalStop(){InterlockedExchange(&enabled,0);InterlockedExchange(&stopping,1);if(eventHandle)SetEvent(eventHandle);}
 void Stop(){
     SignalStop();

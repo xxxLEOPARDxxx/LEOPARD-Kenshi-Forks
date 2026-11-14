@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "Фоновое чтение (МиБ/с)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "Ограничивает скорость фонового потока с низким приоритетом, который подготавливает запрошенные файлы для повторного чтения. Уменьшите значение, если фоновое чтение диска мешает игре. Это не лимит видеопамяти."
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Ограничивает фоновое чтение файлов во время игры. Стартовый прогрев текстур в главном меню идёт быстрее, пока меню работает плавно. Уменьшите значение, если фоновое чтение диска мешает игре. Это не лимит видеопамяти."
 
 
 msgid "Prepare nearby terrain"

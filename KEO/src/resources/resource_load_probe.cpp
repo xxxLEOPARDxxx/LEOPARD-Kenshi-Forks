@@ -21,6 +21,7 @@ static SetMeshDataFn originalSetMeshData=NULL;
 static EntityInitialiseFn originalEntityInitialise=NULL;
 static TextureFn originalTexture2D=NULL;
 static AppearanceFn originalBody=NULL,originalAttachment=NULL;
+static AppearanceFn originalMeshCallback=NULL;
 struct Stats {
     unsigned __int64 calls,totalUs,maxUs,over2ms,over20ms,windowMaxUs;
     Stats():calls(0),totalUs(0),maxUs(0),over2ms(0),over20ms(0),windowMaxUs(0){}
@@ -28,9 +29,11 @@ struct Stats {
 static Stats factory,resource;
 static Stats factoryProcess,setMeshData,entityInitialise;
 static Stats texture2D,textureArray,body,attachment;
+static Stats meshCallback;
 static bool factoryInstalled=false,resourceInstalled=false;
 static bool factoryProcessInstalled=false,setMeshDataInstalled=false,entityInitialiseInstalled=false;
 static bool texture2DInstalled=false,bodyInstalled=false,attachmentInstalled=false,arrayMeasured=false;
+static bool meshCallbackInstalled=false;
 static double nextReport=0;
 static unsigned __int64 AddBounded(unsigned __int64 a,unsigned __int64 b){
     const unsigned __int64 cap=~0ULL;return b>cap-a?cap:a+b;
@@ -54,11 +57,12 @@ static void Invoke(NativeFn native,void*self,Stats&s){
 }
 static void Factory(void*self){Invoke(originalFactory,self,factory);}
 struct ChildTimes {
-    unsigned __int64 entity,mesh,tex2D,array,appearanceBody,appearanceAttachment;
+    unsigned __int64 entity,mesh,tex2D,array,appearanceBody,appearanceAttachment,meshCallback;
 };
 static void ReadChildren(ChildTimes&t){
     t.entity=entityInitialise.totalUs;t.mesh=setMeshData.totalUs;t.tex2D=texture2D.totalUs;
     t.array=textureArray.totalUs;t.appearanceBody=body.totalUs;t.appearanceAttachment=attachment.totalUs;
+    t.meshCallback=meshCallback.totalUs;
 }
 struct SlowUpdate {double completedAt;long elapsedUs;ChildTimes children;};
 static SlowUpdate slowUpdates[16];
@@ -75,6 +79,7 @@ static void Resource(void*self){
     record.children.tex2D=after.tex2D-before.tex2D;record.children.array=after.array-before.array;
     record.children.appearanceBody=after.appearanceBody-before.appearanceBody;
     record.children.appearanceAttachment=after.appearanceAttachment-before.appearanceAttachment;
+    record.children.meshCallback=after.meshCallback-before.meshCallback;
     if(slowCount==16){slowRead=(slowRead+1)%16;--slowCount;slowOverwritten=AddBounded(slowOverwritten,1);}
     slowUpdates[(slowRead+slowCount)%16]=record;++slowCount;
 }
@@ -106,6 +111,7 @@ static void InvokeAppearance(AppearanceFn native,void*self,void*resource,void*da
 }
 static void AppearanceBody(void*self,void*resource,void*data){InvokeAppearance(originalBody,self,resource,data,body);}
 static void AppearanceAttachment(void*self,void*resource,void*data){InvokeAppearance(originalAttachment,self,resource,data,attachment);}
+static void MeshCompletionCallback(void*self,void*resource,void*entity){InvokeAppearance(originalMeshCallback,self,resource,entity,meshCallback);}
 // Startup-only admission. Catch unreadable module headers/bytes, never native
 // wrapper exceptions. Function contracts contain the full 32-byte prefix.
 static bool ImageMatches(HMODULE module,unsigned long stamp,unsigned long size){
@@ -181,8 +187,14 @@ void ResourceLoadProbeInit(){
     static const unsigned char bodyBytes[32]={0x48,0x8b,0xc4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0xa8,0xa8,0xfd,0xff,0xff,0x48,0x81,0xec,0x20,0x03,0x00,0x00,0x48,0xc7,0x45,0xc8};
     static const unsigned char attachmentBytes[32]={0x48,0x89,0x54,0x24,0x10,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x48,0x83,0xec,0x70,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0xb0,0x00,0x00};
     texture2DInstalled=InstallAdmitted("texture2D",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x44ACD0,textureBytes):NULL,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
-    bodyInstalled=InstallAdmitted("appearanceBody",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x538590,bodyBytes):NULL,reinterpret_cast<void*>(&AppearanceBody),reinterpret_cast<void**>(&originalBody));
     attachmentInstalled=InstallAdmitted("appearanceAttachment",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x536590,attachmentBytes):NULL,reinterpret_cast<void*>(&AppearanceAttachment),reinterpret_cast<void**>(&originalAttachment));
+    // Internal Boost callback dispatcher used by both mesh-finish routes.
+    // Exact native entry, not the short jump thunk. Same owned16 indirect ABI.
+    static const unsigned char callbackBytes[32]={0x48,0x89,0x54,0x24,0x10,0x53,0x48,0x83,0xec,0x50,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x8b,0xda,0x48,0x8b,0xd1,0x48,0x83,0x39,0x00,0x75,0x33,0x48};
+    meshCallbackInstalled=InstallAdmitted("meshCompletionCallback",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x458860,callbackBytes):NULL,reinterpret_cast<void*>(&MeshCompletionCallback),reinterpret_cast<void**>(&originalMeshCallback));
+    // Prefer the common completion boundary. Do not touch a body site already
+    // modified by an unknown component. Body-specific timing is fallback only.
+    if(!meshCallbackInstalled)bodyInstalled=InstallAdmitted("appearanceBody",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x538590,bodyBytes):NULL,reinterpret_cast<void*>(&AppearanceBody),reinterpret_cast<void**>(&originalBody));
     KEO_DETAIL(std::string("Resource completion attribution: texture2D=")+(texture2DInstalled?"installed":"unavailable")+" appearanceBody="+(bodyInstalled?"installed":"unavailable")+" appearanceAttachment="+(attachmentInstalled?"installed":"unavailable")+" array=existing bridge only; scheduling and readiness unchanged");
     KEO_DETAIL(std::string("Resource loading probe: factoryDrain=")+(factoryInstalled?"installed":"unavailable")+" resourceFinish="+(resourceInstalled?"installed":"unavailable")+" factoryProcess="+(factoryProcessInstalled?"installed":"unavailable")+" setMeshData="+(setMeshDataInstalled?"installed":"unavailable")+" entityInitialise="+(entityInitialiseInstalled?"installed":"unavailable")+" (completed calls; inclusive elapsed, not CPU time; generic factory/entities, not NPC-only; overlapping totals must not be summed)");
 }
@@ -203,15 +215,18 @@ void ResourceLoadProbeReport(){
     Append(out,"textureArray",textureArray,arrayMeasured);
     Append(out,"appearanceBody",body,bodyInstalled);
     Append(out,"appearanceAttachment",attachment,attachmentInstalled);
+    Append(out,"meshCompletionCallback",meshCallback,meshCallbackInstalled);
     LogMsg(out.str());
     factory.windowMaxUs=resource.windowMaxUs=factoryProcess.windowMaxUs=setMeshData.windowMaxUs=entityInitialise.windowMaxUs=0;
     texture2D.windowMaxUs=textureArray.windowMaxUs=body.windowMaxUs=attachment.windowMaxUs=0;
+    meshCallback.windowMaxUs=0;
     for(unsigned n=0;n<slowCount;++n){
         const SlowUpdate&r=slowUpdates[(slowRead+n)%16];std::ostringstream detail;
         detail<<"Resource completion slow update: completedAt="<<r.completedAt<<" elapsedUs="<<r.elapsedUs
               <<" entityUs="<<r.children.entity<<" meshUs="<<r.children.mesh<<" texture2DUs="<<r.children.tex2D
               <<" textureArrayUs="<<r.children.array<<" appearanceBodyUs="<<r.children.appearanceBody
               <<" appearanceAttachmentUs="<<r.children.appearanceAttachment
+              <<" meshCallbackUs="<<r.children.meshCallback
               <<" inclusive children overlap; last16 ring, overwritten="<<slowOverwritten;
         LogMsg(detail.str());
     }

@@ -26,24 +26,26 @@ void NativeAppearance(void*p,void*resource,void*data){seenSecond=resource;seenTh
 #include "../src/resources/resource_load_probe.cpp"
 static bool CatchNativeSeh(void*p){__try{resource_load_probe_detail::Factory(p);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static bool CatchNewSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::FactoryProcess(p,item);else if(which==1)resource_load_probe_detail::SetMeshData(p,item);else resource_load_probe_detail::EntityInitialise(p,true);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
-static bool CatchCompletionSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::Texture2D(p,item);else if(which==1)resource_load_probe_detail::AppearanceBody(p,item,item);else resource_load_probe_detail::AppearanceAttachment(p,item,item);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
+static bool CatchCompletionSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::Texture2D(p,item);else if(which==1)resource_load_probe_detail::AppearanceBody(p,item,item);else if(which==2)resource_load_probe_detail::AppearanceAttachment(p,item,item);else resource_load_probe_detail::MeshCompletionCallback(p,item,item);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static int checks=0;
 void Check(bool b,const char*s){++checks;if(!b){printf("FAIL %s\n",s);exit(1);}}
 static void ExerciseCompletionChildren(void*self,void*item){
  using namespace resource_load_probe_detail;
  originalTexture2D=&NativeTexture;originalBody=&NativeAppearance;originalAttachment=&NativeAppearance;
+ originalMeshCallback=&NativeAppearance;
  void*data=reinterpret_cast<void*>(0x7777);int before=nativeCalls;nativeDuration=22000;
  Check(Texture2D(self,item)==item&&nativeCalls==before+1&&seen==self&&seenSecond==item,"texture hidden result output exact once");
  AppearanceBody(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&body.calls==1,"body raw indirect value and third argument exact");
  AppearanceAttachment(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&attachment.calls==1,"attachment exact forwarding");
+ MeshCompletionCallback(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&meshCallback.calls==1,"generic mesh callback forwards exact arguments once");
  Check(texture2D.totalUs==22000&&body.totalUs==22000&&attachment.totalUs==22000,"completion children independent timings");
  enabled=false;int c=clocks,m=mainChecks;before=nativeCalls;
- Check(Texture2D(self,item)==item,"disabled texture result");AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);
+ Check(Texture2D(self,item)==item,"disabled texture result");AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);MeshCompletionCallback(self,item,data);
  __int64 token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
- Check(token==-1&&nativeCalls==before+3&&clocks==c&&mainChecks==m,"completion debug off has no clocks thread check or changed result");
+ Check(token==-1&&nativeCalls==before+4&&clocks==c&&mainChecks==m,"completion debug off has no clocks thread check or changed result");
  enabled=true;onMain=false;c=clocks;before=nativeCalls;
- Texture2D(self,item);AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
- Check(token==-1&&nativeCalls==before+3&&clocks==c,"completion offmain has no clocks");onMain=true;
+ Texture2D(self,item);AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);MeshCompletionCallback(self,item,data);token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
+ Check(token==-1&&nativeCalls==before+4&&clocks==c,"completion offmain has no clocks");onMain=true;
  tick=0;token=ResourceLoadProbeArrayBegin();tick+=7000;ResourceLoadProbeArrayEnd(token);
  Check(token==0&&textureArray.calls==1&&textureArray.totalUs==7000,"array token zero is a valid timestamp");
  throwsNative=true;c=clocks;before=nativeCalls;bool thrown=false;
@@ -52,7 +54,9 @@ static void ExerciseCompletionChildren(void*self,void*item){
  Check(thrown&&nativeCalls==before+1&&clocks==c+1&&body.calls==1,"body exception exact and excluded");
  thrown=false;c=clocks;before=nativeCalls;try{AppearanceAttachment(self,item,data);}catch(int n){thrown=n==17;}
  Check(thrown&&nativeCalls==before+1&&clocks==c+1&&attachment.calls==1,"attachment exception exact and excluded");throwsNative=false;
- sehNative=true;for(int seam=0;seam<3;++seam){c=clocks;before=nativeCalls;Check(CatchCompletionSeh(seam,self,item)&&nativeCalls==before+1&&clocks==c+1&&texture2D.calls==1&&body.calls==1&&attachment.calls==1,"completion child native SEH unchanged and excluded");}sehNative=false;
+ throwsNative=true;thrown=false;c=clocks;before=nativeCalls;try{MeshCompletionCallback(self,item,data);}catch(int n){thrown=n==17;}
+ Check(thrown&&nativeCalls==before+1&&clocks==c+1&&meshCallback.calls==1,"generic callback C++ exception exact and excluded");throwsNative=false;
+ sehNative=true;for(int seam=0;seam<4;++seam){c=clocks;before=nativeCalls;Check(CatchCompletionSeh(seam,self,item)&&nativeCalls==before+1&&clocks==c+1&&texture2D.calls==1&&body.calls==1&&attachment.calls==1&&meshCallback.calls==1,"completion child native SEH unchanged and excluded");}sehNative=false;
 }
 static int ownedCopies=0,ownedDrops=0;static unsigned __int64 ownedSeen=0;
 struct Owned16 {unsigned __int64 a,b;Owned16():a(0x1122334455667788ULL),b(0x8877665544332211ULL){}
@@ -69,19 +73,25 @@ static void ExerciseOwnedValue(void*self,void*item){
  try{reinterpret_cast<OwnedCallback>(&AppearanceBody)(self,source,item);}catch(int n){thrown=n==17;}
  Check(thrown&&ownedCopies==c+1&&ownedDrops==d+1,"VC10 owned temporary unwinds exactly once across raw forwarding");throwsNative=false;
  originalBody=&NativeAppearance;
+ originalMeshCallback=reinterpret_cast<AppearanceFn>(&NativeOwned);c=ownedCopies;d=ownedDrops;
+ reinterpret_cast<OwnedCallback>(&MeshCompletionCallback)(self,source,item);
+ Check(ownedCopies==c+1&&ownedDrops==d+1&&seenThird==item,"mesh callback owns16 native temporary exactly once");
+ throwsNative=true;c=ownedCopies;d=ownedDrops;thrown=false;try{reinterpret_cast<OwnedCallback>(&MeshCompletionCallback)(self,source,item);}catch(int n){thrown=n==17;}
+ Check(thrown&&ownedCopies==c+1&&ownedDrops==d+1,"generic callback owned16 native unwind exact once");throwsNative=false;originalMeshCallback=&NativeAppearance;
 }
+static void NativeCallbackBody(void*p,void*r,void*d){resource_load_probe_detail::AppearanceBody(p,r,d);}
 static void NativeCompletion(void*p){
  using namespace resource_load_probe_detail;
- nativeDuration=4000;Texture2D(p,p);nativeDuration=6000;AppearanceBody(p,p,p);
+ nativeDuration=4000;Texture2D(p,p);nativeDuration=6000;MeshCompletionCallback(p,p,p);
  __int64 token=ResourceLoadProbeArrayBegin();tick+=3000;ResourceLoadProbeArrayEnd(token);tick+=2000;
 }
 static void ExerciseSlowRing(void*self){
  using namespace resource_load_probe_detail;
- originalResource=&NativeCompletion;slowRead=slowCount=0;slowOverwritten=0;
+ originalResource=&NativeCompletion;originalMeshCallback=&NativeCallbackBody;slowRead=slowCount=0;slowOverwritten=0;
  for(int i=0;i<20;++i){seconds=double(i);Resource(self);}
  Check(slowCount==16&&slowOverwritten==4&&slowUpdates[slowRead].completedAt==4,"slow update storage bounded and oldest overwritten");
  const SlowUpdate&r=slowUpdates[slowRead];
- Check(r.elapsedUs==15000&&r.children.tex2D==4000&&r.children.appearanceBody==6000&&r.children.array==3000&&r.children.entity==0,"slow native update captures exact completed child time deltas");
+ Check(r.elapsedUs==15000&&r.children.tex2D==4000&&r.children.appearanceBody==6000&&r.children.meshCallback==6000&&r.children.array==3000&&r.children.entity==0,"slow native update captures exact completed child time deltas including overlaps");
  int saved=slowCount;enabled=false;Resource(self);Check(slowCount==saved,"disabled update does not append diagnostic records");enabled=true;
  originalResource=&Native;seconds=0;
 }

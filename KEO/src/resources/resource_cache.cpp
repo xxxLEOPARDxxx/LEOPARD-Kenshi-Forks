@@ -102,7 +102,8 @@ void ResourceCacheTick(){
            <<" hits="<<s.hits<<" misses="<<s.misses<<" queued="<<s.queued<<" rejected="<<s.rejected<<" readBytes="<<s.readBytes
            <<" startupRoots="<<s.startupRoots<<" startupFiles="<<s.startupFiles<<" startupProcessed="<<s.startupProcessed
            <<" startupLoaded="<<s.startupLoaded<<" startupSkipped="<<s.startupSkipped<<" startupTotalBytes="<<s.startupTotalBytes
-           <<" startupReadBytes="<<s.startupReadBytes<<" startupScanning="<<s.startupScanning<<" startupDone="<<s.startupDone<<" startupCapped="<<s.startupCapped;
+           <<" startupReadBytes="<<s.startupReadBytes<<" startupScanning="<<s.startupScanning<<" startupDone="<<s.startupDone<<" startupCapped="<<s.startupCapped
+           <<" startupMenuFast="<<s.startupMenuFast<<" startupFastReadBytes="<<s.startupFastReadBytes;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
            <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained

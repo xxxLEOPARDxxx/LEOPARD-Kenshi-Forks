@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "后台资源读取速度 (MiB/s)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "限制低优先级后台读取线程的速度，为再次使用准备已请求的文件。如果后台磁盘读取影响游戏，请降低此值。这不是显存上限。"
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "限制游戏期间的低优先级后台文件读取速度。主菜单保持流畅时，启动纹理预热会加快读取。如果后台磁盘读取影响游戏，请降低此值。这不是显存上限。"
 
 
 msgid "Prepare nearby terrain"

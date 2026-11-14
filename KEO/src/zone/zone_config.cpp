@@ -100,7 +100,8 @@ const ConfigKey g_zoneConfigKeys[] =
 	  " Other game data needs its own memory. Existing readers can briefly retain memory after reducing the limit."),
 	CFG_OINT_LIVE("resourceReadMBps", ZoneConfig, cfg_resourceReadMBps, 1.0f, 128.0f, INT_MIN, DOC, SHOW,
 	  "Background resource reading (MiB/s)",
-	  "Limits a low-priority IO worker that prepares requested files for reuse."
+	  "Limits a low-priority IO worker that prepares requested files for reuse during gameplay."
+	  " Startup texture warmup in the main menu reads faster while the menu is responsive."
 	  " Lower this if background disk access affects the game. This is not a graphics memory budget."),
 	CFG_OBOOL("deferral", ZoneConfig, deferralEnabled,              NDOC, DEVROW,
 	  "Legacy readiness deferral (retired)",

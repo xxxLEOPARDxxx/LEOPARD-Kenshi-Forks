@@ -7,7 +7,7 @@ exe=game/'RE_Kenshi/Kenshi_x64.exe'
 assert hashlib.sha256(exe.read_bytes()).hexdigest()=='504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e'
 pe=pem.PE(exe);source=(s/'src/resources/resource_load_probe.cpp').read_text()
 checks=0
-for name,rva in [('textureBytes',0x44ACD0),('bodyBytes',0x538590),('attachmentBytes',0x536590)]:
+for name,rva in [('textureBytes',0x44ACD0),('bodyBytes',0x538590),('attachmentBytes',0x536590),('callbackBytes',0x458860)]:
  raw=re.search(r'unsigned char '+name+r'\[32\]=\{([^}]+)\}',source)[1]
  expected=bytes(int(v.strip(),16) for v in raw.split(','))
  actual=pe.data[pe.offset(rva):pe.offset(rva)+32]
@@ -28,4 +28,5 @@ bridge=(s/'src/resources/resource_gpu_bridge.cpp').read_text()
 assert bridge.count('KenshiLib::AddHook(target,(void*)&LoadedArray,')==1
 assert bridge.count('ResourceLoadProbeArrayBegin()')==1 and bridge.count('ResourceLoadProbeArrayEnd(begin)')==1
 checks+=2
+thunk=pe.offset(0x04DDBA);assert pe.data[thunk]==0xe9 and 0x04DDBA+5+struct.unpack_from('<i',pe.data,thunk+1)[0]==0x458860;checks+=1
 print('PASS',checks,'actual native module/byte/one-array-hook attribution checks')
