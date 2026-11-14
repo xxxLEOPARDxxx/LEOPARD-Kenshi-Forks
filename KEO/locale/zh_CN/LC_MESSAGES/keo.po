@@ -311,3 +311,55 @@ msgstr "显存预热上限 (GiB)"
 
 msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
 msgstr "用于预备地形的额外显存上限，不会预先分配全部容量。实际显存预算优先。如果显卡空闲显存较少，请降低上限。"
+
+
+msgid "Show resource warmup panel"
+msgstr "显示资源预热面板"
+
+
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
+msgstr "在左上角显示内存和显存缓存用量、后台读取速度与剩余资源请求。移动时队列可能增加；这不是整个世界的加载进度。"
+
+
+msgid "remaining"
+msgstr "剩余"
+
+
+msgid "ready"
+msgstr "已就绪"
+
+
+msgid "Paused"
+msgstr "已暂停"
+
+
+msgid "Warming"
+msgstr "预热中"
+
+
+msgid "Ready"
+msgstr "已就绪"
+
+
+msgid "created"
+msgstr "已准备"
+
+
+msgid "used"
+msgstr "已使用"
+
+
+msgid "uploads skipped"
+msgstr "已跳过上传"
+
+
+msgid "files"
+msgstr "文件"
+
+
+msgid "RAM warm"
+msgstr "内存预热"
+
+
+msgid "VRAM standby"
+msgstr "显存预备"

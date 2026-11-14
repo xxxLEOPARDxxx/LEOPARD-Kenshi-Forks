@@ -1,5 +1,6 @@
 #include "base/log_admission.h"
 #include "resources/resource_forward.h"
+#include "resources/resource_warm_hud.h"
 #include "fixes/world/destroy_list_defer.h"
 #include "zone/reset/preload_saveload.h"
 #include "zone/preload/coverage_stats.h"
@@ -181,6 +182,7 @@ static bool      g_resetStateCleared = false;
 static void ClearModStateForLoad()
 {
 	ResourceForwardReset();
+	ResourceWarmHudCleanup();
 	ClearPreloadStateForLoad();  // also clears formation groups, the island overlay
 	                             // and the deferred destroy-list queue
 	charZonesQueued = 0;

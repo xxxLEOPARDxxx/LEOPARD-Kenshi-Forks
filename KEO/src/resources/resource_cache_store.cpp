@@ -181,11 +181,12 @@ void Observe(const std::string&p){
 }
 Stats Snapshot(){
     Stats s={unsigned __int64(Load64(allocated)),unsigned __int64(Load64(hits)),unsigned __int64(Load64(misses)),unsigned __int64(Load64(queued)),unsigned __int64(Load64(rejected)),unsigned __int64(Load64(readBytes)),0,0};
-    if(initialized&&TryEnterCriticalSection(&lock)){s.entries=unsigned(files.size());s.pending=unsigned(requests.size());LeaveCriticalSection(&lock);}return s;
+    if(initialized&&TryEnterCriticalSection(&lock)){s.entries=unsigned(files.size());s.pending=unsigned(requests.size());s.active=!active.empty();LeaveCriticalSection(&lock);}return s;
 }
 void Prefetch(const std::string&p){Observe(p);}
 bool StandbyAllowed(){return On()&&Load64(allocated)<=Load64(ceiling)&&MemoryRoom(0);}
 void SetBackgroundAllowed(bool allow){LONG before=InterlockedExchange(&backgroundAllowed,allow?1:0);if(allow&&!before&&eventHandle)SetEvent(eventHandle);}
+bool BackgroundAllowed(){return Load(backgroundAllowed)!=0;}
 void SignalStop(){InterlockedExchange(&enabled,0);InterlockedExchange(&stopping,1);if(eventHandle)SetEvent(eventHandle);}
 void Stop(){
     SignalStop();

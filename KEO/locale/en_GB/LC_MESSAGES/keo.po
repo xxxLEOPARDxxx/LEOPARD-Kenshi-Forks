@@ -311,3 +311,55 @@ msgstr "VRAM warmup limit (GiB)"
 
 msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
 msgstr "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+
+
+msgid "Show resource warmup panel"
+msgstr "Show resource warmup panel"
+
+
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
+msgstr "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
+
+
+msgid "remaining"
+msgstr "remaining"
+
+
+msgid "ready"
+msgstr "ready"
+
+
+msgid "Paused"
+msgstr "Paused"
+
+
+msgid "Warming"
+msgstr "Warming"
+
+
+msgid "Ready"
+msgstr "Ready"
+
+
+msgid "created"
+msgstr "created"
+
+
+msgid "used"
+msgstr "used"
+
+
+msgid "uploads skipped"
+msgstr "uploads skipped"
+
+
+msgid "files"
+msgstr "files"
+
+
+msgid "RAM warm"
+msgstr "RAM warm"
+
+
+msgid "VRAM standby"
+msgstr "VRAM standby"

@@ -11,3 +11,5 @@ void ResourceGpuBridgeInit();
 bool ResourceGpuBridgeTick(bool enabled);
 void ResourceGpuBridgeStop();
 std::string ResourceGpuBridgeStats();
+struct ResourceGpuProgress {unsigned long adopted,skipped;bool admitted;};
+ResourceGpuProgress ResourceGpuBridgeProgress();

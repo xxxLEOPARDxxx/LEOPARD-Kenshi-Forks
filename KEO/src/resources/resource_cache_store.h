@@ -18,6 +18,7 @@ typedef std::shared_ptr<const CachedFile> FilePtr;
 struct Stats {
     unsigned __int64 allocatedBytes, hits, misses, queued, rejected, readBytes;
     unsigned entries, pending;
+    bool active;
 };
 bool Start(); // before installing archive hook; worker does no engine calls
 void Configure(bool enabled, unsigned __int64 bytes, unsigned megabytesPerSecond);
@@ -26,6 +27,7 @@ void Observe(const std::string& absolutePath); // only after successful native r
 void Prefetch(const std::string& absolutePath); // explicit verified metadata request, no zone activation
 bool StandbyAllowed(); // GPU source pins must release when RAM cap/reserve is exceeded
 void SetBackgroundAllowed(bool); // pause new/chunked IO during frame-time pressure, preserve cache
+bool BackgroundAllowed();
 Stats Snapshot();
 void SignalStop(); // loader-lock safe, no waits/handle close
 void Stop(); // outside DllMain; cancel IO, join <=250ms; pinned worker may drain later

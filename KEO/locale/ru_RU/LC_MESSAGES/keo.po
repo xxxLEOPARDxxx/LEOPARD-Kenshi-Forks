@@ -311,3 +311,55 @@ msgstr "Лимит прогрева VRAM (ГиБ)"
 
 msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
 msgstr "Максимум дополнительной видеопамяти для подготовленного рельефа, а не предварительное выделение всего объёма. Фактический бюджет видеопамяти имеет приоритет. Уменьшите лимит, если на видеокарте мало свободной памяти."
+
+
+msgid "Show resource warmup panel"
+msgstr "Показывать панель прогрева"
+
+
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
+msgstr "Показывает слева вверху объём RAM- и VRAM-кэша, скорость фонового чтения и оставшиеся запросы ресурсов. Очередь пополняется при движении; это не прогресс загрузки всего мира."
+
+
+msgid "remaining"
+msgstr "осталось"
+
+
+msgid "ready"
+msgstr "готово"
+
+
+msgid "Paused"
+msgstr "Пауза"
+
+
+msgid "Warming"
+msgstr "Прогрев"
+
+
+msgid "Ready"
+msgstr "Готово"
+
+
+msgid "created"
+msgstr "подготовлено"
+
+
+msgid "used"
+msgstr "использовано"
+
+
+msgid "uploads skipped"
+msgstr "загрузок пропущено"
+
+
+msgid "files"
+msgstr "файлов"
+
+
+msgid "RAM warm"
+msgstr "RAM-кэш"
+
+
+msgid "VRAM standby"
+msgstr "VRAM-запас"

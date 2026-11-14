@@ -361,3 +361,4 @@ src/resources/resource_gpu_store.cpp
 src/resources/resource_gpu_bridge.cpp
 src/resources/resource_forward.cpp
 src/resources/resource_load_probe.cpp
+src/resources/resource_warm_hud.cpp

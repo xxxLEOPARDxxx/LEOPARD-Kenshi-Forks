@@ -150,3 +150,6 @@ std::string ResourceGpuBridgeStats(){
         <<" mismatch="<<InterlockedCompareExchange(&mismatches,0,0)<<" descRefused="<<InterlockedCompareExchange(&descRefused,0,0)
         <<" verifyUs="<<InterlockedCompareExchange64(&verifyUs,0,0);return s.str();
 }
+ResourceGpuProgress ResourceGpuBridgeProgress(){
+    ResourceGpuProgress s={static_cast<unsigned long>(InterlockedCompareExchange(&adopted,0,0)),static_cast<unsigned long>(InterlockedCompareExchange(&skipped,0,0)),InterlockedCompareExchange(&enabled,0,0)!=0};return s;
+}

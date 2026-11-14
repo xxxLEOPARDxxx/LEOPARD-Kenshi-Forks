@@ -39,7 +39,7 @@ typedef bool (*BudgetProbe)(ID3D11Device*,U64* budget,U64* usage,void* context);
 bool ProbeLocalBudget(ID3D11Device*,U64*,U64*,void*);
 bool BudgetRoom(U64 budget,U64 usage,U64 extra);
 bool CacheRoom(U64 cap,U64 allocated,U64 extra); // checked cap arithmetic shared by reservations/tests
-struct Stats {U64 allocatedBytes,reservedBytes,created,rejected,retries;unsigned entries,pending;bool deviceReady,pressure;};
+struct Stats {U64 allocatedBytes,reservedBytes,created,rejected,retries;unsigned entries,pending;bool deviceReady,pressure,active;};
 bool Start(); // main thread, before configuration; pins worker's module
 bool SetDevice(ID3D11Device*); // main thread; holds AddRef, rejects SINGLETHREADED/nonconcurrent
 void SetBudgetProbe(BudgetProbe,void*); // main thread; context must outlive Stop completion

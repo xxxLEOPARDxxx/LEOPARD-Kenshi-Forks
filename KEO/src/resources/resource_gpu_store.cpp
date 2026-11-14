@@ -213,7 +213,7 @@ void MarkAdopted(const ReadyPtr&r){
 }
 Stats Snapshot(){
     Stats s={Read64(allocated),Read64(reserved),Read64(created),Read64(rejected),Read64(retries),0,0,false,false};
-    if(initialized&&TryEnterCriticalSection(&lock)){s.entries=unsigned(entries.size());s.pending=unsigned(requests.size());s.deviceReady=device!=NULL;s.pressure=pressure;LeaveCriticalSection(&lock);}return s;
+    if(initialized&&TryEnterCriticalSection(&lock)){s.entries=unsigned(entries.size());s.pending=unsigned(requests.size());s.deviceReady=device!=NULL;s.pressure=pressure;s.active=!activeKey.empty();LeaveCriticalSection(&lock);}return s;
 }
 bool TakeError(std::string*out){if(!initialized||!out||!TryEnterCriticalSection(&lock))return false;bool any=!lastError.empty();if(any){out->clear();out->swap(lastError);}LeaveCriticalSection(&lock);return any;}
 void SignalStop(){InterlockedExchange(&enabled,0);InterlockedExchange(&stopping,1);InterlockedIncrement(&epoch);if(eventHandle)SetEvent(eventHandle);}

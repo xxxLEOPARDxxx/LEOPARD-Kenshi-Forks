@@ -134,6 +134,7 @@ struct ZoneConfig
 	bool cfg_resourcePrefetch;
 	bool cfg_resourceGpuWarm;
 	int cfg_resourceGpuGiB;
+	bool cfg_resourceWarmHud;
 };
 
 extern ZoneConfig g_zoneCfg;

@@ -6,6 +6,7 @@
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_load_probe.h"
+#include "resources/resource_warm_hud.h"
 #include "render/module_hooks.h"
 #include "zone/zone_config.h"
 #include "base/core.h"
@@ -72,6 +73,16 @@ void ResourceCacheTick(){
     const zone::ZoneConfig&c=zone::g_zoneCfg;
     resource_cache::Configure(c.cfg_resourceRamCache,unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024,c.cfg_resourceReadMBps);
     InterlockedExchange(&active,c.cfg_resourceRamCache?1:0);
+    resource_warm_hud::Snapshot hud={};
+    if(c.cfg_resourceWarmHud){
+        resource_cache::Stats r=resource_cache::Snapshot();resource_gpu::Stats g=resource_gpu::Snapshot();ResourceGpuProgress p=ResourceGpuBridgeProgress();
+        hud.ramBytes=r.allocatedBytes;hud.ramCap=unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024;hud.ramReadBytes=r.readBytes;
+        hud.ramFiles=r.entries;hud.ramPending=r.pending+(r.active?1:0);hud.ramActive=r.active;
+        hud.gpuBytes=g.allocatedBytes;hud.gpuCap=unsigned __int64(c.cfg_resourceGpuGiB)*1024*1024*1024;
+        hud.gpuReady=g.entries;hud.gpuPending=g.pending+(g.active?1:0);hud.gpuCreated=g.created;hud.gpuAdopted=p.adopted;hud.gpuSkipUploads=p.skipped;
+        hud.workPaused=!resource_cache::BackgroundAllowed();hud.ramOn=c.cfg_resourceRamCache;hud.gpuOn=c.cfg_resourceRamCache&&c.cfg_resourcePrefetch&&c.cfg_resourceGpuWarm&&p.admitted;
+    }
+    ResourceWarmHudTick(c.cfg_resourceWarmHud,hud);
     if(DetailedLogEnabled()&&now-lastReport>=10){
         lastReport=now;resource_cache::Stats s=resource_cache::Snapshot();std::ostringstream out;
         out<<"Resource RAM cache: on="<<c.cfg_resourceRamCache<<" bytes="<<s.allocatedBytes

@@ -1,6 +1,7 @@
 #include "base/log_admission.h"
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
+#include "resources/resource_warm_hud.h"
 // nm_lazy_hooks.cpp - first-dispatch navmesh hooks and stop flag.
 // the stop hook sets its flag before calling the original.
 #include "navmesh/nm_workers.h"
@@ -90,6 +91,7 @@ static void hook_navMeshStop(void* navMesh)
 	resource_cache::Stop();
 	resource_gpu::Stop();
 	ResourceGpuBridgeStop();
+    ResourceWarmHudCleanup();
 	// Threads queued for a generation slot see the stop now rather than at
 	// their next poll, and skip the generation.
 	MissParShutdownWake();

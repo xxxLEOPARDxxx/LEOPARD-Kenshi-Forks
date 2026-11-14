@@ -8,6 +8,13 @@ int main(){
     assert(resource_adoption::Matches(span,NULL,native,16,0));assert(resource_adoption::Matches(span,NULL,native,16,32));
     native[31]=1;assert(!resource_adoption::Matches(span,NULL,native,16,32));native[31]=0;
     D3D11_BOX box={};assert(!resource_adoption::Matches(span,&box,native,16,32));
+    box.right=8;box.bottom=4;box.back=1;
+    assert(resource_adoption::Matches(span,&box,native,16,0));
+    box.left=1;assert(!resource_adoption::Matches(span,&box,native,16,0));box.left=0;
+    box.right=4;assert(!resource_adoption::Matches(span,&box,native,16,0));box.right=8;
+    box.back=2;assert(!resource_adoption::Matches(span,&box,native,16,0));box.back=1;
+    box.top=1;assert(!resource_adoption::Matches(span,&box,native,16,0));box.top=0;
+    box.front=1;assert(!resource_adoption::Matches(span,&box,native,16,0));
     assert(!resource_adoption::Matches(span,NULL,native,32,32));assert(!resource_adoption::Matches(span,NULL,NULL,16,32));
     std::cout<<"native GPU adoption policy passed\n";
 }

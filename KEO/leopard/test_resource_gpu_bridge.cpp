@@ -31,8 +31,9 @@ static Ogre::TexturePtr* FakeNative(void*,Ogre::TexturePtr*out){
     Check(SUCCEEDED(currentDevice->CreateTexture2D(&desc,NULL,&nativeResult)),"actual intercepted device create");
     for(unsigned sub=0;sub<expected->subresources.size();++sub){
         const resource_gpu::Span&sp=expected->subresources[sub];
-        if(changeFirst&&sub==0){std::vector<unsigned char>changed(sp.data,sp.data+sp.bytes);changed[0]^=1;immediate->UpdateSubresource(nativeResult,sub,NULL,&changed[0],sp.rowPitch,UINT(sp.bytes));}
-        else immediate->UpdateSubresource(nativeResult,sub,NULL,sp.data,sp.rowPitch,UINT(sp.bytes));
+        D3D11_BOX box={0,0,0,sp.width,sp.height,1}; // actual native D3D writer's full-slice box
+        if(changeFirst&&sub==0){std::vector<unsigned char>changed(sp.data,sp.data+sp.bytes);changed[0]^=1;immediate->UpdateSubresource(nativeResult,sub,&box,&changed[0],sp.rowPitch,0);}
+        else immediate->UpdateSubresource(nativeResult,sub,&box,sp.data,sp.rowPitch,0);
     }
     new(out)Ogre::TexturePtr();return out;
 }
