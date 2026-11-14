@@ -23,6 +23,9 @@ bool Start(); // before installing archive hook; worker does no engine calls
 void Configure(bool enabled, unsigned __int64 bytes, unsigned megabytesPerSecond);
 FilePtr Find(const std::string& absolutePath); // non-waiting cache lock; validates file identity
 void Observe(const std::string& absolutePath); // only after successful native read-only open
+void Prefetch(const std::string& absolutePath); // explicit verified metadata request, no zone activation
+bool StandbyAllowed(); // GPU source pins must release when RAM cap/reserve is exceeded
+void SetBackgroundAllowed(bool); // pause new/chunked IO during frame-time pressure, preserve cache
 Stats Snapshot();
 void SignalStop(); // loader-lock safe, no waits/handle close
 void Stop(); // outside DllMain; cancel IO, join <=250ms; pinned worker may drain later

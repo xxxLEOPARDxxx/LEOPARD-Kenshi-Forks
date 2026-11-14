@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "resources/resource_cache.h"
 #include "resources/resource_cache_store.h"
+#include "resources/resource_forward.h"
 #include "render/module_hooks.h"
 #include "zone/zone_config.h"
 #include "base/core.h"
@@ -60,6 +61,7 @@ void ResourceCacheInit(){
     if(!installed){resource_cache::Stop();return;}
     KEO_DETAIL("Resource RAM cache: verified native archive boundary installed (DDS/mesh/skeleton)");
     ResourceCacheTick(); // honor opt-in INI before the first scene loads
+    ResourceForwardInit();
 }
 void ResourceCacheTick(){
     if(!installed)return;

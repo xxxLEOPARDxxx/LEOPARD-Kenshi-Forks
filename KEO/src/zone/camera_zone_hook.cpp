@@ -58,6 +58,7 @@
 #include "planner/planner_tick.h"
 #include "plugin/profiler_image.h"
 #include "resources/resource_cache.h"
+#include "resources/resource_forward.h"
 
 // =========================================================================
 // NavMesh scheduling helpers (builds context from preload/tracking state)
@@ -629,6 +630,7 @@ void hook_updateCameraZone(void* zoneMgr, void* cameraPos)
 	ResourceCacheTick();
 	CameraZoneFramePreamble(zoneMgr, cameraPos);
 	bool saveLoading = CameraZoneSaveLoad(zoneMgr);
+	ResourceForwardTick(zoneMgr,cameraPos,saveLoading);
 	if (!CameraZoneTicks(zoneMgr, saveLoading))
 		return;
 	double now = CameraZoneReports(zoneMgr);

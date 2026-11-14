@@ -287,3 +287,27 @@ msgstr "Фоновое чтение (МиБ/с)"
 
 msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
 msgstr "Ограничивает скорость фонового потока с низким приоритетом, который подготавливает запрошенные файлы для повторного чтения. Уменьшите значение, если фоновое чтение диска мешает игре. Это не лимит видеопамяти."
+
+
+msgid "Prepare nearby terrain"
+msgstr "Подготовка соседнего рельефа"
+
+
+msgid "Reads terrain textures of nearby and upcoming areas before the game requests them, without activating zones or NPCs. Requires the RAM resource cache. Other zone data still loads normally."
+msgstr "Заранее читает текстуры рельефа соседних областей и по направлению движения, не активируя зоны и NPC. Требуется RAM-кэш ресурсов. Остальные данные зон загружаются обычным способом."
+
+
+msgid "Terrain VRAM warmup"
+msgstr "Прогрев рельефа в VRAM"
+
+
+msgid "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."
+msgstr "Подготавливает поддерживаемые текстуры рельефа фоновым графическим потоком. Игра использует совпавшие подготовленные данные. Новая работа приостанавливается при долгих кадрах и активации зон. Требуется подготовка соседнего рельефа. Неподдерживаемые форматы и устройства используют обычную загрузку."
+
+
+msgid "VRAM warmup limit (GiB)"
+msgstr "Лимит прогрева VRAM (ГиБ)"
+
+
+msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Максимум дополнительной видеопамяти для подготовленного рельефа, а не предварительное выделение всего объёма. Фактический бюджет видеопамяти имеет приоритет. Уменьшите лимит, если на видеокарте мало свободной памяти."

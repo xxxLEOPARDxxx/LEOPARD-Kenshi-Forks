@@ -355,3 +355,8 @@ src/jobs/steel_jobs_transfer.cpp
 src/jobs/steel_jobs.cpp
 src/resources/resource_cache_store.cpp
 src/resources/resource_cache.cpp
+src/resources/resource_biome_manifest.cpp
+src/resources/resource_dds.cpp
+src/resources/resource_gpu_store.cpp
+src/resources/resource_gpu_bridge.cpp
+src/resources/resource_forward.cpp

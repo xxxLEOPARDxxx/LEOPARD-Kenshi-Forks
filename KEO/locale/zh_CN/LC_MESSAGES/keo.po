@@ -287,3 +287,27 @@ msgstr "后台资源读取速度 (MiB/s)"
 
 msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
 msgstr "限制低优先级后台读取线程的速度，为再次使用准备已请求的文件。如果后台磁盘读取影响游戏，请降低此值。这不是显存上限。"
+
+
+msgid "Prepare nearby terrain"
+msgstr "预加载附近地形"
+
+
+msgid "Reads terrain textures of nearby and upcoming areas before the game requests them, without activating zones or NPCs. Requires the RAM resource cache. Other zone data still loads normally."
+msgstr "提前读取附近区域及行进方向上的地形纹理，不激活区域或 NPC。需要启用资源内存缓存。其他区域数据仍正常加载。"
+
+
+msgid "Terrain VRAM warmup"
+msgstr "地形显存预热"
+
+
+msgid "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."
+msgstr "在后台图形线程中准备受支持的地形纹理，游戏复用匹配的数据。帧耗时过高或区域激活时暂停新任务。需要启用附近地形预加载。不支持的格式和设备使用正常加载。"
+
+
+msgid "VRAM warmup limit (GiB)"
+msgstr "显存预热上限 (GiB)"
+
+
+msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "用于预备地形的额外显存上限，不会预先分配全部容量。实际显存预算优先。如果显卡空闲显存较少，请降低上限。"

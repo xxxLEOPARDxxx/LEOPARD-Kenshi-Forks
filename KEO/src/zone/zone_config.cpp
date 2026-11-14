@@ -49,6 +49,9 @@ const ZoneConfig kZoneDefaults =
 	false, // cfg_resourceRamCache: opt-in until gameplay A/B validation
 	1, // cfg_resourceRamGiB
 	32, // cfg_resourceReadMBps
+	false, // cfg_resourcePrefetch
+	false, // cfg_resourceGpuWarm
+	1, // cfg_resourceGpuGiB
 };
 
 ZoneConfig g_zoneCfg = kZoneDefaults;
@@ -64,6 +67,15 @@ static_assert(__alignof(ZoneConfig) >= 8, "ZoneConfig must be 8-byte aligned");
 
 const ConfigKey g_zoneConfigKeys[] =
 {
+	CFG_OBOOL_LIVE("resourcePrefetch", ZoneConfig, cfg_resourcePrefetch, DOC, SHOW,
+	  "Prepare nearby terrain",
+	  "Reads terrain textures of nearby and upcoming areas before the game requests them, without activating zones or NPCs. Requires the RAM resource cache. Other zone data still loads normally."),
+	CFG_OBOOL_LIVE("resourceGpuWarm", ZoneConfig, cfg_resourceGpuWarm, DOC, SHOW,
+	  "Terrain VRAM warmup",
+	  "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."),
+	CFG_OINT_LIVE("resourceGpuGiB", ZoneConfig, cfg_resourceGpuGiB, 1.0f, 8.0f, INT_MIN, DOC, SHOW,
+	  "VRAM warmup limit (GiB)",
+	  "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."),
 	CFG_OBOOL_LIVE("resourceRamCache", ZoneConfig, cfg_resourceRamCache, DOC, SHOW,
 	  "Cache resource files in RAM",
 	  "Keeps copies of texture and model files already requested by the game for faster reuse."

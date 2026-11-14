@@ -16,6 +16,7 @@ CRITICAL_SECTION lock;
 bool initialized=false;
 HANDLE eventHandle=NULL, threadHandle=NULL;
 volatile LONG stopping=0, enabled=0, generation=0, rate=32;
+volatile LONG backgroundAllowed=1;
 __declspec(align(8)) volatile LONGLONG ceiling=0;
 struct Entry {FilePtr file;unsigned __int64 touch;};
 std::map<std::string,Entry> files;
@@ -94,6 +95,8 @@ void ReadOne(const std::string&p,LONG epoch){
     size_t offset=0;
     while(offset<f->data.size()){
         if(Cancelled(epoch)||!MemoryRoom(0))return;
+        while(!Load(backgroundAllowed)&&!Cancelled(epoch)){if(!MemoryRoom(0))return;Sleep(10);}
+        if(Cancelled(epoch))return;
         DWORD count=DWORD((std::min)(Chunk,f->data.size()-offset)),got=0;
         DWORD start=GetTickCount();
         if(!ReadFile(h.h,&f->data[offset],count,&got,NULL)||got!=count)return;
@@ -121,6 +124,7 @@ DWORD WINAPI Worker(void*){
             if(!On()){Clear();continue;}
             TrimPressure();
             MakeRoom(0);
+            if(!Load(backgroundAllowed))continue;
             std::string p;LONG epoch=Load(generation);
             {Guard g;if(!requests.empty()){p=requests.front();requests.pop_front();active=p;}}
             if(!p.empty())ReadOne(p,epoch);
@@ -179,6 +183,9 @@ Stats Snapshot(){
     Stats s={unsigned __int64(Load64(allocated)),unsigned __int64(Load64(hits)),unsigned __int64(Load64(misses)),unsigned __int64(Load64(queued)),unsigned __int64(Load64(rejected)),unsigned __int64(Load64(readBytes)),0,0};
     if(initialized&&TryEnterCriticalSection(&lock)){s.entries=unsigned(files.size());s.pending=unsigned(requests.size());LeaveCriticalSection(&lock);}return s;
 }
+void Prefetch(const std::string&p){Observe(p);}
+bool StandbyAllowed(){return On()&&Load64(allocated)<=Load64(ceiling)&&MemoryRoom(0);}
+void SetBackgroundAllowed(bool allow){LONG before=InterlockedExchange(&backgroundAllowed,allow?1:0);if(allow&&!before&&eventHandle)SetEvent(eventHandle);}
 void SignalStop(){InterlockedExchange(&enabled,0);InterlockedExchange(&stopping,1);if(eventHandle)SetEvent(eventHandle);}
 void Stop(){
     SignalStop();

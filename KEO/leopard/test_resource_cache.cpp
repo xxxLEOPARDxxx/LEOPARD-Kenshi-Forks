@@ -60,11 +60,30 @@ int main() {
     bool moved=false;for(int i=0;i<100&&!moved;++i){moved=MoveFileExA(swap.c_str(),second.c_str(),MOVEFILE_REPLACE_EXISTING)!=FALSE;if(!moved)Sleep(10);}
     if(!moved)std::cerr<<"replace error "<<GetLastError()<<" path="<<second<<"\n";
     assert(moved);assert(!Find(second));
+    // A frame-pressure gate must defer queued IO without losing it.
+    Configure(true,16*1024*1024,64);SetBackgroundAllowed(false);
+    Prefetch(second);Sleep(100);assert(!Find(second));assert(Snapshot().pending==1);
+    assert(StandbyAllowed());SetBackgroundAllowed(true);
+    replacement=awaitFile(second);assert(replacement);replacement.reset();
     Configure(true,16*1024*1024,1);
     {std::ofstream large(p.c_str(),std::ios::binary|std::ios::trunc);std::string megabyte(1024*1024,'x');for(int i=0;i<8;++i)large<<megabyte;}
-    Observe(p);Sleep(60);DWORD begin=GetTickCount();Configure(false,16*1024*1024,1);
+    Observe(p);
+    for(int i=0;i<100 && Snapshot().allocatedBytes<8*1024*1024;++i)Sleep(10);
+    assert(Snapshot().allocatedBytes>=8*1024*1024);
+    SetBackgroundAllowed(false);Sleep(50);unsigned __int64 heldRead=Snapshot().readBytes;
+    Sleep(150);assert(Snapshot().readBytes==heldRead);assert(!Find(p));
+    SetBackgroundAllowed(true);Configure(true,16*1024*1024,64);
+    replacement=awaitFile(p);assert(replacement && replacement->data.size()==8*1024*1024);replacement.reset();
+    // Restart a slow read, then cancel while it is paused mid-file.
+    Configure(false,16*1024*1024,1);
+    for(int i=0;i<100 && Snapshot().allocatedBytes;++i)Sleep(10);
+    Configure(true,16*1024*1024,1);Observe(p);
+    for(int i=0;i<100 && Snapshot().allocatedBytes<8*1024*1024;++i)Sleep(10);
+    assert(Snapshot().allocatedBytes>=8*1024*1024);
+    SetBackgroundAllowed(false);Sleep(50);DWORD begin=GetTickCount();Configure(false,16*1024*1024,1);
     for(int i=0;i<100 && Snapshot().allocatedBytes;++i)Sleep(10);
     assert(Snapshot().allocatedBytes==0 && GetTickCount()-begin<1000); // cancels in-progress read/pacing
+    assert(!StandbyAllowed());SetBackgroundAllowed(true);
     DeleteFileA(second.c_str());
     Stop(); assert(!Find(p)); DeleteFileA(p.c_str());
     std::cout<<"resource cache IO/lifetime tests passed\n";

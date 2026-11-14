@@ -1,0 +1,14 @@
+@echo off
+set "VC=C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC"
+set "SDK=C:\Program Files\Microsoft SDKs\Windows\v7.1"
+set "INCLUDE=%VC%\include;%SDK%\Include"
+set "LIB=%VC%\lib\amd64;%SDK%\Lib\x64"
+set "PATH=%VC%\bin\amd64;%SDK%\Bin;%PATH%"
+cd /d "%~dp0.."
+if not exist build\resource_biome_test mkdir build\resource_biome_test
+cl /nologo /c /EHsc /MD /O2 /GL /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_ITERATOR_DEBUG_LEVEL=0 /I src /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include\ogre /I D:\DEV\Kenshi\deps\boost_1_60_0 src\resources\resource_biome_manifest.cpp /Fobuild\resource_biome_test\native.obj
+if errorlevel 1 exit /b 1
+cl /nologo /EHsc /MD /O2 /GL /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_ITERATOR_DEBUG_LEVEL=0 /I src /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include /I D:\DEV\Kenshi\deps\KenshiLib_keo\Include\ogre /I D:\DEV\Kenshi\deps\boost_1_60_0 leopard\test_resource_biome_native.cpp /Fobuild\resource_biome_test\native_test.obj /Febuild\resource_biome_test\native_test.exe /link /LTCG /OPT:REF /LIBPATH:D:\DEV\Kenshi\deps\KenshiLib_keo\Libraries\ogre OgreMain_x64.lib
+if errorlevel 1 exit /b 1
+set "PATH=D:\SteamLibrary\steamapps\common\Kenshi;%PATH%"
+build\resource_biome_test\native_test.exe

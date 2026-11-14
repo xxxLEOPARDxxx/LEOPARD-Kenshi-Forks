@@ -48,6 +48,7 @@
 #include "plugin/crash_record.h"
 #include "resources/resource_cache.h"
 #include "resources/resource_cache_store.h"
+#include "resources/resource_gpu_store.h"
 
 // InitLogFile is declared in core.h
 
@@ -91,6 +92,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
 		// so one set releases every worker and stays signalled.
 		g_workerShutdown = 1;
 		resource_cache::SignalStop();
+		resource_gpu::SignalStop();
 		if (g_jobEvent)
 			SetEvent(g_jobEvent);
 

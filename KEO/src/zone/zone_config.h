@@ -131,6 +131,9 @@ struct ZoneConfig
 	bool cfg_resourceRamCache;
 	int cfg_resourceRamGiB;
 	int cfg_resourceReadMBps;
+	bool cfg_resourcePrefetch;
+	bool cfg_resourceGpuWarm;
+	int cfg_resourceGpuGiB;
 };
 
 extern ZoneConfig g_zoneCfg;

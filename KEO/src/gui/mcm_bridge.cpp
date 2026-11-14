@@ -22,7 +22,7 @@ bool platformReady=false,runtimeReady=false,committing=false;
 // admission mask even after its selected value changes, as the native editor
 // does for an already selected DEV-only choice in PROD.
 struct RowContext {int module,key;unsigned choiceMask;};
-const unsigned MaxRows=32,MaxChoices=32;RowContext contexts[MaxRows];unsigned rowCount=0;
+const unsigned MaxRows=64,MaxChoices=32;RowContext contexts[MaxRows];unsigned rowCount=0;
 #ifdef KEO_DEBUG
 const bool Dev=true;
 #else

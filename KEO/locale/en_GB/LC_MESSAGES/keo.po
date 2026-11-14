@@ -287,3 +287,27 @@ msgstr "Background resource reading (MiB/s)"
 
 msgid "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
 msgstr "Limits a low-priority IO worker that prepares requested files for reuse. Lower this if background disk access affects the game. This is not a graphics memory budget."
+
+
+msgid "Prepare nearby terrain"
+msgstr "Prepare nearby terrain"
+
+
+msgid "Reads terrain textures of nearby and upcoming areas before the game requests them, without activating zones or NPCs. Requires the RAM resource cache. Other zone data still loads normally."
+msgstr "Reads terrain textures of nearby and upcoming areas before the game requests them, without activating zones or NPCs. Requires the RAM resource cache. Other zone data still loads normally."
+
+
+msgid "Terrain VRAM warmup"
+msgstr "Terrain VRAM warmup"
+
+
+msgid "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."
+msgstr "Prepares supported terrain textures on a background graphics worker. The game reuses matching prepared data. Pauses new work during slow frames or zone activation. Requires nearby resource preparation. Unsupported formats and devices use normal loading."
+
+
+msgid "VRAM warmup limit (GiB)"
+msgstr "VRAM warmup limit (GiB)"
+
+
+msgid "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."
+msgstr "Maximum extra graphics memory held for prepared terrain, not a preallocation. The actual graphics memory budget takes priority. Lower this on GPUs with little free memory."

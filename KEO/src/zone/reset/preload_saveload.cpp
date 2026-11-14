@@ -1,4 +1,5 @@
 #include "base/log_admission.h"
+#include "resources/resource_forward.h"
 #include "fixes/world/destroy_list_defer.h"
 #include "zone/reset/preload_saveload.h"
 #include "zone/preload/coverage_stats.h"
@@ -179,6 +180,7 @@ static bool      g_resetStateCleared = false;
 // when something was tracked, and a second run finds nothing tracked.
 static void ClearModStateForLoad()
 {
+	ResourceForwardReset();
 	ClearPreloadStateForLoad();  // also clears formation groups, the island overlay
 	                             // and the deferred destroy-list queue
 	charZonesQueued = 0;
