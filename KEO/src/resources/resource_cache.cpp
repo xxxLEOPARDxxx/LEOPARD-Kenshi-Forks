@@ -5,6 +5,7 @@
 #include "resources/resource_cache.h"
 #include "resources/resource_cache_store.h"
 #include "resources/resource_forward.h"
+#include "resources/resource_load_probe.h"
 #include "render/module_hooks.h"
 #include "zone/zone_config.h"
 #include "base/core.h"
@@ -62,10 +63,12 @@ void ResourceCacheInit(){
     KEO_DETAIL("Resource RAM cache: verified native archive boundary installed (DDS/mesh/skeleton)");
     ResourceCacheTick(); // honor opt-in INI before the first scene loads
     ResourceForwardInit();
+    ResourceLoadProbeInit();
 }
 void ResourceCacheTick(){
     if(!installed)return;
     static double next=0,lastReport=0;double now=ElapsedSec();if(now<next)return;next=now+1;
+    ResourceLoadProbeReport();
     const zone::ZoneConfig&c=zone::g_zoneCfg;
     resource_cache::Configure(c.cfg_resourceRamCache,unsigned __int64(c.cfg_resourceRamGiB)*1024*1024*1024,c.cfg_resourceReadMBps);
     InterlockedExchange(&active,c.cfg_resourceRamCache?1:0);

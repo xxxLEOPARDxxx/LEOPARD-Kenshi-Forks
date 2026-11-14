@@ -20,7 +20,11 @@ inline bool CanWarm(double now,double lastTick,double frameSeconds,double blocke
 }
 inline std::string TerrainKey(const std::string&sid,int type,const std::string paths[6]){
     unsigned __int64 hash=14695981039346656037ULL;
-    for(unsigned i=0;i<6;++i){for(size_t j=0;j<paths[i].size();++j){hash^=static_cast<unsigned char>(paths[i][j]);hash*=1099511628211ULL;}hash^=0;hash*=1099511628211ULL;}
+    // Native terrain requests strip paths before ResourceLoader sees them.
+    // Full producer paths remain IO identities; byte verification protects
+    // group overrides or equal basenames with different contents.
+    for(unsigned i=0;i<6;++i){size_t slash=paths[i].find_last_of("/\\");size_t start=slash==std::string::npos?0:slash+1;
+        for(size_t j=start;j<paths[i].size();++j){unsigned char c=static_cast<unsigned char>(paths[i][j]);if(c>='A'&&c<='Z')c+=('a'-'A');hash^=c;hash*=1099511628211ULL;}hash^=0;hash*=1099511628211ULL;}
     std::ostringstream out;out<<"Terrain"<<type<<"_"<<sid<<"|"<<std::hex<<hash;return out.str();
 }
 }

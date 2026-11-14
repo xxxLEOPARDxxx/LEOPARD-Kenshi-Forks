@@ -26,6 +26,18 @@ struct Fixture {
     }
     ~Fixture(){files->~Files();sid->~basic_string();}
 };
+struct ArrayFixture {
+    __declspec(align(16)) unsigned char storage[sizeof(ResourceLoader::TextureArrayLoadData)];
+    typedef decltype(((ResourceLoader::TextureArrayLoadData*)0)->filesNames) Paths;
+    std::string*name,*group;Paths*paths;
+    ArrayFixture(){
+        std::memset(storage,0,sizeof(storage));
+        name=new(storage+8)std::string("Terrain0_real-SID");
+        group=new(storage+0x30)std::string("Landscape");
+        paths=new(storage+0xA0)Paths(6,"./data/land/base.dds");
+    }
+    ~ArrayFixture(){paths->~Paths();group->~basic_string();name->~basic_string();}
+};
 }
 int main(){
     using namespace resource_biome;
@@ -62,6 +74,17 @@ int main(){
     // The public wrapper owns its strings, enforces the main thread and
     // refuses unknown maps. Fixtures never call engine loading/activation.
     ready=true;mainId=GetCurrentThreadId();
+    ArrayFixture af;OwnedArrayFiles array;
+    CHECK(CopyArrayFiles(af.storage,array)==Ok&&array.name=="Terrain0_real-SID"&&array.paths[5]=="./data/land/base.dds");
+    *af.name="changed";(*af.paths)[0]="changed.dds";
+    CHECK(array.name=="Terrain0_real-SID"&&array.paths[0]=="./data/land/base.dds");
+    CHECK(CopyArrayFiles(af.storage,array)==BadType&&array.name.empty());
+    *af.name="Terrain1_restored";*af.group="Other";CHECK(CopyArrayFiles(af.storage,array)==BadType);
+    *af.group="Landscape";af.paths->resize(5);CHECK(CopyArrayFiles(af.storage,array)==BadMetadata);
+    af.paths->resize(6,"base.dds");(*af.paths)[1]=std::string("bad\0path",8);CHECK(CopyArrayFiles(af.storage,array)==BadPath);
+    (*af.paths)[1]="base.dds";CHECK(CopyArrayFiles(af.storage,array)==Ok);
+    *af.name="Terrain1_"+std::string(255,'s');CHECK(CopyArrayFiles(af.storage,array)==Ok&&array.name.size()==264);
+    CHECK(CopyArrayFiles((void*)1,array)==ReadFault&&array.name.empty());
     *(itemType*)(f.storage+offsetof(GameData,type))=BIOMES;
     OwnedFiles owned;CHECK(CopyTerrainFiles(f.storage,0,owned)==Ok);
     *f.sid="changed";(*f.files)["texture base"]="changed.dds";

@@ -6,16 +6,27 @@
 #undef main
 #define RESOURCE_GPU_BRIDGE_TEST
 #include "../src/resources/resource_gpu_bridge.cpp"
+#include "../src/resources/resource_biome_manifest.cpp"
+#include "resources/resource_array_job.h"
+intptr_t KlibRealAddressOf(void*){return 0;}
+const BiomeMap* ZoneManager::getBiomeMap() const{return NULL;}
 LARGE_INTEGER qpcFrequency,pluginStartTime;
 bool IsMainThread(){return true;}
 static resource_gpu::Job actualJob;
-bool ResourceBuildTerrainJob(const void*,int,resource_gpu::Job&j){j=actualJob;return true;}
+bool ResourceBuildArrayJob(const void*request,resource_gpu::Job&j){return resource_forward::CopyArrayJob(request,7,j);}
 unsigned __int64 ResourceWorldGeneration(){return 7;}
 static ID3D11Texture2D*nativeResult=NULL;
 static ID3D11DeviceContext*immediate=NULL;
 static resource_gpu::ReadyPtr expected;
 static bool changeFirst=false;
-static Ogre::TexturePtr* FakeNative(Ogre::TexturePtr*out,void*,int){
+struct RequestFixture {
+    __declspec(align(16)) unsigned char bytes[sizeof(ResourceLoader::TextureArrayLoadData)];
+    typedef decltype(((ResourceLoader::TextureArrayLoadData*)0)->filesNames) Paths;
+    std::string*name,*group;Paths*paths;
+    RequestFixture(){memset(bytes,0,sizeof(bytes));name=new(bytes+8)std::string("Terrain0_"+std::string(255,'s'));group=new(bytes+0x30)std::string("Landscape");paths=new(bytes+0xa0)Paths(6,"BASE.DDS");}
+    ~RequestFixture(){paths->~Paths();group->~basic_string();name->~basic_string();}
+};
+static Ogre::TexturePtr* FakeNative(void*,Ogre::TexturePtr*out){
     D3D11_TEXTURE2D_DESC desc=expected->desc;
     Check(SUCCEEDED(currentDevice->CreateTexture2D(&desc,NULL,&nativeResult)),"actual intercepted device create");
     for(unsigned sub=0;sub<expected->subresources.size();++sub){
@@ -31,10 +42,14 @@ int main(){
     Check(SUCCEEDED(D3D11CreateDevice(NULL,D3D_DRIVER_TYPE_WARP,NULL,0,NULL,0,D3D11_SDK_VERSION,&d,&level,&immediate)),"bridge WARP device");
     Check(Patch(d,5,createHooks,creates,createCount)&&Patch(immediate,48,updateHooks,updates,updateCount),"real COM vtable admission");
     currentDevice=d;InterlockedExchange(&enabled,1);originalArray=&FakeNative;
+    resource_biome::ready=true;resource_biome::mainId=GetCurrentThreadId();
+    RequestFixture request;
     if(!resource_gpu::initialized){InitializeCriticalSection(&resource_gpu::lock);resource_gpu::initialized=true;}
     InterlockedExchange(&resource_gpu::enabled,1);resource_gpu::world=7;resource_gpu::ceiling=1ULL<<30;
     for(unsigned pass=0;pass<2;++pass){
-        actualJob.key=std::string("Terrain0_")+std::string(200,'s')+"|hash";actualJob.worldGeneration=7;
+        actualJob.worldGeneration=7;
+        for(unsigned i=0;i<6;++i)actualJob.paths[i]="D:\\Kenshi\\data\\land\\base.dds";
+        actualJob.key=resource_forward::TerrainKey(std::string(255,'s'),0,actualJob.paths);
         resource_cache::FilePtr sources[6];for(unsigned i=0;i<6;++i)sources[i]=Source(0,i);
         std::string error;Check(resource_gpu::BuildTexture(d,actualJob,sources,&expected,&error),"ready native byte fixture");
         ID3D11Texture2D*identity=expected->AddRefTexture();
@@ -44,7 +59,7 @@ int main(){
         changeFirst=pass==1;
         std::aligned_storage<sizeof(Ogre::TexturePtr),__alignof(Ogre::TexturePtr)>::type storage;
         Ogre::TexturePtr*out=reinterpret_cast<Ogre::TexturePtr*>(&storage);
-        Check(Array(out,NULL,0)==out,"actual native hidden-return consumer");out->~SharedPtr();
+        Check(LoadedArray(request.bytes,out)==out,"actual SDK request, basename key and member hidden-return consumer");out->~SharedPtr();
         Check(nativeResult==identity,"native received actual precreated texture, no duplicate GPU object");
         Check(resource_gpu::Read64(resource_gpu::allocated)==0,"adopted graphics memory detached exactly once");
         Check(skipped-oldSkipped==LONG(pass?0:expected->subresources.size()),"byte-equal arrays skipped; changed source abandons shortcut");

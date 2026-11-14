@@ -20,6 +20,10 @@ struct OwnedFiles {
     std::string sid,paths[6];
     void Clear(){sid.clear();for(unsigned i=0;i<6;++i)paths[i].clear();}
 };
+struct OwnedArrayFiles {
+    std::string name,paths[6];
+    void Clear(){name.clear();for(unsigned i=0;i<6;++i)paths[i].clear();}
+};
 // Fixed profiled geography only; rejects other world layouts. Conservative
 // inclusive upper bounds may include the adjacent coarse cell at a seam.
 Status CellsForBounds(const Bounds&,CellList&);
@@ -33,4 +37,6 @@ Status CandidateBiomes(const void* zoneManager,const Bounds&,BiomePointers&);
 // type0=diffuse, type1=normal; base/slope/vertical/grass/dirt/road order.
 // Paths remain the raw relative metadata values; caller handles safe resolution.
 Status CopyTerrainFiles(const void* biome,int type,OwnedFiles&);
+// Actual ResourceLoader array request, not the legacy ZoneMap array builder.
+Status CopyArrayFiles(const void* nativeRequest,OwnedArrayFiles&);
 }

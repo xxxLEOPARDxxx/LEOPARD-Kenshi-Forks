@@ -14,6 +14,8 @@ int main(){
     assert(resource_forward::CanWarm(6.0,5.9,0.005,5.2));
     std::string paths[6];for(unsigned i=0;i<6;++i)paths[i]="D:\\SteamLibrary\\steamapps\\common\\Kenshi\\data\\newland\\land\\textures\\long-terrain-name.dds";
     std::string key=resource_forward::TerrainKey(std::string(255,'s'),0,paths);assert(key.size()<512&&key.size()>256);
+    std::string nativePaths[6];for(unsigned i=0;i<6;++i)nativePaths[i]="LONG-TERRAIN-NAME.DDS";
+    assert(key==resource_forward::TerrainKey(std::string(255,'s'),0,nativePaths));
     paths[5]+="different";assert(key!=resource_forward::TerrainKey(std::string(255,'s'),0,paths));
     std::cout<<"forward resource policy passed\n";
 }

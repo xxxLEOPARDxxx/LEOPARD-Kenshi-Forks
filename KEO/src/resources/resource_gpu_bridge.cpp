@@ -9,18 +9,21 @@
 #include "base/core.h"
 #include "base/log_admission.h"
 #include "game/native_profile.h"
+#include "game/klib_bindings.h"
 #include "render/module_hooks.h"
 #include "base/klib_include.h"
 #include <core/Functions.h>
 #include <ogre/OgreRoot.h>
 #include <ogre/OgreRenderSystem.h>
 #include <ogre/OgreTexture.h>
+#include <kenshi/ResourceLoader.h>
 #include "base/klib_include_end.h"
 #include <sstream>
 namespace {
 typedef HRESULT (STDMETHODCALLTYPE *CreateFn)(ID3D11Device*,const D3D11_TEXTURE2D_DESC*,const D3D11_SUBRESOURCE_DATA*,ID3D11Texture2D**);
 typedef void (STDMETHODCALLTYPE *UpdateFn)(ID3D11DeviceContext*,ID3D11Resource*,UINT,const D3D11_BOX*,const void*,UINT,UINT);
-typedef Ogre::TexturePtr* (*ArrayFn)(Ogre::TexturePtr*,void*,int);
+// Member hidden-return ABI: RCX=request, RDX=TexturePtr output.
+typedef Ogre::TexturePtr* (*ArrayFn)(void*,Ogre::TexturePtr*);
 ArrayFn originalArray=NULL;
 struct Slot {void**table;void*original;};
 Slot creates[8],updates[8];volatile LONG createCount=0,updateCount=0,enabled=0;
@@ -29,6 +32,7 @@ bool arrayInstalled=false;
 struct Context {resource_gpu::ReadyPtr ready;ID3D11Device*device;ID3D11Resource*adopted;Context():device(NULL),adopted(NULL){}};
 __declspec(thread) Context* context=NULL;
 volatile LONG adopted=0,skipped=0,mismatches=0,descRefused=0;
+volatile LONG consumerCalls=0,consumerOff=0,consumerNonMain=0,requestRefused=0,readyHits=0,readyMisses=0;
 __declspec(align(8)) volatile LONGLONG verifyUs=0;
 bool EnsureContext(ID3D11Device*);
 HRESULT CreateImpl(CreateFn original,ID3D11Device*d,const D3D11_TEXTURE2D_DESC*desc,const D3D11_SUBRESOURCE_DATA*data,ID3D11Texture2D**out){
@@ -78,27 +82,30 @@ bool EnsureContext(ID3D11Device*d){
     bool ok=Patch(c,48,updateHooks,updates,updateCount);c->Release();return ok;
 }
 struct Scope {Context*old;Scope(Context*c):old(context){context=c;}~Scope(){context=old;}};
-Ogre::TexturePtr* Array(Ogre::TexturePtr*out,void*biome,int type){
-    if(!IsMainThread()||!InterlockedCompareExchange(&enabled,0,0)||!currentDevice)return originalArray(out,biome,type);
+Ogre::TexturePtr* LoadedArray(void*request,Ogre::TexturePtr*out){
+    InterlockedIncrement(&consumerCalls);
+    if(!IsMainThread()){InterlockedIncrement(&consumerNonMain);return originalArray(request,out);}
+    if(!InterlockedCompareExchange(&enabled,0,0)||!currentDevice){InterlockedIncrement(&consumerOff);return originalArray(request,out);}
     Context c;resource_gpu::Job job;
-    try{if(ResourceBuildTerrainJob(biome,type,job))c.ready=resource_gpu::TakeReady(job.key,job.worldGeneration);}catch(...){}
-    if(!c.ready)return originalArray(out,biome,type);
+    try{if(ResourceBuildArrayJob(request,job))c.ready=resource_gpu::TakeReady(job.key,job.worldGeneration);else InterlockedIncrement(&requestRefused);}catch(...){InterlockedIncrement(&requestRefused);}
+    if(!c.ready){InterlockedIncrement(&readyMisses);return originalArray(request,out);}
+    InterlockedIncrement(&readyHits);
     c.device=currentDevice;Scope scope(&c);
     // Native Image loading, material objects, SRVs and one manager notification
     // all remain native. Only exact-descriptor allocation and byte-equal uploads change.
-    return originalArray(out,biome,type);
+    return originalArray(request,out);
 }
 }
 #ifndef RESOURCE_GPU_BRIDGE_TEST
 void ResourceGpuBridgeInit(){
     if(arrayInstalled)return;
-    // Optional native seam: do not reinterpret the stale SDK createTextureArray placeholder.
-    // Current Steam native function has been verified against full array/writer disassembly.
+    // Materials enqueue TextureArrayLoadData. The old ZoneMap array builder
+    // A10080 has no active caller in this build; use the actual loader.
     if(NativeProfileIsGog()) {KEO_DETAIL("Resource GPU warmup: native array seam not yet admitted for GOG");return;}
-    unsigned char expected[64]={0x40,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0xac,0x24,0x40,0xfa,0xff,0xff,0x48,0x81,0xec,0xc0,0x06,0x00,0x00,0x48,0xc7,0x85,0xd0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0x18,0x07,0x00,0x00,0x48,0x8b,0x05,0x03,0x63,0x70,0x01,0x48,0x33,0xc4,0x48,0x89,0x85,0xb0,0x05,0x00,0x00,0x45};
-    void*target=reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(GetModuleHandleA(NULL))+0xA10080);
+    unsigned char expected[64]={0x4c,0x8b,0xdc,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x40,0x01,0x00,0x00,0x48,0xc7,0x84,0x24,0xb0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x49,0x89,0x5b,0x18,0x49,0x89,0x73,0x20,0x48,0x8b,0x05,0xca,0xd7,0xcc,0x01,0x48,0x33,0xc4,0x48,0x89,0x84,0x24,0x30,0x01,0x00,0x00,0x48,0x8b,0xda,0x4c,0x8b,0xe1,0x48};
+    void*target=reinterpret_cast<void*>(KlibRealAddress(&ResourceLoader::TextureArrayLoadData::_NV_getTexture));
     if(memcmp(target,expected,sizeof(expected))){LogError("Resource GPU warmup: native array contract refused; normal loading retained");return;}
-    arrayInstalled=KenshiLib::AddHook(target,(void*)&Array,(void**)&originalArray)==KenshiLib::SUCCESS;
+    arrayInstalled=KenshiLib::AddHook(target,(void*)&LoadedArray,(void**)&originalArray)==KenshiLib::SUCCESS;
     if(!arrayInstalled)LogError("Resource GPU warmup: array hook failed; normal loading retained");
 }
 namespace {bool RefuseDevice(){
@@ -137,6 +144,8 @@ void ResourceGpuBridgeStop(){InterlockedExchange(&enabled,0);ID3D11Device*old=cu
 #endif
 std::string ResourceGpuBridgeStats(){
     std::ostringstream s;s<<" bridge="<<InterlockedCompareExchange(&enabled,0,0)
+        <<" consumerCalls="<<InterlockedCompareExchange(&consumerCalls,0,0)<<" consumerOff="<<InterlockedCompareExchange(&consumerOff,0,0)<<" consumerNonMain="<<InterlockedCompareExchange(&consumerNonMain,0,0)
+        <<" requestRefused="<<InterlockedCompareExchange(&requestRefused,0,0)<<" readyHit="<<InterlockedCompareExchange(&readyHits,0,0)<<" readyMiss="<<InterlockedCompareExchange(&readyMisses,0,0)
         <<" adopted="<<InterlockedCompareExchange(&adopted,0,0)<<" skipUploads="<<InterlockedCompareExchange(&skipped,0,0)
         <<" mismatch="<<InterlockedCompareExchange(&mismatches,0,0)<<" descRefused="<<InterlockedCompareExchange(&descRefused,0,0)
         <<" verifyUs="<<InterlockedCompareExchange64(&verifyUs,0,0);return s.str();

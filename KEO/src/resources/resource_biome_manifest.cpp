@@ -38,6 +38,7 @@ const char* StatusName(Status s){
 #include "base/klib_include.h"
 #include <kenshi/ZoneManager.h>
 #include <kenshi/GameData.h>
+#include <kenshi/ResourceLoader.h>
 #include "base/klib_include_end.h"
 
 // Compile against the actual SDK; a changed layout must fail the native build.
@@ -45,6 +46,9 @@ static_assert(offsetof(ZoneManager,biomeMap)==0x168220,"biome map offset");
 static_assert(offsetof(GameData,type)==0x50,"biome type offset");
 static_assert(offsetof(GameData,stringID)==0x58,"biome SID offset");
 static_assert(offsetof(GameData,filesdata)==0x1f8,"biome files offset");
+static_assert(offsetof(ResourceLoader::TextureLoadData,name)==8,"texture request name");
+static_assert(offsetof(ResourceLoader::TextureLoadData,group)==0x30,"texture request group");
+static_assert(offsetof(ResourceLoader::TextureArrayLoadData,filesNames)==0xa0,"texture array paths");
 
 namespace resource_biome { namespace {
 unsigned long mainId=0;
@@ -60,7 +64,7 @@ struct Keys {
 Keys* keys=NULL; // Process lifetime: constructed once by main-thread Initialize.
 struct MapHeader { unsigned fine,grid;const unsigned char* table; };
 struct Slots { const void* data[5];const void* tree; };
-struct RawFiles { char sid[256];char path[6][1024]; };
+struct RawFiles { char sid[272];char path[6][1024]; };
 static_assert(sizeof(MapHeader)==16,"biome table header packing");
 static_assert(sizeof(Slots)==48,"biome slot packing");
 
@@ -115,7 +119,7 @@ bool RawString(const std::string& value,char* out,unsigned capacity){
 Status ReadFilesBody(const void* pointer,int type,RawFiles* out){
     const GameData* data=(const GameData*)pointer;
     if(!data||data->type!=BIOMES)return BadBiome;
-    if(data->filesdata.size()>256||!RawString(data->stringID,out->sid,sizeof(out->sid))||!out->sid[0])return BadBiome;
+    if(data->filesdata.size()>256||!RawString(data->stringID,out->sid,256)||!out->sid[0])return BadBiome;
     unsigned mask=0;
     for(unsigned i=0;i<6;++i){
         out->path[i][0]=0;
@@ -134,6 +138,19 @@ Status ReadFilesBody(const void* pointer,int type,RawFiles* out){
 }
 Status ReadFiles(const void* pointer,int type,RawFiles* out){
     __try{return ReadFilesBody(pointer,type,out);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return ReadFault;}
+}
+Status ReadArrayBody(const void* pointer,RawFiles* out){
+    const ResourceLoader::TextureArrayLoadData*data=(const ResourceLoader::TextureArrayLoadData*)pointer;
+    if(!data)return BadMetadata;
+    if(data->group!="Landscape"||!RawString(data->name,out->sid,sizeof(out->sid)))return BadType;
+    if(std::strlen(out->sid)<10||std::memcmp(out->sid,"Terrain",7)||(out->sid[7]!='0'&&out->sid[7]!='1')||out->sid[8]!='_'||std::strchr(out->sid,'|'))return BadType;
+    if(data->filesNames.size()!=6)return BadMetadata;
+    for(unsigned i=0;i<6;++i)if(!RawString(data->filesNames[i],out->path[i],sizeof(out->path[i]))||!out->path[i][0])return BadPath;
+    return Ok;
+}
+Status ReadArray(const void* pointer,RawFiles*out){
+    __try{return ReadArrayBody(pointer,out);}
     __except(EXCEPTION_EXECUTE_HANDLER){return ReadFault;}
 }
 Status MainThread(){return !ready?NotInitialized:GetCurrentThreadId()!=mainId?WrongThread:Ok;}
@@ -155,6 +172,11 @@ Status CopyTerrainFiles(const void* biome,int type,OwnedFiles& out){
     out.Clear();Status s=MainThread();if(s!=Ok)return s;if(type<0||type>1)return BadType;
     RawFiles raw;s=ReadFiles(biome,type,&raw);if(s!=Ok)return s;
     out.sid=raw.sid;for(unsigned i=0;i<6;++i)out.paths[i]=raw.path[i];return Ok;
+}
+Status CopyArrayFiles(const void*pointer,OwnedArrayFiles& out){
+    out.Clear();Status s=MainThread();if(s!=Ok)return s;
+    RawFiles raw;s=ReadArray(pointer,&raw);if(s!=Ok)return s;
+    out.name=raw.sid;for(unsigned i=0;i<6;++i)out.paths[i]=raw.path[i];return Ok;
 }
 }
 #endif

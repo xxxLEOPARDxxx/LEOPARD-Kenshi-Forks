@@ -4,6 +4,7 @@
 #include <windows.h>
 #include "resources/resource_forward.h"
 #include "resources/resource_forward_policy.h"
+#include "resources/resource_array_job.h"
 #include "resources/resource_biome_manifest.h"
 #include "zone/preload/preload.h"
 #include "zone/transition.h"
@@ -25,7 +26,7 @@ struct Cell {int x,y;unsigned biome;};
 Cell queue[32];unsigned count=0;
 double seen[4096]={0};
 int previousX=-1,previousY=-1;
-unsigned zones=0,manifests=0,prefetches=0,metadataRefused=0,queueDropped=0;
+unsigned zones=0,manifests=0,prefetches=0,metadataRefused=0,queueDropped=0,nativeExists=0,gpuAccepted=0,gpuDeclined=0;
 std::string Absolute(const std::string&p){
     if(p.empty()||p.size()>=MAX_PATH)return std::string();
     char full[MAX_PATH];DWORD n=GetFullPathNameA(p.c_str(),MAX_PATH,full,NULL);
@@ -81,7 +82,9 @@ void OneBiome(void*manager,double now){
             // Do not duplicate GPU storage for arrays the engine already registered.
             bool exists=false;Ogre::TextureManager*textures=Ogre::TextureManager::getSingletonPtr();
             if(textures){Ogre::TexturePtr texture=textures->getByName(job.key.substr(0,job.key.find('|')),"Landscape");exists=!texture.isNull();}
-            if(!exists)resource_gpu::Queue(job);
+            if(exists)++nativeExists;
+            else if(resource_gpu::Queue(job))++gpuAccepted;
+            else ++gpuDeclined;
         }
     }
     if(c.biome>=biomes.count)DropHead(now);
@@ -92,11 +95,14 @@ bool ResourceBuildTerrainJob(const void*biome,int type,resource_gpu::Job&job){
     resource_biome::OwnedFiles files;
     if(resource_biome::CopyTerrainFiles(biome,type,files)!=resource_biome::Ok)return false;
     job=resource_gpu::Job();job.type=unsigned(type);job.worldGeneration=world;
-    // Key includes ordered native layer paths, not only a re-used biome SID.
+    // Logical native key includes ordered basenames; source IO uses full paths.
     if(files.sid.find('|')!=std::string::npos)return false;
     for(unsigned i=0;i<6;++i){job.paths[i]=Absolute(files.paths[i]);if(job.paths[i].empty())return false;}
     job.key=resource_forward::TerrainKey(files.sid,type,job.paths);
     return true;
+}
+bool ResourceBuildArrayJob(const void*request,resource_gpu::Job&job){
+    return resource_forward::CopyArrayJob(request,world,job);
 }
 void ResourceForwardReset(){InterlockedIncrement(&resetPending);}
 void ResourceForwardInit(){
@@ -134,7 +140,7 @@ void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
     }
     if(DetailedLogEnabled()&&now>=nextReport){
         nextReport=now+10;resource_gpu::Stats g=resource_gpu::Snapshot();std::ostringstream out;
-        out<<"Resource forward: zones="<<zones<<" manifests="<<manifests<<" requests="<<prefetches<<" metadataRefused="<<metadataRefused<<" queue="<<count<<" queueDropped="<<queueDropped;
+        out<<"Resource forward: zones="<<zones<<" manifests="<<manifests<<" requests="<<prefetches<<" metadataRefused="<<metadataRefused<<" queue="<<count<<" queueDropped="<<queueDropped<<" nativeExists="<<nativeExists<<" gpuAccepted="<<gpuAccepted<<" gpuDeclined="<<gpuDeclined;
         out<<" gpuBytes="<<g.allocatedBytes<<" gpuReserved="<<g.reservedBytes<<" gpuFiles="<<g.entries<<" gpuQueue="<<g.pending<<" gpuCreated="<<g.created<<" gpuRejected="<<g.rejected<<" gpuRetries="<<g.retries<<" gpuDevice="<<g.deviceReady<<" gpuPressure="<<g.pressure;
         out<<ResourceGpuBridgeStats();LogDetail(out.str());
     }
