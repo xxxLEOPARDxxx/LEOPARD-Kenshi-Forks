@@ -82,7 +82,7 @@ static bool HasName(const TestRow* rows, int n, const char* name)
 	return false;
 }
 
-// The 30 inputs, each with its field and the config global it is read from; a
+// The inputs, each with its field and the config global it is read from; a
 // NULL global is a key a PROD build does not carry, or an int key
 // CheckInputMapping flips on its own.
 struct InputField
@@ -94,6 +94,7 @@ struct InputField
 
 static const InputField kFields[] =
 {
+	{ "detailedLog",         &HookWantInputs::detailedLog,         &keo_gui::g_guiCfg.debugLogging },
 	{ "destroyListDiag",     &HookWantInputs::destroyListDiag,     &fixes::g_fixesCfg.destroyListDiagEnabled },
 	{ "destroyListDefer",    &HookWantInputs::destroyListDefer,    &fixes::g_fixesCfg.destroyListDeferEnabled },
 	{ "escapePauseGuard",    &HookWantInputs::escapePauseGuard,    &zone::g_zoneCfg.escapePauseGuardEnabled },
@@ -140,13 +141,15 @@ static int FieldIndex(const char* name)
 	return -1;
 }
 
-// The DEV defaults: every key true but unstitchProbe, graphHeuristicGuard and clusterCrossCost.
+// The DEV defaults: every key true but detailedLog, unstitchProbe,
+// graphHeuristicGuard and clusterCrossCost.
 static HookWantInputs DevDefaults()
 {
 	HookWantInputs in;
 	for (int i = 0; i < kFieldCount; ++i)
 		in.*kFields[i].field = true;
 	in.unstitchProbe = false;
+	in.detailedLog = false;
 	in.graphHeuristicGuard = false;
 	in.clusterCrossCost = false;
 	return in;
@@ -269,6 +272,7 @@ struct Flip
 
 static const Flip kFlips[] =
 {
+	{ "detailedLog", { "detailedLog" }, { "addInstance", "removeInstance" } },
 	{ "movementAware", { "movementAware" }, { "addOrderSelected" } },
 	{ "destroyListDiag", { "destroyListDiag" }, { NULL } },
 	{ "destroyListDefer", { "destroyListDefer" }, { NULL } },
@@ -318,7 +322,8 @@ static const Flip kFlips[] =
 
 static void CheckWantTruthTable()
 {
-	const HookWantInputs base = DevDefaults();
+	HookWantInputs base = DevDefaults();
+	base.detailedLog = true; // exercise the existing key truth table while diagnostics are requested
 	for (int f = 0; f < (int)(sizeof(kFlips) / sizeof(kFlips[0])); ++f)
 	{
 		const Flip& flip = kFlips[f];
@@ -462,14 +467,14 @@ int main()
 {
 	CheckInstallAdmit();
 #if ZONEHAND_STEP >= 3
-	CheckVariant(kDevRows, kDevCount, "dev", 93, 78, 77, 25, 53, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 88, 73, 71, 25, 48, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 93, 78, 75, 25, 53, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 88, 73, 69, 25, 48, ProdDefaults());
 #elif ZONEHAND_STEP == 2
-	CheckVariant(kDevRows, kDevCount, "dev", 92, 77, 76, 25, 52, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 87, 72, 70, 25, 47, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 92, 77, 74, 25, 52, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 87, 72, 68, 25, 47, ProdDefaults());
 #else
-	CheckVariant(kDevRows, kDevCount, "dev", 89, 74, 73, 25, 49, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 84, 69, 67, 25, 44, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 89, 74, 71, 25, 49, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 84, 69, 65, 25, 44, ProdDefaults());
 #endif
 	CheckDevMinusProd();
 	CheckWantTruthTable();

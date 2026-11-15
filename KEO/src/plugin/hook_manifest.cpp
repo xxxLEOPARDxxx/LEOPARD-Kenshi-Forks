@@ -483,13 +483,8 @@ static void InstallFallbackHook(int* installed, int*)
 	}
 }
 
-// Path-result extraction guard and streaming-collection insert count. Each
-// installs only when its own key is on, so the banner counts what was
-// actually wanted.
-// The insert hook has two consumers with separate keys, and either one on
-// its own installs it: the lifecycle rows must survive a run made with the
-// pathfinding diagnostics off, because comparing such a run against one
-// with them on is what the rows are for.
+// Functional path-result extraction safety stays armed independently of
+// detailed logging. The insert count has its own diagnostic admission below.
 static void InstallPathExtractHooks(int* installed, int*)
 {
 	if (HookRowWanted(HOOK_CONTENT_STREAM_CALLEE_0X8869))
@@ -502,11 +497,25 @@ static void InstallPathExtractHooks(int* installed, int*)
 		else
 			LogError("FAILED to hook contentStreamCallee_0x8869");
 	}
+}
 
+// These are independent read-only observers. Neither drives path priority,
+// adjacency, extraction safety or game/world lifetime. OFF sessions need no
+// detours; an explicit later log enable admits them from the owner heartbeat.
+// Main-thread state; publish the attempt before AddHook can reenter reporting.
+static bool s_sectionDiagnosticsInitializationReached = false;
+static bool s_sectionDiagnosticsAttempted = false;
+
+static void InstallSectionDiagnosticHooks(int* installed, int*)
+{
+	s_sectionDiagnosticsInitializationReached = true;
+	if (!DetailedLogEnabled() || s_sectionDiagnosticsAttempted) return;
+	s_sectionDiagnosticsAttempted = true;
+	InstallNavMeshLife(installed, NULL);
 	if (HookRowWanted(HOOK_ADD_INSTANCE))
 	{
 		if (HookInstall(HOOK_ADD_INSTANCE, hook_addInstance,
-				&game::g_hookOrig.orig_addInstance, installed, false) == NULL)
+				&game::g_hookOrig.orig_addInstance, installed, true) == NULL)
 		{
 			StitchSourceNoteAddObserver();
 			KEO_DETAIL("sectionStamp: addInstance count hook installed");
@@ -517,6 +526,12 @@ static void InstallPathExtractHooks(int* installed, int*)
 	else
 		KEO_DETAIL("addInstance not hooked: sectionStamp and navMeshLife are both off, "
 		       "so neither the insert count nor the lifecycle rows exist this session");
+}
+
+void InstallSectionDiagnosticsOnDemand()
+{
+	if (s_sectionDiagnosticsInitializationReached && DetailedLogEnabled() && !s_sectionDiagnosticsAttempted)
+		InstallSectionDiagnosticHooks(NULL, NULL);
 }
 
 // Path-worker-pool pass-through instrumentation: four hooks, no
@@ -644,11 +659,6 @@ static void (*const kInstallSteps[])(int*, int*) =
 	// the key chooses deferral or counting, never whether the window is seen.
 	InstallNavMeshAdjacency,
 
-	// The retire half of the section lifecycle rows. The registration half
-	// rides the streaming-collection insert hook below, which this key alone
-	// is enough to install.
-	InstallNavMeshLife,
-
 	// The Ogre join spin installs for its live setting; its module site is outside this table.
 	InstallOgreJoinSpin,
 
@@ -712,6 +722,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallSubmitHook,
 	InstallFallbackHook,
 	InstallPathExtractHooks,
+	InstallSectionDiagnosticHooks,
 	InstallPathPoolHooks,
 
 	// The route planner's two detours, only while plannerMode is set; a refusal clears it before the store is made.

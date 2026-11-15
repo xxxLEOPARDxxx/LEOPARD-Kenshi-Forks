@@ -14,7 +14,7 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 	case HOOK_WANT_CACHING:           return in.caching;
 	case HOOK_WANT_PATHFIND_DIAG:     return in.pathfindDiag;
 	case HOOK_WANT_PATH_EXTRACT:      return in.pathfindDiag && in.pathExtractGuard;
-	case HOOK_WANT_ADD_INSTANCE:      return (in.pathfindDiag && in.sectionStamp) || in.navMeshLife;
+	case HOOK_WANT_ADD_INSTANCE:      return in.detailedLog && ((in.pathfindDiag && in.sectionStamp) || in.navMeshLife);
 	case HOOK_WANT_GATE_PASS:         return in.gatePassDiag;
 	case HOOK_WANT_ESCAPE_PAUSE:      return in.escapePauseGuard;
 	case HOOK_WANT_CORPSE_PIN:        return in.corpsePin;
@@ -23,7 +23,7 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 	case HOOK_WANT_GRAPH_VISITOR:     return in.graphVisitorGuard;
 	case HOOK_WANT_GRAPH_EXPAND:      return in.graphExpandGuard;
 	case HOOK_WANT_MESH_FACE:         return in.meshFaceGuard;
-	case HOOK_WANT_NAVMESH_LIFE:      return in.navMeshLife;
+	case HOOK_WANT_NAVMESH_LIFE:      return in.detailedLog && in.navMeshLife;
 	case HOOK_WANT_UNSTITCH_PROBE:    return in.unstitchProbe;
 	case HOOK_WANT_SECTION_KEY_PROBE: return in.sectionKeyProbe;
 	case HOOK_WANT_GRAPH_HEURISTIC:   return in.graphHeuristicGuard || in.playerHierarchical;
@@ -46,6 +46,7 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 HookWantInputs HookWantInputsFromConfig()
 {
 	HookWantInputs in;
+	in.detailedLog        = keo_gui::g_guiCfg.debugLogging;
 	in.destroyListDiag     = fixes::g_fixesCfg.destroyListDiagEnabled;
 	in.destroyListDefer    = fixes::g_fixesCfg.destroyListDeferEnabled;
 	in.escapePauseGuard    = zone::g_zoneCfg.escapePauseGuardEnabled;

@@ -23,7 +23,7 @@ enum HookWant
 	HOOK_WANT_CACHING,            // caching
 	HOOK_WANT_PATHFIND_DIAG,      // pathfindDiag
 	HOOK_WANT_PATH_EXTRACT,       // pathfindDiag and pathExtractGuard
-	HOOK_WANT_ADD_INSTANCE,       // pathfindDiag and sectionStamp, or navMeshLife
+	HOOK_WANT_ADD_INSTANCE,       // detailedLog and (pathfindDiag+sectionStamp, or navMeshLife)
 	HOOK_WANT_GATE_PASS,          // gatePassDiag
 	HOOK_WANT_ESCAPE_PAUSE,       // escapePauseGuard
 	HOOK_WANT_CORPSE_PIN,         // corpsePin
@@ -32,7 +32,7 @@ enum HookWant
 	HOOK_WANT_GRAPH_VISITOR,      // graphVisitorGuard
 	HOOK_WANT_GRAPH_EXPAND,       // graphExpandGuard
 	HOOK_WANT_MESH_FACE,          // meshFaceGuard
-	HOOK_WANT_NAVMESH_LIFE,       // navMeshLife
+	HOOK_WANT_NAVMESH_LIFE,       // detailedLog and navMeshLife
 	HOOK_WANT_UNSTITCH_PROBE,     // unstitchProbe
 	HOOK_WANT_SECTION_KEY_PROBE,  // sectionKeyProbe
 	HOOK_WANT_GRAPH_HEURISTIC,    // graphHeuristicGuard or playerHierarchical != off
@@ -56,6 +56,7 @@ enum HookCapability { HOOK_CAP_NONE = 0, HOOK_CAP_WORKER_POOL = 1 };
 // One field per INI key a want reads.
 struct HookWantInputs
 {
+	bool detailedLog;           // pure section diagnostics install only while requested
 	bool destroyListDiag;
 	bool destroyListDefer;
 	bool escapePauseGuard;

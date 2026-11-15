@@ -61,7 +61,8 @@ bool     CgStoreCreate();          // the directory, the interior table, the liv
 void     CgStoreDestroy();         // host tests only: frees everything, published or retired
 bool     CgStoreReady();           // any thread
 unsigned CgStoreGen();             // any thread
-void     CgStoreNewWorld();        // main thread, at a save load: every save and live over goes stale
+void     CgStoreNewWorld();        // main thread: invalidate overs and start bounded retirement;
+                                  // bases and stable interior indices stay intact
 
 // Indexing. CgExteriorIndex, CgNodeKey, CgNodeDir, CgNodeIndex: any thread, pure. CgIndexOfUid and
 // CgInsertInterior: main thread only (the interior table's one writer and reader).
@@ -108,7 +109,8 @@ void     CgLivePost(int slot, CgBlock* buf);
 // Builder thread: an interior save block onto the main thread's hand-off stack (a lock-free push).
 void     CgHandOffInterior(CgBlock* heapBlock);
 
-// Main thread, from the frame step: frees retired heap blocks; drains the builder's hand-off
+// Main thread, from the frame step: frees retired heap blocks (after reset, retires at most32
+// old-overlay directory entries per call, retrying a busy entry later); drains the builder's hand-off
 // (inserting each uid, publishing each block, freeing a stale one); takes up to max posted live
 // records, dropping an older generation (stale), mapping the uid (CgIndexOfUid, else
 // CgInsertInterior), copying the buffer into a heap block, returning the buffer and publishing the

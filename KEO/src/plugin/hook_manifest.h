@@ -50,4 +50,8 @@ HookWantInputs HookWantInputsNow();
 // the ones that went in. Main thread, startPlugin, once.
 void InstallHooks(int* installed, int* total);
 
+// Existing main-thread heartbeat: admit the two independent, pure section
+// diagnostics once on the first detailed-log enable after startup reached them.
+void InstallSectionDiagnosticsOnDemand();
+
 #endif

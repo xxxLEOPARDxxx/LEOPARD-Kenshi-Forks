@@ -1,6 +1,6 @@
 {
   "files": 733,
-  "lines": 115347,
+  "lines": 115477,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -4162,10 +4162,11 @@
     },
     {
       "path": "src/pathfind/path_guard_hooks.cpp",
-      "sha256": "ae059c34d5f75e9970547f817bfbe28e6605f50c690a1a40e654cceeebc40a36",
-      "lines": 98,
+      "sha256": "4dbdf90058c52cb47b0ef10d3bd751899d413bf66205263b4b474b4d4f3d71d6",
+      "lines": 99,
       "reports": [
-        "full-audit-navmesh-pathfind-game-20261115.md"
+        "full-audit-navmesh-pathfind-game-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -4423,18 +4424,20 @@
     },
     {
       "path": "src/planner/coarse_graph.cpp",
-      "sha256": "afde93ed21926397dab0988e4432f8003abc29232944246cec47fdf6822a268d",
-      "lines": 800,
+      "sha256": "89acf9b32a5019e6243a4f270b4b07abb2c5ce6ab17642f86d7f1fc4e53cfbba",
+      "lines": 842,
       "reports": [
+        "full-audit-session-costs-20261115.md",
         "full-audit-zone-movement-planner-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/planner/coarse_graph.h",
-      "sha256": "327a2cbe1f5758f93040504f2705295b9476b62f910d59ac2da4c94ba271fd70",
-      "lines": 161,
+      "sha256": "d6534c417f05985c248c18580df060dd46d9abbc9eb9402fab762d769be436d2",
+      "lines": 163,
       "reports": [
+        "full-audit-session-costs-20261115.md",
         "full-audit-zone-movement-planner-20261115.md"
       ],
       "kind": "body/declarations read"
@@ -4855,37 +4858,41 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "decabdce2185382587530c5425b3aae4af75e3668851333595eb588076e7c039",
-      "lines": 745,
+      "sha256": "9e6d7b68bb76f4c69a523ac5ec8fa5b4bfca40e4166b4e7c5515a41b0e584fce",
+      "lines": 756,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/plugin/hook_manifest.h",
-      "sha256": "3917bb75e63f557564f2a029504ea33e2097c39d46d491cddddd00fc8f6271db",
-      "lines": 53,
+      "sha256": "aa91eaf93d71649530fd3540f7c4b49a1739dcc11a6787418c4c75d3928ecd01",
+      "lines": 57,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/plugin/hook_manifest_policy.cpp",
-      "sha256": "733975e37fda2fe50489d66e51e864078a274d7a8019f3f6b36c3e993783bba5",
-      "lines": 92,
+      "sha256": "49413d9c836d596e272023bc42e51fccfea9db51b565f5bb76c4d6d95bafb347",
+      "lines": 93,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/plugin/hook_manifest_policy.h",
-      "sha256": "4b254827806cc6fdeed6e64c207206764e63d7bab5a6d5ab75151095395b6427",
-      "lines": 103,
+      "sha256": "4b69494a410dc1905316bdd672708ca4aee3434b7ff50dc4a277a25c51ecf5fa",
+      "lines": 104,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5071,19 +5078,21 @@
     },
     {
       "path": "src/render/gpu_param_cache.cpp",
-      "sha256": "81dd209d1ae4a1ecb2fec1f1a5bfb7b061e9186cd250231e28c7e3fe4fedd1f8",
-      "lines": 85,
+      "sha256": "2df8c81c3960de897c8a2b365085025db3a1886842d069fa6e388905bc63bf2f",
+      "lines": 142,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/render/gpu_param_cache.h",
-      "sha256": "4127a368c9bd2b45a8a879329c38cb2a6c5b581286d756934a43a25c23a9cf56",
-      "lines": 53,
+      "sha256": "12b33c23c57288e03e36fc3a80f9be94ebb0377224c8a9495b63eab76916fe72",
+      "lines": 62,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "full-audit-session-costs-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5773,9 +5782,10 @@
     },
     {
       "path": "src/zone/camera_zone_hook.cpp",
-      "sha256": "f17a4d2818ffbc94957760b0f8bbfd9da8fafb935be1d1bca6bb9a8e8ed683e7",
-      "lines": 642,
+      "sha256": "ee27738935d91c5b6ffd72af8cc9996af2648201becbe40997450f12b8a19308",
+      "lines": 644,
       "reports": [
+        "full-audit-session-costs-20261115.md",
         "full-audit-zone-movement-planner-20261115.md"
       ],
       "kind": "body/declarations read"

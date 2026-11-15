@@ -48,6 +48,10 @@ static CgStoreState*  s_store = NULL;
 static volatile LONG  s_ready = 0;
 static volatile LONG  s_gen = 1;
 static int            s_promoteCursor = 0;
+// Reserved before publication, decremented only after a take or replacement.
+// It can temporarily overcount in-flight producers, never hide a posted record.
+static volatile LONG  s_livePending = 0;
+static int            s_staleCursor = CG_DIR_SLOTS; // main owner; inactive until world change
 static volatile CgStats s_count;
 static void         (*s_pauseAfterTake)(void* ctx) = NULL;
 static void*          s_pauseAfterTakeCtx = NULL;
@@ -219,6 +223,8 @@ bool CgStoreCreate()
 	}
 	memset((void*)&s_count, 0, sizeof(CgStats));
 	s_promoteCursor = 0;
+	s_livePending = 0;
+	s_staleCursor = CG_DIR_SLOTS;
 	s_store = st;
 	InterlockedExchange(&s_gen, 1);
 	InterlockedExchange(&s_ready, 1);
@@ -269,6 +275,7 @@ unsigned CgStoreGen()
 void CgStoreNewWorld()
 {
 	InterlockedIncrement(&s_gen);
+	s_staleCursor = 0;
 }
 
 int CgExteriorIndex(int gx, int gy)
@@ -428,7 +435,17 @@ static CgPublishResult SwapOver(CgEntry* ent, LONG e, CgBlock* b)
 {
 	PauseAfterTake();
 	CgBlock* cur = ent->over;
-	if (Outranks(cur, b, CgStoreGen()))
+	const unsigned gen = CgStoreGen();
+	// A builder can finish a previous world after its old over was swept.
+	// Reject that block even when this entry is empty or holds another stale one.
+	if (b->storeGen != gen)
+	{
+		ReleaseEntry(ent, e);
+		Retire(b);
+		InterlockedIncrement(&s_count.stale);
+		return CGP_OUTRANKED;
+	}
+	if (Outranks(cur, b, gen))
 	{
 		ReleaseEntry(ent, e);
 		Retire(b);
@@ -572,10 +589,12 @@ void CgLivePost(int slot, CgBlock* buf)
 		return;
 	}
 	buf->collSlot = slot;
+	InterlockedIncrement(&s_livePending);
 	CgBlock* prev = (CgBlock*)InterlockedExchangePointer((PVOID volatile*)&s_store->records[slot], buf);
 	InterlockedIncrement(&s_count.posted);
 	if (prev)
 	{
+		InterlockedDecrement(&s_livePending);
 		InterlockedIncrement(&s_count.superseded);
 		CgLiveRelease(prev);
 	}
@@ -593,6 +612,26 @@ void CgDrainRetired()
 {
 	if (!s_store)
 		return;
+	// Same owner/free point as ordinary replacement. At most 32 entries per
+	// frame after reset; no world-wide frame scan and no wait for a writer.
+	const unsigned gen = CgStoreGen();
+	for (int visited = 0; visited < 32 && s_staleCursor < CG_DIR_SLOTS; ++visited)
+	{
+		CgEntry* ent = &s_store->dir[s_staleCursor];
+		// Even an empty entry can have a writer that already read the old
+		// generation. Do not pass it until that writer has published/released.
+		LONG e = TakeEntry(ent, 1);
+		if (e == -1) break;
+		CgBlock* old = ent->over;
+		if (old && old->storeGen != gen)
+		{
+			ent->over = NULL;
+			ReleaseEntry(ent, e);
+			Retire(old);
+		}
+		else ReleaseEntry(ent, e);
+		++s_staleCursor;
+	}
 	PSLIST_ENTRY e = InterlockedFlushSList(&s_store->retire);
 	while (e)
 	{
@@ -676,6 +715,8 @@ int CgPromoteLive(int max)
 		return 0;
 	unsigned gen = CgStoreGen();
 	int taken = 0, published = RetryDeferred(gen);
+	if (InterlockedCompareExchange(&s_livePending, 0, 0) == 0)
+		return published;
 	for (int scanned = 0; scanned < CG_LIVE_RECORDS && taken < max; ++scanned)
 	{
 		int slot = s_promoteCursor;
@@ -684,6 +725,7 @@ int CgPromoteLive(int max)
 		             ? (CgBlock*)InterlockedExchangePointer((PVOID volatile*)&s_store->records[slot], NULL) : NULL;
 		if (!buf)
 			continue;
+		InterlockedDecrement(&s_livePending);
 		++taken;
 		bool stale = buf->storeGen != gen;
 		int dir = stale ? -1 : CgIndexOfUid(buf->uid);

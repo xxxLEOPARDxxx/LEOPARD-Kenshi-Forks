@@ -57,6 +57,7 @@
 #include "planner/coarse_graph_base.h"
 #include "planner/planner_tick.h"
 #include "plugin/profiler_image.h"
+#include "plugin/hook_manifest.h"
 #include "resources/resource_cache.h"
 #include "resources/resource_forward.h"
 
@@ -276,6 +277,7 @@ static bool CameraZoneTicks(void* zoneMgr, bool saveLoading)
 	NpcCapRequesterTick(tickNow);
 #endif
 	ReadinessReportTick(tickNow);
+	InstallSectionDiagnosticsOnDemand();
 	RenderLeversMainThreadTick(saveLoading);
 	OgreJoinSpinTick(tickNow);
 	BenchMainThreadTick(saveLoading);

@@ -32,7 +32,7 @@ public:
 	// equal *name in full, so a name object reused at the same address with
 	// other text misses.
 	const void* Find(const void* map, const MsvcString* name) const;
-	// Records def, which must be the definition map holds for *name. With no
+	// Records def, which must be the definition non-NULL map holds for *name. With no
 	// free slot in the probe window it replaces the key's home slot.
 	void Store(const void* map, const MsvcString* name, const void* def);
 	// Drops every entry of map; returns how many.
@@ -49,5 +49,14 @@ private:
 		char              head[16];
 	};
 	static size_t Home(const void* map, const void* name);
+	enum { MAP_BUCKETS = 1024 };
+	static size_t MapBucket(const void* map);
+	void UnlinkMapSlot(int index);
 	Entry m_slots[SLOTS];
+	// Encoded slot index +1, zero terminates. These fixed chains index only
+	// occupied slots; they own no map/node references and never allocate.
+	unsigned short m_mapHeads[MAP_BUCKETS];
+	unsigned short m_mapNext[SLOTS];
+	unsigned short m_mapPrev[SLOTS];
+	int m_count;
 };

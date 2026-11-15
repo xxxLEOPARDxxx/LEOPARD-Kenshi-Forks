@@ -25,6 +25,7 @@ void hook_addInstance(void* collection, __int64 sectionData,
                       __int64 param3, __int64 param4, int param5)
 {
 	game::g_hookOrig.orig_addInstance(collection, sectionData, param3, param4, param5);
+	if (!DetailedLogEnabled()) return;
 	InterlockedIncrement(&addInstanceHookCalls);
 	NavMeshLifeOnAdd(collection, sectionData);
 	StitchSourceOnAdd(collection, sectionData, param4);
