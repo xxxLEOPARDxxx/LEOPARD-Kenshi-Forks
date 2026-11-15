@@ -3,7 +3,8 @@ from pathlib import Path
 import os,subprocess,hashlib,importlib.util
 ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/hook-batch-admission';OUT.mkdir(parents=True,exist_ok=True)
 spec=importlib.util.spec_from_file_location('pe',ROOT/'tools/kenshilib/check_imports.py');pe=importlib.util.module_from_spec(spec);spec.loader.exec_module(pe)
-p=pe.PE(ROOT.parents[1]/'KenshiLib.dll');raw=(ROOT/'src/plugin/hook_manifest.cpp').read_text();native=(ROOT/'src/game/native_profile.cpp').read_text()
+game=Path(os.environ.get('KENSHI_ROOT', 'D:/SteamLibrary/steamapps/common/Kenshi'))
+p=pe.PE(game/'KenshiLib.dll');raw=(ROOT/'src/plugin/hook_manifest.cpp').read_text();native=(ROOT/'src/game/native_profile.cpp').read_text()
 sha=hashlib.sha256(p.data).hexdigest();assert 'sdkSha[]="'+sha+'"' in native
 nt=p.u32(0x3c);assert p.u32(nt+8)==0x6a8e4636 and p.u32(nt+24+56)==0xec000
 ex=p.offset(p.directories[0][0]);names=p.offset(p.u32(ex+32));ords=p.offset(p.u32(ex+36));funcs=p.offset(p.u32(ex+28));exports={p.string(p.u32(names+4*i)):p.u32(funcs+4*p.u16(ords+2*i)) for i in range(p.u32(ex+24))}
