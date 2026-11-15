@@ -28,8 +28,9 @@ static void TestClaim()
 	Check(NmMarkClaimDecide(marked, 1.0, 1) == NM_CLAIM_NONE, "a type-1 job never consumes a mark");
 	Check(NmMarkClaimDecide(marked, 1.0, 3) == NM_CLAIM_NONE, "an interior job never consumes a mark");
 	Check(NmMarkClaimDecide(marked, NM_REBUILD_MARK_TTL_SEC, 0) == NM_CLAIM_CONSUME &&
-	      NmMarkClaimDecide(marked, NM_REBUILD_MARK_TTL_SEC + 0.001, 0) == NM_CLAIM_EXPIRED,
-	      "a mark expires just past its TTL");
+	      NmMarkClaimDecide(marked, NM_REBUILD_MARK_TTL_SEC + 0.001, 0) == NM_CLAIM_CONSUME &&
+	      NmMarkClaimDecide(marked, NM_REBUILD_MARK_TTL_SEC * 1000.0, 0) == NM_CLAIM_CONSUME,
+	      "required pending marks survive a long backlog");
 	Check(NmMarkClaimDecide(NmMarkWord(3, NM_MARK_CLAIMED), 1.0, 0) == NM_CLAIM_NONE &&
 	      NmMarkClaimDecide(NmMarkWord(3, NM_MARK_DONE), 1.0, 0) == NM_CLAIM_NONE &&
 	      NmMarkClaimDecide(0, 1.0, 0) == NM_CLAIM_NONE,
@@ -72,8 +73,8 @@ static void TestFrontAndBypass()
 	Check(NmMarkWantsFront(marked, 1.0, 0), "a marked cell's type-0 job goes to the front");
 	Check(!NmMarkWantsFront(marked, 1.0, 1) && !NmMarkWantsFront(marked, 1.0, 3),
 	      "only type-0 jobs go to the front");
-	Check(!NmMarkWantsFront(NmMarkWord(2, NM_MARK_CLAIMED), 1.0, 0) && !NmMarkWantsFront(marked, NM_REBUILD_MARK_TTL_SEC + 1.0, 0),
-	      "a claimed or expired mark fronts nothing");
+	Check(!NmMarkWantsFront(NmMarkWord(2, NM_MARK_CLAIMED), 1.0, 0) && NmMarkWantsFront(marked, NM_REBUILD_MARK_TTL_SEC + 1.0, 0),
+	      "claimed work fronts nothing, pending work retains priority past the panel cap");
 	Check(!NmJobMayReadCache(true, true) && !NmJobMayReadCache(false, true),
 	      "a forced job never reads the cache");
 	Check(NmJobMayReadCache(true, false) && !NmJobMayReadCache(false, false),

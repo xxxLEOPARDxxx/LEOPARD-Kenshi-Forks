@@ -232,7 +232,7 @@ static void NoteOutcome(AstarOutcomeHist* h, LONGLONG ticks, LONGLONG us, int it
 
 void AstarCostNote(const AstarCostSample* s, AstarCallerClass cls)
 {
-	if (!s)
+	if (!DetailedLogEnabled() || !s)
 		return;
 
 	AstarClassStats* cs = &g_classStats[cls];
@@ -276,6 +276,7 @@ void AstarCostNote(const AstarCostSample* s, AstarCallerClass cls)
 
 void AstarCostOnTransitionClosed()
 {
+	if (!DetailedLogEnabled()) return;
 	InterlockedIncrement(&g_transitionsCompleted);
 }
 

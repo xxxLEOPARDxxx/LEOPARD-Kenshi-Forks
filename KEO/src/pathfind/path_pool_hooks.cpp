@@ -15,8 +15,9 @@ namespace path_pool_hooks_detail {
 struct PPTlsFlagScope
 {
 	int* flag;
-	explicit PPTlsFlagScope(int* f) : flag(f) { *flag = 1; }
-	~PPTlsFlagScope() { *flag = 0; }
+	int previous;
+	explicit PPTlsFlagScope(int* f, int value = 1) : flag(f), previous(*f) { *flag = value; }
+	~PPTlsFlagScope() { *flag = previous; }
 private:
 	PPTlsFlagScope(const PPTlsFlagScope&);
 	PPTlsFlagScope& operator=(const PPTlsFlagScope&);
@@ -51,6 +52,9 @@ static void* volatile g_sectionMgrPtr = NULL;
 // Set for the duration of hook_contentStream so hook_gatesUpdateCodes (its
 // sole caller, IDA-verified) can confirm it is really running inside a pass.
 static __declspec(thread) int t_inContentStreamPass = 0;
+// Sample only within a pass that began with Debug enabled. A later toggle
+// cannot make an OFF pass inherit an older pass's timestamps.
+static __declspec(thread) int t_measureContentStream = 0;
 
 // Set for the duration of hook_gatesUpdateCodes; PathPoolNoteSearch reads it
 // to attribute path-thread searches to the gate counters instead of the
@@ -120,6 +124,26 @@ char hook_contentStream(void* sectionMgr)
 
 	// Set for the whole call, cleared on return or unwind.
 	PPTlsFlagScope passScope(&t_inContentStreamPass);
+	PPTlsFlagScope measureScope(&t_measureContentStream, DetailedLogEnabled() ? 1 : 0);
+	if (!t_measureContentStream)
+		return fixes::g_fixesCfg.navMeshUpdateGuardEnabled
+			? NavMeshUpdateGuardCall(sectionMgr, orig_contentStream)
+			: orig_contentStream(sectionMgr);
+
+	// A nested pass must restore the outer diagnostic context on return or
+	// unwind. These fields are private to the path-thread diagnostic hooks.
+	struct PassTimingScope
+	{
+		LARGE_INTEGER start, gate, dequeue;
+		LONG iterations, searches;
+		PassTimingScope() : start(g_passStartTicks), gate(g_gatePassEndTicks), dequeue(g_lastDequeueTicks),
+			iterations(g_lastPathIterations), searches(g_passSearchCount) {}
+		~PassTimingScope()
+		{
+			g_passStartTicks = start; g_gatePassEndTicks = gate; g_lastDequeueTicks = dequeue;
+			g_lastPathIterations = iterations; g_passSearchCount = searches;
+		}
+	} timingScope;
 
 	// Queue depth at pass start, on the path thread -- a racy main-thread
 	// read is not needed since we already sample here every pass.
@@ -175,6 +199,11 @@ void* hook_dequeueWork(void* queueBase)
 	void* mgr = g_sectionMgrPtr;
 	if (req && mgr && queueBase == (void*)KLIB_MEMBER(5, (char*)mgr, NavMesh_characterMessages, PATHQ_INPUT_OFFSET))
 	{
+		// A request may reuse storage carrying an earlier ON stamp. Clear it
+		// even while OFF, before a later ON completion could consume it.
+		*(LONGLONG*)((char*)req + REQ_STAMP_OFFSET) = 0;
+		if (!DetailedLogEnabled() || !t_measureContentStream)
+			return req;
 		LARGE_INTEGER now;
 		QueryPerformanceCounter(&now);
 		*(LONGLONG*)((char*)req + REQ_STAMP_OFFSET) = now.QuadPart;
@@ -195,7 +224,8 @@ void hook_enqueueThreadSafe(void* queueBase, void** itemPtr)
 	void* mgr = g_sectionMgrPtr;
 	void* req = itemPtr ? *itemPtr : NULL;
 
-	if (req && mgr && queueBase == (void*)KLIB_MEMBER(5, (char*)mgr, NavMesh_completedMessages, PATHQ_RESULT_OFFSET))
+	if (DetailedLogEnabled() && t_measureContentStream && req && mgr
+	    && queueBase == (void*)KLIB_MEMBER(5, (char*)mgr, NavMesh_completedMessages, PATHQ_RESULT_OFFSET))
 	{
 		LONG status = *(LONG*)((char*)req + REQ_STATUS_OFFSET);
 		LONGLONG stamp = *(LONGLONG*)((char*)req + REQ_STAMP_OFFSET);

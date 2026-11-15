@@ -6,7 +6,10 @@ namespace navmesh {
 void SpliceRingInit(SpliceRing* r)
 {
 	for (int i = 0; i < SPLICE_RING_SLOTS; ++i)
+	{
 		r->slot[i].seq = SPLICE_SEQ_EMPTY;
+		r->slot[i].cancelled = SPLICE_SEQ_EMPTY;
+	}
 	r->written = r->claimFailed = r->lost = r->overwritten = r->readPub = 0;
 	r->read = 0;
 	r->stallAt = -1;
@@ -14,9 +17,8 @@ void SpliceRingInit(SpliceRing* r)
 }
 
 // SpliceRingPush's claim and publish: false when the claim failed and was counted.
-static bool ClaimAndFill(SpliceRing* r, const float box[6])
+static bool ClaimAndFillAt(SpliceRing* r, const float box[6], LONG idx, bool required)
 {
-	const LONG idx = InterlockedIncrement(&r->written) - 1;
 	SpliceRingSlot* s = &r->slot[idx & (SPLICE_RING_SLOTS - 1)];
 	const LONG cur = InterlockedCompareExchange(&s->seq, 0, 0);
 	// Held by another producer, or already holding a newer lap's record: drop this one.
@@ -24,6 +26,8 @@ static bool ClaimAndFill(SpliceRing* r, const float box[6])
 	 || InterlockedCompareExchange(&s->seq, SPLICE_SEQ_WRITING, cur) != cur)
 	{
 		InterlockedIncrement(&r->claimFailed);
+		if (required)
+			InterlockedExchange(&s->cancelled, idx);
 		return false;
 	}
 	for (int i = 0; i < 6; ++i)
@@ -34,18 +38,24 @@ static bool ClaimAndFill(SpliceRing* r, const float box[6])
 
 void SpliceRingPush(SpliceRing* r, const float box[6])
 {
-	ClaimAndFill(r, box);
+	ClaimAndFillAt(r, box, InterlockedIncrement(&r->written) - 1, false);
 }
 
 SplicePush SpliceRingTryPush(SpliceRing* r, const float box[6])
 {
-	const LONG w = InterlockedCompareExchange(&r->written, 0, 0);
-	if (w - InterlockedCompareExchange(&r->readPub, 0, 0) >= SPLICE_RING_SLOTS)
-		return SPLICE_PUSH_FULL;
-	return ClaimAndFill(r, box) ? SPLICE_PUSH_TAKEN : SPLICE_PUSH_CLAIM_FAILED;
+	for (int attempt = 0; attempt < 8; ++attempt)
+	{
+		const LONG w = InterlockedCompareExchange(&r->written, 0, 0);
+		const LONG read = InterlockedCompareExchange(&r->readPub, 0, 0);
+		if ((ULONG)w - (ULONG)read >= SPLICE_RING_SLOTS)
+			return SPLICE_PUSH_FULL;
+		if (InterlockedCompareExchange(&r->written, (LONG)((ULONG)w + 1u), w) == w)
+			return ClaimAndFillAt(r, box, w, true) ? SPLICE_PUSH_TAKEN : SPLICE_PUSH_CLAIM_FAILED;
+	}
+	return SPLICE_PUSH_FULL; // bounded backpressure; no index and no accepted record
 }
 
-int SpliceRingDrain(SpliceRing* r, float (*out)[6], int max)
+static int Drain(SpliceRing* r, float (*out)[6], int max, bool required)
 {
 	int n = 0;
 	const LONG w = InterlockedCompareExchange(&r->written, 0, 0);
@@ -88,6 +98,16 @@ int SpliceRingDrain(SpliceRing* r, float (*out)[6], int max)
 			continue;
 		}
 		// Empty, being written, or an older lap's record: not published yet, or its claim failed.
+		if (required)
+		{
+			if (InterlockedCompareExchange(&s->cancelled, 0, 0) == r->read)
+			{
+				InterlockedIncrement(&r->lost); // refused claim: caller retains native fallback
+				++r->read;
+				continue;
+			}
+			break; // an active producer may be preempted; retry on a later drain
+		}
 		if (r->stallAt == r->read && ++r->stallPasses >= SPLICE_RING_STALL_PASSES)
 		{
 			InterlockedIncrement(&r->lost);           // abandoned
@@ -104,6 +124,16 @@ int SpliceRingDrain(SpliceRing* r, float (*out)[6], int max)
 	}
 	InterlockedExchange(&r->readPub, r->read);
 	return n;
+}
+
+int SpliceRingDrain(SpliceRing* r, float (*out)[6], int max)
+{
+	return Drain(r, out, max, false);
+}
+
+int SpliceRingDrainRequired(SpliceRing* r, float (*out)[6], int max)
+{
+	return Drain(r, out, max, true);
 }
 
 } // namespace navmesh

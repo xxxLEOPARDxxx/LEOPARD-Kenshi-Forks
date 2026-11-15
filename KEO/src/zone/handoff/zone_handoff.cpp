@@ -527,6 +527,10 @@ static void AdvanceReady(void* zoneMgr, double now)
 
 static void AdmitCohort(void* zoneMgr, double now)
 {
+	// Main owns both the state transitions and their occupancy counters.
+	// The common idle case needs no full-grid ready collection.
+	if (ZonePrepLedgerCountInState(&g_zonePrepLedger, ZONE_STATE_READY_FOR_ADOPTION) == 0)
+		return;
 	ZoneIdentity ready[ZONE_ADOPT_COHORT_MAX];
 	int n = ZonePrepLedgerCollectReady(&g_zonePrepLedger, ready, ZONE_ADOPT_COHORT_MAX);
 	if (ZonePrepLedgerCountInState(&g_zonePrepLedger, ZONE_STATE_READY_FOR_ADOPTION) > n)

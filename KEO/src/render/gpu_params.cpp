@@ -19,7 +19,8 @@
 // lives; a definition is a map node's value, stable while its
 // GpuNamedConstants lives. The admitted native control block deletes through
 // the OgreMain function watched below. SDK/custom control blocks retain
-// conservative assignment invalidation rather than assuming that delete path.
+// conservative assignment invalidation and bypass persistent caches, since
+// their final release need not pass through that delete path.
 
 #ifdef KEO_DEBUG
 static const bool DEV_BUILD = true;
@@ -43,6 +44,9 @@ static const void*            s_nativeNamedInfoVtable = NULL;
 
 // Counts GpuNamedConstants deletions, raised before the object is freed.
 static volatile LONG s_namedConstantsDeleted = 0;
+// Changes before any watched deletion or conservative map rebind. Upload
+// plans keep raw map-node pointers and must rebuild even without a deletion.
+static volatile LONG s_namedConstantsRevision = 0;
 
 // Main thread only, apart from s_flushPending: another thread that deletes or
 // replaces a GpuNamedConstants cannot touch the table, so it asks for a full
@@ -64,7 +68,7 @@ static const ModuleSite s_setNamedSite =
 };
 
 // GpuNamedConstants' deleting destructor (this, flags), not exported. Both
-// deleters a GpuNamedConstantsPtr is created with end here.
+// admitted native control block ends here; SDK/custom deleters need not.
 static const ModuleSite s_deleteSite =
 {
 	"GpuNamedConstants deleting destructor", "OgreMain_x64.dll", NULL,
@@ -75,6 +79,14 @@ static const ModuleSite s_deleteSite =
 static const void* NamedConstantsOf(const void* params)
 {
 	return *(const void* const*)((const char*)params + KLIB_OFF_GpuProgramParameters_namedConstants);
+}
+
+bool GpuNamedConstantsCacheable(const void* params)
+{
+	if (!s_nativeNamedInfoVtable || !params || !NamedConstantsOf(params))
+		return false;
+	const void* info = *(const void* const*)((const char*)params + KLIB_OFF_GpuProgramParameters_namedConstants + sizeof(void*));
+	return info && *(const void* const*)info == s_nativeNamedInfoVtable;
 }
 
 static const void* VerifiedNativeNamedInfoVtable()
@@ -98,6 +110,7 @@ static void InvalidateNamedConstants(const void* namedConstants)
 {
 	if (!namedConstants)
 		return;
+	InterlockedIncrement(&s_namedConstantsRevision);
 	if (IsMainThread())
 		s_cache.DropMap(namedConstants);
 	else
@@ -123,7 +136,7 @@ static const void* CachedLookup(const void* params, const void* name)
 		InterlockedExchange(&s_flushPending, 0);
 		s_cache.Clear();
 	}
-	if (!map)
+	if (!map || !GpuNamedConstantsCacheable(params))
 		return s_origGetConstDef(params, name);
 	const MsvcString* key = (const MsvcString*)name;
 	const void* def = s_cache.Find(map, key);
@@ -254,6 +267,11 @@ bool InstallGpuNamedConstantsWatch()
 LONG GpuNamedConstantsDeleted()
 {
 	return s_namedConstantsDeleted;
+}
+
+LONG GpuNamedConstantsRevision()
+{
+	return s_namedConstantsRevision;
 }
 
 // The invalidation hooks go in before the cache can store anything, so no

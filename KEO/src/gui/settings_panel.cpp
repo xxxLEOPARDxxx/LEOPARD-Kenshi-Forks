@@ -72,7 +72,9 @@ struct GatedLine
 } // namespace settings_panel_detail
 using namespace settings_panel_detail;
 
-static const int MAX_GATED = 8;
+// Each gated member is a staged config row. Cover the full bounded staging
+// capacity so adding a group never silently leaves its later rows enabled.
+static const int MAX_GATED = CONFIG_MODULE_MAX * CONFIG_STAGE_MAX;
 static GatedLine s_gated[MAX_GATED];
 static int       s_gatedCount = 0;
 static const unsigned char kCheckboxToggleCallback[18] =

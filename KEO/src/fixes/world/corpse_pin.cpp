@@ -63,6 +63,10 @@ static Ogre::Vector3* __fastcall hook_calculateCurrentPos(ActivePlatoon* self, O
 		Character* c = isChar ? (Character*)member : NULL;
 		members[i].isCharacter    = isChar;
 		members[i].isDead         = isChar && c->isDead();
+		// Any living character makes the original position authoritative.
+		// Avoid querying the rest of a normal living squad a second time.
+		if (isChar && !members[i].isDead)
+			return result;
 		members[i].isBeingCarried = isChar && c->_isBeingCarried;
 	}
 

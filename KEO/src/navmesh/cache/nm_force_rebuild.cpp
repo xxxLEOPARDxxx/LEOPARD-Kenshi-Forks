@@ -168,8 +168,8 @@ static uintptr_t ZoneTerrain(void* zone)
 	return *(uintptr_t*)(KLIB_MEMBER(4, (uintptr_t)zone, ZoneMap_terrainCollision, OFF_ZONE_TERRAIN_COLLISION));
 }
 
-// A full list retires its oldest entry: a mark still MARKED is cleared and
-// counted expired. A cell already listed takes the new word in place.
+// A full reporting tracker retires only its oldest tracking entry; required
+// invalidation remains in the fixed per-cell word. A listed cell updates in place.
 static void AddLive(int cell, long word, void* zone)
 {
 	for (int i = 0; i < s_liveCount; ++i)
@@ -183,11 +183,9 @@ static void AddLive(int cell, long word, void* zone)
 	}
 	if (s_liveCount >= LIVE_CAP)
 	{
-		const LiveMark& old = s_live[0];
-		const LONG cur = InterlockedCompareExchange(&s_markWord[old.cell], 0, 0);
-		if (NmMarkSeqOf(cur) == NmMarkSeqOf(old.word) && NmMarkStateOf(cur) == NM_MARK_MARKED
-		    && InterlockedCompareExchange(&s_markWord[old.cell], NmMarkWord(NmMarkSeqOf(cur), NM_MARK_NONE), cur) == cur)
-			InterlockedIncrement(&s_expired);
+		// Only the small live tracker rolls over. The fixed per-cell word is
+		// required cache invalidation, not a queue entry or a reporting lease:
+		// it must still be consumed when this cell's job eventually claims.
 		for (int i = 1; i < s_liveCount; ++i)
 			s_live[i - 1] = s_live[i];
 		--s_liveCount;
@@ -542,11 +540,11 @@ bool NmForceRebuildHoldsDismissal()
 	return true;
 }
 
-// Expired marks are cleared, and so are marks whose cell lost its content (a
-// job the game popped itself never reaches a claim). Entries of another press,
-// and finished ones, leave the list.
+// Pending marks keep their per-cell invalidation across a long wait or unload.
+// Only superseded or completed tracking entries leave this small reporting list.
 static void SweepLiveMarks(LONGLONG now)
 {
+	(void)now;
 	int kept = 0;
 	for (int i = 0; i < s_liveCount; ++i)
 	{
@@ -555,23 +553,10 @@ static void SweepLiveMarks(LONGLONG now)
 		if (NmMarkSeqOf(cur) != NmMarkSeqOf(m.word))
 			continue;
 		const int state = NmMarkStateOf(cur);
-		if (state == NM_MARK_MARKED)
-		{
-			const LONG none = NmMarkWord(NmMarkSeqOf(cur), NM_MARK_NONE);
-			if (AgeSec(InterlockedCompareExchange64(&s_markQpc[m.cell], 0, 0), now) > NM_REBUILD_MARK_TTL_SEC)
-			{
-				if (InterlockedCompareExchange(&s_markWord[m.cell], none, cur) == cur)
-					InterlockedIncrement(&s_expired);
-				continue;
-			}
-			if (!ZoneContent(m.zone))
-			{
-				if (InterlockedCompareExchange(&s_markWord[m.cell], none, cur) == cur)
-					InterlockedIncrement(&s_lost);
-				continue;
-			}
-		}
-		else if (state != NM_MARK_CLAIMED)
+		// A time limit releases the panel, not the required rebuild. A cell
+		// that unloads can be loaded again with the same cache key; preserve
+		// its debt until a job consumes it or OnWorldReset cancels the world.
+		if (state != NM_MARK_MARKED && state != NM_MARK_CLAIMED)
 			continue;
 		s_live[kept++] = m;
 	}

@@ -16,7 +16,7 @@ const LONG SPLICE_SEQ_WRITING       = -2;   // claimed by a producer, being fill
 const int  SPLICE_RING_STALL_PASSES = 2;    // drain passes an unpublished index may hold the cursor
 
 // seq: SPLICE_SEQ_EMPTY, SPLICE_SEQ_WRITING, or the index of the record the slot holds.
-struct SpliceRingSlot { volatile LONG seq; float box[6]; };
+struct SpliceRingSlot { volatile LONG seq; volatile LONG cancelled; float box[6]; };
 struct SpliceRing
 {
 	SpliceRingSlot slot[SPLICE_RING_SLOTS];
@@ -38,14 +38,19 @@ void SpliceRingInit(SpliceRing* r);
 // it and publishes the index last. A failed claim drops the record and counts claimFailed.
 void SpliceRingPush(SpliceRing* r, const float box[6]);
 enum SplicePush { SPLICE_PUSH_TAKEN = 0, SPLICE_PUSH_FULL, SPLICE_PUSH_CLAIM_FAILED };
-// Any thread, no lock, no allocation, no loop. FULL, taking no index, while the producers are a
-// full ring ahead of the drain's published cursor; otherwise SpliceRingPush's claim and publish:
-// TAKEN, or CLAIM_FAILED when the claim fails (counted in claimFailed; the drain later passes the
-// index as lost).
+// Any thread, no lock or allocation. Atomically reserves capacity, with at most eight CAS tries;
+// FULL takes no index, for a full window or sustained reservation contention. Otherwise publishes
+// TAKEN, or explicitly cancels its index for CLAIM_FAILED (native fallback is then still owed).
+// Required work must use DrainRequired below. Do not mix lossy Push with required records in one
+// ring: Push is allowed to overwrite an older record whatever its consumer needs.
 SplicePush SpliceRingTryPush(SpliceRing* r, const float box[6]);
 // Main thread: copies up to max records in index order and returns the count; every index below
 // written is accounted once, as drained or as lost.
 int  SpliceRingDrain(SpliceRing* r, float (*out)[6], int max);
+// Required-work consumer of a TryPush-only ring. A reserved but unpublished index stays pending
+// across any number of passes; the call returns rather than waits for its producer. Only an
+// explicitly cancelled failed claim is skipped. It never abandons accepted work on a timeout.
+int  SpliceRingDrainRequired(SpliceRing* r, float (*out)[6], int max);
 
 } // namespace navmesh
 

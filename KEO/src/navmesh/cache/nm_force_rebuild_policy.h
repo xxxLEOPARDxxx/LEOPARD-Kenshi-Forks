@@ -7,7 +7,7 @@
 const int    NM_REBUILD_GRID          = 64;     // cells per axis; a cell's index is gx * 64 + gy
 const int    NM_REBUILD_MAX_CELLS     = 4;      // the camera's cell and at most three neighbours
 const float  NM_REBUILD_EDGE_FRACTION = 0.25f;  // within this share of a side, the cell across it is rebuilt too
-const double NM_REBUILD_MARK_TTL_SEC  = 60.0;   // a mark older than this forces nothing
+const double NM_REBUILD_MARK_TTL_SEC  = 60.0;   // a new key press may replace a claimed job this old; pending marks do not expire
 const double NM_REBUILD_HOLD_CAP_SEC  = 60.0;   // the panel is never held longer after a press
 const long   NM_MARK_SEQ_MAX          = 0x1FFFFFFF;
 
@@ -21,8 +21,8 @@ inline int  NmMarkStateOf(long word)         { return (int)(word & 3); }
 inline long NmMarkSeqOf(long word)           { return (long)((unsigned long)word >> 2); }
 long NmMarkNextSeq(long seq);
 
-// A claim: CONSUME a MARKED mark with a type-0 job within the TTL; EXPIRED past
-// it (the main thread clears it); NONE otherwise. A type-1 job's cache key is
+// A claim: CONSUME a MARKED mark with a type-0 job, regardless of its age;
+// NONE otherwise. EXPIRED is retained as a legacy enum value. A type-1 job's cache key is
 // not the exterior tile's, so it never consumes one.
 enum NmMarkClaim { NM_CLAIM_NONE = 0, NM_CLAIM_CONSUME, NM_CLAIM_EXPIRED };
 NmMarkClaim NmMarkClaimDecide(long word, double ageSec, int jobType);
@@ -39,7 +39,7 @@ NmMarkPress NmMarkCellDecide(long word, double ageSec, bool keepClaimed);
 // A press's cell has ended: its mark is DONE or NONE, or names another press.
 bool NmMarkPressFinished(long pressWord, long nowWord);
 
-// The queue's front: a type-0 job of a cell whose mark is MARKED within the TTL.
+// The queue's front: a type-0 job of a cell whose required mark is MARKED.
 bool NmMarkWantsFront(long word, double ageSec, int jobType);
 
 // A forced job reads neither L1 nor L2: the entry it would read is the one it replaces.

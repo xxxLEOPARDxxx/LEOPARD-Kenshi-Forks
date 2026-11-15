@@ -16,7 +16,7 @@ namespace bench_pin_run_detail {
 
 enum Phase
 {
-	PH_IDLE,      // no pin: the rate is the game's, or the tripwire puts it back
+	PH_IDLE,      // no pin: only an unpaid KEO clock write may be restored
 	PH_ENTER,     // read the clock, start forwarding or take it as is
 	PH_FORWARD,   // the fast rate until the hour is reached
 	PH_WEATHER,   // the force, once the pose is a second old
@@ -48,6 +48,10 @@ static const double WEATHER_POSE_SEC = 1.0;   // the active region is the pose's
 static const double HOLD_CHECK_SEC  = 1.0;
 
 static PinState s_pin;   // main thread only
+// Kept outside PinState: a new/failed arm must not erase an unpaid restore.
+// Merely observing an already-equal foreign rate does not create ownership.
+static bool s_clockRestorePending = false;
+static float s_ownedClockRate = 0.0f;
 
 static long long Qpc()
 {
@@ -73,20 +77,28 @@ static const char* ModeName(int mode)
 }
 
 // The mode's rate, once the clock has reached the hour.
+static bool WriteRate(float rate)
+{
+	s_pin.wrote = rate;
+	if (BenchClockRate() == rate)
+		return true;
+	if (!BenchSetClockRate(rate))
+		return false;
+	s_ownedClockRate = rate;
+	s_clockRestorePending = rate != BenchClockDefaultRate();
+	return true;
+}
+
 static bool WriteHold()
 {
-	s_pin.wrote = BenchPinRate(BPP_HOLD, s_pin.spec.mode, s_pin.speed, 0.0f, BenchClockDefaultRate());
-	return BenchSetClockRate(s_pin.wrote);
+	return WriteRate(BenchPinRate(BPP_HOLD, s_pin.spec.mode, s_pin.speed, 0.0f, BenchClockDefaultRate()));
 }
 
 static bool WriteForward()
 {
 	float rate = BenchPinRate(BPP_FORWARD, s_pin.spec.mode, s_pin.speed, s_pin.progress.ahead - s_pin.progress.done,
 	                          BenchClockDefaultRate());
-	if (BenchClockRate() == rate)
-		return true;
-	s_pin.wrote = rate;
-	return BenchSetClockRate(rate);
+	return WriteRate(rate);
 }
 
 // What no longer holds, or NULL. A held weather's end is kept ahead of the clock.
@@ -231,13 +243,34 @@ const char* BenchPinHoldLost()
 	return s_pin.phase == PH_HELD ? Lost() : NULL;
 }
 
+static bool RestoreClock()
+{
+	if (g_navMeshStopSeen)
+	{
+		s_clockRestorePending = false;
+		return false;
+	}
+	if (!s_clockRestorePending || !BenchClockReady())
+		return false;
+	float rate = BenchClockRate();
+	float normal = BenchClockDefaultRate();
+	if (rate != normal && rate != s_ownedClockRate)
+	{
+		// Another writer has taken over since our successful write.
+		s_clockRestorePending = false;
+		return false;
+	}
+	if (rate != normal && !BenchSetClockRate(normal))
+		return false;
+	s_clockRestorePending = false;
+	return true;
+}
+
 void BenchPinRelease()
 {
-	bool held = s_pin.phase != PH_IDLE;
 	s_pin.phase = PH_IDLE;
-	if (!held || !BenchClockReady() || BenchClockRate() == BenchClockDefaultRate())
+	if (!RestoreClock())
 		return;
-	BenchSetClockRate(BenchClockDefaultRate());
 	// No world read while the game is quitting or a save loads.
 	bool readable = !g_navMeshStopSeen && BenchTransitionClear();
 	Logf("Bench: clock rate restored hour=%s day=%d qpc=%lld", BenchHourText(readable ? BenchGetHour() : -1.0f).c_str(),
@@ -246,10 +279,9 @@ void BenchPinRelease()
 
 void BenchPinIdleTick()
 {
-	if (s_pin.phase != PH_IDLE || !BenchClockReady() || BenchClockRate() == BenchClockDefaultRate())
+	if (s_pin.phase != PH_IDLE || !RestoreClock())
 		return;
-	if (BenchSetClockRate(BenchClockDefaultRate()))
-		Logf("Bench: clock rate was left changed outside a run, restored qpc=%lld", Qpc());
+	Logf("Bench: pending clock rate restore completed qpc=%lld", Qpc());
 }
 
 std::string BenchPinHeaderText()

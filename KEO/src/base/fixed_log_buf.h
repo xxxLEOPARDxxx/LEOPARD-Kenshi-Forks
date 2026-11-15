@@ -17,7 +17,7 @@ struct FixedLogBufN
 
 typedef FixedLogBufN<352> FixedLogBuf;
 
-// Caller-owned storage: b points at cap bytes.
+// Caller-owned storage: b points at cap bytes; NULL is valid only when cap is zero.
 struct FlbExternal
 {
 	char*  b;
@@ -97,10 +97,18 @@ inline void FlbHexDigits(B* o, unsigned __int64 v, int digits)
 		FlbChar(o, "0123456789ABCDEF"[(size_t)((v >> (i * 4)) & 0xF)]);
 }
 
-// Terminates the line and hands back the C string; the caller logs it. The
-// terminator goes through FlbChar's rule too, so a line that already holds
-// cap - 1 bytes is left unterminated: its last byte keeps whatever it held.
+// Terminates the line and hands back the C string; the caller logs it. Preserve
+// FlbChar's count when room remains, but always use the reserved byte at capacity.
+// Zero-capacity external storage is returned untouched, without a C-string promise.
 template <class B>
-inline const char* FlbDone(B* o) { FlbChar(o, '\0'); return o->b; }
+inline const char* FlbDone(B* o)
+{
+	const size_t cap = FlbCap(o);
+	if (cap && o->n == cap - 1)
+		o->b[cap - 1] = '\0';
+	else
+		FlbChar(o, '\0');
+	return o->b;
+}
 
 #endif // KEO_BASE_FIXED_LOG_BUF_H

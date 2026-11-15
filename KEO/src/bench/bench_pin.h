@@ -48,6 +48,6 @@ int         BenchPinStep(double now, double posedAt, std::string* why);   // -1 
 // NULL while held; "hour", "day", "weather", "region" or "rate". While held, it
 // also keeps a pinned weather's end ahead of the clock.
 const char* BenchPinHoldLost();
-void        BenchPinRelease();        // writes the game's rate back when changed; idempotent
-void        BenchPinIdleTick();       // the tripwire while no run holds a pin
+void        BenchPinRelease();        // restores a successful KEO clock write; idempotent
+void        BenchPinIdleTick();       // retries only KEO's unpaid restore while idle
 std::string BenchPinHeaderText();     // the spec as applied, for pin=

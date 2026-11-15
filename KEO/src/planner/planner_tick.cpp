@@ -88,6 +88,7 @@ static int            s_walkUids[SNAP_SLOTS];
 // The tick's own state. Main thread.
 static double         s_lastTick      = 0.0;
 static unsigned       s_storeGen      = 0;
+static int            s_replanCursor  = 0;   // next slot after the last attempted re-plan
 
 // Per-call scratch of the order capture and the re-plan. Main thread.
 static Built          s_memo[MEMO_ENTRIES];
@@ -735,6 +736,27 @@ static bool TickSlot(int slot, const PlayerChar* players, int nPlayers, double n
 	return true;
 }
 
+// Every active slot is still validated once. A failed attempt must not let
+// permanently unlocatable low-index plans monopolise all later ticks' budget.
+static void TickPlanSlots(const PlayerChar* players, int nPlayers, double now, int replanBudget)
+{
+	if (nPlayers < 0)
+		return;
+	const int first = s_replanCursor;
+	int replans = 0;
+	for (int scanned = 0; scanned < PLAN_SLOTS; ++scanned)
+	{
+		int slot = (first + scanned) % PLAN_SLOTS;
+		if (!PlanStoreKey(slot))
+			continue;
+		if (TickSlot(slot, players, nPlayers, now, replans < replanBudget))
+		{
+			++replans;
+			s_replanCursor = (slot + 1) % PLAN_SLOTS;
+		}
+	}
+}
+
 void PlannerTick(void* zoneMgr, double now)
 {
 	if (PlanStoreMode() == PLANNER_OFF) return;
@@ -749,6 +771,7 @@ void PlannerTick(void* zoneMgr, double now)
 	{
 		PlanStoreReset();
 		s_storeGen = gen;
+		s_replanCursor = 0;
 	}
 	// Keep load/generation retirement and wall-time reporting alive, but do not
 	// expire, replace or search character routes while simulation is paused.
@@ -760,16 +783,9 @@ void PlannerTick(void* zoneMgr, double now)
 	TakeSnapshot();
 	PlayerChar players[PLAYER_SCAN_MAX];
 	int nPlayers = ReadPlayers(players);
-	int replans = 0;
 	// A list too long to scan skips every slot this tick: an unscanned character would read as no
 	// longer a player and drop.
-	for (int slot = 0; nPlayers >= 0 && slot < PLAN_SLOTS; ++slot)
-	{
-		if (!PlanStoreKey(slot))
-			continue;
-		if (TickSlot(slot, players, nPlayers, activeNow, replans < REPLANS_PER_TICK))
-			++replans;
-	}
+	TickPlanSlots(players, nPlayers, activeNow, REPLANS_PER_TICK);
 	PlannerWaterRefresh();
 	MergeTick(activeNow);
 	PlannerReportTick(now);

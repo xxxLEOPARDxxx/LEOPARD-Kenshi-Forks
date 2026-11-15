@@ -370,6 +370,12 @@ static int ReadUidOr(const void* nav, int fallback)
 static int hook_nmgStitch(void* nmg, void* a, void* b)
 {
 	const int site = SiteOf(_ReturnAddress());
+	// The adjacency check belongs to scheduling even when forensic recording
+	// is off. Nothing in the tables below is consumed by native work.
+	NmAdjCheckStitch(a, b, site == STITCH_SITE_SPLICE);
+	if (!DetailedLogEnabled())
+		return orig_nmgStitch(nmg, a, b);
+
 	InterlockedIncrement(&s_calls);
 	InterlockedIncrement(&s_site[site]);
 
@@ -382,7 +388,6 @@ static int hook_nmgStitch(void* nmg, void* a, void* b)
 	}
 	// Before the original copies either side's mesh and graph: does this
 	// stitch's job overlap another live navmesh job (nm_adjacency.h)?
-	NmAdjCheckStitch(a, b, site == STITCH_SITE_SPLICE);
 	const int slot = ClaimInFlight(ReadUidOr(a, -1), ReadUidOr(b, -1));
 	int r = CallOrigCounted(nmg, a, b, slot);
 
@@ -419,6 +424,7 @@ void StitchSourceNoteAddObserver()
 
 void StitchSourceOnAdd(void* collection, __int64 sectionData, __int64 graphInstance)
 {
+	if (!DetailedLogEnabled()) return;
 	if (!s_installed || !collection || !sectionData || !graphInstance)
 		return;
 	// The insert takes the graph instance only into an empty slot; read the
@@ -452,6 +458,7 @@ void StitchSourceOnAdd(void* collection, __int64 sectionData, __int64 graphInsta
 
 void StitchSourceBeginFired(const void* graphInstance, long callNo)
 {
+	if (!DetailedLogEnabled()) return;
 	// Both entries of one teardown are consecutive un-stitch calls on one
 	// instance; anything else is a new teardown, even at a reused address.
 	s_repeatCall = (graphInstance == s_lastFiredGi && callNo == s_lastFiredCall + 1);
@@ -683,6 +690,7 @@ static const char* s_notInstalledWhy = "not attempted";
 
 void StitchSourceTick(double now)
 {
+	if (!DetailedLogEnabled()) return;
 	if (now < s_nextBeat)
 		return;
 	s_nextBeat = now + kBeatSeconds;

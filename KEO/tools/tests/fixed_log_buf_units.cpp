@@ -1,5 +1,5 @@
-// The fixed line builder against verbatim copies of the private builders it replaced: every
-// form, at every buffer capacity in use, over zero, signs, widths and the capacity edge.
+// The fixed line builder against the private builders it replaced, with the corrected
+// termination contract: every form and capacity, plus independent poisoned-storage edges.
 
 #include "check.h"
 #include "base/fixed_log_buf.h"
@@ -13,7 +13,12 @@
 // The append rule and the terminator write.
 static void RefChar(char* b, size_t cap, size_t* pn, char c) { if (*pn + 1 < cap) b[(*pn)++] = c; }
 static void RefStr(char* b, size_t cap, size_t* pn, const char* s) { while (s && *s) RefChar(b, cap, pn, *s++); }
-static void RefDone(char* b, size_t cap, size_t* pn) { RefChar(b, cap, pn, '\0'); }
+static void RefDone(char* b, size_t cap, size_t* pn)
+{
+	// Preserve the legacy count; only the formerly uninitialized reserved byte changes.
+	if (cap && *pn == cap - 1) b[cap - 1] = '\0';
+	else RefChar(b, cap, pn, '\0');
+}
 
 // Signed decimal.
 static void RefDec(char* b, size_t cap, size_t* pn, __int64 v)
@@ -146,8 +151,16 @@ static void RunForms(B* o, char* ob, size_t cap, char* ref)
 	}
 }
 
-// A line of exactly cap - 1 characters leaves the last byte as it was: no terminator is
-// written. A string past the capacity keeps its first cap - 1 bytes.
+// Regression: the previous parity test required a full line to stay unterminated.
+// Logging consumes the result as a C string, so that behavior read beyond the buffer.
+static size_t BoundedLength(const char* text, size_t cap)
+{
+	size_t n = 0;
+	while (n < cap && text[n]) ++n;
+	return n;
+}
+
+// Termination must fit even when appending used every available content byte.
 template <class B>
 static void RunEdges(B* o, char* ob, size_t cap)
 {
@@ -161,8 +174,9 @@ static void RunEdges(B* o, char* ob, size_t cap)
 	FlbDone(o);
 	sprintf_s(msg, sizeof(msg), "cap=%u: a line of cap - 1 characters ends with n == cap - 1", (unsigned)cap);
 	Check(o->n == cap - 1, msg);
-	sprintf_s(msg, sizeof(msg), "cap=%u: a line of cap - 1 characters leaves b[cap - 1] unwritten", (unsigned)cap);
-	Check(ob[cap - 1] == 'Z', msg);
+	sprintf_s(msg, sizeof(msg), "cap=%u: a full line terminates in the reserved byte", (unsigned)cap);
+	Check(ob[cap - 1] == '\0', msg);
+	Check(BoundedLength(ob, cap) == cap - 1, "full line has a bounded C-string length");
 
 	char longStr[1100];
 	for (size_t i = 0; i < cap + 10; ++i)
@@ -175,6 +189,40 @@ static void RunEdges(B* o, char* ob, size_t cap)
 	Check(o->n == cap - 1, msg);
 	sprintf_s(msg, sizeof(msg), "cap=%u: a string past the capacity keeps its first cap - 1 bytes", (unsigned)cap);
 	Check(memcmp(ob, longStr, cap - 1) == 0, msg);
+	Check(FlbDone(o) == ob, "termination returns caller storage without copying");
+	Check(BoundedLength(ob, cap) == cap - 1, "truncated line has a bounded C-string length");
+	Check(o->n == cap - 1, "termination does not advance a saturated count");
+	longStr[cap] = '\0';
+	memset(ob, kFill, cap);FlbInit(o);FlbStr(o, longStr);FlbDone(o);
+	Check(BoundedLength(ob, cap) == cap - 1 && memcmp(ob, longStr, cap - 1) == 0,
+	      "an input exactly equal to capacity keeps cap-1 content bytes and terminates");
+
+	memset(ob, kFill, cap);
+	FlbInit(o);
+	for (size_t i = 0; i + 2 < cap; ++i) FlbChar(o, 'b');
+	const size_t before = o->n;
+	FlbDone(o);
+	Check(ob[before] == '\0', "a short line terminates after its content");
+	Check(o->n == (before + 1 < cap ? before + 1 : before), "short termination preserves append/count semantics");
+	Check(BoundedLength(ob, cap) == before, "short line has the expected bounded length");
+	Check(cap < 2 || (unsigned char)ob[cap - 1] == kFill, "short termination leaves later storage untouched");
+}
+
+static void CheckTinyStorage()
+{
+	char bytes[3] = { 'L', 'X', 'R' };
+	FlbExternal zero = { bytes + 1, 0, 0 };
+	FlbStr(&zero, "ignored");
+	Check(FlbDone(&zero) == bytes + 1 && zero.n == 0 && bytes[1] == 'X', "zero capacity neither appends nor terminates");
+	FlbExternal nullZero = { NULL, 0, 0 };
+	Check(FlbDone(&nullZero) == NULL && nullZero.n == 0, "null zero-capacity external storage is untouched");
+	FlbExternal one = { bytes + 1, 1, 0 };
+	FlbStr(&one, "ignored");
+	Check(FlbDone(&one) == bytes + 1 && one.n == 0 && bytes[1] == '\0', "capacity one is an empty terminated string");
+	Check(bytes[0] == 'L' && bytes[2] == 'R', "tiny storage preserves surrounding canaries");
+	FixedLogBufN<1> fixedOne;
+	fixedOne.b[0] = 'X';FlbInit(&fixedOne);FlbChar(&fixedOne, 'a');
+	Check(FlbDone(&fixedOne)[0] == '\0' && fixedOne.n == 0, "fixed capacity one terminates without consuming content");
 }
 
 // A few lines against literals, so the reference copies are not the only witness.
@@ -221,6 +269,8 @@ int main()
 	Check(sizeof(((FixedLogBuf*)0)->b) == 352, "FixedLogBuf's array is 352 bytes");
 
 	CheckLiterals();
+	CheckTinyStorage();
+	RunFixed<2>();
 	RunFixed<320>();
 	RunFixed<352>();
 	RunFixed<384>();

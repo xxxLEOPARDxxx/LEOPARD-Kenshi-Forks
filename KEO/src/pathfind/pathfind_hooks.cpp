@@ -645,6 +645,17 @@ void hook_findPathFull(void* streamingCollection, void* searchState, void* findP
 	c.astarReturnAddr = astarReturnAddr;
 	TakeFindPathWave(c);
 	ResolveFindPathRequest(c);
+	if (!DetailedLogEnabled())
+	{
+		// Consume the one-shot owner label before native/nested calls, just
+		// as CountFindPathWave does on the diagnostic path. Budget ownership
+		// and hierarchical search remain independent of diagnostic sampling.
+		t_waveAuth = 0;
+		c.pathPoolBoosted = 0;
+		BoostFindPathBudget(searchState, c);
+		AstarHierSearch(streamingCollection, searchState, findPathOutput, astarReturnAddr, c.pathPoolPlayerByReq);
+		return;
+	}
 	ReadFindPathInput(searchState, c);
 	CountFindPathWave(c);
 	c.slowGoalData = -1;

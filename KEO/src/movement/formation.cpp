@@ -825,16 +825,24 @@ void PollFormationGroups()
 	// Read playerCharacters lektor once for validation. Without a readable list
 	// no member can be validated, and no member may be dereferenced unvalidated,
 	// so the whole poll is skipped for this frame. Groups keep their state and
-	// are polled again as soon as the list comes back.
+	// are polled again as soon as the list comes back. Revoke only the previous
+	// frame's speed factors: the getSpeed hook must not keep slowing characters
+	// whose gathering membership cannot currently be validated.
+	FormationPaceFrameBegin();
 	uintptr_t playerIntf = *(uintptr_t*)((uintptr_t)GameAddr(RVA_GLOBAL_PLAYER));
 	if (!playerIntf)
+	{
+		FormationPaceFramePublish();
 		return;
+	}
 	unsigned int scCount = GetPlayerCharCount(playerIntf);
 	uintptr_t* scStuff   = GetPlayerCharStuff(playerIntf);
 	if (!scStuff || scCount == 0 || scCount > 200)
+	{
+		FormationPaceFramePublish();
 		return;
+	}
 
-	FormationPaceFrameBegin();
 	for (int g = 0; g < MAX_FORMATION_GROUPS; ++g)
 		PollFormationGroup(g, now, scCount, scStuff);
 	FormationFollowPoll(now, scCount, scStuff);

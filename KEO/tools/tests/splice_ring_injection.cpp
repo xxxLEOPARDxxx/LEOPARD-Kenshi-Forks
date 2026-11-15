@@ -61,7 +61,8 @@ namespace splice_ring_injection_detail
 	void DrainOnce()
 	{
 		float out[WIDE][6];
-		const int got = SpliceRingDrain(&g_ring, out, g_keepPace ? WIDE : BATCH);
+		const int got = g_tryPush ? SpliceRingDrainRequired(&g_ring, out, g_keepPace ? WIDE : BATCH)
+		                         : SpliceRingDrain(&g_ring, out, g_keepPace ? WIDE : BATCH);
 		for (int k = 0; k < got; ++k)
 			Check(out[k]);
 		g_drained += got;
@@ -160,6 +161,12 @@ static int RunPhase(const char* name, bool keepPace, bool requireLap, bool tryPu
 		if (written != ok + claimFailed)
 		{
 			printf("splice ring %s: accounting written=%ld ok=%ld claimFailed=%ld\n", name, written, ok, claimFailed);
+			return 1;
+		}
+		if (g_drained != ok || lost != claimFailed || overwritten != 0)
+		{
+			printf("splice ring %s: accepted delivery drained=%ld ok=%ld lost=%ld claimFailed=%ld overwritten=%ld\n",
+			       name,g_drained,ok,lost,claimFailed,overwritten);
 			return 1;
 		}
 		if (refused == 0)

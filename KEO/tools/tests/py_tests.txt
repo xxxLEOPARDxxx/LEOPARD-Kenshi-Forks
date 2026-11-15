@@ -15,3 +15,6 @@
 97 tools\build\test_run_variants.py
 98 tools\tests\test_test_gate_select.py when=tools/tests/test_gate*.py,tools/tests/run_suites.py,tools/tests/check.h,tools/tests/check_test_guards.py
 99 tools\tests\test_git_fixture.py when=tools/tests/git_fixture.py
+100 tools\tests\test_nm_force_rebuild_delivery.py when=src/navmesh/cache/nm_force_rebuild*,tools/tests/test_nm_force_rebuild_delivery.py
+101 tools\tests\test_splice_ring_delivery.py when=src/navmesh/construction/splice_ring*,src/navmesh/construction/splice_seam.cpp,tools/tests/splice_ring_delivery.cpp,tools/tests/test_splice_ring_delivery.py
+102 tools\tests\test_stitch_diagnostic_boundaries.py when=src/fixes/stitch/stitch_source*,src/fixes/stitch/stitch_byte_guard.cpp,tools/tests/test_stitch_diagnostic_boundaries.py

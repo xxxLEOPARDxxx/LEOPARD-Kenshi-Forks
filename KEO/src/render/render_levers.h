@@ -52,6 +52,12 @@ bool InstallGpuNamedConstantsWatch();
 // Any thread: how many GpuNamedConstants have been deleted, each counted
 // before it is freed.
 LONG GpuNamedConstantsDeleted();
+// Any thread: map-node lifetime revision, including conservative same-map
+// rebinding. Separate from the count of actual watched deletions.
+LONG GpuNamedConstantsRevision();
+// Owner only, borrowed params/SharedPtr fields: verified native final-release
+// contract required before retaining any map-node pointer across callbacks.
+bool GpuNamedConstantsCacheable(const void* params);
 // Whether lookups currently go through the cache.
 bool GpuParamCacheActive();
 

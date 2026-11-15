@@ -1,0 +1,386 @@
+[
+  {
+    "path": "src/fixes/crash_claim.cpp",
+    "lines": 38,
+    "sha256": "c2950914510d1c73a2bb4fa6c5061646b317bded18cb95829db9e39bc499b89c",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/crash_claim.h",
+    "lines": 36,
+    "sha256": "ff38d347e95381e0ae1cfd51a8ae8761b4e28e01926681df74e779853b7c75e2",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "lines": 363,
+    "sha256": "2f1b271a7dce9e5b5269858bb090e6413fc50d68814fdb93184c2bff2955fbf0",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "lines": 242,
+    "sha256": "5d924cc3dc3b9a36f2bcd4e018ae258c842ffc9c97ee375e1e05c45a3e542089",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/guard_report.h",
+    "lines": 94,
+    "sha256": "5b5e384c0c6bc855c50144b637cb7556d2388b050612bb1136eed0af74e69ad9",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/near_page.cpp",
+    "lines": 37,
+    "sha256": "71f5af0587040af521021dda5106fa3f74dbe3aeac1db0455db64fc0742ee3b8",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/near_page.h",
+    "lines": 13,
+    "sha256": "7fdfadcb21e3893c21aabcbcbd1c263dc982d8da8fef9d2cf2d7bf23e4b4f7e1",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/create_instance_guard.cpp",
+    "lines": 380,
+    "sha256": "6f5cbc208a9d03e8b50f99f6976975e2c08005f5ede1543a73e838383f32757f",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/create_instance_guard.h",
+    "lines": 22,
+    "sha256": "dd8ba3f70c122f0fd94132813ac66d09b082799b65b5fb7e0b1473c571661163",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/create_instance_guard_policy.cpp",
+    "lines": 118,
+    "sha256": "60af3a8ae057ce04447fb823fc0c7c480dd2d3d4de64f9259742ba23e3c9f1e1",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/create_instance_guard_policy.h",
+    "lines": 134,
+    "sha256": "034e78e5af1e62ca162f2e6ded8cd9102e307b5457956fe50e97ea34b60955f1",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/mesh_face_guard.cpp",
+    "lines": 294,
+    "sha256": "81defff25b5c5a2dd48e6c55d4c4871a0d4126b05e0bcc3a934bcc9e10f57ec7",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/mesh_face_guard.h",
+    "lines": 31,
+    "sha256": "4086851463b0cc317fbd8be937b1dd54d7c245774205fb7652d9072c2a2bce40",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/mesh_face_guard_policy.cpp",
+    "lines": 58,
+    "sha256": "a07049be8cc140300e5b4ad1ce61706b69a4a5e9c16f63995a2caaef02c3d21d",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/mesh_face_guard_policy.h",
+    "lines": 94,
+    "sha256": "388a50dd06833a6e0739a891ef4c1567842f7b73ae3b2d8c66dc3850acb329f0",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_guard_policy.cpp",
+    "lines": 31,
+    "sha256": "a4aa8ce7b8bbefaa70d8a6b4f5e17f085cbe4e59acac610b00464ef2885750d4",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_guard_policy.h",
+    "lines": 46,
+    "sha256": "3382e5f21ff76d75768ef9a7bf4ca15f69d42b44382b9bd83da6f0283d54ab10",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_life.cpp",
+    "lines": 287,
+    "sha256": "6bd97d663d1d0891e9a9fd9ccdab4062063b77696fa2eab14f298cd5ad4482cb",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_life.h",
+    "lines": 27,
+    "sha256": "7b1571cea4c5f3ffad260b3c9006c4f841b13997ab6860084755de4d110cb37a",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_update_guard.cpp",
+    "lines": 499,
+    "sha256": "d26b586ff9fd65ca1d30089b1b39f3547850f7dad2140d1f604c428d6eb738bd",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/navmesh_update_guard.h",
+    "lines": 44,
+    "sha256": "17ca88ebf88ffb2f807135fc832a0b4d720b928e399c4e457b6d121d81fda8a8",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_policy.cpp",
+    "lines": 28,
+    "sha256": "bab7ac6292910ef87ff73065b02e4298da856231f11f4be2c9b8b4d21b129d93",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_policy.h",
+    "lines": 34,
+    "sha256": "ba26da5cb384ce5ee8827d7108a1bc5f249e6d042830e94c1c9ea218cb064cb9",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_probe.cpp",
+    "lines": 126,
+    "sha256": "e1a66d807fd57ca851095d8e18d6c24f5c6d6bb6b716d1a690c9f9521cb8ea8c",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_probe.h",
+    "lines": 8,
+    "sha256": "c54e32285365f02fb3a290489ad70980f51fd46c9c644d68b129958d2c407d26",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_ring.cpp",
+    "lines": 272,
+    "sha256": "1c8c718235b77d2dd72da4a99b5442b96f0f1148c54017172f5847cd4a6212d7",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_ring.h",
+    "lines": 76,
+    "sha256": "69180a02a236ce8ba3e751c49dd9dcd42a1b38cb556deccc7d7aa238410388a0",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_scan.cpp",
+    "lines": 177,
+    "sha256": "ffac308146fb02d8cd90c335c4ce10cb0ab45337a72f49820eba2d062d976313",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/streaming/section_key_scan.h",
+    "lines": 15,
+    "sha256": "5a12d8ac4b229fdf6e1579ad23c634410c1cca9df4bc7d9c562398e2d6621713",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/corpse_pin.cpp",
+    "lines": 141,
+    "sha256": "027772266c0eca49be1245b4caea02cf83849b14fbf093f6aa25c1c055e95d35",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/corpse_pin.h",
+    "lines": 25,
+    "sha256": "2e1a6fa1d24eb9fa3284b65ad8a24fbf83150e4f1f3f267d5aed6ac57fdf5897",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/corpse_pin_policy.cpp",
+    "lines": 26,
+    "sha256": "88d13c54b2b06a13c17993f3ddf9fa5f0a24e15cdfd021ff838bddd8ecdf5df3",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/corpse_pin_policy.h",
+    "lines": 37,
+    "sha256": "335600cb39024bb40781ce2c98b4076fc5672294cda940231aee71b22d35b2da",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/destroy_list_defer.cpp",
+    "lines": 469,
+    "sha256": "83cb0d8c8bf050d15f964237e93eb78723d42f528c1f591d205c3c2aed5bc8fd",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/destroy_list_defer.h",
+    "lines": 115,
+    "sha256": "d7ede167b0b6486ccafe0b0c73acf9c924bd6cd32320fcf875a3296c81ee3f7e",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/faction_relations.cpp",
+    "lines": 216,
+    "sha256": "9142c58b3dd36ab5d6d9a089aeeabbc15454585bfc49eed5f9f6f651b65be7e2",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/faction_relations.h",
+    "lines": 12,
+    "sha256": "19bd3460af6b8b598f374a1ed81581484e61457f4b7996b03ddd3cfe41b51d63",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/faction_relations_policy.cpp",
+    "lines": 116,
+    "sha256": "1a5b2116308f56d2c4eef8d7d6245992dc8d6807a434f9b7286176c8be4ea805",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/faction_relations_policy.h",
+    "lines": 71,
+    "sha256": "1bc973d2a0843f008ba3905dcd9b04419bc93d5989db5fb60d9f8de97b65b8bd",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/nest_validation.cpp",
+    "lines": 167,
+    "sha256": "89a39141c39bdcf3e7c72f6f91c441846848780f1239b7b68d3c9b993d23a3e6",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/nest_validation.h",
+    "lines": 55,
+    "sha256": "33d761897137d378bf25dfc7d1ebfd1f985aa9be84172a39b75e84ef447efde9",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/nest_validation_policy.cpp",
+    "lines": 27,
+    "sha256": "fae0d08d9a854b1b7cd51c229c9e869e4cf6ded0b2e1550faff11554a90da81c",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/nest_validation_policy.h",
+    "lines": 45,
+    "sha256": "be78f7b0db4b877c09f8200f945d42656802a9f0cc2235d6542974a63b387fa6",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/onscreen_stagger.cpp",
+    "lines": 252,
+    "sha256": "240a090fc84385685ef3585099ca39a740eeae3d9068fb19e925644d2189a9f6",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/onscreen_stagger.h",
+    "lines": 17,
+    "sha256": "0669a61bbf44be75d4e2dd0a6f6fc956d1b1427f8853b05430851b68c3625825",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/onscreen_stagger_policy.cpp",
+    "lines": 66,
+    "sha256": "728ecfe7b3f6127f5ca47b8105db8843447039d7fa303066c51b997ad29329a5",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/onscreen_stagger_policy.h",
+    "lines": 75,
+    "sha256": "a3ef471624f73d8690504cb82a26b04a7154f62050f2d50bb7a05252423c9e6f",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/paused_skip.cpp",
+    "lines": 149,
+    "sha256": "521f5aba18f3128b7c094955f8bbc9fbcd68652d0af8f3718db957b4dbc1fe63",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/paused_skip.h",
+    "lines": 15,
+    "sha256": "baa354cec613a6cbab0013bc92a1d3f29251a99f82aed63ddff2ceb6a356bf9d",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/paused_skip_policy.cpp",
+    "lines": 29,
+    "sha256": "c083fff3e68fc648ce77bcbd4e0667b40b40e660e3733ba4eae9c9a6237837f0",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/paused_skip_policy.h",
+    "lines": 56,
+    "sha256": "ae3496326c330aac5c512df6300b7bb13b9a8e985aa451259cc46ae737bd911d",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout.cpp",
+    "lines": 411,
+    "sha256": "d61abc25db187c9163f6c1478841647300243308cb57c67d43e0bc46e60cd6ce",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout.h",
+    "lines": 25,
+    "sha256": "ce93ca8b0da4fe5279910238b5b853fe6e2502887a894f0c1e1ee69476d3e498",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_finder.cpp",
+    "lines": 286,
+    "sha256": "0665b5a8958584e8a7f9461a008d95e79a0accba0fd6c4e49addad9602a37d3d",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_hold.cpp",
+    "lines": 155,
+    "sha256": "f929979f52cdedb23c38ea4198828a880a81ffd510141317f764ab8f4e0af91e",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_hold.h",
+    "lines": 40,
+    "sha256": "6597816e7aab9e3304718960f6d44b6a03fecc944d8f7fbda0f8b431177f0bf8",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_internal.h",
+    "lines": 31,
+    "sha256": "44b8d83c2c6b07aaac86fd4b44379e5170e4da8795fa1fe85bc56988f114d631",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_policy.cpp",
+    "lines": 125,
+    "sha256": "b7cb2bc9a14a389fc4d4f2b592a8ff8cd38597d0441d33a8928b7a4e7768115a",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/throwout_policy.h",
+    "lines": 70,
+    "sha256": "4724406a325a23d1b12c9d3bbfd666addb7cb8d91edce41086afa194d82b84bd",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/town_claim.cpp",
+    "lines": 415,
+    "sha256": "55180bddd3714d4ad882ab25b828ea17f0bab31939e5dd1ebbde8d6acbdb6e22",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/town_claim.h",
+    "lines": 34,
+    "sha256": "48b21221ce9bf31486718fb90cdec186320e9b738092fc0d50734a99be05367c",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/town_claim_patch.cpp",
+    "lines": 159,
+    "sha256": "abe3804a6b2671029206e136efc4d387e24d4fba096c798a1e41a47b19c937ad",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/town_claim_policy.cpp",
+    "lines": 191,
+    "sha256": "5b97e66cc76fcb93e3a5827568ef8ad3126c246406dd5363b4da4f4339593c84",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  },
+  {
+    "path": "src/fixes/world/town_claim_policy.h",
+    "lines": 129,
+    "sha256": "9d382ae25c7d176947c4ee68dc310cce6600420f0edc840ce651b8d905aed078",
+    "coverage": "Body/header read; dependencies, lifetime and cadence reviewed"
+  }
+]

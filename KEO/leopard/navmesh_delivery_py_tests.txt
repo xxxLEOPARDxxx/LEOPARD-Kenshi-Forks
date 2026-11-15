@@ -1,0 +1,2 @@
+100 tools\tests\test_nm_force_rebuild_delivery.py
+101 tools\tests\test_splice_ring_delivery.py

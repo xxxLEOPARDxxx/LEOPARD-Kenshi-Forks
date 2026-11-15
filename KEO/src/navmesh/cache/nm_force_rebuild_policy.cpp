@@ -10,9 +10,10 @@ long NmMarkNextSeq(long seq)
 
 NmMarkClaim NmMarkClaimDecide(long word, double ageSec, int jobType)
 {
+	(void)ageSec; // an unclaimed rebuild is required until claim or world reset
 	if (jobType != 0 || NmMarkStateOf(word) != NM_MARK_MARKED)
 		return NM_CLAIM_NONE;
-	return ageSec > NM_REBUILD_MARK_TTL_SEC ? NM_CLAIM_EXPIRED : NM_CLAIM_CONSUME;
+	return NM_CLAIM_CONSUME;
 }
 
 NmMarkPress NmMarkPressDecide(long word, double ageSec)
@@ -35,7 +36,8 @@ bool NmMarkPressFinished(long pressWord, long nowWord)
 
 bool NmMarkWantsFront(long word, double ageSec, int jobType)
 {
-	return jobType == 0 && NmMarkStateOf(word) == NM_MARK_MARKED && ageSec <= NM_REBUILD_MARK_TTL_SEC;
+	(void)ageSec;
+	return jobType == 0 && NmMarkStateOf(word) == NM_MARK_MARKED;
 }
 
 static int EdgeStep(float frac)

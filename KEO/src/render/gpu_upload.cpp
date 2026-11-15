@@ -281,6 +281,16 @@ static void* TrySkip(void* program, void** paramsPtr, UploadShadow** pending)
 		return NULL;
 	++s_skipCalls;
 	const char* params = (const char*)paramsPtr[0];
+	// Only admitted native map owners publish their final deletion through our
+	// watch. Unknown/SDK maps must never contribute persistent node pointers.
+	if (!GpuNamedConstantsCacheable(params))
+	{
+		++s_notCompared;
+		// Native may overwrite a buffer whose previous tracked copy is still
+		// valid. Refresh copies before any later tracked skip can trust them.
+		InterlockedExchange(&s_invalidateCopies, 1);
+		return NULL;
+	}
 	void* buffer = NULL;
 	UploadShadow* s = params && paramsPtr[1] ? AcquireCopy(node, uniform, params, &buffer) : NULL;
 	if (!s)
@@ -293,7 +303,7 @@ static void* TrySkip(void* program, void** paramsPtr, UploadShadow** pending)
 	// The map is read before the deletion count: a map freed and replaced at
 	// the same address was counted before params could point at it.
 	const void* map = *(const void* const volatile*)(params + KLIB_OFF_GpuProgramParameters_namedConstants);
-	long mapGen = GpuNamedConstantsDeleted();
+	long mapGen = GpuNamedConstantsRevision();
 	if (!UploadPlanMatches(s, map, vars, varsEnd, mapGen))
 	{
 		// A new plan starts from an invalid copy (ReservePlan): its ranges

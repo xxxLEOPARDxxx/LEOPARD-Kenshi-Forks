@@ -176,33 +176,6 @@ static bool           g_curValid = false;
 static int            g_compOverflow = 0;
 static bool           g_inputsLogged = false;
 
-// Scratch for a rebuild
-static short          g_ufParent[ZONE_GRID_COUNT];
-static unsigned char  g_included[ZONE_GRID_COUNT];
-static unsigned char  g_isMod[ZONE_GRID_COUNT];
-static short          g_newComp[ZONE_GRID_COUNT];
-static unsigned short g_newMemberStart[MAX_COMPS];
-static unsigned short g_newMemberCount[MAX_COMPS];
-static unsigned short g_newMembers[MAX_MEMBERS];
-static short          g_rootComp[ZONE_GRID_COUNT];
-
-static int UfFind(int i)
-{
-	while (g_ufParent[i] != i)
-	{
-		g_ufParent[i] = g_ufParent[g_ufParent[i]];
-		i = g_ufParent[i];
-	}
-	return i;
-}
-
-static void UfUnion(int a, int b)
-{
-	int ra = UfFind(a), rb = UfFind(b);
-	if (ra == rb) return;
-	if (ra < rb) g_ufParent[rb] = ra; else g_ufParent[ra] = rb;
-}
-
 // Walk Set B (main thread). Fills g_setBIdx / g_inSetB and the signature.
 void WalkSetB(uintptr_t zm)
 {
@@ -271,113 +244,30 @@ static void PublishSnapshot(bool valid, uintptr_t zm)
 static void DumpComponents();
 static void LogInputsOnce(uintptr_t zm);
 
-// Full rebuild (main thread). Publishes only when the result changes.
-//
-// g_isMod (and so every mod-seeded component below) is permanently empty:
-// the mod never publishes a zone as accessible outside Set A/B any more (a private cell
-// is +176 only; an adopted one is a real Set B member from the moment it
-// can become accessible), so nothing can ever satisfy the old eligibility
-// test (marked, accessible, not in Set B). The union-find and component
-// derivation below still run -- they cost a linear pass over the grid, no
-// more -- but seed zero components every time, so the component answer never
-// applies: both hooks return the vanilla answer except where the far-span
-// rule (hook_isInIsland) or the edge-ring filter (hook_getIsland) changes it.
+// The component overlay has no producer: its old private static g_isMod
+// scratch was cleared at every rebuild and never set or exposed. Adoption
+// now uses native Set A/B ownership. Publish the identical empty result once
+// after startup/reset; keep WalkSetB and its signature independent for the
+// active far-span/edge-ring paths. No ZoneMap reads belong in this rebuild.
 void Rebuild(uintptr_t zm, double now)
 {
-	memset(g_included, 0, sizeof(g_included));
-	memset(g_isMod, 0, sizeof(g_isMod));
-	// Permanently 0 along with g_isMod (see above); flows into g_curModZones,
-	// the mod= token on the Islands: and Island snapshot lines, and the *
-	// per-member marker in DumpComponents, all of which read constant now.
-	int modZones = 0;
 	g_lastEligibility = now;
+	g_compOverflow = 0;
+	g_curModZones = 0;
+	if (g_curValid) return;
 
-	// --- accessible Set B zones ---
-	for (int i = 0; i < g_setBCount; ++i)
-	{
-		int idx = g_setBIdx[i];
-		if (ZoneAccess(ZoneAt(zm, idx)))
-			g_included[idx] = 1;
-	}
-
-	// --- union-find over neighbors[4] ---
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx) g_ufParent[idx] = (short)idx;
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx)
-	{
-		if (!g_included[idx]) continue;
-		uintptr_t z = ZoneAt(zm, idx);
-		for (int k = 0; k < ZONE_NEIGHBOR_COUNT; ++k)
-		{
-			uintptr_t nb = *(uintptr_t*)(KLIB_ZONE_NEIGHBOR(2, z, k));
-			int ni = ZoneIndexOf(zm, nb);
-			if (ni < 0 || !g_included[ni]) continue;
-			UfUnion(idx, ni);
-		}
-	}
-
-	// --- components with at least one mod zone ---
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx) { g_rootComp[idx] = -1; g_newComp[idx] = -1; }
-	int compCount = 0;
-	int overflow = 0;
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx)
-	{
-		if (!g_isMod[idx]) continue;
-		int r = UfFind(idx);
-		if (g_rootComp[r] >= 0) continue;
-		if (compCount >= MAX_COMPS) { overflow++; continue; }
-		g_rootComp[r] = (short)compCount++;
-	}
-	for (int c = 0; c < compCount; ++c) g_newMemberCount[c] = 0;
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx)
-	{
-		if (!g_included[idx]) continue;
-		int c = g_rootComp[UfFind(idx)];
-		if (c < 0) continue;
-		g_newComp[idx] = (short)c;
-		g_newMemberCount[c]++;
-	}
-	int pos = 0;
-	for (int c = 0; c < compCount; ++c)
-	{
-		g_newMemberStart[c] = (unsigned short)pos;
-		pos += g_newMemberCount[c];
-		g_newMemberCount[c] = 0;   // reused as a fill cursor below
-	}
-	for (int idx = 0; idx < ZONE_GRID_COUNT; ++idx)
-	{
-		int c = g_newComp[idx];
-		if (c < 0) continue;
-		g_newMembers[g_newMemberStart[c] + g_newMemberCount[c]++] = (unsigned short)idx;
-	}
-
-	// --- publish on change ---
-	bool changed = !g_curValid
-	            || compCount != g_curCompCount
-	            || memcmp(g_newComp, g_curComp, sizeof(g_newComp)) != 0
-	            || memcmp(g_isMod, g_curIsMod, sizeof(g_isMod)) != 0;
-	if (!changed && compCount > 0)
-	{
-		if (memcmp(g_newMemberStart, g_curMemberStart, compCount * sizeof(unsigned short)) != 0
-		    || memcmp(g_newMemberCount, g_curMemberCount, compCount * sizeof(unsigned short)) != 0
-		    || memcmp(g_newMembers, g_curMembers, pos * sizeof(unsigned short)) != 0)
-			changed = true;
-	}
-	g_compOverflow = overflow;
-	g_curModZones = modZones;
-	if (!changed) return;
-
-	memcpy(g_curComp, g_newComp, sizeof(g_curComp));
-	memcpy(g_curIsMod, g_isMod, sizeof(g_curIsMod));
-	memcpy(g_curMemberStart, g_newMemberStart, sizeof(g_curMemberStart));
-	memcpy(g_curMemberCount, g_newMemberCount, sizeof(g_curMemberCount));
-	memcpy(g_curMembers, g_newMembers, sizeof(g_curMembers));
-	g_curCompCount = compCount;
+	// BSS initializes comp[] to zero before the first ResetBuilder, whereas
+	// the valid empty snapshot requires -1 for every zone.
+	for (int i = 0; i < ZONE_GRID_COUNT; ++i) g_curComp[i] = -1;
+	memset(g_curIsMod, 0, sizeof(g_curIsMod));
+	memset(g_curMemberStart, 0, sizeof(g_curMemberStart));
+	memset(g_curMemberCount, 0, sizeof(g_curMemberCount));
+	memset(g_curMembers, 0, sizeof(g_curMembers));
+	g_curCompCount = 0;
 	g_curValid = true;
 	g_snapGen++;
 	PublishSnapshot(true, zm);
 	DumpComponents();
-	if (!g_inputsLogged && pos > 0)
-		LogInputsOnce(zm);
 }
 
 void ResetBuilder()

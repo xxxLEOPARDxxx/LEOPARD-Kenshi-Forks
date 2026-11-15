@@ -229,7 +229,10 @@ size_t SectionKeyRingFormat(char* buf, size_t cap, int maxEntries)
 	for (int r = 0; r < kSiteCount; ++r)
 	{
 		int shown = 0;
-		for (LONG n = Read(&s_next[r]); n > 0 && shown < maxEntries; --n)
+		int visited = 0;
+		// Older tickets cannot still occupy this ring. In-flight/unpublished
+		// slots must not turn crash formatting into a full session walk.
+		for (LONG n = Read(&s_next[r]); n > 0 && shown < maxEntries && visited < kRingSize; --n, ++visited)
 		{
 			const SectionKeyEntry& e = s_ring[r][(n - 1) % kRingSize];
 			if (Read((volatile LONG*)&e.seq) != n)

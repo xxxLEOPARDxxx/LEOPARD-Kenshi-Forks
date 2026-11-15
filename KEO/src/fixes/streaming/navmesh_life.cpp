@@ -235,7 +235,7 @@ static int Sample(const unsigned char* inst, const void* collection,
 
 void NavMeshLifeOnAdd(void* collection, __int64 instance)
 {
-	if (!fixes::g_fixesCfg.navMeshLifeEnabled)
+	if (!fixes::g_fixesCfg.navMeshLifeEnabled || !DetailedLogEnabled())
 		return;
 	InterlockedIncrement(&s_adds);
 	Sample((const unsigned char*)instance, collection, "ADD", -1);
@@ -244,6 +244,8 @@ void NavMeshLifeOnAdd(void* collection, __int64 instance)
 
 static __int64 hook_removeInstance(__int64 collection, __int64 instance, __int64 graphInstance)
 {
+	if (!DetailedLogEnabled())
+		return orig_removeInstance(collection, instance, graphInstance);
 	InterlockedIncrement(&s_rets);
 	Sample((const unsigned char*)instance, (const void*)collection, "RET", 0);
 	// Emitted before the original, so a session that dies in the removal still

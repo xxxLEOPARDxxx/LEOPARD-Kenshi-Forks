@@ -450,7 +450,10 @@ size_t StitchByteGuardCrashFormat(char* buf, size_t cap, int maxEntries)
 	QueryPerformanceCounter(&nowQpc);
 
 	int shown = 0;
-	for (LONG n = Read(&s_next); n > 0 && shown < maxEntries; --n)
+	// Unpublished/overwritten slots cannot be recovered by walking older
+	// session tickets. Bound crash work even if every writer is interrupted.
+	int examined = 0;
+	for (LONG n = Read(&s_next); n > 0 && shown < maxEntries && examined < kRingSize; --n, ++examined)
 	{
 		const StitchByteEntry& e = s_ring[(n - 1) % kRingSize];
 		if (Read((volatile LONG*)&e.seq) != n)

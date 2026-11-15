@@ -283,7 +283,7 @@ static bool DropHeld(bool saveLoading)
 	float discard[SPLICE_RING_SLOTS][6];
 	for (int pass = 0; pass < 4; ++pass)
 	{
-		const int n = SpliceRingDrain(&s_seam.ring, discard, SPLICE_RING_SLOTS);
+		const int n = SpliceRingDrainRequired(&s_seam.ring, discard, SPLICE_RING_SLOTS);
 		if (n == 0)
 			break;
 		InterlockedExchangeAdd(&s_seam.droppedLoad, n);
@@ -302,7 +302,7 @@ static void DrainIntoPending()
 	if (freeSlots == 0)
 		return;
 	float recs[kSeamPendingSlots][6];
-	const int n = SpliceRingDrain(&s_seam.ring, recs, freeSlots);
+	const int n = SpliceRingDrainRequired(&s_seam.ring, recs, freeSlots);
 	int slot = 0;
 	for (int r = 0; r < n; ++r)
 	{

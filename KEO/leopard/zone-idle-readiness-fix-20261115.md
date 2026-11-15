@@ -1,0 +1,17 @@
+# Private phase-2 fixes: idle handoff and readiness diagnostics (2026-11-15)
+
+Stage only, production frozen. `src/zone/handoff/zone_handoff.cpp` SHA256 `8d8c0100cabd0c34947b8f8aea9a33521ac268c6d6bb2a8481b37c3272a43ed3`; `src/zone/readiness/readiness_hook.cpp` SHA256 `94349dfb250581d4d2ca869fdec69035085c4e656a3b11a421ceadbfc23dea9f`. No game/process access, collection, installation, full DLL build or source-checkout edits by this agent.
+
+## Idle ready collection
+
+AdmitCohort previously scanned the4096-entry prep ledger on every quiet/idle frame, even no READY cell. It now returns on existing READY occupancy0 before collecting. Counter correctness checked at its entire owner: Init initializes occupancy, Begin updates old/new state, valid SetState updates both synchronously, Release decrements RETIRING and increments UNLOADED, ClearAll delegates Init. Main is the only writer/caller and ZoneHandoffTick EnsureInit precedes admission. No worker can change it between test and collection. Nonzero ready collection/order/flag rechecks/native insertion/cap32/saturation/retirement unchanged; no new maintained count or state.
+
+Actual production AdmitCohort fixture linked against real zone_prep_ledger.cpp and zone_ledger_core.cpp failed original source on first idle collector-call count; original RED composed source/build/run preserved `build/zone-ready-idle`. New /Od+/O2 each191 controls incl repeated empty frames, ready last cell,32+1 cohort, native flag refusal/retry, retirement and world ClearAll. Three compiled guard mutants runtime RED. Test `leopard/test_zone_ready_idle.cpp/.py`.
+
+## Debug-OFF readiness
+
+At ZONEHAND_STEP>=2, ZoneReadinessContractDecide unconditionally preserves the native result. After the unchanged main transition prioritization and original call, Debug OFF now immediately returns that exact result before section/position/ledger reads, counter updates or diagnostic collection scan. Debug ON executes the original diagnostic path, including off-main1/16 sample cadence. Below step2 the added block is preprocessed out: the complete hook minus exactly this block equals source baseline byte-for-byte. External functional ClassifyZoneReadiness definition is also byte-identical to baseline; K7/island call sites unchanged. The gate does not alter native scheduling, readiness, spawn, cache or queue ordering. No new hook.
+
+Actual complete hook extracted into `leopard/test_readiness_debug_gate.cpp/.py`, linked real contract policy. Engine original/classifier effects replaced by spies only. Original failed on Debug-OFF diagnostic calls; RED composed source/build/run preserved `build/readiness-debug-gate`. New /Od+/O2 each4610 controls: full original/debug/thread/deferral/override/rule/loading/class/section matrix, exact native result/call count, Debug-OFF PAGE_NOACCESS manager/position/zone pointers, prioritization once even OFF, original throw propagation, Debug1/16 sampling,1000 OFF calls not advancing sampling, resume. Six compiled production mutants runtime RED. Classifier-source proof JSON pinned and exact unchanged legacy-hook assertion in runner.
+
+Actual changed production TUs/c /O2 DEV+PROD passed `build/zone-movement-hotpath-production`. Independent review requested before integration. No measured FPS or CPU benefit asserted; tests establish removal of the diagnostic calls and preservation of answers/priority, with engine native bodies outside standalone fixture coverage.

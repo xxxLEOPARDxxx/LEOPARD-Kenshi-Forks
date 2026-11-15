@@ -14,10 +14,13 @@
 // original returns, what each graph's set now holds: the index range, the
 // opposite graph and its node count, and which caller reached it. No lock, no
 // allocation and no logging there -- interlocked counters and a lock-free
-// table only. The read side is called by the guard for every set it drops a
+// table only, while DetailedLog is enabled. The adjacency scheduling check
+// remains active independently. Enabling recording mid-session gives partial
+// forensic history; the tables are never reset under active stitch workers.
+// The read side is called by the guard for every set it drops a
 // record from, looks the write up and classifies the drop in one line.
 
-// Every build; the counters exist whenever the prologue verifies.
+// Every build; forensic counters advance only while DetailedLog is enabled.
 void InstallStitchSource(int* installed, int*);
 
 // Streaming-collection insert observer, called after the original has run.

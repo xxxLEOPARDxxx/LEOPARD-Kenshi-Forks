@@ -501,6 +501,13 @@ bool hook_isContentPending(void* manager, void* zonePos)
 	}
 
 	bool result = game::g_hookOrig.orig_isContentPending(manager, zonePos);
+#if ZONEHAND_STEP >= 2
+	// Native readiness is unconditional at this step. Everything below is
+	// diagnostic classification/counting; keep its collection scans, locks,
+	// clocks and atomics out of ordinary play. Functional classifier callers
+	// in island/K7 paths remain independent of this hook's diagnostic gate.
+	if (!DetailedLogEnabled()) return result;
+#endif
 	int sectionCount = *(int*)(KLIB_MEMBER(4, (uintptr_t)manager, NavMesh_addList_count, OFF_RDY_SM_PENDING_SECTIONS));
 	IslandCountReadiness(!result, !result && sectionCount > 0);
 
