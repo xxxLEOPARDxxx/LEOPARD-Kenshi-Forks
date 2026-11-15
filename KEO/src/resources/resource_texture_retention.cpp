@@ -94,6 +94,29 @@ static void Observe(Ogre::Resource*r,bool wasLoaded=true){
     if(state->count>=MaxPending){++state->stats.rejected;++state->stats.queueFull;return;}
     Candidate&c=state->pending[(state->read+state->count)%MaxPending];c.handle=handle;c.id=r;c.time=GetTickCount();++state->count;
 }
+void ObserveLoadedResult(void* texturePtrOutput){
+    if(!CaptureEnabled()||!IsMainThread()||!texturePtrOutput)return;
+    try{
+        // Borrow the successful native loader's caller-owned output. Reading
+        // the view must not construct another controlling SharedPtr.
+        const Ogre::TexturePtr*output=static_cast<const Ogre::TexturePtr*>(texturePtrOutput);
+        Ogre::Texture*texture=output->get();if(!texture)return;
+        ++state->stats.loaderCompletions;
+        Ogre::TextureManager*manager=Ogre::TextureManager::getSingletonPtr();
+        if(!manager||texture->getCreator()!=manager)return;
+        Textures::iterator held=state->textures.find(texture);
+        if(held!=state->textures.end()){
+            // External loadImage/setToLoaded bypasses loadImpl. This rare
+            // completion must invalidate stale bytes/eligibility immediately,
+            // using passive metadata only; new admission remains in Tick.
+            U64 bytes=0;bool unchanged=false;
+            try{unchanged=Describe(texture,&bytes)&&bytes==held->second.bytes;}
+            catch(...){Release(held);++state->stats.rejected;return;}
+            if(!unchanged){Release(held);Observe(texture,false);return;}
+        }
+        Observe(texture);
+    }catch(...){} // optional completion capture cannot replace native success
+}
 void Tick(bool on,U64 cap,U64 world){
     if(!state||!IsMainThread())return;
     if(!state->stats.admitted&&!state->contractRefused)TryInstallHooks();

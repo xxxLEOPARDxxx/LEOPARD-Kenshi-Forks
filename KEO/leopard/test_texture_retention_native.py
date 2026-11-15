@@ -89,6 +89,28 @@ check(read(ogre,0x293540,14)==bytes.fromhex('488b43408b4820483b0d32046400'))
 check(read(steam,0x44a7b3,27)==bytes.fromhex('498b44d8088b5020488b058ed5df01488b084883c102483bd17752'))
 check(read(steam,0x44a7f1,4)==bytes.fromhex('41ff5078'))
 check(read(steam,0x44a81c,4)==bytes.fromhex('41ff5048'))
+# Ordinary TextureLoadData.getTexture uses createOrRetrieve and external
+# loadImage/setToLoaded, bypassing both existing narrow capture hook targets.
+for image,site,expected in [(steam,0x44ad74,'41ff9218010000'),(steam,0x44adb8,'ff9038020000'),(steam,0x44adc4,'ff90d0000000'),(renderer,0x47cda,'ff9048020000')]:
+    check(read(image,site,len(bytes.fromhex(expected)))==bytes.fromhex(expected))
+check(syms['?setToLoaded@Resource@Ogre@@UEAAXXZ']==0x66740)
+check(read(ogre,0x66740,11)==bytes.fromhex('c781d000000002000000c3'))
+for slot,target in [(0x238,0x47c70),(0x248,0x5830e),(0xd0,0x57738)]:
+    check(struct.unpack('<Q',read(renderer,0x7ce08+slot,8))[0]-rbase==target)
+check(struct.unpack('<Q',read(ogre,0x6a69a8+0x118,8))[0]-base==0x3795d0)
+iat={};irva,isize=renderer.directories[1]
+for n in range(isize//20):
+    oft,_,_,name,first=struct.unpack_from('<5I',renderer.data,renderer.offset(irva)+20*n)
+    if not any((oft,name,first)):break
+    dll=renderer.string(name)
+    for j in range(32768):
+        thunk=struct.unpack_from('<Q',renderer.data,renderer.offset(oft or first)+8*j)[0]
+        if not thunk:break
+        iat[first+8*j]=dll+'!'+('#'+str(thunk&65535) if thunk>>63 else renderer.string(thunk+2))
+for thunk,prefix in [(0x5830e,'OgreMain_x64.dll!?_loadImages@Texture@Ogre@@'),(0x57738,'OgreMain_x64.dll!?setToLoaded@Resource@Ogre@@')]:
+    raw=read(renderer,thunk,6)
+    check(raw[:2]==b'\xff\x25' and iat[thunk+6+struct.unpack_from('<i',raw,2)[0]].startswith(prefix))
+check(read(steam,0x44acd0,32)==bytes.fromhex('40565741544881ec0001000048c78424a0000000feffffff48899c2430010000'))
 print('texture actual image/export/size/purge contracts checks='+str(checks))
 
 if '--mutants' not in sys.argv:
@@ -116,6 +138,14 @@ mutations=[
     ('manager-wrong-return','return result;','return NULL;'),
     ('disabled-owner-query','if(CaptureEnabled()&&IsMainThread())try{\n        ++state->stats.managerRequests;','if(IsMainThread()&&CaptureEnabled())try{\n        ++state->stats.managerRequests;'),
     ('double-manager-call','Ogre::TexturePtr*result=originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);','originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);Ogre::TexturePtr*result=originalManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hwGamma);'),
+    ('loader-result-not-observed','        Observe(texture);\n    }catch(...){} // optional completion','        /* missed native result */\n    }catch(...){} // optional completion'),
+    ('loader-copies-native-output','Ogre::Texture*texture=output->get();if(!texture)return;','Ogre::TexturePtr copy=*output;Ogre::Texture*texture=copy.get();if(!texture)return;'),
+    ('loader-worker-state-read','if(!CaptureEnabled()||!IsMainThread()||!texturePtrOutput)return;','if(!CaptureEnabled()||!state->on||!IsMainThread()||!texturePtrOutput)return;'),
+    ('loader-off-owner-query','if(!CaptureEnabled()||!IsMainThread()||!texturePtrOutput)return;','if(!IsMainThread()||!CaptureEnabled()||!texturePtrOutput)return;'),
+    ('loader-ignores-size-change','unchanged=Describe(texture,&bytes)&&bytes==held->second.bytes;','unchanged=Describe(texture,&bytes);'),
+    ('loader-ignores-new-ineligibility','unchanged=Describe(texture,&bytes)&&bytes==held->second.bytes;','unchanged=(!Describe(texture,&bytes))||bytes==held->second.bytes;'),
+    ('loader-observation-exception-escapes','}catch(...){} // optional completion capture cannot replace native success','}catch(...){throw;} // optional completion capture cannot replace native success'),
+    ('loader-completion-counter-missing','++state->stats.loaderCompletions;','/* missed actual completion count */'),
 ]
 for name,before,after in mutations:
     check(source.count(before)==1)

@@ -5,7 +5,9 @@ src=(s/'src/resources/resource_load_probe.cpp').read_text();fixture=(s/'leopard/
 vc=Path('C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC');sdk=Path('C:/Program Files/Microsoft SDKs/Windows/v7.1')
 env=os.environ.copy();env['INCLUDE']=str(vc/'include')+';'+str(sdk/'Include');env['LIB']=str(vc/'lib/amd64')+';'+str(sdk/'Lib/x64')
 env['PATH']=str(vc/'bin/amd64')+';'+str(sdk/'Bin')+';'+env['PATH']
-cases=[('wrong-texture-return','Sample(texture2D,QpcDeltaUs(begin,QpcNow()));return result;','Sample(texture2D,QpcDeltaUs(begin,QpcNow()));return NULL;'),
+cases=[('wrong-texture-return','Sample(texture2D,QpcDeltaUs(begin,QpcNow()));CompleteTextureCapture(result);return result;','Sample(texture2D,QpcDeltaUs(begin,QpcNow()));CompleteTextureCapture(result);return NULL;'),
+ ('missing-loader-capture','try{resource_texture_retention::ObserveLoadedResult(result);}catch(...){}','return;'),
+ ('capture-before-native','const LONGLONG begin=QpcNow();void*result=originalTexture2D(self,out);','const LONGLONG begin=QpcNow();CompleteTextureCapture(out);void*result=originalTexture2D(self,out);'),
  ('lost-appearance-data','const LONGLONG begin=QpcNow();native(self,resource,data);','const LONGLONG begin=QpcNow();native(self,resource,NULL);'),
  ('zero-token-refused','if(begin<0)return;','if(begin<=0)return;'),
  ('wrong-ring-bound','if(slowCount==16){','if(slowCount==15){')]
@@ -20,4 +22,4 @@ for name,before,after in cases:
  run=subprocess.run([str(exe)],env=env,cwd=s,capture_output=True)
  (out/'run.txt').write_bytes(run.stdout+run.stderr);assert run.returncode!=0,(name,'mutation survived')
  print(name+': expected RED')
-print('PASS 4 compiled production negative controls; production never edited')
+print('PASS %d compiled production negative controls; production never edited' % len(cases))

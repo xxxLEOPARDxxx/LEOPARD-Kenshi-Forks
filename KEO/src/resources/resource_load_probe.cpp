@@ -1,4 +1,5 @@
 #include "resources/resource_load_probe.h"
+#include "resources/resource_texture_retention.h"
 #ifndef RESOURCE_LOAD_PROBE_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -125,10 +126,15 @@ static void EntityInitialise(void*entity,bool force){
     const LONGLONG begin=QpcNow();originalEntityInitialise(entity,force);
     Sample(entityInitialise,QpcDeltaUs(begin,QpcNow()));
 }
+static void CompleteTextureCapture(void*result){
+    try{resource_texture_retention::ObserveLoadedResult(result);}catch(...){}
+}
 static void*Texture2D(void*self,void*out){
-    if(!DetailedLogEnabled()||!IsMainThread())return originalTexture2D(self,out);
+    if(!DetailedLogEnabled()||!IsMainThread()){
+        void*result=originalTexture2D(self,out);CompleteTextureCapture(result);return result;
+    }
     const LONGLONG begin=QpcNow();void*result=originalTexture2D(self,out);
-    Sample(texture2D,QpcDeltaUs(begin,QpcNow()));return result;
+    Sample(texture2D,QpcDeltaUs(begin,QpcNow()));CompleteTextureCapture(result);return result;
 }
 static void InvokeAppearance(AppearanceFn native,void*self,void*resource,void*data,Stats&s){
     if(!DetailedLogEnabled()||!IsMainThread()){native(self,resource,data);return;}

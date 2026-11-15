@@ -25,11 +25,14 @@ unsigned DeviceGeneration(){return deviceGeneration;}
 static bool inspectImpl=false,loadedInsideImpl=true;
 static unsigned pendingInsideImpl=0,texturesInsideImpl=0;
 static resource_gpu::U64 bytesInsideImpl=0;
+static const Ogre::TexturePtr*watchOutput=NULL;
+static unsigned maxObservedRefs=0;
 struct Texture:Ogre::Texture {
-    bool fail,failObserve;unsigned loads,unloads;
+    bool fail,failObserve,failDescribe;unsigned loads,unloads;
     Texture(Ogre::ResourceManager*m,const Ogre::String&n,Ogre::ResourceHandle h,const Ogre::String&g,bool manual,Ogre::ManualResourceLoader*l):
-        Ogre::Texture(m,n,h,g,manual,l),fail(false),failObserve(false),loads(0),unloads(0){setWidth(16);setHeight(8);setDepth(1);setFormat(Ogre::PF_A8R8G8B8);setNumMipmaps(0);setTextureType(Ogre::TEX_TYPE_2D);setUsage(Ogre::TU_STATIC_WRITE_ONLY);}
+        Ogre::Texture(m,n,h,g,manual,l),fail(false),failObserve(false),failDescribe(false),loads(0),unloads(0){setWidth(16);setHeight(8);setDepth(1);setFormat(Ogre::PF_A8R8G8B8);setNumMipmaps(0);setTextureType(Ogre::TEX_TYPE_2D);setUsage(Ogre::TU_STATIC_WRITE_ONLY);}
     Ogre::ResourceManager*getCreator(){if(failObserve)throw 92;return Ogre::Resource::getCreator();}
+    size_t getSize()const{if(watchOutput&&watchOutput->get()==this)maxObservedRefs=(std::max)(maxObservedRefs,watchOutput->useCount());if(failDescribe)throw 93;return Ogre::Resource::getSize();}
     void SetSize(size_t n){mSize=n;}
     void prepareImpl(){}void unprepareImpl(){}
     void Body(){++loads;if(fail)throw 91;}
@@ -84,6 +87,66 @@ static bool WorkerStateProbe(Texture*r,Manager*m,OutSlot*out,const Ogre::String*
     __except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 static LONG WINAPI Crash(EXCEPTION_POINTERS*p){std::cerr<<"crash RIP="<<std::hex<<p->ContextRecord->Rip<<" image="<<(void*)GetModuleHandle(NULL)<<" Ogre="<<(void*)GetModuleHandleA("OgreMain_x64.dll")<<"\n";return EXCEPTION_EXECUTE_HANDLER;}
+static void CompleteWithoutLoadImpl(Texture*t){
+    // External image completion calculates size then publishes LOADED, without
+    // Resource.load or either capture hook. Use actual native calculation and
+    // native state publication; GPU work itself is outside this fixture.
+    t->SetSize(t->NativeCalculateSize());
+    typedef void(*F)(Ogre::Resource*);
+    static F loaded=reinterpret_cast<F>(GetProcAddress(GetModuleHandleA("OgreMain_x64.dll"),"?setToLoaded@Resource@Ogre@@UEAAXXZ"));loaded(t);
+}
+static bool LoadedResultProbe(void*out){
+    __try{resource_texture_retention::ObserveLoadedResult(out);return true;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+static int TestLoadedResult(Manager&manager){
+    resource_texture_retention::Clear();TickNow();
+    Ogre::TexturePtr completed=manager.create("loader-output.dds","General");Texture*t=static_cast<Texture*>(completed.get());
+    resource_texture_retention::Stats baseline=resource_texture_retention::Snapshot();
+    CompleteWithoutLoadImpl(t);CHECK(t->isLoaded()&&t->loads==0);
+    CHECK(resource_texture_retention::Snapshot().managerRequests==baseline.managerRequests&&resource_texture_retention::Snapshot().loadCompletions==baseline.loadCompletions);
+    unsigned refs=completed.useCount();resource_texture_retention::ObserveLoadedResult(&completed);
+    CHECK(completed.useCount()==refs&&resource_texture_retention::Snapshot().pending==1&&resource_texture_retention::Snapshot().textures==0&&reserved==0);
+    CHECK(resource_texture_retention::Snapshot().loaderCompletions==baseline.loaderCompletions+1);
+    resource_texture_retention::ObserveLoadedResult(&completed);CHECK(completed.useCount()==refs&&resource_texture_retention::Snapshot().pending==1);
+    TickNow();CHECK(resource_texture_retention::Snapshot().textures==1&&completed.useCount()==refs+1&&reserved>0);
+    resource_texture_retention::U64 priorHits=resource_texture_retention::Snapshot().reused,oldBytes=reserved;
+    watchOutput=&completed;maxObservedRefs=0;
+    resource_texture_retention::ObserveLoadedResult(&completed);
+    watchOutput=NULL;CHECK(maxObservedRefs==refs+1); // no transient SharedPtr copy, either
+    CHECK(resource_texture_retention::Snapshot().reused==priorHits+1&&completed.useCount()==refs+1&&reserved==oldBytes);
+    t->setWidth(1024);t->setHeight(1024);t->setNumMipmaps(10);CompleteWithoutLoadImpl(t);
+    resource_texture_retention::ObserveLoadedResult(&completed);
+    CHECK(reserved==0&&resource_texture_retention::Snapshot().textures==0&&resource_texture_retention::Snapshot().pending==1&&completed.useCount()==refs);
+    CHECK(resource_texture_retention::Snapshot().reused==priorHits+1);
+    TickNow();CHECK(reserved>oldBytes&&completed.useCount()==refs+1);
+    t->setWidth(16384);t->setHeight(16384);CompleteWithoutLoadImpl(t);resource_texture_retention::ObserveLoadedResult(&completed);
+    CHECK(reserved==0&&resource_texture_retention::Snapshot().pending==1&&completed.useCount()==refs);
+    TickNow();CHECK(reserved==0&&resource_texture_retention::Snapshot().textures==0);
+    t->setWidth(16);t->setHeight(8);t->setNumMipmaps(0);CompleteWithoutLoadImpl(t);resource_texture_retention::ObserveLoadedResult(&completed);TickNow();CHECK(reserved>0);
+    t->setUsage(Ogre::TU_DYNAMIC_WRITE_ONLY);CompleteWithoutLoadImpl(t);resource_texture_retention::ObserveLoadedResult(&completed);
+    CHECK(reserved==0&&completed.useCount()==refs);TickNow();CHECK(resource_texture_retention::Snapshot().textures==0);
+    t->setUsage(Ogre::TU_STATIC_WRITE_ONLY);CompleteWithoutLoadImpl(t);resource_texture_retention::ObserveLoadedResult(&completed);TickNow();CHECK(reserved>0);
+    t->setTextureType(Ogre::TEX_TYPE_2D_ARRAY);resource_texture_retention::ObserveLoadedResult(&completed);CHECK(reserved==0);TickNow();CHECK(resource_texture_retention::Snapshot().textures==0);t->setTextureType(Ogre::TEX_TYPE_2D);
+    CompleteWithoutLoadImpl(t);resource_texture_retention::ObserveLoadedResult(&completed);TickNow();CHECK(reserved>0);
+    t->failDescribe=true;bool noThrow=true;try{resource_texture_retention::ObserveLoadedResult(&completed);}catch(...){noThrow=false;}t->failDescribe=false;
+    CHECK(noThrow&&reserved==0&&completed.useCount()==refs);
+    t->failObserve=true;try{resource_texture_retention::ObserveLoadedResult(&completed);}catch(...){noThrow=false;}t->failObserve=false;
+    CHECK(noThrow&&resource_texture_retention::Snapshot().pending==0&&completed.useCount()==refs);
+    resource_texture_retention::U64 captured=resource_texture_retention::Snapshot().loaderCompletions;
+    resource_texture_retention::ObserveLoadedResult(NULL);Ogre::TexturePtr empty;resource_texture_retention::ObserveLoadedResult(&empty);
+    CHECK(resource_texture_retention::Snapshot().loaderCompletions==captured&&completed.useCount()==refs);
+    resource_texture_retention::State*saved=resource_texture_retention::state;
+    void*inaccessible=VirtualAlloc(NULL,4096,MEM_RESERVE|MEM_COMMIT,PAGE_NOACCESS);CHECK(inaccessible!=NULL);
+    mainOwner=false;resource_texture_retention::state=static_cast<resource_texture_retention::State*>(inaccessible);
+    bool ownerSafe=LoadedResultProbe(inaccessible);resource_texture_retention::state=saved;mainOwner=true;CHECK(ownerSafe);
+    resource_texture_retention::Clear();unsigned beforeOwnerChecks=ownerChecks;
+    resource_texture_retention::state=static_cast<resource_texture_retention::State*>(inaccessible);
+    bool offSafe=LoadedResultProbe(inaccessible);resource_texture_retention::state=saved;CHECK(offSafe&&ownerChecks==beforeOwnerChecks);
+    VirtualFree(inaccessible,0,MEM_RELEASE);
+    CHECK(resource_texture_retention::Snapshot().loaderCompletions==captured&&completed.useCount()==refs);
+    Ogre::ResourceHandle handle=completed->getHandle();completed.setNull();manager.remove(handle);TickNow();return 0;
+}
 int main(){
     SetUnhandledExceptionFilter(Crash);
     Ogre::Root root("","","");Manager manager;
@@ -95,6 +158,8 @@ int main(){
     CHECK(a->isLoaded());CHECK(a->getSize()==t->NativeCalculateSize());
     CHECK(a->getSize()>=512);CHECK(t->loads==1&&t->unloads==0);
     resource_texture_retention::Init();TickNow();
+    CHECK(TestLoadedResult(manager)==0);
+    resource_texture_retention::U64 initialReuse=resource_texture_retention::Snapshot().reused;
     unsigned before=a.useCount();resource_texture_retention::Observe(a.get());
     CHECK(a.useCount()==before);
     CHECK(resource_texture_retention::Snapshot().pending==1);
@@ -102,7 +167,7 @@ int main(){
     TickNow();
     CHECK(resource_texture_retention::Snapshot().textures==1);
     CHECK(a.useCount()==before+1);CHECK(reserved==a->getSize());
-    resource_texture_retention::Observe(a.get());CHECK(resource_texture_retention::Snapshot().reused==1);
+    resource_texture_retention::Observe(a.get());CHECK(resource_texture_retention::Snapshot().reused==initialReuse+1);
     // Actual manager purge compares native useCount against baseline3. Our
     // retained TexturePtr is exactly one controlling reference, not a mock.
     typedef void(*Purge)(Ogre::ResourceManager*,bool);
@@ -134,7 +199,7 @@ int main(){
     resource_texture_retention::Stats hotBefore=resource_texture_retention::Snapshot();unsigned nativeLoads=t->loads;
     for(unsigned n=0;n<1000000;++n)LoadNative(t,false);
     resource_texture_retention::Stats hotAfter=resource_texture_retention::Snapshot();
-    CHECK(hotAfter.observed==hotBefore.observed&&hotAfter.reused==hotBefore.reused&&hotAfter.managerRequests==hotBefore.managerRequests&&hotAfter.loadCompletions==hotBefore.loadCompletions&&t->loads==nativeLoads);
+    CHECK(hotAfter.observed==hotBefore.observed&&hotAfter.reused==hotBefore.reused&&hotAfter.managerRequests==hotBefore.managerRequests&&hotAfter.loadCompletions==hotBefore.loadCompletions&&hotAfter.loaderCompletions==hotBefore.loaderCompletions&&t->loads==nativeLoads);
     resource_texture_retention::Clear();TickNow();t->failObserve=true;OutSlot captureFault;
     CHECK(Request(manager,captureFault,requestName,requestGroup)==captureFault.ptr());captureFault.Destroy();t->failObserve=false;
     CHECK(resource_texture_retention::Snapshot().pending==0);

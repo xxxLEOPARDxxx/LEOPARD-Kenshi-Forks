@@ -118,7 +118,8 @@ void ResourceCacheTick(){
         out<<" textureHeldBytes="<<textures.heldBytes<<" textureCount="<<textures.textures<<" textureObserved="<<textures.observed
            <<" textureRetained="<<textures.retained<<" textureReused="<<textures.reused<<" textureEvicted="<<textures.evicted
            <<" textureRejected="<<textures.rejected<<" texturePending="<<textures.pending<<" textureAdmitted="<<textures.admitted<<" texturePressure="<<textures.pressure;
-        out<<" textureManagerRequests="<<textures.managerRequests<<" textureLoadCompletions="<<textures.loadCompletions;
+        out<<" textureManagerRequests="<<textures.managerRequests<<" textureLoadCompletions="<<textures.loadCompletions
+           <<" textureLoaderCompletions="<<textures.loaderCompletions;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();
         out<<" geometryAdmitted="<<geometry.admitted<<" geometryOn="<<geometry.enabled<<" geometryBytes="<<geometry.heldBytes<<" geometryCpuShadow="<<geometry.cpuShadowBytes
            <<" geometryModels="<<geometry.models<<" geometryPending="<<geometry.pending<<" geometryObserved="<<geometry.observed<<" geometryRetained="<<geometry.retained

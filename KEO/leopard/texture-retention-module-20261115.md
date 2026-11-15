@@ -2,7 +2,9 @@
 
 Independent staged implementation; root owns configuration, shared GPU admission,
 integration, full builds, review, commit and installation. No publication/version
-change or gameplay performance claim.
+change or gameplay performance claim. The loader-output coverage fix is prepared
+in sources only. This module task does not install a DLL or edit personal settings;
+the owner's texture-retention setting remains OFF for the existing trace baseline.
 
 ## Contract and scope
 
@@ -29,6 +31,21 @@ exceptions and result ownership:
   releases any held old pin/reservation and queues a weak identity. Outer native
   Resource::load has not yet published LOADED/new size; bounded Tick waits for it.
 
+The subsequent native audit proved ordinary TextureLoadData.getTexture44ACD0
+uses TextureManager.createOrRetrieve3795D0 -> D3D11Texture.loadImage47C70 ->
+Texture._loadImages377650 -> Resource.setToLoaded66740, bypassing both hooks.
+The new public `ObserveLoadedResult(void*)` borrows that already-existing loader
+wrapper's successful caller-owned16-byte TexturePtr output. Root integrates the
+notification independently of Debug; the module adds no third native detour.
+The helper gates OFF/owner before reading either State or output, rejects null
+outputs, validates creator ownership, and queues only scalar weak identity.
+For a held result it synchronously checks passive Describe/bytes; changed size or
+eligibility releases the old pin/accounting before weak requeue. Metadata exceptions
+drop the old own pin conservatively and never escape into native loading. Unchanged
+held output remains a reference hit. No SharedPtr copy, native load, filesystem
+lookup or allocation is performed by this helper; changed-held removal frees its
+existing bookkeeping node.
+
 Both complete contracts are required before retention can enable; a partial hook
 failure leaves capture OFF. Missing renderer at startup is a normal wait: bounded
 250ms main Tick retries module discovery. A present incompatible module is refused
@@ -39,7 +56,8 @@ replace successful native return. No per-render-pass generic resource hook remai
 
 Only TextureManager creator identity is accepted before any Texture cast. Capture
 stores at most 128 handle/raw-identity/time triples, no native controlling pointer,
-filesystem search, heap allocation, or texture size query. Each250ms Tick resolves
+filesystem search or heap allocation. The two hook wrappers do not query texture
+size; only the rare loader-result helper revalidates held metadata. Each250ms Tick resolves
 manager handle+pointer+creator again; at most four candidates are processed and
 two held entries refreshed. Unloaded pending observations expire after30seconds.
 
@@ -71,22 +89,24 @@ State is intentionally process-lifetime so DLL detach cannot destroy Ogre object
 
 `managerRequests` counts successful captured owner TextureManager.load calls;
 `loadCompletions` counts successful captured owner D3D11Texture.loadImpl calls.
-`observed` is the aggregate observation count from those actual boundaries, which
-can both occur for one native load. `reused` means a manager request returned the
-same already-held loaded texture; the actual reload hook removes its old pin first,
-so a rebuilt texture is not counted as a hit. These counters do not prove avoided
-uploads or elapsed-time gains. After loadImpl completion, bounded Tick re-admits
-the resource at its new size. Other direct
+`loaderCompletions` counts nonempty captured owner loader outputs. `observed` is
+the aggregate accepted-creator observation count from these boundaries; several
+can occur for one native load. `reused` means a manager or loader request returned
+the same already-held loaded resource. Actual loadImpl completion removes its old
+pin first; loader-result completion removes it if size/eligibility changed.
+A same-size external image update can still have uploaded pixels; reference hits
+never claim avoided uploads or elapsed-time gains. Bounded Tick admits new/rebuilt
+resources at their actual current sizes. Other direct
 metadata changes, explicit unload and manager removal are detected by bounded
 refresh. At1024 entries, a complete refresh cycle can take128seconds for those
-  paths that do not go through the concrete native loadImpl.
+paths that go through neither concrete native loadImpl nor observed loader result.
 No live CPU/FPS/VRAM/leak conclusion follows from these fixtures.
 
 ## Verification evidence
 
 - Fail first: native Texture load/getSize/calculateSize succeeded, then the
   production-inclusion fixture failed specifically at missing retained texture.
-- Final VC10 `/Od` and `/O2`: **92 checks each PASS**, real installed Ogre DLL,
+- Final VC10 `/Od` and `/O2`: **120 checks each PASS**, real installed Ogre DLL,
   native Resource/Texture/TextureManager subclasses and SharedPtr control blocks.
   Only owner/budget boundary functions are substituted; no replacement Ogre SDK.
 - Actual native purge: one persistent TexturePtr increments useCount by exactly1,
@@ -98,6 +118,14 @@ No live CPU/FPS/VRAM/leak conclusion follows from these fixtures.
   count changes. Concrete loadImpl is wired through the real Resource state machine
   using a GPU-free SDK Texture subclass; no loaded Texture is admitted before the
   outer native loader publishes LOADED. This verifies capture scope, not game FPS.
+- Loader helper fail-first: its empty stub failed specifically at first weak
+  admission, with successful native metadata calculation/setToLoaded established.
+  Actual native TexturePtr output maintains exact useCount, including a live check
+  inside Describe that catches transient controlling copies. First capture stays
+  weak; repeat held output, resize/overcap, dynamic/array exclusions, immediate stale
+  decharge, null outputs, isolated getter exceptions and PAGE_NOACCESS owner/OFF
+  gates pass. This GPU-free fixture calls actual native calculateSize/setToLoaded;
+  it does not fabricate a renderer or claim to exercise GPU image upload.
 - Real native TextureManager.load verifies all parameters including two independent
   float/bool/format/type combinations and signed mips=-1, hidden output address,
   untouched adjacent sentinels, one transferred native TexturePtr reference and
@@ -111,14 +139,17 @@ No live CPU/FPS/VRAM/leak conclusion follows from these fixtures.
   native reload test catches stale reservation before wrapper return. Reload
   readmission uses the new size, excludes overcap textures and preserves no-pin
   pending behavior/refcounts and unchanged reused counter.
-- Offline actual images/export/size/vtable/purge: **40 checks PASS**, hashes
+- Offline actual images/export/size/vtable/purge/loader-bypass: **53 checks PASS**, hashes
   Steam `504b362c...502cd3e`, Ogre `7d3888d2...df5f6`, renderer
   `5f224882ded5b6d3f68f14d6bb4e1762267bbb602b7b9733bd153663d1541bb9`.
-- Sixteen independently compiled `/O2` broken-production controls all expected RED:
+- Twenty-four independently compiled `/O2` broken-production controls all expected RED:
   missing controlling reference, ignored manager identity, manual admission,
   pressure/world/device ignored, duplicate native call, omitted mip accounting,
   observer/wrapper worker reads of owner State, reload counted as reuse, corrupted
   manager float/bool/return address, disabled owner query and duplicate manager call.
+  The eight loader controls independently catch omitted capture/counter, transient
+  output copy, owner/OFF ordering, ignored size/eligibility and escaping observation
+  exceptions.
 
 Commands: `leopard/test_resource_texture_retention.cmd Od`, same with `O2`, and
 `python leopard/test_texture_retention_native.py --mutants`.

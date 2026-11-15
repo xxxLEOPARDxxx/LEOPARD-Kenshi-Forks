@@ -23,6 +23,10 @@ void NativeEntity(void*p,bool force){seenForce=force;Native(p);}
 static void*seenThird=NULL;
 void* NativeTexture(void*p,void*out){seenSecond=out;Native(p);return out;}
 void NativeAppearance(void*p,void*resource,void*data){seenSecond=resource;seenThird=data;Native(p);}
+namespace resource_texture_retention {
+static unsigned captureCalls=0;static void*lastOutput=NULL;static bool failCapture=false;
+void ObserveLoadedResult(void*p){++captureCalls;lastOutput=p;if(failCapture)throw 41;}
+}
 #include "../src/resources/resource_load_probe.cpp"
 static bool CatchNativeSeh(void*p){__try{resource_load_probe_detail::Factory(p);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static bool CatchNewSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::FactoryProcess(p,item);else if(which==1)resource_load_probe_detail::SetMeshData(p,item);else resource_load_probe_detail::EntityInitialise(p,true);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
@@ -35,17 +39,20 @@ static void ExerciseCompletionChildren(void*self,void*item){
  originalMeshCallback=&NativeAppearance;
  void*data=reinterpret_cast<void*>(0x7777);int before=nativeCalls;nativeDuration=22000;
  Check(Texture2D(self,item)==item&&nativeCalls==before+1&&seen==self&&seenSecond==item,"texture hidden result output exact once");
+ Check(resource_texture_retention::captureCalls==1&&resource_texture_retention::lastOutput==item,"native loaded texture output offered to cache after success");
  AppearanceBody(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&body.calls==1,"body raw indirect value and third argument exact");
  AppearanceAttachment(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&attachment.calls==1,"attachment exact forwarding");
  MeshCompletionCallback(self,item,data);Check(seen==self&&seenSecond==item&&seenThird==data&&meshCallback.calls==1,"generic mesh callback forwards exact arguments once");
  Check(texture2D.totalUs==22000&&body.totalUs==22000&&attachment.totalUs==22000,"completion children independent timings");
  enabled=false;int c=clocks,m=mainChecks;before=nativeCalls;
  Check(Texture2D(self,item)==item,"disabled texture result");AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);MeshCompletionCallback(self,item,data);
+ Check(resource_texture_retention::captureCalls==2,"texture cache capture independent of detailed-log switch");
  __int64 token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
  Check(token==-1&&nativeCalls==before+4&&clocks==c&&mainChecks==m,"completion debug off has no clocks thread check or changed result");
  enabled=true;onMain=false;c=clocks;before=nativeCalls;
  Texture2D(self,item);AppearanceBody(self,item,data);AppearanceAttachment(self,item,data);MeshCompletionCallback(self,item,data);token=ResourceLoadProbeArrayBegin();ResourceLoadProbeArrayEnd(token);
  Check(token==-1&&nativeCalls==before+4&&clocks==c,"completion offmain has no clocks");onMain=true;
+ enabled=false;resource_texture_retention::failCapture=true;Check(Texture2D(self,item)==item,"optional observer exception cannot replace native texture result");resource_texture_retention::failCapture=false;enabled=true;
  tick=0;token=ResourceLoadProbeArrayBegin();tick+=7000;ResourceLoadProbeArrayEnd(token);
  Check(token==0&&textureArray.calls==1&&textureArray.totalUs==7000,"array token zero is a valid timestamp");
  throwsNative=true;c=clocks;before=nativeCalls;bool thrown=false;
