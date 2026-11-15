@@ -435,3 +435,11 @@ msgstr "Keeps supported textures already loaded by the game for faster revisits.
 
 msgid "textures"
 msgstr "textures"
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip empty squad request work"
+msgstr "Skip empty squad request work"
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."
+msgstr "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."

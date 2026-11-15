@@ -22,6 +22,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Resource memory", "zone", "resourceTextureRetention", "resourceRam" },
 	{ "Resource memory", "zone", "resourceGpuGiB", "resourceRam" },
 	{ "Resource memory", "zone", "resourceWarmHud", "resourceRam" },
+	{ "Performance",    "fixes",    "blackboardEmpty" },
 	{ "Performance",    "render",   "particleStepCap" },
 	{ "Performance",    "render",   "foliagePageBudgetMs" },
 	{ "Squad movement", "movement", "keoRouting",          "routing" },

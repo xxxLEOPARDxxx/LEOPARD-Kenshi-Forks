@@ -1,0 +1,32 @@
+[
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "sha256": "bbad0f0448d034e1e9659f0a628f5bf16d339230a94d3754e980afb1752e22ad",
+    "report": "base-squad-empty-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "sha256": "166004c2e22f5021797aeca8c55d4295774df0a5d5aa06b1945f5a1479167e43",
+    "report": "base-squad-empty-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/world/blackboard_empty.cpp",
+    "sha256": "e166896679ab62d9a9267a7fd9687095dd825324e0c63a73db9082cf4a028112",
+    "report": "base-squad-empty-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/world/blackboard_empty.h",
+    "sha256": "9f2166ecbba4ce3cbe3428d4d233809b57a9f4d980ab3c30c31c9db70df6a8e2",
+    "report": "base-squad-empty-review-20261115.md"
+  },
+  {
+    "path": "src/gui/settings_layout.cpp",
+    "sha256": "67b7805065ffc56b8fe05a8a9ed64b82d36be411e62160535a75ae91973e559f",
+    "report": "base-squad-empty-review-20261115.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "13c6f453d4b047a7232f979e65d8cfbdf251cca98aadbee776a0b9dc3c3efdc9",
+    "report": "base-squad-empty-review-20261115.md"
+  }
+]

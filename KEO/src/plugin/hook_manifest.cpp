@@ -45,6 +45,7 @@
 #include "pathfind/gate_pass.h"
 #include "bench/bench_runner.h"
 #include "fixes/world/corpse_pin.h"
+#include "fixes/world/blackboard_empty.h"
 #include "fixes/world/faction_relations.h"
 #include "inventory/backpack_first.h"
 #include "inventory/carried_weight.h"
@@ -750,6 +751,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallPausedSkip,
 	InstallZoneLifecycleHooks,
 	InstallCorpsePin,
+	InstallBlackboardEmpty,
 	keo_inventory::InstallBackpackFirst,
 	keo_inventory::InstallCarriedWeight,
 	keo_jobs::InstallSteelJobs,

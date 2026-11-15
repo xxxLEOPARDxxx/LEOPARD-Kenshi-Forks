@@ -233,6 +233,9 @@ struct FixesConfig
 	// throwOutHoldMinutes: the longest that hold lasts, in game minutes (1 to 1440). Read at
 	// startup only.
 	int throwOutHoldMinutes;
+	// Main-thread live toggle; only a verified fenced native phase uses it.
+	bool blackboardEmptyEnabled;
+
 };
 
 extern FixesConfig g_fixesCfg;

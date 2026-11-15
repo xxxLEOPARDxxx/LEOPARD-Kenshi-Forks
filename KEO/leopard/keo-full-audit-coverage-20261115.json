@@ -1,6 +1,6 @@
 {
-  "files": 734,
-  "lines": 115631,
+  "files": 736,
+  "lines": 115732,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -805,18 +805,20 @@
     },
     {
       "path": "src/fixes/fixes_config.cpp",
-      "sha256": "2f1b271a7dce9e5b5269858bb090e6413fc50d68814fdb93184c2bff2955fbf0",
-      "lines": 363,
+      "sha256": "bbad0f0448d034e1e9659f0a628f5bf16d339230a94d3754e980afb1752e22ad",
+      "lines": 367,
       "reports": [
+        "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/fixes/fixes_config.h",
-      "sha256": "5d924cc3dc3b9a36f2bcd4e018ae258c842ffc9c97ee375e1e05c45a3e542089",
-      "lines": 242,
+      "sha256": "166004c2e22f5021797aeca8c55d4295774df0a5d5aa06b1945f5a1479167e43",
+      "lines": 245,
       "reports": [
+        "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md"
       ],
       "kind": "body/declarations read"
@@ -1524,6 +1526,24 @@
       "kind": "body/declarations read"
     },
     {
+      "path": "src/fixes/world/blackboard_empty.cpp",
+      "sha256": "e166896679ab62d9a9267a7fd9687095dd825324e0c63a73db9082cf4a028112",
+      "lines": 88,
+      "reports": [
+        "base-squad-empty-review-20261115.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/blackboard_empty.h",
+      "sha256": "9f2166ecbba4ce3cbe3428d4d233809b57a9f4d980ab3c30c31c9db70df6a8e2",
+      "lines": 3,
+      "reports": [
+        "base-squad-empty-review-20261115.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
       "path": "src/fixes/world/corpse_pin.cpp",
       "sha256": "aa7058d01432e31bf58c3ad4fe103d0d16d7a86bbedf960c275e34fb5317265e",
       "lines": 142,
@@ -2197,9 +2217,10 @@
     },
     {
       "path": "src/gui/settings_layout.cpp",
-      "sha256": "926fd560712d9627561249cb7340d260dbe82c62cdeb92e422d1df83ca6130a8",
-      "lines": 149,
+      "sha256": "67b7805065ffc56b8fe05a8a9ed64b82d36be411e62160535a75ae91973e559f",
+      "lines": 150,
       "reports": [
+        "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md"
       ],
       "kind": "body/declarations read"
@@ -4864,9 +4885,10 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "a6614fc8902e104a3503a1c8eb6889d068367970c3c5d7ed104b94a68a60ffdb",
-      "lines": 822,
+      "sha256": "13c6f453d4b047a7232f979e65d8cfbdf251cca98aadbee776a0b9dc3c3efdc9",
+      "lines": 824,
       "reports": [
+        "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "full-audit-session-costs-20261115.md",
         "hook-batch-cache-review-20261115.md"

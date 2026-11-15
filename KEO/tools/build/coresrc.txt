@@ -367,3 +367,5 @@ src/resources/resource_startup_native.cpp
 
 src/resources/resource_geometry.cpp
 src/resources/resource_texture_retention.cpp
+
+src/fixes/world/blackboard_empty.cpp

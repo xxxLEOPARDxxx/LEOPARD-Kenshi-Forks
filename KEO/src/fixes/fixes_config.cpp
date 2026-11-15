@@ -186,6 +186,7 @@ const FixesConfig kFixesDefaults =
 	true, // townClaimFixEnabled
 	true, // throwOutFixEnabled
 	60, // throwOutHoldMinutes
+	true, // blackboardEmptyEnabled
 };
 
 FixesConfig g_fixesCfg = kFixesDefaults;
@@ -338,6 +339,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	           " squad runs only its zone check; it gets the full update one paused frame in sixteen and as"
 	           " soon as it is on screen.", DEVROW, 0.0f, 0, kPausedOffscreenSkipChoices,
 	           CFG_COUNT(kPausedOffscreenSkipChoices), false, true),
+	CFG_OBOOL_LIVE("blackboardEmpty", FixesConfig, blackboardEmptyEnabled, DOC, SHOW,
+      "Skip empty squad request work",
+      "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

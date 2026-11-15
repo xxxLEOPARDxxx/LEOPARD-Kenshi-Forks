@@ -1,4 +1,5 @@
 #include "gui/mcm_bridge.h"
+#include "fixes/fixes_config.h"
 #include "gui/requested_settings.h"
 #include "base/config_values.h"
 #include "gui/settings_layout.h"
@@ -33,7 +34,7 @@ static void Describe(MCM_Api&api){rows.clear();KeoMcmDescribe(&api);}
 int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;api.info=Info;api.toggleFn=Toggle;api.integerFn=Integer;api.choiceFn=Choice;api.numberFn=Number;api.defaultValue=Default;
  KeoMcmDescribe(NULL);Describe(api);Check(rows.empty(),"early discovery has no unsafe callbacks");
  movement::g_movementCfg.routingEnabled=false;movement::g_movementCfg.groupCohesionEnabled=true;Check(CaptureRequestedSettings(),"requested captured before runtime refusal");movement::ApplyRoutingSwitch(NULL);
- api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==36&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 includes RAM, startup, model and texture cache rows with Debug last");
+ api.version=2;Describe(api);Check(rows.empty(),"API2 retains fallback only");api.version=3;Describe(api);Check(rows.size()==37&&rows.back().label=="Detailed log"&&rows.back().def.empty(),"v3 includes RAM, startup, model and texture cache rows with Debug last");
  api.version=5;Describe(api);unsigned restart=0;for(size_t i=0;i<rows.size();++i){restart+=(rows[i].flags&MCM_RESTART)!=0;Check(rows[i].label.find('*')==std::string::npos,"MCM owns restart marker");}Check(restart==14&&rows.back().flags==0&&rows.back().def=="0","14 startup rows and live defaultOFF Debug");
  for(unsigned p=0;keo_gui::kSettingsPlaces[p].section;++p){const ConfigKey*k=FindConfigKey(keo_gui::kSettingsPlaces[p].key,NULL);Row*r=Find(k->name);Check(r&&r->flags==(k->live?0:MCM_RESTART),"each original player row preserves exact live/restart classification");if(r&&r->kind==2)Check(r->lo==int(k->lo)&&r->hi==int(k->hi),"integer range comes from original loader metadata");}
  Check(Find("carriedWeight")&&Find("carriedWeight")->def=="0"&&Find("carriedWeight")->flags==MCM_RESTART&&!keo_inventory::g_inventoryCfg.carriedWeightEnabled,"carried weight defaultOFF and restart-only, no runtime activation");
@@ -45,6 +46,7 @@ int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;a
  Check(Find("resourceStartupTextures")&&Find("resourceGeometryWarm"),"startup and geometry controls exposed in resource group");
  Check(Find("resourceTextureRetention")&&Find("resourceTextureRetention")->def=="0"&&Find("resourceTextureRetention")->flags==0,"loaded texture retention opt-in live without restart");
  Check(Find("resourceGpuGiB")&&Find("resourceGpuGiB")->lo==1&&Find("resourceGpuGiB")->hi==8&&Find("resourceGpuGiB")->def=="1"&&Find("resourceGpuGiB")->flags==0,"VRAM1to8GiB live");
+ Check(Find("blackboardEmpty")&&Find("blackboardEmpty")->def=="1"&&Find("blackboardEmpty")->flags==0,"empty request optimization defaultON live without restart");
  Check(Find("resourceWarmHud")&&Find("resourceWarmHud")->def=="0"&&Find("resourceWarmHud")->flags==0,"resource HUD opt-in live");
  Check(Find("k7PostDeathHold")->def=="2","custom choice default uses integer callback value not INI word");
 #ifndef KEO_DEBUG
@@ -93,4 +95,5 @@ int main(){MCM_Api api={};api.version=5;api.beginMod=Begin;api.section=Section;a
  SettingsStaging observed;RequestedConfig().Copy(&observed);key=FindConfigKey("k7PostDeathHold",&module);int mi=int(module-kConfigModules),ki=int(key-module->keys);*reinterpret_cast<int*>(reinterpret_cast<char*>(observed.module[mi].state)+key->offset)=K7_HOLD_OBSERVE;observed.module[mi].slots[ki].i=K7_HOLD_OBSERVE;PublishRequestedSettings(observed);Describe(api);Row observe=*Find("k7PostDeathHold");Check(observe.choices.size()==3&&!observe.gi(observe.ud,&got)&&got==1,"PROD preserves an already selected author observe preference");
  Check(!observe.si(observe.ud,2,err,sizeof(err))&&!observe.si(observe.ud,1,err,sizeof(err)),"callbacks accept every choice offered for this page lifetime");
  SettingsStaging valid;RequestedConfig().Copy(&valid);SettingsStaging malformed=valid;key=FindConfigKey("operatorHoldUntil",&module);mi=int(module-kConfigModules);ki=int(key-module->keys);malformed.module[mi].slots[ki].i=123456;before=saves;Check(KeoMcmCommitStaging(malformed,valid,err,sizeof(err))!=0&&saves==before,"shared fallback commit rejects malformed custom choice before save");
+ Row empty=*Find("blackboardEmpty");before=saves;Check(!empty.si(empty.ud,0,err,sizeof(err))&&!fixes::g_fixesCfg.blackboardEmptyEnabled&&saves==before+1,"empty requests: MCM off publishes live and saves one preference");before=saves;Check(!empty.si(empty.ud,1,err,sizeof(err))&&fixes::g_fixesCfg.blackboardEmptyEnabled&&saves==before+1,"empty requests: MCM on restores live without restart");
  return CheckExit("mcm_bridge_units");}

@@ -435,3 +435,11 @@ msgstr "保留游戏已经加载的受支持纹理，以加快再次访问。与
 
 msgid "textures"
 msgstr "纹理"
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip empty squad request work"
+msgstr "跳过空小队请求处理"
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."
+msgstr "小队没有定时请求时，避免临时内存分配。活动请求、工作、AI及小队更新频率保持不变。适用于支持的Steam版本，其他版本保留原有行为。"

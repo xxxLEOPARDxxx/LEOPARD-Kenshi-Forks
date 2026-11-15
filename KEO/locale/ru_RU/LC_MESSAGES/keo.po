@@ -435,3 +435,11 @@ msgstr "Сохраняет поддерживаемые текстуры, уже
 
 msgid "textures"
 msgstr "текстур"
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip empty squad request work"
+msgstr "Пропускать пустые заявки отрядов"
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."
+msgstr "Убирает временное выделение памяти, когда у отряда нет заявок с таймером. Активные заявки, работы, ИИ и частота обновления отрядов сохраняются. Доступно на поддерживаемых сборках Steam; на остальных остаётся обычное поведение."
