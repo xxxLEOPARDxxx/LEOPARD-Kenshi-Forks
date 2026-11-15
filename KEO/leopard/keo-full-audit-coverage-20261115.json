@@ -1,6 +1,6 @@
 {
-  "files": 737,
-  "lines": 115801,
+  "files": 739,
+  "lines": 115901,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -805,21 +805,23 @@
     },
     {
       "path": "src/fixes/fixes_config.cpp",
-      "sha256": "bbad0f0448d034e1e9659f0a628f5bf16d339230a94d3754e980afb1752e22ad",
-      "lines": 367,
+      "sha256": "68ae0c1478850ced51306e413c78639e7ef6bf9d0830b8cf6e7b58a08f276b28",
+      "lines": 371,
       "reports": [
         "base-squad-empty-review-20261115.md",
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/fixes/fixes_config.h",
-      "sha256": "166004c2e22f5021797aeca8c55d4295774df0a5d5aa06b1945f5a1479167e43",
-      "lines": 245,
+      "sha256": "fd76ed13f551516255c65ed74a5f3a0d9cc70f1d4078322b11bcecd99ac6e2b8",
+      "lines": 247,
       "reports": [
         "base-squad-empty-review-20261115.md",
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -1746,6 +1748,24 @@
       "kind": "body/declarations read"
     },
     {
+      "path": "src/fixes/world/skeleton_reserve.cpp",
+      "sha256": "f67880272dbd3339253a370e1ef99837d27671fc4728c194e1c5ebd5c305d234",
+      "lines": 89,
+      "reports": [
+        "skeleton-reserve-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/skeleton_reserve.h",
+      "sha256": "04dacb8b9c28ee78f34e954ce828b3879f81e36a4188a7391000524c846334a9",
+      "lines": 2,
+      "reports": [
+        "skeleton-reserve-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
       "path": "src/fixes/world/throwout.cpp",
       "sha256": "d61abc25db187c9163f6c1478841647300243308cb57c67d43e0bc46e60cd6ce",
       "lines": 411,
@@ -2217,11 +2237,12 @@
     },
     {
       "path": "src/gui/settings_layout.cpp",
-      "sha256": "67b7805065ffc56b8fe05a8a9ed64b82d36be411e62160535a75ae91973e559f",
-      "lines": 150,
+      "sha256": "6caa69afb9bc2fd3d075fffa65eb8a43d25bf9649fb23378d3f79a84f1980a00",
+      "lines": 151,
       "reports": [
         "base-squad-empty-review-20261115.md",
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -4885,13 +4906,14 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "13c6f453d4b047a7232f979e65d8cfbdf251cca98aadbee776a0b9dc3c3efdc9",
-      "lines": 824,
+      "sha256": "ab46ff72ef2be919019716bb888b87908f2113d3828df5aa18570490a7fecc2e",
+      "lines": 826,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "full-audit-session-costs-20261115.md",
-        "hook-batch-cache-review-20261115.md"
+        "hook-batch-cache-review-20261115.md",
+        "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },

@@ -369,3 +369,4 @@ src/resources/resource_geometry.cpp
 src/resources/resource_texture_retention.cpp
 
 src/fixes/world/blackboard_empty.cpp
+src/fixes/world/skeleton_reserve.cpp

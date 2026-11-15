@@ -177,3 +177,30 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends and reports **Cache limit reached**; that does not mean every resource was loaded. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
 
 Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости заканчивается и показывает **Достигнут лимит кэша**. Это не означает, что загружены все ресурсы. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.
+
+## Local NPC loading correction / Локальная правка загрузки NPC (2026-11-16)
+
+MCM > KEO > Performance > Prepare NPC skeleton storage (default ON, live):
+prepares the empty native bone-pointer array once for a newly loaded skeleton.
+The game still creates every bone, hierarchy, binding pose and animation itself;
+no NPC is shared, moved to another thread or made ready early. The optimization
+uses an admitted native engine contract and falls back to normal loading when
+unsupported. No controlled game load-time or FPS gain has been measured.
+
+MCM > KEO > Производительность > Подготовка памяти скелетов NPC (включено по
+умолчанию, применяется без перезапуска): заранее подготавливает пустой массив
+указателей на кости нового скелета. Все кости, их иерархию, исходную позу и
+анимацию по-прежнему создаёт сама игра. NPC не разделяются между персонажами,
+не создаются в другом потоке и не объявляются готовыми раньше времени.
+Неподдерживаемая сборка движка сохраняет обычную загрузку. Ускорение загрузки
+сейва и изменение FPS в игре пока не измерены.
+
+Implementation: only an empty Skeleton bone vector is reserved to the master's
+full handle span1..256. No resize, bone creation, root enumeration or persistent
+cache. The SDK OldSkeletonInstance tail differs from the installed engine;
+its master SharedPtr/member order/size/vtable are deliberately not used. The
+borrowed master pointer is copied from the admitted native field+0x290; only
+the separately verified Skeleton vector prefix+0x178 uses the SDK accessor.
+Optional failures forward native loading exactly once; native exceptions remain
+native. Main-owner and live setting gates precede preparation. See private
+leopard/skeleton-reserve-20261116.md for verification and limits.

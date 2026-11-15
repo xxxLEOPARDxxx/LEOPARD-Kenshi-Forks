@@ -46,6 +46,7 @@
 #include "bench/bench_runner.h"
 #include "fixes/world/corpse_pin.h"
 #include "fixes/world/blackboard_empty.h"
+#include "fixes/world/skeleton_reserve.h"
 #include "fixes/world/faction_relations.h"
 #include "inventory/backpack_first.h"
 #include "inventory/carried_weight.h"
@@ -752,6 +753,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallZoneLifecycleHooks,
 	InstallCorpsePin,
 	InstallBlackboardEmpty,
+	InstallSkeletonReserve,
 	keo_inventory::InstallBackpackFirst,
 	keo_inventory::InstallCarriedWeight,
 	keo_jobs::InstallSteelJobs,

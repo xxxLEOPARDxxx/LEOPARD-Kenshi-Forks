@@ -1,0 +1,32 @@
+[
+  {
+    "path": "src/fixes/world/skeleton_reserve.cpp",
+    "sha256": "f67880272dbd3339253a370e1ef99837d27671fc4728c194e1c5ebd5c305d234",
+    "report": "skeleton-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/skeleton_reserve.h",
+    "sha256": "04dacb8b9c28ee78f34e954ce828b3879f81e36a4188a7391000524c846334a9",
+    "report": "skeleton-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "sha256": "68ae0c1478850ced51306e413c78639e7ef6bf9d0830b8cf6e7b58a08f276b28",
+    "report": "skeleton-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "sha256": "fd76ed13f551516255c65ed74a5f3a0d9cc70f1d4078322b11bcecd99ac6e2b8",
+    "report": "skeleton-reserve-20261116.md"
+  },
+  {
+    "path": "src/gui/settings_layout.cpp",
+    "sha256": "6caa69afb9bc2fd3d075fffa65eb8a43d25bf9649fb23378d3f79a84f1980a00",
+    "report": "skeleton-reserve-20261116.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "ab46ff72ef2be919019716bb888b87908f2113d3828df5aa18570490a7fecc2e",
+    "report": "skeleton-reserve-20261116.md"
+  }
+]

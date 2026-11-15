@@ -131,6 +131,7 @@ sectionStamp=true
 settingsPanel=true
 shadowReachCull=true
 shadowReachDiag=false
+skeletonReserve=true
 spliceSeamFull=true
 stitchByteGuard=true
 stitchSourceLines=32

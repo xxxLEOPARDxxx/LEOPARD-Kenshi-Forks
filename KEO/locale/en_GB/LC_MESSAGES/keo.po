@@ -443,3 +443,11 @@ msgstr "Skip empty squad request work"
 #: src/fixes/fixes_config.cpp
 msgid "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."
 msgstr "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare NPC skeleton storage"
+msgstr "Prepare NPC skeleton storage"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."
+msgstr "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."

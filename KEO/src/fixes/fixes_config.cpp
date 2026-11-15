@@ -187,6 +187,7 @@ const FixesConfig kFixesDefaults =
 	true, // throwOutFixEnabled
 	60, // throwOutHoldMinutes
 	true, // blackboardEmptyEnabled
+	true, // skeletonReserveEnabled
 };
 
 FixesConfig g_fixesCfg = kFixesDefaults;
@@ -342,6 +343,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("blackboardEmpty", FixesConfig, blackboardEmptyEnabled, DOC, SHOW,
       "Skip empty squad request work",
       "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."),
+	CFG_OBOOL_LIVE("skeletonReserve", FixesConfig, skeletonReserveEnabled, DOC, SHOW,
+      "Prepare NPC skeleton storage",
+      "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

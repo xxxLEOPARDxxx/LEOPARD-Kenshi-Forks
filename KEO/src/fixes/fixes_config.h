@@ -235,6 +235,8 @@ struct FixesConfig
 	int throwOutHoldMinutes;
 	// Main-thread live toggle; only a verified fenced native phase uses it.
 	bool blackboardEmptyEnabled;
+	// Capacity-only preparation on the native skeleton owner; live toggle.
+	bool skeletonReserveEnabled;
 
 };
 
