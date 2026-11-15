@@ -11,7 +11,7 @@
 using namespace resource_cache;
 int main(){
     char dir[MAX_PATH];GetTempPathA(MAX_PATH,dir);
-    char filename[64];sprintf_s(filename,"keo-native-stream-%lu.dds",GetCurrentProcessId());
+    char filename[64];sprintf_s(filename,"keo-native-stream-%lu.mesh",GetCurrentProcessId());
     std::string path=std::string(dir)+filename;
     {std::ofstream f(path.c_str(),std::ios::binary);f<<"abcdefghijklmnop";}
     Ogre::FileSystemArchive archive(dir,"FileSystem",true);

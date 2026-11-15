@@ -144,9 +144,9 @@ static void RelInstallToken(std::ostringstream& ss, const char* name, const char
 		ss << "ok";
 }
 
-void InstallFactionRelations(int* installed, int*)
+static void RelationsInstallComplete(const char*why)
 {
-	s_updateWhy = HookInstall(HOOK_FACTION_RELATIONS_UPDATE, hook_relationsUpdate, &orig_update, installed, true);
+	s_updateWhy = why;
 
 	std::ostringstream ss;
 	ss << "Relations: install";
@@ -155,6 +155,12 @@ void InstallFactionRelations(int* installed, int*)
 		ErrorLog(ss.str());
 	else
 		KEO_DETAIL(ss.str());
+}
+
+void InstallFactionRelations(int* installed, int*)
+{
+	HookInstallIndependent(HOOK_FACTION_RELATIONS_UPDATE,hook_relationsUpdate,&orig_update,
+		installed,true,RelationsInstallComplete);
 }
 
 #ifdef KEO_DEBUG

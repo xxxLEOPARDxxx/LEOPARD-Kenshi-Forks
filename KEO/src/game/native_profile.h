@@ -5,6 +5,8 @@
 // Steam remains the original path. GOG requires both pinned EXE and SDK files.
 bool NativeProfilePrepareGog(uintptr_t base, void (*log)(const char*));
 bool NativeProfileIsGog();
+// Startup owner only; SHA-verify the loaded SDK once before optional internal APIs.
+bool NativeProfileVerifySdk();
 uintptr_t NativeProfileAddress(uintptr_t base, uintptr_t steamRva);
 uintptr_t NativeProfileCanonical(uintptr_t actualRva);
 const unsigned char* NativeProfileBytes(uintptr_t steamRva,const unsigned char* steamBytes,size_t count);

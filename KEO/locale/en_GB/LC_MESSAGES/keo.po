@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "Background resource reading (MiB/s)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup resource warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup resource warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
 
 
 msgid "Prepare nearby terrain"
@@ -365,20 +365,20 @@ msgid "VRAM standby"
 msgstr "VRAM standby"
 
 
-msgid "Warm textures at startup"
-msgstr "Warm textures at startup"
+msgid "Warm resources at startup"
+msgstr "Warm resources at startup"
 
 
-msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
-msgstr "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
+msgid "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."
+msgstr "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."
 
 
-msgid "Startup texture warmup"
-msgstr "Startup texture warmup"
+msgid "Startup resource warmup"
+msgstr "Startup resource warmup"
 
 
-msgid "Scanning textures"
-msgstr "Scanning textures"
+msgid "Scanning resources"
+msgstr "Scanning resources"
 
 
 msgid "Cache limit reached"

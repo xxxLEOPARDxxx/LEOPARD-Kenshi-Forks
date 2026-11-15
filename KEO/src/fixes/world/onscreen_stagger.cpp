@@ -111,6 +111,15 @@ static bool hook_updateOnScreenCheck(void* chv)
 	return false;
 }
 
+static void OnScreenInstallComplete(const char*why)
+{
+#ifdef KEO_DEBUG
+	s_installWhy=why;
+#endif
+	if(why)ErrorLog(std::string("OnScreenStagger: installation unconfirmed(")+why+")");
+	else KEO_DETAIL("OnScreenStagger: install=ok");
+}
+
 void InstallOnScreenStagger(int* installed, int*)
 {
 	void* playerSlot = GameAddr(RVA_GLOBAL_PLAYER);
@@ -130,16 +139,11 @@ void InstallOnScreenStagger(int* installed, int*)
 		s_paused = world + ONS_GAMEWORLD_PAUSED;
 		s_frameTime = (const float*)frameTime;
 		s_sqDist = (sqDistFromCamera_t)sqDist;
-		why = HookInstall(HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK, hook_updateOnScreenCheck, &orig_check,
-		                  installed, true);
+		HookInstallIndependent(HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK,hook_updateOnScreenCheck,&orig_check,
+			installed,true,OnScreenInstallComplete);
+		return;
 	}
-#ifdef KEO_DEBUG
-	s_installWhy = why;
-#endif
-	if (why)
-		ErrorLog(std::string("OnScreenStagger: install=refused(") + why + ")");
-	else
-		KEO_DETAIL("OnScreenStagger: install=ok");
+	OnScreenInstallComplete(why);
 }
 
 #ifdef KEO_DEBUG

@@ -28,7 +28,7 @@ struct __declspec(align(16)) Stats {
 };
 bool Start(); // before installing archive hook; worker does no engine calls
 void Configure(bool enabled, unsigned __int64 bytes, unsigned megabytesPerSecond);
-void RegisterTextureRoot(const std::string& absolutePath, bool recursive); // copies filesystem location; retained while off
+void RegisterTextureRoot(const std::string& absolutePath, bool recursive); // legacy API name; copied model/texture filesystem location, retained while off
 void ConfigureStartup(bool enabled); // live opt-in; unchanged values do not restart inventory
 bool StartupEnabled();
 void SetStartupMenu(bool); // main owner heartbeat; short lease expires if rendering stops

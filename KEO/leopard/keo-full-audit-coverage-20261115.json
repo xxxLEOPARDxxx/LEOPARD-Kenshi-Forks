@@ -1,6 +1,6 @@
 {
-  "files": 733,
-  "lines": 115477,
+  "files": 734,
+  "lines": 115631,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -1525,10 +1525,11 @@
     },
     {
       "path": "src/fixes/world/corpse_pin.cpp",
-      "sha256": "027772266c0eca49be1245b4caea02cf83849b14fbf093f6aa25c1c055e95d35",
-      "lines": 141,
+      "sha256": "aa7058d01432e31bf58c3ad4fe103d0d16d7a86bbedf960c275e34fb5317265e",
+      "lines": 142,
       "reports": [
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -1579,10 +1580,11 @@
     },
     {
       "path": "src/fixes/world/faction_relations.cpp",
-      "sha256": "9142c58b3dd36ab5d6d9a089aeeabbc15454585bfc49eed5f9f6f651b65be7e2",
-      "lines": 216,
+      "sha256": "6845660621fdd378330b019e6608bde2cc29e5892015cb751f35252ed11680a3",
+      "lines": 222,
       "reports": [
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -1651,10 +1653,11 @@
     },
     {
       "path": "src/fixes/world/onscreen_stagger.cpp",
-      "sha256": "240a090fc84385685ef3585099ca39a740eeae3d9068fb19e925644d2189a9f6",
-      "lines": 252,
+      "sha256": "ec106dc4088505adca24a168cfba685ca696c87106acbb956bfbb712373542c2",
+      "lines": 256,
       "reports": [
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -1687,10 +1690,11 @@
     },
     {
       "path": "src/fixes/world/paused_skip.cpp",
-      "sha256": "521f5aba18f3128b7c094955f8bbc9fbcd68652d0af8f3718db957b4dbc1fe63",
-      "lines": 149,
+      "sha256": "807ccb7279cb3c4e23067f923500d947d8bf00341a65be16eb149ed499ec43f7",
+      "lines": 154,
       "reports": [
-        "full-audit-fixes-world-streaming-20261115.md"
+        "full-audit-fixes-world-streaming-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -2047,19 +2051,21 @@
     },
     {
       "path": "src/game/native_profile.cpp",
-      "sha256": "d9530d77f6a0fa71cb14fc6526d327437c0e00d0be775469b88c6e796182c40a",
-      "lines": 66,
+      "sha256": "508c1268bd275b09168a400bdc954396a8c24e7e467a61c6f224bb6d2b0a94b0",
+      "lines": 73,
       "reports": [
-        "full-audit-navmesh-pathfind-game-20261115.md"
+        "full-audit-navmesh-pathfind-game-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/game/native_profile.h",
-      "sha256": "b18e71fc1eda70b52446184f675a1434efef185a725d129acf74c8f3c606720e",
-      "lines": 12,
+      "sha256": "efca351f952eaba78601a9f429b76fb1df97e98d5639782aa429206938227a87",
+      "lines": 14,
       "reports": [
-        "full-audit-navmesh-pathfind-game-20261115.md"
+        "full-audit-navmesh-pathfind-game-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -4858,21 +4864,23 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "9e6d7b68bb76f4c69a523ac5ec8fa5b4bfca40e4166b4e7c5515a41b0e584fce",
-      "lines": 756,
+      "sha256": "a6614fc8902e104a3503a1c8eb6889d068367970c3c5d7ed104b94a68a60ffdb",
+      "lines": 822,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
-        "full-audit-session-costs-20261115.md"
+        "full-audit-session-costs-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/plugin/hook_manifest.h",
-      "sha256": "aa91eaf93d71649530fd3540f7c4b49a1739dcc11a6787418c4c75d3928ecd01",
-      "lines": 57,
+      "sha256": "84343b9cc1c2bc5373b3a70e5c070ef1068359561eb82cf3ee83c5ae80128a41",
+      "lines": 67,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
-        "full-audit-session-costs-20261115.md"
+        "full-audit-session-costs-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -4902,6 +4910,15 @@
       "lines": 518,
       "reports": [
         "full-audit-core-render-resources-20261115.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/plugin/independent_hook_batch.h",
+      "sha256": "84f29c008e98020c6cc5d2af10e8bef430c29baae403a58c0f70c903a27d602b",
+      "lines": 50,
+      "reports": [
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5584,19 +5601,21 @@
     },
     {
       "path": "src/resources/resource_cache_store.cpp",
-      "sha256": "68f5eee070562c895baaced84ef6171b0678dfeb271d17f389fe8a6472072c8a",
-      "lines": 442,
+      "sha256": "23006482558455f01636b06380cccf4eab0fc4f5571e5b10fde3e6d1b400a23a",
+      "lines": 445,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/resources/resource_cache_store.h",
-      "sha256": "e35d91384435a826722f642e4ba6f05e28a6b7fe8e0861c20a60f3d4b5e7b7ac",
+      "sha256": "8027b860bd9dfc0d24b80206064ae3a2eb9f99d6a0f79fe65198107631c27919",
       "lines": 44,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5773,10 +5792,11 @@
     },
     {
       "path": "src/resources/resource_warm_hud_policy.h",
-      "sha256": "3882860759f614c4732298c611c696fbead46e71f01ac68b46bef5825dd42f48",
+      "sha256": "00e4aec17d7661fc6f373276c66afaa276aa6700ff4281997f8dd7b56d138469",
       "lines": 69,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },
@@ -6512,10 +6532,11 @@
     },
     {
       "path": "src/zone/zone_config.cpp",
-      "sha256": "9c5569043fd4da8e72c60c13a82d3c3d8dd1f8345ded8af7be892f353ff16dfe",
+      "sha256": "a1706d5b43a60e2c5c66e261255df3ecb3cd4a7a6c33c1c64f7b0b649a7e092c",
       "lines": 212,
       "reports": [
-        "full-audit-zone-movement-planner-20261115.md"
+        "full-audit-zone-movement-planner-20261115.md",
+        "hook-batch-cache-review-20261115.md"
       ],
       "kind": "body/declarations read"
     },

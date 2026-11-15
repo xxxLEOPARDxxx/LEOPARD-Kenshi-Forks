@@ -1,0 +1,67 @@
+[
+  {
+    "path": "src/fixes/world/corpse_pin.cpp",
+    "sha256": "aa7058d01432e31bf58c3ad4fe103d0d16d7a86bbedf960c275e34fb5317265e",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/world/faction_relations.cpp",
+    "sha256": "6845660621fdd378330b019e6608bde2cc29e5892015cb751f35252ed11680a3",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/world/onscreen_stagger.cpp",
+    "sha256": "ec106dc4088505adca24a168cfba685ca696c87106acbb956bfbb712373542c2",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/fixes/world/paused_skip.cpp",
+    "sha256": "807ccb7279cb3c4e23067f923500d947d8bf00341a65be16eb149ed499ec43f7",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/game/native_profile.cpp",
+    "sha256": "508c1268bd275b09168a400bdc954396a8c24e7e467a61c6f224bb6d2b0a94b0",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/game/native_profile.h",
+    "sha256": "efca351f952eaba78601a9f429b76fb1df97e98d5639782aa429206938227a87",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "a6614fc8902e104a3503a1c8eb6889d068367970c3c5d7ed104b94a68a60ffdb",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.h",
+    "sha256": "84343b9cc1c2bc5373b3a70e5c070ef1068359561eb82cf3ee83c5ae80128a41",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/plugin/independent_hook_batch.h",
+    "sha256": "84f29c008e98020c6cc5d2af10e8bef430c29baae403a58c0f70c903a27d602b",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/resources/resource_cache_store.cpp",
+    "sha256": "23006482558455f01636b06380cccf4eab0fc4f5571e5b10fde3e6d1b400a23a",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/resources/resource_cache_store.h",
+    "sha256": "8027b860bd9dfc0d24b80206064ae3a2eb9f99d6a0f79fe65198107631c27919",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/resources/resource_warm_hud_policy.h",
+    "sha256": "00e4aec17d7661fc6f373276c66afaa276aa6700ff4281997f8dd7b56d138469",
+    "report": "hook-batch-cache-review-20261115.md"
+  },
+  {
+    "path": "src/zone/zone_config.cpp",
+    "sha256": "a1706d5b43a60e2c5c66e261255df3ecb3cd4a7a6c33c1c64f7b0b649a7e092c",
+    "report": "hook-batch-cache-review-20261115.md"
+  }
+]

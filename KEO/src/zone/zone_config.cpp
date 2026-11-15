@@ -90,8 +90,8 @@ const ConfigKey g_zoneConfigKeys[] =
       "Show resource warmup text",
 	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."),
 	CFG_OBOOL_LIVE("resourceStartupTextures", ZoneConfig, cfg_resourceStartupTextures, DOC, SHOW,
-      "Warm textures at startup",
-      "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."),
+      "Warm resources at startup",
+      "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."),
 	CFG_OBOOL_LIVE("resourceRamCache", ZoneConfig, cfg_resourceRamCache, DOC, SHOW,
 	  "Cache resource files in RAM",
 	  "Keeps copies of texture and model files already requested by the game for faster reuse."
@@ -105,7 +105,7 @@ const ConfigKey g_zoneConfigKeys[] =
 	CFG_OINT_LIVE("resourceReadMBps", ZoneConfig, cfg_resourceReadMBps, 1.0f, 128.0f, INT_MIN, DOC, SHOW,
 	  "Background resource reading (MiB/s)",
 	  "Limits a low-priority IO worker that prepares requested files for reuse during gameplay."
-	  " Startup texture warmup in the main menu reads faster while the menu is responsive."
+	  " Startup resource warmup in the main menu reads faster while the menu is responsive."
 	  " Lower this if background disk access affects the game. This is not a graphics memory budget."),
 	CFG_OBOOL("deferral", ZoneConfig, deferralEnabled,              NDOC, DEVROW,
 	  "Legacy readiness deferral (retired)",

@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "Фоновое чтение (МиБ/с)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "Ограничивает фоновое чтение файлов во время игры. Стартовый прогрев текстур в главном меню идёт быстрее, пока меню работает плавно. Уменьшите значение, если фоновое чтение диска мешает игре. Это не лимит видеопамяти."
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup resource warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "Ограничивает скорость низкоприоритетного потока чтения файлов для повторного использования во время игры. Стартовый прогрев ресурсов в главном меню читает быстрее, пока меню работает плавно. Уменьшите значение, если фоновое чтение мешает игре. Это не лимит видеопамяти."
 
 
 msgid "Prepare nearby terrain"
@@ -365,20 +365,20 @@ msgid "VRAM standby"
 msgstr "VRAM-запас"
 
 
-msgid "Warm textures at startup"
-msgstr "Прогрев текстур при запуске"
+msgid "Warm resources at startup"
+msgstr "Прогрев ресурсов при запуске"
 
 
-msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
-msgstr "Заранее читает текстуры из папок ресурсов игры и подключённых модов в кэш ОЗУ, начиная с главного меню. При достижении лимита останавливается. Запросы самой игры имеют приоритет. Требуется кэш файлов ресурсов в ОЗУ. Текст прогресса показывает сбор списка и обработанные файлы, включая пропущенные."
+msgid "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."
+msgstr "Заранее читает файлы моделей, скелетов и текстур из папок ресурсов игры и подключённых модов в кэш ОЗУ, начиная с главного меню. Файлы моделей и скелетов читаются раньше текстур. При достижении лимита останавливается. Запросы самой игры имеют приоритет. Требуется кэш файлов ресурсов в ОЗУ. Не создаёт NPC и не подготавливает геометрию моделей. Текст прогресса показывает сбор списка и обработанные файлы, включая пропущенные."
 
 
-msgid "Startup texture warmup"
-msgstr "Стартовый прогрев текстур"
+msgid "Startup resource warmup"
+msgstr "Стартовый прогрев ресурсов"
 
 
-msgid "Scanning textures"
-msgstr "Сбор списка текстур"
+msgid "Scanning resources"
+msgstr "Сбор списка ресурсов"
 
 
 msgid "Cache limit reached"

@@ -154,12 +154,22 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 
 ### English
 
+- Four independent startup hooks now share one verified SDK queue/apply operation. KEO uses a local matching-module adapter for the SDK wrapper defect; unsupported SDK builds keep the immediate path. Coupled hooks retain their existing order. Partial failures retain original functions and do not announce unconfirmed installation success.
+- Startup RAM warmup now reads model and skeleton files before textures, so a full texture cache does not consume the startup budget before model files are considered. It still stops at the RAM limit and gives native game requests priority. This prepares file bytes; NPC creation, model decoding and geometry upload remain native work.
 - Set operator cargo limits by weight and occupied inventory and backpack cells in steps of 5%. A supported operator delivers when either limit is reached.
 - Right-click the backpack checkmark to set an individual cell limit or restore the global one. A green checkmark indicates an individual limit.
 - With MCM installed, KEO settings are available on its MCM page. The standalone tab is available without MCM.
 
 ### Русский
 
+- Четыре независимых хука запуска теперь устанавливаются одной проверенной пакетной операцией SDK. Локальный адаптер KEO исправляет несовпадение модулей в обёртках SDK; при неподдерживаемой версии остаётся прежняя установка. Связанные хуки сохраняют прежний порядок. Частичный отказ не теряет оригинальные функции и не выдаётся за успешную установку.
+- Стартовый прогрев ОЗУ теперь читает файлы моделей и скелетов раньше текстур: текстуры не занимают весь стартовый бюджет до рассмотрения моделей. При достижении лимита прогрев останавливается, запросы самой игры имеют приоритет. Подготавливаются байты файлов; создание NPC, разбор моделей и загрузку геометрии выполняет сама игра.
 - Для операторов поддерживаемых станков можно настроить предел по весу и долю занятых ячеек инвентаря и рюкзака с шагом 5%. Доставка начинается по первому достигнутому пределу.
 - ПКМ по галочке рюкзака открывает личный лимит ячеек и позволяет вернуться к общему. Зелёная галочка показывает, что задан личный лимит.
 - При установленном MCM настройки доступны на странице KEO в MCM. Отдельная вкладка доступна без MCM.
+
+### Startup RAM warmup reference / Справка по стартовому прогреву ОЗУ
+
+The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends and reports **Cache limit reached**; that does not mean every resource was loaded. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
+
+Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости заканчивается и показывает **Достигнут лимит кэша**. Это не означает, что загружены все ресурсы. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.

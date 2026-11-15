@@ -54,7 +54,10 @@ struct StartupWork {
     bool started, scanned, capped;
     std::vector<Directory> directories;
     std::map<std::string,bool,PathLess> visited;
-    std::vector<std::string> inventory;
+    // Both buckets share MaxStartupFiles and seenFiles. Finish the bounded
+    // scan before reading: model/skeleton bytes precede the larger texture
+    // library regardless of root/discovery order. No Ogre objects cross here.
+    std::vector<std::string> inventory, models;
     std::set<std::string,PathLess> seenFiles;
     size_t directory, next;
     HANDLE find;
@@ -65,7 +68,7 @@ struct StartupWork {
     void Reset(LONG e){
         if(find!=INVALID_HANDLE_VALUE)FindClose(find);find=INVALID_HANDLE_VALUE;
         std::vector<Directory>().swap(directories);std::map<std::string,bool,PathLess>().swap(visited);
-        std::vector<std::string>().swap(inventory);std::set<std::string,PathLess>().swap(seenFiles);
+        std::vector<std::string>().swap(inventory);std::vector<std::string>().swap(models);std::set<std::string,PathLess>().swap(seenFiles);
         epoch=e;started=scanned=capped=hasItem=false;directory=next=0;
     }
 };
@@ -251,9 +254,9 @@ void ScanStep(StartupWork&w){
         if(!strcmp(item.cFileName,".")||!strcmp(item.cFileName,"..")||(item.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))continue;
         std::string full=path+"\\"+item.cFileName;if(full.size()>=MAX_PATH)continue;
         if(item.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY){if(recursive)AddDirectory(w,full,true);continue;}
-        if(!Texture(full)||w.seenFiles.find(full)!=w.seenFiles.end())continue;
-        if(w.inventory.size()>=MaxStartupFiles){w.capped=true;w.scanned=true;if(w.find!=INVALID_HANDLE_VALUE)FindClose(w.find);w.find=INVALID_HANDLE_VALUE;Guard g;if(!StartupCancelled(w.epoch)){progress.startupScanning=false;progress.startupCapped=true;}return;}
-        w.seenFiles.insert(full);w.inventory.push_back(full);
+        if(!CacheableFileName(full)||w.seenFiles.find(full)!=w.seenFiles.end())continue;
+        if(w.inventory.size()+w.models.size()>=MaxStartupFiles){w.capped=true;w.scanned=true;if(w.find!=INVALID_HANDLE_VALUE)FindClose(w.find);w.find=INVALID_HANDLE_VALUE;Guard g;if(!StartupCancelled(w.epoch)){progress.startupScanning=false;progress.startupCapped=true;}return;}
+        w.seenFiles.insert(full);if(Texture(full))w.inventory.push_back(full);else w.models.push_back(full);
         unsigned __int64 size=(unsigned __int64(item.nFileSizeHigh)<<32)|item.nFileSizeLow;
         Guard g;if(!StartupCancelled(w.epoch)){++progress.startupFiles;progress.startupTotalBytes+=size;}
     }
@@ -274,12 +277,12 @@ bool StartupStep(StartupWork&w,LONG cacheEpoch){
     }
     if(!w.scanned){ScanStep(w);return true;}
     if(StartupCancelled(e))return false;
-    if(w.next>=w.inventory.size()){
+    if(w.next>=w.models.size()+w.inventory.size()){
         {Guard g;if(!StartupCancelled(e)){progress.startupDone=true;progress.startupCapped=w.capped||rootsCapped;}}
         // Release inventory strings/maps once terminal. Preserve the epoch marker.
         w.Reset(e);return false;
     }
-    const std::string p=w.inventory[w.next];
+    const std::string p=w.next<w.models.size()?w.models[w.next]:w.inventory[w.next-w.models.size()];
     bool present=false;{Guard g;present=files.find(p)!=files.end();if(!present){active=p;activeObserved=false;}}
     ReadResult result=present?ReadSkipped:ReadOne(p,cacheEpoch,e);
     bool terminal=false;

@@ -32,8 +32,8 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
     const bool busy=(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
     result.text[2]=tr(!s.ramOn&&!s.gpuOn?"Off":busy?(s.workPaused?"Paused":"Warming"):"Ready");
     if(s.startupOn&&s.ramOn){
-        result.text[2]=std::string(tr("Startup texture warmup"))+": ";
-        if(s.startupScanning)result.text[2]+=tr("Scanning textures");
+        result.text[2]=std::string(tr("Startup resource warmup"))+": ";
+        if(s.startupScanning)result.text[2]+=tr("Scanning resources");
         else if(s.startupDone&&s.startupCapped)result.text[2]+=tr("Cache limit reached");
         else if(!s.startupFiles)result.text[2]+=tr("Waiting for resource list");
         else {

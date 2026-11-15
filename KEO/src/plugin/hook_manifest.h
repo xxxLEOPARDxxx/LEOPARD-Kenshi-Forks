@@ -44,6 +44,16 @@ bool HookRowWanted(HookRowId id);
 
 HookWantInputs HookWantInputsNow();
 
+// Explicit opt-in for mutually independent hooks only. Completion may run at
+// the end of InstallHooks, never from a later frame. It must retain originals
+// on an unconfirmed partial apply; queued creation is not installed success.
+typedef void (*HookInstallCompletion)(const char* why);
+void HookInstallIndependentRow(HookRowId,void*,void**,int*,bool,HookInstallCompletion);
+template<typename Fn>
+inline void HookInstallIndependent(HookRowId id,Fn detour,Fn*orig,int*installed,bool verify,HookInstallCompletion done){
+ HookInstallIndependentRow(id,(void*)detour,(void**)orig,installed,verify,done);
+}
+
 // Runs every startup install in its fixed order: the row groups, the module
 // installers and the non-hook steps between them. *total is the number of
 // counted rows wanted by the config as it stands on entry; *installed counts

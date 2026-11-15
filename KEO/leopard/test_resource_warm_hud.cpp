@@ -22,7 +22,7 @@ int main()
     s.workPaused=false;s.ramPending=s.gpuPending=0;C(Format(s,0,Identity).text[2].find("Ready")!=std::string::npos);
     s.ramActive=true;C(Format(s,0,Identity).text[2].find("Warming")!=std::string::npos);
     s.ramActive=false;s.startupOn=true;s.startupScanning=true;
-    C(Format(s,0,Identity).text[2].find("Scanning textures")!=std::string::npos);
+    C(Format(s,0,Identity).text[2].find("Scanning resources")!=std::string::npos);
     s.startupScanning=false;s.startupFiles=200;s.startupProcessed=50;s.startupLoaded=48;s.startupSkipped=2;
     C(Format(s,32,Identity).text[2].find("25%")!=std::string::npos);
     C(Format(s,32,Identity).text[2].find("50/200")!=std::string::npos);

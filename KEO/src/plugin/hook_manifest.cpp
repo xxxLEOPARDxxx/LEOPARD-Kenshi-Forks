@@ -13,9 +13,13 @@
 #include "game/game.h"
 #include "base/config.h"   // ZONEHAND_STEP: the rows are gated like their installs
 #include "plugin/hook_manifest.h"
+#include "plugin/independent_hook_batch.h"
+#include "game/native_profile.h"
+#include "render/module_hooks.h"
 #include <windows.h>
 #include <sstream>
 #include <string>
+#include <cstring>
 #include "base/klib_include.h"
 #include <core/Functions.h>
 #include "base/klib_include_end.h"
@@ -105,6 +109,49 @@ static volatile LONG s_installed[HOOK_ROW_COUNT] = { 0 };
 // install; read by HookInstallRow on any thread.
 static volatile LONG s_gatePassed[HOOK_ROW_COUNT] = { 0 };
 
+static HookBatch s_independentBatch;
+static bool s_independentPhase=false;
+static int* s_independentCount=NULL; // bounded to InstallHooks stack lifetime
+static HookInstallCompletion s_independentDone[HOOK_ROW_COUNT]={0};
+static bool s_independentClaimed[HOOK_ROW_COUNT]={0};
+static HookBatch::Queue s_nativeQueue=NULL;
+static HookBatch::Apply s_nativeApply=NULL;
+
+static bool IndependentRow(HookRowId id){
+ return id==HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK||id==HOOK_CHARACTER_PAUSED_UPDATE
+     ||id==HOOK_ACTIVEPLATOON_CALC_POS||id==HOOK_FACTION_RELATIONS_UPDATE;
+}
+
+static bool BeginIndependentHooks(){
+ // Public SDK wrappers choose different module IDs. Resolve the admitted
+ // native exports directly and pass ONE caller ID to both operations.
+ if(!NativeProfileVerifySdk())return false;
+ HMODULE sdk=GetModuleHandleW(L"KenshiLib.dll"),caller=NULL;DWORD stamp=0,size=0;
+ if(!ReadModuleImageId(sdk,&stamp,&size)||stamp!=0x6a8e4636u||size!=0xec000u)return false;
+ void*q=(void*)GetProcAddress(sdk,"?QueueHookInternal@@YA?AW4HookStatus@KenshiLib@@_KPEAX1PEAPEAX@Z");
+ void*a=(void*)GetProcAddress(sdk,"?ApplyQueuedHooksInternal@@YA?AW4HookStatus@KenshiLib@@_K@Z");
+ static const unsigned char qb[16]={0x40,0x53,0x57,0x48,0x81,0xec,0xb8,0,0,0,0x48,0xc7,0x44,0x24,0x20,0xfe};
+ static const unsigned char ab[16]={0x40,0x53,0x48,0x81,0xec,0xb0,0,0,0,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff};
+ if(q!=(char*)sdk+0x2540||a!=(char*)sdk+0x26a0||memcmp(q,qb,16)||memcmp(a,ab,16))return false;
+ if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+     (LPCWSTR)&BeginIndependentHooks,&caller))return false;
+ s_nativeQueue=(HookBatch::Queue)q;s_nativeApply=(HookBatch::Apply)a;
+ return s_independentBatch.Begin((size_t)caller,s_nativeQueue,s_nativeApply);
+}
+
+static void IndependentComplete(int row,const char*why){
+ if(!why){InterlockedExchange(&s_installed[row],1);if(s_independentCount)++*s_independentCount;}
+ if(s_independentDone[row])s_independentDone[row](why);
+}
+
+struct IndependentStartupScope {
+ explicit IndependentStartupScope(int*count){s_independentPhase=BeginIndependentHooks();s_independentCount=s_independentPhase?count:NULL;}
+ ~IndependentStartupScope(){s_independentCount=NULL;s_independentPhase=false;}
+ void Finish(){if(s_independentPhase)s_independentBatch.Finish();s_independentCount=NULL;s_independentPhase=false;}
+private:
+ IndependentStartupScope(const IndependentStartupScope&);IndependentStartupScope&operator=(const IndependentStartupScope&);
+};
+
 const char* HookInstallRow(HookRowId id, void* detour, void** orig, int* installed,
                            bool reverify)
 {
@@ -130,6 +177,23 @@ const char* HookInstallRow(HookRowId id, void* detour, void** orig, int* install
 bool HookRowInstalled(HookRowId id)
 {
 	return InterlockedCompareExchange(&s_installed[id], 0, 0) != 0;
+}
+
+void HookInstallIndependentRow(HookRowId id,void*detour,void**orig,int*installed,bool verify,HookInstallCompletion done){
+ if(!done)return;
+ // Reject reentry BEFORE prologue reads, callback replacement or original
+ // mutation: a previous partial apply may already dispatch this trampoline.
+ if(!IndependentRow(id)){done("batch-row");return;}
+ if(s_independentClaimed[id]||(s_independentPhase&&!s_independentBatch.Collecting())){done("batch-reentrant");return;}
+ s_independentClaimed[id]=true;
+ if(!s_independentPhase){
+  done(HookInstallRow(id,detour,orig,installed,verify));return;
+ }
+ const uintptr_t rva=g_hookPrologues[id].rva;
+ const bool fresh=verify&&VerifyPrologueByRva(rva);
+ if(HookInstallAdmit(verify,fresh,InterlockedCompareExchange(&s_gatePassed[id],0,0)!=0)!=HOOK_ADMIT){*orig=NULL;done("prologue");return;}
+ s_independentDone[id]=done;
+ if(!s_independentBatch.Add(id,GameAddr(rva),detour,orig,IndependentComplete))done("batch-admission");
 }
 
 void HookRowNoteGateVerdict(HookRowId id, bool passed)
@@ -748,8 +812,10 @@ void InstallHooks(int* installed, int* total)
 			++*total;
 	}
 
+	IndependentStartupScope independentScope(installed);
 	for (size_t i = 0; i < sizeof(kInstallSteps) / sizeof(kInstallSteps[0]); ++i)
 		kInstallSteps[i](installed, total);
+	independentScope.Finish();
 	// The enqueue observer installs after submit and is otherwise diagnostic.
 	PathPriorityFinalize(HookRowInstalled(HOOK_REQUEST_PATH),HookRowInstalled(HOOK_PATH_REQ_SUBMIT),
 		HookRowInstalled(HOOK_ENQUEUE_THREAD_SAFE),game::g_hookOrig.orig_requestPath && game::g_hookOrig.orig_pathReqSubmit && orig_enqueueThreadSafe);

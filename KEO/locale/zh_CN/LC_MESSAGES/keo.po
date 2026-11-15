@@ -285,8 +285,8 @@ msgid "Background resource reading (MiB/s)"
 msgstr "后台资源读取速度 (MiB/s)"
 
 
-msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup texture warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
-msgstr "限制游戏期间的低优先级后台文件读取速度。主菜单保持流畅时，启动纹理预热会加快读取。如果后台磁盘读取影响游戏，请降低此值。这不是显存上限。"
+msgid "Limits a low-priority IO worker that prepares requested files for reuse during gameplay. Startup resource warmup in the main menu reads faster while the menu is responsive. Lower this if background disk access affects the game. This is not a graphics memory budget."
+msgstr "限制低优先级IO线程在游戏期间为重复使用而准备文件的读取速度。在主菜单响应流畅时，启动资源预热会更快地读取文件。如果后台磁盘访问影响游戏，请降低此值。这不是显存预算。"
 
 
 msgid "Prepare nearby terrain"
@@ -365,20 +365,20 @@ msgid "VRAM standby"
 msgstr "显存预备"
 
 
-msgid "Warm textures at startup"
-msgstr "启动时预热纹理"
+msgid "Warm resources at startup"
+msgstr "启动时预热资源"
 
 
-msgid "Reads textures from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. The progress text reports scanning and processed files, including skipped files."
-msgstr "从主菜单开始，在后台将游戏和已启用模组注册的资源目录中的纹理读入内存缓存。达到内存上限后停止，不会反复轮换整个资源库。游戏请求优先。需要启用资源文件内存缓存。进度文本显示扫描和已处理文件，包括跳过的文件。"
+msgid "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."
+msgstr "从主菜单开始，在后台将游戏和启用的模组注册的资源文件夹中的模型、骨骼和纹理文件读入内存缓存。先读取模型和骨骼文件，再读取纹理。达到内存上限后停止，不会循环读取整个资源库。游戏请求优先。需要启用资源内存缓存。不会创建NPC或准备模型几何。进度文本显示扫描情况和已处理的文件，包括跳过的文件。"
 
 
-msgid "Startup texture warmup"
-msgstr "启动纹理预热"
+msgid "Startup resource warmup"
+msgstr "启动资源预热"
 
 
-msgid "Scanning textures"
-msgstr "正在扫描纹理"
+msgid "Scanning resources"
+msgstr "扫描资源"
 
 
 msgid "Cache limit reached"

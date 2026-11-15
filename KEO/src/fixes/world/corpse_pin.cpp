@@ -97,27 +97,28 @@ static Ogre::Vector3* __fastcall hook_calculateCurrentPos(ActivePlatoon* self, O
 	return out;
 }
 
-void InstallCorpsePin(int* installed, int*)
+static void CorpsePinInstallComplete(const char*why)
 {
-	if (!HookRowWanted(HOOK_ACTIVEPLATOON_CALC_POS))
-		return;
-
-	const char* why = NULL;
-	if ((const void*)KlibRealAddress(&hand::getCharacter) != GameAddr(RVA_HAND_GET_CHARACTER)
-	 || (const void*)KlibRealAddress(&Character::isDead)  != GameAddr(RVA_CHARACTER_IS_DEAD))
-		why = "addresses";
-	else
-		why = HookInstall(HOOK_ACTIVEPLATOON_CALC_POS, hook_calculateCurrentPos,
-				&orig_calculateCurrentPos, installed, true);
-
 	if (!why)
 	{
 		s_installed = true;
 		KEO_DETAIL("Corpse pin: installed");
 		return;
 	}
-	orig_calculateCurrentPos = NULL;
-	LogError(std::string("Corpse pin: not installed (") + why + ")");
+	// A batch apply may have enabled this independent hook before another
+	// failed. Its original must survive even when success is unconfirmed.
+	LogError(std::string("Corpse pin: installation unconfirmed (") + why + ")");
+}
+
+void InstallCorpsePin(int* installed, int*)
+{
+	if (!HookRowWanted(HOOK_ACTIVEPLATOON_CALC_POS))return;
+	if ((const void*)KlibRealAddress(&hand::getCharacter) != GameAddr(RVA_HAND_GET_CHARACTER)
+	 || (const void*)KlibRealAddress(&Character::isDead) != GameAddr(RVA_CHARACTER_IS_DEAD)){
+		CorpsePinInstallComplete("addresses");return;
+	}
+	HookInstallIndependent(HOOK_ACTIVEPLATOON_CALC_POS,hook_calculateCurrentPos,
+		&orig_calculateCurrentPos,installed,true,CorpsePinInstallComplete);
 }
 
 long CorpsePinOverrideCount()  { return InterlockedCompareExchange(&s_overrideCount, 0, 0); }

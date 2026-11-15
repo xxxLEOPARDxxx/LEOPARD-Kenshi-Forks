@@ -74,6 +74,15 @@ static void hook_pausedUpdate(void* chv)
 	((loadUnloadCheck_t)(*(void***)chv)[PSK_VT_LOAD_UNLOAD_CHECK / sizeof(void*)])(chv);
 }
 
+static void PausedSkipInstallComplete(const char*why)
+{
+#ifdef KEO_DEBUG
+	s_installWhy=why;
+#endif
+	if(why)ErrorLog(std::string("PausedSkip: installation unconfirmed(")+why+")");
+	else KEO_DETAIL("PausedSkip: install=ok");
+}
+
 void InstallPausedSkip(int* installed, int*)
 {
 	void* isPlayer = GameAddr(RVA_CHARACTER_IS_PLAYER_CHARACTER);
@@ -89,15 +98,11 @@ void InstallPausedSkip(int* installed, int*)
 #ifdef KEO_DEBUG
 		s_paused = world + PSK_GAMEWORLD_PAUSED;
 #endif
-		why = HookInstall(HOOK_CHARACTER_PAUSED_UPDATE, hook_pausedUpdate, &orig_paused, installed, true);
+		HookInstallIndependent(HOOK_CHARACTER_PAUSED_UPDATE,hook_pausedUpdate,&orig_paused,
+			installed,true,PausedSkipInstallComplete);
+		return;
 	}
-#ifdef KEO_DEBUG
-	s_installWhy = why;
-#endif
-	if (why)
-		ErrorLog(std::string("PausedSkip: install=refused(") + why + ")");
-	else
-		KEO_DETAIL("PausedSkip: install=ok");
+	PausedSkipInstallComplete(why);
 }
 
 #ifdef KEO_DEBUG

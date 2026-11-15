@@ -10,6 +10,7 @@
 #pragma comment(lib,"advapi32.lib")
 namespace {
 static uintptr_t verifiedGogBase=0;
+static HMODULE verifiedSdkModule=NULL;
 static bool gogRequested=false;
 static const char sdkSha[]="5b6240622d06801dc39896e385efb834b8e1fe2fcdf86067d071ae7a04f6c83b";
 // Fixed-size bounded streaming read. Owned file/hash/provider are released on
@@ -52,7 +53,13 @@ bool NativeProfilePrepareGog(uintptr_t base,void(*log)(const char*)) {
   ||!lib||!ModuleSha(lib,sdk)||strcmp(sdk,sdkSha)!=0) {
   if(log){char message[240];_snprintf_s(message,sizeof(message),_TRUNCATE,"GOG native profile refused: EXE SHA256=%s SDK SHA256=%s; no native hooks installed",exe[0]?exe:"unreadable",sdk[0]?sdk:"unreadable");log(message);}return false;
  }
- verifiedGogBase=base;return true;
+ verifiedSdkModule=lib;verifiedGogBase=base;return true;
+}
+bool NativeProfileVerifySdk(){
+ HMODULE lib=GetModuleHandleW(L"KenshiLib.dll");if(!lib)return false;
+ if(verifiedSdkModule==lib)return true;
+ char hash[65]={0};if(!ModuleSha(lib,hash)||strcmp(hash,sdkSha)!=0)return false;
+ verifiedSdkModule=lib;return true;
 }
 bool NativeProfileIsGog(){return verifiedGogBase!=0;}
 uintptr_t NativeProfileAddress(uintptr_t base,uintptr_t key){
