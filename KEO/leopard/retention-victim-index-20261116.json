@@ -1,0 +1,283 @@
+{
+  "status": "PASS",
+  "production": {
+    "src/resources/resource_geometry.cpp": {
+      "sha256": "ad081307aabe4ca95d615c22275a571721e6c5f5df8c25ec641451127e1a3ef2",
+      "bytes": 15890
+    },
+    "src/resources/resource_texture_retention.cpp": {
+      "sha256": "36c4bff39e073e266e72192c7075f7106c39b9533edf983e9a61f9ad9efd3333",
+      "bytes": 16247
+    },
+    "src/resources/retention_victim_index.h": {
+      "sha256": "deb867abcf8804700414b6355d16e7645d642e1323f450272ff2bade8d489b3d",
+      "bytes": 2598
+    }
+  },
+  "tests": {
+    "leopard/test_resource_geometry.cpp": {
+      "sha256": "4b198dc6c08e9f5c8fbe8aabbcc2d558bcc6f6e876105e682672563c98808f55",
+      "bytes": 27333
+    },
+    "leopard/test_resource_texture_retention.cpp": {
+      "sha256": "ee5a34380fc01baacaf54d2ff36b350034cef2d95588fd2718dfb8fb07a69408",
+      "bytes": 33417
+    },
+    "leopard/test_retention_alloc.h": {
+      "sha256": "5cd66524efda3f15f8389f3edaeb507474b30f768fb4cd076a95d6502fa881f8",
+      "bytes": 463
+    },
+    "leopard/test_retention_victim_index.cpp": {
+      "sha256": "852f5d024af21fb06aacdb1a4220b8d803f839277b41031ab1e98f31cfc8713f",
+      "bytes": 4033
+    },
+    "leopard/test_retention_victim_index.cmd": {
+      "sha256": "a9db8ea8b6ee23fa0e0e7dd3254948f28edb0703bc1b8926d535e2cdcbbd5ad1",
+      "bytes": 631
+    },
+    "leopard/test_retention_victim_cost.py": {
+      "sha256": "ed0bccf665725349f7e02404a28fe9ae838c9487226a283b56e9e6ce4ae57aa9",
+      "bytes": 3219
+    },
+    "leopard/test_retention_victim_mutants.py": {
+      "sha256": "ca9af799c84e7fbb3b68c4664a4a7d84d1c7a74e042241cdd03811e31c34bad3",
+      "bytes": 5442
+    },
+    "leopard/verify_retention_victim_index.py": {
+      "sha256": "568ac460e060453a7a88c3a1bb96b75a770688df251d8e937ca1750e8a1de088",
+      "bytes": 2808
+    }
+  },
+  "results": [
+    {
+      "name": "index-O2",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_retention_victim_index.cmd",
+        "O2"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 1.126,
+      "summary": "actions=7617,7816,6879,7688\nactions=7614,7814,6892,7680\nactions=7614,7815,6888,7683\nactions=7617,7813,6893,7677\nvictim index checks=2058864 allocations outside index=39848",
+      "log": "build\\retention-victim-verification\\index-O2.log"
+    },
+    {
+      "name": "geometry-O2",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_resource_geometry.cmd",
+        "O2"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 2.072,
+      "summary": "geometry entry bytes=80 legacy entry bytes=72 victim index bytes=16400 allocation failures=6\ngeometry actual Ogre collector/lifetime/purge checks=6395",
+      "log": "build\\retention-victim-verification\\geometry-O2.log"
+    },
+    {
+      "name": "texture-O2",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_resource_texture_retention.cmd",
+        "O2"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 1.703,
+      "summary": "texture entry bytes=48 legacy entry bytes=40 victim index bytes=8208 allocation failures=1\ntexture actual Ogre checks=3315",
+      "log": "build\\retention-victim-verification\\texture-O2.log"
+    },
+    {
+      "name": "index-Od",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_retention_victim_index.cmd",
+        "Od"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 6.455,
+      "summary": "actions=7617,7816,6879,7688\nactions=7614,7814,6892,7680\nactions=7614,7815,6888,7683\nactions=7617,7813,6893,7677\nvictim index checks=2058864 allocations outside index=39848",
+      "log": "build\\retention-victim-verification\\index-Od.log"
+    },
+    {
+      "name": "geometry-Od",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_resource_geometry.cmd",
+        "Od"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 1.601,
+      "summary": "geometry entry bytes=80 legacy entry bytes=72 victim index bytes=16400 allocation failures=6\ngeometry actual Ogre collector/lifetime/purge checks=6395",
+      "log": "build\\retention-victim-verification\\geometry-Od.log"
+    },
+    {
+      "name": "texture-Od",
+      "command": [
+        "cmd",
+        "/c",
+        "leopard\\test_resource_texture_retention.cmd",
+        "Od"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 1.424,
+      "summary": "texture entry bytes=48 legacy entry bytes=40 victim index bytes=8208 allocation failures=1\ntexture actual Ogre checks=3315",
+      "log": "build\\retention-victim-verification\\texture-Od.log"
+    },
+    {
+      "name": "cost",
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "leopard/test_retention_victim_cost.py"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.241,
+      "summary": "geometry comparisons=892 remaining=2016\ntexture comparisons=796 remaining=992",
+      "log": "build\\retention-victim-verification\\cost.log"
+    },
+    {
+      "name": "mutants",
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "leopard/test_retention_victim_mutants.py"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 23.452,
+      "summary": "compiled runtime RED controls=16",
+      "log": "build\\retention-victim-verification\\mutants.log"
+    }
+  ],
+  "baseline": {
+    "exit": 1,
+    "output": "geometry comparisons=65040 remaining=2016\r\ntexture comparisons=32272 remaining=992\r\n"
+  },
+  "mutants": {
+    "controls": [
+      {
+        "name": "tie-map-comparator-reversed",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 18: index.Oldest()==Oracle(map)",
+        "mutated_sha256": "ff87164e891ca9633259c6805ceb397ba140854522c8f486f9b5b7562c6879f9"
+      },
+      {
+        "name": "signed-modular-clock-order",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+        "mutated_sha256": "351e7fe346ad80d4b661e80b4de9101529f6718fab4afc92f89195973bc0cf06"
+      },
+      {
+        "name": "ignore-touch-change",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+        "mutated_sha256": "79647479c7079ea51dd5d9e38fe7d52c7c0e992224b75aeebca26bc4aa30d50b"
+      },
+      {
+        "name": "no-oldtouch-insert-repair",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+        "mutated_sha256": "477468f5bd06d13ec47e76027320f67a1583187c282a49a6a4af277f6b073218"
+      },
+      {
+        "name": "no-arbitrary-remove-repair",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+        "mutated_sha256": "44580d3e70708a992a5a4d03dc0b4360f1737bca6177c7b9c84fb2c59952fafe"
+      },
+      {
+        "name": "wrong-moved-slot",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 34: !slots[j->second.victimSlot]",
+        "mutated_sha256": "7ab583499eb30f0fe9e1a84b0c58b16881f80f1699318b96ad60752431866e5c"
+      },
+      {
+        "name": "reset-leaves-slots",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 42: i->second.victimSlot==~0u",
+        "mutated_sha256": "01975ad61e45ba3d9f9c529256d14feb87aae8699b24017067f420024f37c509"
+      },
+      {
+        "name": "geometry-no-hot-touch-repair",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 308: resource_geometry::state->victims.Oldest()==LegacyGeometryOldest()",
+        "mutated_sha256": "00b61f58a35ba380d0dd3efc3673a5104bbb5aea89856295606c45e5c857bff5"
+      },
+      {
+        "name": "geometry-refresh-newtouch",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 300: resource_geometry::state->models.find(indexed[0].get())->second.touch==oldTouch",
+        "mutated_sha256": "323a9123b37d2eff72bba7fbac386cc37f0815cd600fa4eabdeb9c60d202f042"
+      },
+      {
+        "name": "geometry-duplicate-clears-cache",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 302: reserved==2&&resource_geometry::state->victims.Size()==2",
+        "mutated_sha256": "7060da54a2c13fd3e2b40ba7c2b7b80d0effc2763c416c9621ca497c988e40e8"
+      },
+      {
+        "name": "geometry-exception-without-clear",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 338: reserved==0&&resource_geometry::state->models.empty()&&resource_geometry::state->buffers.empty()",
+        "mutated_sha256": "5106862ba9863ef4e371cba928847ec25d040284c8966b3d1e514aa3e5207fa1"
+      },
+      {
+        "name": "texture-no-hot-touch-repair",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 314: resource_texture_retention::Snapshot().textures==1024&&resource_texture_retention::state->textures.count(oldest.get())==1",
+        "mutated_sha256": "27ed50f97b591473385fe805ff86e891c480fcb6d38ba75f5bbda88bce0b5bfd"
+      },
+      {
+        "name": "texture-refresh-newtouch",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 328: resource_texture_retention::state->textures.find(indexed[0].get())->second.touch==oldTouch",
+        "mutated_sha256": "3098d6f77804255df015ef0fdd9d3ee7fe6ea5c53f087f5d354a029712131b7a"
+      },
+      {
+        "name": "texture-duplicate-clears-cache",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 330: reserved==2*indexBytes&&resource_texture_retention::state->victims.Size()==2",
+        "mutated_sha256": "f5f297a39cb9f51337a099ad7406c67a7ecf065f130062bc16b7d7a3c6c66d76"
+      },
+      {
+        "name": "texture-exception-without-clear",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 355: reserved==0&&resource_texture_retention::state->textures.empty()",
+        "mutated_sha256": "0bf6fa2e014b54849a1c5514f2ee9d74395d145ea6b516f22de1d22885fc8188"
+      },
+      {
+        "name": "geometry-ignore-buffer-count-cap",
+        "compiled": true,
+        "exit": 1,
+        "diagnostic": "line 331: !resource_geometry::Promote(indexed[0],d,0)",
+        "mutated_sha256": "c0c664dbbab0436a8963c0f5abc8feb03eaee49c3d53615937cc80cb9ea114d7"
+      }
+    ],
+    "count": 16,
+    "acceptance": "Each compiled successfully and returned CHECK failure exit 1; crashes/compile failures rejected."
+  },
+  "fixed_memory_bytes": {
+    "geometry_index": 16400,
+    "texture_index": 8208,
+    "per_entry_increment": 8,
+    "geometry_capacity": 2048,
+    "texture_capacity": 1024,
+    "combined_at_capacity": 49184
+  }
+}

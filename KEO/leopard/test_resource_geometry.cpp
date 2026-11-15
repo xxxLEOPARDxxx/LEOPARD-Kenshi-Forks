@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <cassert>
 #include <iostream>
+#include "../leopard/test_retention_alloc.h"
 #include <ogre/OgreRoot.h>
 #include <ogre/OgreMeshManager.h>
 #include <ogre/OgreMesh.h>
@@ -61,6 +62,12 @@ static void TickNow(bool on=true,resource_geometry::U64 world=1){
     resource_geometry::state->ticked=false;resource_geometry::Tick(on,1ULL<<30,world);
 }
 static LONG WINAPI Crash(EXCEPTION_POINTERS*p){std::cerr<<"crash RIP="<<std::hex<<p->ContextRecord->Rip<<" image="<<(void*)GetModuleHandle(NULL)<<" Ogre="<<(void*)GetModuleHandleA("OgreMain_x64.dll")<<"\n";return EXCEPTION_EXECUTE_HANDLER;}
+static resource_geometry::Models::iterator LegacyGeometryOldest(){
+    resource_geometry::Models&models=resource_geometry::state->models;
+    resource_geometry::Models::iterator o=models.begin();for(resource_geometry::Models::iterator i=models.begin();i!=models.end();++i)if(i->second.touch<o->second.touch)o=i;return o;
+}
+static bool failedAfterGeometryIndex=false;
+static void GeometryAllocationProbe(){if(resource_geometry::state->victims.Size())failedAfterGeometryIndex=true;}
 int main(){
     SetUnhandledExceptionFilter(Crash);
     Ogre::Root root("","","");Ogre::DefaultHardwareBufferManager hardware;
@@ -277,5 +284,63 @@ int main(){
     CHECK(players[0].get()!=players[1].get()&&players[0]->getHandle()!=players[1]->getHandle());
     CHECK(m.getByName("player_morph_101").get()==players[0].get()&&m.getByName("player_morph_102").get()==players[1].get());
     resource_geometry::Clear();entity.actual.setNull();final.setNull();players[0].setNull();players[1].setNull();m.removeAll();
+    // Full production capacity with real native MeshPtr ownership. Direct
+    // Promote bypasses only scheduling, never native lifetime or accounting.
+    TickNow(true,3);Ogre::MeshPtr indexed[resource_geometry::MaxModels];
+    for(unsigned n=0;n<resource_geometry::MaxModels;++n){
+        char name[48];sprintf_s(name,"victim-index-%u",n);indexed[n]=m.createManual(name,"General",&loader);indexed[n]->load();
+        indexed[n]->sharedVertexData=OGRE_NEW Ogre::VertexData;
+        indexed[n]->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(1)));
+        CHECK(resource_geometry::Describe(indexed[n],&d));CHECK(resource_geometry::Promote(indexed[n],d,n%7));
+        CHECK(resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());
+        if(n==1){
+            resource_geometry::U64 oldTouch=resource_geometry::state->models.find(indexed[0].get())->second.touch;
+            Ogre::HardwareVertexBufferSharedPtr old=indexed[0]->sharedVertexData->vertexBufferBinding->getBuffer(0);
+            indexed[0]->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(3)));TickNow(true,3);
+            CHECK(resource_geometry::state->models.find(indexed[0].get())->second.touch==oldTouch);CHECK(resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());
+            indexed[0]->sharedVertexData->vertexBufferBinding->setBinding(0,old);TickNow(true,3);CHECK(reserved==2);
+            CHECK(!resource_geometry::Promote(indexed[0],d,0));CHECK(reserved==2&&resource_geometry::state->victims.Size()==2);
+        }
+    }
+    CHECK(resource_geometry::state->victims.Size()==resource_geometry::MaxModels&&reserved==resource_geometry::MaxModels);
+    resource_geometry::U64 held=reserved;CHECK(!resource_geometry::Promote(indexed[0],d,0));CHECK(reserved==held);
+    resource_geometry::state->clock=1024;resource_geometry::Observe(resource_geometry::state->victims.Oldest()->second.mesh);
+    CHECK(resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());
+    resource_geometry::state->clock=~0ULL-1;resource_geometry::Observe(indexed[0]);resource_geometry::Observe(indexed[1]);
+    CHECK(resource_geometry::state->clock==0&&resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());
+    for(unsigned n=0;n<16;++n){
+        resource_geometry::Models::iterator i=resource_geometry::state->models.find(indexed[n*11].get());resource_geometry::U64 touch=i->second.touch;
+        resource_geometry::Release(i);CHECK(resource_geometry::Describe(indexed[n*11],&d));CHECK(resource_geometry::Promote(indexed[n*11],d,touch));
+        CHECK(resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());
+    }
+    Ogre::MeshPtr overflow=m.createManual("victim-index-overflow","General",&loader);overflow->load();
+    CHECK(!resource_geometry::Promote(overflow,d,0));CHECK(reserved==held&&resource_geometry::state->victims.Size()==resource_geometry::MaxModels);overflow.setNull();
+    const Ogre::Mesh*victims[32];
+    // Deterministic oracle scenario before the real pressure Tick.
+    for(unsigned n=0;n<resource_geometry::MaxModels;++n){resource_geometry::Models::iterator i=resource_geometry::state->models.find(indexed[n].get());i->second.touch=n%7;resource_geometry::state->victims.Changed(i);}
+    for(unsigned n=0;n<32;++n){resource_geometry::Models::iterator i=LegacyGeometryOldest();victims[n]=i->first;resource_geometry::Oldest();CHECK(resource_geometry::state->models.count(victims[n])==0);CHECK(resource_geometry::state->victims.Oldest()==LegacyGeometryOldest());}
+    budgetAllowed=false;TickNow(true,3);CHECK(resource_geometry::state->victims.Size()==resource_geometry::MaxModels-64);budgetAllowed=true;
+    resource_geometry::Clear();CHECK(resource_geometry::state->victims.Size()==0&&reserved==0);
+    TickNow(true,3);CHECK(resource_geometry::Describe(indexed[0],&d));
+    budgetAllowed=false;CHECK(!resource_geometry::Promote(indexed[0],d,0));CHECK(resource_geometry::state->victims.Size()==0&&reserved==0);budgetAllowed=true;
+    // Failed Account must leave every index/accounting member unchanged.
+    resource_geometry::Count conflict={1,2,0};resource_geometry::state->buffers.insert(std::make_pair(d.buffers[0].id,conflict));
+    CHECK(!resource_geometry::Promote(indexed[0],d,0));CHECK(resource_geometry::state->victims.Size()==0&&reserved==0);resource_geometry::state->buffers.clear();
+    static char bufferKeys[resource_geometry::MaxBuffers];resource_geometry::Count dummy={1,1,0};
+    for(unsigned n=0;n<resource_geometry::MaxBuffers;++n)resource_geometry::state->buffers.insert(std::make_pair(reinterpret_cast<const Ogre::HardwareBuffer*>(&bufferKeys[n]),dummy));
+    CHECK(!resource_geometry::Promote(indexed[0],d,0));CHECK(resource_geometry::state->victims.Size()==0&&reserved==0);resource_geometry::state->buffers.clear();
+    allocationFailureProbe=&GeometryAllocationProbe;
+    unsigned failedBefore=allocationFailures;
+    for(int fail=0;fail<12;++fail){
+        resource_geometry::Clear();TickNow(true,3);unsigned refs=indexed[0].useCount();resource_geometry::Observe(indexed[0]);
+        unsigned prior=allocationFailures;allocationFailAfter=fail;TickNow(true,3);allocationFailAfter=-1;
+        CHECK(resource_geometry::state->models.size()==resource_geometry::state->victims.Size());
+        if(allocationFailures!=prior){CHECK(reserved==0&&resource_geometry::state->models.empty()&&resource_geometry::state->buffers.empty());CHECK(indexed[0].useCount()==refs);}
+        else CHECK(resource_geometry::state->victims.Size()==1&&reserved==1&&indexed[0].useCount()==refs+1);
+    }
+    allocationFailureProbe=NULL;CHECK(allocationFailures>failedBefore&&failedAfterGeometryIndex);
+    resource_geometry::Clear();for(unsigned n=0;n<resource_geometry::MaxModels;++n)indexed[n].setNull();m.removeAll();
+    struct LegacyEntry {Ogre::MeshPtr mesh;resource_geometry::Description desc;resource_geometry::U64 touch;};
+    std::cout<<"geometry entry bytes="<<sizeof(resource_geometry::Entry)<<" legacy entry bytes="<<sizeof(LegacyEntry)<<" victim index bytes="<<sizeof(resource_geometry::state->victims)<<" allocation failures="<<allocationFailures-failedBefore<<"\n";
     std::cout<<"geometry actual Ogre collector/lifetime/purge checks="<<checks<<"\n";return 0;
 }

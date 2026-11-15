@@ -1,5 +1,6 @@
 #include "resources/resource_geometry.h"
 #include "resources/resource_gpu_store.h"
+#include "resources/retention_victim_index.h"
 #ifndef RESOURCE_GEOMETRY_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -64,7 +65,7 @@ bool Describe(const Ogre::MeshPtr&m,Description*d){
     return true;
 }
 struct Count {unsigned refs;U64 gpu,cpu;};
-struct Entry {Ogre::MeshPtr mesh;Description desc;U64 touch;};
+struct Entry {Ogre::MeshPtr mesh;Description desc;U64 touch;unsigned victimSlot;Entry():victimSlot(~0u){}};
 // Weak manager identity ONLY. Pending observations must not pin loaded GPU
 // buffers before byte admission. A purge before Tick can lose an optimization,
 // never native correctness. The raw identity is compared, never dereferenced.
@@ -72,16 +73,17 @@ struct Candidate {Ogre::ResourceHandle handle;const Ogre::Mesh*id;DWORD time;};
 typedef std::map<const Ogre::Mesh*,Entry> Models;
 struct State {
     Stats stats;bool on;U64 cap,world,clock;unsigned device,read,count;DWORD lastTick;bool ticked;
-    Candidate pending[MaxPending];Models models;
+    Candidate pending[MaxPending];Models models;resource_retention::VictimIndex<Models,MaxModels> victims;
     std::map<const Ogre::HardwareBuffer*,Count>buffers;
     const Ogre::Mesh*refreshAfter;
-    State():on(false),cap(GiB),world(0),clock(0),device(0),read(0),count(0),lastTick(0),ticked(false),refreshAfter(NULL){ZeroMemory(&stats,sizeof(stats));}
+    State():on(false),cap(GiB),world(0),clock(0),device(0),read(0),count(0),lastTick(0),ticked(false),victims(models),refreshAfter(NULL){ZeroMemory(&stats,sizeof(stats));}
 };
 // Intentionally process-lifetime storage: a missed shutdown callback must never
 // run an Ogre SharedPtr destructor inside DLL detach. Clear owns normal release.
 static State*state=NULL;
 static void Publish(){state->stats.models=unsigned(state->models.size());state->stats.pending=state->count;}
 static void Release(Models::iterator i){
+    state->victims.Remove(i);
     Entry&e=i->second;
     for(size_t n=0;n<e.desc.buffers.size();++n){
         std::map<const Ogre::HardwareBuffer*,Count>::iterator b=state->buffers.find(e.desc.buffers[n].id);
@@ -91,8 +93,7 @@ static void Release(Models::iterator i){
     resource_gpu::TryGeometryReservation(state->stats.heldBytes,state->cap);
 }
 static void Oldest(){
-    Models::iterator oldest=state->models.begin();
-    for(Models::iterator i=state->models.begin();i!=state->models.end();++i)if(i->second.touch<oldest->second.touch)oldest=i;
+    Models::iterator oldest=state->victims.Oldest();
     if(oldest!=state->models.end())Release(oldest);
 }
 static bool Account(const Description&d,U64*extra,U64*cpu){
@@ -105,10 +106,13 @@ static bool Account(const Description&d,U64*extra,U64*cpu){
     return state->buffers.size()+unique<=MaxBuffers;
 }
 static bool Promote(const Ogre::MeshPtr&m,const Description&d,U64 touch){
+    if(state->models.find(m.get())!=state->models.end())return false;
     U64 extra=0,cpu=0;if(!Account(d,&extra,&cpu)||state->models.size()>=MaxModels)return false;
     if(!d.gpuBytes||!resource_gpu::TryGeometryReservation(state->stats.heldBytes+extra,state->cap))return false;
     // Allocation exceptions are recovered by rebuilding all own bookkeeping.
-    Entry e;e.mesh=m;e.desc=d;e.touch=touch;state->models.insert(std::make_pair(m.get(),e));
+    Entry e;e.mesh=m;e.desc=d;e.touch=touch;
+    std::pair<Models::iterator,bool> inserted=state->models.insert(std::make_pair(m.get(),e));
+    if(!inserted.second||!state->victims.Insert(inserted.first)){Clear();return false;}
     for(size_t n=0;n<d.buffers.size();++n){const Buffer&v=d.buffers[n];
         std::map<const Ogre::HardwareBuffer*,Count>::iterator i=state->buffers.find(v.id);
         if(i!=state->buffers.end())++i->second.refs;
@@ -120,7 +124,7 @@ void Clear(){
     if(!state||!IsMainThread())return;
     state->on=false;state->stats.enabled=false;
     state->read=state->count=0;state->stats.evicted+=state->models.size();
-    state->models.clear();state->buffers.clear();state->stats.heldBytes=state->stats.cpuShadowBytes=0;
+    state->victims.Reset();state->models.clear();state->buffers.clear();state->stats.heldBytes=state->stats.cpuShadowBytes=0;
     state->refreshAfter=NULL;resource_gpu::TryGeometryReservation(0,state->cap);Publish();
 }
 static void Observe(const Ogre::MeshPtr&m){
@@ -129,6 +133,7 @@ static void Observe(const Ogre::MeshPtr&m){
     Models::iterator i=state->models.find(m.get());
     if(i!=state->models.end()){
         i->second.touch=++state->clock;
+        state->victims.Changed(i);
         if(m->isLoaded())++state->stats.reused; // actual native consumer requested this SAME retained mesh
         return;
     }

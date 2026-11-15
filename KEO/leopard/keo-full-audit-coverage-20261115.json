@@ -1,6 +1,6 @@
 {
-  "files": 736,
-  "lines": 115732,
+  "files": 737,
+  "lines": 115801,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -5697,10 +5697,11 @@
     },
     {
       "path": "src/resources/resource_geometry.cpp",
-      "sha256": "d09caa9340264b0c760ba29a6af4fecb2fb81f773963644b961e66e83704f353",
-      "lines": 261,
+      "sha256": "ad081307aabe4ca95d615c22275a571721e6c5f5df8c25ec641451127e1a3ef2",
+      "lines": 266,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "retention-victim-index-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5778,10 +5779,11 @@
     },
     {
       "path": "src/resources/resource_texture_retention.cpp",
-      "sha256": "a3fd8381484f976063ad6261eee9cafdb6454f1881c91be24744932ef3b2230c",
-      "lines": 242,
+      "sha256": "36c4bff39e073e266e72192c7075f7106c39b9533edf983e9a61f9ad9efd3333",
+      "lines": 246,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "retention-victim-index-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5819,6 +5821,15 @@
       "reports": [
         "full-audit-core-render-resources-20261115.md",
         "hook-batch-cache-review-20261115.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/resources/retention_victim_index.h",
+      "sha256": "deb867abcf8804700414b6355d16e7645d642e1323f450272ff2bade8d489b3d",
+      "lines": 60,
+      "reports": [
+        "retention-victim-index-20261116.md"
       ],
       "kind": "body/declarations read"
     },

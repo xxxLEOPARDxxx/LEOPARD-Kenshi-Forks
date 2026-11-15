@@ -1,0 +1,118 @@
+{
+  "controls": [
+    {
+      "name": "tie-map-comparator-reversed",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 18: index.Oldest()==Oracle(map)",
+      "mutated_sha256": "ff87164e891ca9633259c6805ceb397ba140854522c8f486f9b5b7562c6879f9"
+    },
+    {
+      "name": "signed-modular-clock-order",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+      "mutated_sha256": "351e7fe346ad80d4b661e80b4de9101529f6718fab4afc92f89195973bc0cf06"
+    },
+    {
+      "name": "ignore-touch-change",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+      "mutated_sha256": "79647479c7079ea51dd5d9e38fe7d52c7c0e992224b75aeebca26bc4aa30d50b"
+    },
+    {
+      "name": "no-oldtouch-insert-repair",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+      "mutated_sha256": "477468f5bd06d13ec47e76027320f67a1583187c282a49a6a4af277f6b073218"
+    },
+    {
+      "name": "no-arbitrary-remove-repair",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 33: index.Oldest()==Oracle(map)",
+      "mutated_sha256": "44580d3e70708a992a5a4d03dc0b4360f1737bca6177c7b9c84fb2c59952fafe"
+    },
+    {
+      "name": "wrong-moved-slot",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 34: !slots[j->second.victimSlot]",
+      "mutated_sha256": "7ab583499eb30f0fe9e1a84b0c58b16881f80f1699318b96ad60752431866e5c"
+    },
+    {
+      "name": "reset-leaves-slots",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 42: i->second.victimSlot==~0u",
+      "mutated_sha256": "01975ad61e45ba3d9f9c529256d14feb87aae8699b24017067f420024f37c509"
+    },
+    {
+      "name": "geometry-no-hot-touch-repair",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 308: resource_geometry::state->victims.Oldest()==LegacyGeometryOldest()",
+      "mutated_sha256": "00b61f58a35ba380d0dd3efc3673a5104bbb5aea89856295606c45e5c857bff5"
+    },
+    {
+      "name": "geometry-refresh-newtouch",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 300: resource_geometry::state->models.find(indexed[0].get())->second.touch==oldTouch",
+      "mutated_sha256": "323a9123b37d2eff72bba7fbac386cc37f0815cd600fa4eabdeb9c60d202f042"
+    },
+    {
+      "name": "geometry-duplicate-clears-cache",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 302: reserved==2&&resource_geometry::state->victims.Size()==2",
+      "mutated_sha256": "7060da54a2c13fd3e2b40ba7c2b7b80d0effc2763c416c9621ca497c988e40e8"
+    },
+    {
+      "name": "geometry-exception-without-clear",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 338: reserved==0&&resource_geometry::state->models.empty()&&resource_geometry::state->buffers.empty()",
+      "mutated_sha256": "5106862ba9863ef4e371cba928847ec25d040284c8966b3d1e514aa3e5207fa1"
+    },
+    {
+      "name": "texture-no-hot-touch-repair",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 314: resource_texture_retention::Snapshot().textures==1024&&resource_texture_retention::state->textures.count(oldest.get())==1",
+      "mutated_sha256": "27ed50f97b591473385fe805ff86e891c480fcb6d38ba75f5bbda88bce0b5bfd"
+    },
+    {
+      "name": "texture-refresh-newtouch",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 328: resource_texture_retention::state->textures.find(indexed[0].get())->second.touch==oldTouch",
+      "mutated_sha256": "3098d6f77804255df015ef0fdd9d3ee7fe6ea5c53f087f5d354a029712131b7a"
+    },
+    {
+      "name": "texture-duplicate-clears-cache",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 330: reserved==2*indexBytes&&resource_texture_retention::state->victims.Size()==2",
+      "mutated_sha256": "f5f297a39cb9f51337a099ad7406c67a7ecf065f130062bc16b7d7a3c6c66d76"
+    },
+    {
+      "name": "texture-exception-without-clear",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 355: reserved==0&&resource_texture_retention::state->textures.empty()",
+      "mutated_sha256": "0bf6fa2e014b54849a1c5514f2ee9d74395d145ea6b516f22de1d22885fc8188"
+    },
+    {
+      "name": "geometry-ignore-buffer-count-cap",
+      "compiled": true,
+      "exit": 1,
+      "diagnostic": "line 331: !resource_geometry::Promote(indexed[0],d,0)",
+      "mutated_sha256": "c0c664dbbab0436a8963c0f5abc8feb03eaee49c3d53615937cc80cb9ea114d7"
+    }
+  ],
+  "count": 16,
+  "acceptance": "Each compiled successfully and returned CHECK failure exit 1; crashes/compile failures rejected."
+}

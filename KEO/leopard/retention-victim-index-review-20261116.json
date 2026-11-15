@@ -1,0 +1,17 @@
+[
+  {
+    "path": "src/resources/resource_geometry.cpp",
+    "sha256": "ad081307aabe4ca95d615c22275a571721e6c5f5df8c25ec641451127e1a3ef2",
+    "report": "retention-victim-index-20261116.md"
+  },
+  {
+    "path": "src/resources/resource_texture_retention.cpp",
+    "sha256": "36c4bff39e073e266e72192c7075f7106c39b9533edf983e9a61f9ad9efd3333",
+    "report": "retention-victim-index-20261116.md"
+  },
+  {
+    "path": "src/resources/retention_victim_index.h",
+    "sha256": "deb867abcf8804700414b6355d16e7645d642e1323f450272ff2bade8d489b3d",
+    "report": "retention-victim-index-20261116.md"
+  }
+]

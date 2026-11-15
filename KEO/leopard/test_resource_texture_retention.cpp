@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <cassert>
 #include <iostream>
+#include "../leopard/test_retention_alloc.h"
 #include <ogre/OgreRoot.h>
 #include <ogre/OgreTextureManager.h>
 #include <ogre/OgreMeshManager.h>
@@ -58,6 +59,10 @@ static unsigned checks=0;
 #define CHECK(x) do{++checks;if(!(x)){std::cerr<<"line "<<__LINE__<<": "<<#x<<"\n";return 1;}}while(0)
 static void TickNow(bool on=true,resource_texture_retention::U64 world=1,resource_texture_retention::U64 cap=1ULL<<30){
     resource_texture_retention::state->ticked=false;resource_texture_retention::Tick(on,cap,world);
+}
+static resource_texture_retention::Textures::iterator LegacyTextureOldest(){
+    resource_texture_retention::Textures&textures=resource_texture_retention::state->textures;
+    resource_texture_retention::Textures::iterator o=textures.begin();for(resource_texture_retention::Textures::iterator i=textures.begin();i!=textures.end();++i)if(i->second.touch<o->second.touch)o=i;return o;
 }
 static void LoadNative(Ogre::Resource*r,bool background){
     typedef void(*F)(Ogre::Resource*,bool);
@@ -312,5 +317,46 @@ int main(){
     TickNow();CHECK(resource_texture_retention::Snapshot().textures==960);budgetAllowed=true;
     oldest.setNull();extra.setNull();generated.setNull();
     resource_texture_retention::Clear();a.setNull();manager.removeAll();
+    TickNow();Ogre::TexturePtr indexed[resource_texture_retention::MaxTextures];resource_texture_retention::U64 indexBytes=0,totalIndexBytes=0;
+    for(unsigned n=0;n<resource_texture_retention::MaxTextures;++n){
+        char name[48];sprintf_s(name,"victim-index-%u.dds",n);indexed[n]=manager.create(name,"General");indexed[n]->load();
+        CHECK(resource_texture_retention::Describe(indexed[n].get(),&indexBytes));CHECK(resource_texture_retention::Promote(indexed[n].staticCast<Ogre::Resource>(),indexBytes,n%7));
+        totalIndexBytes+=indexBytes;
+        CHECK(resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());
+        if(n==1){
+            resource_texture_retention::U64 oldTouch=resource_texture_retention::state->textures.find(indexed[0].get())->second.touch;
+            indexed[0]->setWidth(4096);TickNow();CHECK(resource_texture_retention::state->textures.find(indexed[0].get())->second.touch==oldTouch);CHECK(resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());CHECK(reserved>2*indexBytes);
+            indexed[0]->setWidth(16);TickNow();CHECK(reserved==2*indexBytes);
+            CHECK(!resource_texture_retention::Promote(indexed[0].staticCast<Ogre::Resource>(),indexBytes,0));CHECK(reserved==2*indexBytes&&resource_texture_retention::state->victims.Size()==2);
+        }
+    }
+    CHECK(resource_texture_retention::state->victims.Size()==resource_texture_retention::MaxTextures&&reserved==totalIndexBytes);
+    resource_texture_retention::U64 held=reserved;CHECK(!resource_texture_retention::Promote(indexed[0].staticCast<Ogre::Resource>(),1,0));CHECK(reserved==held);
+    resource_texture_retention::state->clock=1024;resource_texture_retention::Observe(resource_texture_retention::state->victims.Oldest()->second.texture.get());
+    CHECK(resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());
+    resource_texture_retention::state->clock=~0ULL-1;resource_texture_retention::Observe(indexed[0].get());resource_texture_retention::Observe(indexed[1].get());
+    CHECK(resource_texture_retention::state->clock==0&&resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());
+    for(unsigned n=0;n<16;++n){
+        resource_texture_retention::Textures::iterator i=resource_texture_retention::state->textures.find(indexed[n*11].get());resource_texture_retention::U64 touch=i->second.touch,oldBytes=i->second.bytes;
+        resource_texture_retention::Release(i);CHECK(resource_texture_retention::Promote(indexed[n*11].staticCast<Ogre::Resource>(),oldBytes,touch));
+        CHECK(resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());
+    }
+    Ogre::TexturePtr overflow=manager.create("victim-index-overflow.dds","General");overflow->load();
+    CHECK(!resource_texture_retention::Promote(overflow.staticCast<Ogre::Resource>(),indexBytes,0));CHECK(reserved==held&&resource_texture_retention::state->victims.Size()==resource_texture_retention::MaxTextures);overflow.setNull();
+    for(unsigned n=0;n<32;++n){resource_texture_retention::Textures::iterator i=LegacyTextureOldest();const Ogre::Resource*victim=i->first;resource_texture_retention::Oldest();CHECK(resource_texture_retention::state->textures.count(victim)==0);CHECK(resource_texture_retention::state->victims.Oldest()==LegacyTextureOldest());}
+    budgetAllowed=false;TickNow();CHECK(resource_texture_retention::state->victims.Size()==resource_texture_retention::MaxTextures-64);budgetAllowed=true;
+    resource_texture_retention::Clear();CHECK(resource_texture_retention::state->victims.Size()==0&&reserved==0);TickNow();
+    budgetAllowed=false;CHECK(!resource_texture_retention::Promote(indexed[0].staticCast<Ogre::Resource>(),1,0));CHECK(resource_texture_retention::state->victims.Size()==0&&reserved==0);budgetAllowed=true;
+    unsigned failedBefore=allocationFailures;
+    for(int fail=0;fail<4;++fail){
+        resource_texture_retention::Clear();TickNow();unsigned refs=indexed[0].useCount();resource_texture_retention::Observe(indexed[0].get());
+        unsigned prior=allocationFailures;allocationFailAfter=fail;TickNow();allocationFailAfter=-1;
+        CHECK(resource_texture_retention::state->textures.size()==resource_texture_retention::state->victims.Size());
+        if(allocationFailures!=prior){CHECK(reserved==0&&resource_texture_retention::state->textures.empty());CHECK(indexed[0].useCount()==refs);}
+        else CHECK(resource_texture_retention::state->victims.Size()==1&&reserved>0&&indexed[0].useCount()==refs+1);
+    }
+    CHECK(allocationFailures>failedBefore);resource_texture_retention::Clear();for(unsigned n=0;n<resource_texture_retention::MaxTextures;++n)indexed[n].setNull();manager.removeAll();
+    struct LegacyEntry {Ogre::TexturePtr texture;Ogre::ResourceHandle handle;resource_texture_retention::U64 bytes,touch;};
+    std::cout<<"texture entry bytes="<<sizeof(resource_texture_retention::Entry)<<" legacy entry bytes="<<sizeof(LegacyEntry)<<" victim index bytes="<<sizeof(resource_texture_retention::state->victims)<<" allocation failures="<<allocationFailures-failedBefore<<"\n";
     std::cout<<"texture actual Ogre checks="<<checks<<"\n";return 0;
 }

@@ -154,6 +154,7 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 
 ### English
 
+- Resource-cache eviction no longer scans all retained models or textures for every removed item. The same eviction order, memory limits and native resource lifetimes are preserved. This reduces cache-maintenance work as the cache fills; it does not eliminate native NPC creation work.
 - Avoids repeated temporary allocation when a squad has no timed requests. This optimization preserves active requests, jobs, AI and squad update frequency. Its live switch is under Performance; supported Steam builds only.
 - Four independent startup hooks now share one verified SDK queue/apply operation. KEO uses a local matching-module adapter for the SDK wrapper defect; unsupported SDK builds keep the immediate path. Coupled hooks retain their existing order. Partial failures retain original functions and do not announce unconfirmed installation success.
 - Startup RAM warmup now reads model and skeleton files before textures, so a full texture cache does not consume the startup budget before model files are considered. It still stops at the RAM limit and gives native game requests priority. This prepares file bytes; NPC creation, model decoding and geometry upload remain native work.
@@ -163,6 +164,7 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 
 ### Русский
 
+- При вытеснении ресурсов больше не перебирается весь кэш моделей или текстур ради каждого удаляемого элемента. Порядок вытеснения, лимиты памяти и время жизни ресурсов сохранены. Это снижает расходы на обслуживание заполненного кэша, но не устраняет собственную работу движка по созданию NPC.
 - Убраны повторные временные выделения памяти у отрядов без заявок с таймером. Активные заявки, работы, ИИ и частота обновления отрядов сохраняются. Переключатель работает сразу в разделе производительности; только на поддерживаемых сборках Steam.
 - Четыре независимых хука запуска теперь устанавливаются одной проверенной пакетной операцией SDK. Локальный адаптер KEO исправляет несовпадение модулей в обёртках SDK; при неподдерживаемой версии остаётся прежняя установка. Связанные хуки сохраняют прежний порядок. Частичный отказ не теряет оригинальные функции и не выдаётся за успешную установку.
 - Стартовый прогрев ОЗУ теперь читает файлы моделей и скелетов раньше текстур: текстуры не занимают весь стартовый бюджет до рассмотрения моделей. При достижении лимита прогрев останавливается, запросы самой игры имеют приоритет. Подготавливаются байты файлов; создание NPC, разбор моделей и загрузку геометрии выполняет сама игра.

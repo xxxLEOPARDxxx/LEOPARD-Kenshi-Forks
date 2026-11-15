@@ -1,5 +1,6 @@
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_gpu_store.h"
+#include "resources/retention_victim_index.h"
 #ifndef RESOURCE_TEXTURE_RETENTION_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -19,12 +20,12 @@ static const U64 GiB=1024ULL*1024*1024;
 // Weak observations contain no controlling native references. The raw value
 // serves only as an identity comparison after manager handle resolution.
 struct Candidate {Ogre::ResourceHandle handle;const Ogre::Resource*id;DWORD time;};
-struct Entry {Ogre::TexturePtr texture;Ogre::ResourceHandle handle;U64 bytes,touch;};
+struct Entry {Ogre::TexturePtr texture;Ogre::ResourceHandle handle;U64 bytes,touch;unsigned victimSlot;Entry():victimSlot(~0u){}};
 typedef std::map<const Ogre::Resource*,Entry> Textures;
 struct State {
     Stats stats;bool on,ticked,contractRefused,admissionTried;U64 cap,world,clock;unsigned device,read,count;DWORD lastTick,lastAdmissionTick;
-    Candidate pending[MaxPending];Textures textures;const Ogre::Resource*refreshAfter;
-    State():on(false),ticked(false),contractRefused(false),admissionTried(false),cap(GiB),world(0),clock(0),device(0),read(0),count(0),lastTick(0),lastAdmissionTick(0),refreshAfter(NULL){ZeroMemory(&stats,sizeof(stats));}
+    Candidate pending[MaxPending];Textures textures;resource_retention::VictimIndex<Textures,MaxTextures> victims;const Ogre::Resource*refreshAfter;
+    State():on(false),ticked(false),contractRefused(false),admissionTried(false),cap(GiB),world(0),clock(0),device(0),read(0),count(0),lastTick(0),lastAdmissionTick(0),victims(textures),refreshAfter(NULL){ZeroMemory(&stats,sizeof(stats));}
 };
 // Intentionally process-lifetime. Clear releases Ogre references while the
 // engine lives; a missed callback must never destruct them in DLL detach.
@@ -34,12 +35,12 @@ static bool CaptureEnabled(){return InterlockedCompareExchange(&captureEnabled,0
 static void TryInstallHooks();
 static void Publish(){state->stats.textures=unsigned(state->textures.size());state->stats.pending=state->count;}
 static void Release(Textures::iterator i){
+    state->victims.Remove(i);
     state->stats.heldBytes-=i->second.bytes;state->textures.erase(i);++state->stats.evicted;
     resource_gpu::TryTextureRetentionReservation(state->stats.heldBytes,state->cap);
 }
 static void Oldest(){
-    Textures::iterator oldest=state->textures.begin();
-    for(Textures::iterator i=state->textures.begin();i!=state->textures.end();++i)if(i->second.touch<oldest->second.touch)oldest=i;
+    Textures::iterator oldest=state->victims.Oldest();
     if(oldest!=state->textures.end())Release(oldest);
 }
 static bool DdsName(const Ogre::String&name){
@@ -61,18 +62,21 @@ static bool Describe(const Ogre::Texture*t,U64*bytes){
     return pixels&&accounted&&*bytes<=8*GiB;
 }
 static bool Promote(const Ogre::ResourcePtr&r,U64 bytes,U64 touch){
+    if(state->textures.find(r.get())!=state->textures.end())return false;
     if(state->textures.size()>=MaxTextures||!bytes||bytes>8*GiB||state->stats.heldBytes>8*GiB-bytes||
        !resource_gpu::TryTextureRetentionReservation(state->stats.heldBytes+bytes,state->cap))return false;
     // Only the admitted entry owns a TexturePtr. Handle resolution above may
     // briefly own a ResourcePtr, but no queued candidate pins native state.
     Entry e;e.texture=r.staticCast<Ogre::Texture>();e.handle=r->getHandle();e.bytes=bytes;e.touch=touch;
-    state->textures.insert(std::make_pair(r.get(),e));state->stats.heldBytes+=bytes;return true;
+    std::pair<Textures::iterator,bool> inserted=state->textures.insert(std::make_pair(r.get(),e));
+    if(!inserted.second||!state->victims.Insert(inserted.first)){Clear();return false;}
+    state->stats.heldBytes+=bytes;return true;
 }
 void Clear(){
     if(!IsMainThread()||!state)return;
     InterlockedExchange(&captureEnabled,0);
     state->on=false;state->stats.enabled=false;state->stats.pressure=false;state->read=state->count=0;
-    state->stats.evicted+=state->textures.size();state->textures.clear();state->stats.heldBytes=0;state->refreshAfter=NULL;
+    state->stats.evicted+=state->textures.size();state->victims.Reset();state->textures.clear();state->stats.heldBytes=0;state->refreshAfter=NULL;
     resource_gpu::TryTextureRetentionReservation(0,state->cap);Publish();
 }
 static void Observe(Ogre::Resource*r,bool wasLoaded=true){
@@ -83,7 +87,7 @@ static void Observe(Ogre::Resource*r,bool wasLoaded=true){
     ++state->stats.observed;
     Textures::iterator i=state->textures.find(r);
     if(i!=state->textures.end()){
-        if(wasLoaded){i->second.touch=++state->clock;if(r->isLoaded())++state->stats.reused;return;}
+        if(wasLoaded){i->second.touch=++state->clock;state->victims.Changed(i);if(r->isLoaded())++state->stats.reused;return;}
         // Native loadImpl actually rebuilt a held resource. Drop our old reference
         // and stale accounting immediately, then re-admit the new size only
         // through bounded Tick. The native caller still owns its resource.
