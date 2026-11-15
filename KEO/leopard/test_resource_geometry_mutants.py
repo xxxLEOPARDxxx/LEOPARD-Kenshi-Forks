@@ -46,14 +46,25 @@ def run(name,source_path,before,after,gpu=False):
 geometry=ROOT/'src/resources/resource_geometry.cpp'
 gpu=ROOT/'src/resources/resource_gpu_store.cpp'
 run('temporary-request-instead-of-entity',geometry,'    Observe(actual);','    Observe(requested);')
+run('final-mesh-not-observed',geometry,'    Observe(entity->getMesh());','    return;')
+run('final-state-before-owner',geometry,
+    'if(!IsMainThread()||!state||!state->on||!entity)return;\n    Observe(entity->getMesh());',
+    'if(!state||!state->on||!IsMainThread()||!entity)return;\n    Observe(entity->getMesh());')
+run('final-observe-ignores-off',geometry,
+    'if(!IsMainThread()||!state||!state->on||!entity)return;\n    Observe(entity->getMesh());',
+    'if(!IsMainThread()||!state||!entity)return;\n    Observe(entity->getMesh());')
 run('no-native-pin',geometry,'Entry e;e.mesh=m;e.desc=d;e.touch=touch;','Entry e;e.desc=d;e.touch=touch;')
 run('no-local-dedup',geometry,'if(d->buffers[i].id==b)return true;','if(false)return true;')
 run('no-cpu-shadow',geometry,'b->hasShadowBuffer()?U64(b->getSizeInBytes()):0','0')
 run('ignore-pose-resources',geometry,'if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getPoseCount()!=0||m->getNumSubMeshes()>64)return false;','if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getNumSubMeshes()>64)return false;')
+run('ignore-vertex-animations',geometry,'if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getPoseCount()!=0||m->getNumSubMeshes()>64)return false;','if(m->hasManualLodLevel()||m->getPoseCount()!=0||m->getNumSubMeshes()>64)return false;')
 run('ignore-owned-unused-vertices',geometry,'if(!Vertices(s->vertexData,d))return false;','if(!s->useSharedVertices&&!Vertices(s->vertexData,d))return false;')
 run('ignore-pressure',geometry,'state->stats.pressure=!resource_gpu::GeometryStandbyAllowed(state->cap);','state->stats.pressure=false;')
 run('ignore-device-change',geometry,'||state->device!=device','')
 run('ignore-world-change',geometry,'||state->world!=world','')
-run('independent-terrain-cap',gpu,'CacheRoom(cap-geometryBytes,Read64(allocated),bytes)','CacheRoom(cap,Read64(allocated),bytes)',True)
+run('refresh-ignore-unregistered',geometry,'if(registered.isNull()||registered.get()!=m.get()){++state->stats.identityMismatch;Release(i);continue;}','if(false){++state->stats.identityMismatch;Release(i);continue;}')
+run('refresh-ignore-pointer-replacement',geometry,'if(registered.isNull()||registered.get()!=m.get())','if(registered.isNull())')
+run('refresh-ignore-creator',geometry,'if(m->getCreator()!=manager){++state->stats.identityMismatch;Release(i);continue;}','if(false){++state->stats.identityMismatch;Release(i);continue;}')
+run('independent-terrain-cap',gpu,'CacheRoom(cap-retained,Read64(allocated),bytes)','CacheRoom(cap,Read64(allocated),bytes)',True)
 run('double-charge-dxgi',gpu,'||!probe||!probe(device,&budget,&usage,probeContext)||!BudgetRoom(budget,usage,0))return false;','||!probe||!probe(device,&budget,&usage,probeContext)||!BudgetRoom(budget,usage,bytes))return false;',True)
 print('geometry expected-RED controls passed')

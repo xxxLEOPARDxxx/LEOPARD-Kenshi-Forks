@@ -496,6 +496,12 @@ void PollActiveMovers(void* zoneMgr, double now)
 			continue;
 		}
 
+		// Publish the validated live cell before baseline/arrival early returns.
+		// Retention and scheduling read these fields without dereferencing the
+		// character: leaving them stale keeps renewing leases on old zones.
+		watchedChars[i].currentZoneX = curGX;
+		watchedChars[i].currentZoneY = curGY;
+
 		// Baseline chars: align dest with cur so the arrival check below always
 		// fires, keeping them on the early-continue path. Without this, a
 		// baseline char whose AI moved it cross-zone since the last 5s scan
@@ -527,9 +533,6 @@ void PollActiveMovers(void* zoneMgr, double now)
 			removals++;
 			continue;
 		}
-
-		watchedChars[i].currentZoneX = curGX;
-		watchedChars[i].currentZoneY = curGY;
 
 		// Always ensure next zone in path is preloaded (no edge threshold).
 		// Characters must always have at least their current zone and next
@@ -621,9 +624,9 @@ void TieredCharacterPoll(void* zoneMgr, double now)
 // and one step along the sign of (destination - current), the direction
 // PollActiveMovers preloads. Read from the stored fields only: the character
 // pointer is validated against the player list by PollActiveMovers alone, so
-// it is never dereferenced here. A baseline entry yields its stored current
-// zone, plus one step toward its live zone when that stored zone is stale;
-// only an entry on a move order is marked moving.
+// it is never dereferenced here. A baseline entry yields its latest validated
+// current zone; only an entry on a move order is marked moving. The poll
+// publishes positions before downgrading an arrived mover to that baseline.
 int CollectMoverRetainZones(int* gx, int* gy, bool* moving, int cap)
 {
 	int n = 0;

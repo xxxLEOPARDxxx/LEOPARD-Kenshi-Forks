@@ -124,7 +124,7 @@ void Clear(){
     state->refreshAfter=NULL;resource_gpu::TryGeometryReservation(0,state->cap);Publish();
 }
 static void Observe(const Ogre::MeshPtr&m){
-    if(!state||!state->on||!IsMainThread()||m.isNull())return;
+    if(!IsMainThread()||!state||!state->on||m.isNull())return;
     ++state->stats.observed;
     Models::iterator i=state->models.find(m.get());
     if(i!=state->models.end()){
@@ -138,13 +138,23 @@ static void Observe(const Ogre::MeshPtr&m){
     Candidate&c=state->pending[(state->read+state->count)%MaxPending];c.handle=handle;c.id=m.get();c.time=GetTickCount();++state->count;
 }
 template<class Entity> static void ObserveEntity(Entity*entity,const Ogre::MeshPtr&requested){
-    if(!state||!state->on||!IsMainThread()||!entity)return;
+    if(!IsMainThread()||!state||!state->on||!entity)return;
     // SceneManager::createEntity(MeshPtr) resolves name/group again. A collision
     // can leave requested as an unregistered disposable duplicate; retain the
     // actual Entity mesh, not that temporary. getMesh is a passive native getter.
     const Ogre::MeshPtr&actual=entity->getMesh();
     if(actual.get()!=requested.get())++state->stats.inputDifferent;
     Observe(actual);
+}
+template<class Entity> static void ObserveFinalEntityImpl(Entity*entity){
+    // Native Switch has destroyed its old Entity and consumed the input
+    // MeshPtr. Only its successful returned replacement can be borrowed here.
+    // Owner test precedes mutable state and the passive native getter.
+    if(!IsMainThread()||!state||!state->on||!entity)return;
+    Observe(entity->getMesh());
+}
+void ObserveFinalEntity(void*entity){
+    ObserveFinalEntityImpl(static_cast<Ogre::Entity*>(entity));
 }
 static void DescribeRefusal(const Ogre::MeshPtr&m){
     if(m->hasManualLodLevel())++state->stats.unsupportedManual;
@@ -176,6 +186,14 @@ void Tick(bool on,U64 cap,U64 world){
         for(unsigned n=0;n<2&&!state->models.empty();++n){
             Models::iterator i=state->models.upper_bound(state->refreshAfter);if(i==state->models.end())i=state->models.begin();
             state->refreshAfter=i->first;Ogre::MeshPtr m=i->second.mesh;U64 touch=i->second.touch;Description d;
+            // remove(handle) can unregister a mesh while our SharedPtr keeps
+            // its loaded buffers alive. Such an orphan cannot serve a later
+            // native lookup. Drop only our pin, never the native resource.
+            Ogre::MeshManager*manager=Ogre::MeshManager::getSingletonPtr();
+            if(!manager){++state->stats.managerMissing;Release(i);continue;}
+            if(m->getCreator()!=manager){++state->stats.identityMismatch;Release(i);continue;}
+            Ogre::ResourcePtr registered=manager->getByHandle(m->getHandle());
+            if(registered.isNull()||registered.get()!=m.get()){++state->stats.identityMismatch;Release(i);continue;}
             if(!Describe(m,&d)){Release(i);continue;}
             const std::vector<Buffer>&old=i->second.desc.buffers;bool same=old.size()==d.buffers.size();
             for(size_t k=0;same&&k<old.size();++k)same=old[k].id==d.buffers[k].id&&old[k].gpu==d.buffers[k].gpu&&old[k].cpu==d.buffers[k].cpu;

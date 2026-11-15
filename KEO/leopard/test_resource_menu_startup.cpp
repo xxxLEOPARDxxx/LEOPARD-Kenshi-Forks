@@ -4,9 +4,18 @@
 #include <list>
 #include <cstdio>
 #include <cstdlib>
+#include "resources/resource_cache_store.h"
 static unsigned __int64 slept=0;static unsigned yields=0;
-static void SleepSpy(DWORD ms){slept+=ms;if(!ms)++yields;}
-static BOOL Room(LPMEMORYSTATUSEX m){m->ullTotalPhys=16ULL<<30;m->ullAvailPhys=8ULL<<30;m->ullAvailPageFile=16ULL<<30;return TRUE;}
+static unsigned sleepAction=0;static bool pressure=false;
+static void SleepSpy(DWORD ms){
+ slept+=ms;if(!ms)++yields;
+ if(ms&&sleepAction){unsigned action=sleepAction;sleepAction=0;
+  if(action==1)resource_cache::SetBackgroundAllowed(false);
+  else if(action==2)resource_cache::Configure(false,8ULL<<20,1);
+  else if(action==3)pressure=true;
+ }
+}
+static BOOL Room(LPMEMORYSTATUSEX m){m->ullTotalPhys=16ULL<<30;m->ullAvailPhys=pressure?(512ULL<<20):(8ULL<<30);m->ullAvailPageFile=16ULL<<30;return TRUE;}
 #define Sleep SleepSpy
 #define GlobalMemoryStatusEx Room
 #include "../src/resources/resource_cache_store.cpp"
@@ -33,6 +42,40 @@ int main(){using namespace resource_cache;
  SetStartupMenu(true);slept=0;C(ReadOne(absolute,epoch)==ReadLoaded);C(slept>=3900); // observed requests never accelerated
  SetStartupMenu(false);slept=0;C(ReadOne(absolute,epoch,se)==ReadLoaded);C(slept>=3900);
  C(Snapshot().startupFastReadBytes==bytes.size());
+ // Loading/frame pauses suppress speculative work only. Exercise actual
+ // production ReadOne across16chunks; the Sleep input is deterministic.
+ Clear();SetBackgroundAllowed(false);unsigned __int64 beforeRead=Snapshot().readBytes;
+ C(ReadOne(absolute,epoch,se)==ReadDeferred&&ReadOne(absolute,epoch,-1,false)==ReadDeferred);
+ C(Snapshot().readBytes==beforeRead&&Snapshot().allocatedBytes==0);
+ SetBackgroundAllowed(true);SetStartupMenu(false);sleepAction=1;slept=0;
+ C(ReadOne(absolute,epoch)==ReadLoaded);C(!BackgroundAllowed()&&slept>=3900);
+ C(Find(absolute)&&Snapshot().allocatedBytes==bytes.size()); // completed cache survives pause
+ SetBackgroundAllowed(true);sleepAction=1;slept=0;beforeRead=Snapshot().readBytes;
+ C(ReadOne(absolute,epoch,-1,false)==ReadDeferred);
+ C(Snapshot().readBytes-beforeRead==Chunk&&Snapshot().allocatedBytes==bytes.size()&&slept<=10);
+ SetBackgroundAllowed(true);sleepAction=1;slept=0;beforeRead=Snapshot().readBytes;
+ C(ReadOne(absolute,epoch,se)==ReadDeferred);
+ C(Snapshot().readBytes-beforeRead==Chunk&&Snapshot().allocatedBytes==bytes.size()&&Find(absolute));
+ Clear();SetBackgroundAllowed(false);sleepAction=2;slept=0;beforeRead=Snapshot().readBytes;
+ C(ReadOne(absolute,epoch)==ReadCancelledResult);
+ C(Snapshot().readBytes-beforeRead==Chunk&&Snapshot().allocatedBytes==0&&!Find(absolute));
+ Configure(true,8ULL<<20,1);epoch=Load(generation);se=Load(startupGeneration);sleepAction=3;beforeRead=Snapshot().readBytes;
+ C(ReadOne(absolute,epoch)==ReadCapped);
+ C(Snapshot().readBytes-beforeRead==Chunk&&Snapshot().allocatedBytes==0&&!Find(absolute));pressure=false;
+ Configure(true,8ULL<<20,128);SetStartupMenu(true);slept=0;
+ C(ReadOne(absolute,epoch)==ReadLoaded);C(slept>0); // demand never bypasses the configured rate
+ Clear();SetBackgroundAllowed(false);
+ for(unsigned i=0;i<MaxQueue;++i){char suffix[32];sprintf_s(suffix,"-%u.dds",i);Prefetch(std::string(absolute)+suffix);}
+ C(Snapshot().pending==MaxQueue&&!HasDemandRequests());
+ {Guard g;C(!RunnableLocked());} // paused speculative queue cannot self-wake the worker
+ unsigned __int64 queuedBefore=Snapshot().queued;Observe(std::string(absolute)+"-0.dds");
+ C(Snapshot().pending==MaxQueue&&Snapshot().queued==queuedBefore&&HasDemandRequests());
+ Observe(std::string(absolute)+"-native.dds");
+ unsigned demand=0;{Guard g;for(size_t i=0;i<requests.size();++i)if(requests[i].observed)++demand;C(RunnableLocked());}
+ C(Snapshot().pending==MaxQueue&&demand==2); // demand displaces a speculative tail, never grows queue
+ for(unsigned i=0;i<MaxQueue;++i){char suffix[32];sprintf_s(suffix,"-%u.dds",i);Observe(std::string(absolute)+suffix);}
+ C(Snapshot().pending==MaxQueue);
+ Observe(std::string(absolute)+"-all-demand-overflow.dds");C(Snapshot().pending==MaxQueue);
  SignalStop();C(!StartupEnabled()&&!StartupUnpaced(true,GetTickCount()));Clear();C(DeleteFileA(absolute));
  printf("PASS %u actual store menu lease/pacing checks; normal=%llu ms, fast=0 pacing ms\n",checks,paced);return 0;
 }

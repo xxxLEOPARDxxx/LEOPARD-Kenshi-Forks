@@ -34,7 +34,7 @@ static const char* const SUITE_NAME = "settings_factory_units";
 #else
 static const char* const SUITE_NAME = "settings_factory_prod_units";
 #endif
-static const size_t CORE_ROWS_DEV = 113;
+static const size_t CORE_ROWS_DEV = 123;
 static const int DEV_ONLY_ROWS = 108;
 
 // ---- Sections --------------------------------------------------------------
@@ -56,8 +56,8 @@ static void CheckSections()
 	// PROD: only the sections that keep a row, and no Benchmark.
 	std::vector<SettingsRow> rows = Rows(&st, false, &bench);
 	std::vector<std::string> prod = Headers(rows);
-	sections = prod.size() == 6;
-	for (int i = 0; sections && i < 6; ++i) sections = prod[i] == PROD_SECTIONS[i];
+	sections = prod.size() == 7;
+	for (int i = 0; sections && i < 7; ++i) sections = prod[i] == PROD_SECTIONS[i];
 	Check(sections, "Sections: PROD");
 	Check(!rows.empty() && rows[0].kind == SR_HEADER && rows[0].label == PROD_SECTIONS[0],
 	      "the page opens with its first section's heading");
@@ -163,7 +163,7 @@ static void CheckRowCounts()
 	std::vector<SettingsRow> dev = Rows(&st, true, NULL), prod = Rows(&st, false, NULL);
 	Check(ModuleSections(dev).size() == CORE_ROWS_DEV, "core rows dev");
 	Check(Section(dev, RENDER_TITLE).size() == 21, "render rows dev");
-	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Performance").size() == 2
+	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 2
 	      && Section(prod, "Squad movement").size() == 5 && Section(prod, "Gameplay fixes").size() == 4
 	      && Section(prod, "Backpacks and jobs").size() == 7, "player section rows prod");
 }
@@ -178,7 +178,7 @@ static void CheckRestart()
 	std::vector<const SettingsRow*> core = ModuleSections(rows);
 	bool ok = !core.empty();
 	// A module row is startup-only unless its key is live: the three zone
-	// footprint rows, the fixes module's switches, operatorHoldUntil and backpackFixes.
+	// footprint and resource-memory rows, fixes switches and inventory live controls.
 	int liveCore = 0;
 	for (int m = 0; m < kConfigModuleCount; ++m)
 	{
@@ -205,7 +205,7 @@ static void CheckRestart()
 		ok = ok && r && !EndsWith(r->label, " *") && !r->restart;
 		++live;
 	}
-	Check(ok && live > 0 && liveCore == 18, "Restart");
+	Check(ok && live > 0 && liveCore == 28, "Restart");
 }
 
 static bool OnProdPage(const char* name)

@@ -8,6 +8,9 @@
 #include "base/core.h"
 #include <iomanip>
 #include <sstream>
+#include <intrin.h>
+#include <cstring>
+#pragma intrinsic(_ReturnAddress)
 
 // ZoneManager::processLoading's 3->4 phase branch purges Ogre's unreferenced
 // resources once per loading cycle: four Ogre::ResourceGroupManager group
@@ -47,12 +50,41 @@ static UnloadUnreferenced_t s_origUnref = NULL;
 static bool                 s_tried     = false;
 static bool                 s_installed = false;
 
-// Main thread only, like every loadingPhase branch this lever touches. Seeded
-// at install time (below) rather than left at a sentinel: a session whose
-// first-ever purge call happens to be eligible would otherwise see an
-// elapsed time back to program start and take that as a fallback run before
-// any real purge ever ran.
-static double s_lastPurgeAt = 0.0;
+// Independent clocks for the six processLoading purge call sites. The first
+// fallback must not reset the deadline of the other five resources. Keys are
+// immutable native return addresses; no group strings or manager pointers live
+// beyond a call. Unknown callers and unsupported images always run native.
+struct PurgeCaller { uintptr_t returnRva; bool group; unsigned char before[32]; };
+static const PurgeCaller s_callers[6] = {
+ {0xA0EB6B,false,{0x33,0xd2,0x48,0x8d,0x0d,0x5c,0x45,0x72,0x01,0xe8,0xa6,0x2a,0x64,0xff,0xff,0x15,0x89,0x92,0x83,0x01,0x4c,0x8b,0x00,0x33,0xd2,0x48,0x8b,0xc8,0x41,0xff,0x50,0x68}},
+ {0xA0EB7D,false,{0x83,0x01,0x4c,0x8b,0x00,0x33,0xd2,0x48,0x8b,0xc8,0x41,0xff,0x50,0x68,0xff,0x15,0x37,0x81,0x83,0x01,0x4c,0x8b,0x00,0xb2,0x01,0x48,0x8b,0xc8,0x41,0xff,0x50,0x68}},
+ {0xA0EBBA,true,{0x48,0x8d,0x4d,0xe7,0xe8,0x22,0xec,0x63,0xff,0x90,0xff,0x15,0xd6,0x80,0x83,0x01,0x48,0x8b,0xc8,0x41,0xb0,0x01,0x48,0x8d,0x55,0xe7,0xff,0x15,0x66,0x76,0x83,0x01}},
+ {0xA0EC08,true,{0x48,0x8d,0x4d,0xe7,0xe8,0xd4,0xeb,0x63,0xff,0x90,0xff,0x15,0x88,0x80,0x83,0x01,0x48,0x8b,0xc8,0x41,0xb0,0x01,0x48,0x8d,0x55,0xe7,0xff,0x15,0x18,0x76,0x83,0x01}},
+ {0xA0EC56,true,{0x48,0x8d,0x4d,0xe7,0xe8,0x86,0xeb,0x63,0xff,0x90,0xff,0x15,0x3a,0x80,0x83,0x01,0x48,0x8b,0xc8,0x41,0xb0,0x01,0x48,0x8d,0x55,0xe7,0xff,0x15,0xca,0x75,0x83,0x01}},
+ {0xA0ECA4,true,{0x48,0x8d,0x4d,0xe7,0xe8,0x38,0xeb,0x63,0xff,0x90,0xff,0x15,0xec,0x7f,0x83,0x01,0x48,0x8b,0xc8,0x41,0xb0,0x01,0x48,0x8d,0x55,0xe7,0xff,0x15,0x7c,0x75,0x83,0x01}}
+};
+static uintptr_t s_callerBase = 0;
+static double s_lastPurgeAt[6] = {0,0,0,0,0,0};
+
+static bool AdmitPurgeCallers()
+{
+    HMODULE exe=GetModuleHandleA(NULL);DWORD stamp=0,size=0;
+    if(!ReadModuleImageId(exe,&stamp,&size)||stamp!=0x65d604d7||size!=0x232c000)return false;
+    const uintptr_t base=reinterpret_cast<uintptr_t>(exe);
+    for(unsigned i=0;i<6;++i)
+        if(s_callers[i].returnRva>size||s_callers[i].returnRva<32||
+           memcmp(reinterpret_cast<const void*>(base+s_callers[i].returnRva-32),s_callers[i].before,32))return false;
+    s_callerBase=base;return true;
+}
+
+static int PurgeCallerIndex(const void*caller,bool group)
+{
+    const uintptr_t address=reinterpret_cast<uintptr_t>(caller);
+    if(!s_callerBase||address<s_callerBase)return -1;
+    const uintptr_t rva=address-s_callerBase;
+    for(int i=0;i<6;++i)if(s_callers[i].returnRva==rva&&s_callers[i].group==group)return i;
+    return -1;
+}
 
 static volatile LONG s_calls    = 0;   // every intercepted call, skip key on or off
 static volatile LONG s_skipped  = 0;
@@ -66,25 +98,27 @@ static bool Eligible()
 	return ZoneHandoffAdoptionCycleInFlight() && !isTransitionActive;
 }
 
-// One decision per intercepted call; the six calls a purge makes in one
-// cycle each get their own, all reading the same clock and the same last-run
-// stamp, so they agree unless the clock ticks a whole second between them.
-static bool ShouldRun(double now)
+// All six clocks start at install, preserving the cold eligible skip window.
+// Each successful decision changes only its own target's clock.
+static bool ShouldRun(double now,const void*caller,bool group)
 {
 	InterlockedIncrement(&s_calls);
+	if(!IsMainThread()||!s_installed)return true;
+	const int channel=PurgeCallerIndex(caller,group);
+	if(channel<0)return true;
 	if (!g_renderCfg.adoptOgrePurgeSkip)
 	{
-		s_lastPurgeAt = now;
+		s_lastPurgeAt[channel] = now;
 		return true;
 	}
-	OgrePurgeDecision d = OgrePurgeSkipDecide(Eligible(), now, s_lastPurgeAt,
+	OgrePurgeDecision d = OgrePurgeSkipDecide(Eligible(), now, s_lastPurgeAt[channel],
 	                                          (double)g_renderCfg.adoptOgrePurgeMaxSkipSeconds);
 	if (d.action == OGREPURGE_SKIP)
 	{
 		InterlockedIncrement(&s_skipped);
 		return false;
 	}
-	s_lastPurgeAt = now;
+	s_lastPurgeAt[channel] = now;
 	if (d.countFallback)
 		InterlockedIncrement(&s_fallback);
 	return true;
@@ -92,13 +126,13 @@ static bool ShouldRun(double now)
 
 static void hook_UnloadGroup(void* mgr, const void* groupName, bool reloadableOnly)
 {
-	if (ShouldRun(ElapsedSec()))
+	if (ShouldRun(ElapsedSec(),_ReturnAddress(),true))
 		s_origGroup(mgr, groupName, reloadableOnly);
 }
 
 static void hook_UnloadUnreferenced(void* mgr, bool reloadableOnly)
 {
-	if (ShouldRun(ElapsedSec()))
+	if (ShouldRun(ElapsedSec(),_ReturnAddress(),false))
 		s_origUnref(mgr, reloadableOnly);
 }
 
@@ -107,6 +141,11 @@ bool InstallOgrePurgeSkip()
 	if (s_tried)
 		return s_installed;
 	s_tried = true;
+	if(!AdmitPurgeCallers())
+	{
+		LogError("Render: adoptOgrePurgeSkip: native purge callers not admitted; normal resource purging retained");
+		return false;
+	}
 	HMODULE ogre = GetModuleHandleA(s_groupSite.module);
 	if (!ogre)
 	{
@@ -117,7 +156,10 @@ bool InstallOgrePurgeSkip()
 	bool unref = InstallModuleHook(s_unrefSite, (void*)&hook_UnloadUnreferenced, (void**)&s_origUnref, NULL);
 	s_installed = group && unref;
 	if (s_installed)
-		s_lastPurgeAt = ElapsedSec();
+	{
+		const double now=ElapsedSec();
+		for(int i=0;i<6;++i)s_lastPurgeAt[i]=now;
+	}
 	return s_installed;
 }
 

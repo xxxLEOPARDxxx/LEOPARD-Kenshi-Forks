@@ -37,6 +37,24 @@ struct TestIB:Ogre::HardwareIndexBuffer {
     void readData(size_t,size_t,void*){}void writeData(size_t,size_t,const void*,bool){}
 };
 struct Loader:Ogre::ManualResourceLoader {void loadResource(Ogre::Resource*){}};
+// Genuine native Mesh object; controlled passive virtual getters isolate
+// creator/handle identity branches while the real manager owns its maps.
+struct IdentityMesh:Ogre::Mesh {
+    bool wrongCreator;Ogre::ResourceHandle alternateHandle;
+    IdentityMesh(Ogre::MeshManager*m,Loader*l):Ogre::Mesh(m,"identity-mesh",0xfed00001,"General",true,l),wrongCreator(false),alternateHandle(0){}
+    Ogre::ResourceManager*getCreator(){return wrongCreator?NULL:Ogre::Mesh::getCreator();}
+    Ogre::ResourceHandle getHandle()const{return alternateHandle?alternateHandle:Ogre::Mesh::getHandle();}
+    // SDK String animation virtuals are not exported by this Ogre build.
+    // Identity cases have no animations; trap any accidental invocation.
+    Ogre::Animation*createAnimation(const Ogre::String&,Ogre::Real){abort();return NULL;}
+    Ogre::Animation*getAnimation(const Ogre::String&)const{abort();return NULL;}
+    Ogre::Animation*_getAnimationImpl(const Ogre::String&)const{abort();return NULL;}
+    bool hasAnimation(const Ogre::String&)const{abort();return false;}
+    void removeAnimation(const Ogre::String&){abort();}
+    // This game's createAnimation export always throws unsupported. Seed only
+    // its native map for the eligibility boundary, then erase before teardown.
+    void FixtureAnimation(bool on){if(on)mAnimationsList["fixture-animation"]=NULL;else mAnimationsList.clear();}
+};
 static unsigned checks=0;
 #define CHECK(x) do{++checks;if(!(x)){std::cerr<<"line "<<__LINE__<<": "<<#x<<"\n";return 1;}}while(0)
 static void TickNow(bool on=true,resource_geometry::U64 world=1){
@@ -86,7 +104,7 @@ int main(){
     // The native background request can pass a disposable duplicate while
     // the returned Entity resolves the registered source by name/group.
     // Exercise the real selection helper with actual native MeshPtr resources.
-    struct ReturnedEntity {Ogre::MeshPtr actual;const Ogre::MeshPtr&getMesh()const{return actual;}} entity;
+    struct ReturnedEntity {Ogre::MeshPtr actual;mutable unsigned reads;ReturnedEntity():reads(0){}const Ogre::MeshPtr&getMesh()const{++reads;return actual;}} entity;
     entity.actual=a;Ogre::MeshPtr temporary=m.createManual("temporary-input","General",&loader);m.remove(temporary->getHandle());
     resource_geometry::ObserveEntity(&entity,temporary);TickNow();
     CHECK(resource_geometry::Snapshot().models==1&&reserved==152);
@@ -138,6 +156,126 @@ int main(){
     CHECK(resource_geometry::Snapshot().pending==128);
     TickNow(true,3);CHECK(resource_geometry::Snapshot().pending==0);
     CHECK(resource_geometry::Snapshot().rejected>=12);
+    // Real Ogre remove(handle) unregisters without unloading an externally
+    // owned mesh. A cache pin must not preserve that unreachable resource.
+    a=m.createManual("orphan-reused-name","General",&loader);a->load();
+    a->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    a->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(61)));
+    Ogre::MeshPtr alias=a;const Ogre::ResourceHandle oldHandle=a->getHandle();
+    CHECK(a->getCreator()==&m);
+    resource_geometry::Observe(a);TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==1&&reserved==61);
+    m.remove(oldHandle);
+    CHECK(m.getByHandle(oldHandle).isNull()&&a->isLoaded()&&alias.get()==a.get());
+    unsigned orphanRefs=a.useCount();
+    // Same native name now identifies a DIFFERENT live Mesh; releasing the
+    // orphan must neither unload nor uncharge this independent replacement.
+    Ogre::MeshPtr replacement=m.createManual("orphan-reused-name","General",&loader);replacement->load();
+    replacement->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    replacement->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(67)));
+    CHECK(replacement.get()!=a.get()&&replacement->getHandle()!=oldHandle);
+    resource_geometry::Observe(replacement);
+    TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==1&&reserved==67);
+    CHECK(a.useCount()+1==orphanRefs&&a->isLoaded()&&alias->isLoaded());
+    CHECK(m.getByHandle(replacement->getHandle()).get()==replacement.get()&&replacement->isLoaded());
+    resource_geometry::Observe(alias);TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==1&&reserved==67);
+    // Native unload remains authoritative, and surviving aliases stay alive.
+    replacement->unload();TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==0&&reserved==0);
+    CHECK(a->isLoaded()&&alias->isLoaded());
+    a.setNull();alias.setNull();replacement.setNull();
+    IdentityMesh*identityRaw=new IdentityMesh(&m,&loader);
+    Ogre::MeshPtr identity(identityRaw);
+    Ogre::ResourcePtr identityResource=identity.staticCast<Ogre::Resource>();
+    // Native protected addImpl (verified vtable+100), as used by createResource.
+    typedef void(*Add)(Ogre::ResourceManager*,Ogre::ResourcePtr&);
+    Add add=reinterpret_cast<Add>((*reinterpret_cast<void***>(&m))[0x100/8]);add(&m,identityResource);
+    identity->load();identity->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    identity->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(73)));
+    CHECK(m.getByHandle(identity->getHandle()).get()==identity.get());
+    resource_geometry::Observe(identity);TickNow(true,3);CHECK(reserved==73);
+    const resource_geometry::U64 mismatchBefore=resource_geometry::Snapshot().identityMismatch;
+    unsigned identityRefs=identity.useCount();identityRaw->wrongCreator=true;
+    TickNow(true,3);CHECK(reserved==0&&resource_geometry::Snapshot().models==0);
+    CHECK(identity.useCount()+1==identityRefs&&identity->isLoaded());
+    CHECK(resource_geometry::Snapshot().identityMismatch==mismatchBefore+1);
+    identityRaw->wrongCreator=false;
+    resource_geometry::Observe(identity);TickNow(true,3);CHECK(reserved==73);
+    Ogre::MeshPtr other=m.createManual("other-handle-target","General",&loader);other->load();
+    identityRefs=identity.useCount();identityRaw->alternateHandle=other->getHandle();
+    CHECK(m.getByHandle(identity->getHandle()).get()==other.get());
+    TickNow(true,3);CHECK(reserved==0&&resource_geometry::Snapshot().models==0);
+    CHECK(identity.useCount()+1==identityRefs&&identity->isLoaded()&&other->isLoaded());
+    CHECK(resource_geometry::Snapshot().identityMismatch==mismatchBefore+2);
+    identityRaw->alternateHandle=0;
+    m.remove(identity->getHandle());identityResource.setNull();identity.setNull();other.setNull();
+    Ogre::MeshPtr orphans[5];
+    for(unsigned n=0;n<5;++n){
+        char name[50];sprintf_s(name,"bounded-orphan-%u",n);orphans[n]=m.createManual(name,"General",&loader);orphans[n]->load();
+        orphans[n]->sharedVertexData=OGRE_NEW Ogre::VertexData;
+        orphans[n]->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(11)));
+        resource_geometry::Observe(orphans[n]);
+    }
+    TickNow(true,3);TickNow(true,3);CHECK(resource_geometry::Snapshot().models==5&&reserved==55);
+    for(unsigned n=0;n<5;++n)m.remove(orphans[n]->getHandle());
+    TickNow(true,3);CHECK(resource_geometry::Snapshot().models==3&&reserved==33);
+    TickNow(true,3);CHECK(resource_geometry::Snapshot().models==1&&reserved==11);
+    TickNow(true,3);CHECK(resource_geometry::Snapshot().models==0&&reserved==0);
+    for(unsigned n=0;n<5;++n){CHECK(orphans[n]->isLoaded());orphans[n].setNull();}
     resource_geometry::Clear();a.setNull();m.removeAll();
+    // Successful final-switch capture uses a borrowed returned Entity mesh.
+    // Adapter substitutes only the passive Entity getter; all resources,
+    // manager membership, control blocks, collector and purge are native.
+    TickNow(true,3);
+    resource_geometry::ObserveFinalEntity(NULL);CHECK(resource_geometry::Snapshot().pending==0);
+    void*unreadable=VirtualAlloc(NULL,4096,MEM_RESERVE|MEM_COMMIT,PAGE_NOACCESS);CHECK(unreadable!=NULL);
+    resource_geometry::Clear();resource_geometry::ObserveFinalEntity(unreadable);
+    unsigned reads=entity.reads;resource_geometry::ObserveFinalEntityImpl(&entity);CHECK(entity.reads==reads);
+    CHECK(resource_geometry::Snapshot().pending==0);
+    TickNow(true,3);mainOwner=false;
+    resource_geometry::State*savedState=resource_geometry::state;
+    resource_geometry::state=static_cast<resource_geometry::State*>(unreadable);
+    resource_geometry::ObserveFinalEntity(unreadable); // gate BEFORE even reading state
+    resource_geometry::state=savedState;mainOwner=true;VirtualFree(unreadable,0,MEM_RELEASE);
+    CHECK(resource_geometry::Snapshot().pending==0);
+    Ogre::MeshPtr final=m.createManual("native-final-morph","General",&loader);final->load();
+    final->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    final->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(91)));
+    final->createPose(0,"native-base-pose");entity.actual=final;
+    resource_geometry::ObserveFinalEntityImpl(&entity);TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==0&&reserved==0); // pose-bearing base rejected
+    final->removeAllPoses();CHECK(final->getPoseCount()==0&&m.getByHandle(final->getHandle()).get()==final.get());
+    unsigned finalRefs=final.useCount();resource_geometry::ObserveFinalEntityImpl(&entity);
+    CHECK(final.useCount()==finalRefs&&resource_geometry::Snapshot().pending==1); // weak acquisition
+    TickNow(true,3);CHECK(resource_geometry::Snapshot().models==1&&reserved==91&&final.useCount()==finalRefs+1);
+    Ogre::Mesh*finalRaw=final.get();entity.actual.setNull();final.setNull();purge(&m,false);
+    CHECK(finalRaw->isLoaded()&&m.getByName("native-final-morph").get()==finalRaw);
+    resource_geometry::Clear();purge(&m,false);CHECK(!finalRaw->isLoaded());
+    TickNow(true,3);
+    // Native vertex-animation exclusion survives even after pose removal.
+    IdentityMesh*animatedRaw=new IdentityMesh(&m,&loader);final=Ogre::MeshPtr(animatedRaw);
+    Ogre::ResourcePtr animatedResource=final.staticCast<Ogre::Resource>();add(&m,animatedResource);final->load();
+    final->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    final->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(93)));
+    animatedRaw->FixtureAnimation(true);CHECK(final->getNumAnimations()==1&&final->getPoseCount()==0);
+    entity.actual=final;resource_geometry::ObserveFinalEntityImpl(&entity);TickNow(true,3);
+    CHECK(resource_geometry::Snapshot().models==0&&reserved==0);
+    animatedRaw->FixtureAnimation(false);CHECK(final->getNumAnimations()==0&&resource_geometry::Describe(final,&d));
+    animatedResource.setNull();
+    // Native alwaysUnique player names remain distinct; observation never
+    // aliases their pointers, handles, or names into a shared model.
+    Ogre::MeshPtr players[2];
+    for(unsigned n=0;n<2;++n){
+        players[n]=m.createManual(n?"player_morph_102":"player_morph_101","General",&loader);players[n]->load();
+        players[n]->sharedVertexData=OGRE_NEW Ogre::VertexData;
+        players[n]->sharedVertexData->vertexBufferBinding->setBinding(0,Ogre::HardwareVertexBufferSharedPtr(new TestVB(17)));
+        entity.actual=players[n];resource_geometry::ObserveFinalEntityImpl(&entity);
+    }
+    TickNow(true,3);CHECK(resource_geometry::Snapshot().models==2&&reserved==34);
+    CHECK(players[0].get()!=players[1].get()&&players[0]->getHandle()!=players[1]->getHandle());
+    CHECK(m.getByName("player_morph_101").get()==players[0].get()&&m.getByName("player_morph_102").get()==players[1].get());
+    resource_geometry::Clear();entity.actual.setNull();final.setNull();players[0].setNull();players[1].setNull();m.removeAll();
     std::cout<<"geometry actual Ogre collector/lifetime/purge checks="<<checks<<"\n";return 0;
 }

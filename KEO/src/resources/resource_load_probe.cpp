@@ -1,5 +1,6 @@
 #include "resources/resource_load_probe.h"
 #include "resources/resource_texture_retention.h"
+#include "resources/resource_geometry.h"
 #ifndef RESOURCE_LOAD_PROBE_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -156,12 +157,17 @@ static void* CreateMorphedMesh(const void*name,void*entity,void*data,bool shaved
     const LONGLONG begin=QpcNow();void*result=originalMorphCreate(name,entity,data,shaved);
     Sample(morphCreate,QpcDeltaUs(begin,QpcNow()));return result;
 }
+static void CompleteFinalMeshCapture(void*result){
+    try{resource_geometry::ObserveFinalEntity(result);}catch(...){}
+}
 static void* SwitchBodyMesh(void*entity,void*ownedMesh){
     // Native owns the indirect16 temporary, including its unwind/destruction.
     // Input Entity may be destroyed/replaced; do not inspect either after call.
-    if(!DetailedLogEnabled()||!IsMainThread())return originalMorphSwitch(entity,ownedMesh);
+    if(!DetailedLogEnabled()||!IsMainThread()){
+        void*result=originalMorphSwitch(entity,ownedMesh);CompleteFinalMeshCapture(result);return result;
+    }
     const LONGLONG begin=QpcNow();void*result=originalMorphSwitch(entity,ownedMesh);
-    Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));return result;
+    Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(result);return result;
 }
 static void SetBodyEntity(void*self,void*entity){
     if(!DetailedLogEnabled()||!IsMainThread()){originalAnimationBody(self,entity);return;}
@@ -222,14 +228,16 @@ static bool Install(const char*name,uintptr_t rva,const unsigned char*bytes,Nati
 #endif
 }
 
-#ifndef RESOURCE_LOAD_PROBE_TEST
-void ResourceLoadProbeInit(){
-    using namespace resource_load_probe_detail;
-    static bool attempted=false;
-    if(attempted||!IsMainThread())return;attempted=true;
-    if(NativeProfileIsGog()){
-        KEO_DETAIL("Resource loading probe: optional native seams not admitted for GOG");return;
-    }
+#if !defined(RESOURCE_LOAD_PROBE_TEST) || defined(RESOURCE_LOAD_PROBE_INIT_TEST)
+namespace resource_load_probe_detail {
+static bool captureAttempted=false,captureInitializationComplete=false,diagnosticsAttempted=false;
+static void EnsureDiagnosticHooks(){
+    // The mandatory output capture must finish its own attempt first. Mark
+    // timing admission before installing anything so reentrant reports cannot
+    // install a second set. Failed contracts/hooks retain one-shot refusal.
+    if(!DetailedLogEnabled()||!IsMainThread()||!captureInitializationComplete||diagnosticsAttempted)return;
+    diagnosticsAttempted=true;
+    if(NativeProfileIsGog())return;
     static const unsigned char factoryBytes[32]={0x48,0x89,0x5c,0x24,0x20,0x57,0x48,0x83,0xec,0x40,0x48,0x8b,0xd9,0x48,0x89,0x6c,0x24,0x58,0x48,0x8d,0x4c,0x24,0x50,0x33,0xed,0x8b,0xfd,0xe8,0x96,0xa8,0xab,0xff};
     static const unsigned char resourceBytes[32]={0x48,0x8b,0xc4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0xa8,0xe8,0xfd,0xff,0xff,0x48,0x81,0xec,0xf0,0x02,0x00,0x00,0x48,0xc7,0x45,0x68,0xfe,0xff};
     factoryInstalled=Install("factoryDrain",0x582880,factoryBytes,&Factory,&originalFactory);
@@ -245,10 +253,8 @@ void ResourceLoadProbeInit(){
     void*entity=steam?AdmitModule(ogre,0x5ca5f929,0x9c9000,0xBFAC0,entityBytes):NULL;
     if(entity&&reinterpret_cast<void*>(GetProcAddress(ogre,"?_initialise@Entity@Ogre@@QEAAX_N@Z"))!=entity)entity=NULL;
     entityInitialiseInstalled=InstallAdmitted("entityInitialise",entity,reinterpret_cast<void*>(&EntityInitialise),reinterpret_cast<void**>(&originalEntityInitialise));
-    static const unsigned char textureBytes[32]={0x40,0x56,0x57,0x41,0x54,0x48,0x81,0xec,0x00,0x01,0x00,0x00,0x48,0xc7,0x84,0x24,0xa0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0x30,0x01,0x00,0x00};
     static const unsigned char bodyBytes[32]={0x48,0x8b,0xc4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0xa8,0xa8,0xfd,0xff,0xff,0x48,0x81,0xec,0x20,0x03,0x00,0x00,0x48,0xc7,0x45,0xc8};
     static const unsigned char attachmentBytes[32]={0x48,0x89,0x54,0x24,0x10,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x48,0x83,0xec,0x70,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0xb0,0x00,0x00};
-    texture2DInstalled=InstallAdmitted("texture2D",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x44ACD0,textureBytes):NULL,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
     attachmentInstalled=InstallAdmitted("appearanceAttachment",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x536590,attachmentBytes):NULL,reinterpret_cast<void*>(&AppearanceAttachment),reinterpret_cast<void**>(&originalAttachment));
     // Internal Boost callback dispatcher used by both mesh-finish routes.
     // Exact native entry, not the short jump thunk. Same owned16 indirect ABI.
@@ -261,9 +267,6 @@ void ResourceLoadProbeInit(){
     static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};
     void* morphCreateSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71a80,morphCreateBytes):NULL;
     morphCreateInstalled=InstallAdmitted("morphCreate",morphCreateSite,reinterpret_cast<void*>(&CreateMorphedMesh),reinterpret_cast<void**>(&originalMorphCreate));
-    static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
-    void* morphSwitchSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71920,morphSwitchBytes):NULL;
-    morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
     static const unsigned char animationBodyBytes[32]={0x48,0x89,0x5c,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57,0x41,0x54,0x41,0x55,0x48,0x83,0xec,0x30,0x45,0x33,0xed,0x4c,0x8b,0xe2,0x48,0x8b,0xf1,0x41,0x8b,0xfd,0x44};
     void* animationBodySite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x5b8910,animationBodyBytes):NULL;
     animationBodyInstalled=InstallAdmitted("animationBody",animationBodySite,reinterpret_cast<void*>(&SetBodyEntity),reinterpret_cast<void**>(&originalAnimationBody));
@@ -281,10 +284,35 @@ void ResourceLoadProbeInit(){
     KEO_DETAIL(std::string("Resource completion attribution: texture2D=")+(texture2DInstalled?"installed":"unavailable")+" appearanceBody="+(bodyInstalled?"installed":"unavailable")+" appearanceAttachment="+(attachmentInstalled?"installed":"unavailable")+" array=existing bridge only; scheduling and readiness unchanged");
     KEO_DETAIL(std::string("Resource loading probe: factoryDrain=")+(factoryInstalled?"installed":"unavailable")+" resourceFinish="+(resourceInstalled?"installed":"unavailable")+" factoryProcess="+(factoryProcessInstalled?"installed":"unavailable")+" setMeshData="+(setMeshDataInstalled?"installed":"unavailable")+" entityInitialise="+(entityInitialiseInstalled?"installed":"unavailable")+" (completed calls; inclusive elapsed, not CPU time; generic factory/entities, not NPC-only; overlapping totals must not be summed)");
 }
+}
+void ResourceLoadProbeInit(){
+    using namespace resource_load_probe_detail;
+    if(!IsMainThread()||captureAttempted)return;captureAttempted=true;
+    if(NativeProfileIsGog()){
+        captureInitializationComplete=true;diagnosticsAttempted=true;
+        KEO_DETAIL("Resource loading probe: optional native seams not admitted for GOG");return;
+    }
+    // This consumer hook also supplies completed native TexturePtr outputs to
+    // retention. It is required independently of optional timing/Debug state.
+    HMODULE exe=GetModuleHandleA(NULL);
+    const bool steam=ImageMatches(exe,0x65d604d7,0x232c000);
+    static const unsigned char textureBytes[32]={0x40,0x56,0x57,0x41,0x54,0x48,0x81,0xec,0x00,0x01,0x00,0x00,0x48,0xc7,0x84,0x24,0xa0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0x30,0x01,0x00,0x00};
+    texture2DInstalled=InstallAdmitted("texture2D",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x44ACD0,textureBytes):NULL,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
+    // The existing Switch seam supplies the final morph replacement to the
+    // geometry cache even with diagnostics OFF. Never add a second detour.
+    static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
+    void* morphSwitchSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71920,morphSwitchBytes):NULL;
+    morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
+    captureInitializationComplete=true;
+    EnsureDiagnosticHooks();
+}
 #endif
 void ResourceLoadProbeReport(){
     using namespace resource_load_probe_detail;
     if(!DetailedLogEnabled()||!IsMainThread())return;
+#if !defined(RESOURCE_LOAD_PROBE_TEST) || defined(RESOURCE_LOAD_PROBE_INIT_TEST)
+    EnsureDiagnosticHooks(); // existing owner heartbeat, before the report throttle
+#endif
     const double now=ElapsedSec();
     if(nextReport==0){nextReport=now+10;return;}
     if(now<nextReport)return;nextReport=now+10;

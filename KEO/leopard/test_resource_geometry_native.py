@@ -41,8 +41,48 @@ assert steam.read(0x44967d, 9) == bytes.fromhex('488bd7ff90b0010000')
 assert struct.unpack('<Q', ogre.read(0x68e748+0x68,8))[0]-ogre.base == 0x2934f0
 assert ogre.read(0x293540, 14) == bytes.fromhex('488b43408b4820483b0d32046400')
 assert struct.unpack('<Q', ogre.read(0x8d3980,8))[0] == 3
+# Real MeshManager remove/getByHandle/addImpl/removeImpl slots used by the
+# orphan fixture. Native remove only resolves, unregisters, then releases its
+# temporary reference; externally owned meshes can stay loaded (fixture proof).
+for slot, target in ((0x78,0x2937a0),(0xa8,0x293ce0),(0x100,0x292460),(0x108,0x292fc0)):
+    assert struct.unpack('<Q',ogre.read(0x68e748+slot,8))[0]-ogre.base==target
+assert ogre.read(0x2937ce,17)==bytes.fromhex('488b03488d542428488bcbff9008010000')
 # The manual-LOD accessor actually loads absent LODs. Collector must reject
 # these without calling it; this prevents accidental owner-thread cold loads.
 assert ogre.read(0x1a733d,5) == bytes.fromhex('e82e740100')
 assert 'm->hasManualLodLevel()' in source and 'm->getLodLevel(' not in source
-print('native Steam request/Ogre SharedPtr-purge/manual-LOD contracts passed')
+# Final morph ownership/registration proof from the pinned native files.
+# Relative IAT calls identify the actual passive getter/clone/pose-removal
+# exports, rather than relying only on names in an SDK header or a report.
+def imported_pointer(image,iat):
+    name=struct.unpack('<Q',image.read(iat,8))[0]+2
+    data=bytearray()
+    while image.read(name+len(data),1)!=b'\0':data+=image.read(name+len(data),1)
+    return data.decode('ascii')
+def imported_call(image,rva):
+    code=image.read(rva,6)
+    assert code[:2]==b'\xff\x15'
+    return imported_pointer(image,rva+6+struct.unpack('<i',code[2:])[0])
+assert imported_call(steam,0x71ac9).startswith('?getMesh@Entity@Ogre@@')
+assert imported_call(steam,0x71ae1).startswith('?clone@Mesh@Ogre@@')
+assert imported_call(steam,0x71cdc)=='?removeAllPoses@Mesh@Ogre@@QEAAXXZ'
+assert ogre.read(0xc09b0,8)==bytes.fromhex('488d8178010000c3') # borrowed MeshPtr ref, no load/refcopy
+assert ogre.read(0x1a3fd8,5)==bytes.fromhex('e893a90100') # clone -> createManual 1BE970
+assert ogre.read(0x1a4350,53)==bytes.fromhex('488b4b40488d91d0000000448b4108e88c2fe7ff488bf8488b53404881c2d0000000498b4d004881c118030000e84e860000488938')
+# Switch destroys the old Entity, releases its owned16 temporary, returns new
+# R12 via RAX. Production keeps this raw ABI and observes only that return.
+assert steam.read(0x71a1f,5)==bytes.fromhex('e85f2ffbff')
+assert steam.read(0x71a25,59)==bytes.fromhex('48833f00742a488b4f0883c8fff00fc14120ffc8751a488b4f084885c97411488b0133d2ff10488b4f08ff15b35d1d0248c7070000000048c74708')
+assert steam.read(0x71a64,3)==bytes.fromhex('498bc4')
+assert steam.read(0x71d07,8)==bytes.fromhex('e888c9fcff488bd8')
+# Destroy's real native useCount condition: remove only at SYSTEM+1; an
+# additional admitted MeshPtr pin defeats equality. No hardcoded game policy
+# value is introduced by production capture.
+assert steam.read(0x44a5e7,26)==bytes.fromhex('488b4424408b5020488b055ad7df01488b0848ffc1483bd1754b')
+assert imported_pointer(steam,0x44a5f6+struct.unpack('<i',steam.read(0x44a5f2,4))[0])=='?RESOURCE_SYSTEM_NUM_REFERENCE_COUNTS@ResourceGroupManager@Ogre@@2_KA'
+probe=(ROOT/'src/resources/resource_load_probe.cpp').read_text()
+capture=probe[probe.index('static void* SwitchBodyMesh('):probe.index('static void SetBodyEntity(')]
+assert capture.count('CompleteFinalMeshCapture(result)')==2
+assert 'CompleteFinalMeshCapture(entity)' not in capture and 'CompleteFinalMeshCapture(ownedMesh)' not in capture
+assert source.index('if(!IsMainThread()||!state||!state->on||!entity)return;',source.index('ObserveFinalEntityImpl'))<source.index('Observe(entity->getMesh());')
+print('native Steam request/Ogre SharedPtr-purge/mesh-manager orphan/manual-LOD/final-morph ownership contracts passed')

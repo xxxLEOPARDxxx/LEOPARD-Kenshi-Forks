@@ -25,6 +25,11 @@ static const Owner kOwners[] =
 	{ "deferral", "zone" },
 	{ "priorityBoost", "navmesh" },
 	{ "preload", "zone" },
+	{ "resourceRamCache", "zone" }, { "resourceRamGiB", "zone" },
+	{ "resourceReadMBps", "zone" }, { "resourcePrefetch", "zone" },
+	{ "resourceGpuWarm", "zone" }, { "resourceStartupTextures", "zone" },
+	{ "resourceGeometryWarm", "zone" }, { "resourceTextureRetention", "zone" },
+	{ "resourceGpuGiB", "zone" }, { "resourceWarmHud", "zone" },
 	{ "movementAware", "zone" },
 	{ "caching", "navmesh" },
 	{ "keoRouting", "movement" },
@@ -316,6 +321,44 @@ static void CheckZoneSquadRadiusAndCap()
 	zone::g_zoneCfg = held;
 }
 
+// Real INI parsing must publish valid limits to both the UI and the caches;
+// downstream cache clamps alone do not normalize the stored configuration.
+static void CheckResourceLimits()
+{
+	struct ResourceLimit { const char* key; int zone::ZoneConfig::* field; int lo, hi, def; };
+	const ResourceLimit limits[] =
+	{
+		{ "resourceRamGiB", &zone::ZoneConfig::cfg_resourceRamGiB, 1, 32, 1 },
+		{ "resourceReadMBps", &zone::ZoneConfig::cfg_resourceReadMBps, 1, 128, 32 },
+		{ "resourceGpuGiB", &zone::ZoneConfig::cfg_resourceGpuGiB, 1, 8, 1 }
+	};
+	const zone::ZoneConfig held = zone::g_zoneCfg;
+	for (unsigned i = 0; i < sizeof(limits) / sizeof(limits[0]); ++i)
+	{
+		const ResourceLimit& r = limits[i];
+		const ConfigModule* mod = NULL;
+		const ConfigKey* key = FindConfigKey(r.key, &mod);
+		Check(key && mod && !strcmp(mod->name, "zone") && key->kind == CK_INT && key->live
+		      && !key->devOnly && key->lo == r.lo && key->hi == r.hi, "resource budget metadata: owned, live and bounded");
+		zone::g_zoneCfg = zone::kZoneDefaults;
+		ConfigClampLoaded(&DiscardLog);
+		Check(zone::g_zoneCfg.*(r.field) == r.def, "empty INI preserves the resource budget default");
+		for (int side = 0; side < 2; ++side)
+		{
+			zone::g_zoneCfg = zone::kZoneDefaults;
+			std::ostringstream text, name;
+			text << (side ? r.hi + 1 : r.lo - 1);
+			ConfigLoadState state;
+			ConfigApplyLine(r.key, text.str(), 1, &state, &DiscardLog);
+			ConfigClampLoaded(&DiscardLog);
+			name << "resource INI load clamps " << r.key << (side ? " above maximum" : " below minimum");
+			Check(zone::g_zoneCfg.*(r.field) == (side ? r.hi : r.lo) && state.overrides == 1 && state.unrecognised == 0,
+			      name.str().c_str());
+		}
+	}
+	zone::g_zoneCfg = held;
+}
+
 // Live module rows either publish through their frame tick or load the stored field once per use.
 static bool LiveOffsetRowAllowed(const char* module, const char* key)
 {
@@ -324,7 +367,12 @@ static bool LiveOffsetRowAllowed(const char* module, const char* key)
 		return !strcmp(key, "operatorHoldUntil") || !strcmp(key, "operatorFillPercent") || !strcmp(key, "backpackFixes") || !strcmp(key, "gatherOutputJob") || !strcmp(key, "stockCounterJob") || !strcmp(key, "waypointRouteJob");
 	if (!strcmp(module, "zone"))
 		return !strcmp(key, "zoneLifeRetainRadius") || !strcmp(key, "zoneLifeSquadRadius")
-		    || !strcmp(key, "zoneRetentionMaxHeld");
+		    || !strcmp(key, "zoneRetentionMaxHeld")
+		    || !strcmp(key, "resourceRamCache") || !strcmp(key, "resourceRamGiB")
+		    || !strcmp(key, "resourceReadMBps") || !strcmp(key, "resourcePrefetch")
+		    || !strcmp(key, "resourceGpuWarm") || !strcmp(key, "resourceStartupTextures")
+		    || !strcmp(key, "resourceGeometryWarm") || !strcmp(key, "resourceTextureRetention")
+		    || !strcmp(key, "resourceGpuGiB") || !strcmp(key, "resourceWarmHud");
 	if (!strcmp(module, "fixes"))
 		return !strcmp(key, "relationsSelfFind")
 		    || !strcmp(key, "hullSameSkip") || !strcmp(key, "onScreenStagger")
@@ -420,7 +468,7 @@ int main()
 		}
 		if (i == CONFIG_STAGE_MAX) Fail(mod.name, "no table end within stage capacity");
 	}
-	Check(moduleKeys == 121 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
+	Check(moduleKeys == 131 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
 	const char* const removed[] = { "npcFailMemo", "rqStructClear", "ogreWorkerPriority", "factionSelfGuard" };
 	for (int i = 0; i < 4; ++i)
 		Check(FindConfigKey(removed[i], NULL) == NULL, "removed switches have no config row");
@@ -434,6 +482,7 @@ int main()
 	CheckPlannerKeys();
 	CheckZoneRetainRadius();
 	CheckZoneSquadRadiusAndCap();
+	CheckResourceLimits();
 	CheckLiveRowStorable();
 	return CheckExit("config_modules_units");
 }

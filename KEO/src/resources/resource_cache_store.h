@@ -33,10 +33,10 @@ void ConfigureStartup(bool enabled); // live opt-in; unchanged values do not res
 bool StartupEnabled();
 void SetStartupMenu(bool); // main owner heartbeat; short lease expires if rendering stops
 FilePtr Find(const std::string& absolutePath); // non-waiting cache lock; validates file identity
-void Observe(const std::string& absolutePath); // only after successful native read-only open
+void Observe(const std::string& absolutePath); // native read-only open: paced demand, not paused by speculative gate
 void Prefetch(const std::string& absolutePath); // explicit verified metadata request, no zone activation
 bool StandbyAllowed(); // GPU source pins must release when RAM cap/reserve is exceeded
-void SetBackgroundAllowed(bool); // pause new/chunked IO during frame-time pressure, preserve cache
+void SetBackgroundAllowed(bool); // pause speculative prefetch/startup only; demand stays rate-limited, cache preserved
 bool BackgroundAllowed();
 Stats Snapshot();
 void SignalStop(); // loader-lock safe, no waits/handle close

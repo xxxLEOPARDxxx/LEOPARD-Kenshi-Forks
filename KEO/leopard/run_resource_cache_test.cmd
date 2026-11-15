@@ -6,7 +6,9 @@ set "LIB=%VC%\lib\amd64;%SDK%\Lib\x64"
 set "PATH=%VC%\bin\amd64;%SDK%\Bin;%PATH%"
 cd /d "%~dp0.."
 if not exist build\resource_cache_test mkdir build\resource_cache_test
-cl /nologo /EHsc /MD /O2 /I src leopard\test_resource_cache.cpp /Fobuild\resource_cache_test\ /Febuild\resource_cache_test\test.exe
+set "OPT=/O2"
+if /I "%~1"=="Od" set "OPT=/Od"
+cl /nologo /EHsc /MD %OPT% /I src leopard\test_resource_cache.cpp /Fobuild\resource_cache_test\ /Febuild\resource_cache_test\test.exe
 if errorlevel 1 exit /b 1
 build\resource_cache_test\test.exe
 

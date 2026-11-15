@@ -12,6 +12,10 @@ struct __declspec(align(16)) Stats {
 // Main owner thread only. Retains actual natively loaded Mesh resources for
 // revisits. Never loads unseen models, creates entities, or calls unload.
 void Init();
+// Borrow only a successful native switchBodyMesh RETURNED Entity. The old
+// Entity/input MeshPtr are already consumed. Off-owner/OFF exits before any
+// state or entity access; no Entity reference survives this call.
+void ObserveFinalEntity(void* returnedEntity);
 void Tick(bool enabled,U64 sharedGpuCap,U64 worldGeneration);
 void Clear(); // BEFORE world/Ogre shutdown; never from DllMain
 Stats Snapshot();

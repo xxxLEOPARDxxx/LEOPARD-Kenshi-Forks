@@ -244,6 +244,9 @@ static const char* const kClampOrder[] =
 	"plannerMergeBias",
 	"plannerMergeDetour",
 	"throwOutHoldMinutes",
+	"resourceRamGiB",
+	"resourceReadMBps",
+	"resourceGpuGiB",
 	NULL
 };
 

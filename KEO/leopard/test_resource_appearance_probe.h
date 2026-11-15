@@ -52,20 +52,26 @@ static void ExerciseAppearancePreparation(void*self,void*data){
  Check(!seenUnique&&seenShaved&&seenWeight==0.875f&&morphLookup.calls==2,"morph lookup opposite bools independent positive weight");
  Check(CreateMorphedMesh(self,entity,data,true)==expected&&seen==self&&seenSecond==entity&&seenThird==data&&seenShaved,"static morph create borrowed string first and result exact");
  Check(SwitchBodyMesh(self,data)==expected&&seen==self&&seenSecond==data,"switch body raw owned16 address and result exact");
+ Check(resource_geometry::finalCalls==1&&resource_geometry::lastEntity==expected,"final mesh observer receives returned entity, never old entity or consumed input");
+ enabled=false;int finalClocks=clocks;unsigned finalBefore=resource_geometry::finalCalls;
+ Check(SwitchBodyMesh(self,data)==expected&&resource_geometry::finalCalls==finalBefore+1&&clocks==finalClocks,"final mesh capture survives Debug OFF without diagnostic clocks");enabled=true;
+ resource_geometry::failFinal=true;
+ Check(SwitchBodyMesh(self,data)==expected,"optional final mesh observer exception preserves native result");resource_geometry::failFinal=false;
  SetBodyEntity(self,entity);Check(seen==self&&seenSecond==entity,"animation body this/entity exact");
  BuildAttachments(self);Check(seen==self,"attachment build exact this");
  PoseBlend(-0.375f,self,data,entity);Check(seen==NULL&&seenWeight==-0.375f&&seenSecond==self&&seenThird==data&&seenFourth==entity,"static pose blend XMM0 and remaining pointer registers exact");
  Stats*stats[6]={&morphLookup,&morphCreate,&morphSwitch,&animationBody,&attachmentBuild,&poseBlend};
  for(int i=0;i<6;++i){
   unsigned __int64 count=stats[i]->calls,total=stats[i]->totalUs;
-  Check(count==(i==0?2:1)&&total==23000*count&&stats[i]->over20ms==count,"appearance stage completed elapsed independent");
+  Check(count==((i==0||i==2)?2:1)&&total==23000*count&&stats[i]->over20ms==count,"appearance stage completed elapsed independent");
   enabled=false;int c=clocks,m=mainChecks;before=nativeCalls;CallAppearanceSeam(i,self,data,entity);
   Check(nativeCalls==before+1&&clocks==c&&mainChecks==m&&stats[i]->calls==count,"appearance debug OFF forwards once without timer/thread query");enabled=true;
   onMain=false;c=clocks;before=nativeCalls;CallAppearanceSeam(i,self,data,entity);
   Check(nativeCalls==before+1&&clocks==c&&stats[i]->calls==count,"appearance off-owner forwards without clocks/stats");onMain=true;
-  throwsNative=true;c=clocks;before=nativeCalls;bool caught=false;
+  throwsNative=true;c=clocks;before=nativeCalls;bool caught=false;finalBefore=resource_geometry::finalCalls;
   try{CallAppearanceSeam(i,self,data,entity);}catch(int v){caught=v==17;}
   Check(caught&&nativeCalls==before+1&&clocks==c+1&&stats[i]->calls==count,"appearance native C++ exception propagates and excludes incomplete sample");throwsNative=false;
+  Check(resource_geometry::finalCalls==finalBefore,"native exception never offers an incomplete final entity");
   sehNative=true;c=clocks;before=nativeCalls;
   Check(CatchAppearanceSeh(i,self,data,entity)&&nativeCalls==before+1&&clocks==c+1&&stats[i]->calls==count,"appearance native SEH propagates and excludes incomplete sample");sehNative=false;
  }

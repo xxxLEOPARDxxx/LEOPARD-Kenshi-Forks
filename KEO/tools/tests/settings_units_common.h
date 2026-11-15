@@ -37,6 +37,11 @@ static const ProdRow kProdPage[] =
 	{ "zoneLifeRetainRadius", "Zone loading" }, { "zoneLifeSquadRadius", "Zone loading" },
 	{ "zoneRetentionMaxHeld", "Zone loading" }, { "plannerAheadTiles", "Zone loading" },
 	{ "navmeshDiskCacheMaxMB", "Zone loading" },
+	{ "resourceRamCache", "Resource memory" }, { "resourceRamGiB", "Resource memory" },
+	{ "resourceReadMBps", "Resource memory" }, { "resourcePrefetch", "Resource memory" },
+	{ "resourceGpuWarm", "Resource memory" }, { "resourceStartupTextures", "Resource memory" },
+	{ "resourceGeometryWarm", "Resource memory" }, { "resourceTextureRetention", "Resource memory" },
+	{ "resourceGpuGiB", "Resource memory" }, { "resourceWarmHud", "Resource memory" },
 	{ "particleStepCap", "Performance" },
 	{ "foliagePageBudgetMs", "Performance" },
 	{ "keoRouting", "Squad movement" }, { "groupCohesion", "Squad movement" }, { "formationGatherPace", "Squad movement" },
@@ -50,8 +55,8 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 26;
-static const char* const PROD_SECTIONS[] = { "Zone loading", "Performance", "Squad movement", "Gameplay fixes",
+static const int PROD_PAGE_ROWS = 36;
+static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 
 static void CheckNamed(bool ok, const std::string& what)

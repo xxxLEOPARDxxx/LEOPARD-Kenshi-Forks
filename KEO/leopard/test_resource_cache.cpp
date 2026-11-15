@@ -4,14 +4,18 @@
 #include <fstream>
 #include <iostream>
 static volatile LONG lowMemory=0;
+static volatile LONG workerWaits=0;
+static DWORD WaitProbe(HANDLE h,DWORD ms){if(ms==250)InterlockedIncrement(&workerWaits);return WaitForSingleObject(h,ms);}
 static BOOL MemoryProbe(LPMEMORYSTATUSEX m){
     if(!InterlockedCompareExchange(&lowMemory,0,0))return GlobalMemoryStatusEx(m);
     m->ullTotalPhys=16ULL*1024*1024*1024;m->ullAvailPhys=512ULL*1024*1024;m->ullAvailPageFile=8ULL*1024*1024*1024;return TRUE;
 }
 // Supply only the memory-pressure input; exercise the real store/worker code.
 #define GlobalMemoryStatusEx MemoryProbe
+#define WaitForSingleObject WaitProbe
 #include "../src/resources/resource_cache_store.cpp"
 #undef GlobalMemoryStatusEx
+#undef WaitForSingleObject
 using namespace resource_cache;
 static void writeFile(const std::string& p, const char* s) {
     std::ofstream out(p.c_str(), std::ios::binary|std::ios::trunc); out << s;
@@ -60,24 +64,33 @@ int main() {
     bool moved=false;for(int i=0;i<100&&!moved;++i){moved=MoveFileExA(swap.c_str(),second.c_str(),MOVEFILE_REPLACE_EXISTING)!=FALSE;if(!moved)Sleep(10);}
     if(!moved)std::cerr<<"replace error "<<GetLastError()<<" path="<<second<<"\n";
     assert(moved);assert(!Find(second));
-    // A frame-pressure gate must defer queued IO without losing it.
+    // Frame/load pressure defers speculative IO, while a real native open
+    // upgrades the same pending file to demand and fills it without unpausing.
     Configure(true,16*1024*1024,64);SetBackgroundAllowed(false);
     Prefetch(second);Sleep(100);assert(!Find(second));assert(Snapshot().pending==1);
-    assert(StandbyAllowed());SetBackgroundAllowed(true);
+    assert(StandbyAllowed());Observe(second);
     replacement=awaitFile(second);assert(replacement);replacement.reset();
+    assert(!BackgroundAllowed()&&Snapshot().pending==0);
+    SetBackgroundAllowed(true);
     Configure(true,16*1024*1024,1);
     {std::ofstream large(p.c_str(),std::ios::binary|std::ios::trunc);std::string megabyte(1024*1024,'x');for(int i=0;i<8;++i)large<<megabyte;}
-    Observe(p);
+    Prefetch(p);
     for(int i=0;i<100 && Snapshot().allocatedBytes<8*1024*1024;++i)Sleep(10);
     assert(Snapshot().allocatedBytes>=8*1024*1024);
     SetBackgroundAllowed(false);Sleep(50);unsigned __int64 heldRead=Snapshot().readBytes;
+    LONG waits=InterlockedCompareExchange(&workerWaits,0,0);
     Sleep(150);assert(Snapshot().readBytes==heldRead);assert(!Find(p));
+    assert(InterlockedCompareExchange(&workerWaits,0,0)-waits<16); // no paused-queue self-wake spin
+    std::string demandPath=second+".skeleton";writeFile(demandPath,"demand while prefetch paused");
+    Observe(demandPath);FilePtr demanded=awaitFile(demandPath);
+    assert(demanded&&!BackgroundAllowed()&&Snapshot().pending==1);demanded.reset();
+    heldRead=Snapshot().readBytes;Sleep(100);assert(Snapshot().readBytes==heldRead);
     SetBackgroundAllowed(true);Configure(true,16*1024*1024,64);
     replacement=awaitFile(p);assert(replacement && replacement->data.size()==8*1024*1024);replacement.reset();
     // Restart a slow read, then cancel while it is paused mid-file.
     Configure(false,16*1024*1024,1);
     for(int i=0;i<100 && Snapshot().allocatedBytes;++i)Sleep(10);
-    Configure(true,16*1024*1024,1);Observe(p);
+    Configure(true,16*1024*1024,1);Prefetch(p);
     for(int i=0;i<100 && Snapshot().allocatedBytes<8*1024*1024;++i)Sleep(10);
     assert(Snapshot().allocatedBytes>=8*1024*1024);
     SetBackgroundAllowed(false);Sleep(50);DWORD begin=GetTickCount();Configure(false,16*1024*1024,1);
@@ -85,6 +98,7 @@ int main() {
     assert(Snapshot().allocatedBytes==0 && GetTickCount()-begin<1000); // cancels in-progress read/pacing
     assert(!StandbyAllowed());SetBackgroundAllowed(true);
     DeleteFileA(second.c_str());
+    DeleteFileA(demandPath.c_str());
     Stop(); assert(!Find(p)); DeleteFileA(p.c_str());
     std::cout<<"resource cache IO/lifetime tests passed\n";
 }

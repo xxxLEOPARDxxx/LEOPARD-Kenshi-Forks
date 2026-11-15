@@ -6,6 +6,7 @@
 #include "resources/resource_geometry.h"
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_cache_store.h"
+#include "resources/resource_cache_admission.h"
 #include "resources/resource_forward.h"
 #include "resources/resource_load_probe.h"
 #include "resources/resource_warm_hud.h"
@@ -43,7 +44,7 @@ std::string Path(Ogre::FileSystemArchive*a,const Ogre::String&name){
     return full;
 }
 Ogre::DataStreamPtr* Open(Ogre::FileSystemArchive*a,Ogre::DataStreamPtr*out,const Ogre::String&name,bool readOnly){
-    if(!readOnly||!InterlockedCompareExchange(&active,0,0))return original(a,out,name,readOnly);
+    if(!readOnly||!InterlockedCompareExchange(&active,0,0)||!resource_cache::CacheableFileName(name))return original(a,out,name,readOnly);
     std::string path;
     try{
         path=Path(a,name);

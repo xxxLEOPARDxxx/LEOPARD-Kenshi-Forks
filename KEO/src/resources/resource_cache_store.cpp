@@ -3,6 +3,7 @@
 #endif
 #include <windows.h>
 #include "resources/resource_cache_store.h"
+#include "resources/resource_cache_admission.h"
 #include <map>
 #include <set>
 #include <deque>
@@ -29,8 +30,10 @@ struct Entry {FilePtr file;LruList::iterator lru;};
 typedef std::map<std::string,Entry,PathLess> FileMap;
 FileMap files;
 LruList lru;
-std::deque<std::string> requests;
+struct Request {std::string path;bool observed;Request(const std::string&p,bool demand):path(p),observed(demand){}};
+std::deque<Request> requests;
 std::string active;
+bool activeObserved=false; // protected with active under lock
 struct Guard {Guard(){EnterCriticalSection(&lock);}~Guard(){LeaveCriticalSection(&lock);}};
 LONG Load(volatile LONG& v){return InterlockedCompareExchange(&v,0,0);}
 LONGLONG Load64(volatile LONGLONG&v){return InterlockedCompareExchange64(&v,0,0);}
@@ -68,14 +71,11 @@ struct StartupWork {
 };
 void ResetProgress(){progress=Stats();progress.startupRoots=unsigned(roots.size());}
 bool Texture(const std::string&p){
-    size_t at=p.find_last_of('.');if(at==std::string::npos)return false;
-    const char* s=p.c_str()+at;
-    return !_stricmp(s,".dds")||!_stricmp(s,".png")||!_stricmp(s,".tga")||!_stricmp(s,".jpg")||!_stricmp(s,".jpeg")||!_stricmp(s,".bmp");
+    return TextureFileName(p);
 }
 bool Eligible(const std::string&p){
     if(p.size()<7||p.size()>=MAX_PATH||p[1]!=':'||(p[2]!='\\'&&p[2]!='/'))return false;
-    size_t at=p.find_last_of('.');if(at==std::string::npos)return false;
-    return Texture(p)||!_stricmp(p.c_str()+at,".mesh")||!_stricmp(p.c_str()+at,".skeleton");
+    return CacheableFileName(p);
 }
 bool NormalizeRoot(const std::string&p,std::string&out){
     if(p.size()<3||p.size()>=MAX_PATH||p[1]!=':'||(p[2]!='\\'&&p[2]!='/')||p.find(':',2)!=std::string::npos)return false;
@@ -114,6 +114,13 @@ bool Cancelled(LONG epoch){return !On()||Load(generation)!=epoch;}
 bool StartupCancelled(LONG e){return !Load(startupEnabled)||Load(startupGeneration)!=e;}
 bool ReadCancelled(LONG e,LONG se){return Cancelled(e)||(se>=0&&StartupCancelled(se));}
 bool HasRequests(){Guard g;return !requests.empty();}
+bool HasDemandRequests(){Guard g;for(std::deque<Request>::const_iterator i=requests.begin();i!=requests.end();++i)if(i->observed)return true;return false;}
+bool RunnableLocked(){
+    if(requests.empty())return false;
+    if(Load(backgroundAllowed))return true;
+    for(std::deque<Request>::const_iterator i=requests.begin();i!=requests.end();++i)if(i->observed)return true;
+    return false;
+}
 bool MemoryRoom(unsigned __int64 bytes){
     MEMORYSTATUSEX m={sizeof(m)};
     if(!GlobalMemoryStatusEx(&m))return false;
@@ -157,8 +164,11 @@ bool MakeRoom(unsigned __int64 bytes,bool evict=true){
 }
 struct Handle {HANDLE h;Handle(HANDLE v):h(v){}~Handle(){if(h!=INVALID_HANDLE_VALUE)CloseHandle(h);}};
 enum ReadResult {ReadSkipped,ReadLoaded,ReadCapped,ReadDeferred,ReadCancelledResult};
-ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1){
+ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1,bool observed=true){
     const bool startup=startupEpoch>=0;
+    const bool speculative=startup||!observed;
+    if(ReadCancelled(epoch,startupEpoch))return ReadCancelledResult;
+    if(speculative&&!Load(backgroundAllowed))return ReadDeferred;
     char root[4]={p[0],':','\\',0};if(GetDriveTypeA(root)!=DRIVE_FIXED)return ReadSkipped;
     WIN32_FILE_ATTRIBUTE_DATA before;
     if(ReadCancelled(epoch,startupEpoch))return ReadCancelledResult;
@@ -183,12 +193,9 @@ ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1){
     while(offset<f->data.size()){
         if(ReadCancelled(epoch,startupEpoch))return ReadCancelledResult;
         if(!MemoryRoom(0))return ReadCapped;
-        if(startup&&HasRequests())return ReadDeferred;
-        while(!Load(backgroundAllowed)&&!ReadCancelled(epoch,startupEpoch)){
-            if(!MemoryRoom(0))return ReadCapped;
-            if(startup&&HasRequests())return ReadDeferred;
-            Sleep(10);
-        }
+        // A paused speculative file must yield the one IO worker, not sleep
+        // while observed native opens wait behind it. Demand remains paced.
+        if(speculative&&(!Load(backgroundAllowed)||(startup?HasRequests():HasDemandRequests())))return ReadDeferred;
         if(ReadCancelled(epoch,startupEpoch))return ReadCancelledResult;
         DWORD count=DWORD((std::min)(Chunk,f->data.size()-offset)),got=0;
         DWORD start=GetTickCount();
@@ -204,7 +211,7 @@ ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1){
         if(span>elapsed){
             DWORD remaining=span-elapsed;
             while(remaining&&!ReadCancelled(epoch,startupEpoch)){
-                if(startup&&HasRequests())return ReadDeferred;
+                if(speculative&&(!Load(backgroundAllowed)||(startup?HasRequests():HasDemandRequests())))return ReadDeferred;
                 DWORD wait=(std::min)(remaining,DWORD(10));Sleep(wait);remaining-=wait;
             }
         }
@@ -273,10 +280,10 @@ bool StartupStep(StartupWork&w,LONG cacheEpoch){
         w.Reset(e);return false;
     }
     const std::string p=w.inventory[w.next];
-    bool present=false;{Guard g;present=files.find(p)!=files.end();if(!present)active=p;}
+    bool present=false;{Guard g;present=files.find(p)!=files.end();if(!present){active=p;activeObserved=false;}}
     ReadResult result=present?ReadSkipped:ReadOne(p,cacheEpoch,e);
     bool terminal=false;
-    {Guard g;active.clear();if(StartupCancelled(e)||Cancelled(cacheEpoch))return false;
+    {Guard g;active.clear();activeObserved=false;if(StartupCancelled(e)||Cancelled(cacheEpoch))return false;
         if(result==ReadDeferred||result==ReadCancelledResult)return true;
         ++w.next;++progress.startupProcessed;
         if(result==ReadLoaded)++progress.startupLoaded;else ++progress.startupSkipped;
@@ -295,13 +302,35 @@ DWORD WINAPI Worker(void*){
             if(!On()){Clear();startup.Reset(Load(startupGeneration));continue;}
             if(startup.epoch!=Load(startupGeneration)||!Load(startupEnabled))startup.Reset(Load(startupGeneration));
             TrimPressure();MakeRoom(0);
-            if(!Load(backgroundAllowed))continue;
-            std::string p;LONG epoch=Load(generation);
-            {Guard g;if(!requests.empty()){p=requests.front();requests.pop_front();active=p;}}
+            std::string p;bool demand=false;LONG epoch=Load(generation);
+            {Guard g;
+                // Demand has priority over all speculative entries, including
+                // while the loading/transition/frame gate pauses background IO.
+                std::deque<Request>::iterator chosen=requests.end();
+                for(std::deque<Request>::iterator i=requests.begin();i!=requests.end();++i)if(i->observed){chosen=i;break;}
+                if(chosen==requests.end()&&Load(backgroundAllowed)&&!requests.empty())chosen=requests.begin();
+                if(chosen!=requests.end()){
+                    p=chosen->path;demand=chosen->observed;requests.erase(chosen);
+                    // A just-completed startup read may have published the
+                    // same path while its native observation was queued.
+                    if(files.find(p)!=files.end())p.clear();
+                    else{active=p;activeObserved=demand;}
+                }
+            }
             bool more=false;
-            if(!p.empty())ReadOne(p,epoch);else more=StartupStep(startup,epoch);
-            {Guard g;active.clear();if(more||!requests.empty())SetEvent(eventHandle);}
-        }catch(...){InterlockedIncrement64(&rejected);{Guard g;active.clear();if(Load(startupEnabled)){progress.startupDone=true;progress.startupCapped=true;progress.startupScanning=false;}}startup.Reset(Load(startupGeneration));}
+            ReadResult result=ReadSkipped;
+            if(!p.empty())result=ReadOne(p,epoch,-1,demand);
+            else if(Load(backgroundAllowed))more=StartupStep(startup,epoch);
+            {Guard g;active.clear();activeObserved=false;
+                if(result==ReadDeferred&&!p.empty()&&!demand&&!Cancelled(epoch)){
+                    bool pending=false;for(std::deque<Request>::const_iterator i=requests.begin();i!=requests.end();++i)if(!_stricmp(i->path.c_str(),p.c_str())){pending=true;break;}
+                    // Keep a deferred prefetch if room remains. A newly queued
+                    // demand for the same path supersedes this retry entirely.
+                    if(!pending&&requests.size()<MaxQueue)requests.push_front(Request(p,false));
+                }
+                if((more&&Load(backgroundAllowed))||RunnableLocked())SetEvent(eventHandle);
+            }
+        }catch(...){InterlockedIncrement64(&rejected);{Guard g;active.clear();activeObserved=false;if(Load(startupEnabled)){progress.startupDone=true;progress.startupCapped=true;progress.startupScanning=false;}}startup.Reset(Load(startupGeneration));}
     }
     Clear();return 0;
 }
@@ -357,16 +386,25 @@ FilePtr Find(const std::string&p){
     }
     InterlockedIncrement64(&misses);return FilePtr();
 }
-void Observe(const std::string&p){
+static void Queue(const std::string&p,bool demand){
     if(!On()||!Eligible(p)||!TryEnterCriticalSection(&lock))return;
     try{
-        bool pending=false;for(std::deque<std::string>::const_iterator it=requests.begin();it!=requests.end();++it)if(!_stricmp(it->c_str(),p.c_str())){pending=true;break;}
-        if(On()&&requests.size()<MaxQueue && files.find(p)==files.end() && _stricmp(active.c_str(),p.c_str()) && !pending){
-            requests.push_back(p);InterlockedIncrement64(&queued);SetEvent(eventHandle);
+        bool pending=false;
+        for(std::deque<Request>::iterator it=requests.begin();it!=requests.end();++it)if(!_stricmp(it->path.c_str(),p.c_str())){
+            pending=true;if(demand&&!it->observed){it->observed=true;SetEvent(eventHandle);}break;
+        }
+        if(On()&&files.find(p)==files.end()&&!pending&&(_stricmp(active.c_str(),p.c_str())||(demand&&!activeObserved))){
+            // Never let a full speculative queue suppress an observed native
+            // open. Total queue bound stays128 and all-demand saturation drops.
+            if(demand&&requests.size()>=MaxQueue){
+                for(size_t n=requests.size();n;--n)if(!requests[n-1].observed){requests.erase(requests.begin()+n-1);break;}
+            }
+            if(requests.size()<MaxQueue){requests.push_back(Request(p,demand));InterlockedIncrement64(&queued);SetEvent(eventHandle);}
         }
     }catch(...){LeaveCriticalSection(&lock);throw;}
     LeaveCriticalSection(&lock);
 }
+void Observe(const std::string&p){Queue(p,true);}
 Stats Snapshot(){
     Stats s={0};
     s.allocatedBytes=unsigned __int64(Load64(allocated));s.hits=unsigned __int64(Load64(hits));s.misses=unsigned __int64(Load64(misses));
@@ -380,7 +418,7 @@ Stats Snapshot(){
         LeaveCriticalSection(&lock);
     }return s;
 }
-void Prefetch(const std::string&p){Observe(p);}
+void Prefetch(const std::string&p){Queue(p,false);}
 bool StandbyAllowed(){return On()&&Load64(allocated)<=Load64(ceiling)&&MemoryRoom(0);}
 void SetBackgroundAllowed(bool allow){LONG before=InterlockedExchange(&backgroundAllowed,allow?1:0);if(allow&&!before&&eventHandle)SetEvent(eventHandle);}
 bool BackgroundAllowed(){return Load(backgroundAllowed)!=0;}

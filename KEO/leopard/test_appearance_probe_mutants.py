@@ -7,7 +7,11 @@ env=os.environ.copy();env['INCLUDE']=str(vc/'include')+';'+str(sdk/'Include');en
 env['PATH']=str(vc/'bin/amd64')+';'+str(sdk/'Bin')+';'+env['PATH']
 cases=[('lost-stack-float','void*result=originalMorphLookup(self,data,entity,unique,ugliness,shaved);','void*result=originalMorphLookup(self,data,entity,unique,0.f,shaved);'),
  ('swapped-pose-maps','const LONGLONG begin=QpcNow();originalPoseBlend(weight,offsets,normals,target);','const LONGLONG begin=QpcNow();originalPoseBlend(weight,normals,offsets,target);'),
- ('lost-switch-result','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));return result;','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));return NULL;'),
+ ('lost-switch-result','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(result);return result;','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(result);return NULL;'),
+ ('missing-final-capture','try{resource_geometry::ObserveFinalEntity(result);}catch(...){}','return;'),
+ ('debug-off-final-capture-omitted','        void*result=originalMorphSwitch(entity,ownedMesh);CompleteFinalMeshCapture(result);return result;','        void*result=originalMorphSwitch(entity,ownedMesh);return result;'),
+ ('capture-old-entity','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(result);return result;','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(entity);return result;'),
+ ('capture-consumed-input','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(result);return result;','Sample(morphSwitch,QpcDeltaUs(begin,QpcNow()));CompleteFinalMeshCapture(ownedMesh);return result;'),
  ('wrong-slow-child','record.children.poseBlend=after.poseBlend-before.poseBlend;','record.children.poseBlend=after.morphCreate-before.morphCreate;')]
 for name,before,after in cases:
  assert src.count(before)==1,(name,'unique production mutation')
@@ -20,4 +24,4 @@ for name,before,after in cases:
  run=subprocess.run([str(exe)],env=env,cwd=s,capture_output=True)
  (out/'run.txt').write_bytes(run.stdout+run.stderr);assert run.returncode!=0,(name,'mutation survived')
  print(name+': expected RED')
-print('PASS 4 compiled production preparation negative controls')
+print('PASS',len(cases),'compiled production preparation negative controls')

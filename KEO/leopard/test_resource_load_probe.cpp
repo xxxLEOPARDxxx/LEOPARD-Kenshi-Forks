@@ -27,6 +27,10 @@ namespace resource_texture_retention {
 static unsigned captureCalls=0;static void*lastOutput=NULL;static bool failCapture=false;
 void ObserveLoadedResult(void*p){++captureCalls;lastOutput=p;if(failCapture)throw 41;}
 }
+namespace resource_geometry {
+static unsigned finalCalls=0;static void*lastEntity=NULL;static bool failFinal=false;
+void ObserveFinalEntity(void*p){++finalCalls;lastEntity=p;if(failFinal)throw 43;}
+}
 #include "../src/resources/resource_load_probe.cpp"
 static bool CatchNativeSeh(void*p){__try{resource_load_probe_detail::Factory(p);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}
 static bool CatchNewSeh(int which,void*p,void*item){__try{if(which==0)resource_load_probe_detail::FactoryProcess(p,item);else if(which==1)resource_load_probe_detail::SetMeshData(p,item);else resource_load_probe_detail::EntityInitialise(p,true);}__except(GetExceptionCode()==0xE0426E01?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}return false;}

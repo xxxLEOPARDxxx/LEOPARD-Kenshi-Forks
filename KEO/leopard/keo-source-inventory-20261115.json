@@ -1,0 +1,5275 @@
+{
+  "scope": "Static inventory of all source files, not a claim of line-by-line correctness or runtime profiling",
+  "areas": {
+    "base": {
+      "cpp": 12,
+      "headers": 21,
+      "lines": 3461,
+      "bytes": 126428
+    },
+    "bench": {
+      "cpp": 16,
+      "headers": 15,
+      "lines": 5311,
+      "bytes": 167516
+    },
+    "diag": {
+      "cpp": 11,
+      "headers": 12,
+      "lines": 3118,
+      "bytes": 112003
+    },
+    "fixes": {
+      "cpp": 58,
+      "headers": 59,
+      "lines": 16486,
+      "bytes": 621254
+    },
+    "game": {
+      "cpp": 10,
+      "headers": 18,
+      "lines": 4447,
+      "bytes": 285243
+    },
+    "gui": {
+      "cpp": 8,
+      "headers": 9,
+      "lines": 2349,
+      "bytes": 98243
+    },
+    "inventory": {
+      "cpp": 17,
+      "headers": 17,
+      "lines": 3522,
+      "bytes": 142419
+    },
+    "jobs": {
+      "cpp": 5,
+      "headers": 5,
+      "lines": 1131,
+      "bytes": 77002
+    },
+    "movement": {
+      "cpp": 33,
+      "headers": 29,
+      "lines": 11879,
+      "bytes": 481353
+    },
+    "navmesh": {
+      "cpp": 47,
+      "headers": 39,
+      "lines": 17666,
+      "bytes": 722588
+    },
+    "pathfind": {
+      "cpp": 27,
+      "headers": 23,
+      "lines": 7735,
+      "bytes": 313195
+    },
+    "planner": {
+      "cpp": 24,
+      "headers": 21,
+      "lines": 10930,
+      "bytes": 411822
+    },
+    "plugin": {
+      "cpp": 6,
+      "headers": 6,
+      "lines": 2946,
+      "bytes": 142058
+    },
+    "render": {
+      "cpp": 36,
+      "headers": 28,
+      "lines": 7828,
+      "bytes": 288579
+    },
+    "resources": {
+      "cpp": 12,
+      "headers": 17,
+      "lines": 2907,
+      "bytes": 181539
+    },
+    "zone": {
+      "cpp": 42,
+      "headers": 50,
+      "lines": 13543,
+      "bytes": 526335
+    }
+  },
+  "files": [
+    {
+      "path": "src/base/clock.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 68,
+      "bytes": 1963
+    },
+    {
+      "path": "src/base/config.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 265,
+      "bytes": 9371
+    },
+    {
+      "path": "src/base/config.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 93,
+      "bytes": 3488
+    },
+    {
+      "path": "src/base/config_keys.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 132,
+      "bytes": 7181
+    },
+    {
+      "path": "src/base/config_rows.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 3427
+    },
+    {
+      "path": "src/base/config_table.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 379,
+      "bytes": 9470
+    },
+    {
+      "path": "src/base/config_table.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 151,
+      "bytes": 7203
+    },
+    {
+      "path": "src/base/config_values.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 375
+    },
+    {
+      "path": "src/base/core.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 106,
+      "bytes": 3320
+    },
+    {
+      "path": "src/base/core.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 221,
+      "bytes": 10304
+    },
+    {
+      "path": "src/base/core_internal.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 452
+    },
+    {
+      "path": "src/base/fixed_log_buf.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 106,
+      "bytes": 2653
+    },
+    {
+      "path": "src/base/hash.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 31,
+      "bytes": 744
+    },
+    {
+      "path": "src/base/havok_alloc.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 46,
+      "bytes": 1586
+    },
+    {
+      "path": "src/base/ini_names.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 18,
+      "bytes": 878
+    },
+    {
+      "path": "src/base/ini_text.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 268,
+      "bytes": 6817
+    },
+    {
+      "path": "src/base/ini_text.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 79,
+      "bytes": 3729
+    },
+    {
+      "path": "src/base/keo_tr.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 27,
+      "bytes": 713
+    },
+    {
+      "path": "src/base/keo_tr.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 752
+    },
+    {
+      "path": "src/base/klib_include.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 8,
+      "bytes": 508
+    },
+    {
+      "path": "src/base/klib_include_end.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 2,
+      "bytes": 79
+    },
+    {
+      "path": "src/base/legacy_ini_import.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 191,
+      "bytes": 6382
+    },
+    {
+      "path": "src/base/legacy_ini_import.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 47,
+      "bytes": 2426
+    },
+    {
+      "path": "src/base/Localization.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 594,
+      "bytes": 24444
+    },
+    {
+      "path": "src/base/LocalizationLog.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 1757
+    },
+    {
+      "path": "src/base/log.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 280,
+      "bytes": 8585
+    },
+    {
+      "path": "src/base/log_admission.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 640
+    },
+    {
+      "path": "src/base/log_bounded.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 27,
+      "bytes": 731
+    },
+    {
+      "path": "src/base/log_bounded.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 520
+    },
+    {
+      "path": "src/base/log_status.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1568
+    },
+    {
+      "path": "src/base/prologue.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 127,
+      "bytes": 4062
+    },
+    {
+      "path": "src/base/worker_count.cpp",
+      "area": "base",
+      "kind": "cpp",
+      "lines": 9,
+      "bytes": 177
+    },
+    {
+      "path": "src/base/worker_count.h",
+      "area": "base",
+      "kind": "headers",
+      "lines": 3,
+      "bytes": 123
+    },
+    {
+      "path": "src/bench/bench_game.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 547,
+      "bytes": 17496
+    },
+    {
+      "path": "src/bench/bench_game.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 94,
+      "bytes": 5261
+    },
+    {
+      "path": "src/bench/bench_game_internal.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 26,
+      "bytes": 997
+    },
+    {
+      "path": "src/bench/bench_game_math.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 85,
+      "bytes": 2533
+    },
+    {
+      "path": "src/bench/bench_game_math.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 42,
+      "bytes": 2055
+    },
+    {
+      "path": "src/bench/bench_group.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 706,
+      "bytes": 19898
+    },
+    {
+      "path": "src/bench/bench_group.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 43,
+      "bytes": 2048
+    },
+    {
+      "path": "src/bench/bench_lever_ab.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 239,
+      "bytes": 7111
+    },
+    {
+      "path": "src/bench/bench_lever_ab.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 2296
+    },
+    {
+      "path": "src/bench/bench_pin.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 270,
+      "bytes": 6557
+    },
+    {
+      "path": "src/bench/bench_pin.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 53,
+      "bytes": 3265
+    },
+    {
+      "path": "src/bench/bench_pin_run.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 258,
+      "bytes": 7331
+    },
+    {
+      "path": "src/bench/bench_recorders.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 175,
+      "bytes": 4504
+    },
+    {
+      "path": "src/bench/bench_recorders.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 132,
+      "bytes": 5543
+    },
+    {
+      "path": "src/bench/bench_report.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 48,
+      "bytes": 1783
+    },
+    {
+      "path": "src/bench/bench_report.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 769
+    },
+    {
+      "path": "src/bench/bench_restore.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 92,
+      "bytes": 2876
+    },
+    {
+      "path": "src/bench/bench_restore.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 36,
+      "bytes": 1697
+    },
+    {
+      "path": "src/bench/bench_run_report.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 102,
+      "bytes": 3220
+    },
+    {
+      "path": "src/bench/bench_run_report.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 33,
+      "bytes": 1341
+    },
+    {
+      "path": "src/bench/bench_runner.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 810,
+      "bytes": 22544
+    },
+    {
+      "path": "src/bench/bench_runner.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 40,
+      "bytes": 2271
+    },
+    {
+      "path": "src/bench/bench_scenario.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 79,
+      "bytes": 1901
+    },
+    {
+      "path": "src/bench/bench_scenario.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 3024
+    },
+    {
+      "path": "src/bench/bench_slots.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 155,
+      "bytes": 4208
+    },
+    {
+      "path": "src/bench/bench_slots.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 56,
+      "bytes": 2197
+    },
+    {
+      "path": "src/bench/bench_stats.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 37,
+      "bytes": 777
+    },
+    {
+      "path": "src/bench/bench_stats.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 11,
+      "bytes": 329
+    },
+    {
+      "path": "src/bench/bench_sweep.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 659,
+      "bytes": 17302
+    },
+    {
+      "path": "src/bench/bench_sweep.h",
+      "area": "bench",
+      "kind": "headers",
+      "lines": 96,
+      "bytes": 4894
+    },
+    {
+      "path": "src/bench/bench_weather.cpp",
+      "area": "bench",
+      "kind": "cpp",
+      "lines": 243,
+      "bytes": 9488
+    },
+    {
+      "path": "src/diag/cpp_exception.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 236,
+      "bytes": 7019
+    },
+    {
+      "path": "src/diag/cpp_exception.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 43,
+      "bytes": 1972
+    },
+    {
+      "path": "src/diag/exit_capture.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 411,
+      "bytes": 16768
+    },
+    {
+      "path": "src/diag/exit_capture.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 2012
+    },
+    {
+      "path": "src/diag/exit_capture_policy.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 127,
+      "bytes": 3748
+    },
+    {
+      "path": "src/diag/exit_capture_policy.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 110,
+      "bytes": 6316
+    },
+    {
+      "path": "src/diag/fatal_class.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 220,
+      "bytes": 5890
+    },
+    {
+      "path": "src/diag/fatal_class.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 73,
+      "bytes": 3552
+    },
+    {
+      "path": "src/diag/mem_format.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 136,
+      "bytes": 3175
+    },
+    {
+      "path": "src/diag/mem_format.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 43,
+      "bytes": 1884
+    },
+    {
+      "path": "src/diag/mem_probe.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 233,
+      "bytes": 6232
+    },
+    {
+      "path": "src/diag/mem_probe.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 47,
+      "bytes": 2184
+    },
+    {
+      "path": "src/diag/module_bases.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 204,
+      "bytes": 4868
+    },
+    {
+      "path": "src/diag/module_bases.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 88,
+      "bytes": 5008
+    },
+    {
+      "path": "src/diag/physx_pool_probe.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 345,
+      "bytes": 12337
+    },
+    {
+      "path": "src/diag/physx_pool_probe.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 38,
+      "bytes": 2023
+    },
+    {
+      "path": "src/diag/physx_pool_sets.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 201,
+      "bytes": 5055
+    },
+    {
+      "path": "src/diag/physx_pool_sets.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 101,
+      "bytes": 4655
+    },
+    {
+      "path": "src/diag/squad_watch.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 159,
+      "bytes": 7921
+    },
+    {
+      "path": "src/diag/squad_watch.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 3,
+      "bytes": 139
+    },
+    {
+      "path": "src/diag/squad_watch_policy.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 2298
+    },
+    {
+      "path": "src/diag/throw_ring.cpp",
+      "area": "diag",
+      "kind": "cpp",
+      "lines": 153,
+      "bytes": 4455
+    },
+    {
+      "path": "src/diag/throw_ring.h",
+      "area": "diag",
+      "kind": "headers",
+      "lines": 65,
+      "bytes": 2492
+    },
+    {
+      "path": "src/fixes/crash_claim.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 38,
+      "bytes": 1092
+    },
+    {
+      "path": "src/fixes/crash_claim.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 36,
+      "bytes": 1741
+    },
+    {
+      "path": "src/fixes/fixes_config.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 363,
+      "bytes": 16918
+    },
+    {
+      "path": "src/fixes/fixes_config.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 242,
+      "bytes": 13140
+    },
+    {
+      "path": "src/fixes/guard_report.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 94,
+      "bytes": 2651
+    },
+    {
+      "path": "src/fixes/near_page.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 37,
+      "bytes": 1104
+    },
+    {
+      "path": "src/fixes/near_page.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 13,
+      "bytes": 587
+    },
+    {
+      "path": "src/fixes/physx/hull_queue_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 469,
+      "bytes": 16318
+    },
+    {
+      "path": "src/fixes/physx/hull_queue_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 24,
+      "bytes": 1219
+    },
+    {
+      "path": "src/fixes/physx/hull_queue_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 208,
+      "bytes": 4741
+    },
+    {
+      "path": "src/fixes/physx/hull_queue_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 143,
+      "bytes": 5615
+    },
+    {
+      "path": "src/fixes/physx/hull_same_skip.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 197,
+      "bytes": 5202
+    },
+    {
+      "path": "src/fixes/physx/hull_same_skip.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 20,
+      "bytes": 1069
+    },
+    {
+      "path": "src/fixes/physx/hull_same_skip_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 117,
+      "bytes": 2977
+    },
+    {
+      "path": "src/fixes/physx/hull_same_skip_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 55,
+      "bytes": 2127
+    },
+    {
+      "path": "src/fixes/physx/physx_query_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 516,
+      "bytes": 17088
+    },
+    {
+      "path": "src/fixes/physx/physx_query_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2227
+    },
+    {
+      "path": "src/fixes/physx/physx_query_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 167,
+      "bytes": 5786
+    },
+    {
+      "path": "src/fixes/physx/physx_query_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 143,
+      "bytes": 7189
+    },
+    {
+      "path": "src/fixes/physx/purecall_layout.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 70,
+      "bytes": 2101
+    },
+    {
+      "path": "src/fixes/physx/purecall_layout.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 61,
+      "bytes": 3229
+    },
+    {
+      "path": "src/fixes/physx/purecall_record.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 417,
+      "bytes": 14911
+    },
+    {
+      "path": "src/fixes/physx/purecall_record.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2467
+    },
+    {
+      "path": "src/fixes/search/cluster_cross_cost.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 146,
+      "bytes": 5856
+    },
+    {
+      "path": "src/fixes/search/cluster_cross_cost.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 500
+    },
+    {
+      "path": "src/fixes/search/cluster_cross_cost_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 196,
+      "bytes": 6965
+    },
+    {
+      "path": "src/fixes/search/cluster_cross_cost_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2031
+    },
+    {
+      "path": "src/fixes/search/graph_expand_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 290,
+      "bytes": 12221
+    },
+    {
+      "path": "src/fixes/search/graph_expand_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 8,
+      "bytes": 321
+    },
+    {
+      "path": "src/fixes/search/graph_expand_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 114,
+      "bytes": 3374
+    },
+    {
+      "path": "src/fixes/search/graph_expand_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 90,
+      "bytes": 4388
+    },
+    {
+      "path": "src/fixes/search/graph_heuristic_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 331,
+      "bytes": 12719
+    },
+    {
+      "path": "src/fixes/search/graph_heuristic_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 539
+    },
+    {
+      "path": "src/fixes/search/graph_heuristic_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 186,
+      "bytes": 5852
+    },
+    {
+      "path": "src/fixes/search/graph_heuristic_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 64,
+      "bytes": 3642
+    },
+    {
+      "path": "src/fixes/search/graph_position_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 271,
+      "bytes": 11541
+    },
+    {
+      "path": "src/fixes/search/graph_position_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 11,
+      "bytes": 526
+    },
+    {
+      "path": "src/fixes/search/graph_position_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 95,
+      "bytes": 3020
+    },
+    {
+      "path": "src/fixes/search/graph_position_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 96,
+      "bytes": 4581
+    },
+    {
+      "path": "src/fixes/search/graph_visitor_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 198,
+      "bytes": 7786
+    },
+    {
+      "path": "src/fixes/search/graph_visitor_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 315
+    },
+    {
+      "path": "src/fixes/search/graph_visitor_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 89,
+      "bytes": 2473
+    },
+    {
+      "path": "src/fixes/search/graph_visitor_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 94,
+      "bytes": 4758
+    },
+    {
+      "path": "src/fixes/stitch/stitch_byte_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 490,
+      "bytes": 15565
+    },
+    {
+      "path": "src/fixes/stitch/stitch_byte_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 38,
+      "bytes": 1957
+    },
+    {
+      "path": "src/fixes/stitch/stitch_byte_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 126,
+      "bytes": 4802
+    },
+    {
+      "path": "src/fixes/stitch/stitch_byte_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 107,
+      "bytes": 4886
+    },
+    {
+      "path": "src/fixes/stitch/stitch_source.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 733,
+      "bytes": 26759
+    },
+    {
+      "path": "src/fixes/stitch/stitch_source.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2361
+    },
+    {
+      "path": "src/fixes/stitch/stitch_source_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 194,
+      "bytes": 5289
+    },
+    {
+      "path": "src/fixes/stitch/stitch_source_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 297,
+      "bytes": 11322
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 578,
+      "bytes": 19362
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 27,
+      "bytes": 1284
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 71,
+      "bytes": 1884
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 65,
+      "bytes": 2915
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_layout.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 72,
+      "bytes": 3058
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_probe.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 534,
+      "bytes": 16954
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_probe.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 26,
+      "bytes": 1387
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_probe_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 87,
+      "bytes": 2191
+    },
+    {
+      "path": "src/fixes/stitch/unstitch_probe_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 90,
+      "bytes": 4101
+    },
+    {
+      "path": "src/fixes/streaming/create_instance_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 380,
+      "bytes": 14048
+    },
+    {
+      "path": "src/fixes/streaming/create_instance_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1213
+    },
+    {
+      "path": "src/fixes/streaming/create_instance_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 118,
+      "bytes": 3578
+    },
+    {
+      "path": "src/fixes/streaming/create_instance_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 134,
+      "bytes": 5963
+    },
+    {
+      "path": "src/fixes/streaming/mesh_face_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 294,
+      "bytes": 12007
+    },
+    {
+      "path": "src/fixes/streaming/mesh_face_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 31,
+      "bytes": 1656
+    },
+    {
+      "path": "src/fixes/streaming/mesh_face_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 58,
+      "bytes": 2121
+    },
+    {
+      "path": "src/fixes/streaming/mesh_face_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 94,
+      "bytes": 4915
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_guard_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 31,
+      "bytes": 928
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_guard_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 46,
+      "bytes": 2383
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_life.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 285,
+      "bytes": 10359
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_life.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 27,
+      "bytes": 1402
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_update_guard.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 499,
+      "bytes": 18330
+    },
+    {
+      "path": "src/fixes/streaming/navmesh_update_guard.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2376
+    },
+    {
+      "path": "src/fixes/streaming/section_key_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 28,
+      "bytes": 855
+    },
+    {
+      "path": "src/fixes/streaming/section_key_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1249
+    },
+    {
+      "path": "src/fixes/streaming/section_key_probe.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 126,
+      "bytes": 4077
+    },
+    {
+      "path": "src/fixes/streaming/section_key_probe.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 8,
+      "bytes": 244
+    },
+    {
+      "path": "src/fixes/streaming/section_key_ring.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 269,
+      "bytes": 8379
+    },
+    {
+      "path": "src/fixes/streaming/section_key_ring.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 76,
+      "bytes": 3078
+    },
+    {
+      "path": "src/fixes/streaming/section_key_scan.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 177,
+      "bytes": 5181
+    },
+    {
+      "path": "src/fixes/streaming/section_key_scan.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 647
+    },
+    {
+      "path": "src/fixes/world/corpse_pin.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 137,
+      "bytes": 5260
+    },
+    {
+      "path": "src/fixes/world/corpse_pin.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 25,
+      "bytes": 1090
+    },
+    {
+      "path": "src/fixes/world/corpse_pin_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 26,
+      "bytes": 667
+    },
+    {
+      "path": "src/fixes/world/corpse_pin_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 1578
+    },
+    {
+      "path": "src/fixes/world/destroy_list_defer.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 469,
+      "bytes": 18533
+    },
+    {
+      "path": "src/fixes/world/destroy_list_defer.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 115,
+      "bytes": 6595
+    },
+    {
+      "path": "src/fixes/world/faction_relations.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 216,
+      "bytes": 5441
+    },
+    {
+      "path": "src/fixes/world/faction_relations.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 495
+    },
+    {
+      "path": "src/fixes/world/faction_relations_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 116,
+      "bytes": 3642
+    },
+    {
+      "path": "src/fixes/world/faction_relations_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 71,
+      "bytes": 3113
+    },
+    {
+      "path": "src/fixes/world/nest_validation.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 167,
+      "bytes": 5992
+    },
+    {
+      "path": "src/fixes/world/nest_validation.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 55,
+      "bytes": 3048
+    },
+    {
+      "path": "src/fixes/world/nest_validation_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 27,
+      "bytes": 675
+    },
+    {
+      "path": "src/fixes/world/nest_validation_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 2286
+    },
+    {
+      "path": "src/fixes/world/onscreen_stagger.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 252,
+      "bytes": 7477
+    },
+    {
+      "path": "src/fixes/world/onscreen_stagger.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 902
+    },
+    {
+      "path": "src/fixes/world/onscreen_stagger_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 66,
+      "bytes": 2302
+    },
+    {
+      "path": "src/fixes/world/onscreen_stagger_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 75,
+      "bytes": 3091
+    },
+    {
+      "path": "src/fixes/world/paused_skip.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 149,
+      "bytes": 4516
+    },
+    {
+      "path": "src/fixes/world/paused_skip.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 717
+    },
+    {
+      "path": "src/fixes/world/paused_skip_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 29,
+      "bytes": 1316
+    },
+    {
+      "path": "src/fixes/world/paused_skip_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 56,
+      "bytes": 2098
+    },
+    {
+      "path": "src/fixes/world/throwout.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 411,
+      "bytes": 16259
+    },
+    {
+      "path": "src/fixes/world/throwout.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 25,
+      "bytes": 1312
+    },
+    {
+      "path": "src/fixes/world/throwout_finder.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 286,
+      "bytes": 12116
+    },
+    {
+      "path": "src/fixes/world/throwout_hold.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 155,
+      "bytes": 4078
+    },
+    {
+      "path": "src/fixes/world/throwout_hold.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 40,
+      "bytes": 2388
+    },
+    {
+      "path": "src/fixes/world/throwout_internal.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 31,
+      "bytes": 1528
+    },
+    {
+      "path": "src/fixes/world/throwout_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 125,
+      "bytes": 3415
+    },
+    {
+      "path": "src/fixes/world/throwout_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 70,
+      "bytes": 4751
+    },
+    {
+      "path": "src/fixes/world/town_claim.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 415,
+      "bytes": 16990
+    },
+    {
+      "path": "src/fixes/world/town_claim.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1794
+    },
+    {
+      "path": "src/fixes/world/town_claim_patch.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 159,
+      "bytes": 5794
+    },
+    {
+      "path": "src/fixes/world/town_claim_policy.cpp",
+      "area": "fixes",
+      "kind": "cpp",
+      "lines": 191,
+      "bytes": 6916
+    },
+    {
+      "path": "src/fixes/world/town_claim_policy.h",
+      "area": "fixes",
+      "kind": "headers",
+      "lines": 129,
+      "bytes": 7106
+    },
+    {
+      "path": "src/game/bindings.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 321,
+      "bytes": 16192
+    },
+    {
+      "path": "src/game/game.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 268,
+      "bytes": 12722
+    },
+    {
+      "path": "src/game/game.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 51,
+      "bytes": 1848
+    },
+    {
+      "path": "src/game/gog_jobs_profile.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 37,
+      "bytes": 5080
+    },
+    {
+      "path": "src/game/gog_jobs_profile.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 845
+    },
+    {
+      "path": "src/game/gog_profile.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 44,
+      "bytes": 2403
+    },
+    {
+      "path": "src/game/gog_profile.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 25,
+      "bytes": 1242
+    },
+    {
+      "path": "src/game/gog_profile_data.inc",
+      "area": "game",
+      "kind": "headers",
+      "lines": 1137,
+      "bytes": 93439
+    },
+    {
+      "path": "src/game/hand_key.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 46,
+      "bytes": 1468
+    },
+    {
+      "path": "src/game/hand_key.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 23,
+      "bytes": 893
+    },
+    {
+      "path": "src/game/klib_address_policy.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 979
+    },
+    {
+      "path": "src/game/klib_bindings.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 377,
+      "bytes": 19776
+    },
+    {
+      "path": "src/game/klib_bindings.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 46,
+      "bytes": 2264
+    },
+    {
+      "path": "src/game/klib_dethunk_policy.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 74,
+      "bytes": 3397
+    },
+    {
+      "path": "src/game/klib_globals.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 44,
+      "bytes": 1765
+    },
+    {
+      "path": "src/game/klib_layout.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 413,
+      "bytes": 20870
+    },
+    {
+      "path": "src/game/klib_layout_combat.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 15,
+      "bytes": 683
+    },
+    {
+      "path": "src/game/klib_layout_ogre.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 60,
+      "bytes": 3773
+    },
+    {
+      "path": "src/game/klib_member_combat.inc",
+      "area": "game",
+      "kind": "headers",
+      "lines": 3,
+      "bytes": 228
+    },
+    {
+      "path": "src/game/klib_member_contract.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 38,
+      "bytes": 3632
+    },
+    {
+      "path": "src/game/klib_member_fields.inc",
+      "area": "game",
+      "kind": "headers",
+      "lines": 353,
+      "bytes": 25811
+    },
+    {
+      "path": "src/game/klib_members.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1878
+    },
+    {
+      "path": "src/game/klib_platform_policy.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 14,
+      "bytes": 490
+    },
+    {
+      "path": "src/game/native_profile.cpp",
+      "area": "game",
+      "kind": "cpp",
+      "lines": 66,
+      "bytes": 4473
+    },
+    {
+      "path": "src/game/native_profile.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 649
+    },
+    {
+      "path": "src/game/offsets.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 296,
+      "bytes": 19598
+    },
+    {
+      "path": "src/game/prologue_policy.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 55,
+      "bytes": 2012
+    },
+    {
+      "path": "src/game/rva.h",
+      "area": "game",
+      "kind": "headers",
+      "lines": 546,
+      "bytes": 36833
+    },
+    {
+      "path": "src/gui/bench_buttons.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 92,
+      "bytes": 2306
+    },
+    {
+      "path": "src/gui/bench_buttons.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 11,
+      "bytes": 516
+    },
+    {
+      "path": "src/gui/gui_config.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 36,
+      "bytes": 1066
+    },
+    {
+      "path": "src/gui/gui_config.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 21,
+      "bytes": 670
+    },
+    {
+      "path": "src/gui/mcm_bridge.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 128,
+      "bytes": 15081
+    },
+    {
+      "path": "src/gui/mcm_bridge.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 839
+    },
+    {
+      "path": "src/gui/ModConfigMenu.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 181,
+      "bytes": 12785
+    },
+    {
+      "path": "src/gui/requested_settings.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 94,
+      "bytes": 3044
+    },
+    {
+      "path": "src/gui/requested_settings.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1201
+    },
+    {
+      "path": "src/gui/settings_factory.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 569,
+      "bytes": 16571
+    },
+    {
+      "path": "src/gui/settings_factory.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 100,
+      "bytes": 5134
+    },
+    {
+      "path": "src/gui/settings_layout.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 149,
+      "bytes": 5548
+    },
+    {
+      "path": "src/gui/settings_layout.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 38,
+      "bytes": 1489
+    },
+    {
+      "path": "src/gui/settings_panel.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 498,
+      "bytes": 17281
+    },
+    {
+      "path": "src/gui/settings_panel.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 13,
+      "bytes": 541
+    },
+    {
+      "path": "src/gui/settings_rows.cpp",
+      "area": "gui",
+      "kind": "cpp",
+      "lines": 258,
+      "bytes": 8441
+    },
+    {
+      "path": "src/gui/settings_rows.h",
+      "area": "gui",
+      "kind": "headers",
+      "lines": 117,
+      "bytes": 5730
+    },
+    {
+      "path": "src/inventory/backpack_first.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 122,
+      "bytes": 4411
+    },
+    {
+      "path": "src/inventory/backpack_first.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 21,
+      "bytes": 892
+    },
+    {
+      "path": "src/inventory/backpack_food.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 105,
+      "bytes": 4475
+    },
+    {
+      "path": "src/inventory/backpack_food.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 714
+    },
+    {
+      "path": "src/inventory/backpack_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 157,
+      "bytes": 4043
+    },
+    {
+      "path": "src/inventory/backpack_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 49,
+      "bytes": 2799
+    },
+    {
+      "path": "src/inventory/backpack_reader.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 301,
+      "bytes": 12681
+    },
+    {
+      "path": "src/inventory/backpack_reader.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 46,
+      "bytes": 2799
+    },
+    {
+      "path": "src/inventory/backpack_sidecar.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 348,
+      "bytes": 12366
+    },
+    {
+      "path": "src/inventory/backpack_sidecar.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 31,
+      "bytes": 1535
+    },
+    {
+      "path": "src/inventory/backpack_sidecar_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 142,
+      "bytes": 3605
+    },
+    {
+      "path": "src/inventory/backpack_sidecar_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 39,
+      "bytes": 1883
+    },
+    {
+      "path": "src/inventory/backpack_table.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 229,
+      "bytes": 6439
+    },
+    {
+      "path": "src/inventory/backpack_table.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2210
+    },
+    {
+      "path": "src/inventory/backpack_window.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 416,
+      "bytes": 16728
+    },
+    {
+      "path": "src/inventory/backpack_window.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 700
+    },
+    {
+      "path": "src/inventory/byte_check_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 108,
+      "bytes": 3053
+    },
+    {
+      "path": "src/inventory/byte_check_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2243
+    },
+    {
+      "path": "src/inventory/carried_weight.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 121,
+      "bytes": 8021
+    },
+    {
+      "path": "src/inventory/carried_weight.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 7,
+      "bytes": 301
+    },
+    {
+      "path": "src/inventory/carried_weight_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 57,
+      "bytes": 3122
+    },
+    {
+      "path": "src/inventory/carried_weight_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 802
+    },
+    {
+      "path": "src/inventory/dialogue_item_function.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 184,
+      "bytes": 7526
+    },
+    {
+      "path": "src/inventory/dialogue_item_function.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 684
+    },
+    {
+      "path": "src/inventory/dialogue_thunk_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 75,
+      "bytes": 2613
+    },
+    {
+      "path": "src/inventory/dialogue_thunk_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2105
+    },
+    {
+      "path": "src/inventory/inventory_config.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 122,
+      "bytes": 6394
+    },
+    {
+      "path": "src/inventory/inventory_config.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 62,
+      "bytes": 3121
+    },
+    {
+      "path": "src/inventory/job_counters.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 147,
+      "bytes": 4928
+    },
+    {
+      "path": "src/inventory/job_counters.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 595
+    },
+    {
+      "path": "src/inventory/operator_policy.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 91,
+      "bytes": 2956
+    },
+    {
+      "path": "src/inventory/operator_policy.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 75,
+      "bytes": 2976
+    },
+    {
+      "path": "src/inventory/operator_trips.cpp",
+      "area": "inventory",
+      "kind": "cpp",
+      "lines": 242,
+      "bytes": 12071
+    },
+    {
+      "path": "src/inventory/operator_trips.h",
+      "area": "inventory",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 628
+    },
+    {
+      "path": "src/jobs/steel_jobs.cpp",
+      "area": "jobs",
+      "kind": "cpp",
+      "lines": 292,
+      "bytes": 18111
+    },
+    {
+      "path": "src/jobs/steel_jobs.h",
+      "area": "jobs",
+      "kind": "headers",
+      "lines": 14,
+      "bytes": 576
+    },
+    {
+      "path": "src/jobs/steel_jobs_factory.cpp",
+      "area": "jobs",
+      "kind": "cpp",
+      "lines": 139,
+      "bytes": 8940
+    },
+    {
+      "path": "src/jobs/steel_jobs_factory.h",
+      "area": "jobs",
+      "kind": "headers",
+      "lines": 21,
+      "bytes": 1026
+    },
+    {
+      "path": "src/jobs/steel_jobs_policy.cpp",
+      "area": "jobs",
+      "kind": "cpp",
+      "lines": 82,
+      "bytes": 5446
+    },
+    {
+      "path": "src/jobs/steel_jobs_policy.h",
+      "area": "jobs",
+      "kind": "headers",
+      "lines": 51,
+      "bytes": 3539
+    },
+    {
+      "path": "src/jobs/steel_jobs_stock.cpp",
+      "area": "jobs",
+      "kind": "cpp",
+      "lines": 182,
+      "bytes": 11110
+    },
+    {
+      "path": "src/jobs/steel_jobs_stock.h",
+      "area": "jobs",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 384
+    },
+    {
+      "path": "src/jobs/steel_jobs_transfer.cpp",
+      "area": "jobs",
+      "kind": "cpp",
+      "lines": 320,
+      "bytes": 26521
+    },
+    {
+      "path": "src/jobs/steel_jobs_transfer.h",
+      "area": "jobs",
+      "kind": "headers",
+      "lines": 21,
+      "bytes": 1349
+    },
+    {
+      "path": "src/movement/char_movement_fields.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 47,
+      "bytes": 2556
+    },
+    {
+      "path": "src/movement/formation.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 842,
+      "bytes": 30657
+    },
+    {
+      "path": "src/movement/formation.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 122,
+      "bytes": 6334
+    },
+    {
+      "path": "src/movement/formation_follow.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 535,
+      "bytes": 17110
+    },
+    {
+      "path": "src/movement/formation_follow.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 51,
+      "bytes": 2896
+    },
+    {
+      "path": "src/movement/formation_follow_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 91,
+      "bytes": 2063
+    },
+    {
+      "path": "src/movement/formation_follow_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 72,
+      "bytes": 5191
+    },
+    {
+      "path": "src/movement/formation_gather_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 35,
+      "bytes": 1196
+    },
+    {
+      "path": "src/movement/formation_gather_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 2168
+    },
+    {
+      "path": "src/movement/formation_internal.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 526
+    },
+    {
+      "path": "src/movement/formation_members.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 86,
+      "bytes": 2199
+    },
+    {
+      "path": "src/movement/formation_members.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 48,
+      "bytes": 2677
+    },
+    {
+      "path": "src/movement/formation_pace.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 219,
+      "bytes": 6971
+    },
+    {
+      "path": "src/movement/formation_pace.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2667
+    },
+    {
+      "path": "src/movement/formation_pace_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 91,
+      "bytes": 2283
+    },
+    {
+      "path": "src/movement/formation_pace_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 43,
+      "bytes": 2514
+    },
+    {
+      "path": "src/movement/formation_query.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 367,
+      "bytes": 14483
+    },
+    {
+      "path": "src/movement/island_cancel_hooks.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 282,
+      "bytes": 11905
+    },
+    {
+      "path": "src/movement/island_components.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 526,
+      "bytes": 18680
+    },
+    {
+      "path": "src/movement/island_edge_legs.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 212,
+      "bytes": 7675
+    },
+    {
+      "path": "src/movement/island_edge_legs.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 32,
+      "bytes": 1385
+    },
+    {
+      "path": "src/movement/island_edge_ring.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 126,
+      "bytes": 4651
+    },
+    {
+      "path": "src/movement/island_edge_ring.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 47,
+      "bytes": 2266
+    },
+    {
+      "path": "src/movement/island_edge_ring_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 92,
+      "bytes": 2288
+    },
+    {
+      "path": "src/movement/island_edge_ring_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 79,
+      "bytes": 4534
+    },
+    {
+      "path": "src/movement/island_hooks.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 216,
+      "bytes": 7179
+    },
+    {
+      "path": "src/movement/island_orders.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 730,
+      "bytes": 30412
+    },
+    {
+      "path": "src/movement/island_overlay_internal.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 52,
+      "bytes": 2146
+    },
+    {
+      "path": "src/movement/island_reissue.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 545,
+      "bytes": 23630
+    },
+    {
+      "path": "src/movement/island_span_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 72,
+      "bytes": 1857
+    },
+    {
+      "path": "src/movement/island_span_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 64,
+      "bytes": 3857
+    },
+    {
+      "path": "src/movement/island_stuck.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 164,
+      "bytes": 6271
+    },
+    {
+      "path": "src/movement/islands.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 381,
+      "bytes": 15408
+    },
+    {
+      "path": "src/movement/islands.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 366,
+      "bytes": 19496
+    },
+    {
+      "path": "src/movement/islands_inline.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 39,
+      "bytes": 1471
+    },
+    {
+      "path": "src/movement/islands_internal.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 48,
+      "bytes": 2178
+    },
+    {
+      "path": "src/movement/islands_reissue.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 248,
+      "bytes": 11881
+    },
+    {
+      "path": "src/movement/islands_reissue_counters.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 43,
+      "bytes": 1461
+    },
+    {
+      "path": "src/movement/islands_reissue_internal.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 170,
+      "bytes": 8982
+    },
+    {
+      "path": "src/movement/k7_arrival_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 40,
+      "bytes": 1784
+    },
+    {
+      "path": "src/movement/k7_arrival_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 109,
+      "bytes": 6005
+    },
+    {
+      "path": "src/movement/k7_observe.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 486,
+      "bytes": 22270
+    },
+    {
+      "path": "src/movement/k7_reissue.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 591,
+      "bytes": 27858
+    },
+    {
+      "path": "src/movement/k7_swap_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 54,
+      "bytes": 1773
+    },
+    {
+      "path": "src/movement/k7_swap_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 66,
+      "bytes": 3624
+    },
+    {
+      "path": "src/movement/movement_config.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 190,
+      "bytes": 8879
+    },
+    {
+      "path": "src/movement/movement_config.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 123,
+      "bytes": 7004
+    },
+    {
+      "path": "src/movement/movement_trace.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 388,
+      "bytes": 12431
+    },
+    {
+      "path": "src/movement/movement_trace.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 35,
+      "bytes": 1712
+    },
+    {
+      "path": "src/movement/movement_trace_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 206,
+      "bytes": 6104
+    },
+    {
+      "path": "src/movement/movement_trace_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 107,
+      "bytes": 6195
+    },
+    {
+      "path": "src/movement/mover_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 49,
+      "bytes": 1124
+    },
+    {
+      "path": "src/movement/mover_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2100
+    },
+    {
+      "path": "src/movement/order_outcome.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 130,
+      "bytes": 5022
+    },
+    {
+      "path": "src/movement/order_outcome.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 4086
+    },
+    {
+      "path": "src/movement/order_outcome_policy.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 102,
+      "bytes": 3251
+    },
+    {
+      "path": "src/movement/order_outcome_policy.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 88,
+      "bytes": 4539
+    },
+    {
+      "path": "src/movement/order_outcome_table.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 611,
+      "bytes": 20981
+    },
+    {
+      "path": "src/movement/order_outcome_table.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 130,
+      "bytes": 7085
+    },
+    {
+      "path": "src/movement/scatter_patch.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 241,
+      "bytes": 8030
+    },
+    {
+      "path": "src/movement/tracking.cpp",
+      "area": "movement",
+      "kind": "cpp",
+      "lines": 666,
+      "bytes": 22337
+    },
+    {
+      "path": "src/movement/tracking.h",
+      "area": "movement",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 3055
+    },
+    {
+      "path": "src/navmesh/cache/nm_building_hash.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 160,
+      "bytes": 5810
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_core.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 453,
+      "bytes": 19195
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_core.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 623,
+      "bytes": 30539
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_key.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 948
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_report.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 812,
+      "bytes": 35116
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_slot_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 47,
+      "bytes": 1321
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_slot_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 30,
+      "bytes": 1424
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_type_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 11,
+      "bytes": 238
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_type_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 648
+    },
+    {
+      "path": "src/navmesh/cache/nm_cache_types.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 86,
+      "bytes": 3363
+    },
+    {
+      "path": "src/navmesh/cache/nm_disk_cache.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 691,
+      "bytes": 26485
+    },
+    {
+      "path": "src/navmesh/cache/nm_disk_cache.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 3935
+    },
+    {
+      "path": "src/navmesh/cache/nm_force_rebuild.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 703,
+      "bytes": 26647
+    },
+    {
+      "path": "src/navmesh/cache/nm_force_rebuild.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 70,
+      "bytes": 4405
+    },
+    {
+      "path": "src/navmesh/cache/nm_force_rebuild_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 153,
+      "bytes": 4523
+    },
+    {
+      "path": "src/navmesh/cache/nm_force_rebuild_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 96,
+      "bytes": 5771
+    },
+    {
+      "path": "src/navmesh/cache/nm_key_hash.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 75,
+      "bytes": 3472
+    },
+    {
+      "path": "src/navmesh/cache/nm_l2_writer.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 192,
+      "bytes": 6496
+    },
+    {
+      "path": "src/navmesh/cache/nm_l2_writer.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 74,
+      "bytes": 3679
+    },
+    {
+      "path": "src/navmesh/construction/splice_queue_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 94,
+      "bytes": 2922
+    },
+    {
+      "path": "src/navmesh/construction/splice_queue_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 55,
+      "bytes": 3076
+    },
+    {
+      "path": "src/navmesh/construction/splice_ring.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 109,
+      "bytes": 3249
+    },
+    {
+      "path": "src/navmesh/construction/splice_ring.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 52,
+      "bytes": 2874
+    },
+    {
+      "path": "src/navmesh/construction/splice_seam.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 389,
+      "bytes": 13746
+    },
+    {
+      "path": "src/navmesh/construction/splice_seam.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 750
+    },
+    {
+      "path": "src/navmesh/construction/splice_seam_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 83,
+      "bytes": 2599
+    },
+    {
+      "path": "src/navmesh/construction/splice_seam_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 54,
+      "bytes": 2691
+    },
+    {
+      "path": "src/navmesh/construction/wall_splice.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 190,
+      "bytes": 7811
+    },
+    {
+      "path": "src/navmesh/construction/wall_splice.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 890
+    },
+    {
+      "path": "src/navmesh/construction/wall_splice_drain.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 368,
+      "bytes": 12061
+    },
+    {
+      "path": "src/navmesh/construction/wall_splice_internal.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 52,
+      "bytes": 2338
+    },
+    {
+      "path": "src/navmesh/generation/misspar_math.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 129,
+      "bytes": 3593
+    },
+    {
+      "path": "src/navmesh/generation/misspar_math.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 71,
+      "bytes": 3621
+    },
+    {
+      "path": "src/navmesh/generation/nbr_seed_bindings.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 121,
+      "bytes": 7477
+    },
+    {
+      "path": "src/navmesh/generation/nm_clone.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 192,
+      "bytes": 9103
+    },
+    {
+      "path": "src/navmesh/generation/nm_fresh_wb.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 636,
+      "bytes": 30487
+    },
+    {
+      "path": "src/navmesh/generation/nm_misspar.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 644,
+      "bytes": 27289
+    },
+    {
+      "path": "src/navmesh/generation/nm_misspar.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 94,
+      "bytes": 4031
+    },
+    {
+      "path": "src/navmesh/generation/nm_nbr_seeds.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 784,
+      "bytes": 32013
+    },
+    {
+      "path": "src/navmesh/generation/nm_quality.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 251,
+      "bytes": 10683
+    },
+    {
+      "path": "src/navmesh/generation/nm_quality.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 239,
+      "bytes": 13809
+    },
+    {
+      "path": "src/navmesh/jobs/buildlock_audit.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 35,
+      "bytes": 1158
+    },
+    {
+      "path": "src/navmesh/jobs/buildlock_audit.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 13,
+      "bytes": 652
+    },
+    {
+      "path": "src/navmesh/jobs/nm_buildlock.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 543,
+      "bytes": 22207
+    },
+    {
+      "path": "src/navmesh/jobs/nm_buildlock.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1302
+    },
+    {
+      "path": "src/navmesh/jobs/nm_buildlock_stall.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 40,
+      "bytes": 1245
+    },
+    {
+      "path": "src/navmesh/jobs/nm_buildlock_stall.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 89,
+      "bytes": 4191
+    },
+    {
+      "path": "src/navmesh/jobs/nm_busy_bridge_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 37,
+      "bytes": 889
+    },
+    {
+      "path": "src/navmesh/jobs/nm_busy_bridge_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 40,
+      "bytes": 1690
+    },
+    {
+      "path": "src/navmesh/jobs/nm_claimed_job.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 95,
+      "bytes": 3775
+    },
+    {
+      "path": "src/navmesh/jobs/nm_claimed_job.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 53,
+      "bytes": 2378
+    },
+    {
+      "path": "src/navmesh/jobs/nm_claimed_job_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 90,
+      "bytes": 2179
+    },
+    {
+      "path": "src/navmesh/jobs/nm_claimed_job_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 66,
+      "bytes": 1776
+    },
+    {
+      "path": "src/navmesh/jobs/nm_dispatch.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 497,
+      "bytes": 19421
+    },
+    {
+      "path": "src/navmesh/jobs/nm_job_claim.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 442,
+      "bytes": 18802
+    },
+    {
+      "path": "src/navmesh/jobs/nm_job_pipeline.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 1117,
+      "bytes": 45618
+    },
+    {
+      "path": "src/navmesh/jobs/nm_process_job_lock.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 315,
+      "bytes": 13429
+    },
+    {
+      "path": "src/navmesh/jobs/nm_queue_lock.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 58,
+      "bytes": 2014
+    },
+    {
+      "path": "src/navmesh/jobs/nm_unload.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 313,
+      "bytes": 14184
+    },
+    {
+      "path": "src/navmesh/jobs/nm_unload_fence_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 58,
+      "bytes": 1883
+    },
+    {
+      "path": "src/navmesh/jobs/nm_unload_fence_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 58,
+      "bytes": 2910
+    },
+    {
+      "path": "src/navmesh/navmesh_config.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 133,
+      "bytes": 6997
+    },
+    {
+      "path": "src/navmesh/navmesh_config.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 135,
+      "bytes": 6601
+    },
+    {
+      "path": "src/navmesh/nm_lazy_hooks.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 237,
+      "bytes": 10493
+    },
+    {
+      "path": "src/navmesh/nm_workers.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 256,
+      "bytes": 13804
+    },
+    {
+      "path": "src/navmesh/nm_workers_internal.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 255,
+      "bytes": 10940
+    },
+    {
+      "path": "src/navmesh/scheduling/navmesh_sched.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 491,
+      "bytes": 17738
+    },
+    {
+      "path": "src/navmesh/scheduling/navmesh_sched.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 55,
+      "bytes": 2126
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 242,
+      "bytes": 8543
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 87,
+      "bytes": 4623
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_check.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 142,
+      "bytes": 4250
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_counters.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 39,
+      "bytes": 1368
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_internal.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 56,
+      "bytes": 2540
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_observer.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 105,
+      "bytes": 3173
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 640,
+      "bytes": 17911
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 292,
+      "bytes": 13258
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_protocol.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 236,
+      "bytes": 7242
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_adjacency_report.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 92,
+      "bytes": 3855
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_inflight.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 83,
+      "bytes": 2741
+    },
+    {
+      "path": "src/navmesh/scheduling/nm_inflight.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 30,
+      "bytes": 1282
+    },
+    {
+      "path": "src/navmesh/workers/nm_retire_ops.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 206,
+      "bytes": 7587
+    },
+    {
+      "path": "src/navmesh/workers/nm_retire_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 162,
+      "bytes": 4965
+    },
+    {
+      "path": "src/navmesh/workers/nm_retire_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 95,
+      "bytes": 3767
+    },
+    {
+      "path": "src/navmesh/workers/nm_worker_gate_policy.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 23,
+      "bytes": 680
+    },
+    {
+      "path": "src/navmesh/workers/nm_worker_gate_policy.h",
+      "area": "navmesh",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1301
+    },
+    {
+      "path": "src/navmesh/workers/nm_worker_pool.cpp",
+      "area": "navmesh",
+      "kind": "cpp",
+      "lines": 508,
+      "bytes": 21972
+    },
+    {
+      "path": "src/pathfind/astar_cost.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 492,
+      "bytes": 17172
+    },
+    {
+      "path": "src/pathfind/astar_cost.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 4243
+    },
+    {
+      "path": "src/pathfind/astar_cost_policy.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 42,
+      "bytes": 1052
+    },
+    {
+      "path": "src/pathfind/astar_cost_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 59,
+      "bytes": 3115
+    },
+    {
+      "path": "src/pathfind/astar_hier.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 386,
+      "bytes": 13828
+    },
+    {
+      "path": "src/pathfind/astar_hier.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 860
+    },
+    {
+      "path": "src/pathfind/astar_hier_policy.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 273,
+      "bytes": 8337
+    },
+    {
+      "path": "src/pathfind/astar_hier_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 99,
+      "bytes": 5538
+    },
+    {
+      "path": "src/pathfind/gate_loop.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 12,
+      "bytes": 282
+    },
+    {
+      "path": "src/pathfind/gate_loop.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 332
+    },
+    {
+      "path": "src/pathfind/gate_pass.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 257,
+      "bytes": 8668
+    },
+    {
+      "path": "src/pathfind/gate_pass.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 24,
+      "bytes": 1017
+    },
+    {
+      "path": "src/pathfind/npc_cap_requester.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 252,
+      "bytes": 8614
+    },
+    {
+      "path": "src/pathfind/npc_cap_requester.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1133
+    },
+    {
+      "path": "src/pathfind/npc_search_probe_policy.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 86,
+      "bytes": 2484
+    },
+    {
+      "path": "src/pathfind/npc_search_probe_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 29,
+      "bytes": 1394
+    },
+    {
+      "path": "src/pathfind/npc_wait_diag.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 368,
+      "bytes": 13062
+    },
+    {
+      "path": "src/pathfind/order_hook.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 309,
+      "bytes": 12324
+    },
+    {
+      "path": "src/pathfind/order_hook.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 350
+    },
+    {
+      "path": "src/pathfind/path_budget_policy.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 40,
+      "bytes": 1489
+    },
+    {
+      "path": "src/pathfind/path_budget_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1370
+    },
+    {
+      "path": "src/pathfind/path_guard_hooks.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 98,
+      "bytes": 4558
+    },
+    {
+      "path": "src/pathfind/path_pool.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 117,
+      "bytes": 4553
+    },
+    {
+      "path": "src/pathfind/path_pool.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 84,
+      "bytes": 4368
+    },
+    {
+      "path": "src/pathfind/path_pool_bindings.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 67,
+      "bytes": 3420
+    },
+    {
+      "path": "src/pathfind/path_pool_hist.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 261,
+      "bytes": 8926
+    },
+    {
+      "path": "src/pathfind/path_pool_hooks.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 305,
+      "bytes": 13171
+    },
+    {
+      "path": "src/pathfind/path_pool_internal.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 177,
+      "bytes": 7238
+    },
+    {
+      "path": "src/pathfind/path_pool_report.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 340,
+      "bytes": 16038
+    },
+    {
+      "path": "src/pathfind/path_priority_hooks.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 8,
+      "bytes": 537
+    },
+    {
+      "path": "src/pathfind/path_priority_publication.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 78,
+      "bytes": 3937
+    },
+    {
+      "path": "src/pathfind/path_priority_publication.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1598
+    },
+    {
+      "path": "src/pathfind/path_probe.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 83,
+      "bytes": 2608
+    },
+    {
+      "path": "src/pathfind/path_result_trace.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 55,
+      "bytes": 2343
+    },
+    {
+      "path": "src/pathfind/path_result_trace.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 29,
+      "bytes": 1418
+    },
+    {
+      "path": "src/pathfind/pathfind_cache.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 52,
+      "bytes": 1544
+    },
+    {
+      "path": "src/pathfind/pathfind_cache.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 35,
+      "bytes": 1550
+    },
+    {
+      "path": "src/pathfind/pathfind_config.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 127,
+      "bytes": 4665
+    },
+    {
+      "path": "src/pathfind/pathfind_config.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 99,
+      "bytes": 4768
+    },
+    {
+      "path": "src/pathfind/pathfind_diag.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 18,
+      "bytes": 528
+    },
+    {
+      "path": "src/pathfind/pathfind_diag.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 269,
+      "bytes": 12050
+    },
+    {
+      "path": "src/pathfind/pathfind_diag_report.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 455,
+      "bytes": 18255
+    },
+    {
+      "path": "src/pathfind/pathfind_hooks.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 804,
+      "bytes": 35684
+    },
+    {
+      "path": "src/pathfind/pathfinding.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 48,
+      "bytes": 2144
+    },
+    {
+      "path": "src/pathfind/player_repath_tier.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 145,
+      "bytes": 4050
+    },
+    {
+      "path": "src/pathfind/player_repath_tier.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 48,
+      "bytes": 2142
+    },
+    {
+      "path": "src/pathfind/player_repath_tier_policy.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 24,
+      "bytes": 503
+    },
+    {
+      "path": "src/pathfind/player_repath_tier_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 30,
+      "bytes": 1371
+    },
+    {
+      "path": "src/pathfind/player_task_policy.h",
+      "area": "pathfind",
+      "kind": "headers",
+      "lines": 117,
+      "bytes": 8325
+    },
+    {
+      "path": "src/pathfind/player_task_snap.cpp",
+      "area": "pathfind",
+      "kind": "cpp",
+      "lines": 837,
+      "bytes": 34239
+    },
+    {
+      "path": "src/planner/coarse_graph.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 800,
+      "bytes": 22607
+    },
+    {
+      "path": "src/planner/coarse_graph.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 161,
+      "bytes": 10399
+    },
+    {
+      "path": "src/planner/coarse_graph_base.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 663,
+      "bytes": 23296
+    },
+    {
+      "path": "src/planner/coarse_graph_base.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 19,
+      "bytes": 988
+    },
+    {
+      "path": "src/planner/coarse_graph_cache.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 336,
+      "bytes": 10795
+    },
+    {
+      "path": "src/planner/coarse_graph_cache.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 77,
+      "bytes": 4024
+    },
+    {
+      "path": "src/planner/coarse_graph_cross.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 219,
+      "bytes": 6196
+    },
+    {
+      "path": "src/planner/coarse_graph_live.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 643,
+      "bytes": 22684
+    },
+    {
+      "path": "src/planner/coarse_graph_live.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 96,
+      "bytes": 5860
+    },
+    {
+      "path": "src/planner/coarse_graph_live_site.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 317,
+      "bytes": 12645
+    },
+    {
+      "path": "src/planner/coarse_search.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 334,
+      "bytes": 9909
+    },
+    {
+      "path": "src/planner/coarse_search.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 80,
+      "bytes": 4240
+    },
+    {
+      "path": "src/planner/plan_build.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 176,
+      "bytes": 5638
+    },
+    {
+      "path": "src/planner/plan_build.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 71,
+      "bytes": 4564
+    },
+    {
+      "path": "src/planner/plan_merge.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 184,
+      "bytes": 4760
+    },
+    {
+      "path": "src/planner/plan_merge.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 58,
+      "bytes": 4037
+    },
+    {
+      "path": "src/planner/plan_policy.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 621,
+      "bytes": 20237
+    },
+    {
+      "path": "src/planner/plan_policy.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 326,
+      "bytes": 22111
+    },
+    {
+      "path": "src/planner/plan_store.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 605,
+      "bytes": 20605
+    },
+    {
+      "path": "src/planner/plan_store.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 168,
+      "bytes": 10677
+    },
+    {
+      "path": "src/planner/planner_acid.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 91,
+      "bytes": 2613
+    },
+    {
+      "path": "src/planner/planner_acid.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 2651
+    },
+    {
+      "path": "src/planner/planner_capture.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 235,
+      "bytes": 8596
+    },
+    {
+      "path": "src/planner/planner_config.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 203,
+      "bytes": 8103
+    },
+    {
+      "path": "src/planner/planner_config.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 36,
+      "bytes": 2150
+    },
+    {
+      "path": "src/planner/planner_hooks.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 256,
+      "bytes": 11224
+    },
+    {
+      "path": "src/planner/planner_hooks.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 18,
+      "bytes": 913
+    },
+    {
+      "path": "src/planner/planner_merge.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 432,
+      "bytes": 16037
+    },
+    {
+      "path": "src/planner/planner_merge.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 21,
+      "bytes": 1396
+    },
+    {
+      "path": "src/planner/planner_prearrival.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 288,
+      "bytes": 12559
+    },
+    {
+      "path": "src/planner/planner_prearrival.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1168
+    },
+    {
+      "path": "src/planner/planner_report.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 202,
+      "bytes": 8534
+    },
+    {
+      "path": "src/planner/planner_search_ops.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 123,
+      "bytes": 4370
+    },
+    {
+      "path": "src/planner/planner_search_ops.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1102
+    },
+    {
+      "path": "src/planner/planner_tick.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 778,
+      "bytes": 28779
+    },
+    {
+      "path": "src/planner/planner_tick.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 2141
+    },
+    {
+      "path": "src/planner/planner_tick_internal.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 78,
+      "bytes": 4301
+    },
+    {
+      "path": "src/planner/planner_water.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 369,
+      "bytes": 13742
+    },
+    {
+      "path": "src/planner/planner_water.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 42,
+      "bytes": 2728
+    },
+    {
+      "path": "src/planner/planner_water_table.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 142,
+      "bytes": 3780
+    },
+    {
+      "path": "src/planner/planner_water_table.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2390
+    },
+    {
+      "path": "src/planner/tagfile_reader.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 802,
+      "bytes": 22787
+    },
+    {
+      "path": "src/planner/tagfile_reader.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 84,
+      "bytes": 3974
+    },
+    {
+      "path": "src/planner/tile_graph_extract.cpp",
+      "area": "planner",
+      "kind": "cpp",
+      "lines": 532,
+      "bytes": 15976
+    },
+    {
+      "path": "src/planner/tile_graph_extract.h",
+      "area": "planner",
+      "kind": "headers",
+      "lines": 81,
+      "bytes": 3536
+    },
+    {
+      "path": "src/plugin/banner.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 116,
+      "bytes": 6031
+    },
+    {
+      "path": "src/plugin/crash_record.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 743,
+      "bytes": 30007
+    },
+    {
+      "path": "src/plugin/crash_record.h",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 32,
+      "bytes": 1014
+    },
+    {
+      "path": "src/plugin/hook_manifest.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 745,
+      "bytes": 27990
+    },
+    {
+      "path": "src/plugin/hook_manifest.h",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 53,
+      "bytes": 2174
+    },
+    {
+      "path": "src/plugin/hook_manifest_policy.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 92,
+      "bytes": 4938
+    },
+    {
+      "path": "src/plugin/hook_manifest_policy.h",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 103,
+      "bytes": 4329
+    },
+    {
+      "path": "src/plugin/hook_manifest_rows.inc",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 518,
+      "bytes": 44192
+    },
+    {
+      "path": "src/plugin/plugin_entry.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 496,
+      "bytes": 19751
+    },
+    {
+      "path": "src/plugin/plugin_entry_internal.h",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 481
+    },
+    {
+      "path": "src/plugin/profiler_image.cpp",
+      "area": "plugin",
+      "kind": "cpp",
+      "lines": 23,
+      "bytes": 775
+    },
+    {
+      "path": "src/plugin/profiler_image.h",
+      "area": "plugin",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 376
+    },
+    {
+      "path": "src/render/compositor_layout.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 207,
+      "bytes": 12753
+    },
+    {
+      "path": "src/render/compositor_layout.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 48,
+      "bytes": 3006
+    },
+    {
+      "path": "src/render/compositor_lever.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 390,
+      "bytes": 13593
+    },
+    {
+      "path": "src/render/d3d_state_policy.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 110,
+      "bytes": 3075
+    },
+    {
+      "path": "src/render/d3d_state_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 95,
+      "bytes": 3901
+    },
+    {
+      "path": "src/render/d3d_state_skip.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 273,
+      "bytes": 8984
+    },
+    {
+      "path": "src/render/d3d_state_skip.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 7,
+      "bytes": 243
+    },
+    {
+      "path": "src/render/empty_pass_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 1867
+    },
+    {
+      "path": "src/render/empty_pass_visibility.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 171,
+      "bytes": 5918
+    },
+    {
+      "path": "src/render/empty_pass_visibility.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 26,
+      "bytes": 1222
+    },
+    {
+      "path": "src/render/fog_fade.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 72,
+      "bytes": 2688
+    },
+    {
+      "path": "src/render/fog_fade.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 810
+    },
+    {
+      "path": "src/render/foliage_budget.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 48,
+      "bytes": 1107
+    },
+    {
+      "path": "src/render/foliage_budget.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 1805
+    },
+    {
+      "path": "src/render/foliage_lever.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 98,
+      "bytes": 3195
+    },
+    {
+      "path": "src/render/gpu_param_cache.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 85,
+      "bytes": 2136
+    },
+    {
+      "path": "src/render/gpu_param_cache.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 53,
+      "bytes": 1778
+    },
+    {
+      "path": "src/render/gpu_params.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 303,
+      "bytes": 11492
+    },
+    {
+      "path": "src/render/gpu_upload.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 482,
+      "bytes": 17869
+    },
+    {
+      "path": "src/render/id_string.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 58,
+      "bytes": 1333
+    },
+    {
+      "path": "src/render/id_string.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 382
+    },
+    {
+      "path": "src/render/inst_empty_skip.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 135,
+      "bytes": 3657
+    },
+    {
+      "path": "src/render/module_hooks.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 88,
+      "bytes": 2793
+    },
+    {
+      "path": "src/render/module_hooks.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 32,
+      "bytes": 1469
+    },
+    {
+      "path": "src/render/name_list.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 42,
+      "bytes": 962
+    },
+    {
+      "path": "src/render/ogre_join_spin.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 194,
+      "bytes": 5303
+    },
+    {
+      "path": "src/render/ogre_join_spin.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 719
+    },
+    {
+      "path": "src/render/ogre_purge_policy.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 27,
+      "bytes": 584
+    },
+    {
+      "path": "src/render/ogre_purge_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 33,
+      "bytes": 1554
+    },
+    {
+      "path": "src/render/ogre_purge_skip.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 177,
+      "bytes": 7641
+    },
+    {
+      "path": "src/render/ogre_worker_policy.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 20,
+      "bytes": 547
+    },
+    {
+      "path": "src/render/ogre_worker_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 33,
+      "bytes": 1284
+    },
+    {
+      "path": "src/render/old_anim_lever.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 313,
+      "bytes": 11647
+    },
+    {
+      "path": "src/render/particle_levers.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 356,
+      "bytes": 11350
+    },
+    {
+      "path": "src/render/particle_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1491
+    },
+    {
+      "path": "src/render/pass_visibility.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 87,
+      "bytes": 3086
+    },
+    {
+      "path": "src/render/pass_visibility.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 70,
+      "bytes": 3305
+    },
+    {
+      "path": "src/render/pe_imports.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 57,
+      "bytes": 2633
+    },
+    {
+      "path": "src/render/pe_imports.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 7,
+      "bytes": 365
+    },
+    {
+      "path": "src/render/ptr_set.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 80,
+      "bytes": 1785
+    },
+    {
+      "path": "src/render/pu_layout.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 93,
+      "bytes": 3913
+    },
+    {
+      "path": "src/render/pu_layout.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 39,
+      "bytes": 2505
+    },
+    {
+      "path": "src/render/reflection_lever.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 96,
+      "bytes": 3618
+    },
+    {
+      "path": "src/render/render_config.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 18,
+      "bytes": 471
+    },
+    {
+      "path": "src/render/render_config.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 63,
+      "bytes": 3551
+    },
+    {
+      "path": "src/render/render_defaults.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 43,
+      "bytes": 1406
+    },
+    {
+      "path": "src/render/render_keys.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 259,
+      "bytes": 11659
+    },
+    {
+      "path": "src/render/render_keys.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 58,
+      "bytes": 2759
+    },
+    {
+      "path": "src/render/render_levers.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 190,
+      "bytes": 7960
+    },
+    {
+      "path": "src/render/render_levers.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 129,
+      "bytes": 6541
+    },
+    {
+      "path": "src/render/render_live.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 208,
+      "bytes": 6989
+    },
+    {
+      "path": "src/render/scene_fork_skip.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 340,
+      "bytes": 10582
+    },
+    {
+      "path": "src/render/scene_lever_policy.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 236,
+      "bytes": 6664
+    },
+    {
+      "path": "src/render/scene_lever_policy.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 110,
+      "bytes": 5285
+    },
+    {
+      "path": "src/render/scene_levers.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 606
+    },
+    {
+      "path": "src/render/shadow_reach.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 540,
+      "bytes": 20518
+    },
+    {
+      "path": "src/render/shadow_reach_math.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 225,
+      "bytes": 6787
+    },
+    {
+      "path": "src/render/shadow_reach_math.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 115,
+      "bytes": 5037
+    },
+    {
+      "path": "src/render/shadow_receiver_depth.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 218,
+      "bytes": 6938
+    },
+    {
+      "path": "src/render/shadow_receiver_depth.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 27,
+      "bytes": 1449
+    },
+    {
+      "path": "src/render/upload_plan.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 81,
+      "bytes": 2485
+    },
+    {
+      "path": "src/render/upload_plan.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 45,
+      "bytes": 2385
+    },
+    {
+      "path": "src/render/upload_shadow.cpp",
+      "area": "render",
+      "kind": "cpp",
+      "lines": 165,
+      "bytes": 3582
+    },
+    {
+      "path": "src/render/upload_shadow.h",
+      "area": "render",
+      "kind": "headers",
+      "lines": 88,
+      "bytes": 3557
+    },
+    {
+      "path": "src/resources/resource_adoption_policy.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 878
+    },
+    {
+      "path": "src/resources/resource_array_job.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 727
+    },
+    {
+      "path": "src/resources/resource_biome_manifest.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 182,
+      "bytes": 8576
+    },
+    {
+      "path": "src/resources/resource_biome_manifest.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 42,
+      "bytes": 2024
+    },
+    {
+      "path": "src/resources/resource_cache.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 133,
+      "bytes": 9635
+    },
+    {
+      "path": "src/resources/resource_cache.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 3,
+      "bytes": 65
+    },
+    {
+      "path": "src/resources/resource_cache_admission.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 18,
+      "bytes": 843
+    },
+    {
+      "path": "src/resources/resource_cache_store.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 442,
+      "bytes": 26405
+    },
+    {
+      "path": "src/resources/resource_cache_store.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 44,
+      "bytes": 2204
+    },
+    {
+      "path": "src/resources/resource_cache_stream.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 13,
+      "bytes": 528
+    },
+    {
+      "path": "src/resources/resource_dds.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 29,
+      "bytes": 1768
+    },
+    {
+      "path": "src/resources/resource_dds.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 522
+    },
+    {
+      "path": "src/resources/resource_forward.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 153,
+      "bytes": 8909
+    },
+    {
+      "path": "src/resources/resource_forward.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 15,
+      "bytes": 715
+    },
+    {
+      "path": "src/resources/resource_forward_policy.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 30,
+      "bytes": 1669
+    },
+    {
+      "path": "src/resources/resource_geometry.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 261,
+      "bytes": 15551
+    },
+    {
+      "path": "src/resources/resource_geometry.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1158
+    },
+    {
+      "path": "src/resources/resource_gpu_bridge.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 161,
+      "bytes": 12215
+    },
+    {
+      "path": "src/resources/resource_gpu_store.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 275,
+      "bytes": 18869
+    },
+    {
+      "path": "src/resources/resource_gpu_store.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 65,
+      "bytes": 3669
+    },
+    {
+      "path": "src/resources/resource_load_probe.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 366,
+      "bytes": 27404
+    },
+    {
+      "path": "src/resources/resource_load_probe.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 455
+    },
+    {
+      "path": "src/resources/resource_startup_native.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 139,
+      "bytes": 8628
+    },
+    {
+      "path": "src/resources/resource_startup_native.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 3,
+      "bytes": 133
+    },
+    {
+      "path": "src/resources/resource_texture_retention.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 242,
+      "bytes": 15918
+    },
+    {
+      "path": "src/resources/resource_texture_retention.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 17,
+      "bytes": 728
+    },
+    {
+      "path": "src/resources/resource_warm_hud.cpp",
+      "area": "resources",
+      "kind": "cpp",
+      "lines": 108,
+      "bytes": 6073
+    },
+    {
+      "path": "src/resources/resource_warm_hud.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 26,
+      "bytes": 1110
+    },
+    {
+      "path": "src/resources/resource_warm_hud_policy.h",
+      "area": "resources",
+      "kind": "headers",
+      "lines": 69,
+      "bytes": 4160
+    },
+    {
+      "path": "src/zone/camera_zone_hook.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 642,
+      "bytes": 25353
+    },
+    {
+      "path": "src/zone/camera_zone_hook.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 34,
+      "bytes": 1247
+    },
+    {
+      "path": "src/zone/geometry/zone_geometry_cert.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 82,
+      "bytes": 2652
+    },
+    {
+      "path": "src/zone/geometry/zone_geometry_cert.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 141,
+      "bytes": 6878
+    },
+    {
+      "path": "src/zone/geometry/zone_geometry_epoch.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 185,
+      "bytes": 6728
+    },
+    {
+      "path": "src/zone/geometry/zone_geometry_epoch.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 83,
+      "bytes": 3569
+    },
+    {
+      "path": "src/zone/geometry/zone_nav_ledger.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 182,
+      "bytes": 5083
+    },
+    {
+      "path": "src/zone/geometry/zone_nav_ledger.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 134,
+      "bytes": 7403
+    },
+    {
+      "path": "src/zone/geometry/zone_nav_recovery.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 170,
+      "bytes": 5073
+    },
+    {
+      "path": "src/zone/geometry/zone_nav_recovery.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 96,
+      "bytes": 4564
+    },
+    {
+      "path": "src/zone/grid.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 79,
+      "bytes": 2133
+    },
+    {
+      "path": "src/zone/grid.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 30,
+      "bytes": 884
+    },
+    {
+      "path": "src/zone/handoff/first_time_bindings.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 36,
+      "bytes": 1881
+    },
+    {
+      "path": "src/zone/handoff/zone_adoption_latency.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 35,
+      "bytes": 1066
+    },
+    {
+      "path": "src/zone/handoff/zone_adoption_latency.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 47,
+      "bytes": 2434
+    },
+    {
+      "path": "src/zone/handoff/zone_adoption_seam.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 75,
+      "bytes": 2240
+    },
+    {
+      "path": "src/zone/handoff/zone_adoption_seam.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 166,
+      "bytes": 7657
+    },
+    {
+      "path": "src/zone/handoff/zone_first_time.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 263,
+      "bytes": 11730
+    },
+    {
+      "path": "src/zone/handoff/zone_handoff.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 773,
+      "bytes": 27485
+    },
+    {
+      "path": "src/zone/handoff/zone_handoff.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 104,
+      "bytes": 4997
+    },
+    {
+      "path": "src/zone/handoff/zone_lifecycle_diag.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 32,
+      "bytes": 1409
+    },
+    {
+      "path": "src/zone/handoff/zone_lifecycle_hooks.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 202,
+      "bytes": 7875
+    },
+    {
+      "path": "src/zone/handoff/zone_lifecycle_hooks.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 18,
+      "bytes": 747
+    },
+    {
+      "path": "src/zone/handoff/zone_prep_ledger.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 224,
+      "bytes": 7133
+    },
+    {
+      "path": "src/zone/handoff/zone_prep_ledger.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 113,
+      "bytes": 6357
+    },
+    {
+      "path": "src/zone/handoff/zone_registry.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 124,
+      "bytes": 5200
+    },
+    {
+      "path": "src/zone/hooks_internal.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 20,
+      "bytes": 552
+    },
+    {
+      "path": "src/zone/preload/camera_focus.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 104,
+      "bytes": 2769
+    },
+    {
+      "path": "src/zone/preload/camera_focus.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 92,
+      "bytes": 4685
+    },
+    {
+      "path": "src/zone/preload/coverage_stats.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 129,
+      "bytes": 4240
+    },
+    {
+      "path": "src/zone/preload/coverage_stats.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 59,
+      "bytes": 2783
+    },
+    {
+      "path": "src/zone/preload/preload.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 25,
+      "bytes": 689
+    },
+    {
+      "path": "src/zone/preload/preload.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 173,
+      "bytes": 7943
+    },
+    {
+      "path": "src/zone/preload/preload_internal.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 113,
+      "bytes": 4602
+    },
+    {
+      "path": "src/zone/preload/preload_pipe_stats.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 139,
+      "bytes": 5288
+    },
+    {
+      "path": "src/zone/preload/preload_pipe_stats.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 418
+    },
+    {
+      "path": "src/zone/preload/preload_prepare.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 278,
+      "bytes": 11256
+    },
+    {
+      "path": "src/zone/preload/preload_prepare.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 368
+    },
+    {
+      "path": "src/zone/preload/preload_queue.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 447,
+      "bytes": 14786
+    },
+    {
+      "path": "src/zone/preload/preload_queue.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 9,
+      "bytes": 344
+    },
+    {
+      "path": "src/zone/preload/zone_cycle_math.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 199,
+      "bytes": 5502
+    },
+    {
+      "path": "src/zone/preload/zone_cycle_math.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 95,
+      "bytes": 4036
+    },
+    {
+      "path": "src/zone/preload/zone_cycle_stats.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 510,
+      "bytes": 16822
+    },
+    {
+      "path": "src/zone/preload/zone_cycle_stats.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 1443
+    },
+    {
+      "path": "src/zone/preload_bindings.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1307
+    },
+    {
+      "path": "src/zone/readiness/readiness_bindings.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 76,
+      "bytes": 4227
+    },
+    {
+      "path": "src/zone/readiness/readiness_bypass_queue.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 72,
+      "bytes": 2654
+    },
+    {
+      "path": "src/zone/readiness/readiness_hook.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 620,
+      "bytes": 28264
+    },
+    {
+      "path": "src/zone/readiness/readiness_hook.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 8,
+      "bytes": 226
+    },
+    {
+      "path": "src/zone/readiness/zone_readiness_classify.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 28,
+      "bytes": 1244
+    },
+    {
+      "path": "src/zone/readiness/zone_readiness_contract.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 25,
+      "bytes": 883
+    },
+    {
+      "path": "src/zone/readiness/zone_readiness_contract.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 29,
+      "bytes": 1340
+    },
+    {
+      "path": "src/zone/readiness/zone_readiness_ledger_bridge.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 19,
+      "bytes": 668
+    },
+    {
+      "path": "src/zone/readiness/zone_readiness_ledger_bridge.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 14,
+      "bytes": 743
+    },
+    {
+      "path": "src/zone/reset/preload_saveload.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 843,
+      "bytes": 33395
+    },
+    {
+      "path": "src/zone/reset/preload_saveload.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 10,
+      "bytes": 413
+    },
+    {
+      "path": "src/zone/reset/save_load_bindings.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 80,
+      "bytes": 5153
+    },
+    {
+      "path": "src/zone/reset/zone_reset_fence.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 124,
+      "bytes": 2547
+    },
+    {
+      "path": "src/zone/reset/zone_reset_fence.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 110,
+      "bytes": 5320
+    },
+    {
+      "path": "src/zone/reset/zone_reset_gate.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 167,
+      "bytes": 4829
+    },
+    {
+      "path": "src/zone/reset/zone_reset_gate.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 81,
+      "bytes": 4135
+    },
+    {
+      "path": "src/zone/reset/zone_reset_sequence.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 76,
+      "bytes": 2519
+    },
+    {
+      "path": "src/zone/reset/zone_reset_sequence.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 50,
+      "bytes": 2173
+    },
+    {
+      "path": "src/zone/retention/zone_evict.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 417,
+      "bytes": 13802
+    },
+    {
+      "path": "src/zone/retention/zone_expiry_guard.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 154,
+      "bytes": 3968
+    },
+    {
+      "path": "src/zone/retention/zone_expiry_guard.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 37,
+      "bytes": 1468
+    },
+    {
+      "path": "src/zone/retention/zone_expiry_guard_policy.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 36,
+      "bytes": 934
+    },
+    {
+      "path": "src/zone/retention/zone_expiry_guard_policy.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 1756
+    },
+    {
+      "path": "src/zone/retention/zone_leak_report.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 231,
+      "bytes": 7555
+    },
+    {
+      "path": "src/zone/retention/zone_retention.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 450,
+      "bytes": 16387
+    },
+    {
+      "path": "src/zone/retention/zone_retention.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 87,
+      "bytes": 3765
+    },
+    {
+      "path": "src/zone/retention/zone_retention_ledger.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 173,
+      "bytes": 5354
+    },
+    {
+      "path": "src/zone/retention/zone_retention_ledger.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 127,
+      "bytes": 7634
+    },
+    {
+      "path": "src/zone/retention/zone_retention_policy.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 82,
+      "bytes": 2686
+    },
+    {
+      "path": "src/zone/retention/zone_retention_policy.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 113,
+      "bytes": 5523
+    },
+    {
+      "path": "src/zone/retention/zone_save_rule.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 11,
+      "bytes": 409
+    },
+    {
+      "path": "src/zone/retention/zone_save_rule.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 13,
+      "bytes": 606
+    },
+    {
+      "path": "src/zone/retention/zone_unload.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 776,
+      "bytes": 27393
+    },
+    {
+      "path": "src/zone/transition.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 41,
+      "bytes": 1928
+    },
+    {
+      "path": "src/zone/transition_hook.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 486,
+      "bytes": 18197
+    },
+    {
+      "path": "src/zone/transition_hook.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 12,
+      "bytes": 277
+    },
+    {
+      "path": "src/zone/zone_config.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 212,
+      "bytes": 13010
+    },
+    {
+      "path": "src/zone/zone_config.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 153,
+      "bytes": 7632
+    },
+    {
+      "path": "src/zone/zone_helpers.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 158,
+      "bytes": 6172
+    },
+    {
+      "path": "src/zone/zone_ledger.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 22,
+      "bytes": 1235
+    },
+    {
+      "path": "src/zone/zone_ledger_core.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 90,
+      "bytes": 2998
+    },
+    {
+      "path": "src/zone/zone_ledger_core.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 105,
+      "bytes": 5204
+    },
+    {
+      "path": "src/zone/zone_life.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 268,
+      "bytes": 9137
+    },
+    {
+      "path": "src/zone/zone_life.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 39,
+      "bytes": 2080
+    },
+    {
+      "path": "src/zone/zone_life_internal.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 85,
+      "bytes": 2922
+    },
+    {
+      "path": "src/zone/zone_pause.cpp",
+      "area": "zone",
+      "kind": "cpp",
+      "lines": 130,
+      "bytes": 5223
+    },
+    {
+      "path": "src/zone/zone_pause.h",
+      "area": "zone",
+      "kind": "headers",
+      "lines": 16,
+      "bytes": 736
+    }
+  ],
+  "installedBaselinePe": {
+    "bytes": 2142720,
+    "sections": [
+      {
+        "name": ".text",
+        "rva": 4096,
+        "fileBytes": 1306624,
+        "virtualBytes": 1306284
+      },
+      {
+        "name": ".rdata",
+        "rva": 1310720,
+        "fileBytes": 465920,
+        "virtualBytes": 465644
+      },
+      {
+        "name": ".data",
+        "rva": 1777664,
+        "fileBytes": 274432,
+        "virtualBytes": 9492552
+      },
+      {
+        "name": ".pdata",
+        "rva": 11272192,
+        "fileBytes": 59904,
+        "virtualBytes": 59892
+      },
+      {
+        "name": ".tls",
+        "rva": 11333632,
+        "fileBytes": 5120,
+        "virtualBytes": 4953
+      },
+      {
+        "name": ".reloc",
+        "rva": 11341824,
+        "fileBytes": 29696,
+        "virtualBytes": 29640
+      }
+    ]
+  }
+}
