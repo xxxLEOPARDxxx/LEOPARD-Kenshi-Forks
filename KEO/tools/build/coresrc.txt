@@ -373,3 +373,4 @@ src/fixes/world/skeleton_reserve.cpp
 src/fixes/world/model_clone_reserve.cpp
 src/fixes/world/morph_pose_scope.cpp
 src/fixes/world/material_reserve.cpp
+src/fixes/world/save_read_buffer.cpp

@@ -247,6 +247,36 @@ or gameplay frame-time gain is claimed.
 обычная загрузка движка сохранены. Это сокращает служебную работу KEO;
 ускорение полной загрузки сейва и кадровое время в игре не измерялись.
 
+## Native save-file input / Чтение файлов сохранения (local KEO 2, 2026-11-16)
+
+**Batch save file reads** is a live, default-ON Performance option. For newly
+opened, supported main-thread save streams it requests a 64 KiB native CRT buffer
+when the file is at least 128 KiB. Small files keep ordinary buffering. It uses the
+already-open handle for one size query without opening, reading or seeking.
+The parser, format, values, error/EOF behavior and restoration order stay native.
+Nontrivial text conversion, already-used/foreign streams and other engine builds
+retain normal behavior. Disabling affects subsequent opens, not a file already
+being parsed. The native CRT owns the buffer and frees it at close; there is no
+new cache, worker, per-frame scan or retained save-file handle. Local stream tests
+show 50 versus 4 refills for 200003 single-byte reads, not measured game-load gains.
+One metadata query per eligible file is an added cost; the size threshold is a
+conservative policy, not a profiled optimum. CPU parsing and equipment assembly
+have not been rewritten. Details: `leopard/save-read-verification-20261116.md`.
+
+**Укрупнять чтение сохранений** - настройка раздела «Производительность», включена
+по умолчанию и работает без перезапуска. Для новых поддерживаемых потоков чтения
+сейва в основном потоке запрашивается штатный буфер 64 КиБ, если файл не меньше
+128 КиБ. Маленькие файлы читаются как прежде. Размер запрашивается через уже
+открытый дескриптор без нового открытия, чтения и перемещения позиции. Формат,
+значения, правила разбора, ошибки и порядок восстановления остаются штатными.
+Потоки с преобразованием символов, уже использованные или неподдерживаемые потоки
+не меняются. Выключение применяется к следующим открытиям файлов. Буфер освобождает
+сама стандартная библиотека при закрытии файла; нового кэша, рабочего потока или
+покадрового обхода нет. Проверки вне игры подтверждают 4 вместо 50 пополнений буфера
+для 200003 однобайтовых чтений. Ускорение загрузки игры не измерялось; дополнительный
+запрос размера имеет собственную стоимость. Разбор данных и сборка снаряжения
+не переписывались.
+
 ## Private body shape preparation / Подготовка форм тела (2026-11-16)
 
 **Reuse temporary body shape data** (Performance, default ON, live) avoids deep

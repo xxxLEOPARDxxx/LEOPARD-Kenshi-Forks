@@ -472,3 +472,9 @@ msgstr "Подготовка копий материалов"
 
 msgid "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."
 msgstr "Уменьшает повторные мелкие выделения памяти при копировании материалов моделей и снаряжения. Текстурные слои, цвета, шейдеры и независимые копии материалов остаются штатными. Применяется к новым копиям материалов на поддерживаемых сборках движка."
+
+msgid "Batch save file reads"
+msgstr "Укрупнять чтение сохранений"
+
+msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
+msgstr "Сокращает мелкие чтения файлов при загрузке сохранённого мира и отрядов на поддерживаемых версиях движка. Формат сейва, значения и правила разбора не меняются. Применяется к файлам сохранения, открытым после изменения этой настройки."

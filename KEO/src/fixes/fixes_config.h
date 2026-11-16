@@ -240,6 +240,7 @@ struct FixesConfig
 	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
 	bool materialReserveEnabled; // exact native copy constructor only, live
 	bool morphPoseReuseEnabled; // private morph scope only, live
+	bool saveReadBufferEnabled; // fresh main-thread save streams only, live
 
 };
 

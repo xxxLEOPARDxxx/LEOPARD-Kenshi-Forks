@@ -34,7 +34,7 @@ static const char* const SUITE_NAME = "settings_factory_units";
 #else
 static const char* const SUITE_NAME = "settings_factory_prod_units";
 #endif
-static const size_t CORE_ROWS_DEV = 128;
+static const size_t CORE_ROWS_DEV = 129;
 static const int DEV_ONLY_ROWS = 108;
 
 // ---- Sections --------------------------------------------------------------
@@ -102,13 +102,14 @@ static void CheckSections()
 	for (size_t i = 0; same && i < renderOnly.size(); ++i)
 		same = renderOnly[i]->label == wantLabel[i] && renderOnly[i]->kind == wantKind[i];
 	Check(same, "Sections");
-	Check(render.size() == 7 && render[0]->label == "Skip empty squad request work"
+	Check(render.size() == 8 && render[0]->label == "Skip empty squad request work"
 	      && render[1]->label == "Prepare NPC skeleton storage"
 	      && render[2]->label == "Prepare model storage"
 	      && render[3]->label == "Prepare copied material storage"
 	      && render[4]->label == "Reuse temporary body shape data"
-	      && render[5]->label == "Cap particle updates at high game speed"
-	      && render[6]->label == "Foliage time limit at high speed (ms)", "Sections");
+	      && render[5]->label == "Batch save file reads"
+	      && render[6]->label == "Cap particle updates at high game speed"
+	      && render[7]->label == "Foliage time limit at high speed (ms)", "Sections");
 }
 
 // ---- Every shown key once; labels; counts ---------------------------------
@@ -168,7 +169,7 @@ static void CheckRowCounts()
 	std::vector<SettingsRow> dev = Rows(&st, true, NULL), prod = Rows(&st, false, NULL);
 	Check(ModuleSections(dev).size() == CORE_ROWS_DEV, "core rows dev");
 	Check(Section(dev, RENDER_TITLE).size() == 21, "render rows dev");
-	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 7
+	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 8
 	      && Section(prod, "Squad movement").size() == 5 && Section(prod, "Gameplay fixes").size() == 4
 	      && Section(prod, "Backpacks and jobs").size() == 7, "player section rows prod");
 }
@@ -210,7 +211,7 @@ static void CheckRestart()
 		ok = ok && r && !EndsWith(r->label, " *") && !r->restart;
 		++live;
 	}
-	Check(ok && live > 0 && liveCore == 33, "Restart");
+	Check(ok && live > 0 && liveCore == 34, "Restart");
 }
 
 static bool OnProdPage(const char* name)

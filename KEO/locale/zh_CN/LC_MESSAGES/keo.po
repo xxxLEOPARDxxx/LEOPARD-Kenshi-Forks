@@ -472,3 +472,9 @@ msgstr "预分配材质副本存储"
 
 msgid "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."
 msgstr "减少游戏复制模型和装备材质时重复进行的小块内存分配。纹理层、颜色、着色器和独立材质副本仍由原生引擎处理。仅对受支持引擎版本中新复制的材质生效。"
+
+msgid "Batch save file reads"
+msgstr "合并存档文件读取"
+
+msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
+msgstr "在受支持的引擎版本上，加载已保存的世界和小队数据时减少小块文件读取。存档格式、数值和解析规则保持不变。更改此选项后新打开的存档文件会使用该设置。"

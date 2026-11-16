@@ -27,6 +27,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Performance",    "fixes",    "modelCloneReserve" },
 	{ "Performance",    "fixes",    "materialReserve" },
 	{ "Performance",    "fixes",    "morphPoseReuse" },
+	{ "Performance",    "fixes",    "saveReadBuffer" },
 	{ "Performance",    "render",   "particleStepCap" },
 	{ "Performance",    "render",   "foliagePageBudgetMs" },
 	{ "Squad movement", "movement", "keoRouting",          "routing" },

@@ -191,6 +191,7 @@ const FixesConfig kFixesDefaults =
 	true, // modelCloneReserveEnabled
 	true, // materialReserveEnabled
 	true, // morphPoseReuseEnabled
+	true, // saveReadBufferEnabled
 };
 
 FixesConfig g_fixesCfg = kFixesDefaults;
@@ -358,6 +359,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("morphPoseReuse", FixesConfig, morphPoseReuseEnabled, DOC, SHOW,
       "Reuse temporary body shape data",
       "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."),
+	CFG_OBOOL_LIVE("saveReadBuffer", FixesConfig, saveReadBufferEnabled, DOC, SHOW,
+      "Batch save file reads",
+      "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."
