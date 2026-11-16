@@ -12,4 +12,3 @@ cl /nologo /EHsc /MD %OPT% /DBOOST_ALL_NO_LIB /DBOOST_ERROR_CODE_HEADER_ONLY /D_
 if errorlevel 1 exit /b 2
 set "PATH=D:\SteamLibrary\steamapps\common\Kenshi;%PATH%"
 build\morph_upload_test\morph_upload.exe
-
