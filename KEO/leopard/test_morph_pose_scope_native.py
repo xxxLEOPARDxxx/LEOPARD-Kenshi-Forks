@@ -47,7 +47,7 @@ source=(ROOT/'src/fixes/world/morph_pose_scope.cpp').read_text(encoding='utf-8')
 arrays={n:bytes(int(v,16) for v in vals.split(','))for n,vals in re.findall(r'static const unsigned char (proof\d+)\[\]=\{([^}]+)\}',source)}
 for label,p in [('ogreProofs',ogre),('gameProofs',game)]:
  block=re.search(r'static const Proof '+label+r'\[\]=\{([^;]+)',source).group(1)
- rows=re.findall(r'\{(0x[0-9a-f]+),(proof\d+),sizeof\(\2\)\}',block);check(len(rows)==3)
+ rows=re.findall(r'\{(0x[0-9a-f]+),(proof\d+),sizeof\(\2\)\}',block);check(len(rows)==(7 if label=='ogreProofs' else 4))
  for r,n in rows:check(read(p,int(r,16),len(arrays[n]))==arrays[n])
 check('caller==gameBase+0x71ae7' in source and 'caller==ogreBase+0x1a43ff' in source and 'caller!=ogreBase+0x1a3fdd' in source)
 check('caller==gameBase+0x71ce2' in source)

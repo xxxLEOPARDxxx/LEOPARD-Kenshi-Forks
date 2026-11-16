@@ -253,7 +253,7 @@ or gameplay frame-time gain is claimed.
 copies of shape maps which native body preparation only reads and then discards.
 Every character still receives its own mesh and Entity. Shape weights, shaved
 rules, appearance randomness, equipment, materials, animation, native vertex
-blending and GPU work remain unchanged. Unsupported engine paths use ordinary
+blending and the rendered result remain unchanged. Unsupported engine paths use ordinary
 native copies. This targets body construction during NPC/save loading; a game
 load-time or frame-time improvement has not been measured.
 
@@ -262,7 +262,7 @@ load-time or frame-time improvement has not been measured.
 подготовка тела только читает и затем удаляет. У каждого персонажа сохраняются
 собственные модель и объект рендера. Веса форм, правила выбритой головы,
 случайность внешности, снаряжение, материалы, анимация, расчёт вершин и работа
-GPU остаются прежними. Неподдерживаемые пути движка используют обычные копии.
+GPU дают тот же результат. Неподдерживаемые пути движка используют обычные копии.
 Правка относится к созданию тела при загрузке NPC и сейва; ускорение в игре
 пока не измерялось.
 
@@ -273,10 +273,30 @@ All-context cleanup removes positively recorded borrowed pointers before native
 deletion, including unload, mixed lists and handled SEH. Both added pins are
 released at the final pose-removal boundary before the old Entity is destroyed,
 preserving native use-count-sensitive cleanup. No pose maps are mutated and no
-worker, persistent cache or GPU-lock batching is added. Existing capture wrappers
+worker or persistent cache is added. Existing capture wrappers
 publish functional readiness independently of Debug; partial hook failure retains
 every published original but never admits the optimization. See private
 leopard/morph-pose-scope-verification-20261116.md and integration review evidence.
+
+The same option now batches shadow-buffer uploads during the exact private body
+morph. Ogre still applies every pose with its original arithmetic and locks.
+For a distinct, unlocked destination POSITION buffer with an independent RAM
+shadow, hardware updates are suppressed until the final pose-removal boundary.
+The complete result uploads before mesh switching; live OFF and exceptional
+cleanup restore the flag and release the one temporary buffer lease. Other
+buffers retain native behavior. This removes intermediate body-buffer uploads;
+it does not parse saves, prepare equipment or parallelize NPC spawning. Offline
+native checks establish byte equivalence and upload counts, not a measured game
+load-time/FPS improvement. See `leopard/morph-upload-verification-20261116.md`.
+
+Та же опция теперь объединяет отправку изменений формы тела из копии буфера в
+ОЗУ на GPU. Каждая форма рассчитывается штатной функцией Ogre. Промежуточные
+отправки подавляются только у отдельного незаблокированного буфера новой модели;
+готовый результат отправляется до смены модели. Исключения и выключение опции
+не оставляют флаг подавления и временную ссылку. Другие буферы работают как раньше.
+Разбор сейва, подготовка снаряжения и порядок появления NPC не меняются. Проверки
+вне игры подтверждают совпадение байтов и сокращение отправок, но не измеренное
+ускорение загрузки или FPS.
 
 
 ### Local NPC loading review follow-up (working release 2, 2026-11-16)
