@@ -25,28 +25,50 @@ struct Buffer {const Ogre::HardwareBuffer* id;U64 gpu,cpu;};
 struct Description {std::vector<Buffer>buffers;U64 gpuBytes,cpuBytes;Description():gpuBytes(0),cpuBytes(0){}};
 static const unsigned MaxPending=128,MaxModels=2048,MaxBuffers=65536,MaxMeshBuffers=512;
 static const U64 GiB=1024ULL*1024*1024;
+static bool ReadBuffer(const Ogre::HardwareBuffer*b,U64 used,Buffer*out){
+    Buffer v={b,U64(b->getSizeInBytes()),b->hasShadowBuffer()?U64(b->getSizeInBytes()):0};
+    if(!v.gpu||v.gpu>8*GiB||used>8*GiB-v.gpu)return false;
+    *out=v;return true;
+}
 static bool BufferInfo(const Ogre::HardwareBuffer*b,Description*d){
     if(!b||b->isSystemMemory())return true;
     for(size_t i=0;i<d->buffers.size();++i)if(d->buffers[i].id==b)return true;
     if(d->buffers.size()>=MaxMeshBuffers)return false;
-    Buffer v={b,U64(b->getSizeInBytes()),b->hasShadowBuffer()?U64(b->getSizeInBytes()):0};
-    if(!v.gpu||v.gpu>8*GiB||d->gpuBytes>8*GiB-v.gpu)return false;
+    Buffer v;if(!ReadBuffer(b,d->gpuBytes,&v))return false;
     d->buffers.push_back(v);d->gpuBytes+=v.gpu;d->cpuBytes+=v.cpu;return true;
 }
-static bool Vertices(const Ogre::VertexData*v,Description*d){
+struct Collect {
+    Description*output;explicit Collect(Description*d):output(d){}
+    bool Accept(const Ogre::HardwareBuffer*b){return BufferInfo(b,output);}
+};
+struct Match {
+    const Description&expected;size_t next;U64 gpu,cpu;
+    explicit Match(const Description&d):expected(d),next(0),gpu(0),cpu(0){}
+    bool Accept(const Ogre::HardwareBuffer*b){
+        if(!b||b->isSystemMemory())return true;
+        // Only a previous encounter is a duplicate. Searching the remaining
+        // expected records would incorrectly accept a reordered buffer set.
+        for(size_t i=0;i<next;++i)if(expected.buffers[i].id==b)return true;
+        if(next>=expected.buffers.size()||next>=MaxMeshBuffers)return false;
+        Buffer v;if(!ReadBuffer(b,gpu,&v))return false;
+        const Buffer&old=expected.buffers[next];
+        if(old.id!=v.id||old.gpu!=v.gpu||old.cpu!=v.cpu)return false;
+        ++next;gpu+=v.gpu;cpu+=v.cpu;return true;
+    }
+    bool Complete()const{return next==expected.buffers.size()&&gpu==expected.gpuBytes&&cpu==expected.cpuBytes;}
+};
+template<class Sink> static bool Vertices(const Ogre::VertexData*v,Sink*d){
     if(!v)return true;
     if(v->vertexBufferBinding){
         const Ogre::VertexBufferBinding::VertexBufferBindingMap&b=v->vertexBufferBinding->getBindings();
         if(b.size()>64)return false;
         for(Ogre::VertexBufferBinding::VertexBufferBindingMap::const_iterator i=b.begin();i!=b.end();++i)
-            if(!BufferInfo(i->second.get(),d))return false;
+            if(!d->Accept(i->second.get()))return false;
     }
-    return BufferInfo(v->hardwareShadowVolWBuffer.get(),d);
+    return d->Accept(v->hardwareShadowVolWBuffer.get());
 }
-static bool Indices(const Ogre::IndexData*i,Description*d){return !i||BufferInfo(i->indexBuffer.get(),d);}
-bool Describe(const Ogre::MeshPtr&m,Description*d){
-    if(!d||m.isNull()||!m->isLoaded())return false;
-    *d=Description();
+template<class Sink> static bool Indices(const Ogre::IndexData*i,Sink*d){return !i||d->Accept(i->indexBuffer.get());}
+template<class Sink> static bool Walk(const Ogre::MeshPtr&m,Sink*d){
     // getLodLevel is NOT a passive accessor: actual Ogre1A733D calls load for
     // absent manual meshes. Do not invoke it or retain incompletely counted
     // manual/morph resources. Skeleton/entity skinning buffers are not pinned.
@@ -63,6 +85,14 @@ bool Describe(const Ogre::MeshPtr&m,Description*d){
         }
     }
     return true;
+}
+bool Describe(const Ogre::MeshPtr&m,Description*d){
+    if(!d||m.isNull()||!m->isLoaded())return false;
+    *d=Description();Collect collect(d);return Walk(m,&collect);
+}
+static bool Matches(const Ogre::MeshPtr&m,const Description&expected){
+    if(m.isNull()||!m->isLoaded())return false;
+    Match match(expected);return Walk(m,&match)&&match.Complete();
 }
 struct Count {unsigned refs;U64 gpu,cpu;};
 struct Entry {Ogre::MeshPtr mesh;Description desc;U64 touch;unsigned victimSlot;Entry():victimSlot(~0u){}};
@@ -199,7 +229,7 @@ void Tick(bool on,U64 cap,U64 world){
         // rebuild a buffer. No iterator/container reference survives the tick.
         for(unsigned n=0;n<2&&!state->models.empty();++n){
             Models::iterator i=state->models.upper_bound(state->refreshAfter);if(i==state->models.end())i=state->models.begin();
-            state->refreshAfter=i->first;Ogre::MeshPtr m=i->second.mesh;U64 touch=i->second.touch;Description d;
+            state->refreshAfter=i->first;Ogre::MeshPtr m=i->second.mesh;U64 touch=i->second.touch;
             // remove(handle) can unregister a mesh while our SharedPtr keeps
             // its loaded buffers alive. Such an orphan cannot serve a later
             // native lookup. Drop only our pin, never the native resource.
@@ -208,10 +238,11 @@ void Tick(bool on,U64 cap,U64 world){
             if(m->getCreator()!=manager){++state->stats.identityMismatch;Release(i);continue;}
             Ogre::ResourcePtr registered=manager->getByHandle(m->getHandle());
             if(registered.isNull()||registered.get()!=m.get()){++state->stats.identityMismatch;Release(i);continue;}
-            if(!Describe(m,&d)){Release(i);continue;}
-            const std::vector<Buffer>&old=i->second.desc.buffers;bool same=old.size()==d.buffers.size();
-            for(size_t k=0;same&&k<old.size();++k)same=old[k].id==d.buffers[k].id&&old[k].gpu==d.buffers[k].gpu&&old[k].cpu==d.buffers[k].cpu;
-            if(!same){Release(i);if(!Promote(m,d,touch))++state->stats.rejected;}
+            // Matching uses no temporary vector. Changed resources still take
+            // the ordinary collector and accounting path before replacement.
+            if(Matches(m,i->second.desc))continue;
+            Description d;if(!Describe(m,&d)){Release(i);continue;}
+            Release(i);if(!Promote(m,d,touch))++state->stats.rejected;
         }
         unsigned work=(std::min)(state->count,4u);
         for(unsigned n=0;n<work;++n){

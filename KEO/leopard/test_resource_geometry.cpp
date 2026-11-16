@@ -29,6 +29,7 @@ unsigned DeviceGeneration(){return deviceGeneration;}
 #include "../src/resources/resource_geometry.cpp"
 struct TestVB:Ogre::HardwareVertexBuffer {
     TestVB(size_t n,bool system=false,bool shadow=false):HardwareVertexBuffer(NULL,1,n,HBU_STATIC,system,shadow){}
+    void Metadata(size_t size,bool shadow=false,bool system=false){mSizeInBytes=size;mUseShadowBuffer=shadow;mSystemMemory=system;}
     void*lockImpl(size_t,size_t,LockOptions){return NULL;}void unlockImpl(){}
     void readData(size_t,size_t,void*){}void writeData(size_t,size_t,const void*,bool){}
 };
@@ -68,10 +69,11 @@ static resource_geometry::Models::iterator LegacyGeometryOldest(){
 }
 static bool failedAfterGeometryIndex=false;
 static void GeometryAllocationProbe(){if(resource_geometry::state->victims.Size())failedAfterGeometryIndex=true;}
+struct CacheCleanup{~CacheCleanup(){mainOwner=true;resource_geometry::Clear();Ogre::MeshManager::getSingleton().removeAll();}};
 int main(){
     SetUnhandledExceptionFilter(Crash);
     Ogre::Root root("","","");Ogre::DefaultHardwareBufferManager hardware;
-    Loader loader;Ogre::MeshManager&m=Ogre::MeshManager::getSingleton();
+    Loader loader;Ogre::MeshManager&m=Ogre::MeshManager::getSingleton();CacheCleanup cleanup;
     typedef void(*Purge)(Ogre::ResourceManager*,bool);
     Purge purge=reinterpret_cast<Purge>((*reinterpret_cast<void***>(&m))[0x68/8]);
     Ogre::MeshPtr a=m.createManual("geometry-A","General",&loader);a->load();
@@ -371,10 +373,73 @@ int main(){
     bool sameStorage=admitted!=resource_geometry::state->models.end()&&!admitted->second.desc.buffers.empty()&& &admitted->second.desc.buffers[0]==collectedStorage;
     bool consumed=d.buffers.empty()&&d.gpuBytes==0&&d.cpuBytes==0;
     bool accounted=reserved==512&&resource_geometry::state->buffers.size()==512&&transfer.useCount()==originalRefs+1;
+    unsigned failuresBeforeRefresh=allocationFailures;
+    allocationFailAfter=0;for(unsigned repeat=0;repeat<16;++repeat)TickNow(true,4);allocationFailAfter=-1;
+    resource_geometry::Models::iterator stable=resource_geometry::state->models.find(transfer.get());
+    bool stableWithoutAllocation=allocationFailures==failuresBeforeRefresh&&stable!=resource_geometry::state->models.end()&&reserved==512&&transfer.useCount()==originalRefs+1;
+    bool stableIdentity=stable!=resource_geometry::state->models.end()&&stable->second.touch==77&&stable->second.desc.buffers.size()==512&&&stable->second.desc.buffers[0]==collectedStorage;
+    if(!stableWithoutAllocation||!stableIdentity){resource_geometry::Clear();transfer.setNull();m.removeAll();CHECK(stableWithoutAllocation);CHECK(stableIdentity);}
+    resource_geometry::Description baseline;CHECK(resource_geometry::Describe(transfer,&baseline));CHECK(resource_geometry::Matches(transfer,baseline));
+    Ogre::VertexBufferBinding*binding=transfer->getSubMesh(0)->vertexData->vertexBufferBinding;
+    Ogre::HardwareVertexBufferSharedPtr first=binding->getBuffer(0),second=binding->getBuffer(1),refreshReplacement(new TestVB(1));
+    binding->setBinding(0,second);binding->setBinding(1,first);CHECK(!resource_geometry::Matches(transfer,baseline));
+    binding->setBinding(0,first);binding->setBinding(1,second);CHECK(resource_geometry::Matches(transfer,baseline));
+    binding->setBinding(0,refreshReplacement);CHECK(!resource_geometry::Matches(transfer,baseline));binding->setBinding(0,first);
+    binding->unsetBinding(1);CHECK(!resource_geometry::Matches(transfer,baseline));binding->setBinding(1,second);
+    binding->setBinding(1,first);CHECK(!resource_geometry::Matches(transfer,baseline));binding->setBinding(1,second);
+    Ogre::VertexBufferBinding*tailBinding=transfer->getSubMesh(7)->vertexData->vertexBufferBinding;Ogre::HardwareVertexBufferSharedPtr tail=tailBinding->getBuffer(63);
+    tailBinding->unsetBinding(63);CHECK(!resource_geometry::Matches(transfer,baseline));tailBinding->setBinding(63,tail);
+    TestVB*metadata=static_cast<TestVB*>(first.get());metadata->Metadata(3,true);CHECK(!resource_geometry::Matches(transfer,baseline));metadata->Metadata(1);
+    metadata->Metadata(1,true);CHECK(!resource_geometry::Matches(transfer,baseline));metadata->Metadata(1);
+    metadata->Metadata(1,false,true);CHECK(!resource_geometry::Matches(transfer,baseline));metadata->Metadata(1);
+    resource_geometry::Buffer decoded;metadata->Metadata(0);CHECK(!resource_geometry::ReadBuffer(first.get(),0,&decoded));CHECK(!resource_geometry::Matches(transfer,baseline));CHECK(!resource_geometry::Describe(transfer,&d));metadata->Metadata(1);
+    metadata->Metadata(size_t((8ULL<<30)+1));CHECK(!resource_geometry::ReadBuffer(first.get(),0,&decoded));CHECK(!resource_geometry::Matches(transfer,baseline));CHECK(!resource_geometry::Describe(transfer,&d));metadata->Metadata(1);
+    metadata->Metadata(size_t(8ULL<<30));CHECK(!resource_geometry::Describe(transfer,&d));metadata->Metadata(1);
+    // Equal totals cannot hide changed per-buffer accounting.
+    TestVB*secondMetadata=static_cast<TestVB*>(second.get());resource_geometry::Description balanced;
+    metadata->Metadata(2);secondMetadata->Metadata(4);CHECK(resource_geometry::Describe(transfer,&balanced));
+    metadata->Metadata(3);secondMetadata->Metadata(3);CHECK(!resource_geometry::Matches(transfer,balanced));metadata->Metadata(1);secondMetadata->Metadata(1);
+    metadata->Metadata(1,true);CHECK(resource_geometry::Describe(transfer,&balanced));metadata->Metadata(1);secondMetadata->Metadata(1,true);CHECK(!resource_geometry::Matches(transfer,balanced));secondMetadata->Metadata(1);
+    // Duplicates across shared/dedicated vertices and shadow buffers preserve
+    // the exact first-encounter inventory rather than requiring unique slots.
+    transfer->sharedVertexData=OGRE_NEW Ogre::VertexData;transfer->sharedVertexData->vertexBufferBinding->setBinding(0,first);
+    transfer->sharedVertexData->hardwareShadowVolWBuffer=first;CHECK(resource_geometry::Matches(transfer,baseline));
+    Ogre::HardwareIndexBufferSharedPtr repeatedIndex(new TestIB(2));
+    Ogre::VertexBufferBinding*lastBinding=transfer->getSubMesh(7)->vertexData->vertexBufferBinding;
+    Ogre::HardwareVertexBufferSharedPtr last=lastBinding->getBuffer(63);
+    transfer->getSubMesh(0)->indexData->indexBuffer=repeatedIndex;
+    CHECK(!resource_geometry::Describe(transfer,&d));CHECK(!resource_geometry::Matches(transfer,baseline)); // 513 distinct buffers.
+    lastBinding->unsetBinding(63);
+    Ogre::IndexData*repeatedLod=OGRE_NEW Ogre::IndexData;repeatedLod->indexBuffer=repeatedIndex;transfer->getSubMesh(0)->mLodFaceList.push_back(repeatedLod);
+    resource_geometry::Description duplicated;CHECK(resource_geometry::Describe(transfer,&duplicated));CHECK(duplicated.buffers.size()==512&&duplicated.gpuBytes==513);CHECK(resource_geometry::Matches(transfer,duplicated));CHECK(!resource_geometry::Matches(transfer,baseline));
+    // A mismatch must still take ordinary collecting failure recovery.
+    unsigned beforeMismatch=allocationFailures;allocationFailAfter=0;TickNow(true,4);allocationFailAfter=-1;
+    CHECK(allocationFailures==beforeMismatch+1);CHECK(resource_geometry::state->models.empty()&&reserved==0&&transfer.useCount()==originalRefs);
+    TickNow(true,4);resource_geometry::Observe(transfer);TickNow(true,4);CHECK(resource_geometry::state->models.size()==1&&reserved==513);
+    CHECK(resource_geometry::Matches(transfer,resource_geometry::state->models.find(transfer.get())->second.desc));
+    // Shared traversal limits must still be examined after all expected buffers
+    // have been encountered; matching must never terminate the walk early.
+    Ogre::MeshPtr limits=m.createManual("matcher-limits","General",&loader);limits->load();limits->sharedVertexData=OGRE_NEW Ogre::VertexData;
+    for(unsigned n=0;n<64;++n)limits->sharedVertexData->vertexBufferBinding->setBinding((unsigned short)n,first);
+    for(unsigned n=0;n<64;++n)limits->createSubMesh();
+    resource_geometry::Description limitDescription;CHECK(resource_geometry::Describe(limits,&limitDescription));CHECK(resource_geometry::Matches(limits,limitDescription));
+    limits->sharedVertexData->vertexBufferBinding->setBinding(64,first);CHECK(!resource_geometry::Describe(limits,&d));CHECK(!resource_geometry::Matches(limits,limitDescription));limits->sharedVertexData->vertexBufferBinding->unsetBinding(64);
+    for(unsigned part=0;part<32;++part)for(unsigned n=0;n<64;++n)limits->getSubMesh((unsigned short)part)->mLodFaceList.push_back(OGRE_NEW Ogre::IndexData);
+    CHECK(resource_geometry::Describe(limits,&d));CHECK(resource_geometry::Matches(limits,limitDescription));
+    limits->getSubMesh(32)->mLodFaceList.push_back(OGRE_NEW Ogre::IndexData);CHECK(!resource_geometry::Describe(limits,&d));CHECK(!resource_geometry::Matches(limits,limitDescription));
+    for(unsigned part=0;part<33;++part){Ogre::SubMesh*s=limits->getSubMesh((unsigned short)part);while(!s->mLodFaceList.empty()){Ogre::IndexData*old=s->mLodFaceList.back();s->mLodFaceList.pop_back();OGRE_DELETE old;}}
+    for(unsigned n=0;n<64;++n)limits->getSubMesh(0)->mLodFaceList.push_back(OGRE_NEW Ogre::IndexData);
+    CHECK(resource_geometry::Describe(limits,&d));CHECK(resource_geometry::Matches(limits,limitDescription));
+    limits->getSubMesh(0)->mLodFaceList.push_back(OGRE_NEW Ogre::IndexData);CHECK(!resource_geometry::Describe(limits,&d));CHECK(!resource_geometry::Matches(limits,limitDescription));
+    Ogre::IndexData*lastLod=limits->getSubMesh(0)->mLodFaceList.back();limits->getSubMesh(0)->mLodFaceList.pop_back();OGRE_DELETE lastLod;
+    limits->createSubMesh();CHECK(!resource_geometry::Describe(limits,&d));CHECK(!resource_geometry::Matches(limits,limitDescription));
+    transfer->createPose(0,"matcher-pose");CHECK(!resource_geometry::Matches(transfer,duplicated));transfer->removeAllPoses();
+    CHECK(!resource_geometry::Matches(Ogre::MeshPtr(),duplicated));
+    limits.setNull();
     resource_geometry::Clear();bool released=reserved==0&&transfer.useCount()==originalRefs;
     transfer.setNull();m.removeAll();
     std::cout<<"description transfer: copies="<<descriptionCopies<<" same storage="<<sameStorage<<" consumed="<<consumed<<"\n";
-    CHECK(promoted);CHECK(descriptionCopies==0);CHECK(sameStorage);CHECK(consumed);CHECK(accounted);CHECK(released);
+    CHECK(promoted);CHECK(descriptionCopies==0);CHECK(sameStorage);CHECK(consumed);CHECK(accounted);CHECK(released);CHECK(stableWithoutAllocation);CHECK(stableIdentity);
     struct LegacyEntry {Ogre::MeshPtr mesh;resource_geometry::Description desc;resource_geometry::U64 touch;};
     std::cout<<"geometry entry bytes="<<sizeof(resource_geometry::Entry)<<" legacy entry bytes="<<sizeof(LegacyEntry)<<" victim index bytes="<<sizeof(resource_geometry::state->victims)<<" allocation failures="<<allocationFailures-failedBefore<<"\n";
     std::cout<<"geometry actual Ogre collector/lifetime/purge checks="<<checks<<"\n";return 0;

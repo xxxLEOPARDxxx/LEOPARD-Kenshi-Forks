@@ -324,3 +324,23 @@ load-time/FPS measurement is asserted.
 Для уже найденных в кэше материалов предметов клонирование и так пропускается.
 Создание NPC, снаряжения и восстановление сейва не пропускаются. Скорость
 загрузки и FPS в игре этим проходом не измерялись.
+
+
+### Geometry refresh bookkeeping (working release 2, 2026-11-16)
+
+Retained, unchanged models are checked directly against their stored buffer
+inventory, avoiding temporary descriptor-vector allocations on each refresh.
+Changed resources still use the existing full collection and admission path.
+No setting, cache limit, native model/equipment creation or save restoration
+policy changes. Native fixtures, fault recovery and ownership review are recorded
+in `leopard/geometry-refresh-verification-20261116.md`; no new gameplay loading
+or FPS measurements were performed.
+
+### Проверка кэша геометрии (рабочий выпуск 2, 16.11.2026)
+
+Для неизменившейся модели кэш проверяет уже сохранённый список буферов без
+повторного выделения временного массива. При изменениях описание собирается
+прежним способом с повторной проверкой и учётом памяти. Настройки, лимиты,
+штатное создание моделей и снаряжения, восстановление сейва не меняются.
+Выполнены проверки на настоящих объектах Ogre, проверки отказов и владения
+ресурсами. Скорость загрузки и FPS в игре этим проходом не измерялись.

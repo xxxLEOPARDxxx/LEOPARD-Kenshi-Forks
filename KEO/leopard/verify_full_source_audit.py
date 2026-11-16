@@ -11,7 +11,7 @@ for report in reports:
 # Ordered focused follow-ups override only their actually re-reviewed paths.
 # Earlier snapshots remain historical evidence, not hashes of later bodies.
 current={}
-for name in ('hook-batch-cache-review-20261115.json','base-squad-empty-review-20261115.json','retention-victim-index-review-20261116.json','skeleton-reserve-review-20261116.json','model-hud-review-20261116.json','geometry-description-transfer-review-20261116.json','morph-pose-review-20261116.json','npc-review-followup-review-20261116.json','material-reserve-review-20261116.json'):
+for name in ('hook-batch-cache-review-20261115.json','base-squad-empty-review-20261115.json','retention-victim-index-review-20261116.json','skeleton-reserve-review-20261116.json','model-hud-review-20261116.json','geometry-description-transfer-review-20261116.json','morph-pose-review-20261116.json','npc-review-followup-review-20261116.json','material-reserve-review-20261116.json','geometry-refresh-review-20261116.json'):
  followup=ROOT/'leopard'/name
  if followup.exists():
   for row in json.loads(followup.read_text()):
