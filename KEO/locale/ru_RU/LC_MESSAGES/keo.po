@@ -483,8 +483,8 @@ msgstr "Сокращает мелкие чтения файлов при заг�
 msgid "Transfer temporary save strings"
 msgstr "Передавать временные строки сейва"
 
-msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
-msgstr "Сокращает копирование временных идентификаторов состояния при разборе сохранённых объектов. Подходящие списки целиком передаются новым объектам; оставшиеся длинные строки также могут передаваться без лишнего копирования. Формат сейва, значения и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."
+msgid "Reduces copying of temporary state identifiers and long string or file fields while parsing saved objects. Eligible complete lists and owned field values transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "Сокращает копирование временных идентификаторов состояний и длинных строковых полей или имён файлов при разборе сохранённых объектов. Подходящие целые списки и буферы значений полей передаются без лишней копии. Формат сейва, значения и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."
 
 #: src/fixes/fixes_config.cpp
 msgid "Speed up equipment property reads"
@@ -506,3 +506,17 @@ msgstr "Убрать повторный поиск состояний анима
 
 msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
 msgstr "Сокращает повторные CPU-поиски при подготовке состояний анимации моделей. Подходящие новые состояния добавляются штатной операцией в текущий конец таблицы; остальные случаи используют обычный поиск. Создание состояний, параметры анимации и штатные блокировки сохраняются. Только для поддерживаемых версий движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse held animation lock"
+msgstr "Использовать удерживаемую блокировку анимации"
+
+msgid "Reduces repeated lock operations while creating model animation states. Only an already owned native lock is reused; other callers keep normal synchronization. Supported engine builds only."
+msgstr "Сокращает повторные операции с блокировкой при создании состояний анимации моделей. Используется только блокировка, уже удерживаемая текущим потоком; остальные вызовы сохраняют штатную синхронизацию. Только для поддерживаемых сборок движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip discarded save field keys"
+msgstr "Пропускать ненужные ключи полей сейва"
+
+msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
+msgstr "Не создаёт временные имена полей, которые разборщик сейва сразу отбросил бы. Проверки разрешений, итоговые имена полей, значения и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."

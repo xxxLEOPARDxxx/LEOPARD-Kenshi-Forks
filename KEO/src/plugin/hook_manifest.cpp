@@ -51,6 +51,8 @@
 #include "fixes/world/material_reserve.h"
 #include "fixes/world/equipment_field_patch.h"
 #include "fixes/world/equipment_animation_patch.h"
+#include "fixes/world/animation_dirty_patch.h"
+#include "fixes/world/save_field_key_patch.h"
 #include "fixes/world/save_read_buffer.h"
 #include "fixes/world/save_string_transfer.h"
 #include "fixes/world/save_state_list_transfer.h"
@@ -763,11 +765,13 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallCorpsePin,
 	InstallBlackboardEmpty,
 	InstallEquipmentAnimationLookup,
+	InstallAnimationDirtyReuse,
 	InstallSkeletonReserve,
 	InstallModelCloneReserve,
 	InstallMaterialReserve,
 	InstallEquipmentFieldLookup,
 	InstallSaveReadBuffer,
+	InstallSaveFieldKeyReuse,
 	InstallSaveStringTransfer,
 	InstallSaveInstanceLookup,
 	InstallSaveStateListTransfer,

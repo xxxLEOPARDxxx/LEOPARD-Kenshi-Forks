@@ -483,8 +483,8 @@ msgstr "在受支持的引擎版本上，加载已保存的世界和小队数据
 msgid "Transfer temporary save strings"
 msgstr "转移临时存档字符串"
 
-msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
-msgstr "解析已保存的对象时，减少临时状态标识符的复制。符合条件的完整列表会直接转移给新对象；其余较长字符串也可避免额外复制。存档格式、数值和加载顺序保持原样。仅适用于受支持的引擎版本。"
+msgid "Reduces copying of temporary state identifiers and long string or file fields while parsing saved objects. Eligible complete lists and owned field values transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "解析已保存对象时，减少临时状态标识符以及长字符串或文件字段的复制。符合条件的完整列表和字段值缓冲区直接转移，避免额外复制。存档格式、数值和加载顺序保持原样。仅适用于受支持的引擎版本。"
 
 #: src/fixes/fixes_config.cpp
 msgid "Speed up equipment property reads"
@@ -506,3 +506,17 @@ msgstr "避免重复查找动画状态"
 
 msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
 msgstr "准备模型动画状态时减少重复的CPU查找。符合条件的新状态通过原生操作插入当前表尾，其他情况保留正常查找。保留状态创建、动画数值和原生锁定。仅支持已验证的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse held animation lock"
+msgstr "复用已持有的动画锁"
+
+msgid "Reduces repeated lock operations while creating model animation states. Only an already owned native lock is reused; other callers keep normal synchronization. Supported engine builds only."
+msgstr "创建模型动画状态时减少重复锁操作。仅复用当前线程已持有的原生锁；其他调用保留正常同步。仅适用于受支持的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip discarded save field keys"
+msgstr "跳过无用的存档字段名"
+
+msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
+msgstr "避免构造存档解析器会立即丢弃的临时字段名。权限检查、最终字段名、数值和加载顺序保持原样。仅适用于受支持的引擎版本。"

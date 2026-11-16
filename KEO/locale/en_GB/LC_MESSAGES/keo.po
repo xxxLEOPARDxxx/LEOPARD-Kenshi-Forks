@@ -483,8 +483,8 @@ msgstr "Reduces small file reads while loading saved world and squad data on sup
 msgid "Transfer temporary save strings"
 msgstr "Transfer temporary save strings"
 
-msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
-msgstr "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgid "Reduces copying of temporary state identifiers and long string or file fields while parsing saved objects. Eligible complete lists and owned field values transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "Reduces copying of temporary state identifiers and long string or file fields while parsing saved objects. Eligible complete lists and owned field values transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
 
 #: src/fixes/fixes_config.cpp
 msgid "Speed up equipment property reads"
@@ -506,3 +506,17 @@ msgstr "Avoid repeated animation state searches"
 
 msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
 msgstr "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse held animation lock"
+msgstr "Reuse held animation lock"
+
+msgid "Reduces repeated lock operations while creating model animation states. Only an already owned native lock is reused; other callers keep normal synchronization. Supported engine builds only."
+msgstr "Reduces repeated lock operations while creating model animation states. Only an already owned native lock is reused; other callers keep normal synchronization. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Skip discarded save field keys"
+msgstr "Skip discarded save field keys"
+
+msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
+msgstr "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."

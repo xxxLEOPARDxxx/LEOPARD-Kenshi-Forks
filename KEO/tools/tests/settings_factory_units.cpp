@@ -34,7 +34,7 @@ static const char* const SUITE_NAME = "settings_factory_units";
 #else
 static const char* const SUITE_NAME = "settings_factory_prod_units";
 #endif
-static const size_t CORE_ROWS_DEV = 133;
+static const size_t CORE_ROWS_DEV = 135;
 static const int DEV_ONLY_ROWS = 108;
 
 // ---- Sections --------------------------------------------------------------
@@ -102,19 +102,21 @@ static void CheckSections()
 	for (size_t i = 0; same && i < renderOnly.size(); ++i)
 		same = renderOnly[i]->label == wantLabel[i] && renderOnly[i]->kind == wantKind[i];
 	Check(same, "Sections");
-	Check(render.size() == 12
+	Check(render.size() == 14
 	      && render[0]->label == "Skip empty squad request work"
-	      && render[1]->label == "Avoid repeated animation state searches"
-	      && render[2]->label == "Prepare NPC skeleton storage"
-	      && render[3]->label == "Prepare model storage"
-	      && render[4]->label == "Prepare copied material storage"
-	      && render[5]->label == "Speed up equipment property reads"
-	      && render[6]->label == "Reuse temporary body shape data"
-	      && render[7]->label == "Batch save file reads"
-	      && render[8]->label == "Reuse saved object lookups"
-	      && render[9]->label == "Transfer temporary save strings"
-	      && render[10]->label == "Cap particle updates at high game speed"
-	      && render[11]->label == "Foliage time limit at high speed (ms)", "Sections");
+	      && render[1]->label == "Reuse held animation lock"
+	      && render[2]->label == "Avoid repeated animation state searches"
+	      && render[3]->label == "Prepare NPC skeleton storage"
+	      && render[4]->label == "Prepare model storage"
+	      && render[5]->label == "Prepare copied material storage"
+	      && render[6]->label == "Speed up equipment property reads"
+	      && render[7]->label == "Reuse temporary body shape data"
+	      && render[8]->label == "Batch save file reads"
+	      && render[9]->label == "Skip discarded save field keys"
+	      && render[10]->label == "Reuse saved object lookups"
+	      && render[11]->label == "Transfer temporary save strings"
+	      && render[12]->label == "Cap particle updates at high game speed"
+	      && render[13]->label == "Foliage time limit at high speed (ms)", "Sections");
 }
 
 // ---- Every shown key once; labels; counts ---------------------------------
@@ -174,7 +176,7 @@ static void CheckRowCounts()
 	std::vector<SettingsRow> dev = Rows(&st, true, NULL), prod = Rows(&st, false, NULL);
 	Check(ModuleSections(dev).size() == CORE_ROWS_DEV, "core rows dev");
 	Check(Section(dev, RENDER_TITLE).size() == 21, "render rows dev");
-	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 12
+	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 14
 	      && Section(prod, "Squad movement").size() == 5 && Section(prod, "Gameplay fixes").size() == 4
 	      && Section(prod, "Backpacks and jobs").size() == 7, "player section rows prod");
 }
@@ -216,7 +218,7 @@ static void CheckRestart()
 		ok = ok && r && !EndsWith(r->label, " *") && !r->restart;
 		++live;
 	}
-	Check(ok && live > 0 && liveCore == 38, "Restart");
+	Check(ok && live > 0 && liveCore == 40, "Restart");
 }
 
 static bool OnProdPage(const char* name)

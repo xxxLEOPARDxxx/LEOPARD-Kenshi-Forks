@@ -187,6 +187,7 @@ const FixesConfig kFixesDefaults =
 	true, // throwOutFixEnabled
 	60, // throwOutHoldMinutes
 	true, // blackboardEmptyEnabled
+	true, // animationDirtyReuseEnabled
 	true, // animationStateLookupEnabled
 	true, // skeletonReserveEnabled
 	true, // modelCloneReserveEnabled
@@ -194,6 +195,7 @@ const FixesConfig kFixesDefaults =
 	true, // equipmentFieldLookupEnabled
 	true, // morphPoseReuseEnabled
 	true, // saveReadBufferEnabled
+	true, // saveFieldKeyReuseEnabled
 	true, // saveInstanceLookupEnabled
 	true, // saveStringTransferEnabled
 };
@@ -351,6 +353,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("blackboardEmpty", FixesConfig, blackboardEmptyEnabled, DOC, SHOW,
       "Skip empty squad request work",
       "Avoids temporary memory allocation when a squad has no timed requests. Active requests, jobs, AI and squad update frequency remain unchanged. Available on supported Steam builds; other builds retain normal behavior."),
+	CFG_OBOOL_LIVE("animationDirtyReuse", FixesConfig, animationDirtyReuseEnabled, DOC, SHOW,
+      "Reuse held animation lock",
+      "Reduces repeated lock operations while creating model animation states. Only an already owned native lock is reused; other callers keep normal synchronization. Supported engine builds only."),
 	CFG_OBOOL_LIVE("animationStateLookup", FixesConfig, animationStateLookupEnabled, DOC, SHOW,
       "Avoid repeated animation state searches",
       "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."),
@@ -372,12 +377,15 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("saveReadBuffer", FixesConfig, saveReadBufferEnabled, DOC, SHOW,
       "Batch save file reads",
       "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."),
+	CFG_OBOOL_LIVE("saveFieldKeyReuse", FixesConfig, saveFieldKeyReuseEnabled, DOC, SHOW,
+      "Skip discarded save field keys",
+      "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."),
 	CFG_OBOOL_LIVE("saveInstanceLookup", FixesConfig, saveInstanceLookupEnabled, DOC, SHOW,
       "Reuse saved object lookups",
       "Avoids searching the same object tree twice while restoring saved objects. Native object construction, insertion, values and loading order are preserved. Supported engine builds only."),
 	CFG_OBOOL_LIVE("saveStringTransfer", FixesConfig, saveStringTransferEnabled, DOC, SHOW,
       "Transfer temporary save strings",
-      "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."),
+      "Reduces copying of temporary state identifiers and long string or file fields while parsing saved objects. Eligible complete lists and owned field values transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

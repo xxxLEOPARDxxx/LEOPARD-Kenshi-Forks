@@ -383,3 +383,8 @@ src/fixes/code_patch_batch.cpp
 src/fixes/world/save_instance_lookup.cpp
 src/fixes/world/equipment_animation_lookup.cpp
 src/fixes/world/equipment_animation_patch.cpp
+src/fixes/world/animation_dirty_reuse.cpp
+src/fixes/world/animation_dirty_patch.cpp
+src/fixes/world/save_field_key_leaf.cpp
+src/fixes/world/save_field_key_patch.cpp
+src/fixes/world/save_field_value_transfer.cpp

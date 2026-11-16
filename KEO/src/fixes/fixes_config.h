@@ -236,6 +236,7 @@ struct FixesConfig
 	// Main-thread live toggle; only a verified fenced native phase uses it.
 	bool blackboardEmptyEnabled;
 	// Capacity-only preparation on the native skeleton owner; live toggle.
+	bool animationDirtyReuseEnabled; // narrow native CPU reuse, live
 	bool animationStateLookupEnabled; // native current-end animation state insertion, live
 	bool skeletonReserveEnabled;
 	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
@@ -243,6 +244,7 @@ struct FixesConfig
 	bool equipmentFieldLookupEnabled; // exact equipment slot/int queries only, live
 	bool morphPoseReuseEnabled; // private morph scope only, live
 	bool saveReadBufferEnabled; // fresh main-thread save streams only, live
+	bool saveFieldKeyReuseEnabled; // narrow native CPU reuse, live
 	bool saveInstanceLookupEnabled; // reuse parser instance tree descent, live
 	bool saveStringTransferEnabled; // owned parser string temporaries only, live
 
