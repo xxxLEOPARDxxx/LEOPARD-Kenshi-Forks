@@ -266,8 +266,10 @@ void Init(){
     if(nt->FileHeader.TimeDateStamp!=0x65d604d7||nt->OptionalHeader.SizeOfImage!=0x232c000||memcmp(target,bytes,sizeof(bytes))){
         LogError("Geometry retention: native mesh-request contract refused; ordinary native loading retained");return;
     }
-    if(KenshiLib::AddHook(target,reinterpret_cast<void*>(&Create),reinterpret_cast<void**>(&originalCreate))!=KenshiLib::SUCCESS){
-        originalCreate=NULL;LogError("Geometry retention: native mesh-request hook failed");return;
+    if(KenshiLib::AddHook(target,reinterpret_cast<void*>(&Create),reinterpret_cast<void**>(&originalCreate))!=KenshiLib::SUCCESS||!originalCreate){
+        // Enable can fail after the SDK publishes a trampoline. A partial
+        // wrapper must still forward safely while retention remains unadmitted.
+        LogError("Geometry retention: native mesh-request hook failed");return;
     }
     state->stats.admitted=true;KEO_DETAIL("Geometry retention: native MeshPtr request capture admitted (revisits only)");
 #endif

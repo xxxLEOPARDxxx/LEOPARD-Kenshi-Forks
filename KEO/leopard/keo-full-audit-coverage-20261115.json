@@ -1,6 +1,6 @@
 {
   "files": 743,
-  "lines": 116275,
+  "lines": 116284,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -1662,10 +1662,11 @@
     },
     {
       "path": "src/fixes/world/morph_pose_scope.cpp",
-      "sha256": "6cd65b764f4b44e2c1017289d0c62714b128af6d62b0776329a613978fa6ac16",
-      "lines": 191,
+      "sha256": "21f9b7495694ef5ceaff15e6b96d37afb019c0b931db6ebb486a46d33745fbfa",
+      "lines": 198,
       "reports": [
-        "morph-pose-integration-20261116.md"
+        "morph-pose-integration-20261116.md",
+        "npc-loading-review-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5767,11 +5768,12 @@
     },
     {
       "path": "src/resources/resource_geometry.cpp",
-      "sha256": "c67bcfb77f06a90cc3cec32d3ef15058cec7b4a53768322d3ef09c4415b7b9e8",
-      "lines": 275,
+      "sha256": "2e404d48ea72e03300bc458f422773a0007fdcd705f2b3c895eb32f14f658c69",
+      "lines": 277,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
         "geometry-description-transfer-20261116.md",
+        "npc-loading-review-20261116.md",
         "retention-victim-index-20261116.md"
       ],
       "kind": "body/declarations read"

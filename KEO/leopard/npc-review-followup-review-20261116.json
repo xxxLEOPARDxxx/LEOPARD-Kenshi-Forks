@@ -1,0 +1,12 @@
+[
+  {
+    "path": "src/fixes/world/morph_pose_scope.cpp",
+    "sha256": "21f9b7495694ef5ceaff15e6b96d37afb019c0b931db6ebb486a46d33745fbfa",
+    "report": "npc-loading-review-20261116.md"
+  },
+  {
+    "path": "src/resources/resource_geometry.cpp",
+    "sha256": "2e404d48ea72e03300bc458f422773a0007fdcd705f2b3c895eb32f14f658c69",
+    "report": "npc-loading-review-20261116.md"
+  }
+]

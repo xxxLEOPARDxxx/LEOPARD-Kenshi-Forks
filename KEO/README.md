@@ -277,3 +277,26 @@ worker, persistent cache or GPU-lock batching is added. Existing capture wrapper
 publish functional readiness independently of Debug; partial hook failure retains
 every published original but never admits the optimization. See private
 leopard/morph-pose-scope-verification-20261116.md and integration review evidence.
+
+
+### Local NPC loading review follow-up (working release 2, 2026-11-16)
+
+Temporary body-shape cleanup now verifies and clears an unchanged borrowed list
+in one linear pass, preserving the existing mixed/changed-list ownership fallback.
+Geometry retention preserves a published native trampoline on hook-enable failure
+and requires a valid original before admission. No new setting or worker is added.
+Independent native and resource lifecycle reviews, actual Ogre cleanup checks,
+exact install-policy fixtures and full builds are documented in
+`leopard/npc-loading-review-20261116.md`. These are offline correctness/work-count
+results; save loading, equipment construction and gameplay performance remain
+unmeasured by this pass.
+
+### Локальное ревью загрузки NPC (рабочий выпуск 2, 16.11.2026)
+
+Очистка временных форм тела проверяет неизменённый список за один линейный проход.
+Для смешанных и изменённых списков сохранена прежняя проверка принадлежности.
+Кэш моделей сохраняет полученный указатель оригинальной функции при отказе
+включения хука и допускает работу только с действительным оригиналом. Новых
+настроек и потоков нет. Выполнены независимые проверки владения ресурсами,
+проверки на настоящих объектах Ogre и полная сборка. Ускорение загрузки сейва,
+сборки снаряжения и изменение FPS в игре в этом проходе не измерялись.

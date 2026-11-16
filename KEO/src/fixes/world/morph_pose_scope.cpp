@@ -47,7 +47,14 @@ static Ogre::PoseList&Poses(Ogre::Mesh*m){return const_cast<Ogre::PoseList&>(m->
 static void Error(const char*message){try{LogError(message);}catch(...){}}
 static void Detach(Context*c,Ogre::Mesh*m){
  if(!c->targetLive||c->Target().get()!=m||!c->count)return;
- Ogre::PoseList&list=Poses(m);size_t write=0;
+ Ogre::PoseList&list=Poses(m);
+ // The native clone normally contains exactly the recorded sequence. Verify
+ // every pointer before taking the linear path; equal size alone is unsafe
+ // for mixed/replaced lists. Other layouts retain the ownership fallback.
+ bool complete=list.size()==c->count;
+ for(size_t i=0;complete&&i<list.size();++i)complete=list[i]==c->borrowed[i];
+ if(complete){list.clear();c->count=0;c->enabled=false;return;}
+ size_t write=0;
  for(size_t i=0;i<list.size();++i){bool borrowed=false;
   for(size_t j=0;j<c->count;++j)if(list[i]==c->borrowed[j]){borrowed=true;break;}
   if(!borrowed)list[write++]=list[i];
