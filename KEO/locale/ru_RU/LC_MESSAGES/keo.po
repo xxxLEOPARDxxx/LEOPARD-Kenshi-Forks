@@ -478,3 +478,10 @@ msgstr "Укрупнять чтение сохранений"
 
 msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
 msgstr "Сокращает мелкие чтения файлов при загрузке сохранённого мира и отрядов на поддерживаемых версиях движка. Формат сейва, значения и правила разбора не меняются. Применяется к файлам сохранения, открытым после изменения этой настройки."
+
+#: src/fixes/fixes_config.cpp
+msgid "Transfer temporary save strings"
+msgstr "Передавать временные строки сейва"
+
+msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
+msgstr "Убирает лишнее копирование длинных идентификаторов состояния при разборе сохранённых объектов. Формат и значения сейва, короткие строки и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."

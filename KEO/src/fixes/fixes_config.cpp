@@ -192,6 +192,7 @@ const FixesConfig kFixesDefaults =
 	true, // materialReserveEnabled
 	true, // morphPoseReuseEnabled
 	true, // saveReadBufferEnabled
+	true, // saveStringTransferEnabled
 };
 
 FixesConfig g_fixesCfg = kFixesDefaults;
@@ -362,6 +363,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("saveReadBuffer", FixesConfig, saveReadBufferEnabled, DOC, SHOW,
       "Batch save file reads",
       "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."),
+	CFG_OBOOL_LIVE("saveStringTransfer", FixesConfig, saveStringTransferEnabled, DOC, SHOW,
+      "Transfer temporary save strings",
+      "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

@@ -478,3 +478,10 @@ msgstr "Batch save file reads"
 
 msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
 msgstr "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
+
+#: src/fixes/fixes_config.cpp
+msgid "Transfer temporary save strings"
+msgstr "Transfer temporary save strings"
+
+msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
+msgstr "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."

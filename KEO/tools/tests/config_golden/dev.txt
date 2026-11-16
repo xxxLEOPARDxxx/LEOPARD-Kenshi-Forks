@@ -129,6 +129,7 @@ resourceWarmHud=false
 routeTier=true
 saveLoadUnload=true
 saveReadBuffer=true
+saveStringTransfer=true
 sceneForkSkip=1
 sectionKeyProbe=false
 sectionStamp=true

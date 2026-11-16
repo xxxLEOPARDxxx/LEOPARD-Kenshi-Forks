@@ -105,6 +105,7 @@ static const Owner kOwners[] =
 	{ "materialReserve", "fixes" },
 	{ "morphPoseReuse", "fixes" },
 	{ "saveReadBuffer", "fixes" },
+	{ "saveStringTransfer", "fixes" },
 	{ "graphHeuristicGuard", "fixes" },
 	{ "playerHierarchical", "pathfind" },
 	{ "playerHierOnCap", "pathfind" },
@@ -382,7 +383,7 @@ static bool LiveOffsetRowAllowed(const char* module, const char* key)
 	if (!strcmp(module, "fixes"))
 		return !strcmp(key, "relationsSelfFind")
 		    || !strcmp(key, "hullSameSkip") || !strcmp(key, "onScreenStagger")
-		    || !strcmp(key, "pausedOffscreenSkip") || !strcmp(key, "blackboardEmpty") || !strcmp(key, "skeletonReserve") || !strcmp(key, "modelCloneReserve") || !strcmp(key, "morphPoseReuse") || !strcmp(key, "materialReserve") || !strcmp(key, "saveReadBuffer")
+		    || !strcmp(key, "pausedOffscreenSkip") || !strcmp(key, "blackboardEmpty") || !strcmp(key, "skeletonReserve") || !strcmp(key, "modelCloneReserve") || !strcmp(key, "morphPoseReuse") || !strcmp(key, "materialReserve") || !strcmp(key, "saveReadBuffer") || !strcmp(key, "saveStringTransfer")
 		    || !strcmp(key, "ogreJoinSpinUs")
 		    || !strcmp(key, "sceneForkSkip") || !strcmp(key, "instEmptySkip")
 		    || !strcmp(key, "d3dStateSkip");
@@ -474,7 +475,7 @@ int main()
 		}
 		if (i == CONFIG_STAGE_MAX) Fail(mod.name, "no table end within stage capacity");
 	}
-	Check(moduleKeys == 137 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
+	Check(moduleKeys == 138 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
 	const char* const removed[] = { "npcFailMemo", "rqStructClear", "ogreWorkerPriority", "factionSelfGuard" };
 	for (int i = 0; i < 4; ++i)
 		Check(FindConfigKey(removed[i], NULL) == NULL, "removed switches have no config row");

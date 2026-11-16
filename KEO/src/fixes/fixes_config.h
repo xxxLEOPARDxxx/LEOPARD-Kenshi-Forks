@@ -241,6 +241,7 @@ struct FixesConfig
 	bool materialReserveEnabled; // exact native copy constructor only, live
 	bool morphPoseReuseEnabled; // private morph scope only, live
 	bool saveReadBufferEnabled; // fresh main-thread save streams only, live
+	bool saveStringTransferEnabled; // owned parser string temporaries only, live
 
 };
 

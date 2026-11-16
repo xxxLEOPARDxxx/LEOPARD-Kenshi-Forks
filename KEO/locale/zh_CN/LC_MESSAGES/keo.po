@@ -478,3 +478,10 @@ msgstr "合并存档文件读取"
 
 msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
 msgstr "在受支持的引擎版本上，加载已保存的世界和小队数据时减少小块文件读取。存档格式、数值和解析规则保持不变。更改此选项后新打开的存档文件会使用该设置。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Transfer temporary save strings"
+msgstr "转移临时存档字符串"
+
+msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
+msgstr "解析已保存的对象时，避免重复复制较长的状态标识符。存档格式、数值、短字符串和加载顺序保持原样。仅适用于受支持的引擎版本。"

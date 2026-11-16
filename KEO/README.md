@@ -394,3 +394,28 @@ or FPS measurements were performed.
 штатное создание моделей и снаряжения, восстановление сейва не меняются.
 Выполнены проверки на настоящих объектах Ogre, проверки отказов и владения
 ресурсами. Скорость загрузки и FPS в игре этим проходом не измерялись.
+
+### CPU save-state strings (working release 2, 2026-11-16)
+
+Performance: **Transfer temporary save strings**, enabled by default and live.
+During native object-state parsing, long by-value identifiers can pass directly
+into a fresh empty list slot instead of being copied again and immediately
+freed. Source records, string values and save format are preserved. List growth,
+short strings, previously used destination storage, other callers and worker
+threads retain native behavior. No worker, cache, plugin allocation/free or
+retained game pointer is added. This is CPU string-copy work, separate from
+the save-read buffering option. Offline VC10 ownership/ABI tests and the pinned
+parser contract are documented in `leopard/save-string-verification-20261116.md`;
+no game load-time/FPS improvement is asserted from these tests.
+
+### Строки состояния при разборе сейва (рабочий выпуск 2, 16.11.2026)
+
+Настройка **Передавать временные строки сейва** в разделе производительности
+включена по умолчанию и применяется сразу. При разборе сохранённых объектов
+длинный временный идентификатор передаётся в свежий пустой слот списка без
+повторного копирования и немедленного освобождения. Исходные записи, значения
+строк и формат сейва сохраняются. Расширение списков, короткие строки, уже
+использованные слоты и другие вызовы обрабатывает штатный код. Новых потоков,
+кэшей и сохранённых указателей на объекты игры нет. Это отдельная CPU-правка,
+не замена буферизации чтения. Проверки вне игры подтверждают владение памятью
+и сокращение копирования, но не измеренное ускорение загрузки или FPS.

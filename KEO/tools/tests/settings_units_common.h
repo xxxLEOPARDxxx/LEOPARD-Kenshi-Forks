@@ -48,6 +48,7 @@ static const ProdRow kProdPage[] =
 	{ "materialReserve", "Performance" },
 	{ "morphPoseReuse", "Performance" },
 	{ "saveReadBuffer", "Performance" },
+	{ "saveStringTransfer", "Performance" },
 	{ "particleStepCap", "Performance" },
 	{ "foliagePageBudgetMs", "Performance" },
 	{ "keoRouting", "Squad movement" }, { "groupCohesion", "Squad movement" }, { "formationGatherPace", "Squad movement" },
@@ -61,7 +62,7 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 42;
+static const int PROD_PAGE_ROWS = 43;
 static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 

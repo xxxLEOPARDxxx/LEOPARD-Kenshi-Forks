@@ -374,3 +374,4 @@ src/fixes/world/model_clone_reserve.cpp
 src/fixes/world/morph_pose_scope.cpp
 src/fixes/world/material_reserve.cpp
 src/fixes/world/save_read_buffer.cpp
+src/fixes/world/save_string_transfer.cpp
