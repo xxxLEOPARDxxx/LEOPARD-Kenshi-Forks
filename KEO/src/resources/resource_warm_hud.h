@@ -5,8 +5,10 @@ struct Snapshot {
     unsigned __int64 ramBytes,ramCap,ramReadBytes;
     unsigned ramFiles,ramPending;
     bool ramActive;
+    bool ramSnapshotValid; // locked RAM/startup counters were obtained, not unknown defaults
     unsigned __int64 gpuBytes,gpuCap;
     unsigned gpuReady,gpuPending;
+    bool gpuSnapshotValid;
     unsigned __int64 gpuCreated,gpuAdopted,gpuSkipUploads;
     bool workPaused,ramOn,gpuOn;
     bool startupOn,startupScanning,startupDone,startupCapped;

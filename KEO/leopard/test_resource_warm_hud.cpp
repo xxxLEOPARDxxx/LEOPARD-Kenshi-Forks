@@ -27,7 +27,9 @@ int main()
     C(Format(s,32,Identity).text[2].find("25%")!=std::string::npos);
     C(Format(s,32,Identity).text[2].find("50/200")!=std::string::npos);
     s.startupDone=true;s.startupCapped=true;
-    C(Format(s,0,Identity).text[2].find("Cache limit reached")!=std::string::npos);
+    C(!HasWork(s));
+    s.ramActive=true;C(HasWork(s));C(Format(s,0,Identity).text[2].find("Warming")!=std::string::npos);
+    s.ramActive=false;
     s.startupOn=false;
     s.geometryOn=true;s.geometryBytes=512ULL<<20;s.geometryModels=42;s.geometryReused=3;
     C(Format(s,0,Identity).text[1].find("768/1024 MiB")!=std::string::npos);

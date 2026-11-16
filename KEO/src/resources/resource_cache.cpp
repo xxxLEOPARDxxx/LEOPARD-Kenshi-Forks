@@ -87,6 +87,7 @@ void ResourceCacheTick(){
     resource_warm_hud::Snapshot hud={};
     if(uiTicksAdmitted&&c.cfg_resourceWarmHud){
         resource_cache::Stats r=resource_cache::Snapshot();resource_gpu::Stats g=resource_gpu::Snapshot();ResourceGpuProgress p=ResourceGpuBridgeProgress();
+        hud.ramSnapshotValid=r.lockedSnapshotValid;hud.gpuSnapshotValid=g.lockedSnapshotValid;
         hud.startupOn=c.cfg_resourceRamCache&&c.cfg_resourceStartupTextures;hud.startupScanning=r.startupScanning;hud.startupDone=r.startupDone;hud.startupCapped=r.startupCapped;
         hud.startupFiles=r.startupFiles;hud.startupProcessed=r.startupProcessed;hud.startupLoaded=r.startupLoaded;hud.startupSkipped=r.startupSkipped;
         resource_geometry::Stats geometry=resource_geometry::Snapshot();

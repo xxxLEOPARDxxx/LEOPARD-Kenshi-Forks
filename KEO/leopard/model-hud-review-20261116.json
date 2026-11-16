@@ -1,0 +1,77 @@
+[
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "sha256": "9ce9fc328a8c7f89fe9bc792793566f66dcfcf696de2ab3e596328dcfa6a1433",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "sha256": "1836cd35028bca3fb9eeb65be425b46c3786117275dfc11014cc064b3cfe6e17",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/model_clone_reserve.cpp",
+    "sha256": "23346056a31357b5fa50531c19f17e2e155bd0cd37dfc122c73b70786c9493d1",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/model_clone_reserve.h",
+    "sha256": "d28b77900a20358fc71b6259e0dc1b500b66ef074141ea150cebacdb407cd41a",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/gui/settings_layout.cpp",
+    "sha256": "8af1effbd40b0d232b19adf242a54353e02dc152819718cc48ab8606894eaa8f",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "8f0ef9f8c1d7c9e69858d922fa9b54de4d19a55391450976c8175bd2d7b8400d",
+    "report": "model-clone-reserve-20261116.md"
+  },
+  {
+    "path": "src/resources/resource_cache.cpp",
+    "sha256": "d3f409e499a40e53b6cdc6411453d21b6cfb1cbef25a90ec8e152fd9e40e0965",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_cache_store.cpp",
+    "sha256": "3274a3231fabfc05948730767d2606dfcadfe894dcd23a96bed059640dd71539",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_cache_store.h",
+    "sha256": "8331797265274c62b7abaaa83e4b0406b14911d795a74a93799c5190ec1d65dd",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_gpu_store.cpp",
+    "sha256": "0e01110857a3c25874e16778c3678bcdc14eb4122a8dd40c2af07b809300e22a",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_gpu_store.h",
+    "sha256": "dd40b3cb8bbe43fc3fce6d50ae7b6312f947b91d3fac49454a695de16b39471a",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_warm_hud.cpp",
+    "sha256": "010ead0722275aa2a214db332c7865a1c04274d56fb1bf13d9cdf86566d07e2a",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_warm_hud.h",
+    "sha256": "35d2522daf82e1429a037a42d2fd2282770737645e9175c56042c2e570886745",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/resources/resource_warm_hud_policy.h",
+    "sha256": "b859b3ddd5d84a5a2fc96f2cfe447647f1dc3cef3b6be254dfc856235cf311bc",
+    "report": "test_resource_warm_hud_integration.md"
+  },
+  {
+    "path": "src/zone/zone_config.cpp",
+    "sha256": "6bf41fdab52fffa17a181508712304de0ae343a622a670b53903b1e04c0a2aff",
+    "report": "test_resource_warm_hud_integration.md"
+  }
+]

@@ -24,6 +24,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Resource memory", "zone", "resourceWarmHud", "resourceRam" },
 	{ "Performance",    "fixes",    "blackboardEmpty" },
 	{ "Performance",    "fixes",    "skeletonReserve" },
+	{ "Performance",    "fixes",    "modelCloneReserve" },
 	{ "Performance",    "render",   "particleStepCap" },
 	{ "Performance",    "render",   "foliagePageBudgetMs" },
 	{ "Squad movement", "movement", "keoRouting",          "routing" },

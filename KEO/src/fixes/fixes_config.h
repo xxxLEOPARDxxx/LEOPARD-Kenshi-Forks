@@ -237,6 +237,7 @@ struct FixesConfig
 	bool blackboardEmptyEnabled;
 	// Capacity-only preparation on the native skeleton owner; live toggle.
 	bool skeletonReserveEnabled;
+	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
 
 };
 

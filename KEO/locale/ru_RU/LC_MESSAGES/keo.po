@@ -317,8 +317,8 @@ msgid "Show resource warmup text"
 msgstr "Показывать текст прогрева"
 
 
-msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
-msgstr "Показывает слева вверху объём RAM- и VRAM-кэша, скорость фонового чтения и оставшиеся запросы ресурсов. Очередь пополняется при движении; это не прогресс загрузки всего мира."
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
+msgstr "Показывает слева вверху объём RAM- и VRAM-кэша, скорость фонового чтения и оставшиеся запросы во время подготовки ресурсов. Автоматически скрывается после завершения работы и появляется при новых запросах. Очередь пополняется при движении; это не прогресс загрузки всего мира."
 
 
 msgid "remaining"
@@ -451,3 +451,11 @@ msgstr "Подготовка памяти скелетов NPC"
 #: src/fixes/fixes_config.cpp
 msgid "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."
 msgstr "Уменьшает повторные выделения памяти при создании скелета NPC. Создание костей, внешность, анимация и порядок загрузки остаются штатными. Применяется к новым экземплярам скелетов на поддерживаемых сборках движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare model storage"
+msgstr "Подготовка памяти моделей"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."
+msgstr "Уменьшает повторные мелкие выделения памяти при копировании частей моделей и данных формы. Геометрия, внешность, материалы, анимация и порядок загрузки сохраняются. Применяется к новым копиям моделей на поддерживаемых сборках движка."

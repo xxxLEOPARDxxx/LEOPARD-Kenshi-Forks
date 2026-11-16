@@ -188,6 +188,7 @@ const FixesConfig kFixesDefaults =
 	60, // throwOutHoldMinutes
 	true, // blackboardEmptyEnabled
 	true, // skeletonReserveEnabled
+	true, // modelCloneReserveEnabled
 };
 
 FixesConfig g_fixesCfg = kFixesDefaults;
@@ -346,6 +347,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("skeletonReserve", FixesConfig, skeletonReserveEnabled, DOC, SHOW,
       "Prepare NPC skeleton storage",
       "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."),
+	CFG_OBOOL_LIVE("modelCloneReserve", FixesConfig, modelCloneReserveEnabled, DOC, SHOW,
+      "Prepare model storage",
+      "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

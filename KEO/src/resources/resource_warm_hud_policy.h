@@ -6,6 +6,16 @@ namespace resource_warm_hud {
 typedef const char* (*Translate)(const char*);
 struct Lines { std::string text[3]; };
 inline std::string Count(unsigned __int64 n) { char b[32];sprintf_s(b,"%I64u",n);return b; }
+// Startup is an unfinished scan/read lifecycle, not retained cache occupancy.
+// Queue snapshots include in-flight work; ramActive also covers a reader that
+// has already removed its request. A terminal startup can resume ordinary work.
+inline bool StartupPending(const Snapshot& s) {return s.ramOn&&s.startupOn&&!s.startupDone;}
+inline bool KnownSnapshot(const Snapshot& s) {
+    return (!s.ramOn||s.ramSnapshotValid)&&(!s.gpuOn||s.gpuSnapshotValid);
+}
+inline bool HasWork(const Snapshot& s) {
+    return StartupPending(s)||(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
+}
 inline Lines Format(const Snapshot& s,double rate,Translate tr)
 {
     Lines result;char b[96];
@@ -31,10 +41,9 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
     }
     const bool busy=(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
     result.text[2]=tr(!s.ramOn&&!s.gpuOn?"Off":busy?(s.workPaused?"Paused":"Warming"):"Ready");
-    if(s.startupOn&&s.ramOn){
+    if(StartupPending(s)){
         result.text[2]=std::string(tr("Startup resource warmup"))+": ";
         if(s.startupScanning)result.text[2]+=tr("Scanning resources");
-        else if(s.startupDone&&s.startupCapped)result.text[2]+=tr("Cache limit reached");
         else if(!s.startupFiles)result.text[2]+=tr("Waiting for resource list");
         else {
             unsigned percent=unsigned(100ULL*s.startupProcessed/s.startupFiles);if(percent>100)percent=100;
@@ -43,7 +52,7 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
         }
         if(s.startupSkipped)result.text[2]+=" | "+Count(s.startupSkipped)+" "+tr("skipped");
     }
-    if (s.gpuOn&&!s.startupOn) result.text[2]+=" | "+Count(s.gpuCreated)+" "+tr("created")+" | "+Count(s.gpuAdopted)+" "+tr("used")+" | "+Count(s.gpuSkipUploads)+" "+tr("uploads skipped");
+    if (s.gpuOn&&!StartupPending(s)) result.text[2]+=" | "+Count(s.gpuCreated)+" "+tr("created")+" | "+Count(s.gpuAdopted)+" "+tr("used")+" | "+Count(s.gpuSkipUploads)+" "+tr("uploads skipped");
     return result;
 }
 struct Sampler {

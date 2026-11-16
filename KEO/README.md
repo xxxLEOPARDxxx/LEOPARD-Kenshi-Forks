@@ -174,9 +174,9 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 
 ### Startup RAM warmup reference / Справка по стартовому прогреву ОЗУ
 
-The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends and reports **Cache limit reached**; that does not mean every resource was loaded. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
+The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends; that does not mean every resource was loaded. **Show resource warmup text** displays the active startup scan/read or pending RAM/VRAM requests, then automatically hides when work finishes, including when the RAM limit ends startup. Retained cached files, models and textures do not keep it on screen. New resource requests make it reappear; after startup it shows current work rather than the old startup percentage. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
 
-Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости заканчивается и показывает **Достигнут лимит кэша**. Это не означает, что загружены все ресурсы. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.
+Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости он заканчивается. Это не означает, что загружены все ресурсы. **Показывать текст прогрева** отображает активный стартовый обход/чтение или ожидающие запросы RAM/VRAM, затем автоматически скрывается после завершения работы, в том числе при остановке стартового прогрева по лимиту ОЗУ. Сохранённые в кэше файлы, модели и текстуры не удерживают надпись на экране. При новых запросах она появляется снова и после стартового прогрева показывает текущую работу вместо старого процента. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.
 
 ## Local NPC loading correction / Локальная правка загрузки NPC (2026-11-16)
 
@@ -204,3 +204,29 @@ the separately verified Skeleton vector prefix+0x178 uses the SDK accessor.
 Optional failures forward native loading exactly once; native exceptions remain
 native. Main-owner and live setting gates precede preparation. See private
 leopard/skeleton-reserve-20261116.md for verification and limits.
+
+## Local model preparation / Локальная подготовка моделей (2026-11-16)
+
+MCM > KEO > Performance > Prepare model storage (default ON, live) prepares
+empty model-part and shape pointer lists once before native cloning. The engine
+still copies every part and shape, blends the appearance, applies materials,
+creates animation/render objects and destroys temporary shape data itself.
+This is separate from retaining geometry in VRAM. It adds no worker or queue,
+changes no spawn/readiness policy and does not accelerate save deserialization.
+The actual game load-time/FPS benefit remains unmeasured.
+
+MCM > KEO > Производительность > Подготовка памяти моделей (включено по умолчанию,
+применяется без перезапуска) заранее подготавливает пустые списки частей модели
+и данных формы перед обычным копированием. Копирование частей и форм, изменение
+внешности, материалы, анимацию, объекты рендера и удаление временных данных
+по-прежнему выполняет сам движок. Это отдельная оптимизация от удержания
+геометрии в VRAM. Новых потоков и очередей нет; порядок появления и готовности
+NPC сохранён. Ускорение загрузки сейвов и изменение FPS в игре пока не измерены.
+
+Native details: verified Mesh::clone + MeshManager::createManual pair, raw
+member hidden-result ABI, owner-only scoped source, exact native clone caller,
+loaded/distinct source/target and empty list admission. Reserve only, capped
+at64SubMeshes and512Poses (at most4608pointer bytes before native append loops).
+Native exceptions and ownership stay native; preparatory failures are optional
+and cannot suppress forwarding. Partial installation keeps trampolines and
+remains forwarding-only without retry. See leopard/model-clone-reserve-20261116.md.

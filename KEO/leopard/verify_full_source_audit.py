@@ -11,7 +11,7 @@ for report in reports:
 # Ordered focused follow-ups override only their actually re-reviewed paths.
 # Earlier snapshots remain historical evidence, not hashes of later bodies.
 current={}
-for name in ('hook-batch-cache-review-20261115.json','base-squad-empty-review-20261115.json','retention-victim-index-review-20261116.json','skeleton-reserve-review-20261116.json'):
+for name in ('hook-batch-cache-review-20261115.json','base-squad-empty-review-20261115.json','retention-victim-index-review-20261116.json','skeleton-reserve-review-20261116.json','model-hud-review-20261116.json'):
  followup=ROOT/'leopard'/name
  if followup.exists():
   for row in json.loads(followup.read_text()):
@@ -23,7 +23,7 @@ for row in json.loads(root_report.read_text()):
  if path not in current:assert hashlib.sha256((ROOT/path).read_bytes()).hexdigest()==row['sha256'],path
  covered.setdefault(path,[]).append('full-audit-fixes-world-streaming-20261115.md')
 actual={p.relative_to(ROOT).as_posix():p for p in (ROOT/'src').rglob('*') if p.suffix in ('.h','.cpp','.inc')}
-expected=739 if (ROOT/'leopard/skeleton-reserve-review-20261116.json').exists() else 737 if (ROOT/'leopard/retention-victim-index-review-20261116.json').exists() else (736 if (ROOT/'leopard/base-squad-empty-review-20261115.json').exists() else (734 if current else 733))
+expected=741 if (ROOT/'leopard/model-hud-review-20261116.json').exists() else 739 if (ROOT/'leopard/skeleton-reserve-review-20261116.json').exists() else 737 if (ROOT/'leopard/retention-victim-index-review-20261116.json').exists() else (736 if (ROOT/'leopard/base-squad-empty-review-20261115.json').exists() else (734 if current else 733))
 assert len(actual)==expected,len(actual)
 assert not set(actual)-set(covered),sorted(set(actual)-set(covered))
 rows=[dict(path=k,sha256=hashlib.sha256(p.read_bytes()).hexdigest(),lines=len(p.read_bytes().splitlines()),reports=sorted(set(covered[k])),kind='generated table structurally validated' if k=='src/game/gog_profile_data.inc' else 'body/declarations read') for k,p in sorted(actual.items())]

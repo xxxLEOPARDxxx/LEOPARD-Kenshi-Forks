@@ -1,6 +1,6 @@
 {
-  "files": 739,
-  "lines": 115901,
+  "files": 741,
+  "lines": 116039,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -805,22 +805,24 @@
     },
     {
       "path": "src/fixes/fixes_config.cpp",
-      "sha256": "68ae0c1478850ced51306e413c78639e7ef6bf9d0830b8cf6e7b58a08f276b28",
-      "lines": 371,
+      "sha256": "9ce9fc328a8c7f89fe9bc792793566f66dcfcf696de2ab3e596328dcfa6a1433",
+      "lines": 375,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
+        "model-clone-reserve-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/fixes/fixes_config.h",
-      "sha256": "fd76ed13f551516255c65ed74a5f3a0d9cc70f1d4078322b11bcecd99ac6e2b8",
-      "lines": 247,
+      "sha256": "1836cd35028bca3fb9eeb65be425b46c3786117275dfc11014cc064b3cfe6e17",
+      "lines": 248,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
+        "model-clone-reserve-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -1638,6 +1640,24 @@
       "kind": "body/declarations read"
     },
     {
+      "path": "src/fixes/world/model_clone_reserve.cpp",
+      "sha256": "23346056a31357b5fa50531c19f17e2e155bd0cd37dfc122c73b70786c9493d1",
+      "lines": 111,
+      "reports": [
+        "model-clone-reserve-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/model_clone_reserve.h",
+      "sha256": "d28b77900a20358fc71b6259e0dc1b500b66ef074141ea150cebacdb407cd41a",
+      "lines": 2,
+      "reports": [
+        "model-clone-reserve-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
       "path": "src/fixes/world/nest_validation.cpp",
       "sha256": "89a39141c39bdcf3e7c72f6f91c441846848780f1239b7b68d3c9b993d23a3e6",
       "lines": 167,
@@ -2237,11 +2257,12 @@
     },
     {
       "path": "src/gui/settings_layout.cpp",
-      "sha256": "6caa69afb9bc2fd3d075fffa65eb8a43d25bf9649fb23378d3f79a84f1980a00",
-      "lines": 151,
+      "sha256": "8af1effbd40b0d232b19adf242a54353e02dc152819718cc48ab8606894eaa8f",
+      "lines": 152,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
+        "model-clone-reserve-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -4906,13 +4927,14 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "ab46ff72ef2be919019716bb888b87908f2113d3828df5aa18570490a7fecc2e",
-      "lines": 826,
+      "sha256": "8f0ef9f8c1d7c9e69858d922fa9b54de4d19a55391450976c8175bd2d7b8400d",
+      "lines": 828,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "full-audit-session-costs-20261115.md",
         "hook-batch-cache-review-20261115.md",
+        "model-clone-reserve-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -5618,10 +5640,11 @@
     },
     {
       "path": "src/resources/resource_cache.cpp",
-      "sha256": "239f68b3a99d98ffe5efd6ea1cbee3a826f7058930fed207a000c51fcd433ab0",
-      "lines": 133,
+      "sha256": "d3f409e499a40e53b6cdc6411453d21b6cfb1cbef25a90ec8e152fd9e40e0965",
+      "lines": 134,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5645,21 +5668,23 @@
     },
     {
       "path": "src/resources/resource_cache_store.cpp",
-      "sha256": "23006482558455f01636b06380cccf4eab0fc4f5571e5b10fde3e6d1b400a23a",
-      "lines": 445,
+      "sha256": "3274a3231fabfc05948730767d2606dfcadfe894dcd23a96bed059640dd71539",
+      "lines": 446,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
-        "hook-batch-cache-review-20261115.md"
+        "hook-batch-cache-review-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/resources/resource_cache_store.h",
-      "sha256": "8027b860bd9dfc0d24b80206064ae3a2eb9f99d6a0f79fe65198107631c27919",
-      "lines": 44,
+      "sha256": "8331797265274c62b7abaaa83e4b0406b14911d795a74a93799c5190ec1d65dd",
+      "lines": 45,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
-        "hook-batch-cache-review-20261115.md"
+        "hook-batch-cache-review-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5747,19 +5772,21 @@
     },
     {
       "path": "src/resources/resource_gpu_store.cpp",
-      "sha256": "4692ceadc843160eac2e9bd8626be849f75d20449e77d396dacd87cff18ff73b",
+      "sha256": "0e01110857a3c25874e16778c3678bcdc14eb4122a8dd40c2af07b809300e22a",
       "lines": 275,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/resources/resource_gpu_store.h",
-      "sha256": "6085ca10d8e4ae5de1485e5d818169d239268a828f03e1a5635ad84c51a97873",
+      "sha256": "dd40b3cb8bbe43fc3fce6d50ae7b6312f947b91d3fac49454a695de16b39471a",
       "lines": 65,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
@@ -5820,29 +5847,32 @@
     },
     {
       "path": "src/resources/resource_warm_hud.cpp",
-      "sha256": "ba73ac0150800e8f243e62d5c616ba0919c4606721992c9386846f1e1b7ef19d",
-      "lines": 108,
+      "sha256": "010ead0722275aa2a214db332c7865a1c04274d56fb1bf13d9cdf86566d07e2a",
+      "lines": 111,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/resources/resource_warm_hud.h",
-      "sha256": "994de83634f2d16393395e744351d69aa04a8cef846a86b8fd078734e7da2ebc",
-      "lines": 26,
+      "sha256": "35d2522daf82e1429a037a42d2fd2282770737645e9175c56042c2e570886745",
+      "lines": 28,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/resources/resource_warm_hud_policy.h",
-      "sha256": "00e4aec17d7661fc6f373276c66afaa276aa6700ff4281997f8dd7b56d138469",
-      "lines": 69,
+      "sha256": "b859b3ddd5d84a5a2fc96f2cfe447647f1dc3cef3b6be254dfc856235cf311bc",
+      "lines": 78,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
-        "hook-batch-cache-review-20261115.md"
+        "hook-batch-cache-review-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },
@@ -6587,11 +6617,12 @@
     },
     {
       "path": "src/zone/zone_config.cpp",
-      "sha256": "a1706d5b43a60e2c5c66e261255df3ecb3cd4a7a6c33c1c64f7b0b649a7e092c",
+      "sha256": "6bf41fdab52fffa17a181508712304de0ae343a622a670b53903b1e04c0a2aff",
       "lines": 212,
       "reports": [
         "full-audit-zone-movement-planner-20261115.md",
-        "hook-batch-cache-review-20261115.md"
+        "hook-batch-cache-review-20261115.md",
+        "test_resource_warm_hud_integration.md"
       ],
       "kind": "body/declarations read"
     },

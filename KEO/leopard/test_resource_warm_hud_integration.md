@@ -8,7 +8,15 @@ capacity. `ramPending`/`gpuPending` include in-flight work. `gpuAdopted` and
 
 Call `ResourceWarmHudTick(enabled, snapshot)` only on the admitted UI thread,
 after native GUI readiness, at the existing resource main tick. Disabled state
-destroys the HUD immediately. First admitted frame creates three independent
+destroys the HUD immediately. With the option on, an unfinished RAM startup
+(including waiting for roots, scanning and gaps between reads), active/pending RAM
+reads, or pending GPU preparation admit display. Startup completion or a terminal
+capacity refusal hides all three rows once no requests remain. Cache occupancy,
+ready standby entries and held model/texture references do not admit display.
+New work recreates the rows and resets the throughput sampler; a completed
+startup no longer overrides current work with an old percentage. An idle tick
+performs only a bounded scalar policy check and does not format/measure text or
+allocate widgets. First admitted active frame creates three independent
 cached root text rows without a frame/panel; no GUI tree lookup. Painting, measurement and string formatting
 are bounded to four times per second; captions and coordinates change only when
 their values change. The actual read rate handles counter reset and DWORD wrap.
@@ -48,10 +56,26 @@ alone do not prove readiness. Parent also defers HUD work until a scene tick.
 Very narrow viewports may clip text; no font shrink below 18px is applied.
 
 Verification: `leopard/test_resource_warm_hud.py` builds/runs actual portable
-format/rate/layout code and actual production HUD source against a bounded SDK
-boundary model, rejects eight compiled regressions, compiles production with the
+format/rate/layout code and actual production HUD source at /Od and /O2 against a bounded SDK
+boundary model, rejects eighteen compiled HUD regressions with assertion exit 1 (crashes and compile
+failures are rejected as invalid controls), compiles production with the
 real VC10/MyGUI headers, and inspects actual vanilla/Dark UI skin XML plus the
 template-to-skin/font contract. Logs under
 `build/resource-warm-hud`. Runtime boundary tests model renderer/skin dimensions
 and ownership; they are not screenshots, real-game font rendering, FPS or long-run
 leak measurements. In-game acceptance remains outstanding.
+
+RAM/startup and GPU lock snapshot validity is explicit: `resource_cache::Stats::lockedSnapshotValid`
+is set only under a successfully acquired non-waiting lock and copied to the HUD
+as `ramSnapshotValid`, with the matching GPU store bit copied as
+`gpuSnapshotValid`. When either enabled source snapshot is unknown, the HUD
+keeps its existing rows and captions without formatting, measuring, creating, or
+retiring them. A missing sample cannot resurrect a finished startup from default
+zero flags or hide active work from default zero counters. Master-off cleanup and
+GUI/manager disappearance still run before this early return. Disabled sources do
+not depend on their snapshot validity. No prior resource snapshot is retained and no
+worker/cache scheduling changes are made. The exact production `Snapshot()` body
+is separately extracted and exercised at /Od and /O2 with deterministic lock
+refusal, success, terminal startup, and subsequent refusal. The exact GPU `Snapshot()` body is also exercised with successful and refused
+locks. Two compiled missing-validity-publication controls are rejected with CHECK
+exit 1.

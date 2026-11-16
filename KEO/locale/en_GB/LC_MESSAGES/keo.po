@@ -317,8 +317,8 @@ msgid "Show resource warmup text"
 msgstr "Show resource warmup text"
 
 
-msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
-msgstr "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
+msgstr "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
 
 
 msgid "remaining"
@@ -451,3 +451,11 @@ msgstr "Prepare NPC skeleton storage"
 #: src/fixes/fixes_config.cpp
 msgid "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."
 msgstr "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare model storage"
+msgstr "Prepare model storage"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."
+msgstr "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."

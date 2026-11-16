@@ -49,7 +49,7 @@ bool TryTextureRetentionReservation(U64 totalTextureBytes,U64 sharedCap);
 bool TextureRetentionStandbyAllowed(U64 sharedCap);
 U64 TextureRetentionReservation();
 unsigned DeviceGeneration();
-struct Stats {U64 allocatedBytes,reservedBytes,created,rejected,retries;unsigned entries,pending;bool deviceReady,pressure,active;};
+struct Stats {U64 allocatedBytes,reservedBytes,created,rejected,retries;unsigned entries,pending;bool deviceReady,pressure,active;bool lockedSnapshotValid;}; // false means non-waiting lock counters are unknown
 bool Start(); // main thread, before configuration; pins worker's module
 bool SetDevice(ID3D11Device*); // main thread; holds AddRef, rejects SINGLETHREADED/nonconcurrent
 void SetBudgetProbe(BudgetProbe,void*); // main thread; context must outlive Stop completion

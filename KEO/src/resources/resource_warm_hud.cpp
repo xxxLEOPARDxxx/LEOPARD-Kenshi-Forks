@@ -78,11 +78,14 @@ struct HudState : MyGUI::IUnlinkWidget {
 void ResourceWarmHudTick(bool enabled,const resource_warm_hud::Snapshot& snapshot)
 {
     if(!IsMainThread())return;
-    if(!enabled){if(state.manager)state.Clear();state.failed=false;return;}
+    if(!enabled||(resource_warm_hud::KnownSnapshot(snapshot)&&!resource_warm_hud::HasWork(snapshot))){if(state.manager)state.Clear();state.failed=false;return;}
     MyGUI::Gui* gui=MyGUI::Gui::getInstancePtr();
     MyGUI::WidgetManager* manager=MyGUI::WidgetManager::getInstancePtr();
     if(!gui||!manager||!MyGUI::RenderManager::getInstancePtr()){state.Clear();return;}
     if(state.gui!=gui||state.manager!=manager)state.Clear();
+    // A failed non-waiting RAM/GPU cache snapshot is unknown, never idle or a new
+    // startup epoch. Keep existing rows/captions until a coherent sample.
+    if(!resource_warm_hud::KnownSnapshot(snapshot))return;
     const unsigned now=GetTickCount();
     if(state.failed&&unsigned(now-state.failedAt)<5000)return;
     if(!resource_warm_hud::Due(now,state.at,state.sampled))return;

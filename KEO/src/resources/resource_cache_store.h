@@ -20,6 +20,7 @@ struct __declspec(align(16)) Stats {
     unsigned __int64 allocatedBytes, hits, misses, queued, rejected, readBytes;
     unsigned entries, pending;
     bool active;
+    bool lockedSnapshotValid; // pending/startup fields are unknown when the non-waiting lock is refused
     unsigned startupRoots, startupFiles, startupProcessed, startupLoaded, startupSkipped;
     unsigned __int64 startupTotalBytes, startupReadBytes;
     bool startupScanning, startupDone, startupCapped;

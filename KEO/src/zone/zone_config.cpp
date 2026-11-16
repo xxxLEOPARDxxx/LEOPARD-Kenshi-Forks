@@ -88,7 +88,7 @@ const ConfigKey g_zoneConfigKeys[] =
 	  "Keeps supported textures already loaded by the game for faster revisits. Shares the VRAM limit with model geometry and prepared terrain, and releases cached references under memory pressure. Does not preload unseen textures. Requires the RAM resource cache. Generated and render-target textures use normal loading."),
 	CFG_OBOOL_LIVE("resourceWarmHud", ZoneConfig, cfg_resourceWarmHud, DOC, SHOW,
       "Show resource warmup text",
-	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The queue can grow as you move; this is not progress for the whole world."),
+	  "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."),
 	CFG_OBOOL_LIVE("resourceStartupTextures", ZoneConfig, cfg_resourceStartupTextures, DOC, SHOW,
       "Warm resources at startup",
       "Reads model, skeleton and texture files from resource folders registered by the game and enabled mods into the RAM cache in the background, starting in the main menu. Model and skeleton files are read before textures. Stops at the RAM limit instead of cycling through the whole library. Game requests take priority. Requires the resource RAM cache. Does not create NPCs or prepare model geometry. The progress text reports scanning and processed files, including skipped files."),

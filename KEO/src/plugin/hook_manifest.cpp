@@ -47,6 +47,7 @@
 #include "fixes/world/corpse_pin.h"
 #include "fixes/world/blackboard_empty.h"
 #include "fixes/world/skeleton_reserve.h"
+#include "fixes/world/model_clone_reserve.h"
 #include "fixes/world/faction_relations.h"
 #include "inventory/backpack_first.h"
 #include "inventory/carried_weight.h"
@@ -754,6 +755,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallCorpsePin,
 	InstallBlackboardEmpty,
 	InstallSkeletonReserve,
+	InstallModelCloneReserve,
 	keo_inventory::InstallBackpackFirst,
 	keo_inventory::InstallCarriedWeight,
 	keo_jobs::InstallSteelJobs,

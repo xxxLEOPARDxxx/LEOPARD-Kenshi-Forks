@@ -414,6 +414,7 @@ Stats Snapshot(){
     s.queued=unsigned __int64(Load64(queued));s.rejected=unsigned __int64(Load64(rejected));s.readBytes=unsigned __int64(Load64(readBytes));
     s.startupMenuFast=StartupUnpaced(true,GetTickCount());
     if(initialized&&TryEnterCriticalSection(&lock)){
+        s.lockedSnapshotValid=true;
         s.entries=unsigned(files.size());s.pending=unsigned(requests.size());s.active=!active.empty();
         s.startupRoots=progress.startupRoots;s.startupFiles=progress.startupFiles;s.startupProcessed=progress.startupProcessed;s.startupLoaded=progress.startupLoaded;s.startupSkipped=progress.startupSkipped;
         s.startupTotalBytes=progress.startupTotalBytes;s.startupReadBytes=progress.startupReadBytes;s.startupScanning=progress.startupScanning;s.startupDone=progress.startupDone;s.startupCapped=progress.startupCapped;
