@@ -238,6 +238,7 @@ struct FixesConfig
 	// Capacity-only preparation on the native skeleton owner; live toggle.
 	bool skeletonReserveEnabled;
 	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
+	bool materialReserveEnabled; // exact native copy constructor only, live
 	bool morphPoseReuseEnabled; // private morph scope only, live
 
 };

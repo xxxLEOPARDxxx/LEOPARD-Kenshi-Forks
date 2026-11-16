@@ -300,3 +300,27 @@ unmeasured by this pass.
 настроек и потоков нет. Выполнены независимые проверки владения ресурсами,
 проверки на настоящих объектах Ogre и полная сборка. Ускорение загрузки сейва,
 сборки снаряжения и изменение FPS в игре в этом проходе не измерялись.
+
+
+### Copied material storage (working release 2, 2026-11-16)
+
+Performance: **Prepare copied material storage**, enabled by default and live.
+Prepares a bounded texture-layer pointer array while a new material pass is
+copied. Native material/texture copies, colours, shader setup and loading order
+remain in control of Ogre. This removes repeated array-growth allocations for
+eligible new hair/item material copies; existing item-material cache hits already
+skip cloning. It does not skip NPC/equipment creation or save restoration.
+See `leopard/material-reserve-verification-20261116.md` for native ownership,
+exception, allocator, ABI and test evidence and its limits. No new gameplay
+load-time/FPS measurement is asserted.
+
+### Подготовка копий материалов (рабочий выпуск 2, 16.11.2026)
+
+Настройка в разделе производительности включена по умолчанию и применяется сразу.
+При создании новой копии прохода материала заранее подготавливается небольшой
+массив указателей на текстурные слои. Материалы и текстурные слои копирует движок;
+цвета, шейдеры и порядок загрузки сохраняют штатную обработку. Это убирает
+повторное расширение массива у подходящих новых материалов волос и предметов.
+Для уже найденных в кэше материалов предметов клонирование и так пропускается.
+Создание NPC, снаряжения и восстановление сейва не пропускаются. Скорость
+загрузки и FPS в игре этим проходом не измерялись.

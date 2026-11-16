@@ -50,6 +50,7 @@ k7ArrivalTrigger=true
 k7DestReadyGate=true
 k7PostDeathHold=1
 keoRouting=true
+materialReserve=true
 meshFaceGuard=true
 modelCloneReserve=true
 morphPoseReuse=true

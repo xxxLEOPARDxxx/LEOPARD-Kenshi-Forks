@@ -465,3 +465,10 @@ msgstr "复用临时体型数据"
 
 msgid "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."
 msgstr "构建角色外观时减少体型数据的临时复制。每个角色仍保有自己的模型和外观，不改变装备、动画、渲染或生成顺序。仅适用于受支持的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare copied material storage"
+msgstr "预分配材质副本存储"
+
+msgid "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."
+msgstr "减少游戏复制模型和装备材质时重复进行的小块内存分配。纹理层、颜色、着色器和独立材质副本仍由原生引擎处理。仅对受支持引擎版本中新复制的材质生效。"

@@ -189,6 +189,7 @@ const FixesConfig kFixesDefaults =
 	true, // blackboardEmptyEnabled
 	true, // skeletonReserveEnabled
 	true, // modelCloneReserveEnabled
+	true, // materialReserveEnabled
 	true, // morphPoseReuseEnabled
 };
 
@@ -351,6 +352,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("modelCloneReserve", FixesConfig, modelCloneReserveEnabled, DOC, SHOW,
       "Prepare model storage",
       "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."),
+	CFG_OBOOL_LIVE("materialReserve", FixesConfig, materialReserveEnabled, DOC, SHOW,
+      "Prepare copied material storage",
+      "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."),
 	CFG_OBOOL_LIVE("morphPoseReuse", FixesConfig, morphPoseReuseEnabled, DOC, SHOW,
       "Reuse temporary body shape data",
       "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."),

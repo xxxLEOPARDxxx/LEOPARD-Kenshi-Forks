@@ -1,0 +1,32 @@
+[
+  {
+    "path": "src/fixes/world/material_reserve.cpp",
+    "sha256": "b315e267fb7a6257a5eb379753a1ce502020e4d3a861b8765e91e5a5eaedd467",
+    "report": "material-reserve-verification-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/material_reserve.h",
+    "sha256": "afa0de002940c41b526c89700d50003c5b44ade89c504dd53bd085773dc5b6d6",
+    "report": "material-reserve-verification-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "sha256": "328a5b90a5aa10c7dcf16553191d68376a46f87fc49c7c6a0486ce944ad50c52",
+    "report": "material-reserve-verification-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "sha256": "b5351315d71feb41c7000092c0bfcad8e725a6245991f35299dd9a4c878c9824",
+    "report": "material-reserve-verification-20261116.md"
+  },
+  {
+    "path": "src/gui/settings_layout.cpp",
+    "sha256": "005b022f0edf1fbcd14e6c7977c9ef4b66678708e2dcdb01c5a949636299e532",
+    "report": "material-reserve-verification-20261116.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "5719d93a4b4790de0b71dfa1b5f345a0384eccb89019d63c5539a1e16505757c",
+    "report": "material-reserve-verification-20261116.md"
+  }
+]

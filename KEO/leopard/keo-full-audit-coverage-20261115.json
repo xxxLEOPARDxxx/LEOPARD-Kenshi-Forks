@@ -1,6 +1,6 @@
 {
-  "files": 743,
-  "lines": 116284,
+  "files": 745,
+  "lines": 116379,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -805,11 +805,12 @@
     },
     {
       "path": "src/fixes/fixes_config.cpp",
-      "sha256": "9c653f5d71eb065ae75a2efc92632f915ddba9176c72deca99d9709b853b05df",
-      "lines": 379,
+      "sha256": "328a5b90a5aa10c7dcf16553191d68376a46f87fc49c7c6a0486ce944ad50c52",
+      "lines": 383,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
+        "material-reserve-verification-20261116.md",
         "model-clone-reserve-20261116.md",
         "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
@@ -818,11 +819,12 @@
     },
     {
       "path": "src/fixes/fixes_config.h",
-      "sha256": "8b96ab63d021bf3cf878d00c754982f5b1c7f3de682aa77a9bfcf4421c5fd6e1",
-      "lines": 249,
+      "sha256": "b5351315d71feb41c7000092c0bfcad8e725a6245991f35299dd9a4c878c9824",
+      "lines": 250,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
+        "material-reserve-verification-20261116.md",
         "model-clone-reserve-20261116.md",
         "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
@@ -1642,6 +1644,24 @@
       "kind": "body/declarations read"
     },
     {
+      "path": "src/fixes/world/material_reserve.cpp",
+      "sha256": "b315e267fb7a6257a5eb379753a1ce502020e4d3a861b8765e91e5a5eaedd467",
+      "lines": 85,
+      "reports": [
+        "material-reserve-verification-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/material_reserve.h",
+      "sha256": "afa0de002940c41b526c89700d50003c5b44ade89c504dd53bd085773dc5b6d6",
+      "lines": 2,
+      "reports": [
+        "material-reserve-verification-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
       "path": "src/fixes/world/model_clone_reserve.cpp",
       "sha256": "133ef303543ed7c84bced0c3c8f95886cb736de25868326e4b438cda946a9fdc",
       "lines": 114,
@@ -2279,11 +2299,12 @@
     },
     {
       "path": "src/gui/settings_layout.cpp",
-      "sha256": "f897e1db6cf899c34a8bd8dac2abab589bc3dcf5b3190bc6f637bf3e83e7070d",
-      "lines": 153,
+      "sha256": "005b022f0edf1fbcd14e6c7977c9ef4b66678708e2dcdb01c5a949636299e532",
+      "lines": 154,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
+        "material-reserve-verification-20261116.md",
         "model-clone-reserve-20261116.md",
         "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
@@ -4950,13 +4971,14 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "7f8e18e8d3c9e2c4d41224f0764794f5e39cc4aba6a11e521ef1d494a0552583",
-      "lines": 830,
+      "sha256": "5719d93a4b4790de0b71dfa1b5f345a0384eccb89019d63c5539a1e16505757c",
+      "lines": 832,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "full-audit-session-costs-20261115.md",
         "hook-batch-cache-review-20261115.md",
+        "material-reserve-verification-20261116.md",
         "model-clone-reserve-20261116.md",
         "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"

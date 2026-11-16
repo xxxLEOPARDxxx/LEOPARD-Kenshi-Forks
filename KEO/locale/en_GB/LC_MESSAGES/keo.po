@@ -465,3 +465,10 @@ msgstr "Reuse temporary body shape data"
 
 msgid "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."
 msgstr "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare copied material storage"
+msgstr "Prepare copied material storage"
+
+msgid "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."
+msgstr "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."

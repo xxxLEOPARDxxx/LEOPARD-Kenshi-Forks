@@ -48,6 +48,7 @@
 #include "fixes/world/blackboard_empty.h"
 #include "fixes/world/skeleton_reserve.h"
 #include "fixes/world/model_clone_reserve.h"
+#include "fixes/world/material_reserve.h"
 #include "fixes/world/morph_pose_scope.h"
 #include "fixes/world/faction_relations.h"
 #include "inventory/backpack_first.h"
@@ -757,6 +758,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallBlackboardEmpty,
 	InstallSkeletonReserve,
 	InstallModelCloneReserve,
+	InstallMaterialReserve,
 	morph_pose_scope::Install,
 	keo_inventory::InstallBackpackFirst,
 	keo_inventory::InstallCarriedWeight,

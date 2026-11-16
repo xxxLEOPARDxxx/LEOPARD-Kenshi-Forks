@@ -465,3 +465,10 @@ msgstr "Повторное использование форм тела"
 
 msgid "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."
 msgstr "Уменьшает временное копирование данных форм при создании внешности персонажа. У каждого персонажа сохраняются собственная модель и внешность. Не меняет снаряжение, анимацию, рендер и порядок появления персонажей. Только для поддерживаемых сборок движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Prepare copied material storage"
+msgstr "Подготовка копий материалов"
+
+msgid "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."
+msgstr "Уменьшает повторные мелкие выделения памяти при копировании материалов моделей и снаряжения. Текстурные слои, цвета, шейдеры и независимые копии материалов остаются штатными. Применяется к новым копиям материалов на поддерживаемых сборках движка."
