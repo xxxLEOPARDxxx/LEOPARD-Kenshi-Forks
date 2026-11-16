@@ -239,6 +239,7 @@ struct FixesConfig
 	bool skeletonReserveEnabled;
 	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
 	bool materialReserveEnabled; // exact native copy constructor only, live
+	bool equipmentFieldLookupEnabled; // exact equipment slot/int queries only, live
 	bool morphPoseReuseEnabled; // private morph scope only, live
 	bool saveReadBufferEnabled; // fresh main-thread save streams only, live
 	bool saveStringTransferEnabled; // owned parser string temporaries only, live

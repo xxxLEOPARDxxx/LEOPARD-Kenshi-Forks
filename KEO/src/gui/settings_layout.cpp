@@ -26,6 +26,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Performance",    "fixes",    "skeletonReserve" },
 	{ "Performance",    "fixes",    "modelCloneReserve" },
 	{ "Performance",    "fixes",    "materialReserve" },
+	{ "Performance",    "fixes",    "equipmentFieldLookup" },
 	{ "Performance",    "fixes",    "morphPoseReuse" },
 	{ "Performance",    "fixes",    "saveReadBuffer" },
 	{ "Performance",    "fixes",    "saveStringTransfer" },

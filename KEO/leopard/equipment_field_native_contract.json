@@ -1,0 +1,64 @@
+{
+  "format": "KEO_EQUIPMENT_FIELD_OFFLINE_CONTRACT",
+  "version": 1,
+  "gameSha256": "504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e",
+  "processRead": false,
+  "gameRun": false,
+  "pairAddressReturn": true,
+  "mappedValueOffset": 40,
+  "nodeValueOffset": 16,
+  "mapBytes": 64,
+  "mapBucketCountOffset": 24,
+  "mapSizeOffset": 32,
+  "mapBucketsOffset": 56,
+  "slotRawHash": "0x28253c9a37862",
+  "slotMixedHash": "0xaf7187ef7256aa87",
+  "slotCallsites": [
+    {
+      "rva": "0x535bac",
+      "bytes": "e84d25b1ff",
+      "aligned8Offset": 4
+    },
+    {
+      "rva": "0x537c96",
+      "bytes": "e86304b1ff",
+      "aligned8Offset": 6
+    },
+    {
+      "rva": "0x537ede",
+      "bytes": "e81b02b1ff",
+      "aligned8Offset": 6
+    }
+  ],
+  "thunks": {
+    "0x480fe": "0x6cef0",
+    "0x4f886": "0x6c780",
+    "0x23ebb": "0xb0a70",
+    "0x13f3e": "0x6a6b0",
+    "0x505e7": "0x6a290"
+  },
+  "windows": [
+    {
+      "rva": "0x6cef0",
+      "bytes": "40555657415441554881ec9000000048c7442458feffffff48899c24d0000000"
+    },
+    {
+      "rva": "0x6cf22",
+      "bytes": "488bfa488bf10fb601488d5c0801488bcbe80670faff4c8be04533ed4885db488d4b017503418bcd48894c24204c8bcf4c8bc0488d542448488bcee88536feff4c8b5c24484d85db7409498d4310e93a0100"
+    },
+    {
+      "rva": "0x6a6b0",
+      "bytes": "4c8b42184983f8107205488b0aeb03488bca488b42104803c14983f8107203488b124533d2483bd0742c41bbb979379e4c0fbe024d8bca498bca48c1e90249c1e10648ffc24903c94903cb4c03c14d33d0483bd075da498bc249f7d248c1e0154903c2488bc848c1e9184833c84869c909010000488bd148c1ea0e4833d1b901000080486bd215488bc248c1e81c4833c2480fafc1c3cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    {
+      "rva": "0x6a290",
+      "bytes": "48895c241048896c241848897424205741544155415641574883ec204c8b7918498be94d8bf04d8d6fff4c8be24d23e84883792000752633db49891c24488b5c2458488b6c2460488b742468498bc44883c420415f415e415d415c5fc3488b4138488d5c24504a8b04e84885c0740a488b004889442450eb0948c744245000000000488b1b4885db74af660f1f440000488b4b084c3bf1755648837b2810488b7320488d53107203488b12488b7d10483bff48837d18107206488b4d00eb03488bcd4c8bc6483bfe4c0f42c7e8b1b8e6004863c885c0750d483bfe721e483bfe0f95c08bc885c90f844cffffffeb0c498d47ff4823c1493bc5750d488b1b4885db758de931ffffff49c7042400000000e928ffffff"
+    }
+  ],
+  "sdkHeaders": {
+    "KenshiLib_keo/Include/kenshi/util/OgreUnordered.h": "bfe114e1ecb4d8aa98488ac4bbe3327c90d065434473db1c939f37b4a71872a9",
+    "boost_1_60_0/boost/unordered/detail/table.hpp": "14cd48a5c7049aee87f42c9391fbee671e193c017e434accafb4a595174b9a8f",
+    "boost_1_60_0/boost/unordered/detail/buckets.hpp": "880271f18b993574662afcc378b86dafd2d388b147126549866381d59969cadb",
+    "boost_1_60_0/boost/functional/hash/hash.hpp": "12fc856808d7cec8b9c1cab1e49cf1ad1e0e82732ca0ef7c4b251889373cf6cd"
+  }
+}

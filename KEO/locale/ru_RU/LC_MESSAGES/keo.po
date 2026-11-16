@@ -483,5 +483,12 @@ msgstr "Сокращает мелкие чтения файлов при заг�
 msgid "Transfer temporary save strings"
 msgstr "Передавать временные строки сейва"
 
-msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
-msgstr "Убирает лишнее копирование длинных идентификаторов состояния при разборе сохранённых объектов. Формат и значения сейва, короткие строки и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."
+msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "Сокращает копирование временных идентификаторов состояния при разборе сохранённых объектов. Подходящие списки целиком передаются новым объектам; оставшиеся длинные строки также могут передаваться без лишнего копирования. Формат сейва, значения и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up equipment property reads"
+msgstr "Ускорить чтение свойств снаряжения"
+
+msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
+msgstr "Сокращает повторную работу процессора при чтении свойств снаряжения во время создания внешнего вида. Значения свойств, их штатные значения при отсутствии и выбор снаряжения не меняются. Только для поддерживаемых сборок движка."

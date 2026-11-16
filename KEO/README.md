@@ -398,24 +398,34 @@ or FPS measurements were performed.
 ### CPU save-state strings (working release 2, 2026-11-16)
 
 Performance: **Transfer temporary save strings**, enabled by default and live.
-During native object-state parsing, long by-value identifiers can pass directly
-into a fresh empty list slot instead of being copied again and immediately
-freed. Source records, string values and save format are preserved. List growth,
-short strings, previously used destination storage, other callers and worker
-threads retain native behavior. No worker, cache, plugin allocation/free or
-retained game pointer is added. This is CPU string-copy work, separate from
-the save-read buffering option. Offline VC10 ownership/ABI tests and the pinned
-parser contract are documented in `leopard/save-string-verification-20261116.md`;
-no game load-time/FPS improvement is asserted from these tests.
+Eligible temporary state lists pass directly into fresh saved objects, avoiding
+per-string copying and destination-array growth. Smaller or ineligible lists
+retain native handling; remaining long by-value strings can transfer without
+an extra copy into fresh slots. Source values, save format, metadata assignments
+and loading order stay native. No worker, cache or hot-path allocation/free is
+added. Retained list capacity never exceeds the native destination growth size.
+See `leopard/save-state-list-verification-20261116.md` and the preceding
+`leopard/save-string-verification-20261116.md`. These offline ownership/ABI and
+copy-count checks do not measure total save loading time or gameplay FPS.
 
 ### Строки состояния при разборе сейва (рабочий выпуск 2, 16.11.2026)
 
 Настройка **Передавать временные строки сейва** в разделе производительности
-включена по умолчанию и применяется сразу. При разборе сохранённых объектов
-длинный временный идентификатор передаётся в свежий пустой слот списка без
-повторного копирования и немедленного освобождения. Исходные записи, значения
-строк и формат сейва сохраняются. Расширение списков, короткие строки, уже
-использованные слоты и другие вызовы обрабатывает штатный код. Новых потоков,
-кэшей и сохранённых указателей на объекты игры нет. Это отдельная CPU-правка,
-не замена буферизации чтения. Проверки вне игры подтверждают владение памятью
-и сокращение копирования, но не измеренное ускорение загрузки или FPS.
+включена по умолчанию и применяется сразу. Подходящие временные списки состояний
+целиком передаются новым объектам без копирования каждой строки и расширения
+второго массива. Маленькие и неподходящие списки сохраняют штатную обработку;
+оставшиеся длинные временные строки могут передаваться в свежие слоты без
+лишнего копирования. Значения, формат сейва, присваивание прочих полей и порядок
+загрузки остаются штатными. Новых потоков, кэшей и выделений памяти при переносе
+нет. Запас массива ограничен размером, который оставил бы штатный код.
+Проверки вне игры подтверждают владение памятью и сокращение копирования;
+общее время загрузки сейва и FPS в игре этим проходом не измерялись.
+
+
+### Equipment property reads / Чтение свойств снаряжения
+
+The live, default-enabled **Speed up equipment property reads** setting reduces repeated hashing for three supported equipment-assembly queries. Existing values return their original address; absent properties, defaults, other keys and unsupported engine builds retain native handling. It adds no worker, retained map pointers or lookup cache. This is a small CPU improvement, not a measured whole-NPC loading or FPS gain.
+
+Настройка **Ускорить чтение свойств снаряжения** включена по умолчанию и переключается без перезапуска. Для трёх поддерживаемых обращений при сборке снаряжения устранён повторный расчёт хеша. Существующие значения возвращаются по штатному адресу; отсутствующие поля, значения по умолчанию, другие ключи и неподдерживаемые версии движка обрабатываются штатно. Новых потоков, сохраняемых указателей на таблицы и кэша поиска нет. Это небольшое сокращение CPU-работы; ускорение всей загрузки NPC и рост FPS игровыми замерами не подтверждались.
+
+Implementation and isolated validation: `leopard/equipment_field_verification.md`, `leopard/cpu-loading-verification-20261116.md`.

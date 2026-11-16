@@ -190,6 +190,7 @@ const FixesConfig kFixesDefaults =
 	true, // skeletonReserveEnabled
 	true, // modelCloneReserveEnabled
 	true, // materialReserveEnabled
+	true, // equipmentFieldLookupEnabled
 	true, // morphPoseReuseEnabled
 	true, // saveReadBufferEnabled
 	true, // saveStringTransferEnabled
@@ -357,6 +358,9 @@ const ConfigKey g_fixesConfigKeys[] =
 	CFG_OBOOL_LIVE("materialReserve", FixesConfig, materialReserveEnabled, DOC, SHOW,
       "Prepare copied material storage",
       "Reduces repeated small memory allocations when the game copies materials for models and equipment. Texture layers, colours, shaders and independent material copies stay native. Applies to newly copied materials on supported engine builds."),
+	CFG_OBOOL_LIVE("equipmentFieldLookup", FixesConfig, equipmentFieldLookupEnabled, DOC, SHOW,
+      "Speed up equipment property reads",
+      "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."),
 	CFG_OBOOL_LIVE("morphPoseReuse", FixesConfig, morphPoseReuseEnabled, DOC, SHOW,
       "Reuse temporary body shape data",
       "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."),
@@ -365,7 +369,7 @@ const ConfigKey g_fixesConfigKeys[] =
       "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."),
 	CFG_OBOOL_LIVE("saveStringTransfer", FixesConfig, saveStringTransferEnabled, DOC, SHOW,
       "Transfer temporary save strings",
-      "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."),
+      "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."),
 	CFG_OBOOL("townClaimFix", FixesConfig, townClaimFixEnabled,           DOC, SHOW,
 	  "Prevent NPC from claiming player buildings",
 	  "A building placed near an NPC town joins the player's own town or none, never the NPC town."

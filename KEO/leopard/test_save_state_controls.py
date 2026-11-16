@@ -1,0 +1,18 @@
+"""Compiled production variants must fail ordinary fixture CHECKs, not crash."""
+from pathlib import Path
+import os,subprocess,hashlib,json
+ROOT=Path(__file__).resolve().parents[1];OUT=ROOT/'build/save-state-controls';OUT.mkdir(parents=True,exist_ok=True)
+vc=Path('C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC');sdk=Path('C:/Program Files/Microsoft SDKs/Windows/v7.1')
+env=os.environ.copy();env['INCLUDE']=str(vc/'include')+';'+str(sdk/'Include');env['LIB']=str(vc/'lib/amd64')+';'+str(sdk/'Lib/x64');env['PATH']=str(vc/'bin/amd64')+';'+str(Path('D:/SteamLibrary/steamapps/common/Kenshi'))+';'+env['PATH']
+p=ROOT/'src/fixes/world/save_state_list_transfer.cpp';fixture=ROOT/'leopard/test_save_state_list.cpp';s=p.read_text(encoding='utf-8');before={str(f):hashlib.sha256(f.read_bytes()).hexdigest()for f in [p,fixture]}
+controls=[('retain-copy-loop','if(!dst||!src','if(true)return false; if(!dst||!src'),('ignore-owner','if(IsMainThread()&&admitted','if(admitted'),('ignore-live','&&fixes::g_fixesCfg.saveStringTransferEnabled',''),('ignore-admission','IsMainThread()&&admitted','IsMainThread()'),('ignore-inner-caller','&&*(const uintptr_t*)returnSlot==gameBase+0x6cabcd',''),('ignore-outer-caller','&&*(const uintptr_t*)(returnSlot+0x70)==gameBase+0x6c21c7',''),('ignore-pristine-destination','||dst->count||dst->capacity||dst->data',''),('ignore-small-list','src->count<2||',''),('ignore-source-count','src->count>src->capacity||',''),('ignore-source-cap','src->capacity>4096||',''),('ignore-cookie','if(cookie!=src->capacity)return false;',''),('ignore-array-overlap','||!Disjoint(data-8,bytes+8,(uintptr_t)dst,sizeof(List))',''),('overwrite-prefix','dst->data=src->data;','dst->prefix=src->prefix;dst->data=src->data;'),('ignore-original-publication','!original||',''),('ignore-proof','if(memcmp((char*)game+proofs[i].rva,proofs[i].bytes,proofs[i].size))','if(false)'),('ignore-world','if(*(void**)KEO_STATE_WORLD_POINTER(game)!=NULL)return false;',''),('ignore-import-identity','||*(void**)((char*)game+0x2247000)!=callee',''),('skip-native-assignment','void*result=original(self,other);','void*result=self;'),('change-native-return','return result;','return self;'),('ignore-slack','if(src->capacity>nativeCapacity)return false;','')]
+rows=[]
+for name,old,new in controls:
+ assert s.count(old)==1,(name,s.count(old));d=OUT/name;d.mkdir(exist_ok=True);changed=d/'production.cpp';changed.write_text(s.replace(old,new),encoding='utf-8')
+ cmd=[str(vc/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MD','/O2','/D_ITERATOR_DEBUG_LEVEL=0','/DKEO_STATE_LIST_SOURCE="'+changed.as_posix()+'"','/I'+str(ROOT/'src'),str(fixture),str(ROOT/'build/save_state_list_test/near_page.obj'),str(ROOT/'build/save_state_list_test/code_patch_threads.obj'),str(ROOT/'build/save_state_list_test/frame.obj'),'/Fo'+str(d/'test.obj'),'/Fe'+str(d/'test.exe')]
+ c=subprocess.run(cmd,env=env,capture_output=True,text=True);(d/'compile.log').write_text(c.stdout+c.stderr);assert c.returncode==0,(name,c.stdout,c.stderr)
+ r=subprocess.run([str(d/'test.exe')],cwd=ROOT,env=env,capture_output=True,text=True);(d/'run.log').write_text(r.stdout+r.stderr);assert r.returncode==1 and 'CHECK line' in r.stdout,(name,r.returncode,r.stdout,r.stderr)
+ rows.append({'name':name,'compile_exit':0,'run_exit':1,'output':r.stdout});print(name,'CHECK exit1',flush=True)
+assert before=={str(f):hashlib.sha256(f.read_bytes()).hexdigest()for f in [p,fixture]}
+(OUT/'verification.json').write_text(json.dumps({'controls':rows,'canonical_files':before,'game_execution':False,'process_access':False},indent=2))
+print('PASS',len(rows),'compiled production state-list controls')

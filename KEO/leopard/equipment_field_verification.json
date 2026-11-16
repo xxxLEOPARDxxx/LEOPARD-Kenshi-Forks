@@ -1,0 +1,27 @@
+{
+  "format": "KEO_EQUIPMENT_FIELD_CANDIDATE",
+  "version": 1,
+  "baseHead": "33ef1deca22eb8894992ec6d96cb6f5d4ec77dbd",
+  "sources": {
+    "src/fixes/world/equipment_field_lookup.h": "77c9ea583d9f81f098f53605d0e19a175fbc35ec5fdc5204ae8418193931f7a7",
+    "src/fixes/world/equipment_field_lookup.cpp": "5de627e8d50ec03d9e4396c6d5fb67269c3211a27fcba40f3d23f29283db5440",
+    "leopard/equipment_field_tests.cpp": "682bbcc7351d1d10aa2b631a121e42bbe508dacfce04f585082af11253e030a1",
+    "leopard/equipment_field_run.py": "2afc0daccb20fe69cd804989d123fc0fcef719c464a91a36ea1bea4752dbcdd0",
+    "leopard/equipment_field_native.py": "f45a468efac60c833f76ee5b18c3a9cddf57364dc1cdeba71e16eae785f505f2",
+    "leopard/equipment_field_native_contract.json": "61eb6b7e393de0967bebe1154cdd1c51a852f4af1b399636803e9fd40fec02b9",
+    "leopard/equipment_field_verification.md": "c9528303fa83ed56bb6f85c9613131e49ffad09bcf8cdbfc71c1624dd0e09023"
+  },
+  "checksOd": 218,
+  "checksO2": 218,
+  "compiledMutantsKilled": 4,
+  "runtimePatchIntegrated": false,
+  "gameValidation": false,
+  "benchOutput": [
+    "BENCH stock_ns=8.088 fast_ns=5.283 guarded_ns=6.013 ratio=0.653 guarded_ratio=0.743",
+    "BENCH stock_ns=7.510 fast_ns=4.900 guarded_ns=5.949 ratio=0.652 guarded_ratio=0.792",
+    "BENCH stock_ns=7.799 fast_ns=5.191 guarded_ns=5.824 ratio=0.666 guarded_ratio=0.747",
+    "BENCH stock_ns=7.619 fast_ns=4.726 guarded_ns=5.442 ratio=0.620 guarded_ratio=0.714",
+    "BENCH stock_ns=7.554 fast_ns=4.685 guarded_ns=5.489 ratio=0.620 guarded_ratio=0.727",
+    "PASS 218 equipment constant-field controls"
+  ]
+}

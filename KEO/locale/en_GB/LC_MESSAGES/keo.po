@@ -483,5 +483,12 @@ msgstr "Reduces small file reads while loading saved world and squad data on sup
 msgid "Transfer temporary save strings"
 msgstr "Transfer temporary save strings"
 
-msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
-msgstr "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
+msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up equipment property reads"
+msgstr "Speed up equipment property reads"
+
+msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
+msgstr "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."

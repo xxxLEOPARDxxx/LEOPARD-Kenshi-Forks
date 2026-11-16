@@ -22,6 +22,7 @@ deferral=true
 destroyListDefer=true
 destroyListDiag=false
 emptyPassSkip=true
+equipmentFieldLookup=true
 escapePauseGuard=true
 foliageBudgetSpeed=3
 foliagePageBudgetMs=0

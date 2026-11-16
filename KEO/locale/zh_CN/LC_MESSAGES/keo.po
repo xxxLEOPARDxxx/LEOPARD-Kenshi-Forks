@@ -483,5 +483,12 @@ msgstr "在受支持的引擎版本上，加载已保存的世界和小队数据
 msgid "Transfer temporary save strings"
 msgstr "转移临时存档字符串"
 
-msgid "Avoids an extra copy of long state identifiers while the game parses saved objects. Save format, values, short strings and loading order stay native. Supported engine builds only."
-msgstr "解析已保存的对象时，避免重复复制较长的状态标识符。存档格式、数值、短字符串和加载顺序保持原样。仅适用于受支持的引擎版本。"
+msgid "Reduces copying of temporary state identifiers while parsing saved objects. Eligible complete lists pass directly into new objects; remaining long strings can also transfer without an extra copy. Save format, values and loading order stay native. Supported engine builds only."
+msgstr "解析已保存的对象时，减少临时状态标识符的复制。符合条件的完整列表会直接转移给新对象；其余较长字符串也可避免额外复制。存档格式、数值和加载顺序保持原样。仅适用于受支持的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up equipment property reads"
+msgstr "加速装备属性读取"
+
+msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
+msgstr "创建外观时，减少读取装备属性所需的重复 CPU 计算。属性值、缺失属性的默认值及装备选择保持原样。仅适用于受支持的引擎版本。"
