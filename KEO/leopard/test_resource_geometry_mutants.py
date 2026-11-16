@@ -53,7 +53,7 @@ run('final-state-before-owner',geometry,
 run('final-observe-ignores-off',geometry,
     'if(!IsMainThread()||!state||!state->on||!entity)return;\n    Observe(entity->getMesh());',
     'if(!IsMainThread()||!state||!entity)return;\n    Observe(entity->getMesh());')
-run('no-native-pin',geometry,'Entry e;e.mesh=m;e.desc=d;e.touch=touch;','Entry e;e.desc=d;e.touch=touch;')
+run('no-native-pin',geometry,'Entry&e=inserted.first->second;e.mesh=m;','Entry&e=inserted.first->second;')
 run('no-local-dedup',geometry,'if(d->buffers[i].id==b)return true;','if(false)return true;')
 run('no-cpu-shadow',geometry,'b->hasShadowBuffer()?U64(b->getSizeInBytes()):0','0')
 run('ignore-pose-resources',geometry,'if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getPoseCount()!=0||m->getNumSubMeshes()>64)return false;','if(m->hasManualLodLevel()||m->getNumAnimations()!=0||m->getNumSubMeshes()>64)return false;')

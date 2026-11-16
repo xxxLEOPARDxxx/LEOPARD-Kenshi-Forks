@@ -230,3 +230,19 @@ at64SubMeshes and512Poses (at most4608pointer bytes before native append loops).
 Native exceptions and ownership stay native; preparatory failures are optional
 and cannot suppress forwarding. Partial installation keeps trampolines and
 remains forwarding-only without retry. See leopard/model-clone-reserve-20261116.md.
+
+## Geometry cache admission / Добавление моделей в кэш (2026-11-16)
+
+Loaded-model retention now transfers its collected buffer description directly
+into the admitted cache entry, avoiding three redundant list allocations and
+copies per model. Refused admission preserves the description for the existing
+bounded retry. Cache limits, model ownership, unload/refresh rules and native
+loading stay unchanged. This reduces KEO bookkeeping; no measured save-load
+or gameplay frame-time gain is claimed.
+
+При добавлении загруженной модели в кэш готовый список её буферов теперь
+передаётся напрямую, без трёх лишних выделений памяти и копирований списка.
+При отказе список сохраняется для прежней ограниченной повторной попытки.
+Лимиты кэша, владение моделями, обновление и освобождение ресурсов, а также
+обычная загрузка движка сохранены. Это сокращает служебную работу KEO;
+ускорение полной загрузки сейва и кадровое время в игре не измерялись.

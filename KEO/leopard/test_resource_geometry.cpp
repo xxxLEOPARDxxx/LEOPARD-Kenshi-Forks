@@ -340,6 +340,41 @@ int main(){
     }
     allocationFailureProbe=NULL;CHECK(allocationFailures>failedBefore&&failedAfterGeometryIndex);
     resource_geometry::Clear();for(unsigned n=0;n<resource_geometry::MaxModels;++n)indexed[n].setNull();m.removeAll();
+    // The collector has already built one owned description. Admission must
+    // transfer that storage, not allocate copies in temporary map entries.
+    TickNow(true,4);
+    Ogre::MeshPtr transfer=m.createManual("description-transfer","General",&loader);transfer->load();
+    for(unsigned part=0;part<8;++part){
+        Ogre::SubMesh*s=transfer->createSubMesh();s->vertexData=OGRE_NEW Ogre::VertexData;
+        for(unsigned binding=0;binding<64;++binding)
+            s->vertexData->vertexBufferBinding->setBinding((unsigned short)binding,Ogre::HardwareVertexBufferSharedPtr(new TestVB(1)));
+    }
+    CHECK(resource_geometry::Describe(transfer,&d));CHECK(d.buffers.size()==resource_geometry::MaxMeshBuffers);
+    const resource_geometry::Buffer*collectedStorage=&d.buffers[0];
+    unsigned originalRefs=transfer.useCount();
+    budgetAllowed=false;CHECK(!resource_geometry::Promote(transfer,d,77));budgetAllowed=true;
+    CHECK(d.buffers.size()==512&&&d.buffers[0]==collectedStorage&&d.gpuBytes==512&&d.cpuBytes==0);
+    CHECK(transfer.useCount()==originalRefs&&reserved==0);
+    const unsigned failureSites[]={0,1,2,3,7,63,255,511,512};
+    for(unsigned site=0;site<sizeof(failureSites)/sizeof(failureSites[0]);++site){
+        bool threw=false;allocationFailAfter=(int)failureSites[site];
+        try{resource_geometry::Promote(transfer,d,77);}catch(const std::bad_alloc&){threw=true;}
+        allocationFailAfter=-1;
+        bool retainedInput=d.buffers.size()==512&&&d.buffers[0]==collectedStorage&&d.gpuBytes==512&&d.cpuBytes==0;
+        resource_geometry::Clear();bool clean=reserved==0&&resource_geometry::state->models.empty()&&resource_geometry::state->buffers.empty()&&transfer.useCount()==originalRefs;
+        TickNow(true,4);CHECK(threw);CHECK(retainedInput);CHECK(clean);
+    }
+    watchedAllocationSize=d.buffers.size()*sizeof(resource_geometry::Buffer);watchedAllocations=0;
+    bool promoted=resource_geometry::Promote(transfer,d,77);
+    watchedAllocationSize=0;unsigned descriptionCopies=watchedAllocations;
+    resource_geometry::Models::iterator admitted=resource_geometry::state->models.find(transfer.get());
+    bool sameStorage=admitted!=resource_geometry::state->models.end()&&!admitted->second.desc.buffers.empty()&& &admitted->second.desc.buffers[0]==collectedStorage;
+    bool consumed=d.buffers.empty()&&d.gpuBytes==0&&d.cpuBytes==0;
+    bool accounted=reserved==512&&resource_geometry::state->buffers.size()==512&&transfer.useCount()==originalRefs+1;
+    resource_geometry::Clear();bool released=reserved==0&&transfer.useCount()==originalRefs;
+    transfer.setNull();m.removeAll();
+    std::cout<<"description transfer: copies="<<descriptionCopies<<" same storage="<<sameStorage<<" consumed="<<consumed<<"\n";
+    CHECK(promoted);CHECK(descriptionCopies==0);CHECK(sameStorage);CHECK(consumed);CHECK(accounted);CHECK(released);
     struct LegacyEntry {Ogre::MeshPtr mesh;resource_geometry::Description desc;resource_geometry::U64 touch;};
     std::cout<<"geometry entry bytes="<<sizeof(resource_geometry::Entry)<<" legacy entry bytes="<<sizeof(LegacyEntry)<<" victim index bytes="<<sizeof(resource_geometry::state->victims)<<" allocation failures="<<allocationFailures-failedBefore<<"\n";
     std::cout<<"geometry actual Ogre collector/lifetime/purge checks="<<checks<<"\n";return 0;

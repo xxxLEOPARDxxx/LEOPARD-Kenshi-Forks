@@ -105,19 +105,28 @@ static bool Account(const Description&d,U64*extra,U64*cpu){
     }
     return state->buffers.size()+unique<=MaxBuffers;
 }
-static bool Promote(const Ogre::MeshPtr&m,const Description&d,U64 touch){
+// On success the input's already collected vector is consumed. Both callers
+// finish with it after admission; refusals leave it intact for bounded retries.
+static bool Promote(const Ogre::MeshPtr&m,Description&d,U64 touch){
     if(state->models.find(m.get())!=state->models.end())return false;
     U64 extra=0,cpu=0;if(!Account(d,&extra,&cpu)||state->models.size()>=MaxModels)return false;
     if(!d.gpuBytes||!resource_gpu::TryGeometryReservation(state->stats.heldBytes+extra,state->cap))return false;
     // Allocation exceptions are recovered by rebuilding all own bookkeeping.
-    Entry e;e.mesh=m;e.desc=d;e.touch=touch;
-    std::pair<Models::iterator,bool> inserted=state->models.insert(std::make_pair(m.get(),e));
+    // Copy only empty metadata into the map node: copying a populated Entry
+    // allocates three redundant Description arrays through the VC10 pair path.
+    Entry empty;empty.touch=touch;
+    std::pair<Models::iterator,bool> inserted=state->models.insert(std::make_pair(m.get(),empty));
     if(!inserted.second||!state->victims.Insert(inserted.first)){Clear();return false;}
+    Entry&e=inserted.first->second;e.mesh=m;
     for(size_t n=0;n<d.buffers.size();++n){const Buffer&v=d.buffers[n];
         std::map<const Ogre::HardwareBuffer*,Count>::iterator i=state->buffers.find(v.id);
         if(i!=state->buffers.end())++i->second.refs;
         else{Count c={1,v.gpu,v.cpu};state->buffers.insert(std::make_pair(v.id,c));}
     }
+    // Account may allocate above. Transfer only after it succeeds; no throwing
+    // operation follows this swap, so retry/failure still owns the input list.
+    e.desc.buffers.swap(d.buffers);e.desc.gpuBytes=d.gpuBytes;e.desc.cpuBytes=d.cpuBytes;
+    d.gpuBytes=d.cpuBytes=0;
     state->stats.heldBytes+=extra;state->stats.cpuShadowBytes+=cpu;return true;
 }
 void Clear(){

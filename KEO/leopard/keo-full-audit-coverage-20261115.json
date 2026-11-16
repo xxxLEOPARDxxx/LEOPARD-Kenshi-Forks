@@ -1,6 +1,6 @@
 {
   "files": 741,
-  "lines": 116039,
+  "lines": 116048,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -5744,10 +5744,11 @@
     },
     {
       "path": "src/resources/resource_geometry.cpp",
-      "sha256": "ad081307aabe4ca95d615c22275a571721e6c5f5df8c25ec641451127e1a3ef2",
-      "lines": 266,
+      "sha256": "c67bcfb77f06a90cc3cec32d3ef15058cec7b4a53768322d3ef09c4415b7b9e8",
+      "lines": 275,
       "reports": [
         "full-audit-core-render-resources-20261115.md",
+        "geometry-description-transfer-20261116.md",
         "retention-victim-index-20261116.md"
       ],
       "kind": "body/declarations read"
