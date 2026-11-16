@@ -1,6 +1,7 @@
 #include "resources/resource_load_probe.h"
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_geometry.h"
+#include "fixes/world/morph_pose_scope.h"
 #ifndef RESOURCE_LOAD_PROBE_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -153,8 +154,8 @@ static void* GetMorphedBodyMesh(void*self,void*data,void*entity,bool unique,floa
     Sample(morphLookup,QpcDeltaUs(begin,QpcNow()));return result;
 }
 static void* CreateMorphedMesh(const void*name,void*entity,void*data,bool shaved){
-    if(!DetailedLogEnabled()||!IsMainThread())return originalMorphCreate(name,entity,data,shaved);
-    const LONGLONG begin=QpcNow();void*result=originalMorphCreate(name,entity,data,shaved);
+    if(!DetailedLogEnabled()||!IsMainThread())return morph_pose_scope::Create(originalMorphCreate,name,entity,data,shaved);
+    const LONGLONG begin=QpcNow();void*result=morph_pose_scope::Create(originalMorphCreate,name,entity,data,shaved);
     Sample(morphCreate,QpcDeltaUs(begin,QpcNow()));return result;
 }
 static void CompleteFinalMeshCapture(void*result){
@@ -209,8 +210,10 @@ static void Append(std::ostringstream&out,const char*name,const Stats&s,bool ins
 #ifndef RESOURCE_LOAD_PROBE_TEST
 static bool InstallAdmitted(const char*name,void*target,void*detour,void**original){
     if(!target){LogError(std::string("Resource loading probe: ")+name+" module/function contract refused; diagnostic unavailable");return false;}
-    if(KenshiLib::AddHook(target,detour,original)!=KenshiLib::SUCCESS){
-        *original=NULL;LogError(std::string("Resource loading probe: ")+name+" hook failed; diagnostic unavailable");return false;
+    if(KenshiLib::AddHook(target,detour,original)!=KenshiLib::SUCCESS||!*original){
+        // Creation may publish an original before enabling fails. Keep it for
+        // any armed forwarding wrapper; partial setup never admits the feature.
+        LogError(std::string("Resource loading probe: ")+name+" hook failed; diagnostic unavailable");return false;
     }
     return true;
 }
@@ -220,8 +223,8 @@ static bool Install(const char*name,uintptr_t rva,const unsigned char*bytes,Nati
     if(memcmp(target,bytes,32)!=0){
         LogError(std::string("Resource loading probe: ")+name+" native contract refused; diagnostic unavailable");return false;
     }
-    if(KenshiLib::AddHook(target,reinterpret_cast<void*>(detour),reinterpret_cast<void**>(original))!=KenshiLib::SUCCESS){
-        *original=NULL;LogError(std::string("Resource loading probe: ")+name+" hook failed; diagnostic unavailable");return false;
+    if(KenshiLib::AddHook(target,reinterpret_cast<void*>(detour),reinterpret_cast<void**>(original))!=KenshiLib::SUCCESS||!*original){
+        LogError(std::string("Resource loading probe: ")+name+" hook failed; diagnostic unavailable");return false;
     }
     return true;
 }
@@ -264,9 +267,6 @@ static void EnsureDiagnosticHooks(){
     static const unsigned char morphLookupBytes[32]={0x48,0x8b,0xc4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0x68,0x98,0x48,0x81,0xec,0x30,0x01,0x00,0x00,0x48,0xc7,0x44,0x24,0x48,0xfe,0xff};
     void* morphLookupSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x7c030,morphLookupBytes):NULL;
     morphLookupInstalled=InstallAdmitted("morphLookup",morphLookupSite,reinterpret_cast<void*>(&GetMorphedBodyMesh),reinterpret_cast<void**>(&originalMorphLookup));
-    static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};
-    void* morphCreateSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71a80,morphCreateBytes):NULL;
-    morphCreateInstalled=InstallAdmitted("morphCreate",morphCreateSite,reinterpret_cast<void*>(&CreateMorphedMesh),reinterpret_cast<void**>(&originalMorphCreate));
     static const unsigned char animationBodyBytes[32]={0x48,0x89,0x5c,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57,0x41,0x54,0x41,0x55,0x48,0x83,0xec,0x30,0x45,0x33,0xed,0x4c,0x8b,0xe2,0x48,0x8b,0xf1,0x41,0x8b,0xfd,0x44};
     void* animationBodySite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x5b8910,animationBodyBytes):NULL;
     animationBodyInstalled=InstallAdmitted("animationBody",animationBodySite,reinterpret_cast<void*>(&SetBodyEntity),reinterpret_cast<void**>(&originalAnimationBody));
@@ -288,6 +288,7 @@ static void EnsureDiagnosticHooks(){
 void ResourceLoadProbeInit(){
     using namespace resource_load_probe_detail;
     if(!IsMainThread()||captureAttempted)return;captureAttempted=true;
+    morph_pose_scope::SetCreateHookReady(false);
     if(NativeProfileIsGog()){
         captureInitializationComplete=true;diagnosticsAttempted=true;
         KEO_DETAIL("Resource loading probe: optional native seams not admitted for GOG");return;
@@ -303,6 +304,12 @@ void ResourceLoadProbeInit(){
     static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
     void* morphSwitchSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71920,morphSwitchBytes):NULL;
     morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
+    // The functional body-morph scope needs this seam even with Debug OFF.
+    // Diagnostics reuse the same wrapper instead of adding another detour.
+    static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};
+    void* morphCreateSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71a80,morphCreateBytes):NULL;
+    morphCreateInstalled=InstallAdmitted("morphCreate",morphCreateSite,reinterpret_cast<void*>(&CreateMorphedMesh),reinterpret_cast<void**>(&originalMorphCreate));
+    morph_pose_scope::SetCreateHookReady(morphCreateInstalled&&originalMorphCreate!=NULL);
     captureInitializationComplete=true;
     EnsureDiagnosticHooks();
 }

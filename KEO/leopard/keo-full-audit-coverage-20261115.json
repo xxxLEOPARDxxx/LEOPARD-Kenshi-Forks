@@ -1,6 +1,6 @@
 {
-  "files": 741,
-  "lines": 116048,
+  "files": 743,
+  "lines": 116275,
   "coverage": [
     {
       "path": "src/base/Localization.h",
@@ -805,24 +805,26 @@
     },
     {
       "path": "src/fixes/fixes_config.cpp",
-      "sha256": "9ce9fc328a8c7f89fe9bc792793566f66dcfcf696de2ab3e596328dcfa6a1433",
-      "lines": 375,
+      "sha256": "9c653f5d71eb065ae75a2efc92632f915ddba9176c72deca99d9709b853b05df",
+      "lines": 379,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
         "model-clone-reserve-20261116.md",
+        "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
     },
     {
       "path": "src/fixes/fixes_config.h",
-      "sha256": "1836cd35028bca3fb9eeb65be425b46c3786117275dfc11014cc064b3cfe6e17",
-      "lines": 248,
+      "sha256": "8b96ab63d021bf3cf878d00c754982f5b1c7f3de682aa77a9bfcf4421c5fd6e1",
+      "lines": 249,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-fixes-world-streaming-20261115.md",
         "model-clone-reserve-20261116.md",
+        "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -1641,10 +1643,11 @@
     },
     {
       "path": "src/fixes/world/model_clone_reserve.cpp",
-      "sha256": "23346056a31357b5fa50531c19f17e2e155bd0cd37dfc122c73b70786c9493d1",
-      "lines": 111,
+      "sha256": "133ef303543ed7c84bced0c3c8f95886cb736de25868326e4b438cda946a9fdc",
+      "lines": 114,
       "reports": [
-        "model-clone-reserve-20261116.md"
+        "model-clone-reserve-20261116.md",
+        "morph-pose-integration-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -1654,6 +1657,24 @@
       "lines": 2,
       "reports": [
         "model-clone-reserve-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/morph_pose_scope.cpp",
+      "sha256": "6cd65b764f4b44e2c1017289d0c62714b128af6d62b0776329a613978fa6ac16",
+      "lines": 191,
+      "reports": [
+        "morph-pose-integration-20261116.md"
+      ],
+      "kind": "body/declarations read"
+    },
+    {
+      "path": "src/fixes/world/morph_pose_scope.h",
+      "sha256": "63a8074e53e4d1359fd6eeed01c59698228dc3725a5ba2e709b66d2c5d45b545",
+      "lines": 18,
+      "reports": [
+        "morph-pose-integration-20261116.md"
       ],
       "kind": "body/declarations read"
     },
@@ -2257,12 +2278,13 @@
     },
     {
       "path": "src/gui/settings_layout.cpp",
-      "sha256": "8af1effbd40b0d232b19adf242a54353e02dc152819718cc48ab8606894eaa8f",
-      "lines": 152,
+      "sha256": "f897e1db6cf899c34a8bd8dac2abab589bc3dcf5b3190bc6f637bf3e83e7070d",
+      "lines": 153,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "model-clone-reserve-20261116.md",
+        "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -4927,14 +4949,15 @@
     },
     {
       "path": "src/plugin/hook_manifest.cpp",
-      "sha256": "8f0ef9f8c1d7c9e69858d922fa9b54de4d19a55391450976c8175bd2d7b8400d",
-      "lines": 828,
+      "sha256": "7f8e18e8d3c9e2c4d41224f0764794f5e39cc4aba6a11e521ef1d494a0552583",
+      "lines": 830,
       "reports": [
         "base-squad-empty-review-20261115.md",
         "full-audit-core-render-resources-20261115.md",
         "full-audit-session-costs-20261115.md",
         "hook-batch-cache-review-20261115.md",
         "model-clone-reserve-20261116.md",
+        "morph-pose-integration-20261116.md",
         "skeleton-reserve-20261116.md"
       ],
       "kind": "body/declarations read"
@@ -5793,10 +5816,11 @@
     },
     {
       "path": "src/resources/resource_load_probe.cpp",
-      "sha256": "bea068a0e6d62b6ac6545654da4d7e430d7fac73932a5b718de493dd71aceb67",
-      "lines": 366,
+      "sha256": "3466c0d09b5145486a2a9fa25b93e0d1bcfa917f2b70e9d1ab8a20dc72eb28b9",
+      "lines": 373,
       "reports": [
-        "full-audit-core-render-resources-20261115.md"
+        "full-audit-core-render-resources-20261115.md",
+        "morph-pose-integration-20261116.md"
       ],
       "kind": "body/declarations read"
     },

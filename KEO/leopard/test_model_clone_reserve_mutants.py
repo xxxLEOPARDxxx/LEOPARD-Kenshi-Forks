@@ -20,7 +20,7 @@ controls=[
  ('prepare-nop','Prepare(source,out);','(void)source;',1),
  ('missing-caller-gate','&&caller==moduleBase+0x1a3fdd','',1),
  ('missing-live-config','&&fixes::g_fixesCfg.modelCloneReserveEnabled','',2),
- ('inherited-disabled-source','Scope scope(allow?self:NULL);','Scope scope(allow?self:source);',1),
+ ('inherited-disabled-source','source=allow?self:NULL;','source=allow?self:source;',1),
  ('missing-owner','IsMainThread()&&','',2),
  ('missing-admission','&&admitted','',2),
  ('unloaded-source','||!src->isLoaded()','',1),
@@ -35,19 +35,24 @@ controls=[
  ('escaped-reserve-error','try{LogError("Model clone preparation: storage reserve failed; native cloning retained");}catch(...){}','throw;',1),
  ('escaped-logger-error','try{LogError("Model clone preparation: storage reserve failed; native cloning retained");}catch(...){}','LogError("Model clone preparation: storage reserve failed; native cloning retained");',1),
  ('missing-result-gate','&&result==out','',1),
- ('double-native-clone','return originalClone(self,out,name,group);','originalClone(self,out,name,group);return originalClone(self,out,name,group);',1),
+ ('double-native-clone','result=morph_pose_scope::Clone(originalClone,self,out,name,group,caller);','morph_pose_scope::Clone(originalClone,self,out,name,group,caller);result=morph_pose_scope::Clone(originalClone,self,out,name,group,caller);',1),
  ('double-native-create','void*result=originalCreate(self,out,name,group,loader);','originalCreate(self,out,name,group,loader);void*result=originalCreate(self,out,name,group,loader);',1),
- ('swallowed-native-clone-error','return originalClone(self,out,name,group);','try{return originalClone(self,out,name,group);}catch(...){return out;}',1),
+ ('swallowed-native-clone-error','result=morph_pose_scope::Clone(originalClone,self,out,name,group,caller);','result=IgnoreCloneFailure(originalClone,self,out,name,group,caller);',1),
  ('ignored-native-proof','if(memcmp((char*)module+proofs[i].rva','if(false&&memcmp((char*)module+proofs[i].rva',1),
  ('ignored-image-identity','||stamp!=0x5ca5f929||size!=0x9c9000','',1),
  ('repeated-install','if(tried)return;tried=true;','tried=true;',1),
  ('half-pair-readiness','if(KenshiLib::AddHook((void*)(moduleBase+0x1be970)','admitted=true;if(KenshiLib::AddHook((void*)(moduleBase+0x1be970)',1),
 ]
+controls.append(('lost-structured-exception-context','__finally{source=previous;}','__finally{}',1))
 rows=[]
 for name,old,new,count in controls:
  assert source.count(old)==count,(name,source.count(old),count)
  directory=OUT/name;directory.mkdir(exist_ok=True)
- changed=directory/'production.cpp';changed.write_text(source.replace(old,new),encoding='utf-8')
+ changed=directory/'production.cpp';changed_source=source.replace(old,new)
+ if name=='swallowed-native-clone-error':
+  helper='static void*IgnoreCloneFailure(morph_pose_scope::CloneFn fn,void*self,void*out,const void*name,const void*group,uintptr_t caller){try{return morph_pose_scope::Clone(fn,self,out,name,group,caller);}catch(...){return out;}}\n'
+  changed_source=changed_source.replace('namespace model_clone_reserve {',helper+'namespace model_clone_reserve {',1)
+ changed.write_text(changed_source,encoding='utf-8')
  exe=directory/'test.exe'
  command=[str(vc/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MD','/O2','/DBOOST_ALL_NO_LIB','/DBOOST_ERROR_CODE_HEADER_ONLY','/D_ITERATOR_DEBUG_LEVEL=0','/DKEO_MODEL_CLONE_SOURCE="'+changed.as_posix()+'"','/I'+str(ROOT/'src'),'/ID:/DEV/Kenshi/deps/KenshiLib_keo/Include','/ID:/DEV/Kenshi/deps/boost_1_60_0',str(fixture),'/Fo'+str(directory/'test.obj'),'/Fe'+str(exe),'/link','/LIBPATH:D:/DEV/Kenshi/deps/KenshiLib_keo/Libraries/ogre','OgreMain_x64.lib','advapi32.lib']
  compiled=subprocess.run(command,env=env,capture_output=True,text=True)

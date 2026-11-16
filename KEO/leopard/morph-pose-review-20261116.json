@@ -1,0 +1,42 @@
+[
+  {
+    "path": "src/fixes/fixes_config.cpp",
+    "sha256": "9c653f5d71eb065ae75a2efc92632f915ddba9176c72deca99d9709b853b05df",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/fixes/fixes_config.h",
+    "sha256": "8b96ab63d021bf3cf878d00c754982f5b1c7f3de682aa77a9bfcf4421c5fd6e1",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/model_clone_reserve.cpp",
+    "sha256": "133ef303543ed7c84bced0c3c8f95886cb736de25868326e4b438cda946a9fdc",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/morph_pose_scope.cpp",
+    "sha256": "6cd65b764f4b44e2c1017289d0c62714b128af6d62b0776329a613978fa6ac16",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/fixes/world/morph_pose_scope.h",
+    "sha256": "63a8074e53e4d1359fd6eeed01c59698228dc3725a5ba2e709b66d2c5d45b545",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/gui/settings_layout.cpp",
+    "sha256": "f897e1db6cf899c34a8bd8dac2abab589bc3dcf5b3190bc6f637bf3e83e7070d",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/plugin/hook_manifest.cpp",
+    "sha256": "7f8e18e8d3c9e2c4d41224f0764794f5e39cc4aba6a11e521ef1d494a0552583",
+    "report": "morph-pose-integration-20261116.md"
+  },
+  {
+    "path": "src/resources/resource_load_probe.cpp",
+    "sha256": "3466c0d09b5145486a2a9fa25b93e0d1bcfa917f2b70e9d1ab8a20dc72eb28b9",
+    "report": "morph-pose-integration-20261116.md"
+  }
+]

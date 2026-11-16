@@ -3,7 +3,7 @@ from pathlib import Path
 import sys,subprocess,json,hashlib
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'build/model-clone-reserve-final';OUT.mkdir(parents=True,exist_ok=True)
-paths=['src/fixes/world/model_clone_reserve.cpp','src/fixes/world/model_clone_reserve.h','leopard/test_model_clone_reserve.cpp','leopard/test_model_clone_reserve.cmd','leopard/test_model_clone_reserve_native.py','leopard/test_model_clone_reserve_mutants.py','leopard/verify_model_clone_reserve.py']
+paths=['src/fixes/world/morph_pose_scope.h','src/fixes/world/model_clone_reserve.cpp','src/fixes/world/model_clone_reserve.h','leopard/test_model_clone_reserve.cpp','leopard/test_model_clone_reserve.cmd','leopard/test_model_clone_reserve_native.py','leopard/test_model_clone_reserve_mutants.py','leopard/verify_model_clone_reserve.py']
 snapshot={p:hashlib.sha256((ROOT/p).read_bytes()).hexdigest()for p in paths}
 commands=[[sys.executable,'leopard/test_model_clone_reserve_native.py'],['cmd.exe','/d','/c','leopard\\test_model_clone_reserve.cmd','Od'],['cmd.exe','/d','/c','leopard\\test_model_clone_reserve.cmd','O2'],[sys.executable,'leopard/test_model_clone_reserve_mutants.py']]
 rows=[]

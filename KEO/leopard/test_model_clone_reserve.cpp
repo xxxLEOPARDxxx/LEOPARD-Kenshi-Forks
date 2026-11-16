@@ -18,6 +18,13 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include "fixes/world/morph_pose_scope.h"
+namespace morph_pose_scope {
+static unsigned bridgeClones=0,bridgeCaptures=0;static bool bridgeReady=false;
+void*Clone(CloneFn native,void*self,void*out,const void*name,const void*group,uintptr_t){++bridgeClones;return native(self,out,name,group);}
+void CaptureCloneResult(void*,void*,uintptr_t){++bridgeCaptures;}
+void SetCloneHooksReady(bool on){bridgeReady=on;}
+}
 static bool owner=true;
 bool IsMainThread(){return owner;}
 namespace fixes {struct Config{bool modelCloneReserveEnabled;};Config g_fixesCfg={true};}
@@ -158,11 +165,12 @@ static int Case(unsigned sub,unsigned pose){
  C(b.reserve==unsigned(sub>0&&sub<=64)+unsigned(pose>0&&pose<=512));C(sub>64||b.sub==0);C(pose>512||b.pose==0);
  if(sub>1&&sub<=64)C(a.sub>1);if(pose>1&&pose<=512)C(a.pose>1);return 0;
 }
-static unsigned cloneCalls=0,createCalls=0;static bool throwNative=false;
+static unsigned cloneCalls=0,createCalls=0;static bool throwNative=false,raiseNativeSeh=false;
 static void*seenSource=NULL;static void*args[5]={};static void*returnOverride=NULL;
 static unsigned nested=0;static bool nestedRestored=false,nestedSuppressed=false;
 static void* FakeClone(void*self,void*out,const void*name,const void*group){
  ++cloneCalls;seenSource=model_clone_reserve::source;args[0]=self;args[1]=out;args[2]=(void*)name;args[3]=(void*)group;
+ if(raiseNativeSeh)RaiseException(0xE0426E03,0,0,NULL);
  if(throwNative)throw std::runtime_error("native clone");
  if(nested%2==1){unsigned kind=nested;nested++;if(kind==1)owner=false;if(kind==3)fixes::g_fixesCfg.modelCloneReserveEnabled=false;if(kind==5)model_clone_reserve::admitted=false;
   model_clone_reserve::Clone((void*)2,out,name,group);owner=true;fixes::g_fixesCfg.modelCloneReserveEnabled=true;model_clone_reserve::admitted=true;
@@ -170,11 +178,18 @@ static void* FakeClone(void*self,void*out,const void*name,const void*group){
  return returnOverride?returnOverride:out;
 }
 static void* FakeCreate(void*self,void*out,const void*name,const void*group,void*load){++createCalls;args[0]=self;args[1]=out;args[2]=(void*)name;args[3]=(void*)group;args[4]=load;if(throwNative)throw std::runtime_error("native create");return returnOverride?returnOverride:out;}
+static bool CatchCloneSeh(void*self,void*out,const void*name,const void*group){
+ __try{model_clone_reserve::Clone(self,out,name,group);}
+ __except(GetExceptionCode()==0xE0426E03?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}
+ return false;
+}
 static int SpyCases(){
  model_clone_reserve::originalClone=FakeClone;model_clone_reserve::originalCreate=FakeCreate;model_clone_reserve::admitted=true;
  void*self=(void*)0x101,*out=(void*)0x202,*name=(void*)0x303,*group=(void*)0x404,*load=(void*)0x505;
  model_clone_reserve::source=(void*)0x999;cloneCalls=createCalls=reserves=0;
  C(model_clone_reserve::Clone(self,out,name,group)==out);C(cloneCalls==1&&seenSource==self);C(args[0]==self&&args[1]==out&&args[2]==name&&args[3]==group);C(model_clone_reserve::source==(void*)0x999);
+ raiseNativeSeh=true;bool sehCaught=CatchCloneSeh(self,out,name,group);raiseNativeSeh=false;
+ C(sehCaught&&model_clone_reserve::source==(void*)0x999);
  for(unsigned kind=0;kind<3;++kind){if(kind==0)owner=false;if(kind==1)model_clone_reserve::admitted=false;if(kind==2)fixes::g_fixesCfg.modelCloneReserveEnabled=false;
   C(model_clone_reserve::Clone(self,out,name,group)==out);C(seenSource==NULL&&model_clone_reserve::source==(void*)0x999);owner=true;model_clone_reserve::admitted=true;fixes::g_fixesCfg.modelCloneReserveEnabled=true;}
  for(unsigned kind=1;kind<=7;kind+=2){nested=kind;C(model_clone_reserve::Clone(self,out,name,group)==out);C(nestedSuppressed&&nestedRestored&&model_clone_reserve::source==(void*)0x999);}nested=0;
@@ -240,8 +255,10 @@ int main(){
  C(DiskHash(ogre,"7d3888d21398647519f10a89b1f300d8606f761ad159e6021a797b1b9b3df5f6"));
  C(SpyCases()==0);C(AdmissionCases(ogre)==0);
  model_clone_reserve::Install();C(model_clone_reserve::admitted&&hookCalls==2&&model_clone_reserve::originalClone&&model_clone_reserve::originalCreate);
+ C(morph_pose_scope::bridgeReady);
  C(sdkAdd((char*)ogre+0x1a2ff0,(void*)&SubProbe,(void**)&nativeSub)==0);C(sdkAdd((char*)ogre+0x229bf0,(void*)&PoseProbe,(void**)&nativePose)==0);
  model_clone_reserve::moduleBase=(uintptr_t)ogre;model_clone_reserve::admitted=true;
  C(PrepareCases()==0);C(Case(8,128)==0);C(Case(0,512)==0);C(Case(64,8)==0);C(Case(1,1)==0);C(Case(0,0)==0);C(Case(65,513)==0);C(Case(65,8)==0);C(Case(8,513)==0);C(NativeGateCases()==0);
+ C(morph_pose_scope::bridgeClones>0&&morph_pose_scope::bridgeCaptures>0);
  std::printf("PASS %u actual native model-clone checks\n",checks);return 0;
 }

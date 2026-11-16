@@ -50,7 +50,9 @@ static void ExerciseAppearancePreparation(void*self,void*data){
  Check(GetMorphedBodyMesh(self,data,entity,true,-0.375f,false)==expected&&seen==self&&seenSecond==data&&seenThird==entity&&seenUnique&&!seenShaved&&seenWeight==-0.375f&&nativeCalls==before+1,"morph lookup six total arguments including stack float/bool and replacement result exact");
  GetMorphedBodyMesh(self,data,entity,false,0.875f,true);
  Check(!seenUnique&&seenShaved&&seenWeight==0.875f&&morphLookup.calls==2,"morph lookup opposite bools independent positive weight");
+ unsigned scopeBridgeBefore=morph_pose_scope::bridgeCalls;
  Check(CreateMorphedMesh(self,entity,data,true)==expected&&seen==self&&seenSecond==entity&&seenThird==data&&seenShaved,"static morph create borrowed string first and result exact");
+ Check(morph_pose_scope::bridgeCalls==scopeBridgeBefore+1,"functional morph scope wraps native create independently of diagnostic timing");
  Check(SwitchBodyMesh(self,data)==expected&&seen==self&&seenSecond==data,"switch body raw owned16 address and result exact");
  Check(resource_geometry::finalCalls==1&&resource_geometry::lastEntity==expected,"final mesh observer receives returned entity, never old entity or consumed input");
  enabled=false;int finalClocks=clocks;unsigned finalBefore=resource_geometry::finalCalls;

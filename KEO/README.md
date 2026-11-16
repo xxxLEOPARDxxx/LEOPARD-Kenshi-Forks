@@ -246,3 +246,34 @@ or gameplay frame-time gain is claimed.
 Лимиты кэша, владение моделями, обновление и освобождение ресурсов, а также
 обычная загрузка движка сохранены. Это сокращает служебную работу KEO;
 ускорение полной загрузки сейва и кадровое время в игре не измерялись.
+
+## Private body shape preparation / Подготовка форм тела (2026-11-16)
+
+**Reuse temporary body shape data** (Performance, default ON, live) avoids deep
+copies of shape maps which native body preparation only reads and then discards.
+Every character still receives its own mesh and Entity. Shape weights, shaved
+rules, appearance randomness, equipment, materials, animation, native vertex
+blending and GPU work remain unchanged. Unsupported engine paths use ordinary
+native copies. This targets body construction during NPC/save loading; a game
+load-time or frame-time improvement has not been measured.
+
+**Повторное использование форм тела** (Производительность, включено по умолчанию,
+работает без перезапуска) убирает глубокое копирование данных форм, которые
+подготовка тела только читает и затем удаляет. У каждого персонажа сохраняются
+собственные модель и объект рендера. Веса форм, правила выбритой головы,
+случайность внешности, снаряжение, материалы, анимация, расчёт вершин и работа
+GPU остаются прежними. Неподдерживаемые пути движка используют обычные копии.
+Правка относится к созданию тела при загрузке NPC и сейва; ускорение в игре
+пока не измерялось.
+
+Implementation: only the admitted private createMorphedMesh / Mesh::clone call
+sequence may borrow at most512 source Pose pointers within at most8 nested
+scopes. Actual source/destination control blocks are pinned before borrowing.
+All-context cleanup removes positively recorded borrowed pointers before native
+deletion, including unload, mixed lists and handled SEH. Both added pins are
+released at the final pose-removal boundary before the old Entity is destroyed,
+preserving native use-count-sensitive cleanup. No pose maps are mutated and no
+worker, persistent cache or GPU-lock batching is added. Existing capture wrappers
+publish functional readiness independently of Debug; partial hook failure retains
+every published original but never admits the optimization. See private
+leopard/morph-pose-scope-verification-20261116.md and integration review evidence.

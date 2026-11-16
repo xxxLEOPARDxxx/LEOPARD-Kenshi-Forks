@@ -1,4 +1,5 @@
 #include "fixes/world/model_clone_reserve.h"
+#include "fixes/world/morph_pose_scope.h"
 #include <windows.h>
 #include <intrin.h>
 #include <cstddef>
@@ -26,10 +27,6 @@ typedef void*(*CreateFn)(void*,void*,const void*,const void*,void*);
 static CloneFn originalClone=NULL;static CreateFn originalCreate=NULL;
 static bool admitted=false,tried=false;static uintptr_t moduleBase=0;
 static __declspec(thread) void*source=NULL;
-struct Scope {
- void*previous;explicit Scope(void*next):previous(source){source=next;}~Scope(){source=previous;}
-private:Scope(const Scope&);Scope&operator=(const Scope&);
-};
 #ifndef KEO_MODEL_CLONE_RESERVE_OPERATION
 #define KEO_MODEL_CLONE_RESERVE_OPERATION(list,count) (list).reserve(count)
 #endif
@@ -59,11 +56,16 @@ static void Prepare(void*input,void*output){
 }
 static __declspec(noinline) void*Clone(void*self,void*out,const void*name,const void*group){
  const bool allow=IsMainThread()&&admitted&&fixes::g_fixesCfg.modelCloneReserveEnabled;
- Scope scope(allow?self:NULL);return originalClone(self,out,name,group);
+ void*previous=source;void*result=NULL;const uintptr_t caller=(uintptr_t)_ReturnAddress();
+ source=allow?self:NULL;
+ __try{result=morph_pose_scope::Clone(originalClone,self,out,name,group,caller);}
+ __finally{source=previous;}
+ return result;
 }
 static __declspec(noinline) void*CreateManual(void*self,void*out,const void*name,const void*group,void*loader){
  const uintptr_t caller=(uintptr_t)_ReturnAddress();
  void*result=originalCreate(self,out,name,group,loader);
+ morph_pose_scope::CaptureCloneResult(result,out,caller);
  if(source&&IsMainThread()&&admitted&&fixes::g_fixesCfg.modelCloneReserveEnabled
     &&caller==moduleBase+0x1a3fdd&&result==out&&out)Prepare(source,out);
  return result;
@@ -98,6 +100,7 @@ static bool Admit(HMODULE module){
 }
 void Install(){
  if(tried)return;tried=true;
+ morph_pose_scope::SetCloneHooksReady(false);
  HMODULE module=KEO_MODEL_CLONE_MODULE();
  if(!Admit(module)){LogError("Model clone preparation: native contract refused; native loading retained");return;}
  moduleBase=(uintptr_t)module;
@@ -105,7 +108,7 @@ void Install(){
  // trampoline even on failure, so any armed wrapper remains pure forwarding.
  if(KenshiLib::AddHook((void*)(moduleBase+0x1a3ee0),(void*)&Clone,(void**)&originalClone)!=KenshiLib::SUCCESS||!originalClone){LogError("Model clone preparation: clone hook failed; native loading retained");return;}
  if(KenshiLib::AddHook((void*)(moduleBase+0x1be970),(void*)&CreateManual,(void**)&originalCreate)!=KenshiLib::SUCCESS||!originalCreate){LogError("Model clone preparation: manager hook failed; native loading retained");return;}
- admitted=true;KEO_DETAIL("Model clone preparation: bounded native pointer-vector preparation admitted");
+ admitted=true;morph_pose_scope::SetCloneHooksReady(true);KEO_DETAIL("Model clone preparation: bounded native pointer-vector preparation admitted");
 }
 }
 void InstallModelCloneReserve(int*,int*){model_clone_reserve::Install();}

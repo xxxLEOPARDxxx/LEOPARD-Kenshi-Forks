@@ -371,3 +371,4 @@ src/resources/resource_texture_retention.cpp
 src/fixes/world/blackboard_empty.cpp
 src/fixes/world/skeleton_reserve.cpp
 src/fixes/world/model_clone_reserve.cpp
+src/fixes/world/morph_pose_scope.cpp

@@ -52,6 +52,7 @@ k7PostDeathHold=1
 keoRouting=true
 meshFaceGuard=true
 modelCloneReserve=true
+morphPoseReuse=true
 movementAware=true
 movementTrace=0
 navMeshLife=true

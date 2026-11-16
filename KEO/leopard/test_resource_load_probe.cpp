@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "fixes/world/morph_pose_scope.h"
+namespace morph_pose_scope {
+static unsigned bridgeCalls=0;
+void*Create(CreateFn native,const void*name,void*entity,void*data,bool shaved){++bridgeCalls;return native(name,entity,data,shaved);}
+void SetCreateHookReady(bool){}
+}
 static bool enabled=true,onMain=true,throwsNative=false,sehNative=false;
 static int clocks=0,mainChecks=0,nativeCalls=0;static void*seen=NULL;
 static LONGLONG tick=0,nativeDuration=3000;static double seconds=0;

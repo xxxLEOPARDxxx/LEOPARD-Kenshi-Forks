@@ -459,3 +459,9 @@ msgstr "预分配模型存储"
 #: src/fixes/fixes_config.cpp
 msgid "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."
 msgstr "在游戏复制模型部件和形状数据时减少重复的小块内存分配。几何、外观、材质、动画和加载顺序保持不变。对受支持引擎版本中新建的模型副本生效。"
+
+msgid "Reuse temporary body shape data"
+msgstr "复用临时体型数据"
+
+msgid "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."
+msgstr "构建角色外观时减少体型数据的临时复制。每个角色仍保有自己的模型和外观，不改变装备、动画、渲染或生成顺序。仅适用于受支持的引擎版本。"
