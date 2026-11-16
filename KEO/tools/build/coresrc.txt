@@ -380,3 +380,6 @@ src/fixes/code_patch_threads.cpp
 src/fixes/world/equipment_field_lookup.cpp
 src/fixes/world/equipment_field_patch.cpp
 src/fixes/code_patch_batch.cpp
+src/fixes/world/save_instance_lookup.cpp
+src/fixes/world/equipment_animation_lookup.cpp
+src/fixes/world/equipment_animation_patch.cpp

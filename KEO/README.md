@@ -429,3 +429,21 @@ The live, default-enabled **Speed up equipment property reads** setting reduces 
 Настройка **Ускорить чтение свойств снаряжения** включена по умолчанию и переключается без перезапуска. Для трёх поддерживаемых обращений при сборке снаряжения устранён повторный расчёт хеша. Существующие значения возвращаются по штатному адресу; отсутствующие поля, значения по умолчанию, другие ключи и неподдерживаемые версии движка обрабатываются штатно. Новых потоков, сохраняемых указателей на таблицы и кэша поиска нет. Это небольшое сокращение CPU-работы; ускорение всей загрузки NPC и рост FPS игровыми замерами не подтверждались.
 
 Implementation and isolated validation: `leopard/equipment_field_verification.md`, `leopard/cpu-loading-verification-20261116.md`.
+
+
+### Saved-object lookup reuse / Повторное использование поиска объектов сейва
+
+**Reuse saved object lookups** is enabled by default and switches live. During supported saved-object restoration, KEO passes the first tree-search result to the following native insertion path. This removes one repeated tree descent per admitted object; construction, default values, insertion, fields and cleanup remain native. Other callers and unsupported builds retain normal lookup. No lookup cache, worker or world pointer is retained.
+
+**Повторно использовать поиск объектов сейва** включено по умолчанию и переключается без перезапуска. При восстановлении поддерживаемых объектов результат первого поиска передаётся следующей штатной операции вставки. Убирается один повторный обход дерева на объект; создание, значения по умолчанию, вставка, поля и очистка остаются штатными. Другие вызовы и неподдерживаемые версии используют обычный поиск. Кэш поиска, новый поток и сохраняемые указатели на мир не добавляются.
+
+Isolated native-frame tests prove fewer tree searches; no gameplay save-load timing or FPS gain is claimed. Проверки подтверждают сокращение поисков, но не измеряют время загрузки в игре. Evidence: `leopard/save-instance-lookup-verification-20261116.md`.
+
+
+### Animation state preparation / Подготовка состояний анимации
+
+**Avoid repeated animation state searches** is enabled by default and switches live. When preparing a model, a new state whose numeric ID follows the current maximum can use native insertion at the table end. Empty tables also qualify. Other IDs keep the normal search. State creation, values, dirty notifications, tree balancing and existing locks are preserved. This removes a repeated search during eligible model/equipment initialization; it adds no background worker, retained object or per-frame sweep.
+
+**Убрать повторный поиск состояний анимации** включено по умолчанию и переключается без перезапуска. При подготовке модели новое состояние с ID больше текущего максимума добавляется штатной вставкой в конец таблицы; пустые таблицы также подходят. Остальные ID используют обычный поиск. Сохраняются создание состояний, параметры, уведомления об изменениях, балансировка дерева и существующие блокировки. Убирается повторный поиск при подходящих инициализациях моделей и снаряжения. Новый фоновый поток, сохраняемые объекты и покадровый обход не добавляются.
+
+The current table is checked after the state constructor; its earlier lookup result is never cached across possible allocation callbacks. Real Ogre DLL fixtures exercise native insertion, duplicate and size-error cleanup, plus the installed CALL bridge in an isolated process. No game was launched and whole-NPC/save-load/FPS gains remain unmeasured. Private details: `leopard/animation-state-lookup-verification-20261116.md`.

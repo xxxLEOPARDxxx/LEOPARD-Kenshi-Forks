@@ -492,3 +492,17 @@ msgstr "Speed up equipment property reads"
 
 msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
 msgstr "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse saved object lookups"
+msgstr "Reuse saved object lookups"
+
+msgid "Avoids searching the same object tree twice while restoring saved objects. Native object construction, insertion, values and loading order are preserved. Supported engine builds only."
+msgstr "Avoids searching the same object tree twice while restoring saved objects. Native object construction, insertion, values and loading order are preserved. Supported engine builds only."
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoid repeated animation state searches"
+msgstr "Avoid repeated animation state searches"
+
+msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
+msgstr "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."

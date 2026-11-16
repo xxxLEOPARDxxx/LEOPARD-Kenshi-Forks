@@ -43,12 +43,14 @@ static const ProdRow kProdPage[] =
 	{ "resourceGeometryWarm", "Resource memory" }, { "resourceTextureRetention", "Resource memory" },
 	{ "resourceGpuGiB", "Resource memory" }, { "resourceWarmHud", "Resource memory" },
 	{ "blackboardEmpty", "Performance" },
+	{ "animationStateLookup", "Performance" },
 	{ "skeletonReserve", "Performance" },
 	{ "modelCloneReserve", "Performance" },
 	{ "materialReserve", "Performance" },
 	{ "equipmentFieldLookup", "Performance" },
 	{ "morphPoseReuse", "Performance" },
 	{ "saveReadBuffer", "Performance" },
+	{ "saveInstanceLookup", "Performance" },
 	{ "saveStringTransfer", "Performance" },
 	{ "particleStepCap", "Performance" },
 	{ "foliagePageBudgetMs", "Performance" },
@@ -63,7 +65,7 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 44;
+static const int PROD_PAGE_ROWS = 46;
 static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 

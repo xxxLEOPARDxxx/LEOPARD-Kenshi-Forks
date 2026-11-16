@@ -492,3 +492,17 @@ msgstr "加速装备属性读取"
 
 msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
 msgstr "创建外观时，减少读取装备属性所需的重复 CPU 计算。属性值、缺失属性的默认值及装备选择保持原样。仅适用于受支持的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse saved object lookups"
+msgstr "复用存档对象查找"
+
+msgid "Avoids searching the same object tree twice while restoring saved objects. Native object construction, insertion, values and loading order are preserved. Supported engine builds only."
+msgstr "恢复存档对象时，避免在同一对象树中重复查找。保留原生对象创建、插入、数值和加载顺序。仅支持已验证的引擎版本。"
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoid repeated animation state searches"
+msgstr "避免重复查找动画状态"
+
+msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
+msgstr "准备模型动画状态时减少重复的CPU查找。符合条件的新状态通过原生操作插入当前表尾，其他情况保留正常查找。保留状态创建、动画数值和原生锁定。仅支持已验证的引擎版本。"

@@ -492,3 +492,17 @@ msgstr "Ускорить чтение свойств снаряжения"
 
 msgid "Reduces repeated CPU work when the game reads equipment properties during appearance setup. Values, missing-property defaults and equipment selection stay native. Supported engine builds only."
 msgstr "Сокращает повторную работу процессора при чтении свойств снаряжения во время создания внешнего вида. Значения свойств, их штатные значения при отсутствии и выбор снаряжения не меняются. Только для поддерживаемых сборок движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Reuse saved object lookups"
+msgstr "Повторно использовать поиск объектов сейва"
+
+msgid "Avoids searching the same object tree twice while restoring saved objects. Native object construction, insertion, values and loading order are preserved. Supported engine builds only."
+msgstr "Устраняет повторный поиск одного объекта в дереве при восстановлении сохранения. Штатное создание и вставка объектов, значения и порядок загрузки сохраняются. Только для поддерживаемых версий движка."
+
+#: src/fixes/fixes_config.cpp
+msgid "Avoid repeated animation state searches"
+msgstr "Убрать повторный поиск состояний анимации"
+
+msgid "Reduces repeated CPU searches when preparing animation states for models. Eligible new states use native insertion at the current end of the table; other cases keep normal lookup. State creation, animation values and native locking are preserved. Supported engine builds only."
+msgstr "Сокращает повторные CPU-поиски при подготовке состояний анимации моделей. Подходящие новые состояния добавляются штатной операцией в текущий конец таблицы; остальные случаи используют обычный поиск. Создание состояний, параметры анимации и штатные блокировки сохраняются. Только для поддерживаемых версий движка."
