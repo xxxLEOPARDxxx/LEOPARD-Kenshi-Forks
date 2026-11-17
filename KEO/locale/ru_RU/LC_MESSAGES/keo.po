@@ -529,3 +529,9 @@ msgstr "Ускорять подготовку весов моделей"
 #: src/fixes/fixes_config.cpp
 msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
 msgstr "Уменьшает затраты CPU на импорт и подготовку весов скелетных моделей. Порядок привязок и итоговые веса сохраняются. Необычные или неподдерживаемые случаи обрабатываются штатно. Применяется к новым загружаемым моделям на поддерживаемых сборках движка."
+
+msgid "Automatically rebuild visited navmesh"
+msgstr "Автопересборка навсетки посещённых зон"
+
+msgid "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."
+msgstr "Запрашивает полную пересборку внешней навсетки каждой посещённой зоны один раз после загрузки сохранения. Использует фоновую генерацию при свободной загрузке мира и физике, с паузами между заявками. Требует кэширования навсетки. Не ремонтирует мебель и не перемещает персонажей. По умолчанию выключено."

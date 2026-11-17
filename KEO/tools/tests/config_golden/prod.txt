@@ -144,6 +144,7 @@ shadowReachCull=true
 shadowReachDiag=false
 skeletonReserve=true
 spliceSeamFull=true
+autoNavmeshRepair=false
 stitchByteGuard=true
 stitchSourceLines=32
 stockCounterJob=false

@@ -113,6 +113,9 @@ struct NavMeshConfig
 	// full instead of the game's per-cell patches, whose border edges never join. On by default;
 	// false, wallSpliceFix off or caching off leaves the game's patches. Read at startup only.
 	bool spliceSeamFullEnabled;
+	// Live, main thread only. Once-per-loaded-world exterior rebuild requests
+	// for demanded active cells; never the global furniture repair.
+	bool autoNavmeshRepairEnabled;
 
 	// Derived by LoadConfig and FinalizeConfig; no key.
 

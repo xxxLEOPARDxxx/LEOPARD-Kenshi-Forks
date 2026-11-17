@@ -127,3 +127,5 @@ mcm_bridge_dev_units | tools\tests\mcm_bridge_units.cpp | src\gui\settings_facto
 path_budget_units | tools\tests\path_budget_units.cpp | src\pathfind\path_budget_policy.cpp |
 
 path_priority_units | tools\tests\path_priority_units.cpp | src\pathfind\path_priority_publication.cpp |
+
+nm_auto_rebuild_units | tools\tests\nm_auto_rebuild_units.cpp | src\navmesh\cache\nm_auto_rebuild_policy.cpp |

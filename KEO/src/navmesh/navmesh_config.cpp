@@ -42,6 +42,7 @@ const NavMeshConfig kNavMeshDefaults =
 	1.0, // cfg_reprioritizeInterval
 	true, // wallSpliceFixEnabled
 	true, // spliceSeamFullEnabled
+	false, // autoNavmeshRepairEnabled
 	0, // g_navMeshWorkerCount
 	0, // g_modSetHash
 };
@@ -127,6 +128,11 @@ const ConfigKey g_navmeshConfigKeys[] =
 	  "Full rebuild for cross-cell navmesh patches",
 	  "A navmesh patch box across a map-cell border regenerates every cell it crosses in full instead of"
 	  " the game's per-cell patches, whose border edges never join. Needs the wall fix and caching."),
+	CFG_OBOOL_LIVE("autoNavmeshRepair", NavMeshConfig, autoNavmeshRepairEnabled, DOC, SHOW,
+	  "Automatically rebuild visited navmesh",
+	  "Requests a full exterior navmesh rebuild once per visited zone after each save load."
+	  " Uses background generation while loading and physics are idle, with spacing between requests."
+	  " Requires navmesh caching. Does not repair furniture or move characters. Off by default."),
 	{ NULL, CK_BOOL, 0, 0, 0.0f, 0.0f, false, NULL, NULL, false, 0.0f, 0, NULL, INT_MIN, false, false, false, NULL, NULL, NULL, NULL, 0 }
 };
 

@@ -529,3 +529,9 @@ msgstr "Speed up model bone weights"
 #: src/fixes/fixes_config.cpp
 msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
 msgstr "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
+
+msgid "Automatically rebuild visited navmesh"
+msgstr "Automatically rebuild visited navmesh"
+
+msgid "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."
+msgstr "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."

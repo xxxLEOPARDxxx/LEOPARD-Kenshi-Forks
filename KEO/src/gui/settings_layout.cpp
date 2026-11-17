@@ -46,6 +46,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Gameplay fixes",     "fixes",     "throwOutFix",         "throwOut" },
 	{ "Gameplay fixes",     "fixes",     "throwOutHoldMinutes", "throwOut" },
 	{ "Gameplay fixes",     "navmesh",   "wallSpliceFix" },
+	{ "Gameplay fixes",     "navmesh",   "autoNavmeshRepair" },
 	{ "Backpacks and jobs", "inventory", "backpackFixes",       "backpack" },
 	{ "Backpacks and jobs", "inventory", "operatorHoldUntil",   "backpack" },
 	{ "Backpacks and jobs", "inventory", "operatorFillPercent", "backpack" },

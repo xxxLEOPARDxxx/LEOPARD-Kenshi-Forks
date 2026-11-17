@@ -16,6 +16,7 @@
 #include "zone/camera_zone_hook.h"
 #include "zone/transition_hook.h"
 #include "navmesh/cache/nm_force_rebuild.h"
+#include "navmesh/cache/nm_auto_rebuild.h"
 #include "zone/hooks_internal.h"
 #include "diag/mem_probe.h"
 #include "diag/squad_watch.h"
@@ -637,8 +638,9 @@ void hook_updateCameraZone(void* zoneMgr, void* cameraPos)
 		return;
 	double now = CameraZoneReports(zoneMgr);
 	SquadWatchTick(now, cameraPos);
-	if (!CameraZonePreloadGates(cameraPos))
-		return;
-	if (!CameraZoneFocusAndPreload(zoneMgr, cameraPos, now))
-		return;
+	if (CameraZonePreloadGates(cameraPos))
+		CameraZoneFocusAndPreload(zoneMgr, cameraPos, now);
+	// Last: handoff/registration may have started a loading cycle above.
+	// Still runs with preloading off; it has its own world/physics/queue gates.
+	NmAutoRebuildTick(zoneMgr, ElapsedSec(), saveLoading);
 }

@@ -566,3 +566,41 @@ English
 - Текст прогрева показывает текущий прогресс и исчезает после подготовки; при новых запросах появляется снова.
 - Убрана лишняя обработка ресурсов, исправлены их освобождение, отмена загрузки и переход к штатной обработке при несовместимости.
 - Обновлена совместимость пополнения прилавка с Rotate Items. Недоступность пополнения больше не отключает сбор продукции и маршруты по точкам.
+
+## Unreleased: optional visited-zone navmesh recovery / Ещё не выпущено: навсетка посещённых зон
+
+EN: Gameplay fixes -> Automatically rebuild visited navmesh. Live, default OFF,
+requires navmesh caching. Requests one full exterior rebuild per actually demanded
+active cell per loaded world, using the existing generator/workers. No loading
+panel. Does not repair furniture, move actors or guarantee a successful path.
+Queued work already submitted continues after disabling; off/on preserves request
+history, while loading a save/new world clears it. Disables itself with an error
+if queue bindings cannot be admitted or KenshiQOL.dll is already loaded.
+
+Discovery examines at most 64 grid slots per 250 ms, at most one active-set walk
+and section readiness query per pass. Requests are spaced by at least 5 s, and
+wait for loader/physics and generator input/in-flight/done queues to be idle.
+Only positive finite native camera/player leases count; synthetic town retention
+and private preloads do not. A fixed 4096-byte bitmap stores cell IDs only; no
+native pointers survive a tick. Detailed logs say requested, not repaired.
+A refused scheduling attempt can be retried on later sweeps; accepted work is
+not automatically retried after downstream generation failure. Native furniture
+repair is intentionally excluded because it synchronously mutates buildings
+across all active cells and cannot obey this cell budget.
+
+RU: Исправления игры -> Автопересборка навсетки посещённых зон. Переключается
+без перезапуска, по умолчанию выключена, требует кэширования навсетки. Запрашивает
+полную пересборку внешней навсетки реально посещаемых активных зон один раз за
+загруженный мир через существующие фоновые потоки. Без окна загрузки. Мебель не
+ремонтирует, персонажей не перемещает и исправление любого пути не гарантирует.
+Уже переданные заявки завершаются после выключения; история сохраняется при
+выключении/включении и очищается при загрузке сохранения или нового мира.
+При неподдерживаемых привязках или загруженной KenshiQOL.dll функция отключается
+с сообщением об ошибке. Фоновые предзагрузки и удержание зон городским таймером
+не считаются посещением. При занятой загрузке мира, физике или генерации ждёт.
+За проход проверяет максимум 64 ячейки каждые 250 мс; между принятыми заявками
+не менее 5 с. Хранится только фиксированная таблица из 4096 байт без указателей.
+Журнал различает запрос и успешное исправление. Отказ постановки допускает
+повторную попытку, но принятую заявку после ошибки генерации автоматически
+не повторяет. Штатный общий ремонт мебели не вызывается: он синхронно меняет
+постройки во всех активных зонах и не укладывается в ограничение на одну ячейку.

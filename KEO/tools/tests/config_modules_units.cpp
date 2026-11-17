@@ -149,6 +149,7 @@ static const Owner kOwners[] =
 	{ "throwOutHoldMinutes", "fixes" },
 	{ "wallSpliceFix", "navmesh" },
 	{ "spliceSeamFull", "navmesh" },
+	{ "autoNavmeshRepair", "navmesh" },
 	{ "backpackFirstDefault", "inventory" },
 	{ "backpackFoodScore", "inventory" },
 	{ "backpackDialogueFunction", "inventory" },
@@ -375,6 +376,7 @@ static void CheckResourceLimits()
 // Live module rows either publish through their frame tick or load the stored field once per use.
 static bool LiveOffsetRowAllowed(const char* module, const char* key)
 {
+	if (!strcmp(module, "navmesh")) return !strcmp(key, "autoNavmeshRepair");
 	if (!strcmp(module, "gui")) return !strcmp(key, "Debug");
 	if (!strcmp(module, "inventory"))
 		return !strcmp(key, "operatorHoldUntil") || !strcmp(key, "operatorFillPercent") || !strcmp(key, "backpackFixes") || !strcmp(key, "gatherOutputJob") || !strcmp(key, "stockCounterJob") || !strcmp(key, "waypointRouteJob");
@@ -481,7 +483,7 @@ int main()
 		}
 		if (i == CONFIG_STAGE_MAX) Fail(mod.name, "no table end within stage capacity");
 	}
-	Check(moduleKeys == 144 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
+	Check(moduleKeys == 145 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
 	const char* const removed[] = { "npcFailMemo", "rqStructClear", "ogreWorkerPriority", "factionSelfGuard" };
 	for (int i = 0; i < 4; ++i)
 		Check(FindConfigKey(removed[i], NULL) == NULL, "removed switches have no config row");

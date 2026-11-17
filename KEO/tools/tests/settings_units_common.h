@@ -59,6 +59,7 @@ static const ProdRow kProdPage[] =
 	{ "foliagePageBudgetMs", "Performance" },
 	{ "keoRouting", "Squad movement" }, { "groupCohesion", "Squad movement" }, { "formationGatherPace", "Squad movement" },
 	{ "k7PostDeathHold", "Squad movement" }, { "plannerMode", "Squad movement" },
+	{ "autoNavmeshRepair", "Gameplay fixes" },
 	{ "townClaimFix", "Gameplay fixes" }, { "throwOutFix", "Gameplay fixes" },
 	{ "throwOutHoldMinutes", "Gameplay fixes" }, { "wallSpliceFix", "Gameplay fixes" },
 	{ "backpackFixes", "Backpacks and jobs" }, { "operatorHoldUntil", "Backpacks and jobs" },
@@ -68,7 +69,7 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 49;
+static const int PROD_PAGE_ROWS = 50;
 static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 
