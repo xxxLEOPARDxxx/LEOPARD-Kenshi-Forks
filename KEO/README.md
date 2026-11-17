@@ -1,68 +1,4 @@
-# KEO (MCM fork) (QoL) - release 2
-
-### Local bone index tables / Локальные таблицы костей (2026-11-17)
-
-**Speed up model bone weights** also prepares bone lookup tables with a bounded
-8320-byte local bitset hierarchy instead of repeated temporary-tree searches.
-Sorted bone ranks, existing table gaps and native output-array growth are
-preserved. Small, aliased or unsupported cases retain normal handling. There
-are no new workers, persistent allocations or per-frame operations. This
-removes a smaller remaining CPU cost in the retained load profile; isolated
-table tests do not establish an overall save-loading speedup. Working release2,
-locally installed only; no new published release.
-
-**Ускорять подготовку весов моделей** также подготавливает таблицы костей
-через локальную битовую структуру размером8320 байт вместо повторного поиска
-во временном дереве. Порядок номеров, старые промежутки таблицы и штатный рост
-выходных массивов сохранены. Малые, пересекающиеся или неподдерживаемые входы
-обрабатываются прежним способом. Новых потоков, постоянных выделений памяти
-или покадровой работы нет. Это меньший оставшийся расход CPU из сохранённого
-профиля; изолированные проверки таблиц не доказывают ускорения всей загрузки
-сейва. Рабочий выпуск2, только локальная установка; новой публикации нет.
-
-### Local bone-assignment import / Локальный импорт привязок костей (2026-11-17)
-
-The existing **Speed up model bone weights** switch also speeds up ordered
-bone-assignment imports. It avoids a tree search from the root for each
-assignment. Ogre still allocates, links, balances and frees its own nodes;
-equal-index assignment order and all weight bits are preserved. Unordered
-inputs use the original path; allocator reentry is handled using current tree
-state after allocation. There are no additional workers, retained pointers,
-growing caches or per-frame scans. The optimization was checked against the
-retained loading profile and isolated native fixtures; whole-save elapsed
-time after this change has not been measured. Working release remains 2.
-
-Переключатель **Ускорять подготовку весов моделей** также ускоряет импорт
-упорядоченных привязок костей: убирает поиск от корня дерева для каждой
-привязки. Узлы по-прежнему выделяет, связывает, балансирует и освобождает
-Ogre. Порядок записей с одинаковым индексом и биты весов сохраняются.
-Неупорядоченные входы идут штатным путём; при повторном входе из выделения
-памяти используется актуальное состояние дерева после выделения узла.
-Новых потоков, сохраняемых указателей, растущих кэшей или покадровых обходов
-нет. Основание правки - сохранённый профиль и изолированные native-проверки;
-полное время загрузки сейва после неё не измерялось. Рабочий выпуск остаётся 2.
-
-### Local model-weight correction / Локальная подготовка весов моделей (2026-11-17)
-
-Working release 2, not a new published version. **Speed up model bone weights**
-is ON by default and can be disabled live under Performance. Eligible skeletal
-models use two linear CPU traversals instead of repeated tree searches per
-vertex. Resulting weights and node order are preserved. Missing assignments,
-more than four weights, unusual values and unsupported engine builds retain
-native processing. No additional workers, GPU calls, retained model pointers
-or growing caches are introduced. The change targets measured model preparation;
-it does not claim to remove every NPC streaming stall or speed up the entire
-save load by the helper benchmark ratio.
-
-Рабочий выпуск 2, без нового опубликованного номера. **Ускорять подготовку весов
-моделей** по умолчанию включено и отключается на ходу в группе производительности.
-Подходящие скелетные модели обрабатываются двумя линейными обходами вместо
-повторных поисков в дереве для каждой вершины. Итоговые веса и порядок узлов
-сохраняются. Пропущенные веса, более четырёх связей, необычные значения и
-неподдерживаемые сборки остаются на штатном пути. Новых потоков, вызовов GPU,
-сохраняемых указателей на модели или растущих кэшей нет. Правка относится к
-измеренной подготовке моделей; ускорение отдельного helper не означает такое
-же ускорение всей загрузки сейва или устранение всех задержек появления NPC.
+# KEO (MCM fork) (QoL) - release 3
 
 ## English
 
@@ -87,6 +23,48 @@ The settings are grouped as follows:
 - **Logging:** Detailed log is last and OFF by default. Errors remain visible. Enable it to reproduce a report, then disable it after collecting the logs.
 
 MCM marks settings requiring a restart. The carried-weight option requires one; the three job switches take effect during play. Advanced settings are documented in the packaged `KEO.defaults.ini` template. KEO creates your personal `KEO.ini` for configuration. Preserve that personal file when updating.
+
+### Resource preparation and loading
+
+The **Resource memory** group contains optional file preparation in RAM,
+startup warmup, nearby-terrain preparation and retention of loaded model
+geometry/textures in video memory. These memory options are OFF by default.
+Enable the RAM resource option first, then startup preparation if wanted.
+Startup preparation reads registered local mesh/skeleton/texture resources
+within the configured memory limit; reaching that limit does not mean the
+entire game is loaded. It does not create NPCs early. RAM/VRAM limits and
+background reading speed are configurable; keep room for the rest of the game.
+These settings apply live. **Show warmup text** displays work at the upper left
+and hides it automatically when finished, returning when new work is queued.
+
+Under **Performance**, the loading improvements include skeleton/model and
+material storage preparation, model bone weights/index tables, body-shape
+preparation, equipment/animation reads and save-file parsing. Individual options
+can be disabled live. New model work uses supported engine contracts and keeps
+native handling for unsupported cases. Existing game simulation and NPC spawn
+order remain in the game; the whole NPC pipeline is not moved onto workers.
+
+The owner confirmed faster save loading and smoother warmed area transitions
+on17 November2026. This is gameplay feedback for the combined update, not a
+controlled timing multiplier or a promise of identical results on every save.
+Cold areas, physics, NPC spawning and rendering can still cause pauses. General
+developed-save FPS tuning is a separate task. Detailed implementation evidence
+and the three bone-processing helpers are documented in the corresponding
+source's `leopard` verification reports; isolated helper ratios are not overall
+loading ratios.
+
+### Bone-weight and index preparation
+
+**Speed up model bone weights** (`meshWeights`) is ON by default and switches
+live. It covers three independent supported stages: linear native-order weight
+normalization, ordered assignment import without a repeated root search, and
+bone lookup tables collected in a bounded8320-byte local bitset hierarchy.
+Weights, equal-index order and sorted bone ranks remain unchanged. Ogre owns
+imported nodes and output-array growth; old table gaps and allocation-error
+partial state are preserved. Unusual weights, unordered imports and unsupported
+cases keep the appropriate native stage. No persistent cache, per-frame scan
+or new worker is added. The option affects newly prepared models; isolated
+stage timings are not whole-save speedup factors.
 
 ### Operator cargo limit
 
@@ -165,6 +143,49 @@ GPL-3.0; see `LICENSE`. Attribution/provenance files accompany the package. Corr
 - **Журнал:** последний переключатель, по умолчанию выключен. Ошибки остаются видимыми. Включайте подробный журнал для воспроизведения проблемы и выключайте после сбора данных.
 
 MCM отмечает параметры, которым нужен перезапуск. Переносимый вес требует перезапуска; три задания включаются и выключаются во время игры. Расширенные настройки описаны в шаблоне `KEO.defaults.ini` из пакета. KEO создаёт личный файл настроек `KEO.ini`; сохраняйте его при обновлении.
+
+### Подготовка ресурсов и загрузка
+
+Группа **Память ресурсов** содержит необязательные подготовку файлов в ОЗУ,
+стартовый прогрев, подготовку соседнего рельефа и удержание загруженной геометрии
+моделей/текстур в видеопамяти. Эти настройки памяти по умолчанию ВЫКЛЮЧЕНЫ.
+Сначала включите подготовку ресурсов в ОЗУ, затем при необходимости стартовый
+прогрев. Он читает зарегистрированные локальные модели, скелеты и текстуры в
+пределах выбранного лимита; достижение предела не означает загрузку всей игры.
+Прогрев не создаёт NPC заранее. Пределы ОЗУ/видеопамяти и скорость фонового
+чтения настраиваются; оставляйте память самой игре. Настройки применяются на
+ходу. **Показывать текст прогрева** выводит текущую работу слева сверху;
+после её завершения текст скрывается, а при новых запросах появляется снова.
+
+В группе **Производительность** находятся ускорения подготовки памяти скелетов,
+моделей и материалов, весов и таблиц костей, форм тела, чтения снаряжения и
+анимации, а также разбора сейвов. Отдельные опции отключаются на ходу.
+Для неподдерживаемых случаев сохраняется штатная обработка. Симуляцией и
+порядком появления NPC по-прежнему управляет игра; весь этот процесс не
+переносится в рабочие потоки.
+
+Владелец17 ноября2026 подтвердил более быструю загрузку сейвов и более плавные
+переходы между прогретыми областями. Это игровая проверка совокупного обновления,
+а не контролируемый коэффициент ускорения или обещание одинакового результата
+для любого сейва. Холодные области, физика, появление NPC и отрисовка могут
+по-прежнему давать паузы. Общая оптимизация FPS развитой катки остаётся отдельной
+задачей. Подробные проверки реализации и трёх этапов подготовки костей сохранены
+в отчётах `leopard` соответствующих исходников; результаты отдельных функций
+не являются коэффициентами ускорения всей загрузки.
+
+### Подготовка весов и таблиц костей
+
+**Ускорять подготовку весов моделей** (`meshWeights`) по умолчанию включено и
+переключается на ходу. Опция объединяет три независимых поддерживаемых этапа:
+линейную нормализацию весов в штатном порядке, импорт упорядоченных привязок
+без повторного поиска от корня и сбор таблиц костей локальной битовой структурой
+размером8320 байт. Веса, порядок одинаковых индексов и ранги костей сохраняются.
+Узлами импорта и ростом выходных массивов управляет Ogre; старые промежутки
+таблиц и частичное состояние при ошибке выделения памяти сохранены. Необычные
+веса, неупорядоченный импорт и неподдерживаемые случаи оставляют соответствующий
+этап штатным. Постоянного кэша, покадрового обхода и нового потока нет. Опция
+действует на вновь подготавливаемые модели; время отдельного этапа не является
+коэффициентом ускорения всего сейва.
 
 ### Необязательный вес и задания
 
@@ -311,7 +332,7 @@ or gameplay frame-time gain is claimed.
 обычная загрузка движка сохранены. Это сокращает служебную работу KEO;
 ускорение полной загрузки сейва и кадровое время в игре не измерялись.
 
-## Native save-file input / Чтение файлов сохранения (local KEO 2, 2026-11-16)
+## Native save-file input / Чтение файлов сохранения (KEO 3 implementation, 2026-11-16)
 
 **Batch save file reads** is a live, default-ON Performance option. For newly
 opened, supported main-thread save streams it requests a 64 KiB native CRT buffer
@@ -393,7 +414,7 @@ load-time/FPS improvement. See `leopard/morph-upload-verification-20261116.md`.
 ускорение загрузки или FPS.
 
 
-### Local NPC loading review follow-up (working release 2, 2026-11-16)
+### Local NPC loading review follow-up (release 3 implementation, 2026-11-16)
 
 Temporary body-shape cleanup now verifies and clears an unchanged borrowed list
 in one linear pass, preserving the existing mixed/changed-list ownership fallback.
@@ -405,7 +426,7 @@ exact install-policy fixtures and full builds are documented in
 results; save loading, equipment construction and gameplay performance remain
 unmeasured by this pass.
 
-### Локальное ревью загрузки NPC (рабочий выпуск 2, 16.11.2026)
+### Локальное ревью загрузки NPC (реализация выпуска 3, 16.11.2026)
 
 Очистка временных форм тела проверяет неизменённый список за один линейный проход.
 Для смешанных и изменённых списков сохранена прежняя проверка принадлежности.
@@ -416,7 +437,7 @@ unmeasured by this pass.
 сборки снаряжения и изменение FPS в игре в этом проходе не измерялись.
 
 
-### Copied material storage (working release 2, 2026-11-16)
+### Copied material storage (release 3 implementation, 2026-11-16)
 
 Performance: **Prepare copied material storage**, enabled by default and live.
 Prepares a bounded texture-layer pointer array while a new material pass is
@@ -428,7 +449,7 @@ See `leopard/material-reserve-verification-20261116.md` for native ownership,
 exception, allocator, ABI and test evidence and its limits. No new gameplay
 load-time/FPS measurement is asserted.
 
-### Подготовка копий материалов (рабочий выпуск 2, 16.11.2026)
+### Подготовка копий материалов (реализация выпуска 3, 16.11.2026)
 
 Настройка в разделе производительности включена по умолчанию и применяется сразу.
 При создании новой копии прохода материала заранее подготавливается небольшой
@@ -440,7 +461,7 @@ load-time/FPS measurement is asserted.
 загрузки и FPS в игре этим проходом не измерялись.
 
 
-### Geometry refresh bookkeeping (working release 2, 2026-11-16)
+### Geometry refresh bookkeeping (release 3 implementation, 2026-11-16)
 
 Retained, unchanged models are checked directly against their stored buffer
 inventory, avoiding temporary descriptor-vector allocations on each refresh.
@@ -450,7 +471,7 @@ policy changes. Native fixtures, fault recovery and ownership review are recorde
 in `leopard/geometry-refresh-verification-20261116.md`; no new gameplay loading
 or FPS measurements were performed.
 
-### Проверка кэша геометрии (рабочий выпуск 2, 16.11.2026)
+### Проверка кэша геометрии (реализация выпуска 3, 16.11.2026)
 
 Для неизменившейся модели кэш проверяет уже сохранённый список буферов без
 повторного выделения временного массива. При изменениях описание собирается
@@ -459,7 +480,7 @@ or FPS measurements were performed.
 Выполнены проверки на настоящих объектах Ogre, проверки отказов и владения
 ресурсами. Скорость загрузки и FPS в игре этим проходом не измерялись.
 
-### CPU save-state strings (working release 2, 2026-11-16)
+### CPU save-state strings (release 3 implementation, 2026-11-16)
 
 Performance: **Transfer temporary save strings**, enabled by default and live.
 Eligible temporary state lists pass directly into fresh saved objects, avoiding
@@ -472,7 +493,7 @@ See `leopard/save-state-list-verification-20261116.md` and the preceding
 `leopard/save-string-verification-20261116.md`. These offline ownership/ABI and
 copy-count checks do not measure total save loading time or gameplay FPS.
 
-### Строки состояния при разборе сейва (рабочий выпуск 2, 16.11.2026)
+### Строки состояния при разборе сейва (реализация выпуска 3, 16.11.2026)
 
 Настройка **Передавать временные строки сейва** в разделе производительности
 включена по умолчанию и применяется сразу. Подходящие временные списки состояний
@@ -515,10 +536,33 @@ The current table is checked after the state constructor; its earlier lookup res
 
 ### Save fields and held animation locks / Поля сейва и блокировки анимации
 
-Working release 2, 2026-11-16 (local candidate, not published): **Skip discarded save field keys** avoids the first temporary key in six native field readers only when the permission filter is empty. Final key construction, permissions and insertion remain native. **Transfer temporary save strings** also transfers eligible long string/file field buffers into fresh fields after native map insertion; repeated fields and unsuitable buffers retain normal assignment. These live options default to enabled.
+Release 3 implementation, code dated 2026-11-16: **Skip discarded save field keys** avoids the first temporary key in six native field readers only when the permission filter is empty. Final key construction, permissions and insertion remain native. **Transfer temporary save strings** also transfers eligible long string/file field buffers into fresh fields after native map insertion; repeated fields and unsuitable buffers retain normal assignment. These live options default to enabled.
 
 **Reuse held animation lock** reduces recursive mutex bookkeeping during model animation-state creation only when the same thread already owns that exact native parent lock. The outer lock, dirty counter semantics, creation and cleanup remain native; standalone or other-thread calls keep normal notification. It works together with the existing animation lookup option. No new workers, retained world pointers, per-frame work or growing caches are introduced. Pinned Steam engine/Ogre contracts fail closed to native handling. Isolated VC10/Ogre boundary, exception, ownership and concurrency tests are not measurements of save-load time, NPC stutters, gameplay FPS or long-term memory usage.
 
-Рабочий выпуск 2, 16.11.2026 (локальная сборка, не опубликована): **Пропускать ненужные ключи полей сейва** устраняет первый временный ключ в шести штатных обработчиках полей только при пустом фильтре разрешений. Итоговый ключ, проверки разрешений и вставка остаются штатными. **Передавать временные строки сейва** также передаёт подходящие буферы длинных строковых полей и имён файлов свежим полям после штатной вставки в таблицу. Повторные поля и неподходящие буферы используют обычное присваивание. Настройки включены по умолчанию и переключаются без перезапуска.
+Реализация выпуска 3, код от 16.11.2026: **Пропускать ненужные ключи полей сейва** устраняет первый временный ключ в шести штатных обработчиках полей только при пустом фильтре разрешений. Итоговый ключ, проверки разрешений и вставка остаются штатными. **Передавать временные строки сейва** также передаёт подходящие буферы длинных строковых полей и имён файлов свежим полям после штатной вставки в таблицу. Повторные поля и неподходящие буферы используют обычное присваивание. Настройки включены по умолчанию и переключаются без перезапуска.
 
 **Использовать удерживаемую блокировку анимации** сокращает повторный учёт рекурсивной блокировки при создании состояний анимации модели, только если текущий поток уже удерживает именно эту блокировку родителя. Внешняя блокировка, счётчик изменений, создание и очистка остаются штатными; отдельные вызовы и другие потоки используют обычное уведомление. Совместимо с существующей оптимизацией поиска состояний. Новых потоков, сохраняемых указателей на мир, покадровой работы и растущих кэшей нет. Проверки поддерживаемой Steam/Ogre сборки при несовпадении оставляют штатную обработку. Изолированные проверки VC10/Ogre не доказывают ускорение полной загрузки сейва, устранение игровых рывков, рост FPS или отсутствие любых утечек долгой сессии.
+
+
+## Release 3 / Выпуск 3
+
+English
+
+- Added optional resource preparation in RAM, startup warmup and advance preparation of nearby terrain. Reusing warmed resources reduces loading interruptions when revisiting areas.
+- Added bounded retention of loaded model geometry and textures in video memory, with configurable limits.
+- Accelerated startup before the main menu and startup resource preparation.
+- Reduced CPU work when loading saves and preparing NPC skeletons, models, body shapes, equipment and bone data.
+- Warmup text shows current progress and disappears when preparation finishes; it reappears for new queued work.
+- Reduced redundant resource bookkeeping and corrected resource lifetime, cancellation and compatibility fallback handling.
+- Updated Rotate Items compatibility for counter stocking. Unavailable stocking no longer disables production collection or waypoint routes.
+
+Русский
+
+- Добавлены необязательная подготовка ресурсов в ОЗУ, стартовый прогрев и предварительная подготовка соседнего рельефа. Повторное использование прогретых ресурсов уменьшает задержки при возвращении в уже посещённые области.
+- Добавлено удержание загруженной геометрии моделей и текстур в видеопамяти с настраиваемыми пределами.
+- Ускорены запуск до главного меню и стартовая подготовка ресурсов.
+- Уменьшена работа CPU при загрузке сейвов и подготовке скелетов, моделей, форм тела, снаряжения и данных костей NPC.
+- Текст прогрева показывает текущий прогресс и исчезает после подготовки; при новых запросах появляется снова.
+- Убрана лишняя обработка ресурсов, исправлены их освобождение, отмена загрузки и переход к штатной обработке при несовместимости.
+- Обновлена совместимость пополнения прилавка с Rotate Items. Недоступность пополнения больше не отключает сбор продукции и маршруты по точкам.
