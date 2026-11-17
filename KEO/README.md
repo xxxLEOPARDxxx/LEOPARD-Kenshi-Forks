@@ -1,5 +1,27 @@
 # KEO (MCM fork) (QoL) - release 2
 
+### Local bone-assignment import / Локальный импорт привязок костей (2026-11-17)
+
+The existing **Speed up model bone weights** switch also speeds up ordered
+bone-assignment imports. It avoids a tree search from the root for each
+assignment. Ogre still allocates, links, balances and frees its own nodes;
+equal-index assignment order and all weight bits are preserved. Unordered
+inputs use the original path; allocator reentry is handled using current tree
+state after allocation. There are no additional workers, retained pointers,
+growing caches or per-frame scans. The optimization was checked against the
+retained loading profile and isolated native fixtures; whole-save elapsed
+time after this change has not been measured. Working release remains 2.
+
+Переключатель **Ускорять подготовку весов моделей** также ускоряет импорт
+упорядоченных привязок костей: убирает поиск от корня дерева для каждой
+привязки. Узлы по-прежнему выделяет, связывает, балансирует и освобождает
+Ogre. Порядок записей с одинаковым индексом и биты весов сохраняются.
+Неупорядоченные входы идут штатным путём; при повторном входе из выделения
+памяти используется актуальное состояние дерева после выделения узла.
+Новых потоков, сохраняемых указателей, растущих кэшей или покадровых обходов
+нет. Основание правки - сохранённый профиль и изолированные native-проверки;
+полное время загрузки сейва после неё не измерялось. Рабочий выпуск остаётся 2.
+
 ### Local model-weight correction / Локальная подготовка весов моделей (2026-11-17)
 
 Working release 2, not a new published version. **Speed up model bone weights**

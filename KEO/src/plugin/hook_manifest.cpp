@@ -48,6 +48,7 @@
 #include "fixes/world/blackboard_empty.h"
 #include "fixes/world/skeleton_reserve.h"
 #include "fixes/world/mesh_weights.h"
+#include "fixes/world/bone_import.h"
 #include "fixes/world/model_clone_reserve.h"
 #include "fixes/world/material_reserve.h"
 #include "fixes/world/equipment_field_patch.h"
@@ -769,6 +770,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallAnimationDirtyReuse,
 	InstallSkeletonReserve,
 	InstallMeshWeights,
+	InstallBoneImport,
 	InstallModelCloneReserve,
 	InstallMaterialReserve,
 	InstallEquipmentFieldLookup,

@@ -527,5 +527,5 @@ msgid "Speed up model bone weights"
 msgstr "Ускорять подготовку весов моделей"
 
 #: src/fixes/fixes_config.cpp
-msgid "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."
-msgstr "Уменьшает повторные поиски при подготовке весов скелетных моделей. Подходящие модели используют линейный проход CPU с теми же итоговыми весами. Остальные обрабатываются штатно. Применяется к новым загружаемым моделям на поддерживаемых сборках движка."
+msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
+msgstr "Уменьшает затраты CPU на импорт и подготовку весов скелетных моделей. Порядок привязок и итоговые веса сохраняются. Необычные или неподдерживаемые случаи обрабатываются штатно. Применяется к новым загружаемым моделям на поддерживаемых сборках движка."

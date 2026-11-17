@@ -365,7 +365,7 @@ const ConfigKey g_fixesConfigKeys[] =
       "Reduces repeated memory allocations while the game builds a new NPC skeleton. Bone creation, appearance, animations and loading order stay native. Takes effect for newly loaded skeleton instances on supported engine builds."),
 	CFG_OBOOL_LIVE("meshWeights", FixesConfig, meshWeightsEnabled, DOC, SHOW,
       "Speed up model bone weights",
-      "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."),
+      "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."),
 	CFG_OBOOL_LIVE("modelCloneReserve", FixesConfig, modelCloneReserveEnabled, DOC, SHOW,
       "Prepare model storage",
       "Reduces repeated small memory allocations while the game copies model parts and shape data. Geometry, appearance, materials, animation and loading order stay unchanged. Applies to new model copies on supported engine builds."),
