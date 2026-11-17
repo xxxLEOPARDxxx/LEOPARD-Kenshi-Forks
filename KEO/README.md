@@ -1,5 +1,25 @@
 # KEO (MCM fork) (QoL) - release 2
 
+### Local bone index tables / Локальные таблицы костей (2026-11-17)
+
+**Speed up model bone weights** also prepares bone lookup tables with a bounded
+8320-byte local bitset hierarchy instead of repeated temporary-tree searches.
+Sorted bone ranks, existing table gaps and native output-array growth are
+preserved. Small, aliased or unsupported cases retain normal handling. There
+are no new workers, persistent allocations or per-frame operations. This
+removes a smaller remaining CPU cost in the retained load profile; isolated
+table tests do not establish an overall save-loading speedup. Working release2,
+locally installed only; no new published release.
+
+**Ускорять подготовку весов моделей** также подготавливает таблицы костей
+через локальную битовую структуру размером8320 байт вместо повторного поиска
+во временном дереве. Порядок номеров, старые промежутки таблицы и штатный рост
+выходных массивов сохранены. Малые, пересекающиеся или неподдерживаемые входы
+обрабатываются прежним способом. Новых потоков, постоянных выделений памяти
+или покадровой работы нет. Это меньший оставшийся расход CPU из сохранённого
+профиля; изолированные проверки таблиц не доказывают ускорения всей загрузки
+сейва. Рабочий выпуск2, только локальная установка; новой публикации нет.
+
 ### Local bone-assignment import / Локальный импорт привязок костей (2026-11-17)
 
 The existing **Speed up model bone weights** switch also speeds up ordered

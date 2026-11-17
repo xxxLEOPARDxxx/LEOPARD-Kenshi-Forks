@@ -373,6 +373,8 @@ src/fixes/world/skeleton_reserve.cpp
 src/fixes/world/mesh_weights.cpp
 src/fixes/world/bone_import.cpp
 src/fixes/world/bone_import_patch.cpp
+src/fixes/world/bone_index.cpp
+src/fixes/world/bone_index_patch.cpp
 src/fixes/world/model_clone_reserve.cpp
 src/fixes/world/morph_pose_scope.cpp
 src/fixes/world/material_reserve.cpp
