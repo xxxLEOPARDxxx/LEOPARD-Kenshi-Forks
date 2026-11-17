@@ -9,7 +9,9 @@
 #include "navmesh/cache/nm_auto_rebuild_policy.h"
 #include "navmesh/cache/nm_force_rebuild_policy.h"
 #define KLIB_MEMBER(stage,p,field,offset) ((uintptr_t)(p)+(offset))
-enum { OFF_ZONE_COUNTDOWNS=192, OFF_ZONE_TERRAIN_COLLISION=184, OFF_MGR_NAVMESH_GEN=656, RVA_QUEUES_ARE_CLEAR_MT=1 };
+enum { OFF_ZONE_COUNTDOWNS=192, OFF_ZONE_TERRAIN_COLLISION=184, OFF_MGR_NAVMESH_GEN=656, RVA_QUEUES_ARE_CLEAR_MT=1, RVA_REPAIR_INTERIOR_FURNITURE=2, RVA_GLOBAL_PLAYER=3 };
+static unsigned char playerData[800];
+static uintptr_t playerPointer=(uintptr_t)playerData;
 static unsigned char zoneData[300],contentData[300],meshData[800],generatorData[300];
 static void* g_cachedZoneMgr=(void*)1234;
 static uintptr_t g_navMeshGen=(uintptr_t)generatorData;
@@ -17,6 +19,7 @@ static bool isMain=true,world=true,adopt=false,physics=true,setB=true,ready=true
 static bool accessible=true,loading=false,workers=true,pj=true,bindingAllowed=true,conflict=false,detailed=false;
 static int phase=0,queried=0,requested=0,walked=0,errors=0,logs=0,bindCalls=0,physicsCalls=0,pjLocks=0,queueLocks=0,doneLocks=0;
 static int forceVerdict=1;
+static int repaired=0,fullGenerated=0;
 static double clockNow=0,forceSeconds=0;
 static double ElapsedSec(){return clockNow;}
 namespace navmesh {
@@ -29,7 +32,13 @@ SpliceGateSnapshot SpliceGateTake(queuesAreClearMT_t fn) { ++physicsCalls;Check(
 bool SpliceCellReady(const SpliceGateSnapshot&,int,int) { ++queried;return ready; }
 }
 static bool PhysicsClear(void*){return physics;}
-static uintptr_t GameAddr(int){return (uintptr_t)&PhysicsClear;}
+static int repairChanges=0;
+static int Repair(const void*editor){Check(editor==(void*)5678,"native LevelEditor receiver");Check(!queueLocks&&!doneLocks&&!pjLocks,"repair outside mod locks");++repaired;return repairChanges;}
+static uintptr_t GameAddr(int key){if(key==RVA_GLOBAL_PLAYER)return(uintptr_t)&playerPointer;if(key==RVA_REPAIR_INTERIOR_FURNITURE)return(uintptr_t)&Repair;return (uintptr_t)&PhysicsClear;}
+static bool NmForceRebuildFullZoneReady(){return true;}
+static bool keyPending=false;
+static bool NmForceRebuildKeyPending(){return keyPending;}
+static bool NmForceRebuildFullZone(void*mesh,void*zone){Check(mesh==meshData&&zone==zoneData,"full native generation target");Check(repaired==fullGenerated+1,"repair precedes each full generation");Check(!queueLocks&&!doneLocks&&!pjLocks,"full generation outside mod locks");++fullGenerated;++requested;clockNow+=forceSeconds;return forceVerdict!=0;}
 static bool NativeProfileMatches(int,uintptr_t,const unsigned char*,int){++bindCalls;return bindingAllowed;}
 // Avoid replacing the actual Windows API declaration in windows.h.
 static HMODULE FakeGetModuleHandleW(const wchar_t*){return conflict?(HMODULE)1:NULL;}
@@ -65,17 +74,41 @@ static int NmForceRebuildCells(void*mesh,const NmRebuildCell*c,int n,NmForceCell
 
 static void Reset()
 {
-    NmAutoRebuildOnWorldReset();s_binding=0;s_physicsClear=NULL;
+    NmAutoRebuildOnWorldReset();s_binding=0;s_physicsClear=NULL;s_repairFurniture=NULL;
+    *(void**)(playerData+0x298)=(void*)5678;playerPointer=(uintptr_t)playerData;repairChanges=0;
     memset(zoneData,0,sizeof(zoneData));memset(generatorData,0,sizeof(generatorData));
     *(void**)zoneData=contentData;*(uintptr_t*)(zoneData+184)=5678;
     *(float*)(zoneData+192)=1;*(uintptr_t*)(meshData+656)=g_navMeshGen;
     isMain=world=physics=setB=ready=loaded=accessible=workers=pj=bindingAllowed=true;
     adopt=loading=conflict=detailed=false;phase=queried=requested=walked=errors=logs=bindCalls=physicsCalls=0;
-    pjLocks=queueLocks=doneLocks=0;forceVerdict=1;clockNow=forceSeconds=0;
+    pjLocks=queueLocks=doneLocks=0;forceVerdict=1;clockNow=forceSeconds=0;repaired=fullGenerated=0;keyPending=false;
     navmesh::g_navmeshCfg.autoNavmeshRepairEnabled=true;navmesh::g_navmeshCfg.cachingEnabled=true;
     navmesh::snapshot.worldOk=navmesh::snapshot.queuesClear=true;navmesh::snapshot.mainCount=navmesh::snapshot.backCount=0;
 }
 static void Tick(){NmAutoRebuildTick(g_cachedZoneMgr,0,false);}
+#ifdef KEO_AUTO_BENCH
+// Scheduling CPU only. Native boundaries remain fakes: this never represents
+// the cost of real building traversal, navmesh generation or game frames.
+static volatile double benchTime=0;
+static __declspec(noinline) void BenchTick(){NmAutoRebuildTick(g_cachedZoneMgr,benchTime,false);}
+static void Benchmark()
+{
+    LARGE_INTEGER freq,start,finish;QueryPerformanceFrequency(&freq);
+    const int frames=2000000;
+    for(int mode=0;mode<3;++mode)
+    {
+        Reset();navmesh::g_navmeshCfg.autoNavmeshRepairEnabled=mode!=0;
+        accessible=false;
+        if(mode==2)memset(s_auto.requested,1,sizeof(s_auto.requested));
+        QueryPerformanceCounter(&start);
+        for(int frame=0;frame<frames;++frame){benchTime=frame/120.0;BenchTick();}
+        QueryPerformanceCounter(&finish);
+        const double us=1000000.0*(finish.QuadPart-start.QuadPart)/freq.QuadPart;
+        printf("SCHEDULING_BENCH mode=%s frames=%d totalUs=%.3f perFrameUs=%.6f nativeRepairs=%d nativeGenerations=%d\n",mode==0?"off":mode==1?"unloaded-grid":"all-requested",frames,us,us/frames,repaired,fullGenerated);
+        Check(!repaired&&!fullGenerated,"scheduling benchmark performs no native work");
+    }
+}
+#endif
 int main()
 {
     Reset();navmesh::g_navmeshCfg.autoNavmeshRepairEnabled=false;Tick();Check(!physicsCalls&&!bindCalls&&!requested,"OFF has no native work");
@@ -84,6 +117,7 @@ int main()
     Reset();NmAutoRebuildTick(g_cachedZoneMgr,0,true);Check(!bindCalls&&!requested,"save load stands down");
     Reset();phase=1;Tick();Check(!bindCalls&&!requested,"loader active stands down");
     Reset();adopt=true;Tick();Check(!bindCalls&&!requested,"fresh adoption stands down");
+    Reset();keyPending=true;Tick();Check(!bindCalls&&!requested&&!repaired,"manual rebuild key remains exclusive");
     Reset();world=false;Tick();Check(!bindCalls&&!requested,"transition reset or stop stands down");
     Reset();bindingAllowed=false;Tick();NmAutoRebuildTick(g_cachedZoneMgr,1,false);Check(errors==1&&!requested,"unsupported binding error once");
     Reset();conflict=true;Tick();Check(errors==1&&!requested,"QOL duplicate refused");
@@ -107,5 +141,9 @@ int main()
     Reset();forceVerdict=NM_FORCE_CELL_COVERED;Tick();Check(NmAutoRequested(&s_auto,0),"covered request accepted");
     Reset();forceSeconds=10;Tick();Check(s_auto.nextRequest==15,"cooldown starts after slow native admission");
     Check(!NmAutoBeginScan(&s_auto,14.99,true,true),"next frame cannot burst after a slow call");
+    Reset();Tick();Check(repaired==1&&fullGenerated==1&&repairChanges==0,"QOL parity requires furniture repair AND full exterior/interior generation");
+#ifdef KEO_AUTO_BENCH
+    Benchmark();
+#endif
     return CheckExit("nm_auto_runtime_fixture");
 }

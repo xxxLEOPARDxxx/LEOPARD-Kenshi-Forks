@@ -438,6 +438,27 @@ bool NmForceRebuildInKeyCall()
 	return s_inCall && s_tagKey && IsMainThread();
 }
 
+bool NmForceRebuildFullZoneReady()
+{
+	return s_origGenerate && s_addJob && s_hashZone &&
+		HookRowInstalled(HOOK_NAVMESH_GENERATE_ZONEMAP);
+}
+
+bool NmForceRebuildKeyPending()
+{
+	return InterlockedCompareExchange(&s_holdActive, 0, 0) != 0;
+}
+
+bool NmForceRebuildFullZone(void* navMesh, void* zone)
+{
+	if (!IsMainThread() || !navmesh::g_navmeshCfg.cachingEnabled ||
+		!NmForceRebuildFullZoneReady() || !navMesh || !zone || s_inCall ||
+		JudgeCell(zone, CellIndex((uintptr_t)zone)) != NM_SKIP_NONE)
+		return false;
+	hook_navMeshGenerate(navMesh, zone);
+	return true;
+}
+
 // Applies one transition of the press-show flag and returns the value it
 // replaced. A show that keeps the value writes nothing; a dismissal, a release
 // and a reset always exchange.

@@ -59,6 +59,14 @@ struct NmForceCellResult { void* zone; bool haveZone; bool terrain; int skip; in
 // Startup, main thread: binds the game's addJob(ZoneMap*, uint) and hashZone after their head
 // checks, once; true when both are bound, else *why names the refusal.
 bool NmForceRebuildBindQueue(const char** why);
+// Main-thread automatic Ctrl+Shift+F11 path. Requires the admitted generate
+// detour and retains its force/cache handling plus native exterior/interior
+// jobs and loading message. No F11-only camera-neighbour extension.
+bool NmForceRebuildFullZoneReady();
+bool NmForceRebuildFullZone(void* navMesh, void* zone);
+// Unlike HoldsDismissal (which deliberately lets main-thread dismissals pass),
+// this answers whether the manual rebuild key still owns a loading hold.
+bool NmForceRebuildKeyPending();
 // Main thread, no mod lock held: the cells' full regeneration. Each eligible cell is marked (while
 // caching is on; a mark a job holds is replaced), the queue is walked once under its lock, a
 // type-0 job is added for each cell without one, and the queue is reordered once. Never the

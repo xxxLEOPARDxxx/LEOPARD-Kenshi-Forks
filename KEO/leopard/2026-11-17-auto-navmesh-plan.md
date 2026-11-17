@@ -1,3 +1,24 @@
+# Full KenshiQOL-style automatic navmesh repair - KEO4
+
+User correction: implement BOTH native building/furniture repair and full zone
+navmesh generation, including interiors. The earlier exterior-only scope below
+is superseded. User explicitly authorized performance testing on17 November.
+
+1. Verify native repair receiver/player+0x298, Steam/GOG code/layout and reuse
+   the installed full-generate detour so force/cache/UI handling stays native.
+2. Test the real runtime wrapper with zero repair changes, receiver and call order,
+   idle/loading/world gates, cooldown, live switches and no locks at native calls.
+3. Keep bounded once-per-world discovery and existing workers. Native synchronous
+   building repair is part of requested parity; measure rather than omit it.
+4. Benchmark scheduling cost separately from native repair/generation on a real
+   loaded scene; do not label a fake-boundary benchmark as game performance.
+5. Name the feature after the author's public wording, Pathing repairs itself,
+   with EN/RU/ZH labels and accurate tooltips. Prepare KEO4 through canonical
+   release toolchain, CRC/content/locales/licenses/privacy/docs review. Preserve
+   personal preferences; Nexus first, no Steam publication before user confirms.
+
+## Historical exterior-only plan (superseded)
+
 # Optional automatic exterior navmesh recovery
 
 User approved implementation. No new game runs, captures or profiling.

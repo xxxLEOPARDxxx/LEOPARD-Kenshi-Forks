@@ -1,4 +1,4 @@
-// Optional once-per-world exterior rebuild requests. Discovery is bounded and
+// Optional once-per-world native repair plus full rebuild. Discovery is bounded and
 // deliberately excludes speculative preloads and retention-only town holds.
 #include "base/log_admission.h"
 #include "navmesh/cache/nm_auto_rebuild.h"
@@ -16,6 +16,11 @@ static NmAutoState s_auto;
 // Binding lifetime is the process; request history is the loaded world.
 static int s_binding = 0;
 static navmesh::queuesAreClearMT_t s_physicsClear = NULL;
+typedef int (*repairFurniture_t)(const void* editor);
+static repairFurniture_t s_repairFurniture = NULL;
+static const unsigned char kRepairHead[32] =
+    {0x48,0x8B,0xC4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8D,0x6C,0x24,
+     0xA0,0x48,0x81,0xEC,0x60,0x01,0x00,0x00,0x48,0xC7,0x45,0xD0,0xFE,0xFF,0xFF,0xFF};
 static const unsigned char kPhysicsHead[16] =
     { 0x40,0x53,0x48,0x83,0xEC,0x20,0x83,0xB9,0xB0,0x01,0x00,0x00,0x00,0x48,0x8B,0xD9 };
 
@@ -27,11 +32,15 @@ static bool Bind()
     if (GetModuleHandleW(L"KenshiQOL.dll")) why = "KenshiQOL already loaded";
     else if (!NativeProfileMatches(RVA_QUEUES_ARE_CLEAR_MT, GameAddr(RVA_QUEUES_ARE_CLEAR_MT), kPhysicsHead, 16))
         why = "physics queue binding refused";
+    else if (!NativeProfileMatches(RVA_REPAIR_INTERIOR_FURNITURE,GameAddr(RVA_REPAIR_INTERIOR_FURNITURE),kRepairHead,32))
+        why = "native furniture repair binding refused";
+    else if (!NmForceRebuildFullZoneReady()) why = "full navmesh generation hook unavailable";
     else if (NmForceRebuildBindQueue(&why))
     {
         s_physicsClear = (navmesh::queuesAreClearMT_t)GameAddr(RVA_QUEUES_ARE_CLEAR_MT);
+        s_repairFurniture = (repairFurniture_t)GameAddr(RVA_REPAIR_INTERIOR_FURNITURE);
         s_binding = 1;
-        KEO_DETAIL("AutoNavmesh: ready; bounded exterior requests once per loaded world");
+        KEO_DETAIL("AutoNavmesh: ready; native building repair and full exterior/interior generation once per visited zone");
         return true;
     }
     s_binding = -1;
@@ -79,7 +88,7 @@ void NmAutoRebuildTick(void* zoneMgr, double now, bool saveLoading)
     if (!IsMainThread() || !navmesh::g_navmeshCfg.autoNavmeshRepairEnabled ||
         !navmesh::g_navmeshCfg.cachingEnabled) return;
     const bool worldReady = !saveLoading && zoneMgr && zoneMgr == g_cachedZoneMgr &&
-        GetZoneState(zoneMgr) == 0 && navmesh::SpliceWorldOk() &&
+        GetZoneState(zoneMgr) == 0 && navmesh::SpliceWorldOk() && !NmForceRebuildKeyPending() &&
         !ZoneHandoffAdoptedThisFrame();
     if (!NmAutoBeginScan(&s_auto,now,true,worldReady) || !Bind()) return;
     const navmesh::SpliceGateSnapshot gate = navmesh::SpliceGateTake(s_physicsClear);
@@ -99,19 +108,29 @@ void NmAutoRebuildTick(void* zoneMgr, double now, bool saveLoading)
         // At most one active-set walk and section query per tick; advancing
         // past rejected candidates keeps a speculative cell from starving all.
         if (!ZoneInSetB(zoneMgr,zone) || !navmesh::SpliceCellReady(gate,x,y)) return;
-        NmRebuildCell input = { x,y };
-        NmForceCellResult result = { 0 };
-        if (NmForceRebuildCells(navMesh,&input,1,&result) == 1 &&
-            (result.verdict == NM_FORCE_CELL_QUEUED || result.verdict == NM_FORCE_CELL_COVERED))
+        const uintptr_t player = *(uintptr_t*)GameAddr(RVA_GLOBAL_PLAYER);
+        const void* editor = player ? *(void**)KLIB_MEMBER(2,player,PlayerInterface_levelEditor,0x298) : NULL;
+        if (!editor || !NmForceRebuildFullZoneReady()) return;
+        // Same native operations as KenshiQOL/Ctrl+Shift+F11. Furniture repair
+        // traverses the active world synchronously; never run it on a worker.
+        const double beforeRepair = ElapsedSec();
+        const int changes = s_repairFurniture(editor);
+        const double afterRepair = ElapsedSec();
+        const bool generated = NmForceRebuildFullZone(navMesh,zone);
+        const double completed = ElapsedSec();
+        if (generated)
         {
             // Native admission/locks may have consumed time since this tick's
             // sample. Space from completion, never from a stale frame clock.
-            NmAutoAccepted(&s_auto,cell,ElapsedSec());
+            NmAutoAccepted(&s_auto,cell,completed);
             if (DetailedLogEnabled())
             {
                 FixedLogBuf o; FlbInit(&o);
-                FlbStr(&o,"AutoNavmesh: requested exterior cell (");
+                FlbStr(&o,"AutoNavmesh: requested full cell (");
                 FlbDec(&o,x); FlbChar(&o,','); FlbDec(&o,y); FlbChar(&o,')');
+                FlbStr(&o," furnitureChanged="); FlbDec(&o,changes);
+                FlbStr(&o," repairUs="); FlbDec(&o,(__int64)((afterRepair-beforeRepair)*1000000.0));
+                FlbStr(&o," generateUs="); FlbDec(&o,(__int64)((completed-afterRepair)*1000000.0));
                 KEO_DETAIL(FlbDone(&o));
             }
         }

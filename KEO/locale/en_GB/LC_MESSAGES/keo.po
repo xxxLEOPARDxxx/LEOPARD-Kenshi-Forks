@@ -530,8 +530,8 @@ msgstr "Speed up model bone weights"
 msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
 msgstr "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
 
-msgid "Automatically rebuild visited navmesh"
-msgstr "Automatically rebuild visited navmesh"
+msgid "Pathing repairs itself"
+msgstr "Pathing repairs itself"
 
-msgid "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."
-msgstr "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."
+msgid "Runs native Ctrl+Shift+F11 building repair and full exterior/interior navmesh generation once per visited zone after each save load. Waits for idle loading and physics, with spaced requests. Building repair covers all active zones, as in KenshiQOL. Requires navmesh caching. Off by default."
+msgstr "Runs native Ctrl+Shift+F11 building repair and full exterior/interior navmesh generation once per visited zone after each save load. Waits for idle loading and physics, with spaced requests. Building repair covers all active zones, as in KenshiQOL. Requires navmesh caching. Off by default."

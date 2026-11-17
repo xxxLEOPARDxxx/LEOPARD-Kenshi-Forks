@@ -104,6 +104,7 @@ const size_t RVA_DISPATCH_JOB       = 0x3CE030;  // NavMeshGenerator::dispatchJo
 
 // The rebuild-navmesh key (src/navmesh/cache/nm_force_rebuild.cpp)
 const size_t RVA_NAVMESH_GENERATE_ZONEMAP  = 0x3AB700;   // NavMesh::generate(ZoneMap*): the key, LevelEditor::repath, updateSeedEditor
+const size_t RVA_REPAIR_INTERIOR_FURNITURE = 0x771C70;   // LevelEditor::fixInvalidInteriorFurnitureStates() const; native Ctrl+Shift+F11 repair
 const size_t RVA_NMG_ADD_JOB_ZONE          = 0x3C66E0;   // NavMeshGenerator::addJob(ZoneMap*, uint): one type-0 job, appended under queue +152
 const size_t RVA_NAVMESH_HASH_ZONE         = 0x3A1B70;   // NavMesh::hashZone: reads zone->mapContent with no check
 const size_t RVA_PROCESS_KEYS_GENERATE_RET = 0x787CF9;   // GameWorld::processKeys: the return of its NavMesh::generate call

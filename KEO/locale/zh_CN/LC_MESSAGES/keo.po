@@ -530,8 +530,8 @@ msgstr "加速模型骨骼权重准备"
 msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
 msgstr "减少导入和准备骨骼模型权重时的CPU开销。绑定顺序和最终权重保持相同。特殊或不受支持的情况保留正常处理。适用于受支持引擎版本中新加载的模型。"
 
-msgid "Automatically rebuild visited navmesh"
-msgstr "自动重建已访问区域的导航网格"
+msgid "Pathing repairs itself"
+msgstr "自动修复寻路"
 
-msgid "Requests a full exterior navmesh rebuild once per visited zone after each save load. Uses background generation while loading and physics are idle, with spacing between requests. Requires navmesh caching. Does not repair furniture or move characters. Off by default."
-msgstr "每次读取存档后，为每个已访问区域请求一次完整的室外导航网格重建。仅在世界加载和物理处理空闲时使用后台生成，并在请求之间留出间隔。需要启用导航网格缓存。不会修复家具或移动角色。默认关闭。"
+msgid "Runs native Ctrl+Shift+F11 building repair and full exterior/interior navmesh generation once per visited zone after each save load. Waits for idle loading and physics, with spaced requests. Building repair covers all active zones, as in KenshiQOL. Requires navmesh caching. Off by default."
+msgstr "每次读取存档后，为每个已访问区域执行一次原生 Ctrl+Shift+F11 建筑修复和完整的室内外导航网格生成。等待世界加载和物理处理空闲，并在请求之间留出间隔。与 KenshiQOL 一样，建筑修复覆盖所有活动区域。需要启用导航网格缓存。默认关闭。"
