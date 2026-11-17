@@ -3,6 +3,7 @@
 namespace keo_jobs {
 uint64_t SteelJobsEpoch();
 bool SteelJobsAdmitted();
+bool SteelStockTransferAdmitted();
 void SteelJobsWorldHooksReady(bool ready);
 void InstallSteelJobs(int* installed,int* total);
 void SteelJobsMainTick(bool loading);

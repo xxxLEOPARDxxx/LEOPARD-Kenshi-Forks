@@ -38,12 +38,14 @@ StockTransferResult TransferStockItemWithOps(const StockTransferOps&o,void*src,v
 #include "jobs/steel_jobs.h"
 #include "game/game.h"
 #include "game/native_profile.h"
+#include "base/log_admission.h"
 #include "base/klib_include.h"
 #include <core/Functions.h>
 #include <kenshi/Inventory.h>
 #include <kenshi/Item.h>
 #include "base/klib_include_end.h"
 #include <string.h>
+#include <stdio.h>
 #include <wincrypt.h>
 #pragma comment(lib,"advapi32.lib")
 namespace keo_jobs {namespace {
@@ -158,13 +160,15 @@ static const TransferModulePin kTransferModules[]={
  {L"StackSort.dll",0x6AE727F7u,0x73000u,"185a8bcbffd610490d6cf78f1c59b09c3e49430ffc6670403359a5ca6c08a7e9"},
  {L"KenshiRotate.dll",0x6AE6FAA0u,0x29000u,"117061950e27d9ac586515dedc5517ad6c75c4ecf78fb340bfcc5c6bc934815a"},
  {L"KenshiExtensionPlugin.dll",0x6A9ACDF7u,0xF7000u,"74c028ae13c1d9584857e1f5c0945782c5c40989f9bbb4caa07541a1724c2e59"}
+ ,{L"KenshiRotate.dll",0x6AF46992u,0x29000u,"04c27fb0d7a25077f9c4bb0a86ee054c391d680ca571bc730cb488b09c7344c5"}
 };
 struct TransferHookPin {unsigned row,module;uintptr_t target;unsigned char bytes[32];};
 static const TransferHookPin kTransferHooks[]={
  {5,0,0x2F8C0u,{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xFF,0x15,0x29,0xB6,0x03,0x00,0x80,0x3D,0x6C,0xB5,0x03,0x00,0x00,0x75,0x08,0x48,0x8B,0xCB,0xE8,0xB0,0x9A,0xFF,0xFF}},
  {6,0,0x2F890u,{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xFF,0x15,0x51,0xB6,0x03,0x00,0x80,0x3D,0x9C,0xB5,0x03,0x00,0x00,0x75,0x08,0x48,0x8B,0xCB,0xE8,0xE0,0x9A,0xFF,0xFF}},
  {7,2,0x3FD50u,{0x48,0x89,0x5C,0x24,0x10,0x56,0x48,0x83,0xEC,0x20,0x80,0x3D,0x3A,0x99,0x0A,0x00,0x00,0x48,0x8B,0xF2,0x48,0x8B,0xD9,0x75,0x11,0x48,0x8B,0x5C,0x24,0x38,0x48,0x83}},
- {8,1,0x1C00u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0x83,0x00,0x00,0x00,0x48,0x85,0xD2,0x74,0x7E,0x48,0x89}}
+ {8,1,0x1C00u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0x83,0x00,0x00,0x00,0x48,0x85,0xD2,0x74,0x7E,0x48,0x89}},
+ {8,3,0x1C60u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0xB2,0x00,0x00,0x00,0x48,0x85,0xD2,0x0F,0x84,0xA9,0x00}}
 };
 // Pure shape contract, extracted by the owned-buffer tests. Only E9 -> exact
 // FF25[+0] relay -> one pinned module entry. No generic shared-site exemption.
@@ -182,6 +186,17 @@ static bool TransferSharedShape(uintptr_t site,const unsigned char*head,const un
 }
 struct TransferSharedTicket {const TransferHookPin*pin;uintptr_t module,relay;unsigned char head[32],relayBytes[14];};
 static TransferSharedTicket s_sharedTransfer[10]={};
+// Startup only. Keep the failing native site in the tester's log so a refused
+// transfer can be distinguished from a runtime job or factory failure.
+static bool ReportTransferRefusal(unsigned row, const char* reason)
+{
+ const TransferContract& contract = kTransferContracts[row];
+ char message[192];
+ sprintf_s(message, "Steel jobs: stock transfer site %u RVA 0x%X refused (%s)",
+           row, static_cast<unsigned>(NativeProfileIsGog() ? contract.gog : contract.steam), reason);
+ LogError(message);
+ return false;
+}
 // Startup-only file/hash handles; bounded streaming, no heap and no hot I/O.
 static bool TransferFileSha(const wchar_t*path,char out[65]){
  HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_DELETE,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
@@ -210,19 +225,43 @@ static bool TransferModuleReady(uintptr_t base,unsigned module){
 }
 static bool CaptureTransferContracts(){
  __try{
-  memset(s_sharedTransfer,0,sizeof(s_sharedTransfer));uintptr_t modules[3]={};bool checked[3]={};const bool gog=NativeProfileIsGog();
+  memset(s_sharedTransfer,0,sizeof(s_sharedTransfer));
+  uintptr_t modules[sizeof(kTransferModules)/sizeof(kTransferModules[0])] = {};
+  const bool gog=NativeProfileIsGog();
   for(unsigned row=0;row<10;++row){const TransferContract&r=kTransferContracts[row];const unsigned char*head=(const unsigned char*)(gameBase+(gog?r.gog:r.steam));const unsigned char*expected=gog?r.b:r.a;
    if(memcmp(head,expected,32)==0)continue;
-   const TransferHookPin*pin=NULL;for(unsigned k=0;k<4;++k)if(kTransferHooks[k].row==row)pin=&kTransferHooks[k];if(!pin)return false;
-   if(!checked[pin->module]){const TransferModulePin&m=kTransferModules[pin->module];HMODULE h=GetModuleHandleW(m.name);wchar_t path[1024];char sha[65]={};
-    DWORD length=h?GetModuleFileNameW(h,path,1024):0;
-    if(!length||length>=1024||!TransferModuleReady((uintptr_t)h,pin->module)||!TransferFileSha(path,sha)||strcmp(sha,m.sha))return false;
-    modules[pin->module]=(uintptr_t)h;checked[pin->module]=true;
+   const TransferHookPin* pin = NULL;
+   bool hasPinnedHook = false;
+   for(unsigned k=0;k<sizeof(kTransferHooks)/sizeof(kTransferHooks[0]);++k)
+   {
+    const TransferHookPin& candidate = kTransferHooks[k];
+    if(candidate.row != row)
+     continue;
+    hasPinnedHook = true;
+    const unsigned index = candidate.module;
+    if(!modules[index])
+    {
+     const TransferModulePin& module = kTransferModules[index];
+     const HMODULE handle = GetModuleHandleW(module.name);
+     if(!TransferModuleReady((uintptr_t)handle,index))
+      continue;
+     wchar_t path[1024];
+     char sha[65] = {};
+     const DWORD length = GetModuleFileNameW(handle,path,1024);
+     if(!length || length>=1024 || !TransferFileSha(path,sha) || strcmp(sha,module.sha))
+      continue;
+     modules[index] = (uintptr_t)handle;
+    }
+    pin = &candidate;
+    break;
    }
+   if(!pin)
+    return ReportTransferRefusal(row, hasPinnedHook ? "shared plugin identity differs" : "native bytes differ");
    uintptr_t site=(uintptr_t)head;if(site>~uintptr_t(0)-5)return false;int32_t delta=0;memcpy(&delta,head+1,4);uintptr_t next=site+5,relay=0;
    if(delta<0){uintptr_t back=(uintptr_t)(-(int64_t)delta);if(back>next)return false;relay=next-back;}else{if((uintptr_t)delta>~uintptr_t(0)-next)return false;relay=next+(uintptr_t)delta;}
    uintptr_t module=modules[pin->module];if(pin->target>~uintptr_t(0)-module||pin->target>kTransferModules[pin->module].size-32)return false;
-   if(!TransferSharedShape(site,head,expected,relay,(const unsigned char*)relay,module,pin->target,(const unsigned char*)(module+pin->target),pin->bytes))return false;
+   if(!TransferSharedShape(site,head,expected,relay,(const unsigned char*)relay,module,pin->target,(const unsigned char*)(module+pin->target),pin->bytes))
+    return ReportTransferRefusal(row, "shared hook layout differs");
    TransferSharedTicket&t=s_sharedTransfer[row];t.pin=pin;t.module=module;t.relay=relay;memcpy(t.head,head,32);memcpy(t.relayBytes,(const void*)relay,14);
   }return true;
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
@@ -252,7 +291,9 @@ static bool BindTransfer(){
  (uintptr_t)KlibRealAddress(&InventoryItemBase::canStackWith),
  (uintptr_t)KlibRealAddress(&InventoryItemBase::isStackable)};
  const bool gog=NativeProfileIsGog();
- for(size_t i=0;i<sizeof(found)/sizeof(found[0]);++i)if(found[i]!=gameBase+(gog?kTransferContracts[i].gog:kTransferContracts[i].steam))return false;
+ for(unsigned i=0;i<sizeof(found)/sizeof(found[0]);++i)
+  if(found[i]!=gameBase+(gog?kTransferContracts[i].gog:kTransferContracts[i].steam))
+   return ReportTransferRefusal(i, "KenshiLib address differs");
  s_remove=(RemoveFn)found[0];s_offer=(OfferFn)found[1];s_restore=(RestoreFn)found[2];s_sectionAdd=found[3];s_sourceCallback=found[5];s_destCallback=found[6];s_compatible=(CompatibleFn)found[7];s_canStack=(StackFn)found[8];s_stackLimit=(StackLimitFn)found[9];
  if(!CaptureTransferContracts())return false;
  InterlockedExchange(&s_transferReady,1);if(NativeContractReady())return true;InterlockedExchange(&s_transferReady,0);return false;

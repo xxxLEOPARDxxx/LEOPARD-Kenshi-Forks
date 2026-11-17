@@ -31,7 +31,11 @@ __declspec(align(8)) volatile LONG64 s_stockFault=0,s_gatherFault=0;
 bool Faulted(volatile LONG64&flag){uint64_t epoch=SteelJobsEpoch();return epoch&&(uint64_t)InterlockedCompareExchange64(&flag,0,0)==epoch;}
 ActorId Id(const hand&h){ActorId a={{(uint32_t)h.type,h.container,h.containerSerial,h.index,h.serial}};return a;}
 int Kind(const Tasker*t){return t&&t->taskData?(int)t->taskData->key:-1;}
-bool Enabled(){return keo_inventory::g_inventoryCfg.stockCounterJobEnabled&&SteelJobsAdmitted()&&!Faulted(s_stockFault);}
+bool Enabled()
+{
+ return keo_inventory::g_inventoryCfg.stockCounterJobEnabled && SteelStockTransferAdmitted()
+     && SteelJobsAdmitted() && !Faulted(s_stockFault);
+}
 void StockFault(){if((uint64_t)InterlockedExchange64(&s_stockFault,(LONG64)SteelJobsEpoch())!=SteelJobsEpoch())LogErrorDeferrable("Steel stock jobs: guarded native failure; stocking paused until the next world");}
 bool Owned(Building*b){Faction*f=b?b->getFaction():NULL;return f&&f->isPlayer&&b->isAShop()&&b->getInventory();}
 bool Player(Character*c){return c&&c->isPlayerCharacter()&&!c->isAnimal();}

@@ -57,7 +57,7 @@ struct PlayerInterface{ogre_unordered_set<hand>::type selectedCharacters;bool mR
 struct Building{};
 struct InputHandler{OIS::Keyboard*keyboard;bool mRight;};static OIS::Keyboard keyboard;static InputHandler input={&keyboard,true};static InputHandler*key=&input;
 struct Gui{unsigned updates;Gui():updates(0){}void updateToOrdersPanel(){++updates;}};static Gui guiObject;static Gui*gui=&guiObject;
-namespace keo_inventory{struct Config{bool gatherOutputJobEnabled,stockCounterJobEnabled,waypointRouteJobEnabled;};static Config g_inventoryCfg={false,false,true};}
+namespace keo_inventory{struct InventoryConfig{bool gatherOutputJobEnabled,stockCounterJobEnabled,waypointRouteJobEnabled;};static InventoryConfig g_inventoryCfg={false,false,true};}
 double ElapsedSec(){return now;}void FactoryLog(const char*){++errors;}
 std::string KeoTr(const char*s){C(captionConstructed,"native constructs poisoned return storage BEFORE assignment");++translatedCalls;return std::string("translated:")+s;}
 void NativeMove(PlayerInterface*,const Ogre::Vector3&,Building*){++nativeMoves;}
@@ -108,7 +108,15 @@ int main(){DeferredCase();PlayerInterface pi;Ogre::Vector3 p(50,2,-70);Fresh(pi)
  InterlockedExchange(&s_ready,1);keo_inventory::g_inventoryCfg.waypointRouteJobEnabled=false;
  for(int i=0;i<3;++i){int calls=scoreCalls;C(HookScore(&ours[i],&ai)==0&&scoreCalls==calls,"own OFF task score zero without native score");calls=scoreCalls;C(HookScore(&foreign[i],NULL)==42.5f&&scoreCalls==calls+1,"foreign custom ID score unaffected by our OFF toggles");factoryPresent[i]=false;calls=scoreCalls;C(HookScore(&ours[i],NULL)==42.5f&&scoreCalls==calls+1,"unprepared factory metadata is not owned");factoryPresent[i]=true;}
  TaskData ordinaryData={29};Tasker ordinary;ordinary.taskData=&ordinaryData;int calls=scoreCalls;C(HookScore(&ordinary,NULL)==42.5f&&scoreCalls==calls+1,"unrelated native score passes through");
- keo_inventory::g_inventoryCfg.gatherOutputJobEnabled=true;calls=scoreCalls;C(HookScore(&ours[0],&ai)==42.5f&&scoreCalls==calls+1,"enabled owned gather retains native score");keo_inventory::g_inventoryCfg.stockCounterJobEnabled=true;calls=scoreCalls;int stocks=stockChecks;C(HookScore(&ours[2],&ai)==42.5f&&scoreCalls==calls+1&&stockChecks==stocks+1,"owned stock alone invokes eligibility");
+ keo_inventory::g_inventoryCfg.gatherOutputJobEnabled=true;calls=scoreCalls;C(HookScore(&ours[0],&ai)==42.5f&&scoreCalls==calls+1,"enabled owned gather retains native score");
+ keo_inventory::g_inventoryCfg.stockCounterJobEnabled=true;
+ keo_inventory::g_inventoryCfg.waypointRouteJobEnabled=true;
+ s_stockTransferReady=false;
+ calls=scoreCalls;int stocks=stockChecks;
+ C(HookScore(&ours[2],&ai)==0&&scoreCalls==calls&&stockChecks==stocks,"refused stock contract never reaches stock eligibility");
+ C(SwitchesNow().gather&&SwitchesNow().waypoints,"stock refusal leaves gather and route enabled");
+ s_stockTransferReady=true;
+ C(HookScore(&ours[2],&ai)==42.5f&&scoreCalls==calls+1&&stockChecks==stocks+1,"owned stock alone invokes eligibility");
  // Route reader/restorer must ignore a foreign292 row, even malformed payload.
  RoutePoint one={1,10,20,30};WaypointSubject encodedOne={};C(EncodeWaypoint(____XXX___,one,kCoordinateLimit,encodedOne),"owned route setup");OrdersReceiver&ro=actors[0].orders;ro.addJob(292,hand(encodedOne.index,encodedOne.serial,(itemType)encodedOne.type,encodedOne.container,encodedOne.containerSerial),p,true);
  ro.ptrs[1]=&foreign[1];ro.permajobs.count=2;foreign[1].subject=hand();foreign[1].location=Ogre::Vector3(800,900,1000);ro.rows[0].location=Ogre::Vector3();RoutePoint read[MAX_ROUTE_POINTS];unsigned count=0;C(ReadRoute(&ro,read,&count)&&count==1&&read[0].serial==1,"foreign292 malformed payload excluded from our route");RestoreLocations(&actors[0]);C(ro.rows[0].location.x==10&&ro.rows[0].location.y==20&&ro.rows[0].location.z==30,"owned route location restored");C(foreign[1].location.x==800&&foreign[1].location.y==900&&foreign[1].location.z==1000,"foreign route location untouched");
