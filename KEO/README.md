@@ -1,18 +1,4 @@
-# KEO (MCM fork) (QoL) - release 4
-
-## Unreleased compatibility fix / Невыпущенное исправление совместимости
-
-Custom jobs can now initialize when KenshiLua scripts have already connected to
-the shared context menu, including Animal Husbandry's menu handlers. Previously
-that supported menu hook could make KEO disable all three custom jobs, including
-Waypoint route. This fix does not require importing a save or moving mods between
-Workshop and the local mods directory. It is built but not yet published.
-
-Работы KEO теперь могут инициализироваться, когда скрипты KenshiLua уже подключены
-к общему контекстному меню, в том числе обработчики Animal Husbandry. Раньше такой
-перехват меню мог отключить все три работы KEO, включая маршрут по точкам. Для
-этого исправления не нужен импорт сохранения или перенос модов между Workshop и
-локальной папкой mods. Исправление собрано, но ещё не опубликовано.
+# KEO (MCM fork) (QoL) - release 5
 
 ## English
 
@@ -663,3 +649,16 @@ eligible; accepted work is not automatically repeated after downstream failure.
 время ремонта, постановки задач и число исправленных объектов; принятие заявки
 само по себе ещё не доказывает исправление пути. Игра, сохранения и остальные
 плагины остаются источниками ограничений; универсальный прирост FPS не заявляется.
+
+## Release 5 / Выпуск 5
+
+### English
+
+- Fixed custom-job initialization when KenshiLua scripts, including Animal Husbandry, already use the shared context menu. This could disable Waypoint route, Gather output and Stock shop counter.
+- Existing job rows and personal settings are preserved. No save import or relocation between Workshop and local mods is required.
+
+### Русский
+
+- Исправлена инициализация работ KEO, когда скрипты KenshiLua, в том числе Animal Husbandry, уже используют общее контекстное меню. Из-за этого могли отключаться маршрут по точкам, сбор продукции и пополнение прилавка.
+- Назначенные работы и личные настройки сохраняются. Импорт сохранения и перенос модов между Workshop и локальной папкой mods не требуются.
+
