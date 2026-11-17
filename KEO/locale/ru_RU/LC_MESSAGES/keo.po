@@ -520,3 +520,12 @@ msgstr "Пропускать ненужные ключи полей сейва"
 
 msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
 msgstr "Не создаёт временные имена полей, которые разборщик сейва сразу отбросил бы. Проверки разрешений, итоговые имена полей, значения и порядок загрузки остаются штатными. Только для поддерживаемых сборок движка."
+
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up model bone weights"
+msgstr "Ускорять подготовку весов моделей"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."
+msgstr "Уменьшает повторные поиски при подготовке весов скелетных моделей. Подходящие модели используют линейный проход CPU с теми же итоговыми весами. Остальные обрабатываются штатно. Применяется к новым загружаемым моделям на поддерживаемых сборках движка."

@@ -55,6 +55,7 @@ k7PostDeathHold=1
 keoRouting=true
 materialReserve=true
 meshFaceGuard=true
+meshWeights=true
 modelCloneReserve=true
 morphPoseReuse=true
 movementAware=true

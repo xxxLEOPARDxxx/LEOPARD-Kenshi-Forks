@@ -1,5 +1,27 @@
 # KEO (MCM fork) (QoL) - release 2
 
+### Local model-weight correction / Локальная подготовка весов моделей (2026-11-17)
+
+Working release 2, not a new published version. **Speed up model bone weights**
+is ON by default and can be disabled live under Performance. Eligible skeletal
+models use two linear CPU traversals instead of repeated tree searches per
+vertex. Resulting weights and node order are preserved. Missing assignments,
+more than four weights, unusual values and unsupported engine builds retain
+native processing. No additional workers, GPU calls, retained model pointers
+or growing caches are introduced. The change targets measured model preparation;
+it does not claim to remove every NPC streaming stall or speed up the entire
+save load by the helper benchmark ratio.
+
+Рабочий выпуск 2, без нового опубликованного номера. **Ускорять подготовку весов
+моделей** по умолчанию включено и отключается на ходу в группе производительности.
+Подходящие скелетные модели обрабатываются двумя линейными обходами вместо
+повторных поисков в дереве для каждой вершины. Итоговые веса и порядок узлов
+сохраняются. Пропущенные веса, более четырёх связей, необычные значения и
+неподдерживаемые сборки остаются на штатном пути. Новых потоков, вызовов GPU,
+сохраняемых указателей на модели или растущих кэшей нет. Правка относится к
+измеренной подготовке моделей; ускорение отдельного helper не означает такое
+же ускорение всей загрузки сейва или устранение всех задержек появления NPC.
+
 ## English
 
 A temporary maintenance fork of **KEO by jacobericson**. Thank you to the original author for the optimizations and public source release.

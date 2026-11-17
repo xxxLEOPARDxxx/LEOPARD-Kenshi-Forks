@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0">
+  <Profiles>
+    <SystemCollector Id="KeoLoadCollector" Name="KEO complete save-load CPU and waits">
+      <BufferSize Value="1024" />
+      <Buffers Value="256" />
+    </SystemCollector>
+    <SystemProvider Id="KeoLoadProvider">
+      <Keywords>
+        <Keyword Value="CpuConfig" />
+        <Keyword Value="ProcessThread" />
+        <Keyword Value="Loader" />
+        <Keyword Value="SampledProfile" />
+        <Keyword Value="CSwitch" />
+        <Keyword Value="ReadyThread" />
+      </Keywords>
+      <Stacks>
+        <Stack Value="SampledProfile" />
+        <Stack Value="CSwitch" />
+        <Stack Value="ReadyThread" />
+      </Stacks>
+    </SystemProvider>
+    <Profile Id="KeoSaveLoad.Verbose.File" Name="KeoSaveLoad" Description="Complete save loading, sequential file, no ring overwrite" LoggingMode="File" DetailLevel="Verbose">
+      <Collectors><SystemCollectorId Value="KeoLoadCollector"><SystemProviderId Value="KeoLoadProvider" /></SystemCollectorId></Collectors>
+    </Profile>
+    <Profile Id="KeoSaveLoad.Verbose.Memory" Name="KeoSaveLoad" Description="Memory fallback; recorder explicitly requires File mode" Base="KeoSaveLoad.Verbose.File" LoggingMode="Memory" DetailLevel="Verbose" />
+  </Profiles>
+</WindowsPerformanceRecorder>

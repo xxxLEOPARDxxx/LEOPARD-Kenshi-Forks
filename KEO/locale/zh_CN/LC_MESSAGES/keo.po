@@ -520,3 +520,12 @@ msgstr "跳过无用的存档字段名"
 
 msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
 msgstr "避免构造存档解析器会立即丢弃的临时字段名。权限检查、最终字段名、数值和加载顺序保持原样。仅适用于受支持的引擎版本。"
+
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up model bone weights"
+msgstr "加速模型骨骼权重准备"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."
+msgstr "减少准备骨骼模型权重时的重复搜索。符合条件的模型使用线性CPU遍历，最终权重保持相同。其他模型保留正常处理。适用于受支持引擎版本中新加载的模型。"

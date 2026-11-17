@@ -520,3 +520,12 @@ msgstr "Skip discarded save field keys"
 
 msgid "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
 msgstr "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."
+
+
+#: src/fixes/fixes_config.cpp
+msgid "Speed up model bone weights"
+msgstr "Speed up model bone weights"
+
+#: src/fixes/fixes_config.cpp
+msgid "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."
+msgstr "Reduces repeated searches while preparing skeletal model weights. Supported models use a linear CPU pass with the same resulting weights. Other models keep normal handling. Applies to newly loaded models on supported engine builds."

@@ -26,6 +26,7 @@ const SettingsPlace kSettingsPlaces[] =
 	{ "Performance",    "fixes",    "animationDirtyReuse" },
 	{ "Performance",    "fixes",    "animationStateLookup" },
 	{ "Performance",    "fixes",    "skeletonReserve" },
+	{ "Performance",    "fixes",    "meshWeights" },
 	{ "Performance",    "fixes",    "modelCloneReserve" },
 	{ "Performance",    "fixes",    "materialReserve" },
 	{ "Performance",    "fixes",    "equipmentFieldLookup" },

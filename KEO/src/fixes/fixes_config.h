@@ -239,6 +239,7 @@ struct FixesConfig
 	bool animationDirtyReuseEnabled; // narrow native CPU reuse, live
 	bool animationStateLookupEnabled; // native current-end animation state insertion, live
 	bool skeletonReserveEnabled;
+	bool meshWeightsEnabled; // validated linear bone-weight preparation, live
 	bool modelCloneReserveEnabled; // capacity-only native clone preparation, live
 	bool materialReserveEnabled; // exact native copy constructor only, live
 	bool equipmentFieldLookupEnabled; // exact equipment slot/int queries only, live

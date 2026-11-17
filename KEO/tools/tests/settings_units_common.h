@@ -46,6 +46,7 @@ static const ProdRow kProdPage[] =
 	{ "animationDirtyReuse", "Performance" },
 	{ "animationStateLookup", "Performance" },
 	{ "skeletonReserve", "Performance" },
+	{ "meshWeights", "Performance" },
 	{ "modelCloneReserve", "Performance" },
 	{ "materialReserve", "Performance" },
 	{ "equipmentFieldLookup", "Performance" },
@@ -67,7 +68,7 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 48;
+static const int PROD_PAGE_ROWS = 49;
 static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 
