@@ -1,5 +1,19 @@
 # KEO (MCM fork) (QoL) - release 4
 
+## Unreleased compatibility fix / Невыпущенное исправление совместимости
+
+Custom jobs can now initialize when KenshiLua scripts have already connected to
+the shared context menu, including Animal Husbandry's menu handlers. Previously
+that supported menu hook could make KEO disable all three custom jobs, including
+Waypoint route. This fix does not require importing a save or moving mods between
+Workshop and the local mods directory. It is built but not yet published.
+
+Работы KEO теперь могут инициализироваться, когда скрипты KenshiLua уже подключены
+к общему контекстному меню, в том числе обработчики Animal Husbandry. Раньше такой
+перехват меню мог отключить все три работы KEO, включая маршрут по точкам. Для
+этого исправления не нужен импорт сохранения или перенос модов между Workshop и
+локальной папкой mods. Исправление собрано, но ещё не опубликовано.
+
 ## English
 
 A temporary maintenance fork of **KEO by jacobericson**. Thank you to the original author for the optimizations and public source release.
