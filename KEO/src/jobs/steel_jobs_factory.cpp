@@ -113,7 +113,7 @@ bool RegisterFactoryTask(int type,const std::string&caption){
  // not a specialized COLLECT score which may reject the new TaskType.
  ScorePmf score;memset(score.bytes,0,sizeof(score.bytes));uintptr_t scoreAddress=Address(JobsProfile::DEFAULT_SCORE);memcpy(score.bytes,&scoreAddress,sizeof(scoreAddress));
  TaskData*data=((RegisterFn)Address(JobsProfile::REGISTER_DATA))(type,&score,false,true,&caption,1);
- if(!data||data->key!=(TaskType)type)return false;
+ if(!data||data->key!=(TaskType)type){Report("KEO jobs: native custom-task metadata registration failed");return false;}
  ((PermaFn)Address(JobsProfile::SET_PERMAJOB))(data,PERMAJOB_NORMAL,true,0,0);
  // Native ctor leaves hasAction false until world-ready template publication.
  if(type==293)((RequirementFn)Address(JobsProfile::ADD_REQUIREMENT))(data,AT_LOCATION,true,false);
@@ -126,9 +126,11 @@ bool PrepareFactoryTasks(){
 }
 bool InstallFactory(){
  if(installed)return true;if(!prepared||!slots[0].data||!slots[1].data||!slots[2].data)return false;
- // Revalidate immediately before publication; a competing custom factory patch
- // or overwritten vtable is not silently chained or overwritten.
- if(!JobsProfile::ValidateForInstall(gog,base,&Read,(void*)base))return false;
+ // Revalidate before publication: normal entry-hook chains are admitted;
+ // unsupported factory-body/dispatch/vtable changes are never overwritten.
+ if(!JobsProfile::ValidateForInstall(gog,base,&Read,(void*)base)){
+  Report("KEO jobs: factory/data/vtable contract changed after startup; factory registration refused");return false;
+ }
  if(KenshiLib::AddHook((void*)Address(JobsProfile::FACTORY),(void*)&Create,(void**)&original)!=KenshiLib::SUCCESS){Report("KEO jobs: native factory hook failed");return false;}
  installed=true;return true;
 }

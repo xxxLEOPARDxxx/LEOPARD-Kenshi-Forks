@@ -28,12 +28,14 @@ static bool Check(bool gog,uintptr_t base,Reader read,void*ctx,bool installation
  for(unsigned i=0;i<11;++i){if(installation&&(i==CAPTION||i==CONTEXT_SHOW))continue;
   if(!read(ctx,code[i].rva[p],bytes,code[i].count))return false;
   if(memcmp(bytes,code[i].bytes[p],code[i].count)){
-   // ContextMenuGUI::show is chained through AddHook, never called as an
-   // unhooked native implementation. KenshiLua menu callbacks can own its
-   // entry before KEO loads. Admit the normal five-byte MinHook jump only
-   // while the remaining native window is exact, as in the main hook gate.
-   // Direct factory dependencies and every vtable entry stay strict.
-   if(i!=CONTEXT_SHOW||bytes[0]!=0xE9||memcmp(bytes+5,code[i].bytes[p]+5,code[i].count-5))return false;
+   // The menu and task factory are chained through AddHook. A later plugin
+   // may hook the factory between InitializeFactory and the title-screen
+   // registration; requiring an untouched entry at that second check disables
+   // all three jobs despite successful metadata registration. Only the normal
+   // five-byte entry jump is admitted, with the complete native tail exact.
+   // The factory dispatch, direct dependencies and every vtable stay strict;
+   // Create still verifies the returned native class before adapting a task.
+   if((i!=CONTEXT_SHOW&&i!=FACTORY)||bytes[0]!=0xE9||memcmp(bytes+5,code[i].bytes[p]+5,code[i].count-5))return false;
   }}
  for(unsigned t=0;t<3;++t)for(unsigned j=0;j<tables[t].count;++j){uintptr_t v=0;
   if(!read(ctx,tables[t].rva[p]-8+j*8,&v,8)||v<base||v-base!=tables[t].slots[p][j])return false;

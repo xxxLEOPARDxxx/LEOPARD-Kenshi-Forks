@@ -41,12 +41,12 @@ static const Window windows[2][11]={WINDOWS};
 static const Table tables[2][3]={TABLES};
 static int checks=0;
 static void Check(bool ok,const char*what){++checks;if(!ok){printf("FAIL %s\n",what);exit(1);}}
-struct Image {unsigned platform;uintptr_t base,shared,corrupt,unreadable;unsigned char opcode;};
+struct Image {unsigned platform;uintptr_t base,shared,corrupt,unreadable;unsigned char opcode;uintptr_t secondShared;};
 static bool Read(void*ctx,uintptr_t rva,void*out,size_t n){Image&i=*(Image*)ctx;
  if(rva==i.unreadable)return false;
  for(unsigned k=0;k<11;++k){const Window&w=windows[i.platform][k];if(rva!=w.rva||n!=w.n)continue;
   memcpy(out,w.bytes,n);unsigned char*b=(unsigned char*)out;
-  if(rva==i.shared){b[0]=i.opcode;b[1]=0x12;b[2]=0x34;b[3]=0x56;b[4]=0;}
+  if(rva==i.shared||rva==i.secondShared){b[0]=i.opcode;b[1]=0x12;b[2]=0x34;b[3]=0x56;b[4]=0;}
   if(i.corrupt>=rva&&i.corrupt-rva<n)b[i.corrupt-rva]^=1;return true;
  }
  for(unsigned k=0;k<3;++k){const Table&t=tables[i.platform][k];if(n!=8||rva<t.rva||rva-t.rva>=t.n*8||(rva-t.rva)%8)continue;
@@ -60,7 +60,17 @@ int main(){for(unsigned p=0;p<2;++p){Image i={p,0x7FF600000000ULL,0,0,0,0xE9};
  for(unsigned k=5;k<32;++k){i.corrupt=i.shared+k;Check(!Valid(i),"changed shared native tail refused");}i.corrupt=0;
  i.unreadable=i.shared;Check(!Valid(i),"unreadable shared window refused");i.unreadable=0;
  i.opcode=0xE8;Check(!Valid(i),"arbitrary patched entry refused");i.opcode=0xE9;
- for(unsigned k=0;k<11;++k){if(k==JobsProfile::CONTEXT_SHOW)continue;i.shared=windows[p][k].rva;Check(!Valid(i),"shared-context exception never applies to another native window");}i.shared=0;
+ i.shared=0;Check(Valid(i),"initial task metadata contract before later plugins");
+ i.shared=windows[p][JobsProfile::FACTORY].rva;
+ Check(JobsProfile::ValidateForInstall(p!=0,i.base,Read,&i),"later chained task factory must remain installable after other plugins load");
+ Check(Valid(i),"an existing factory hook is chained, not called as an unmodified native body");
+ i.secondShared=windows[p][JobsProfile::CONTEXT_SHOW].rva;
+ Check(Valid(i)&&JobsProfile::ValidateForInstall(p!=0,i.base,Read,&i),"context and factory hooks coexist without disabling independent route jobs");
+ for(unsigned k=5;k<32;++k){i.corrupt=i.shared+k;Check(!Valid(i)&&!JobsProfile::ValidateForInstall(p!=0,i.base,Read,&i),"every changed factory tail byte refused");}i.corrupt=0;
+ i.unreadable=i.shared;Check(!Valid(i)&&!JobsProfile::ValidateForInstall(p!=0,i.base,Read,&i),"unreadable shared factory entry refused");i.unreadable=0;
+ i.opcode=0xE8;Check(!Valid(i)&&!JobsProfile::ValidateForInstall(p!=0,i.base,Read,&i),"arbitrary non-hook factory patch refused");i.opcode=0xE9;
+ i.secondShared=0;
+ for(unsigned k=0;k<11;++k){if(k==JobsProfile::CONTEXT_SHOW||k==JobsProfile::FACTORY)continue;i.shared=windows[p][k].rva;Check(!Valid(i),"shared-chain exception never applies to direct native dependencies");}i.shared=0;
  for(unsigned k=0;k<11;++k){i.corrupt=windows[p][k].rva;Check(!Valid(i),"all other changed entries still refused");}i.corrupt=0;
  for(unsigned k=0;k<3;++k)for(unsigned j=0;j<tables[p][k].n;++j){i.corrupt=tables[p][k].rva+j*8;Check(!Valid(i),"every changed native vtable slot refused");}i.corrupt=0;
  i.base+=0x20000000;Check(Valid(i),"ASLR base does not change admission");
