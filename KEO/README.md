@@ -1,4 +1,4 @@
-# KEO (MCM fork) (QoL) - release 5
+# KEO (MCM fork) (QoL) - release 6
 
 ## English
 
@@ -661,3 +661,15 @@ eligible; accepted work is not automatically repeated after downstream failure.
 
 - Исправлена инициализация работ KEO, когда скрипты KenshiLua, в том числе Animal Husbandry, уже используют общее контекстное меню. Из-за этого могли отключаться маршрут по точкам, сбор продукции и пополнение прилавка.
 - Назначенные работы и личные настройки сохраняются. Импорт сохранения и перенос модов между Workshop и локальной папкой mods не требуются.
+
+## Release 6 / Выпуск 6
+
+### English
+
+- Fixed a second compatibility issue that could prevent KEO jobs from registering when another plugin had already connected to the game’s job creation system. This could leave Shift + right-click unable to add Waypoint route.
+- If registration still fails, the standard log now identifies which stage failed.
+
+### Русский
+
+- Исправлена ещё одна причина, по которой работы KEO могли не регистрироваться, если другой плагин уже подключился к системе создания заданий игры. Из-за этого Shift + ПКМ мог не добавлять работу «Маршрут по точкам».
+- Если регистрация всё же не удаётся, в обычном журнале теперь указан этап сбоя.
