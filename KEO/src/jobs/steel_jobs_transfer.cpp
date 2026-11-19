@@ -64,6 +64,27 @@ static volatile LONG s_transferReady=0,s_transferFault=0,s_transferBusy=0,s_rese
 static void*s_quarantined=NULL;static uint64_t s_quarantineEpoch=0;
 static bool NativeFinite(float v){return v>=-FLT_MAX&&v<=FLT_MAX;}
 static bool NativeContractReady();
+struct StockVtables {
+ uintptr_t inventory, section;
+ uintptr_t offer, remove, added, removed, sectionAdd, restore;
+};
+static const StockVtables kStockVtables[]={
+ {0x170BF88u,0x170B9A8u,0x3BA11u,0x2FE0u,0x247ADu,0x4F651u,0x468E4u,0x3477Fu},
+ {0x170AB58u,0x170A578u,0x3BA7Fu,0x2FE0u,0x2481Bu,0x4F6C9u,0x46957u,0x347EDu}
+};
+static bool StockSlot(const void* object,uintptr_t tableRva,unsigned slot,uintptr_t thunkRva,uintptr_t body)
+{
+ // Shop counters, carried inventories and their normal sections use these
+ // base classes. ShopTraderInventory is an aggregate with different behavior.
+ const uintptr_t thunk=gameBase+thunkRva;
+ const uintptr_t* table=*reinterpret_cast<const uintptr_t* const*>(object);
+ if(reinterpret_cast<uintptr_t>(table)!=gameBase+tableRva||table[slot]!=thunk)return false;
+ const unsigned char* code=reinterpret_cast<const unsigned char*>(thunk);
+ if(code[0]!=0xE9)return false;
+ int32_t delta=0;
+ memcpy(&delta,code+1,sizeof(delta));
+ return static_cast<int64_t>(body)-static_cast<int64_t>(thunk+5)==delta;
+}
 static bool InventoryShape(Inventory*i){return i&&i->_allItems.count<=4096&&i->_allItems.count<=i->_allItems.maxSize&&(!i->_allItems.count||i->_allItems.stuff);}
 static bool SectionsShape(Inventory*i){return i->sectionsInSearchOrder.count<=64&&i->sectionsInSearchOrder.count<=i->sectionsInSearchOrder.maxSize&&(!i->sectionsInSearchOrder.count||i->sectionsInSearchOrder.stuff);}
 static bool Grid(InventorySection*s){return s&&s->width>0&&s->height>0&&s->width<=64&&s->height<=64&&s->content.nRows==(unsigned)s->width&&s->content.nCols==(unsigned)s->height&&s->content.data.size()==(size_t)s->width*s->height&&s->items.size()<=4096;}
@@ -83,10 +104,10 @@ static bool MeasureInventory(Inventory*i,const StockTransferSnapshot&s,double*ou
  *out=sum;return TransferFinite(sum);
 }
 static bool NativeValid(void*,const StockTransferSnapshot&s){return SteelJobsAdmitted()&&SteelJobsEpoch()==s.epoch;}
-static bool DestinationSpace(Inventory*d,Item*item,const StockTransferSnapshot&s){
+static bool DestinationSpace(Inventory*d,Item*item,const StockTransferSnapshot&s,const StockVtables&abi){
  bool room=false;unsigned cells=0;
  for(unsigned n=0;n<d->sectionsInSearchOrder.count;++n){InventorySection*t=d->sectionsInSearchOrder.stuff[n];
-  if(!Grid(t)||(uintptr_t)(*(void***)t)[2]!=s_sectionAdd)return false;
+  if(!Grid(t)||!StockSlot(t,abi.section,2,abi.sectionAdd,s_sectionAdd))return false;
   cells+=(unsigned)(t->width*t->height);if(cells>65536)return false;
   if(!t->enabled||!s_compatible(t,item))continue;
   const int limit=s_stackLimit(item,t);if(limit<=0)continue;
@@ -106,8 +127,11 @@ static bool CaptureGame(void*,void*source,void*dest,void*what,StockTransferSnaps
  if(!SteelJobsAdmitted()||!NativeContractReady()||!InventoryShape(src)||!InventoryShape(dst)||!SectionsShape(src)||!SectionsShape(dst))return false;
  // Native addQuantity/addItem may clear provenance. Do not launder or rewrite ownership.
  if(src==dst||!item||item->properOwner.type!=NULL_ITEM||!item->isInInventory||item->isEquipped||item->quantity<=0||item->quantity>1000000||item->itemWidth<=0||item->itemHeight<=0)return false;
- if((uintptr_t)(*(void***)src)[5]!=(uintptr_t)s_remove||(uintptr_t)(*(void***)dst)[3]!=(uintptr_t)s_offer
-  ||(uintptr_t)(*(void***)src)[10]!=s_sourceCallback||(uintptr_t)(*(void***)dst)[8]!=s_destCallback)return false;
+ const StockVtables& abi=kStockVtables[NativeProfileIsGog()?1:0];
+ if(!StockSlot(src,abi.inventory,5,abi.remove,(uintptr_t)s_remove)||
+    !StockSlot(dst,abi.inventory,3,abi.offer,(uintptr_t)s_offer)||
+    !StockSlot(src,abi.inventory,10,abi.removed,s_sourceCallback)||
+    !StockSlot(dst,abi.inventory,8,abi.added,s_destCallback))return false;
  unsigned found=0;for(unsigned k=0;k<src->_allItems.count;++k)if(src->_allItems.stuff[k]==item)++found;if(found!=1)return false;
  for(unsigned k=0;k<dst->_allItems.count;++k)if(dst->_allItems.stuff[k]==item)return false;
  if(!NativeFinite(item->originalFullChargeAmount)||!NativeFinite(item->chargesLeft)||item->originalFullChargeAmount<0||item->originalFullChargeAmount>1e9f||item->chargesLeft<0||item->chargesLeft>1e9f)return false;
@@ -118,10 +142,11 @@ static bool CaptureGame(void*,void*source,void*dest,void*what,StockTransferSnaps
  for(unsigned n=0;n<src->sectionsInSearchOrder.count;++n){InventorySection*t=src->sectionsInSearchOrder.stuff[n];if(!Grid(t))return false;
   for(size_t k=0;k<t->items.size();++k)if(t->items[k].item==item){if(section)return false;section=t;s.x=t->items[k].x;s.y=t->items[k].y;}
  }
- if(!section||section->callbackObject||section->name!=item->inventorySection||(uintptr_t)(*(void***)section)[3]!=(uintptr_t)s_restore
+ if(!section||section->callbackObject||section->name!=item->inventorySection||
+  !StockSlot(section,abi.section,3,abi.restore,(uintptr_t)s_restore)
   ||!Footprint(section,s.x,s.y,item->itemWidth,item->itemHeight,item))return false;
  s.section=(uintptr_t)section;
- if(!MeasureInventory(src,s,&s.sourceMeasure)||!MeasureInventory(dst,s,&s.destMeasure)||!DestinationSpace(dst,item,s)||!NativeValid(NULL,s))return false;
+ if(!MeasureInventory(src,s,&s.sourceMeasure)||!MeasureInventory(dst,s,&s.destMeasure)||!DestinationSpace(dst,item,s,abi)||!NativeValid(NULL,s))return false;
  *out=s;return true;
 }
 static bool CaptureSafe(void*c,void*a,void*b,void*i,StockTransferSnapshot*s){__try{return CaptureGame(c,a,b,i,s);}__except(EXCEPTION_EXECUTE_HANDLER){return false;}}
@@ -132,6 +157,8 @@ static bool RestoreGame(void*,void*source,void*what,const StockTransferSnapshot&
  if(!NativeValid(NULL,s)||!item||item->isInInventory||item->quantity<=0||item->quantity>s.quantity||!Grid(t)||t->parentInventory!=src
   ||t->items.size()>=t->items.capacity()||!InventoryShape(src)||src->_allItems.count>=src->_allItems.maxSize
   ||!Footprint(t,s.x,s.y,item->itemWidth,item->itemHeight,NULL))return false;
+ const StockVtables& abi=kStockVtables[NativeProfileIsGog()?1:0];
+ if(!StockSlot(t,abi.section,3,abi.restore,(uintptr_t)s_restore))return false;
  s_restore(t,item,s.x,s.y);
  return item->isInInventory&&item->inventoryPos.x==s.x&&item->inventoryPos.y==s.y&&Footprint(t,s.x,s.y,item->itemWidth,item->itemHeight,item);
 }
@@ -161,6 +188,7 @@ static const TransferModulePin kTransferModules[]={
  {L"KenshiRotate.dll",0x6AE6FAA0u,0x29000u,"117061950e27d9ac586515dedc5517ad6c75c4ecf78fb340bfcc5c6bc934815a"},
  {L"KenshiExtensionPlugin.dll",0x6A9ACDF7u,0xF7000u,"74c028ae13c1d9584857e1f5c0945782c5c40989f9bbb4caa07541a1724c2e59"}
  ,{L"KenshiRotate.dll",0x6AF46992u,0x29000u,"04c27fb0d7a25077f9c4bb0a86ee054c391d680ca571bc730cb488b09c7344c5"}
+ ,{L"StackSort.dll",0x6AE7A775u,0x73000u,"35fc2b168db724d6371b0c0cf9d8cab06f13b5fa277b1f3a64d3d44a194805a9"}
 };
 struct TransferHookPin {unsigned row,module;uintptr_t target;unsigned char bytes[32];};
 static const TransferHookPin kTransferHooks[]={
@@ -168,7 +196,9 @@ static const TransferHookPin kTransferHooks[]={
  {6,0,0x2F890u,{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xFF,0x15,0x51,0xB6,0x03,0x00,0x80,0x3D,0x9C,0xB5,0x03,0x00,0x00,0x75,0x08,0x48,0x8B,0xCB,0xE8,0xE0,0x9A,0xFF,0xFF}},
  {7,2,0x3FD50u,{0x48,0x89,0x5C,0x24,0x10,0x56,0x48,0x83,0xEC,0x20,0x80,0x3D,0x3A,0x99,0x0A,0x00,0x00,0x48,0x8B,0xF2,0x48,0x8B,0xD9,0x75,0x11,0x48,0x8B,0x5C,0x24,0x38,0x48,0x83}},
  {8,1,0x1C00u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0x83,0x00,0x00,0x00,0x48,0x85,0xD2,0x74,0x7E,0x48,0x89}},
- {8,3,0x1C60u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0xB2,0x00,0x00,0x00,0x48,0x85,0xD2,0x0F,0x84,0xA9,0x00}}
+ {8,3,0x1C60u,{0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x30,0x48,0x8B,0xFA,0x48,0x8B,0xF1,0x48,0x85,0xC9,0x0F,0x84,0xB2,0x00,0x00,0x00,0x48,0x85,0xD2,0x0F,0x84,0xA9,0x00}},
+ {5,4,0x2F8C0u,{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xFF,0x15,0x29,0xB6,0x03,0x00,0x80,0x3D,0x6C,0xB5,0x03,0x00,0x00,0x75,0x08,0x48,0x8B,0xCB,0xE8,0xB0,0x9A,0xFF,0xFF}},
+ {6,4,0x2F890u,{0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xFF,0x15,0x51,0xB6,0x03,0x00,0x80,0x3D,0x9C,0xB5,0x03,0x00,0x00,0x75,0x08,0x48,0x8B,0xCB,0xE8,0xE0,0x9A,0xFF,0xFF}}
 };
 // Pure shape contract, extracted by the owned-buffer tests. Only E9 -> exact
 // FF25[+0] relay -> one pinned module entry. No generic shared-site exemption.
