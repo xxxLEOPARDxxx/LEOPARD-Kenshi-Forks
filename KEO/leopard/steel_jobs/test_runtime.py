@@ -16,6 +16,8 @@ def function(marker):
 globals=s[s.index('enum { ACTOR_CAP'):s.index('Switches SwitchesNow()')]
 names=['Switches SwitchesNow()','ActorId Identity(','hand NativeHand(','WaypointSubject Payload(','bool Decode(','bool Custom(','int Type(','bool Ours(','OrdersReceiver* Orders(','bool Player(','bool ReadRoute(','bool Snapshot(','float HookScore(','void RestoreLocations(','void ApplyPending(','uint64_t SteelJobsEpoch()','bool SteelJobsAdmitted()','void SteelJobsWorldHooksReady(','void SteelJobsWorldReset()','bool SteelJobsConsumeMove(','void TryPrepareJobs(', 'void SteelJobsMainTick(','void HookPlayerMove(','void* HookCaption(']
 production='\n'.join(function(n)for n in names)
+if 'void TryPrepareStock(' in s:
+ production=function('void TryPrepareStock(')+'\n'+production
 order=(R/'src/pathfind/order_hook.cpp').read_text(encoding='utf-8-sig')
 a=order.index('void hook_addOrderSelected(');b=order.index('BenchNotifyPlayerOrder();',a)
 order_gate=order[a:b];order_gate=order_gate[order_gate.index('{')+1:]
@@ -33,6 +35,7 @@ prefix=r"""
 #include "jobs/steel_jobs_policy.h"
 static int checks=0,nativeMoves=0,nativeOrders=0,resetCalls=0,captionCalls=0,translatedCalls=0,errors=0;
 static bool templatesAvailable=false;static int prepareCalls=0;
+static bool stockContractValid=false;static int stockPrepareCalls=0;
 #define KEO_DETAIL(x) ((void)0)
 static bool captionConstructed=false;static double now=0;static int scoreCalls=0,stockChecks=0;
 void C(bool b,const char*s){++checks;if(!b){printf("FAIL %s\n",s);exit(1);}}
@@ -65,6 +68,7 @@ void* NativeCaption(std::string*out,int,void*){C(!captionConstructed,"native cap
 namespace keo_jobs{
 uint64_t SteelJobsEpoch();bool SteelJobsAdmitted();bool SteelJobsConsumeMove(void*,void*,void*,const float*,bool);
 bool PrepareFactoryTasks(){++prepareCalls;return templatesAvailable;}
+bool PrepareStockTransfer(){++stockPrepareCalls;return stockContractValid;}
 void ResetStockTransfer(){++resetCalls;}
 void*FactoryTaskData(int type){return type>=291&&type<=293&&factoryPresent[type-291]?&ownedData[type-291]:NULL;}
 bool SteelStockEligible(Character*,Tasker*){++stockChecks;return true;}
@@ -94,7 +98,32 @@ static void DeferredCase(){
  InterlockedExchange(&s_conflict,0);InterlockedExchange(&s_worldHooks,0);TryPrepareJobs(true);C(prepareCalls==2,"missing world hooks prevent deferred activation");
  s_metadataReady=false;InterlockedExchange(&s_worldHooks,1);TryPrepareJobs(true);C(prepareCalls==2,"partial registration prevents deferred activation");
 }
-int main(){DeferredCase();PlayerInterface pi;Ogre::Vector3 p(50,2,-70);Fresh(pi);
+static void StockStartupCase(){
+ PlayerInterface pi;Fresh(pi);
+ keo_inventory::g_inventoryCfg.stockCounterJobEnabled=true;
+ keo_inventory::g_inventoryCfg.gatherOutputJobEnabled=true;
+ s_stockTransferReady=0;stockContractValid=true;stockPrepareCalls=0;
+ C(!SwitchesNow().stock&&SwitchesNow().gather&&SwitchesNow().waypoints,"stock waits for final startup bindings while unrelated jobs stay available");
+ SteelJobsMainTick(true);C(stockPrepareCalls==0,"no stock binding during a save load");
+ InterlockedExchange(&s_worldHooks,0);SteelJobsMainTick(false);
+ C(stockPrepareCalls==0,"no stock binding without world lifecycle hooks");
+ InterlockedExchange(&s_worldHooks,1);InterlockedExchange(&s_conflict,1);SteelJobsMainTick(false);
+ C(stockPrepareCalls==0,"no stock binding while competing job ownership is present");
+ InterlockedExchange(&s_conflict,0);
+ // All plugins (including a StackSort loaded after KEO) have finished startup.
+ SteelJobsMainTick(false);C(stockPrepareCalls==1&&SwitchesNow().stock,"first eligible tick captures final stock contract");
+ for(unsigned i=0;i<30;++i)SteelJobsMainTick(false);
+ SteelJobsWorldReset();SteelJobsMainTick(false);
+ C(stockPrepareCalls==1,"no frame or world-load repetition of stock binding");
+ // New process state, with the feature initially disabled and an unknown chain.
+ Fresh(pi);s_stockTransferChecked=false;s_stockTransferReady=0;stockPrepareCalls=0;stockContractValid=false;
+ SteelJobsMainTick(false);C(stockPrepareCalls==0,"disabled stock avoids native admission work");
+ keo_inventory::g_inventoryCfg.stockCounterJobEnabled=true;
+ SteelJobsMainTick(false);C(stockPrepareCalls==1&&!SwitchesNow().stock,"unknown late stock chain refuses transfer");
+ for(unsigned i=0;i<30;++i)SteelJobsMainTick(false);
+ C(stockPrepareCalls==1&&SwitchesNow().waypoints,"refusal is one-shot and leaves waypoint jobs enabled");
+}
+int main(){DeferredCase();StockStartupCase();PlayerInterface pi;Ogre::Vector3 p(50,2,-70);Fresh(pi);
  CaptionCase(291,"translated:Gather output",true);CaptionCase(292,"translated:Waypoint route",true);CaptionCase(293,"translated:Stock shop counter",true);CaptionCase(29,"native caption",false);CaptionCase(242,"native caption",false);
  // Caption IDs alone are insufficient: registration and active admission own it.
  InterlockedExchange(&s_ready,0);for(int type=291;type<=293;++type)CaptionCase(type,"native caption",false);InterlockedExchange(&s_ready,1);

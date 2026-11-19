@@ -61,20 +61,30 @@ static uintptr_t gameBase=0;static volatile LONG s_transferReady=1;
 static unsigned checks=0,ioCalls=0,loaderCalls=0;static int unknownModule=-1,badFile=-1;
 static std::vector<unsigned char>image,modules[5];
 static bool useNewRotate=false,usePublishedStackSort=false,useGog=false;
+static bool duplicateStackSort=false;
 static void C(bool b,const char*t){++checks;if(!b){printf("FAIL %s\n",t);exit(1);}}
 static bool NativeProfileIsGog(){return useGog;}
 static void LogError(const char*){}
 static BOOL MockReadFile(HANDLE h,LPVOID out,DWORD n,LPDWORD got,LPOVERLAPPED ov){++ioCalls;return ::ReadFile(h,out,n,got,ov);}
-static HMODULE MockModule(const wchar_t*);static DWORD MockFile(HMODULE,wchar_t*,DWORD);
+static HMODULE MockModule(const wchar_t*);static BOOL MockOwner(DWORD,LPCWSTR,HMODULE*);static DWORD MockFile(HMODULE,wchar_t*,DWORD);
 #define GetModuleHandleW MockModule
+#define GetModuleHandleExW MockOwner
 #define GetModuleFileNameW MockFile
 #define ReadFile MockReadFile
 PRODUCTION
 #undef GetModuleHandleW
+#undef GetModuleHandleExW
 #undef GetModuleFileNameW
 #undef ReadFile
 static const wchar_t*paths[]={L"D:/SteamLibrary/steamapps/common/Kenshi/mods/StackSort/StackSort.dll",LLEGACY_ROTATE_PATH,L"D:/SteamLibrary/steamapps/common/Kenshi/mods/KenshiExtensionPlugin/plugin/KenshiExtensionPlugin.dll",L"D:/DEV/Kenshi/build/KenshiRotate/KenshiRotate.dll",LPUBLISHED_STACKSORT_PATH};
-static HMODULE MockModule(const wchar_t*n){++loaderCalls;for(unsigned i=0;i<5;++i)if(i!=(useNewRotate?1u:3u)&&i!=(usePublishedStackSort?0u:4u)&&!wcscmp(n,kTransferModules[i].name))return unknownModule==(int)i?NULL:(HMODULE)&modules[i][0];return NULL;}
+static HMODULE MockModule(const wchar_t*n){++loaderCalls;if(duplicateStackSort&&!wcscmp(n,L"StackSort.dll"))return (HMODULE)&modules[0][0];for(unsigned i=0;i<5;++i)if(i!=(useNewRotate?1u:3u)&&i!=(usePublishedStackSort?0u:4u)&&!wcscmp(n,kTransferModules[i].name))return unknownModule==(int)i?NULL:(HMODULE)&modules[i][0];return NULL;}
+static BOOL MockOwner(DWORD flags,LPCWSTR target,HMODULE*out){
+ ++loaderCalls;
+ C(flags==(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT),"observe the owner of the detour without pinning it");
+ for(unsigned i=0;i<5;++i){uintptr_t base=(uintptr_t)&modules[i][0],address=(uintptr_t)target;
+  if(address>=base&&address-base<modules[i].size()&&unknownModule!=(int)i){*out=(HMODULE)base;return TRUE;}}
+ return FALSE;
+}
 static DWORD MockFile(HMODULE h,wchar_t*out,DWORD cap){++loaderCalls;for(unsigned i=0;i<5;++i)if(h==(HMODULE)&modules[i][0]){const wchar_t*p=badFile==(int)i?LCHANGED_MODULE_PATH:paths[i];size_t n=wcslen(p);if(n+1>cap)return cap;memcpy(out,p,(n+1)*sizeof(wchar_t));return (DWORD)n;}return 0;}
 static uintptr_t RowRva(unsigned row){return useGog?kTransferContracts[row].gog:kTransferContracts[row].steam;}
 static void Reset(bool sharing,bool newRotate=false,bool publishedStackSort=false,bool gog=false){useNewRotate=newRotate;usePublishedStackSort=publishedStackSort;useGog=gog;unknownModule=badFile=-1;memset(&image[0],0,image.size());gameBase=(uintptr_t)&image[0];
@@ -114,16 +124,25 @@ int main(){image.resize(0x1710000);for(unsigned i=0;i<5;++i)modules[i].resize(kT
  Reset(true);((unsigned char*)(gameBase+kTransferContracts[0].steam))[0]=0xE9;C(!CaptureTransferContracts(),"unknown mutation detour never admitted");
  Reset(true);uintptr_t wrong=(uintptr_t)&modules[1][0]+0x1234;memcpy((void*)(gameBase+0x1000+6),&wrong,8);C(!CaptureTransferContracts(),"unknown owner target refused");
  Reset(true);unknownModule=0;C(!CaptureTransferContracts(),"missing or unknown named owner refused");
- Reset(true);badFile=0;C(!CaptureTransferContracts(),"changed module SHA refused despite matching image/code");
+ Reset(true);badFile=0;io=ioCalls;C(!CaptureTransferContracts()&&ioCalls>io,"changed module SHA refused despite matching image/code/name");
  Reset(true,true,true,true);C(CaptureTransferContracts()&&NativeContractReady()&&s_sharedTransfer[5].pin==&kTransferHooks[5]&&s_sharedTransfer[6].pin==&kTransferHooks[6],"GOG with verified published StackSort and current Rotate admitted together");
+ Reset(false,false,false,true);C(CaptureTransferContracts()&&NativeContractReady(),"early GOG stock admission sees unmodified native callbacks");
+ Reset(true,true,true,true);C(!NativeContractReady(),"early native snapshot becomes unusable when StackSort starts later");
+ C(CaptureTransferContracts()&&NativeContractReady(),"capture after all plugins admits verified GOG stock callbacks");
+ duplicateStackSort=true;
+ C(MockModule(L"StackSort.dll")==reinterpret_cast<HMODULE>(&modules[0][0]),"short-name lookup would select the other StackSort");
+ C(CaptureTransferContracts()&&NativeContractReady()&&s_sharedTransfer[5].pin->module==4,"same-name DLL cannot mask the verified actual GOG hook owner");
+ duplicateStackSort=false;
  Reset(true,true,false,true);C(CaptureTransferContracts()&&NativeContractReady(),"GOG with previously verified StackSort still admitted");
- Reset(true,true,true,true);badFile=4;C(!CaptureTransferContracts(),"altered published StackSort refused on GOG");
+ Reset(true,true,true,true);badFile=4;io=ioCalls;C(!CaptureTransferContracts()&&ioCalls>io,"altered published StackSort refused on GOG");
  CheckStockSlot(false);CheckStockSlot(true);
  printf("PASS %u actual production startup/hot shared controls\n",checks);return 0;}
 '''.replace('PRODUCTION',block).replace('LEGACY_ROTATE_PATH',json.dumps(legacy_rotate.as_posix()))
-fixture=fixture.replace('CHANGED_MODULE_PATH',json.dumps((O/'changed-module.bin').as_posix()))
+changed_module=O/'changed'/'StackSort.dll'
+changed_module.parent.mkdir(exist_ok=True)
+fixture=fixture.replace('CHANGED_MODULE_PATH',json.dumps(changed_module.as_posix()))
 fixture=fixture.replace('PUBLISHED_STACKSORT_PATH',json.dumps('D:/DEV/Kenshi/workshop/StackSort/content/StackSort.dll'))
-(O/'changed-module.bin').write_bytes(b'changed module identity, no executable code')
+changed_module.write_bytes(b'changed module identity, no executable code')
 for opt in ('Od','O2'):
  file=O/('startup-'+opt+'.cpp');file.write_text(fixture,encoding='utf-8');exe=O/('startup-'+opt+'.exe')
  q=subprocess.run([str(V/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MT','/'+opt,str(file),'/Fo'+str(O)+'/', '/Fe'+str(exe)],env=env,capture_output=True,text=True);assert not q.returncode,q.stdout+q.stderr

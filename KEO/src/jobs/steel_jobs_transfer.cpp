@@ -253,6 +253,12 @@ static bool TransferModuleReady(uintptr_t base,unsigned module){
  return n->Signature==IMAGE_NT_SIGNATURE&&n->FileHeader.Machine==IMAGE_FILE_MACHINE_AMD64&&n->OptionalHeader.Magic==IMAGE_NT_OPTIONAL_HDR64_MAGIC
   &&n->FileHeader.TimeDateStamp==p.stamp&&n->OptionalHeader.SizeOfImage==p.size;
 }
+static const wchar_t* TransferFileName(const wchar_t* path)
+{
+ const wchar_t* name=path;
+ for(;*path;++path)if(*path==L'\\'||*path==L'/')name=path+1;
+ return name;
+}
 static bool CaptureTransferContracts(){
  __try{
   memset(s_sharedTransfer,0,sizeof(s_sharedTransfer));
@@ -260,6 +266,25 @@ static bool CaptureTransferContracts(){
   const bool gog=NativeProfileIsGog();
   for(unsigned row=0;row<10;++row){const TransferContract&r=kTransferContracts[row];const unsigned char*head=(const unsigned char*)(gameBase+(gog?r.gog:r.steam));const unsigned char*expected=gog?r.b:r.a;
    if(memcmp(head,expected,32)==0)continue;
+   const uintptr_t site=(uintptr_t)head;
+   if(head[0]!=0xE9||memcmp(head+5,expected+5,27)||site>~uintptr_t(0)-5)
+    return ReportTransferRefusal(row,"native bytes differ");
+   int32_t delta=0;memcpy(&delta,head+1,4);
+   const uintptr_t next=site+5;
+   uintptr_t relay=0;
+   if(delta<0){uintptr_t back=(uintptr_t)(-(int64_t)delta);if(back>next)return false;relay=next-back;}
+   else {if((uintptr_t)delta>~uintptr_t(0)-next)return false;relay=next+(uintptr_t)delta;}
+   const unsigned char relayJump[]={0xFF,0x25,0,0,0,0};
+   if(relay>~uintptr_t(0)-14||memcmp((const void*)relay,relayJump,sizeof(relayJump)))
+    return ReportTransferRefusal(row,"shared hook layout differs");
+   uintptr_t target=0;memcpy(&target,(const void*)(relay+6),8);
+   // RE_Kenshi loads absolute paths and can load two DLLs with the same
+   // filename. Inspect the actual observer, then verify its exact identity.
+   HMODULE owner=NULL;
+   if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                          (LPCWSTR)target,&owner))
+    return ReportTransferRefusal(row,"shared plugin identity differs");
+   const uintptr_t module=(uintptr_t)owner;
    const TransferHookPin* pin = NULL;
    bool hasPinnedHook = false;
    for(unsigned k=0;k<sizeof(kTransferHooks)/sizeof(kTransferHooks[0]);++k)
@@ -269,28 +294,26 @@ static bool CaptureTransferContracts(){
      continue;
     hasPinnedHook = true;
     const unsigned index = candidate.module;
-    if(!modules[index])
+    if(target<module||target-module!=candidate.target||!TransferModuleReady(module,index))
+     continue;
+    if(modules[index]!=module)
     {
-     const TransferModulePin& module = kTransferModules[index];
-     const HMODULE handle = GetModuleHandleW(module.name);
-     if(!TransferModuleReady((uintptr_t)handle,index))
-      continue;
+     const TransferModulePin& identity = kTransferModules[index];
      wchar_t path[1024];
      char sha[65] = {};
-     const DWORD length = GetModuleFileNameW(handle,path,1024);
-     if(!length || length>=1024 || !TransferFileSha(path,sha) || strcmp(sha,module.sha))
+     const DWORD length = GetModuleFileNameW(owner,path,1024);
+     if(!length||length>=1024||_wcsicmp(TransferFileName(path),identity.name)||
+        !TransferFileSha(path,sha)||strcmp(sha,identity.sha))
       continue;
-     modules[index] = (uintptr_t)handle;
+     modules[index] = module;
     }
     pin = &candidate;
     break;
    }
    if(!pin)
     return ReportTransferRefusal(row, hasPinnedHook ? "shared plugin identity differs" : "native bytes differ");
-   uintptr_t site=(uintptr_t)head;if(site>~uintptr_t(0)-5)return false;int32_t delta=0;memcpy(&delta,head+1,4);uintptr_t next=site+5,relay=0;
-   if(delta<0){uintptr_t back=(uintptr_t)(-(int64_t)delta);if(back>next)return false;relay=next-back;}else{if((uintptr_t)delta>~uintptr_t(0)-next)return false;relay=next+(uintptr_t)delta;}
-   uintptr_t module=modules[pin->module];if(pin->target>~uintptr_t(0)-module||pin->target>kTransferModules[pin->module].size-32)return false;
-   if(!TransferSharedShape(site,head,expected,relay,(const unsigned char*)relay,module,pin->target,(const unsigned char*)(module+pin->target),pin->bytes))
+   if(pin->target>kTransferModules[pin->module].size-32||
+      !TransferSharedShape(site,head,expected,relay,(const unsigned char*)relay,module,pin->target,(const unsigned char*)target,pin->bytes))
     return ReportTransferRefusal(row, "shared hook layout differs");
    TransferSharedTicket&t=s_sharedTransfer[row];t.pin=pin;t.module=module;t.relay=relay;memcpy(t.head,head,32);memcpy(t.relayBytes,(const void*)relay,14);
   }return true;

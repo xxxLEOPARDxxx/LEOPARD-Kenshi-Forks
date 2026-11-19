@@ -42,7 +42,8 @@ SRWLOCK s_lock=SRWLOCK_INIT;
 __declspec(align(8)) volatile LONG64 s_epoch=1;
 volatile LONG s_ready=0,s_loading=0,s_conflict=0,s_worldHooks=0;
 bool s_installed=false;
-bool s_stockTransferReady=false;
+volatile LONG s_stockTransferReady=0;
+bool s_stockTransferChecked=false; // main thread, once per process
 bool s_metadataReady=false,s_templateAttempted=false;
 double s_nextCompatibilityCheck=0;
 unsigned long long s_clock=0;
@@ -59,7 +60,7 @@ Switches SwitchesNow()
  const keo_inventory::InventoryConfig& config = keo_inventory::g_inventoryCfg;
  Switches switches = {
   config.gatherOutputJobEnabled,
-  s_stockTransferReady && config.stockCounterJobEnabled,
+  config.stockCounterJobEnabled && InterlockedCompareExchange(&s_stockTransferReady,0,0)!=0,
   config.waypointRouteJobEnabled
  };
  return switches;
@@ -156,6 +157,14 @@ void(*s_load)(Character*,GameSaveState*)=NULL;
 void HookLoad(Character*c,GameSaveState*state){s_load(c,state);RestoreLocations(c);}
 void(*s_title)(TitleScreen*,bool)=NULL;
 void FactoryLog(const char*msg){LogError(std::string("Steel jobs: ")+msg);}
+void TryPrepareStock(){
+ if(s_stockTransferChecked||!keo_inventory::g_inventoryCfg.stockCounterJobEnabled)return;
+ // Other plugins install inventory observers during startPlugin. Capture the
+ // final chain in the running game's main loop, before enabling stock work.
+ s_stockTransferChecked=true;
+ if(PrepareStockTransfer())InterlockedExchange(&s_stockTransferReady,1);
+ else FactoryLog("stock inventory contract refused; only shop counter stocking is unavailable");
+}
 void TryPrepareJobs(bool reportFailure){
  if(!s_metadataReady||s_templateAttempted||InterlockedCompareExchange(&s_ready,0,0)
   ||InterlockedCompareExchange(&s_conflict,0,0)||!InterlockedCompareExchange(&s_worldHooks,0,0))return;
@@ -225,7 +234,7 @@ uint64_t SteelJobsEpoch(){return (uint64_t)InterlockedCompareExchange64(&s_epoch
 bool SteelJobsAdmitted(){return InterlockedCompareExchange(&s_ready,0,0)&&InterlockedCompareExchange(&s_worldHooks,0,0)&&!InterlockedCompareExchange(&s_loading,0,0)&&!InterlockedCompareExchange(&s_conflict,0,0);}
 bool SteelStockTransferAdmitted()
 {
- return s_stockTransferReady;
+ return InterlockedCompareExchange(&s_stockTransferReady,0,0)!=0;
 }
 void SteelJobsWorldHooksReady(bool ready){InterlockedExchange(&s_worldHooks,ready?1:0);}
 void SteelJobsWorldReset(){InterlockedIncrement64(&s_epoch);InterlockedExchange(&s_loading,1);
@@ -264,6 +273,7 @@ void SteelJobsMainTick(bool loading){
  }
  if(!loading)TryPrepareJobs(true);
  if(!SteelJobsAdmitted())return;
+ if(!s_stockTransferChecked)TryPrepareStock();
  // One bounded click per frame, no world/character scan.
  Pending p={};bool have=false;AcquireSRWLockExclusive(&s_lock);
  if(s_pendingCount){p=s_pending[s_pendingHead];s_pendingHead=(s_pendingHead+1)%PENDING_CAP;--s_pendingCount;have=true;}
@@ -273,11 +283,8 @@ void InstallSteelJobs(int*installed,int*total){
  if(total)++*total;
  if(GetModuleHandleW(L"KenshiQOL.dll")){FactoryLog("KenshiQOL.dll loaded; custom jobs not installed");return;}
  FactoryCallbacks callbacks={RunNativeBody,RunNativeBody,SteelStockRun};
- // Native gather and route do not call the guarded stock transfer adapter.
- // Register all types so an existing stock row remains loadable even when
- // this installation cannot safely transfer stock.
- s_stockTransferReady = PrepareStockTransfer();
- if(!s_stockTransferReady)FactoryLog("stock inventory contract refused; only shop counter stocking is unavailable");
+ // Register all types independently of the deferred stock transfer check so
+ // existing stock rows remain loadable even if transfers cannot be enabled.
  if(!InitializeFactory(gameBase,callbacks,FactoryLog))return;
  bool ok=InstallTyped(&Tasker::score,HookScore,&s_score)
   &&InstallTyped(&Character::_NV_loadFromSerialisePostCreationStage,HookLoad,&s_load)
