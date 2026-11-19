@@ -651,6 +651,7 @@ static void ApplyFormation()
 
 #include "Ghost.h"
 #include "Moves.h"
+#include "Readout.h"
 static void FollowTick();   // Follow.h (17.10.2026): shapes for following the leader
 
 static float DragLen() { float dx = g_dragB.x - g_dragA.x, dz = g_dragB.z - g_dragA.z; return sqrtf(dx * dx + dz * dz); }
@@ -659,7 +660,6 @@ static void hook_mainLoop(void* self, float dt)
     if (orig_mainLoop) orig_mainLoop(self, dt);
     bool mod = ModifierHeld() && !GuiHasKeyboard();   // no hotkey while a text box types (1.4.2; the Cuneiform chat's boot 7)
     bool rb  = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-    ReadoutUpdate(mod);
     RallyFlagUpdate(mod);
     AdvanceTick(false);
     FollowTick();
@@ -978,7 +978,8 @@ __declspec(dllexport) void startPlugin()
     PH_getBuilding = (PH_getBuilding_t)Real(GetProcAddress(kl, "?getBuilding@physHit@@QEAAPEAVBuilding@@XZ"));
     Log("  the surface under the cursor       %s", (PH_ctor && UT_getMouseRay && UT_rayTrace) ? "reachable (UtilityT::getMouseRay + rayTrace into a physHit - the ghost building's own)" : "NOT reachable - the terrain march serves");
     GhostInit(GetModuleHandleA("MyGUIEngine_x64.dll"), ogre);
-    MovesInit(kl, GetModuleHandleA("MyGUIEngine_x64.dll"));
+    MovesInit(kl);
+    formation_hud::Init(kl, GetModuleHandleA("MyGUIEngine_x64.dll"));
     {
         HMODULE mg = GetModuleHandleA("MyGUIEngine_x64.dll");
         if (mg)

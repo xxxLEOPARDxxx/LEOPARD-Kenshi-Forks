@@ -23,6 +23,8 @@ folder is that source unchanged.
 - **Hold is optional.** "Hold position after forming up" - off, and a formation no longer switches the
   game's Hold on.
 - Settings page in Mod Config Menu (en/ru/zh), readout in the game's language.
+- Hold the modifier to see formation shortcuts attached above the retractable
+  character panel. The readout uses the active HUD theme and follows the panel.
 
 ## Version 2
 
