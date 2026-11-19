@@ -101,27 +101,72 @@ Ogre::TexturePtr* LoadedArray(void*request,Ogre::TexturePtr*out){
     Ogre::TexturePtr*result=LoadedArrayCore(request,out);
     ResourceLoadProbeArrayEnd(begin);return result;
 }
+bool RegisterDevice(ID3D11Device* device){
+    if(!resource_gpu::DeviceCanCreateConcurrently(device))return false;
+    if(device==currentDevice)return true;
+    if(!resource_gpu::SetDevice(device))return false;
+    device->AddRef();
+    ID3D11Device* old=currentDevice;
+    currentDevice=device;
+    if(old)old->Release();
+    return true;
+}
+bool RefuseDevice(){
+    if(currentDevice){
+        resource_gpu::SetDevice(NULL);
+        ID3D11Device* old=currentDevice;
+        currentDevice=NULL;
+        old->Release();
+    }
+    return false;
+}
+bool AdmitDevice(ID3D11Device* device,bool adoptArrays,bool retainResources){
+    if(!RegisterDevice(device))return RefuseDevice();
+    // Pinning already loaded objects only needs budget queries.
+    if(!adoptArrays)return false;
+    ID3D11DeviceContext* immediate=NULL;
+    device->GetImmediateContext(&immediate);
+    const bool hooks=immediate&&Patch(device,5,createHooks,creates,createCount)
+                             &&Patch(immediate,48,updateHooks,updates,updateCount);
+    if(immediate)immediate->Release();
+    if(!hooks)return retainResources?false:RefuseDevice();
+    InterlockedExchange(&enabled,1);
+    return true;
+}
 }
 #ifndef RESOURCE_GPU_BRIDGE_TEST
+namespace {
+bool MatchGogArrayBody(const unsigned char* bytes,size_t size,uint64_t expected){
+    uint64_t hash=14695981039346656037ULL;
+    for(size_t i=0;i<size;++i)hash=(hash^bytes[i])*1099511628211ULL;
+    return hash==expected;
+}
+bool MatchGogArray(void* target){
+    const unsigned char* exe=reinterpret_cast<const unsigned char*>(GetModuleHandleA(NULL));
+    // Check both the deferred consumer and the constructor that copies its name vector.
+    __try{
+        return exe&&target==exe+0x4487e0
+            &&MatchGogArrayBody(exe+0x4487e0,0x1ce,0xf1fcc52520f79f29ULL)
+            &&MatchGogArrayBody(exe+0x447a30,0x73,0x226c760d2f5906bcULL);
+    }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
+}
+}
 void ResourceGpuBridgeInit(){
     if(arrayInstalled)return;
     // Materials enqueue TextureArrayLoadData. The old ZoneMap array builder
     // A10080 has no active caller in this build; use the actual loader.
-    if(NativeProfileIsGog()) {KEO_DETAIL("Resource GPU warmup: native array seam not yet admitted for GOG");return;}
     unsigned char expected[64]={0x4c,0x8b,0xdc,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x40,0x01,0x00,0x00,0x48,0xc7,0x84,0x24,0xb0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x49,0x89,0x5b,0x18,0x49,0x89,0x73,0x20,0x48,0x8b,0x05,0xca,0xd7,0xcc,0x01,0x48,0x33,0xc4,0x48,0x89,0x84,0x24,0x30,0x01,0x00,0x00,0x48,0x8b,0xda,0x4c,0x8b,0xe1,0x48};
     void*target=reinterpret_cast<void*>(KlibRealAddress(&ResourceLoader::TextureArrayLoadData::_NV_getTexture));
-    if(memcmp(target,expected,sizeof(expected))){LogError("Resource GPU warmup: native array contract refused; normal loading retained");return;}
+    const bool matches=NativeProfileIsGog()?MatchGogArray(target):target&&memcmp(target,expected,sizeof(expected))==0;
+    if(!matches){LogError("Resource GPU warmup: native array contract refused; normal loading retained");return;}
     arrayInstalled=KenshiLib::AddHook(target,(void*)&LoadedArray,(void**)&originalArray)==KenshiLib::SUCCESS;
     if(!arrayInstalled)LogError("Resource GPU warmup: array hook failed; normal loading retained");
 }
-namespace {bool RefuseDevice(){
-    if(currentDevice){resource_gpu::SetDevice(NULL);ID3D11Device*old=currentDevice;currentDevice=NULL;old->Release();}
-    return false;
-}}
-bool ResourceGpuBridgeTick(bool on){
+bool ResourceGpuBridgeTick(bool terrainWarm,bool retainResources){
     InterlockedExchange(&enabled,0);
-    if(on&&!arrayInstalled){static bool tried=false;if(!tried){tried=true;ResourceGpuBridgeInit();}}
-    if(!on||!arrayInstalled)return RefuseDevice();
+    if(terrainWarm&&!arrayInstalled){static bool tried=false;if(!tried){tried=true;ResourceGpuBridgeInit();}}
+    const bool adoptArrays=terrainWarm&&arrayInstalled;
+    if(!adoptArrays&&!retainResources)return RefuseDevice();
     try{
         Ogre::Root*root=Ogre::Root::getSingletonPtr();if(!root||!root->getRenderSystem())return RefuseDevice();
         Ogre::RenderSystem*render=root->getRenderSystem();
@@ -134,16 +179,7 @@ bool ResourceGpuBridgeTick(bool on){
         if(VirtualQuery(*reinterpret_cast<void***>(render),&tableInfo,sizeof(tableInfo))!=sizeof(tableInfo)||tableInfo.AllocationBase!=module||memcmp(attr,expected,sizeof(expected)))return RefuseDevice();
         typedef void(*GetAttr)(void*,const Ogre::String&,void*);
         ID3D11Device*device=NULL;reinterpret_cast<GetAttr>(attr)(render,"D3DDEVICE",&device);
-        if(!device||!resource_gpu::DeviceCanCreateConcurrently(device))return RefuseDevice();
-        ID3D11DeviceContext*immediate=NULL;device->GetImmediateContext(&immediate);if(!immediate)return RefuseDevice();
-        bool hooks=Patch(device,5,createHooks,creates,createCount)&&Patch(immediate,48,updateHooks,updates,updateCount);
-        immediate->Release();if(!hooks)return RefuseDevice();
-        if(device!=currentDevice){
-            if(!resource_gpu::SetDevice(device))return RefuseDevice();
-            device->AddRef();ID3D11Device*old=currentDevice;currentDevice=device;if(old)old->Release();
-        }
-        InterlockedExchange(&enabled,1);
-        return true;
+        return AdmitDevice(device,adoptArrays,retainResources);
     }catch(...){LogError("Resource GPU warmup: device admission failed; normal loading retained");return RefuseDevice();}
 }
 void ResourceGpuBridgeStop(){InterlockedExchange(&enabled,0);ID3D11Device*old=currentDevice;currentDevice=NULL;if(old)old->Release();}

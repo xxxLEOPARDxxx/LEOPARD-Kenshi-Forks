@@ -209,9 +209,20 @@ static void TryInstallHooks(){
     const DWORD now=GetTickCount();
     if(state->admissionTried&&DWORD(now-state->lastAdmissionTick)<250)return;
     state->admissionTried=true;state->lastAdmissionTick=now;
-    if(NativeProfileIsGog()){state->contractRefused=true;KEO_DETAIL("Texture retention: native Steam contract not admitted on GOG");return;}
     HMODULE ogre=GetModuleHandleA("OgreMain_x64.dll"),renderer=GetModuleHandleA("RenderSystem_Direct3D11_x64.dll");
     if(!ogre||!renderer)return; // normal startup wait; bounded Tick retries
+    // The native GOG loader uses the same Ogre/renderer ABI and counts held
+    // references before removal. Check that GOG-specific lifetime boundary
+    // as well as the two shared backend hooks below.
+    if(NativeProfileIsGog()){
+        const unsigned char*exe=reinterpret_cast<const unsigned char*>(GetModuleHandleA(NULL));
+        static const unsigned char lifetime[]={0x49,0x8b,0x44,0xd8,0x08,0x8b,0x50,0x20,0x48,0x8b,0x05,0xb6,0xb8,0xdf,0x01,0x48,0x8b,0x08,0x48,0x83,0xc1,0x02,0x48,0x3b,0xd1,0x77,0x52};
+        if(!exe||memcmp(exe+0x44a3d3,lifetime,sizeof(lifetime))){
+            state->contractRefused=true;
+            LogError("Texture retention: GOG texture lifetime contract refused; ordinary native loading retained");
+            return;
+        }
+    }
     DWORD stamp=0,size=0,rendererStamp=0,rendererSize=0;
     void*managerTarget=reinterpret_cast<void*>(GetProcAddress(ogre,"?load@TextureManager@Ogre@@UEAA?AV?$SharedPtr@VTexture@Ogre@@@2@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0W4TextureType@2@HM_NW4PixelFormat@2@2@Z"));
     const uintptr_t rendererBase=reinterpret_cast<uintptr_t>(renderer),ogreBase=reinterpret_cast<uintptr_t>(ogre);

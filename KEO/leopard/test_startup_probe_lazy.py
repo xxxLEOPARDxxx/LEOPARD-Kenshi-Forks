@@ -33,7 +33,7 @@ for opt in ('Od','O2'):
     result=subprocess.run(command,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     (OUT/('build-'+opt+'.log')).write_bytes(result.stdout)
     if result.returncode:print(result.stdout.decode(errors='replace'));raise SystemExit(result.returncode)
-    for mode in ('off','on','early','worker','capture-fail','capture-hook-fail','switch-hook-fail','switch-contract-fail','timing-fail','fallback','gog','reentrant'):
+    for mode in ('gog','gog-tail-fail','gog-create-hook-fail','off','on','early','worker','capture-fail','capture-hook-fail','switch-hook-fail','switch-contract-fail','timing-fail','fallback','reentrant'):
         result=subprocess.run([str(exe),mode],cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         (OUT/(opt+'-'+mode+'.log')).write_bytes(result.stdout)
         print(result.stdout.decode(errors='replace').strip())
@@ -55,8 +55,10 @@ if '--mutants' in sys.argv:
          '||diagnosticsAttempted','early','report before mandatory init cannot install timing hooks'),
         ('capture-published-too-early',capture,'    captureInitializationComplete=true;\n'+capture,
          'reentrant','mandatory final mesh hook second and exactly once'),
-        ('gog-capture-guard-ignored','if(NativeProfileIsGog()){\n        captureInitializationComplete=true;',
-         'if(false){\n        captureInitializationComplete=true;','gog','GOG refuses mandatory and optional native seams'),
+        ('gog-enabled-diagnostics','    if(NativeProfileIsGog())return;',
+         '    if(false)return;','gog','GOG heartbeat/toggle never retries or enables optional hooks'),
+        ('gog-tail-proof-ignored','if(gog&&texture2DSite&&!AdmitModule(exe,stamp,size,0x44aa20,gogTextureContract))',
+         'if(false)','gog-tail-fail','GOG refusal is local to its texture contract'),
     ]
     try:
         for name,before,after,mode,reason in cases:

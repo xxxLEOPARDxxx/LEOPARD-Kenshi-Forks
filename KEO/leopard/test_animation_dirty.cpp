@@ -18,9 +18,11 @@ namespace dirty_admission {
 typedef animation_dirty_patch::Original Original;
 static HMODULE gameImage=NULL;static bool owner=true;static void*world=NULL;
 static animation_dirty_patch::Original original=NULL;static unsigned ownerThread=0;static uintptr_t expectedReturn=0;
+static bool verifiedGog=false,hasWorldGlobal=true;
+static bool NativeProfileIsGog(){return verifiedGog;}
 static bool IsMainThread(){return owner;}
 static HMODULE FakeGetModuleHandleA(const char*){return gameImage;}
-static uintptr_t GameAddr(int){return (uintptr_t)&world;}
+static uintptr_t GameAddr(int){return hasWorldGlobal?(uintptr_t)&world:0;}
 enum{RVA_GLOBAL_SECTION_MGR=1};
 static bool ReadModuleImageId(HMODULE module,DWORD*stamp,DWORD*size){
  if(!module)return false;const IMAGE_DOS_HEADER*dos=(const IMAGE_DOS_HEADER*)module;
@@ -54,6 +56,12 @@ static int Admission(){using namespace dirty_admission;
  Initialize(gameImage,0x65d604d7,0x232c000);Initialize(ogre,0x5ca5f929,0x9c9000);
  for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)memcpy((char*)ogre+proofs[i].rva,proofs[i].bytes,proofs[i].size);
  C(Admit(ogre)&&original==(animation_dirty_patch::Original)((char*)ogre+0x2ba20)&&ownerThread==GetCurrentThreadId()&&expectedReturn==(uintptr_t)ogre+0x2a35c);
+ Initialize(gameImage,0x65d60519,0x232a000);C(Refused(ogre));
+ verifiedGog=true;C(Admit(ogre));
+ hasWorldGlobal=false;C(Refused(ogre));hasWorldGlobal=true;
+ world=(void*)1;C(Refused(ogre));world=NULL;
+ Initialize(gameImage,0x6602d5e3,0x232c000);C(Refused(ogre));
+ verifiedGog=false;Initialize(gameImage,0x65d604d7,0x232c000);
  owner=false;C(Refused(ogre));owner=true;world=(void*)1;C(Refused(ogre));world=NULL;
  C(Refused(NULL));C(Refused((HMODULE)1));HMODULE savedGame=gameImage;gameImage=NULL;C(Refused(ogre));gameImage=savedGame;
  Header(gameImage)->FileHeader.TimeDateStamp^=1;C(Refused(ogre));Header(gameImage)->FileHeader.TimeDateStamp^=1;

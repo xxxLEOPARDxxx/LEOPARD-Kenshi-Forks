@@ -1,4 +1,5 @@
 #include "fixes/world/save_instance_lookup.h"
+#include "fixes/world/save_gog_native.h"
 #include "fixes/code_patch_batch.h"
 #include "fixes/near_page.h"
 #include <windows.h>
@@ -67,20 +68,45 @@ static const unsigned char proof7[]={0x48,0x8b,0xc4,0x55,0x56,0x57,0x41,0x54,0x4
 static const unsigned char proof8[]={0x48,0x8d,0x85,0x90,0x01,0x00,0x00,0x48,0x89,0x44,0x24,0x30,0x48,0x8d,0x85,0x48,0x01,0x00,0x00,0x48,0x89,0x44,0x24,0x28,0x48,0x8d,0x85,0x30,0x01,0x00,0x00,0x48,0x89,0x44,0x24,0x20,0x45,0x8b,0xcc,0x4c,0x8d,0x85,0x30,0x02,0x00,0x00,0x48,0x8d,0x95,0x68,0x01,0x00,0x00,0x49,0x8b,0xcf,0xe8,0xda,0xae,0x96,0xff};
 static const unsigned char proof9[]={0xff,0x25,0xf0,0xee,0x36,0x01};
 static const Proof proofs[]={{0x6cab10,proof0,sizeof(proof0)},{0x100630,proof1,sizeof(proof1)},{0xfe310,proof2,sizeof(proof2)},{0x691a0,proof3,sizeof(proof3)},{0x515c3,proof4,sizeof(proof4)},{0x21643,proof5,sizeof(proof5)},{0x24037,proof6,sizeof(proof6)},{0x6c0800,proof7,sizeof(proof7)},{0x6c218a,proof8,sizeof(proof8)},{0xed5c12,proof9,sizeof(proof9)}};
+static const save_gog_native::Window gogProofs[]={
+ {0x6ca420,306,0x087eae8cf0d51903ULL}, // Steam 0x6cab10
+ {0x100630,466,0x6e334eb4eb600a2cULL}, // Steam 0x100630
+ {0xfe310,186,0x24e2dff6fc54d9b1ULL}, // Steam 0xfe310
+ {0x691a0,114,0xfc8ab6bcd3c86affULL}, // Steam 0x691a0
+ {0x5163b,5,0x431eb7042d22e48aULL}, // Steam 0x515c3
+ {0x216b1,5,0xa80ec5776478b132ULL}, // Steam 0x21643
+ {0x240a5,5,0x379e8de3be4fe0a6ULL}, // Steam 0x24037
+ {0x6c0110,112,0x103f87b099ba22feULL}, // Steam 0x6c0800
+ {0x6c1a9a,61,0x2442d6a51f39a386ULL}, // Steam 0x6c218a
+ {0xed5312,6,0x28a4c309951dacadULL}, // Steam 0xed5c12
+};
 static const unsigned char callBytes[5]={0xe8,0x57,0x0f,0xf5,0xff};
+static const unsigned char gogCallBytes[5]={0xe8,0xcf,0x0f,0xf5,0xff};
+static bool gogProfile=false;
 static bool Admit(HMODULE game){
  __try{DWORD stamp=0,size=0;
-  if(!game||!IsMainThread()||!ReadModuleImageId(game,&stamp,&size)||stamp!=0x65d604d7||size!=0x232c000||*(void**)GameAddr(RVA_GLOBAL_SECTION_MGR))return false;
-  for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)if(memcmp((char*)game+proofs[i].rva,proofs[i].bytes,proofs[i].size))return false;
-  HMODULE crt=GetModuleHandleA("MSVCR100.dll");if(!crt||*(void**)((char*)game+0x2244b08)!=(void*)GetProcAddress(crt,"memcmp"))return false;
-  original=(Original)((char*)game+0xfe310);innerReturn=(uintptr_t)game+0x10066c;outerReturn=(uintptr_t)game+0x6cab82;parserReturn=(uintptr_t)game+0x6c21c7;return true;
+  if(!game||!IsMainThread()||!ReadModuleImageId(game,&stamp,&size))return false;
+  const bool gog=save_gog_native::IsGogImage(stamp,size);
+  if(gog){
+   if(*(void**)((char*)game+save_gog_native::sectionManagerRva)||!save_gog_native::Match(game,gogProofs))return false;
+  }else{
+   if(stamp!=0x65d604d7||size!=0x232c000||*(void**)GameAddr(RVA_GLOBAL_SECTION_MGR))return false;
+   for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)
+    if(memcmp((char*)game+proofs[i].rva,proofs[i].bytes,proofs[i].size))return false;
+  }
+  HMODULE crt=GetModuleHandleA("MSVCR100.dll");
+  void*compare=crt?(void*)GetProcAddress(crt,"memcmp"):NULL;
+  if(!compare||*(void**)((char*)game+(gog?0x2242a78:0x2244b08))!=compare)return false;
+  original=(Original)((char*)game+0xfe310);innerReturn=(uintptr_t)game+0x10066c;
+  outerReturn=(uintptr_t)game+(gog?0x6ca492:0x6cab82);parserReturn=(uintptr_t)game+(gog?0x6c1ad7:0x6c21c7);
+  gogProfile=gog;return true;
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 void Install(int*,int*){
  if(tried)return;tried=true;HMODULE game=GetModuleHandleA(NULL);
  if(!code_patch_threads::Prepare((GetDLLDirectory()+OPTIMIZER_LOG_NAME).c_str())){LogError("Saved object lookup: emergency log unavailable; native lookup retained");return;}
  if(!Admit(game)){LogError("Saved object lookup: native caller/frame contract refused; native lookup retained");return;}
- if(!Arm((unsigned char*)game+0x100667,callBytes)){LogError("Saved object lookup: callsite patch failed; native lookup retained");return;}
+ if(!Arm((unsigned char*)game+0x100667,gogProfile?gogCallBytes:callBytes)){LogError("Saved object lookup: callsite patch failed; native lookup retained");return;}
  admitted=true;KEO_DETAIL("Saved object lookup: parser reuses first native lower_bound result");
 }
 #endif

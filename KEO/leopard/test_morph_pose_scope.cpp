@@ -22,7 +22,8 @@ typedef int(*SdkAdd)(void*,void*,void**);static SdkAdd sdkAdd=NULL;
 #include <ogre/OgreSceneManager.h>
 #include <ogre/OgreEntity.h>
 #include <stdexcept>
-static bool owner=true;static unsigned errors=0;
+static bool owner=true,verifiedGog=false;static unsigned errors=0;
+bool NativeProfileIsGog(){return verifiedGog;}
 bool IsMainThread();
 namespace fixes {struct Config{bool morphPoseReuseEnabled;};Config g_fixesCfg={true};}
 void LogError(const std::string&){++errors;}
@@ -104,6 +105,21 @@ static int AdmissionCases(HMODULE ogre){
  C(morph_pose_scope::Admit(ogre,fakeGame));C(!morph_pose_scope::Admit(NULL,fakeGame));C(!morph_pose_scope::Admit(ogre,NULL));C(!morph_pose_scope::Admit((HMODULE)1,fakeGame));C(!morph_pose_scope::Admit(ogre,(HMODULE)1));
  for(size_t i=0;i<sizeof(morph_pose_scope::gameProofs)/sizeof(morph_pose_scope::gameProofs[0]);++i){uintptr_t r=morph_pose_scope::gameProofs[i].rva;((char*)fakeGame)[r]^=1;C(!morph_pose_scope::Admit(ogre,fakeGame));((char*)fakeGame)[r]^=1;}
  nt->FileHeader.TimeDateStamp^=1;C(!morph_pose_scope::Admit(ogre,fakeGame));nt->FileHeader.TimeDateStamp^=1;nt->OptionalHeader.SizeOfImage^=1;C(!morph_pose_scope::Admit(ogre,fakeGame));nt->OptionalHeader.SizeOfImage^=1;
+ // Authenticating the executable does not bypass exact Ogre or GOG caller bytes.
+ nt->FileHeader.TimeDateStamp=0x65d60519;nt->OptionalHeader.SizeOfImage=0x232a000;
+ for(size_t i=0;i<sizeof(morph_pose_scope::gogGameProofs)/sizeof(morph_pose_scope::gogGameProofs[0]);++i){
+  const morph_pose_scope::Proof&p=morph_pose_scope::gogGameProofs[i];memcpy((char*)fakeGame+p.rva,p.bytes,p.size);
+ }
+ C(!morph_pose_scope::Admit(ogre,fakeGame));verifiedGog=true;C(morph_pose_scope::Admit(ogre,fakeGame));
+ for(size_t i=0;i<sizeof(morph_pose_scope::gogGameProofs)/sizeof(morph_pose_scope::gogGameProofs[0]);++i){
+  uintptr_t r=morph_pose_scope::gogGameProofs[i].rva;((char*)fakeGame)[r]^=1;
+  C(!morph_pose_scope::Admit(ogre,fakeGame));((char*)fakeGame)[r]^=1;
+ }
+ nt->FileHeader.TimeDateStamp=0x6602d5e3;nt->OptionalHeader.SizeOfImage=0x232c000;C(!morph_pose_scope::Admit(ogre,fakeGame));
+ verifiedGog=false;nt->FileHeader.TimeDateStamp=0x65d604d7;
+ for(size_t i=0;i<sizeof(morph_pose_scope::gameProofs)/sizeof(morph_pose_scope::gameProofs[0]);++i){
+  const morph_pose_scope::Proof&p=morph_pose_scope::gameProofs[i];memcpy((char*)fakeGame+p.rva,p.bytes,p.size);
+ }
  fakeHooks=true;morph_pose_scope::SetCloneHooksReady(true);morph_pose_scope::SetCreateHookReady(true);
  for(unsigned fault=0;fault<5;++fault){hookCalls=0;failHook=fault<3?fault:0;nullHook=fault>=3?fault-2:0;
   morph_pose_scope::tried=morph_pose_scope::admitted=false;morph_pose_scope::originalPose=NULL;morph_pose_scope::originalRemove=NULL;

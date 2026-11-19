@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include "save_gog_test_fixture.h"
 namespace fixes{struct Config{bool saveStringTransferEnabled;};Config g_fixesCfg={true};}
 #define KEO_FIELD_KEY_PATCH_TEST
 #include "../src/fixes/world/save_field_key_patch.cpp"
@@ -25,6 +26,17 @@ typedef void*(__fastcall*KeyDriver)(void*,const char*,size_t,void*);
 static bool Seh(Value f,std::string*d,const std::string*s){__try{f(d,s,0,std::string::npos);return false;}__except(GetExceptionCode()==0xe1234567?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}}
 int main(){
  using namespace save_field_key_patch;
+ SaveGogTestImage gog;
+ if(gog.requested){
+  C(gog.bytes);testStamp=0x65d60519;testSize=0x232a000;
+  C(Admit(gog.Module())&&gogProfile&&original==gog.bytes+0x69cd0&&(void*)valueOriginal==gog.bytes+0x69b80&&valueReturn==(uintptr_t)gog.bytes+0x6c950d);
+  for(unsigned i=0;i<7;++i)C(memcmp(gog.bytes+gogSitesRva[i],gogCallBytes[i],5)==0);
+  for(size_t i=0;i<sizeof(gogProofs)/sizeof(gogProofs[0]);++i){
+   unsigned char&byte=gog.bytes[gogProofs[i].rva];byte^=1;C(!Admit(gog.Module()));byte^=1;
+  }
+  *(void**)(gog.bytes+save_gog_native::sectionManagerRva)=gog.bytes;C(!Admit(gog.Module()));
+  testStamp=0x65d604d7;testSize=0x232c000;
+ }
  unsigned char*image=(unsigned char*)VirtualAlloc(NULL,0x232c000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);C(image!=NULL);
  for(unsigned i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)memcpy(image+proofs[i].rva,proofs[i].bytes,proofs[i].size);
  original=NULL;C(!Admit(NULL)&&original==NULL);C(!Admit((HMODULE)1)&&original==NULL);mainThread=false;C(!Admit((HMODULE)image)&&original==NULL);mainThread=true;

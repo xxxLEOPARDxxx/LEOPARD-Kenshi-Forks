@@ -289,25 +289,41 @@ void ResourceLoadProbeInit(){
     using namespace resource_load_probe_detail;
     if(!IsMainThread()||captureAttempted)return;captureAttempted=true;
     morph_pose_scope::SetCreateHookReady(false);
-    if(NativeProfileIsGog()){
-        captureInitializationComplete=true;diagnosticsAttempted=true;
-        KEO_DETAIL("Resource loading probe: optional native seams not admitted for GOG");return;
-    }
+    const bool gog=NativeProfileIsGog();
     // This consumer hook also supplies completed native TexturePtr outputs to
     // retention. It is required independently of optional timing/Debug state.
     HMODULE exe=GetModuleHandleA(NULL);
-    const bool steam=ImageMatches(exe,0x65d604d7,0x232c000);
+    const DWORD stamp=gog?0x65d60519:0x65d604d7;
+    const DWORD size=gog?0x232a000:0x232c000;
+    const bool known=ImageMatches(exe,stamp,size);
+    // The GOG bodies share the Steam ABI. Pin their output/cleanup paths as well.
     static const unsigned char textureBytes[32]={0x40,0x56,0x57,0x41,0x54,0x48,0x81,0xec,0x00,0x01,0x00,0x00,0x48,0xc7,0x84,0x24,0xa0,0x00,0x00,0x00,0xfe,0xff,0xff,0xff,0x48,0x89,0x9c,0x24,0x30,0x01,0x00,0x00};
-    texture2DInstalled=InstallAdmitted("texture2D",steam?AdmitModule(exe,0x65d604d7,0x232c000,0x44ACD0,textureBytes):NULL,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
+    static const unsigned char gogTextureContract[32]={
+        0x16,0x4c,0x8b,0x01,0x33,0xd2,0x41,0xff,0x10,0x48,0x8b,0x8c,0x24,0x90,0x00,0x00,
+        0x00,0xff,0x15,0x29,0xad,0xdf,0x01,0x48,0x8b,0xc3,0x48,0x8b,0x8c,0x24,0xf8,0x00
+    };
+    void* texture2DSite=known?AdmitModule(exe,stamp,size,gog?0x44a8f0:0x44ACD0,textureBytes):NULL;
+    if(gog&&texture2DSite&&!AdmitModule(exe,stamp,size,0x44aa20,gogTextureContract))texture2DSite=NULL;
+    texture2DInstalled=InstallAdmitted("texture2D",texture2DSite,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
     // The existing Switch seam supplies the final morph replacement to the
     // geometry cache even with diagnostics OFF. Never add a second detour.
     static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
-    void* morphSwitchSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71920,morphSwitchBytes):NULL;
+    static const unsigned char gogMorphSwitchContract[32]={
+        0x00,0x00,0x48,0xc7,0x47,0x08,0x00,0x00,0x00,0x00,0x49,0x8b,0xc4,0x48,0x8b,0x5c,
+        0x24,0x50,0x48,0x8b,0x6c,0x24,0x68,0x48,0x83,0xc4,0x30,0x41,0x5c,0x5f,0x5e,0xc3
+    };
+    void* morphSwitchSite=known?AdmitModule(exe,stamp,size,0x71920,morphSwitchBytes):NULL;
+    if(gog&&morphSwitchSite&&!AdmitModule(exe,stamp,size,0x71a5a,gogMorphSwitchContract))morphSwitchSite=NULL;
     morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
     // The functional body-morph scope needs this seam even with Debug OFF.
     // Diagnostics reuse the same wrapper instead of adding another detour.
     static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};
-    void* morphCreateSite=steam?AdmitModule(exe,0x65d604d7,0x232c000,0x71a80,morphCreateBytes):NULL;
+    static const unsigned char gogMorphCreateContract[32]={
+        0x8b,0xb4,0x24,0xb8,0x00,0x00,0x00,0x48,0x8b,0x4c,0x24,0x30,0xff,0x15,0x26,0x23,
+        0x1d,0x02,0x4c,0x8b,0x5c,0x24,0x30,0x4c,0x89,0x5c,0x24,0x40,0x48,0x8b,0x44,0x24
+    };
+    void* morphCreateSite=known?AdmitModule(exe,stamp,size,0x71a80,morphCreateBytes):NULL;
+    if(gog&&morphCreateSite&&!AdmitModule(exe,stamp,size,0x71cd0,gogMorphCreateContract))morphCreateSite=NULL;
     morphCreateInstalled=InstallAdmitted("morphCreate",morphCreateSite,reinterpret_cast<void*>(&CreateMorphedMesh),reinterpret_cast<void**>(&originalMorphCreate));
     morph_pose_scope::SetCreateHookReady(morphCreateInstalled&&originalMorphCreate!=NULL);
     captureInitializationComplete=true;

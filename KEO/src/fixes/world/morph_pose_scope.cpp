@@ -11,6 +11,7 @@
 #ifndef KEO_MORPH_POSE_SCOPE_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
+#include "game/native_profile.h"
 #include "fixes/fixes_config.h"
 #include "render/module_hooks.h"
 #include "base/klib_include.h"
@@ -190,15 +191,34 @@ static const unsigned char proof9[]={0x48,0x8b,0x07,0x48,0x8b,0xcf,0xff,0x50,0x2
 static const unsigned char proof10[]={0x33,0xd2,0x48,0x8b,0x4c,0x24,0x30,0xff,0x15,0xd3,0x45,0x1d,0x02,0x4c,0x8b,0x78,0x08};
 static const Proof ogreProofs[]={{0x229bf0,proof0,sizeof(proof0)},{0x1ab3c0,proof1,sizeof(proof1)},{0x1a43f7,proof2,sizeof(proof2)},{0xcbff0,proof6,sizeof(proof6)},{0x1a9c1d,proof7,sizeof(proof7)},{0x1a9c93,proof8,sizeof(proof8)},{0x1a9e28,proof9,sizeof(proof9)}};
 static const Proof gameProofs[]={{0x71a80,proof3,sizeof(proof3)},{0x71ade,proof4,sizeof(proof4)},{0x71cd7,proof5,sizeof(proof5)},{0x71ae8,proof10,sizeof(proof10)}};
+static const unsigned char gogProof4[]={
+    0x48,0x8b,0x08,0xff,0x15,0x59,0x25,0x1d,0x02,0x90
+};
+static const unsigned char gogProof5[]={
+    0x48,0x8b,0x4c,0x24,0x30,0xff,0x15,0x26,0x23,0x1d,0x02
+};
+static const unsigned char gogProof10[]={
+    0x33,0xd2,0x48,0x8b,0x4c,0x24,0x30,0xff,0x15,0x43,0x25,0x1d,0x02,0x4c,0x8b,0x78,
+    0x08
+};
+static const Proof gogGameProofs[]={
+    {0x71a80,proof3,sizeof(proof3)},
+    {0x71ade,gogProof4,sizeof(gogProof4)},
+    {0x71cd7,gogProof5,sizeof(gogProof5)},
+    {0x71ae8,gogProof10,sizeof(gogProof10)},
+};
 static const char*const poseSymbol="?clone@Pose@Ogre@@QEBAPEAV12@XZ";
 static const char*const removeSymbol="?removeAllPoses@Mesh@Ogre@@QEAAXXZ";
 static bool Proofs(HMODULE m,const Proof*p,size_t n){for(size_t i=0;i<n;++i)if(memcmp((char*)m+p[i].rva,p[i].bytes,p[i].size))return false;return true;}
 static bool Admit(HMODULE ogre,HMODULE game){
  __try{DWORD stamp=0,size=0;
   if(!ogre||!game||!ReadModuleImageId(ogre,&stamp,&size)||stamp!=0x5ca5f929||size!=0x9c9000)return false;
-  if(!ReadModuleImageId(game,&stamp,&size)||stamp!=0x65d604d7||size!=0x232c000)return false;
+  const bool gog=NativeProfileIsGog();
+  if(!ReadModuleImageId(game,&stamp,&size)||stamp!=(gog?0x65d60519:0x65d604d7)||size!=(gog?0x232a000:0x232c000))return false;
   if((void*)GetProcAddress(ogre,poseSymbol)!=(char*)ogre+0x229bf0||(void*)GetProcAddress(ogre,removeSymbol)!=(char*)ogre+0x1ab3c0)return false;
-  return Proofs(ogre,ogreProofs,sizeof(ogreProofs)/sizeof(ogreProofs[0]))&&Proofs(game,gameProofs,sizeof(gameProofs)/sizeof(gameProofs[0]));
+  return Proofs(ogre,ogreProofs,sizeof(ogreProofs)/sizeof(ogreProofs[0]))&&
+    (gog?Proofs(game,gogGameProofs,sizeof(gogGameProofs)/sizeof(gogGameProofs[0])):
+         Proofs(game,gameProofs,sizeof(gameProofs)/sizeof(gameProofs[0])));
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 #ifndef KEO_MORPH_OGRE_MODULE

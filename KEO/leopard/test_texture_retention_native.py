@@ -7,7 +7,7 @@ from pathlib import Path
 import hashlib, importlib.util, os, re, struct, subprocess, sys
 
 ROOT=Path(__file__).resolve().parents[1]
-GAME=ROOT.parents[1]
+GAME=Path(os.environ.get('KENSHI_ROOT','D:/SteamLibrary/steamapps/common/Kenshi'))
 spec=importlib.util.spec_from_file_location('pe',ROOT/'tools/kenshilib/check_imports.py')
 pem=importlib.util.module_from_spec(spec);spec.loader.exec_module(pem)
 ogre=pem.PE(GAME/'OgreMain_x64.dll');steam=pem.PE(GAME/'RE_Kenshi/Kenshi_x64.exe');renderer=pem.PE(GAME/'RenderSystem_Direct3D11_x64.dll')
@@ -111,6 +111,19 @@ for thunk,prefix in [(0x5830e,'OgreMain_x64.dll!?_loadImages@Texture@Ogre@@'),(0
     raw=read(renderer,thunk,6)
     check(raw[:2]==b'\xff\x25' and iat[thunk+6+struct.unpack_from('<i',raw,2)[0]].startswith(prefix))
 check(read(steam,0x44acd0,32)==bytes.fromhex('40565741544881ec0001000048c78424a0000000feffffff48899c2430010000'))
+if os.environ.get('KEO_TEST_GOG_EXE'):
+    gog=pem.PE(os.environ['KEO_TEST_GOG_EXE'])
+    check(hashlib.sha256(gog.data).hexdigest()=='2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681')
+    check(read(gog,0x44a8f0,32)==read(steam,0x44acd0,32))
+    check(read(gog,0x44a3d3,27)==bytes.fromhex('498b44d8088b5020488b05b6b8df01488b084883c102483bd17752'))
+    check(read(gog,0x44a411,4)==read(steam,0x44a7f1,4))
+    check(read(gog,0x44a43c,4)==read(steam,0x44a81c,4))
+    for at,sz in [(0x44ad74,7),(0x44adb8,6),(0x44adc4,6)]:
+        check(read(gog,at-0x3e0,sz)==read(steam,at,sz))
+    check('native Steam contract not admitted on GOG' not in source)
+    gog_lifetime=re.search(r'lifetime\[\]=\{([^}]+)',source)
+    check(gog_lifetime is not None)
+    check(read(gog,0x44a3d3,27)==bytes(int(v.strip(),16) for v in gog_lifetime[1].split(',')))
 print('texture actual image/export/size/purge contracts checks='+str(checks))
 
 if '--mutants' not in sys.argv:

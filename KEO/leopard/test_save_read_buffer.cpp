@@ -30,6 +30,7 @@ static std::streambuf*Setbuf(std::filebuf*b,std::streamsize n){++setbufCalls;req
 #define KEO_SAVE_READ_SOURCE "../src/fixes/world/save_read_buffer.cpp"
 #endif
 #include KEO_SAVE_READ_SOURCE
+#include "save_gog_test_fixture.h"
 #define C(x) do{++checks;if(!(x)){printf("CHECK line%d %s\n",__LINE__,#x);return 1;}}while(0)
 typedef std::ifstream Stream;
 struct Storage {__declspec(align(8)) unsigned char bytes[sizeof(Stream)];};
@@ -45,6 +46,16 @@ static void Defaults(){owner=true;logThrows=nativeThrows=alternateReturn=preRead
  Stream in;uintptr_t table=0;memcpy(&table,(char*)in.rdbuf(),8);save_read_buffer::gameBase=table-0x168ef18;suppliedCaller=save_read_buffer::gameBase+0x6c092c;save_read_buffer::original=Native;
 }
 static int Admission(){
+ SaveGogTestImage gog;
+ if(gog.requested){
+  C(gog.bytes);uintptr_t*slot=(uintptr_t*)(gog.bytes+0x168df78);
+  *slot=(uintptr_t)gog.bytes+0x13a1b;
+  C(save_read_buffer::Admit(gog.Module())&&save_read_buffer::layout->constructor==0x6c7c40&&save_read_buffer::layout->caller==0x6c023c);
+  for(size_t i=0;i<sizeof(save_read_buffer::gogProofs)/sizeof(save_read_buffer::gogProofs[0]);++i){
+   unsigned char&byte=gog.bytes[save_read_buffer::gogProofs[i].rva];byte^=1;C(!save_read_buffer::Admit(gog.Module()));byte^=1;
+  }
+  ++*slot;C(!save_read_buffer::Admit(gog.Module()));
+ }
  module=(HMODULE)VirtualAlloc(NULL,0x232c000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);C(module!=NULL);
  IMAGE_DOS_HEADER*d=(IMAGE_DOS_HEADER*)module;d->e_magic=IMAGE_DOS_SIGNATURE;d->e_lfanew=0x100;IMAGE_NT_HEADERS64*n=(IMAGE_NT_HEADERS64*)((char*)module+0x100);n->Signature=IMAGE_NT_SIGNATURE;n->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;n->FileHeader.TimeDateStamp=0x65d604d7;n->OptionalHeader.SizeOfImage=0x232c000;
  for(size_t i=0;i<sizeof(save_read_buffer::proofs)/sizeof(save_read_buffer::proofs[0]);++i){const save_read_buffer::Proof&p=save_read_buffer::proofs[i];memcpy((char*)module+p.rva,p.bytes,p.size);}

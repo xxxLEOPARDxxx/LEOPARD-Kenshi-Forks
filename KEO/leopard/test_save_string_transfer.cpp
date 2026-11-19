@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include "save_gog_test_fixture.h"
 static bool countAlloc=false,failAlloc=false;
 static unsigned allocations=0,deallocations=0,checks=0,forwards=0;
 void*operator new(size_t n){if(countAlloc){++allocations;if(failAlloc)throw std::bad_alloc();}void*p=malloc(n?n:1);if(!p)throw std::bad_alloc();return p;}
@@ -17,7 +18,8 @@ namespace fixes{struct Config{bool saveStringTransferEnabled;};Config g_fixesCfg
 static void LogError(const std::string&){++errors;}
 #define KEO_DETAIL(x) ((void)0)
 namespace KenshiLib{enum Status{SUCCESS,FAILURE};Status AddHook(void*,void*,void**out){++hooks;*out=nullOriginal?NULL:(void*)0x12345;return (Status)hookStatus;}}
-bool ReadModuleImageId(HMODULE m,DWORD*s,DWORD*z){if(!m)return false;*s=0x65d604d7;*z=0x232c000;return true;}
+static DWORD profileStamp=0x65d604d7,profileSize=0x232c000;
+bool ReadModuleImageId(HMODULE m,DWORD*s,DWORD*z){if(!m)return false;*s=profileStamp;*z=profileSize;return true;}
 #define KEO_SAVE_STRING_TEST
 #define KEO_SAVE_STRING_CALLER() caller
 #define KEO_SAVE_STRING_MODULE() module
@@ -78,6 +80,18 @@ int main(){
  Reset();{std::string values[1],value(80,'q');values[0].reserve(300);save_string_transfer::List l={NULL,0,1,values};save_string_transfer::Push(&l,&value);C(l.count==1&&forwards==1&&values[0]==std::string(80,'q')&&value.empty());}
  for(unsigned i=0;i<4;++i){Reset();static const uintptr_t returns[]={0x6c1ebc,0x6c1f47,0x6c2070,0x6cac21};caller=save_string_transfer::gameBase+returns[i];std::string values[1],value(30,'a');save_string_transfer::List l={NULL,0,1,values};save_string_transfer::Push(&l,&value);C(forwards==0&&l.count==1&&value.empty()&&values[0]==std::string(30,'a'));}
 #ifndef KEO_SAVE_STRING_BASELINE
+ SaveGogTestImage gog;
+ if(gog.requested){
+  C(gog.bytes);profileStamp=0x65d60519;profileSize=0x232a000;
+  C(save_string_transfer::Admit(gog.Module()));save_string_transfer::gameBase=(uintptr_t)gog.bytes;
+  C(save_string_transfer::ParserCaller((uintptr_t)gog.bytes+0x6c17cc)&&save_string_transfer::ParserCaller((uintptr_t)gog.bytes+0x6ca531));
+  C(!save_string_transfer::ParserCaller((uintptr_t)gog.bytes+0x6cac21));
+  for(size_t i=0;i<sizeof(save_string_transfer::gogProofs)/sizeof(save_string_transfer::gogProofs[0]);++i){
+   unsigned char&byte=gog.bytes[save_string_transfer::gogProofs[i].rva];byte^=1;C(!save_string_transfer::Admit(gog.Module()));byte^=1;
+  }
+  profileStamp=0x6602d5e3;profileSize=0x232c000;C(!save_string_transfer::Admit(gog.Module()));
+  profileStamp=0x65d604d7;
+ }
  module=(HMODULE)VirtualAlloc(NULL,0x232c000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);C(module!=NULL);C(!save_string_transfer::Admit(NULL));C(!save_string_transfer::Admit(module));
  for(size_t i=0;i<sizeof(save_string_transfer::proofs)/sizeof(save_string_transfer::proofs[0]);++i){const save_string_transfer::Proof&p=save_string_transfer::proofs[i];memcpy((char*)module+p.rva,p.bytes,p.size);}
  C(save_string_transfer::Admit(module));

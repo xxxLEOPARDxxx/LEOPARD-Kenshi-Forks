@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <stdint.h>
+#include "save_gog_test_fixture.h"
 #include "fixes/near_page.h"
 static DWORD owner=GetCurrentThreadId();bool IsMainThread(){return owner==GetCurrentThreadId();}
 namespace fixes{struct Config{bool saveInstanceLookupEnabled;};Config g_fixesCfg={true};}
@@ -39,6 +40,19 @@ static Map*nestMap=NULL;static void Nested(){onDefault=NULL;const std::string ke
 static bool SehProbe(Map*map,const std::string*key){__try{KEO_TestOtherDriver(map,key);return false;}__except(GetExceptionCode()==0xe1234567?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH){return true;}}
 int main(){
 #ifndef KEO_INSTANCE_BASELINE
+ SaveGogTestImage gog;
+ if(gog.requested){
+  C(gog.bytes);profileStamp=0x65d60519;profileSize=0x232a000;
+  *(void**)(gog.bytes+0x2242a78)=(void*)GetProcAddress(GetModuleHandleA("MSVCR100.dll"),"memcmp");
+  C(save_instance_lookup::Admit(gog.Module())&&save_instance_lookup::gogProfile);
+  C(save_instance_lookup::innerReturn==(uintptr_t)gog.bytes+0x10066c&&save_instance_lookup::outerReturn==(uintptr_t)gog.bytes+0x6ca492&&save_instance_lookup::parserReturn==(uintptr_t)gog.bytes+0x6c1ad7);
+  C(memcmp(gog.bytes+0x100667,save_instance_lookup::gogCallBytes,5)==0);
+  for(size_t i=0;i<sizeof(save_instance_lookup::gogProofs)/sizeof(save_instance_lookup::gogProofs[0]);++i){
+   unsigned char&byte=gog.bytes[save_instance_lookup::gogProofs[i].rva];byte^=1;C(!save_instance_lookup::Admit(gog.Module()));byte^=1;
+  }
+  *(void**)(gog.bytes+0x2242a78)=gog.bytes;C(!save_instance_lookup::Admit(gog.Module()));
+  profileStamp=0x65d604d7;profileSize=0x232c000;
+ }
  unsigned char*image=(unsigned char*)VirtualAlloc(NULL,0x232c000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE);C(image!=NULL);
  for(unsigned i=0;i<sizeof(save_instance_lookup::proofs)/sizeof(save_instance_lookup::proofs[0]);++i){const save_instance_lookup::Proof&p=save_instance_lookup::proofs[i];memcpy(image+p.rva,p.bytes,p.size);}
  *(void**)(image+0x2244b08)=(void*)GetProcAddress(GetModuleHandleA("MSVCR100.dll"),"memcmp");C(save_instance_lookup::Admit((HMODULE)image));

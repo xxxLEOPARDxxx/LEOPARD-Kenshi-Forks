@@ -1,6 +1,7 @@
 // Native Win64 callsite fixture; does not launch or inspect Kenshi.
 #define NOMINMAX
 #include <windows.h>
+#include "save_gog_test_fixture.h"
 #include <intrin.h>
 #include <string>
 #include <cstring>
@@ -152,6 +153,20 @@ int main(){
  *(void**)((char*)fakeGame+0x2247000)=(void*)Assign;C(!save_state_list::Admit(fakeGame,ogre));*(void**)((char*)fakeGame+0x2247000)=(void*)nativeAssign;
  save_state_list::tried=save_state_list::admitted=false;save_state_list::Install(NULL,NULL);C(save_state_list::admitted&&save_state_list::page!=NULL);unsigned char nativeBefore[9];memcpy(nativeBefore,save_state_list::proof0+(0x6cabc7-0x6cab10),9);Unarm((unsigned char*)fakeGame+0x6cabc7,nativeBefore);
  VirtualFree(fakeGame,0,MEM_RELEASE);fakeGame=NULL;
+ SaveGogTestImage gog;
+ if(gog.requested){
+  C(gog.bytes);fakeGame=gog.Module();*(void**)(gog.bytes+0x2244f78)=(void*)nativeAssign;
+  C(save_state_list::Admit(fakeGame,ogre)&&save_state_list::gogProfile&&save_state_list::assignmentReturn==0x6ca4dd&&save_state_list::parserReturn==0x6c1ad7);
+  for(size_t i=0;i<sizeof(save_state_list::gogProofs)/sizeof(save_state_list::gogProofs[0]);++i){
+   unsigned char&byte=gog.bytes[save_state_list::gogProofs[i].rva];byte^=1;C(!save_state_list::Admit(fakeGame,ogre));byte^=1;
+  }
+  *(void**)(gog.bytes+0x2244f78)=(void*)Assign;C(!save_state_list::Admit(fakeGame,ogre));
+  *(void**)(gog.bytes+0x2244f78)=(void*)nativeAssign;
+  C(memcmp(gog.bytes+0x6ca4d7,save_state_list::gogCallBytes,9)==0);
+  save_state_list::tried=save_state_list::admitted=false;save_state_list::Install(NULL,NULL);
+  C(save_state_list::admitted&&save_state_list::page!=NULL);
+  Unarm(gog.bytes+0x6ca4d7,save_state_list::gogCallBytes);fakeGame=NULL;
+ }
 #endif
  printf("PASS %u native save-list checks\n",checks);return 0;
 }

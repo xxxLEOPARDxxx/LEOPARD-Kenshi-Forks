@@ -29,14 +29,17 @@ static unsigned groupCalls=0,managerCalls=0;static bool throwNative=false;
 static const void*seenName=NULL;static void*seenManager=NULL;static bool seenReload=false;
 static void NativeGroup(void*m,const void*n,bool r){++groupCalls;seenName=n;seenManager=m;seenReload=r;if(throwNative)throw 71;}
 static void NativeManager(void*m,bool r){++managerCalls;seenManager=m;seenReload=r;if(throwNative)throw 71;}
-static const uintptr_t returns[6]={0xA0EB6B,0xA0EB7D,0xA0EBBA,0xA0EC08,0xA0EC56,0xA0ECA4};
+static const uintptr_t returns[6]={/* RETURN_RVAS */ 0xA0EB6B,0xA0EB7D,0xA0EBBA,0xA0EC08,0xA0EC56,0xA0ECA4};
 static std::vector<unsigned char> image(0x232c000);
-static DWORD imageStamp=0x65d604d7,imageSize=0x232c000;
+static const DWORD profileStamp=/* PROFILE_STAMP */ 0x65d604d7, profileSize=/* PROFILE_SIZE */ 0x232c000;
+static const bool profileGog=/* PROFILE_GOG */ false;
+static DWORD imageStamp=profileStamp,imageSize=profileSize;
+static bool verifiedGog=profileGog;
 static unsigned hookInstalls=0;static bool failManagerHook=false;
 static HMODULE TestModule(const char*){return reinterpret_cast<HMODULE>(&image[0]);}
 #define GetModuleHandleA TestModule
 bool ReadModuleImageId(HMODULE,DWORD*stamp,DWORD*size){*stamp=imageStamp;*size=imageSize;return true;}
-bool NativeProfileIsGog(){return false;}
+bool NativeProfileIsGog(){return verifiedGog;}
 bool InstallModuleHook(const ModuleSite&site,void*,void**original,bool*){
     ++hookInstalls;const bool group=std::strstr(site.name,"InGroup")!=NULL;
     if(!group&&failManagerHook)return false;
@@ -92,9 +95,11 @@ int main(){
     // One mismatched caller byte refuses the whole optional lever before hooks.
     unsigned installs=hookInstalls;s_tried=false;s_installed=false;
     image[returns[5]-1]^=1;C(!InstallOgrePurgeSkip());C(hookInstalls==installs);image[returns[5]-1]^=1;
-    s_tried=false;imageStamp=0x65d60519;imageSize=0x232a000;
-    C(!InstallOgrePurgeSkip()&&hookInstalls==installs); // unknown/GOG image: native fallback
-    imageStamp=0x65d604d7;imageSize=0x232c000;
+    s_tried=false;imageStamp=0x6602d5e3;imageSize=0x232c000;
+    C(!InstallOgrePurgeSkip()&&hookInstalls==installs); // unsupported second exe
+    s_tried=false;imageStamp=profileStamp;imageSize=profileSize;verifiedGog=!profileGog;
+    C(!InstallOgrePurgeSkip()&&hookInstalls==installs); // mismatched authenticated platform
+    verifiedGog=profileGog;
     // Partial hook installation remains pass-through, never active skipping.
     s_tried=false;failManagerHook=true;C(!InstallOgrePurgeSkip());
     unsigned calls=groupCalls;Invoke(2);C(groupCalls==calls+1);failManagerHook=false;

@@ -9,6 +9,7 @@
 #ifndef KEO_ANIMATION_PATCH_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
+#include "game/native_profile.h"
 #include "base/ini_names.h"
 #include "fixes/fixes_config.h"
 #include "render/module_hooks.h"
@@ -56,7 +57,11 @@ static const Proof proofs[]={{0x2af70,proof0,sizeof(proof0)},{0x2bd80,proof1,siz
 static const unsigned char callBytes[5]={0xe8,0xf9,0x0b,0x00,0x00};
 static bool Admit(HMODULE module){
  __try{DWORD stamp=0,size=0;HMODULE game=GetModuleHandleA(NULL);
-  if(!IsMainThread()||!ReadModuleImageId(game,&stamp,&size)||stamp!=0x65d604d7||size!=0x232c000||*(void**)GameAddr(RVA_GLOBAL_SECTION_MGR))return false;
+  const bool gog=NativeProfileIsGog();
+  if(!IsMainThread()||!ReadModuleImageId(game,&stamp,&size)||
+     stamp!=(gog?0x65d60519:0x65d604d7)||size!=(gog?0x232a000:0x232c000))return false;
+  const uintptr_t section=reinterpret_cast<uintptr_t>(GameAddr(RVA_GLOBAL_SECTION_MGR));
+  if(!section||*(void**)section)return false;
   if(!module||!ReadModuleImageId(module,&stamp,&size)||stamp!=0x5ca5f929||size!=0x9c9000)return false;
   for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)if(memcmp((char*)module+proofs[i].rva,proofs[i].bytes,proofs[i].size))return false;
   original=(Original)((char*)module+0x2bd80);allocate=(Allocate)((char*)module+0x2df30);insert=(Insert)((char*)module+0x2d750);expectedReturn=(uintptr_t)module+0x2b187;return true;

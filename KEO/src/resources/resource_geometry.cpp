@@ -289,13 +289,24 @@ void Init(){
 #ifdef RESOURCE_GEOMETRY_TEST
     state->stats.admitted=true;
 #else
-    if(NativeProfileIsGog()){KEO_DETAIL("Geometry retention: native Steam seam not admitted on GOG");return;}
-    const uintptr_t base=reinterpret_cast<uintptr_t>(GetModuleHandleA(NULL));
-    const IMAGE_NT_HEADERS64*nt=reinterpret_cast<const IMAGE_NT_HEADERS64*>(base+reinterpret_cast<const IMAGE_DOS_HEADER*>(base)->e_lfanew);
+    HMODULE exe=GetModuleHandleA(NULL);
+    const uintptr_t base=reinterpret_cast<uintptr_t>(exe);
+    const bool gog=NativeProfileIsGog();
+    DWORD stamp=0,size=0;
     static const unsigned char bytes[32]={0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0x6c,0x24,0xd8,0x48,0x81,0xec,0x28,0x01,0x00,0x00,0x48,0xc7,0x45,0x90,0xfe,0xff,0xff};
-    void*target=reinterpret_cast<void*>(base+0x449620);
-    if(nt->FileHeader.TimeDateStamp!=0x65d604d7||nt->OptionalHeader.SizeOfImage!=0x232c000||memcmp(target,bytes,sizeof(bytes))){
+    void*target=reinterpret_cast<void*>(base+(gog?0x449240:0x449620));
+    if(!ReadModuleImageId(exe,&stamp,&size)||
+       stamp!=(gog?0x65d60519:0x65d604d7)||size!=(gog?0x232a000:0x232c000)||
+       memcmp(target,bytes,sizeof(bytes))){
         LogError("Geometry retention: native mesh-request contract refused; ordinary native loading retained");return;
+    }
+    if(gog){
+        static const unsigned char destroyProof[]={0x48,0x8b,0x44,0x24,0x40,0x8b,0x50,0x20,0x48,0x8b,0x05,0x82,0xba,0xdf,0x01,0x48,0x8b,0x08,0x48,0xff,0xc1,0x48,0x3b,0xd1,0x75,0x4b};
+        HMODULE ogre=GetModuleHandleA("OgreMain_x64.dll");
+        if(!ReadModuleImageId(ogre,&stamp,&size)||stamp!=0x5ca5f929||size!=0x9c9000||
+           memcmp(reinterpret_cast<const void*>(base+0x44a207),destroyProof,sizeof(destroyProof))){
+            LogError("Geometry retention: GOG mesh lifetime contract refused; ordinary native loading retained");return;
+        }
     }
     if(KenshiLib::AddHook(target,reinterpret_cast<void*>(&Create),reinterpret_cast<void**>(&originalCreate))!=KenshiLib::SUCCESS||!originalCreate){
         // Enable can fail after the SDK publishes a trampoline. A partial

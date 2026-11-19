@@ -1,9 +1,13 @@
 """Read-only actual-file native mesh/ownership contracts; game not executed."""
 from pathlib import Path
-import hashlib, re, struct
+import argparse, hashlib, re, struct
 
 ROOT = Path(__file__).resolve().parents[1]
-GAME = ROOT.parent.parent
+parser=argparse.ArgumentParser()
+parser.add_argument('--game',type=Path,default=Path('D:/SteamLibrary/steamapps/common/Kenshi'))
+parser.add_argument('--gog-exe',type=Path)
+args=parser.parse_args()
+GAME = args.game
 
 class Image:
     def __init__(self, path):
@@ -80,9 +84,21 @@ assert steam.read(0x71d07,8)==bytes.fromhex('e888c9fcff488bd8')
 # value is introduced by production capture.
 assert steam.read(0x44a5e7,26)==bytes.fromhex('488b4424408b5020488b055ad7df01488b0848ffc1483bd1754b')
 assert imported_pointer(steam,0x44a5f6+struct.unpack('<i',steam.read(0x44a5f2,4))[0])=='?RESOURCE_SYSTEM_NUM_REFERENCE_COUNTS@ResourceGroupManager@Ogre@@2_KA'
+if args.gog_exe:
+    gog=Image(args.gog_exe)
+    assert hashlib.sha256(gog.data).hexdigest()=='2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681'
+    assert (gog.stamp,gog.size)==(0x65d60519,0x232a000)
+    assert gog.read(0x449240,32)==expected
+    assert gog.read(0x449275,20)==steam.read(0x449655,20)
+    assert gog.read(0x44929d,9)==steam.read(0x44967d,9)
+    assert gog.read(0x44a207,11)==steam.read(0x44a5e7,11)
+    assert gog.read(0x44a216,11)==steam.read(0x44a5f6,11)
+    assert imported_pointer(gog,0x44a216+struct.unpack('<i',gog.read(0x44a212,4))[0])=='?RESOURCE_SYSTEM_NUM_REFERENCE_COUNTS@ResourceGroupManager@Ogre@@2_KA'
+    assert 'gog?0x449240:0x449620' in source, 'GOG mesh requests still lack a runtime profile'
 probe=(ROOT/'src/resources/resource_load_probe.cpp').read_text()
 capture=probe[probe.index('static void* SwitchBodyMesh('):probe.index('static void SetBodyEntity(')]
 assert capture.count('CompleteFinalMeshCapture(result)')==2
 assert 'CompleteFinalMeshCapture(entity)' not in capture and 'CompleteFinalMeshCapture(ownedMesh)' not in capture
 assert source.index('if(!IsMainThread()||!state||!state->on||!entity)return;',source.index('ObserveFinalEntityImpl'))<source.index('Observe(entity->getMesh());')
 print('native Steam request/Ogre SharedPtr-purge/mesh-manager orphan/manual-LOD/final-morph ownership contracts passed')
+if args.gog_exe:print('native GOG mesh request, ABI and ownership contracts passed')

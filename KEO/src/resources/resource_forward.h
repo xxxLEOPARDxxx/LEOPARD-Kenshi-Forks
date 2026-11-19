@@ -8,7 +8,7 @@ bool ResourceBuildTerrainJob(const void* biome,int type,resource_gpu::Job&);
 bool ResourceBuildArrayJob(const void* nativeRequest,resource_gpu::Job&);
 unsigned __int64 ResourceWorldGeneration();
 void ResourceGpuBridgeInit();
-bool ResourceGpuBridgeTick(bool enabled);
+bool ResourceGpuBridgeTick(bool terrainWarm, bool retainResources);
 void ResourceGpuBridgeStop();
 std::string ResourceGpuBridgeStats();
 struct ResourceGpuProgress {unsigned long adopted,skipped;bool admitted;};

@@ -16,7 +16,9 @@ check(hashlib.sha256(read(0x26a2e0,0x1f8)).hexdigest()=='7e3385e963170a255b0a26a
 check(hashlib.sha256(read(0x2e74b0,0x92)).hexdigest()=='30ebf545389b5a29dd4cadc836e7bb882c37f1be578dc7344f849b17c01030d1')
 src=(ROOT/'src/fixes/world/blackboard_empty.cpp').read_text()
 arrays={n:bytes(int(v.strip(),16)for v in vals.split(','))for n,vals in re.findall(r'static const unsigned char (\w+)\[\]=\{([^}]+)\}',src)}
-proofs=re.findall(r'\{(0x[0-9a-f]+),(\w+),sizeof\(\2\)\}',src);check(len(proofs)==7)
+def read_proofs(table_name):
+ return re.findall(r'\{(0x[0-9a-f]+),(\w+),sizeof\(\2\)\}',src.split(table_name+'[]={',1)[1].split('};',1)[0])
+proofs=read_proofs('proofs');check(len(proofs)==7)
 for r,n in proofs:check(read(int(r,16),len(arrays[n]))==arrays[n])
 eo=sdk.offset(sdk.directories[0][0]);names=sdk.offset(sdk.u32(eo+32));ords=sdk.offset(sdk.u32(eo+36));funcs=sdk.offset(sdk.u32(eo+28));exports={sdk.string(sdk.u32(names+i*4)):sdk.u32(funcs+4*sdk.u16(ords+i*2))for i in range(sdk.u32(eo+24))}
 table=struct.unpack('<7630I',(GAME/'RE_Kenshi/RVAs/Steam_1.0.65.br').read_bytes())
@@ -38,4 +40,21 @@ check(call(0x787eca)==0x4f8ae and call(0x787ed3)==0x2e843)
 check(call(0x78844d)==0x4f8ae and call(0x788456)==0x2e843)
 check(call(0x788467)==0x4b628 and call(0x788476)==0xb4c4)
 check(call(0x7884a9)==0x49071)
+if os.environ.get('KEO_TEST_GOG_EXE'):
+ steam=exe
+ exe=m.PE(os.environ['KEO_TEST_GOG_EXE'])
+ check(hashlib.sha256(exe.data).hexdigest()=='2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681')
+ proofs=read_proofs('gogProofs');check(len(proofs)==7)
+ for r,n in proofs:check(read(int(r,16),len(arrays[n]))==arrays[n])
+ check(hashlib.sha256(read(0x269e70,0x1f8)).hexdigest()=='ab73110f1437e8455876109c69c7aaba99d32fcf39b500fb6af9008937a7385e')
+ check(hashlib.sha256(read(0x2e7040,0x92)).hexdigest()=='7970d15faf19076a8bb9242ae2c2a885757334a3725becb9211b6a440d454c1f')
+ gog_table=struct.unpack('<7630I',(GAME/'RE_Kenshi/RVAs/GOG_1.0.65.br').read_bytes())
+ check(gog_table[1143]==0x269e70 and gog_table[2994]==0x2e7040)
+ check(call(0x787db5)==0x23515 and call(0x23515)==0x2e7040)
+ check(call(0x7eaaf8)==0x16cd9 and call(0x16cd9)==0x269e70)
+ check(call(0x269ed9)==0xed4d36 and call(0x26a041)==0xed4d30)
+ for r,n in ((0x26a325,5),(0x26a391,7),(0x26a3a8,8),(0x26a3d3,9),(0x26a48d,4)): check(read(r-0x470,n)==steam.data[steam.offset(r):steam.offset(r)+n])
+ check(call(0x7877fa)==0x4f926 and call(0x787803)==0x2e8b1)
+ check(call(0x787d7d)==0x4f926 and call(0x787d86)==0x2e8b1)
+ check(call(0x787d97)==0x4b6a0 and call(0x787da6)==0xb4bf and call(0x787dd9)==0x490e9)
 print('PASS',checks,'pinned native allocation/owner-phase/ABI contracts; files only')

@@ -46,11 +46,13 @@ int main(){
     QueryPerformanceFrequency(&qpcFrequency);QueryPerformanceCounter(&pluginStartTime);
     ID3D11Device*d=NULL;D3D_FEATURE_LEVEL level;
     Check(SUCCEEDED(D3D11CreateDevice(NULL,D3D_DRIVER_TYPE_WARP,NULL,0,NULL,0,D3D11_SDK_VERSION,&d,&level,&immediate)),"bridge WARP device");
-    Check(Patch(d,5,createHooks,creates,createCount)&&Patch(immediate,48,updateHooks,updates,updateCount),"real COM vtable admission");
-    currentDevice=d;InterlockedExchange(&enabled,1);originalArray=&FakeNative;
+    if(!resource_gpu::initialized){InitializeCriticalSection(&resource_gpu::lock);resource_gpu::initialized=true;}
+    Check(!AdmitDevice(d,false,true)&&currentDevice==d&&resource_gpu::device==d
+          &&!enabled&&!createCount&&!updateCount,"retention publishes device without enabling terrain hooks");
+    Check(AdmitDevice(d,true,true)&&createCount&&updateCount,"real COM vtable admission");
+    originalArray=&FakeNative;
     resource_biome::ready=true;resource_biome::mainId=GetCurrentThreadId();
     RequestFixture request;
-    if(!resource_gpu::initialized){InitializeCriticalSection(&resource_gpu::lock);resource_gpu::initialized=true;}
     InterlockedExchange(&resource_gpu::enabled,1);resource_gpu::world=7;resource_gpu::ceiling=1ULL<<30;
     for(unsigned pass=0;pass<2;++pass){
         actualJob.worldGeneration=7;
@@ -81,6 +83,8 @@ int main(){
     std::aligned_storage<sizeof(Ogre::TexturePtr),__alignof(Ogre::TexturePtr)>::type failedStorage;
     try{LoadedArray(request.bytes,reinterpret_cast<Ogre::TexturePtr*>(&failedStorage));}catch(int n){caught=n==17;}
     Check(caught&&arrayTimingBegin==3&&arrayTimingEnd==2&&context==NULL,"array native exception propagates without a completed sample or stale TLS");
-    InterlockedExchange(&enabled,0);currentDevice=NULL;immediate->Release();d->Release();
+    InterlockedExchange(&enabled,0);
+    Check(!RefuseDevice()&&!currentDevice&&!resource_gpu::device,"both devices released when VRAM options disable");
+    immediate->Release();d->Release();
     std::printf("native bridge TLS/COM/adoption/upload-fallback tests PASS\n");
 }

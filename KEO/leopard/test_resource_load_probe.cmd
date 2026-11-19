@@ -3,7 +3,7 @@ set "VC=C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC"
 set "SDK=C:\Program Files\Microsoft SDKs\Windows\v7.1"
 set "INCLUDE=%VC%\include;%SDK%\Include"
 set "LIB=%VC%\lib\amd64;%SDK%\Lib\x64"
-set "PATH=%VC%\bin\amd64;%SDK%\Bin;%PATH%"
+set "PATH=%VC%\bin\amd64;%SDK%\Bin;D:\SteamLibrary\steamapps\common\Kenshi;%PATH%"
 cd /d "%~dp0.."
 if not exist build\resource_load_probe_test mkdir build\resource_load_probe_test
 cl /nologo /EHsc /MT /Od /I src leopard\test_resource_load_probe.cpp /Fobuild\resource_load_probe_test\test_od.obj /Febuild\resource_load_probe_test\test_od.exe

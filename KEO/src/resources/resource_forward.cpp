@@ -126,7 +126,8 @@ void ResourceForwardTick(void*manager,const void*cameraPosition,bool loading){
     bool textureOn=cfg.cfg_resourceRamCache&&cfg.cfg_resourceTextureRetention;
     if(now>=nextConfig){
         nextConfig=now+1;
-        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&((on&&cfg.cfg_resourceGpuWarm)||geometryOn||textureOn));
+        bool gpuAdmitted=ResourceGpuBridgeTick(gpuStarted&&on&&cfg.cfg_resourceGpuWarm,
+                                               gpuStarted&&(geometryOn||textureOn));
         resource_gpu::Configure(gpuAdmitted&&on&&cfg.cfg_resourceGpuWarm,unsigned __int64(cfg.cfg_resourceGpuGiB)*1024*1024*1024,world);
         std::string error;if(resource_gpu::TakeError(&error))LogError("Resource GPU warmup: "+error);
     }

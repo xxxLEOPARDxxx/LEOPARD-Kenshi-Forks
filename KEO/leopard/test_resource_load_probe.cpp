@@ -159,7 +159,7 @@ int main(){
  Check(!AdmitModule(NULL,0x5ca5f929,4096,0x300,expected),"absent module refused");
  nt->FileHeader.Machine=IMAGE_FILE_MACHINE_AMD64;dos->e_lfanew=-1;Check(!AdmitModule(reinterpret_cast<HMODULE>(image),0x5ca5f929,4096,0x300,expected),"malformed PE offset refused");
  const unsigned char actualEntityBytes[32]={0x48,0x8b,0xc4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8d,0x68,0xa1,0x48,0x81,0xec,0xe0,0,0,0,0x48,0xc7,0x45,0x97,0xfe,0xff,0xff,0xff,0x48};
- HMODULE actualOgre=LoadLibraryExA("..\\..\\OgreMain_x64.dll",NULL,DONT_RESOLVE_DLL_REFERENCES);
+ HMODULE actualOgre=LoadLibraryExA("OgreMain_x64.dll",NULL,DONT_RESOLVE_DLL_REFERENCES);
  void*actualEntity=AdmitModule(actualOgre,0x5ca5f929,0x9c9000,0xBFAC0,actualEntityBytes);
  Check(actualEntity!=NULL,"actual installed Ogre exact PE build RVA and32bytes admitted without DllMain");
  Check(actualEntity&&reinterpret_cast<void*>(GetProcAddress(actualOgre,"?_initialise@Entity@Ogre@@QEAAX_N@Z"))==actualEntity,"actual Ogre named export matches admitted32byte RVA");FreeLibrary(actualOgre);

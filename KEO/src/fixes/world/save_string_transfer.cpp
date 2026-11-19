@@ -1,4 +1,5 @@
 #include "fixes/world/save_string_transfer.h"
+#include "fixes/world/save_gog_native.h"
 #include <windows.h>
 #include <intrin.h>
 #include <string>
@@ -22,8 +23,12 @@ typedef void(*PushFn)(List*,std::string*);
 static PushFn original=NULL;
 static bool tried=false,admitted=false;
 static uintptr_t gameBase=0;
+static const uintptr_t steamCallers[]={0x6c1ebc,0x6c1f47,0x6c2070,0x6cac21};
+static const uintptr_t gogCallers[]={0x6c17cc,0x6c1857,0x6c1980,0x6ca531};
+static const uintptr_t* parserCallers=steamCallers;
 static bool ParserCaller(uintptr_t caller){
- return caller==gameBase+0x6c1ebc||caller==gameBase+0x6c1f47||caller==gameBase+0x6c2070||caller==gameBase+0x6cac21;
+ const uintptr_t rva=caller-gameBase;
+ return rva==parserCallers[0]||rva==parserCallers[1]||rva==parserCallers[2]||rva==parserCallers[3];
 }
 static bool SpareSlot(const List*list,const std::string*value){
  if(!list||!value||!list->data||list->count>=list->capacity||list->capacity>65536||value->size()<=15)return false;
@@ -60,11 +65,27 @@ static const unsigned char proof4[]={0xff,0x48,0x8d,0x95,0xb8,0x01,0x00,0x00,0x4
 static const unsigned char proof5[]={0xe8,0x7a,0xd4,0x95,0xff,0x48,0x8d,0x54,0x24,0x28,0x48,0x8d,0x4f,0x50,0xe8,0x96,0x98,0x98,0xff,0xff,0xc3,0x3b,0x5e,0x08};
 static const unsigned char proof6[]={0xff,0x25,0x32,0x3f,0x37,0x01};
 static const Proof proofs[]={{0xa47b0,proof0,sizeof(proof0)},{0x544b7,proof1,sizeof(proof1)},{0x6c1ea8,proof2,sizeof(proof2)},{0x6c1f33,proof3,sizeof(proof3)},{0x6c205c,proof4,sizeof(proof4)},{0x6cac0e,proof5,sizeof(proof5)},{0xed5628,proof6,sizeof(proof6)}};
+static const save_gog_native::Window gogProofs[]={
+ {0xa47b0,152,0x7e1bc6faa99bbdebULL}, // Steam 0xa47b0
+ {0x1d51b,5,0x9e97f2ea4ab0f472ULL}, // Steam 0x544b7
+ {0x6c17b8,20,0xdd224d0196970050ULL}, // Steam 0x6c1ea8
+ {0x6c1843,20,0xedc0a7d064b295e0ULL}, // Steam 0x6c1f33
+ {0x6c196c,20,0x292181a74f5da2faULL}, // Steam 0x6c205c
+ {0x6ca51e,24,0x518b613246dff04bULL}, // Steam 0x6cac0e
+ {0xed4d2a,6,0x037a1cc79bd8a610ULL}, // Steam 0xed5628
+};
 static bool Admit(HMODULE module){
  __try{DWORD stamp=0,size=0;
-  if(!module||!ReadModuleImageId(module,&stamp,&size)||stamp!=0x65d604d7||size!=0x232c000)return false;
-  for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)
-   if(memcmp((char*)module+proofs[i].rva,proofs[i].bytes,proofs[i].size))return false;
+  if(!module||!ReadModuleImageId(module,&stamp,&size))return false;
+  const bool gog=save_gog_native::IsGogImage(stamp,size);
+  if(gog){
+   if(!save_gog_native::Match(module,gogProofs))return false;
+  }else{
+   if(stamp!=0x65d604d7||size!=0x232c000)return false;
+   for(size_t i=0;i<sizeof(proofs)/sizeof(proofs[0]);++i)
+    if(memcmp((char*)module+proofs[i].rva,proofs[i].bytes,proofs[i].size))return false;
+  }
+  parserCallers=gog?gogCallers:steamCallers;
   return true;
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }

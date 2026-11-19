@@ -39,7 +39,7 @@ controls=[
  ('source-pin-leak','if(c->sourceLive){c->sourceLive=false;c->Source().~SharedPtr();}','if(false){c->sourceLive=false;c->Source().~SharedPtr();}',1),
  ('repeated-install','if(tried)return;tried=true;','tried=true;',1),
  ('half-pair-readiness','if(KenshiLib::AddHook((char*)ogre+0x1ab3c0','admitted=true;if(KenshiLib::AddHook((char*)ogre+0x1ab3c0',1),
- ('ignored-game-identity','||stamp!=0x65d604d7||size!=0x232c000','',1),
+ ('ignored-game-identity','||stamp!=(gog?0x65d60519:0x65d604d7)||size!=(gog?0x232a000:0x232c000)','',1),
  ('ignored-native-proof','if(memcmp((char*)m+p[i].rva','if(false&&memcmp((char*)m+p[i].rva',1),
  ('lost-clone-context','__finally{cloning=previous;}','__finally{}',1),
 ]

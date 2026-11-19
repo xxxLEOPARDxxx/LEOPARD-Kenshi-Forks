@@ -1,10 +1,20 @@
 from pathlib import Path
-import os,re,subprocess,sys,importlib.util,hashlib,struct,json
-s=Path(__file__).resolve().parents[1];out=s/'build/purge-cycle';out.mkdir(exist_ok=True)
+import argparse,os,re,subprocess,sys,importlib.util,hashlib,struct,json
+parser=argparse.ArgumentParser()
+parser.add_argument('--gog-exe',type=Path)
+parser.add_argument('--steam-exe',type=Path,
+                    default=Path('D:/SteamLibrary/steamapps/common/Kenshi/RE_Kenshi/Kenshi_x64.exe'))
+args=parser.parse_args()
+gog=args.gog_exe is not None
+s=Path(__file__).resolve().parents[1];out=s/('build/purge-cycle-gog' if gog else 'build/purge-cycle');out.mkdir(exist_ok=True)
 spec=importlib.util.spec_from_file_location('pe',s/'tools/kenshilib/check_imports.py');p=importlib.util.module_from_spec(spec);spec.loader.exec_module(p)
-pe=p.PE(s.parents[1]/'RE_Kenshi/Kenshi_x64.exe')
-assert hashlib.sha256(pe.data).hexdigest()=='504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e'
-calls=[(0xA0EB67,4),(0xA0EB79,4),(0xA0EBB4,6),(0xA0EC02,6),(0xA0EC50,6),(0xA0EC9E,6)]
+pe=p.PE(args.gog_exe if gog else args.steam_exe)
+expected_sha=('2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681' if gog else
+              '504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e')
+assert hashlib.sha256(pe.data).hexdigest()==expected_sha
+delta=0x8e0 if gog else 0 # Proven for ZoneManager::processLoading only.
+calls=[(at-delta,n) for at,n in [(0xA0EB67,4),(0xA0EB79,4),(0xA0EBB4,6),
+                                (0xA0EC02,6),(0xA0EC50,6),(0xA0EC9E,6)]]
 imports={};directory=pe.offset(pe.directories[1][0])
 while True:
     original,stamp,chain,name,first=struct.unpack_from('<5I',pe.data,directory)
@@ -19,13 +29,13 @@ while True:
 def imported_call(at):
     code=pe.data[pe.offset(at):pe.offset(at)+6];assert code[:2]==b'\xff\x15'
     return imports[at+6+struct.unpack_from('<i',code,2)[0]]
-assert 'TextureManager' in imported_call(0xA0EB59)[1]
-assert 'MeshManager' in imported_call(0xA0EB6B)[1]
+assert 'TextureManager' in imported_call(0xA0EB59-delta)[1]
+assert 'MeshManager' in imported_call(0xA0EB6B-delta)[1]
 for at,n in calls:
     raw=pe.data[pe.offset(at):pe.offset(at)+n]
     if n==4:assert raw==bytes.fromhex('41ff5068')
     else:assert 'unloadUnreferencedResourcesInGroup' in imported_call(at)[1]
-group_literals=[0xA0EB93,0xA0EBE1,0xA0EC2F,0xA0EC7D]
+group_literals=[at-delta for at in [0xA0EB93,0xA0EBE1,0xA0EC2F,0xA0EC7D]]
 groups=[]
 for at in group_literals:
     raw=pe.data[pe.offset(at):pe.offset(at)+7];assert raw[:3]==bytes.fromhex('488d15')
@@ -39,6 +49,11 @@ for at,n in calls:
     start=at+n-32;b=pe.data[pe.offset(start):pe.offset(start)+32]
     fills.append('{const unsigned char b[]={'+','.join(hex(v) for v in b)+'};memcpy(&image['+hex(start)+'],b,sizeof(b));}')
 fixture=(s/'leopard/test_ogre_purge_wrappers.cpp').read_text()
+if gog:
+    fixture=re.sub(r'/\* RETURN_RVAS \*/ [^}]*',','.join(hex(at+n) for at,n in calls),fixture)
+    fixture=fixture.replace('/* PROFILE_STAMP */ 0x65d604d7','0x65d60519')
+    fixture=fixture.replace('/* PROFILE_SIZE */ 0x232c000','0x232a000')
+    fixture=fixture.replace('/* PROFILE_GOG */ false','true')
 production=(s/'src/render/ogre_purge_skip.cpp').read_text()
 production=re.sub(r'^(?:#include|#pragma intrinsic)[^\n]*\n','',production,flags=re.M)
 cpp=out/'actual.cpp';cpp.write_text(fixture.replace('// PRODUCTION_BODY',production).replace('// SITE_BYTES: runner fills known caller windows from the pinned disk EXE.','\n'.join(fills)))
