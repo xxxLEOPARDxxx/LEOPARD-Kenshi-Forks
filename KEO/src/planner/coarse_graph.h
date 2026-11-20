@@ -47,6 +47,7 @@ struct CgBlock
 	unsigned    liveSeq;       // a live copy's acquire sequence; 0 for base and save blocks
 	int         liveBuffer;    // pool index for a live buffer, -1 for a heap block
 	int         collSlot;      // a live buffer's collection slot, -1 otherwise
+	int         costScale;     // the block's conservative cost per distance, fixed point
 	int         arcsTrunc;     // nodes whose intra arcs plus borders exceed CG_NODE_ARCS_MAX
 	int         nodeCount, arcCount, borderCount;
 	CgNode*     nodes;
@@ -61,6 +62,7 @@ bool     CgStoreCreate();          // the directory, the interior table, the liv
 void     CgStoreDestroy();         // host tests only: frees everything, published or retired
 bool     CgStoreReady();           // any thread
 unsigned CgStoreGen();             // any thread
+float    CgCostScale();            // any thread; only decreases during the store lifetime
 void     CgStoreNewWorld();        // main thread: invalidate overs and start bounded retirement;
                                   // bases and stable interior indices stay intact
 

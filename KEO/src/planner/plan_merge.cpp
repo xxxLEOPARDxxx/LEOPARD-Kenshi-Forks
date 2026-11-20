@@ -81,6 +81,12 @@ static int BiasInboundMirrored(void* ctx, unsigned node)
 	return b->inner->inboundMirrored ? b->inner->inboundMirrored(b->inner->ctx, node) : 0;
 }
 
+static float BiasCostScale(void* ctx)
+{
+	const PlanMergeBias* b = (const PlanMergeBias*)ctx;
+	return b->inner->costScale(b->inner->ctx);
+}
+
 void PlanMergeBiasOps(PlanMergeBias* bias, CoarseGraphOps* out)
 {
 	if (!(bias->k >= 1.0f))
@@ -89,7 +95,9 @@ void PlanMergeBiasOps(PlanMergeBias* bias, CoarseGraphOps* out)
 	out->ctx = bias;
 	out->arcs = BiasArcs;
 	out->position = BiasPosition;
+	out->costScale = bias->inner->costScale ? BiasCostScale : NULL;
 	out->inboundMirrored = bias->inner->inboundMirrored ? BiasInboundMirrored : NULL;
+	out->closedProbeNodeLimit = bias->inner->closedProbeNodeLimit;
 }
 
 float PlanMergeRecost(const CoarseGraphOps& inner, const unsigned* nodes, int n)

@@ -34,8 +34,6 @@ struct AhEvent
 } // namespace astar_hier_detail
 using namespace astar_hier_detail;
 
-static const size_t AH_IN_START = 0x10;   // FindPathInput start point, x y z
-static const size_t AH_IN_GOALS = 0x20;   // FindPathInput goal point array
 static const int    AH_EVENT_SLOTS = 32;
 
 // Session totals. Any search thread increments them; the main tick reads each on its own, so
@@ -199,8 +197,8 @@ static void AhRecordEvent(AstarHierEvent kind, const AstarHierRecord& rec, const
 	if (idx < 0 || idx >= AH_EVENT_SLOTS)
 		return;
 	AhEvent& e = g_ahEvents[idx];
-	const float* start = (const float*)(in + AH_IN_START);
-	const float* goal = *(const float* const*)(in + AH_IN_GOALS);
+	const float* start = (const float*)(in + AHIER_IN_START);
+	const float* goal = *(const float* const*)(in + AHIER_IN_GOALS);
 	e.kind = (int)kind;
 	e.startX = start[0];
 	e.startZ = start[2];
@@ -222,7 +220,7 @@ static void AhRecordEvent(AstarHierEvent kind, const AstarHierRecord& rec, const
 void AstarHierSearch(void* streamingCollection, void* findPathInput, void* findPathOutput,
                      void* returnAddr, int playerByReq)
 {
-	const AstarHierMode mode = (AstarHierMode)pathfind::g_pathfindCfg.playerHierarchicalMode;
+	AstarHierMode mode = (AstarHierMode)pathfind::g_pathfindCfg.playerHierarchicalMode;
 	AstarHierSubject subject = AHIER_SUBJECT_OTHER;
 	bool costModifier = false;
 	if (mode != AHIER_OFF && findPathInput)
@@ -231,6 +229,7 @@ void AstarHierSearch(void* streamingCollection, void* findPathInput, void* findP
 		const bool atSite = AstarResolveCallerClass(returnAddr, -1) == ASTAR_CALLER_CHARACTER_UNKNOWN;
 		subject = AstarHierSubjectOf(atSite, in[AHIER_IN_HIER_FLAG]);
 		costModifier = *(void* const*)(in + AHIER_IN_COST_MODIFIER) != NULL;
+		mode = AstarHierModeForInput(mode, subject, in);
 	}
 
 	AhCall call;

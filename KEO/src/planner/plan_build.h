@@ -55,8 +55,8 @@ bool PlanIsModSend(const float moveDest[3], const float resend[][3], int resendC
                    const float holdDest[3], int haveHold, double holdAge);
 
 // One click reaches the order capture as a burst of identical move orders. A repeat: the plan is
-// under PLAN_ORDER_SETTLE seconds old (planAge) and the new destination lies within one unit of
-// the plan's in x-z.
+// under PLAN_ORDER_SETTLE seconds old (planAge) and the new destination lies within one unit in
+// three dimensions. Clicks on different floors can have identical x-z coordinates.
 bool PlanRepeatDue(const float planDest[3], const float newDest[3], double planAge);
 
 // The prices one search runs at: the water multiplier m and the acid factor a (1: acid as any water).

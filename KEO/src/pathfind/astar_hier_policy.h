@@ -14,6 +14,8 @@ enum AstarHierRefusal { AHIER_REFUSAL_NONE = 0, AHIER_REFUSAL_FALSE, AHIER_REFUS
 enum AstarHierEvent { AHIER_EVENT_NONE = 0, AHIER_EVENT_RESCUE, AHIER_EVENT_FALSE_REFUSAL, AHIER_EVENT_NPC_FALSE, AHIER_EVENT_DIVERGE };
 
 // FindPathInput and FindPathOutput fields the sequence reads or writes.
+const size_t AHIER_IN_START = 0x10;   // three position components in Havok units
+const size_t AHIER_IN_GOALS = 0x20;   // position array, then its int count at +8
 const size_t AHIER_IN_COST_MODIFIER = 0x70;   // non-NULL: a water cost modifier
 const size_t AHIER_IN_HIER_FLAG     = 0x83;   // 1: the cluster-graph heuristic
 const size_t AHIER_OUT_VISITED_SIZE = 0x18;
@@ -72,6 +74,8 @@ struct AstarHierBumps
 };
 
 AstarHierSubject AstarHierSubjectOf(bool atCharacterSite, unsigned char hierByte);
+// In ON mode, keep the original engine search for a short, single-goal player request in one mesh.
+AstarHierMode AstarHierModeForInput(AstarHierMode mode, AstarHierSubject subject, const unsigned char* in);
 bool AstarHierInstantRefusal(const AstarHierResult& r);   // status 2, cause 0, iterations 1
 bool AstarHierAstarSuccess(const AstarHierResult& r);     // status 1, iterations >= 1
 bool AstarHierLosOnly(const AstarHierResult& r);          // status 1, iterations 0

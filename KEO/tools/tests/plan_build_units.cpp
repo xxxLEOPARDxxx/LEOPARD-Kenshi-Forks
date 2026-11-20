@@ -314,7 +314,7 @@ static void CheckRepeat()
 {
 	float planDest[3], same[3], apart[3], apart12[3];
 	Set3(planDest, 5000.0f, 40.0f, -7000.0f);
-	Set3(same, 5000.5f, 0.0f, -7000.0f);
+	Set3(same, 5000.5f, 40.0f, -7000.0f);
 	Set3(apart, 5002.0f, 0.0f, -7000.0f);
 	Set3(apart12, 5001.2f, 0.0f, -7000.0f);
 
@@ -322,6 +322,8 @@ static void CheckRepeat()
 	Check(!PlanRepeatDue(planDest, apart, 0.3), "repeat: a destination two units away is not a repeat");
 	Check(!PlanRepeatDue(planDest, apart12, 0.3), "repeat: a destination 1.2 units away is not a repeat");
 	Check(!PlanRepeatDue(planDest, same, 1.5), "repeat: the same destination after the settle second is not a repeat");
+	const float upstairs[3] = { 5000.5f, 82.0f, -7000.0f };
+	Check(!PlanRepeatDue(planDest, upstairs, 0.3), "repeat: the overlapping destination on another floor is a fresh click");
 }
 
 static void CheckMemo()

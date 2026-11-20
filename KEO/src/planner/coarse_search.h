@@ -30,6 +30,12 @@ struct CoarseGraphOps
 	// by the far block's geometry, or aimed at a far block it could not read, and for a node whose
 	// intra arcs plus borders pass COARSE_ARCS_MAX.
 	int  (*inboundMirrored)(void* ctx, unsigned node);
+	// Lower bound on arc cost per unit distance. NULL gives no geometric bound. One search
+	// may see a decrease when another thread publishes a cheaper section.
+	float (*costScale)(void* ctx);
+	// A positive cap makes a closed probe advisory: allow this many forward nodes to look for
+	// an inbound edge the probe missed. Zero means the adapter certifies exact inbound symmetry.
+	int closedProbeNodeLimit;
 };
 
 // Allocated once, with new, when the planner arms (never a namespace- or file-scope object);
@@ -66,10 +72,8 @@ enum CoarseProbeVerdict { CPV_MET = 0, CPV_CLOSED, CPV_OPEN };
 CoarseProbeVerdict CoarseProbeGoal(const CoarseGraphOps& ops, unsigned goal, unsigned start, int maxNodes,
                                    int* expanded);
 
-// With ops.inboundMirrored set, a goal the probe finds CPV_CLOSED answers CS_NO_ROUTE at once: no
-// arc inboundMirrored can see enters a closure whose every node mirrors its inbound arcs, so the start
-// outside it cannot reach the goal over those arcs (an arc it cannot see, as with the store adapter's
-// two, can still enter). Otherwise the A* runs from start.
+// A certified closed probe answers CS_NO_ROUTE. An advisory closed probe only lowers the forward
+// search's node budget; CS_NODE_LIMIT allows the caller to fall back to its native route.
 CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned goal, int maxNodes,
                           CoarseScratch* s, CoarseRoute* out);
 // Searches the probe answered CS_NO_ROUTE, since the process started; the caller's thread.

@@ -160,7 +160,7 @@ bool PlanIsModSend(const float moveDest[3], const float resend[][3], int resendC
 
 bool PlanRepeatDue(const float planDest[3], const float newDest[3], double planAge)
 {
-	return planAge < PLAN_ORDER_SETTLE && DistanceSqXz(planDest, newDest) < REPEAT_DEST_MATCH * REPEAT_DEST_MATCH;
+	return planAge < PLAN_ORDER_SETTLE && DistanceSq3(planDest, newDest) < REPEAT_DEST_MATCH * REPEAT_DEST_MATCH;
 }
 
 unsigned __int64 PlanMemoKey(unsigned startNode, unsigned goalNode)

@@ -85,6 +85,8 @@ static CoarseGraphOps Ops(Graph* g)
 	ops.arcs = GraphArcs;
 	ops.position = GraphPosition;
 	ops.inboundMirrored = NULL;
+	ops.costScale = NULL;
+	ops.closedProbeNodeLimit = 0;
 	return ops;
 }
 
@@ -218,6 +220,12 @@ static void CheckTies(CoarseScratch* s)
 	      "search: equal costs break ties by node key");
 }
 
+static float UnitScale(void*)
+{
+	return 1.0f;
+}
+
+// Intentionally use an inconsistent heuristic to exercise reopening.
 // Node 1 is closed first through the dear arc 0->1 (f 110); node 2 (f 140) then reaches it for 15
 // through an arc shorter than the straight line, so node 1 must be re-opened for the cheap route.
 static void CheckReopen(CoarseScratch* s)
@@ -233,10 +241,66 @@ static void CheckReopen(CoarseScratch* s)
 	Arc(&g, 2, 1, 5.0f);
 	Arc(&g, 1, 3, 100.0f);
 	CoarseRoute r;
-	CoarseResult res = CoarseSearch(ProbedOps(&g), 0, 3, COARSE_SCRATCH_MAX, s, &r);
+	CoarseGraphOps ops = ProbedOps(&g);
+	ops.costScale = UnitScale;
+	CoarseResult res = CoarseSearch(ops, 0, 3, COARSE_SCRATCH_MAX, s, &r);
 	unsigned want[4] = { 0, 2, 1, 3 };
 	Check(res == CS_FOUND && RouteIs(r, want, 4) && Near(r.cost, 115.0f) && r.probed == 1,
 	      "search: a node reached again cheaper is re-opened");
+}
+
+namespace coarse_search_units_detail {
+
+struct ChangingGraph
+{
+	Graph graph;
+	float scale;
+	int startExpansions;
+};
+
+} // namespace coarse_search_units_detail
+
+static bool ChangingPosition(void* ctx, unsigned node, float out[3])
+{
+	return GraphPosition(&((coarse_search_units_detail::ChangingGraph*)ctx)->graph, node, out);
+}
+
+static int ChangingArcs(void* ctx, unsigned node, CoarseArc* out, int max)
+{
+	coarse_search_units_detail::ChangingGraph& g = *(coarse_search_units_detail::ChangingGraph*)ctx;
+	if (node == 0)
+	{
+		++g.startExpansions;
+		g.scale = 0.1f;   // the cheaper section becomes visible while expanding the first node
+	}
+	return GraphArcs(&g.graph, node, out, max);
+}
+
+static float ChangingScale(void* ctx)
+{
+	return ((coarse_search_units_detail::ChangingGraph*)ctx)->scale;
+}
+
+static void CheckScaleDuringSearch(CoarseScratch* s)
+{
+	coarse_search_units_detail::ChangingGraph g;
+	Reset(&g.graph, 4);
+	At(&g.graph, 0, 0.0f, 0.0f, 0.0f);
+	At(&g.graph, 1, -40.0f, 0.0f, 0.0f);
+	At(&g.graph, 2, 25.0f, 0.0f, 30.0f);
+	At(&g.graph, 3, 50.0f, 0.0f, 0.0f);
+	Arc(&g.graph, 0, 2, 40.0f);
+	Arc(&g.graph, 2, 3, 40.0f);
+	Arc(&g.graph, 0, 1, 10.0f);
+	Arc(&g.graph, 1, 3, 10.0f);
+	g.scale = 1.0f;
+	g.startExpansions = 0;
+	CoarseGraphOps ops = { &g, ChangingArcs, ChangingPosition, NULL, ChangingScale, 0 };
+	CoarseRoute route;
+	const unsigned want[] = { 0, 1, 3 };
+	Check(CoarseSearch(ops, 0, 3, 4, s, &route) == CS_FOUND && RouteIs(route, want, 3) &&
+	      Near(route.cost, 20.0f) && g.startExpansions == 2,
+	      "search: a lower cost bound published during the search triggers one retry");
 }
 
 static void BuildChain(Graph* g, int n)
@@ -343,6 +407,8 @@ static void CheckLake(CoarseScratch* s)
 	ops.arcs = WaterArcs;
 	ops.position = WaterPosition;
 	ops.inboundMirrored = WaterInboundMirrored;
+	ops.costScale = NULL;
+	ops.closedProbeNodeLimit = 0;
 	CoarseRoute* r = new CoarseRoute;
 	const unsigned across[3] = { 0, 1, 3 };
 	const unsigned round[3] = { 0, 2, 3 };
@@ -438,6 +504,32 @@ static void CheckProbe(CoarseScratch* s)
 	delete r;
 }
 
+static int ApproximateMirror(void*, unsigned)
+{
+	return 1;
+}
+
+static void CheckAdvisoryProbe(CoarseScratch* s)
+{
+	Graph g;
+	Reset(&g, 21);
+	AddChain(&g, 0, 20, 0.0f);
+	At(&g, 20, 15.0f, 0.0f, 1.0f);
+	Arc(&g, 2, 20, 10.0f);
+	CoarseGraphOps ops = Ops(&g);
+	ops.inboundMirrored = ApproximateMirror;
+	ops.closedProbeNodeLimit = 8;
+	CoarseRoute route;
+	Check(CoarseSearch(ops, 0, 20, 100, s, &route) == CS_FOUND && route.probed == 1,
+	      "probe: a closed advisory probe looks forward and finds one-way entry");
+	g.arcs[2].pop_back();
+	Check(CoarseSearch(ops, 0, 20, 100, s, &route) == CS_NODE_LIMIT && route.probed == 1 &&
+	      route.expanded <= 9,
+	      "probe: an isolated goal cannot trigger a world-sized search");
+	Check(CoarseSearch(ops, 0, 19, 100, s, &route) == CS_FOUND && route.count == 20,
+	      "probe: the lower node budget only applies to closed probes");
+}
+
 int main()
 {
 	CoarseScratch* s = new CoarseScratch;
@@ -448,10 +540,12 @@ int main()
 	CheckDisconnected(s);
 	CheckTies(s);
 	CheckReopen(s);
+	CheckScaleDuringSearch(s);
 	CheckBudget(s);
 	CheckEndpoints(s);
 	CheckLake(s);
 	CheckProbe(s);
+	CheckAdvisoryProbe(s);
 	delete s;
 	return CheckExit("coarse_search_units");
 }

@@ -12,6 +12,7 @@
 #include <vector>
 #include "planner/coarse_graph.h"
 #include "planner/coarse_graph_cache.h"
+#include "planner/planner_search_ops.h"
 
 #include "check.h"
 
@@ -931,8 +932,61 @@ static void CheckCacheVersions()
 	Check(!CgCacheDecodeTile(&high[0], high.size(), &out), "cache: a tile head flag above bit 0 is refused");
 }
 
+static void CheckDirectedRoutes()
+{
+	Fresh();
+	CoarseScratch scratch;
+	Check(CoarseScratchInit(&scratch, 32), "route: scratch is available");
+	CoarseGraphOps ops;
+	CoarseRoute route;
+	AdapterOps(NULL, &ops);
+	CgPublishBase(7, OneSectionBlock(7, CG_BASE, 0, 2));
+	const unsigned from = CgNodeKey(7, 0);
+	const unsigned to = CgNodeKey(7, 1);
+	Check(CoarseSearch(ops, from, to, 32, &scratch, &route) == CS_FOUND &&
+	      route.count == 2 && route.cost == 100.0f, "route: one-way link inside a section is reachable");
+	Check(CoarseSearch(ops, to, from, 32, &scratch, &route) == CS_NO_ROUTE,
+	      "route: one-way link still cannot be used in reverse");
+}
+
+static void CheckDiscountedRoute()
+{
+	Fresh();
+	TileGraph g;
+	g.interiorsDropped = g.bordersSkipped = 0;
+	AddSection(&g, 7, TGS_EXTERIOR, 4, 0.0f);
+	SetV(g.nodes[1].centre, -40.0f, 0.0f, 0.0f);
+	SetV(g.nodes[2].centre, 25.0f, 0.0f, 30.0f);
+	SetV(g.nodes[3].centre, 50.0f, 0.0f, 0.0f);
+	const TgArc arcs[] = { {2, 40.0f}, {1, 10.0f}, {3, 10.0f}, {3, 40.0f}, {0, 50.0f} };
+	g.arcs.assign(arcs, arcs + 5);
+	g.nodes[0].arcCount = 2;
+	for (int i = 1; i < 4; ++i)
+	{
+		g.nodes[i].firstArc = i + 1;
+		g.nodes[i].arcCount = 1;
+	}
+	const float emptyScale = CgCostScale();
+	CgPublishBase(7, CgBlockFromTile(g, 0, CG_BASE, 0));
+	const float publishedScale = CgCostScale();
+	Check(publishedScale > 0.0f && publishedScale < emptyScale && publishedScale * 90.0f <= 10.0f,
+	      "route: published arc weights constrain the geometric estimate");
+	CgStoreNewWorld();
+	Check(CgCostScale() == publishedScale, "route: changing world keeps the bound for retained base sections");
+	CoarseScratch scratch;
+	Check(CoarseScratchInit(&scratch, 32), "route: scratch is available");
+	CoarseGraphOps ops;
+	CoarseRoute route;
+	AdapterOps(NULL, &ops);
+	Check(CoarseSearch(ops, CgNodeKey(7, 0), CgNodeKey(7, 3), 32, &scratch, &route) == CS_FOUND &&
+	      route.count == 3 && route.nodes[1] == CgNodeKey(7, 1) && route.cost == 20.0f,
+	      "route: cheaper graph weights can beat the route that initially heads toward the destination");
+}
+
 int main()
 {
+	CheckDirectedRoutes();
+	CheckDiscountedRoute();
 	CheckTakeRefusesReaders();
 	CheckRanksAndGenerations();
 	CheckLiveOrder();

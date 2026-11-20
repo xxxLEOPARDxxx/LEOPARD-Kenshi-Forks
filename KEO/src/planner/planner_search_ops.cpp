@@ -1,6 +1,6 @@
 // planner_search_ops.cpp - The coarse search's operations over the coarse-graph store: a node's arcs
-// priced by the water and the acid under them at the search's prices, its centre, the goal probe's
-// inbound-mirror test, the operations builder, and the two store reads they share. Pure over the
+// priced by the water and the acid under them at the search's prices, its centre, the operations
+// builder, and the two store reads they share. Pure over the
 // store's read interface and the arc rules: no game header. The caller's thread; the game calls it
 // on the main thread only, where the store is read.
 #include "planner/planner_search_ops.h"
@@ -69,13 +69,9 @@ int AdapterArcs(void* ctx, unsigned key, CoarseArc* out, int max)
 	return count;
 }
 
-// Whether every arc into the node that its own borders show has its reverse among the node's arcs: no
-// list cut at the cap, and each of the node's borders resolved against a readable far block through a
-// border that block names (read as a save block, the far block's geometry is withheld, so a border it
-// alone resolves reads dropped). Only the node's own borders are read, so two arcs stay unseen: a cross
-// arc into the node from a block whose borders name nothing toward it, and a one-way arc inside the
-// node's own block.
-int AdapterInboundMirrored(void* ctx, unsigned key)
+// The reverse probe only inspects the node's own borders. It can miss one-way links,
+// including links within this section. A closed result must use a bounded forward check.
+static int ProbeCanCheckBorders(void* ctx, unsigned key)
 {
 	(void)ctx;
 	int idx, dir;
@@ -109,15 +105,22 @@ bool AdapterPosition(void* ctx, unsigned key, float out[3])
 	return true;
 }
 
+static float AdapterCostScale(void*)
+{
+	return CgCostScale();
+}
+
 // The coarse search's operations over the store at the prices p (ctx; p outlives the search; NULL
-// reads 1, 1): the priced arcs, the node centres and the goal probe's inbound-mirror test.
+// reads 1, 1): the priced arcs, node centres, and an advisory reverse probe.
 void AdapterOps(const PlanSearchParams* p, CoarseGraphOps* out)
 {
 	memset(out, 0, sizeof(*out));
 	out->ctx = (void*)p;
 	out->arcs = AdapterArcs;
 	out->position = AdapterPosition;
-	out->inboundMirrored = AdapterInboundMirrored;
+	out->costScale = AdapterCostScale;
+	out->inboundMirrored = ProbeCanCheckBorders;
+	out->closedProbeNodeLimit = 4096;
 }
 
 } // namespace planner

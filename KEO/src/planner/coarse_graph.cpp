@@ -31,6 +31,7 @@ struct CgStoreState
 	SLIST_HEADER      liveFree;    // free live buffers
 	SLIST_HEADER      handOff;     // interior blocks from the builder
 	CgEntry*          dir;         // CG_DIR_SLOTS
+	volatile LONG     minCostScale;
 	int*              interiorUid; // CG_INTERIOR_SLOTS, 0 = empty (uid 0 is an exterior)
 	CgBlock* volatile* records;    // CG_LIVE_RECORDS
 	unsigned char*    pool;        // CG_LIVE_BUFFERS buffers of s_bufferStride bytes
@@ -58,6 +59,8 @@ static void*          s_pauseAfterTakeCtx = NULL;
 static volatile LONG  s_liveSeq = 0;
 static const int      MAIN_TAKE_SPINS = 64;
 static const int      DEFERRED_MAX = 64;
+static const int      COST_SCALE_ONE = 1024;
+static const int      COST_SCALE_MAX = COST_SCALE_ONE - 1;
 static CgDeferred     s_deferred[DEFERRED_MAX];   // main thread only
 static int            s_deferredCount = 0;
 
@@ -117,6 +120,50 @@ static void CountUnsearchable(const CgBlock* b)
 		if (!(b->arcs[i].cost >= 0.0f))
 			++n;
 	InterlockedExchangeAdd(&s_count.unsearchable, n);
+}
+
+// Compare with the current bound squared so normal edges need no division or square root.
+// Reserve one quantization step for rounding in the search and the cross-section distance.
+static int BlockCostScale(const CgBlock* block)
+{
+	int scale = COST_SCALE_MAX;
+	for (int i = 0; scale > 0 && i < block->nodeCount; ++i)
+	{
+		const CgNode& from = block->nodes[i];
+		for (int j = 0; scale > 0 && j < from.arcCount; ++j)
+		{
+			const CgArc& arc = block->arcs[from.firstArc + j];
+			if (!(arc.cost >= 0.0f)) continue;
+			const float* to = block->nodes[arc.to].centre;
+			const double dx = (double)from.centre[0] - to[0];
+			const double dy = (double)from.centre[1] - to[1];
+			const double dz = (double)from.centre[2] - to[2];
+			const double squared = dx * dx + dy * dy + dz * dz;
+			const double scaledCost = (double)arc.cost * COST_SCALE_ONE;
+			if (squared * scale * scale > scaledCost * scaledCost)
+			{
+				const int bound = (int)(scaledCost / sqrt(squared));
+				scale = bound > 0 ? bound - 1 : 0;
+			}
+		}
+	}
+	return scale;
+}
+
+float CgCostScale()
+{
+	return s_store ? (float)InterlockedCompareExchange(&s_store->minCostScale, 0, 0) / COST_SCALE_ONE : 0.0f;
+}
+
+static void LowerCostScale(int scale)
+{
+	LONG known = InterlockedCompareExchange(&s_store->minCostScale, 0, 0);
+	while (scale < known)
+	{
+		LONG prior = InterlockedCompareExchange(&s_store->minCostScale, scale, known);
+		if (prior == known) break;
+		known = prior;
+	}
 }
 
 // Borders by (oppUid, face), stable: an insertion sort over input that is normally sorted already.
@@ -225,6 +272,7 @@ bool CgStoreCreate()
 	s_promoteCursor = 0;
 	s_livePending = 0;
 	s_staleCursor = CG_DIR_SLOTS;
+	st->minCostScale = COST_SCALE_MAX;
 	s_store = st;
 	InterlockedExchange(&s_gen, 1);
 	InterlockedExchange(&s_ready, 1);
@@ -411,6 +459,7 @@ static CgPublishResult SwapBase(CgEntry* ent, LONG e, CgBlock* b)
 {
 	PauseAfterTake();
 	CgBlock* old = ent->base;
+	LowerCostScale(b->costScale);
 	ent->base = b;
 	ReleaseEntry(ent, e);
 	Retire(old);
@@ -452,6 +501,7 @@ static CgPublishResult SwapOver(CgEntry* ent, LONG e, CgBlock* b)
 		InterlockedIncrement(&s_count.outranked);
 		return CGP_OUTRANKED;
 	}
+	LowerCostScale(b->costScale);
 	ent->over = b;
 	ReleaseEntry(ent, e);
 	Retire(cur);
@@ -740,6 +790,7 @@ int CgPromoteLive(int max)
 			continue;
 		}
 		CountUnsearchable(h);
+		h->costScale = BlockCostScale(h);
 		if (PublishMain(dir, h, false) == CGP_OK)
 		{
 			InterlockedIncrement(&s_count.promoted);
@@ -824,6 +875,7 @@ CgBlock* CgBlockFromTile(const TileGraph& g, int section, int source, unsigned s
 	SortBorders(b->borders, b->borderCount);
 	IndexNodeBorders(b);
 	CountUnsearchable(b);
+	b->costScale = BlockCostScale(b);
 	return b;
 }
 

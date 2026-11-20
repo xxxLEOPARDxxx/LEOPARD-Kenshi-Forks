@@ -193,6 +193,40 @@ static void CheckObservePlayer()
 	      "observe player: onCap changes nothing");
 }
 
+static void CheckLocalMode()
+{
+	unsigned char input[0x84] = {};
+	float start[] = {10.0f, 30.0f, 0.0f};
+	float goal[] = {110.0f, 30.0f, 0.0f};
+	const float* goalPoints = goal;
+	unsigned startFace = (2u << 22) + 1u;
+	unsigned goalFace = (2u << 22) + 2u;
+	const unsigned* goalFaces = &goalFace;
+	int count = 1;
+	memcpy(input + 0x10, start, sizeof(start));
+	memcpy(input + 0x20, &goalPoints, sizeof(goalPoints));
+	memcpy(input + 0x28, &count, sizeof(count));
+	memcpy(input + 0x30, &startFace, sizeof(startFace));
+	memcpy(input + 0x38, &goalFaces, sizeof(goalFaces));
+	memcpy(input + 0x40, &count, sizeof(count));
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_OFF, "local: short player route in one mesh uses native search");
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_NPC, input) == AHIER_ON, "local: NPC search is unaffected");
+	Check(AstarHierModeForInput(AHIER_OBSERVE, AHIER_SUBJECT_PLAYER, input) == AHIER_OBSERVE, "local: observe still compares the two searches");
+	goal[1] = 31.0f;
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_ON, "local: full 3D distance must fit the local limit");
+	goal[0] = 1010.0f;
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_ON, "local: a 1 km same-mesh route keeps hierarchical search");
+	goal[0] = 15.0f;
+	goalFace = 3u << 22;
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_ON, "local: different mesh preserves current routing");
+	goalFace = ~0u;
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_ON, "local: invalid face preserves current routing");
+	goalFace = startFace;
+	count = 2;
+	memcpy(input + 0x28, &count, sizeof(count));
+	Check(AstarHierModeForInput(AHIER_ON, AHIER_SUBJECT_PLAYER, input) == AHIER_ON, "local: multiple goals preserve current routing");
+}
+
 static void CheckOnPlayer()
 {
 	Fake f;
@@ -507,6 +541,7 @@ int main()
 	CheckOffAndOther();
 	CheckSubject();
 	CheckObservePlayer();
+	CheckLocalMode();
 	CheckOnPlayer();
 	CheckNpc();
 	CheckEverySequence();

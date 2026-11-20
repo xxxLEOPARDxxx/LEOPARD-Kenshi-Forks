@@ -20,6 +20,7 @@ struct Search
 	int                   cap;        // touched-node budget for this search
 	int                   heapSize;
 	float                 goalPos[3];
+	float                 costScale;
 };
 
 enum Relaxed { RELAX_OK = 0, RELAX_LIMIT };
@@ -153,7 +154,7 @@ static Relaxed Enter(Search* st, unsigned node, int parent, float g, unsigned po
 	s->slotOf[pos]  = slot;
 	s->node[slot]   = node;
 	s->g[slot]      = g;
-	s->f[slot]      = g + Distance(p, st->goalPos);
+	s->f[slot]      = st->costScale > 0.0f ? g + st->costScale * Distance(p, st->goalPos) : g;
 	s->parent[slot] = parent;
 	Push(st, slot);
 	return RELAX_OK;
@@ -273,8 +274,8 @@ bool CoarseScratchInit(CoarseScratch* s, int maxNodes)
 	return true;
 }
 
-CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned goal, int maxNodes,
-                          CoarseScratch* s, CoarseRoute* out)
+static CoarseResult FindRoute(const CoarseGraphOps& ops, unsigned start, unsigned goal, int maxNodes,
+                              float costScale, CoarseScratch* s, CoarseRoute* out)
 {
 	out->count    = 0;
 	out->cost     = 0.0f;
@@ -299,8 +300,13 @@ CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned go
 		out->expanded = out->probed;
 		if (v == CPV_CLOSED)
 		{
-			++s_probeRefusals;
-			return CS_NO_ROUTE;
+			if (ops.closedProbeNodeLimit <= 0)
+			{
+				++s_probeRefusals;
+				return CS_NO_ROUTE;
+			}
+			if (maxNodes > ops.closedProbeNodeLimit)
+				maxNodes = ops.closedProbeNodeLimit;
 		}
 	}
 
@@ -310,6 +316,7 @@ CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned go
 	st.s        = s;
 	st.cap      = (maxNodes < size) ? maxNodes : size;
 	st.heapSize = 0;
+	st.costScale = costScale;
 	if (st.cap < 1 || Enter(&st, start, -1, 0.0f, Probe(s, start)) == RELAX_LIMIT)
 		return CS_NODE_LIMIT;
 
@@ -329,6 +336,24 @@ CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned go
 		}
 	}
 	return CS_NO_ROUTE;
+}
+
+CoarseResult CoarseSearch(const CoarseGraphOps& ops, unsigned start, unsigned goal, int maxNodes,
+                          CoarseScratch* s, CoarseRoute* out)
+{
+	const float scale = start != goal && ops.costScale ? ops.costScale(ops.ctx) : 0.0f;
+	CoarseResult result = FindRoute(ops, start, goal, maxNodes, scale, s, out);
+	// A cheaper section can publish during the search. Discard the old bound and
+	// retry once with cost alone, regardless of any further publications.
+	if (scale > 0.0f && ops.costScale(ops.ctx) < scale)
+	{
+		const int expanded = out->expanded;
+		const int probed = out->probed;
+		result = FindRoute(ops, start, goal, maxNodes, 0.0f, s, out);
+		out->expanded += expanded;
+		out->probed += probed;
+	}
+	return result;
 }
 
 } // namespace planner

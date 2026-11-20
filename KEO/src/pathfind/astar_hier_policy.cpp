@@ -2,6 +2,7 @@
 // buckets. Pure: any thread, no lock, no allocation; the game binds it through AstarHierOps.
 
 #include "pathfind/astar_hier_policy.h"
+#include "pathfind/npc_search_probe_policy.h"
 #include <string.h>
 #include <math.h>
 
@@ -14,6 +15,34 @@ AstarHierSubject AstarHierSubjectOf(bool atCharacterSite, unsigned char hierByte
 	if (hierByte == 1)
 		return AHIER_SUBJECT_NPC;
 	return AHIER_SUBJECT_OTHER;
+}
+
+AstarHierMode AstarHierModeForInput(AstarHierMode mode, AstarHierSubject subject, const unsigned char* in)
+{
+	if (mode != AHIER_ON || subject != AHIER_SUBJECT_PLAYER || !in)
+		return mode;
+	int pointCount, faceCount;
+	memcpy(&pointCount, in + AHIER_IN_GOALS + 8, sizeof(pointCount));
+	memcpy(&faceCount, in + NSP_IN_GOAL_KEYS + 8, sizeof(faceCount));
+	if (pointCount != 1 || faceCount != 1)
+		return mode;
+
+	const unsigned* goalFaces;
+	unsigned startFace;
+	memcpy(&goalFaces, in + NSP_IN_GOAL_KEYS, sizeof(goalFaces));
+	memcpy(&startFace, in + NSP_IN_START_FACE, sizeof(startFace));
+	if (!goalFaces || startFace == NSP_NO_KEY || *goalFaces == NSP_NO_KEY || (startFace >> 22) != (*goalFaces >> 22))
+		return mode;
+
+	const float* goal;
+	memcpy(&goal, in + AHIER_IN_GOALS, sizeof(goal));
+	if (!goal)
+		return mode;
+	float start[3];
+	memcpy(start, in + AHIER_IN_START, sizeof(start));
+	const float dx = goal[0] - start[0], dy = goal[1] - start[1], dz = goal[2] - start[2];
+	const float localDistance = 100.0f;   // Havok units, 100 metres
+	return dx * dx + dy * dy + dz * dz <= localDistance * localDistance ? AHIER_OFF : mode;
 }
 
 bool AstarHierInstantRefusal(const AstarHierResult& r)
