@@ -1,4 +1,4 @@
-# KEO (MCM fork) (QoL) - release 6
+# KEO (MCM fork) (QoL) - release 7
 
 ## English
 
@@ -112,7 +112,7 @@ Use a separate save for the first collection-to-counter test. The cyclic route a
 
 One DLL selects the supported Steam/GOG profile automatically. Matching RE_Kenshi/KenshiLib files are required. The GOG profile currently accepts the verified RE_Kenshi-compatible GOG 1.0.65 executable and **KenshiLib 0.5.0**. Other executables or SDK files are refused rather than treated as a known build. Game executables and SDK DLLs are not bundled.
 
-GOG works on the supported build, but has not been comprehensively tested. Startup of an earlier GOG candidate was confirmed by a player. The complete current release feature set has not been retested on GOG, so broader GOG gameplay feedback is still needed. This is not a claim that every GOG revision works.
+The current release has been checked in gameplay on the supported GOG build. See Release 7 below for the loading and Stock shop counter changes.
 
 Do not run the original KenshiQOL alongside the weight/jobs integration. Existing routes use ordinary saved job records; a world import is not a promise to preserve those records. Do not overwrite personal settings with a template during an update.
 
@@ -244,7 +244,7 @@ KEO и требует кэширования навсетки. Штатные с
 
 Одна DLL автоматически выбирает поддерживаемый профиль Steam/GOG. Нужны соответствующие RE_Kenshi/KenshiLib. Для GOG сейчас допускается проверенный совместимый с RE_Kenshi исполняемый файл GOG 1.0.65 и **KenshiLib 0.5.0**. Другие файлы игры и SDK не принимаются за заведомо совместимые. Исполняемые файлы игры и DLL библиотеки в пакет не входят.
 
-GOG работает на поддерживаемой сборке, но ещё не прошёл всестороннюю проверку. Запуск более раннего кандидата GOG подтверждён игроком. Полный нынешний набор возможностей повторно на GOG ещё не проверен; нужны отзывы по игровому поведению. Совместимость со всеми редакциями GOG этим не заявляется.
+Текущий выпуск проверен в игре на поддерживаемой сборке GOG. Изменения загрузки и работы «Пополнять прилавок» описаны в заметках выпуска 7.
 
 Оригинальный KenshiQOL одновременно с перенесёнными весом/заданиями не запускайте. Маршруты хранятся в обычных записях задач; импорт мира не гарантирует сохранность таких записей. При обновлении не заменяйте личные настройки шаблоном.
 
@@ -673,3 +673,15 @@ eligible; accepted work is not automatically repeated after downstream failure.
 
 - Исправлена ещё одна причина, по которой работы KEO могли не регистрироваться, если другой плагин уже подключился к системе создания заданий игры. Из-за этого Shift + ПКМ мог не добавлять работу «Маршрут по точкам».
 - Если регистрация всё же не удаётся, в обычном журнале теперь указан этап сбоя.
+
+## Release 7 / Выпуск 7
+
+### English
+
+- Enabled verified save-loading, NPC model and equipment, and resource reuse optimizations on the supported GOG 1.0.65 build.
+- Restored Stock shop counter with compatible StackSort releases on Steam and GOG. It works in either plugin load order.
+
+### Русский
+
+- На поддерживаемой сборке GOG 1.0.65 включены оптимизации загрузки сохранений, подготовки моделей и экипировки NPC, а также повторного использования ресурсов.
+- Восстановлена работа «Пополнять прилавок» с совместимыми выпусками StackSort на Steam и GOG. Порядок загрузки плагинов не важен.
