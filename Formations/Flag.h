@@ -21,12 +21,12 @@ static void* FlagMake(const char* name, int w, int h, const MgColour& c)
     {
         void* gui = MG_getGui(); if (!PtrOk(gui)) { g_flagDead = true; return 0; }
         wd = MG_guiCreate(gui, &type, &skin, -100, -100, w, h, ALIGN_DEFAULT, &layer, &nm);
-        if (!wd) { g_flagDead = true; Log("flag: createWidgetT returned null"); return 0; }
+        if (!wd) { g_flagDead = true; ErrorLog("flag: createWidgetT returned null"); return 0; }
         if (MG_setColour) MG_setColour(wd, &c);
         if (MG_setAlpha) MG_setAlpha(wd, 0.95f);
         MG_setVisible(wd, false);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { g_flagDead = true; Log("flag: widget creation faulted"); return 0; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { g_flagDead = true; ErrorLog("flag: widget creation faulted"); return 0; }
     return wd;
 }
 
@@ -87,7 +87,7 @@ static const char* BANNER_MATERIAL = "debug_marker";
 
 static void BannerResolve(HMODULE ogre)
 {
-    if (!ogre) { g_bannerDead = true; Log("  the banner (Ogre scene API)        NOT reachable - OgreMain not loaded; the overlay flag serves"); return; }
+    if (!ogre) { g_bannerDead = true; ErrorLog("Rally marker unavailable: OgreMain not loaded; using the overlay flag"); return; }
     CAM_getSceneManager = (CAM_getSceneManager_t)GetProcAddress(ogre, "?getSceneManager@Camera@Ogre@@QEBAPEAVSceneManager@2@XZ");
     SM_createEntity = (SM_createEntity_t)GetProcAddress(ogre, "?createEntity@SceneManager@Ogre@@UEAAPEAVEntity@2@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0W4SceneMemoryMgrTypes@2@@Z");
     SM_getRootSceneNode = (SM_getRootSceneNode_t)GetProcAddress(ogre, "?getRootSceneNode@SceneManager@Ogre@@QEAAPEAVSceneNode@2@W4SceneMemoryMgrTypes@2@@Z");
@@ -100,10 +100,9 @@ static void BannerResolve(HMODULE ogre)
     ND_setScale3 = (ND_setScale3_t)GetProcAddress(ogre, "?setScale@Node@Ogre@@QEAAXMMM@Z");
     MO_getLocalAabb = (MO_getLocalAabb_t)GetProcAddress(ogre, "?getLocalAabb@MovableObject@Ogre@@QEBA?AUAabb@2@XZ");
     ENT_setMaterialName = (ENT_setMaterialName_t)GetProcAddress(ogre, "?setMaterialName@Entity@Ogre@@QEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0@Z");
-    if (!ENT_setMaterialName) Log("  Entity::setMaterialName             NOT exported - the statue would draw nothing; the overlay flag serves");
     bool ok = CAM_getSceneManager && SM_createEntity && SM_getRootSceneNode && SN_createChild && SN_attachObject && ND_setPosition3 && SM_destroyEntity && SM_destroySceneNode && SN_setVisible && ENT_setMaterialName;
     if (!ok) g_bannerDead = true;
-    Log("  the banner (Ogre scene API)        %s", ok ? "reachable (Camera::getSceneManager, createEntity, createChildSceneNode, attachObject, setPosition)" : "NOT reachable - an export is missing; the overlay flag serves");
+    LogAvailability(ok, "Rally marker", "an Ogre scene or material export is missing; using the overlay flag");
 }
 
 static void BannerDestroy()
@@ -114,7 +113,7 @@ static void BannerDestroy()
         for (int i = 0; i < 2; i++) if (g_bannerEnt[i] && g_bannerSm && SM_destroyEntity) SM_destroyEntity(g_bannerSm, g_bannerEnt[i]);
         if (g_bannerNode && g_bannerSm && SM_destroySceneNode) SM_destroySceneNode(g_bannerSm, g_bannerNode);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; Log("banner: taking it down faulted - the banner is disarmed for this boot"); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; ErrorLog("banner: taking it down faulted - the banner is disarmed for this boot"); }
     g_bannerNode = 0; g_bannerEnt[0] = g_bannerEnt[1] = 0;
 }
 
@@ -123,14 +122,14 @@ static void* BannerEntity(void* sm, const char* meshName, const EngineString* gr
     EngineString mesh; char mb[64]; if (!StrMakeHeap(mesh, mb, sizeof(mb), meshName)) return 0;
     void* e = 0;
     __try { e = SM_createEntity(sm, &mesh, group, 0); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { e = 0; Log("banner: createEntity(\"%s\") THREW - the mesh is not in a resource group the game has indexed here", meshName); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { e = 0; ErrorLog("banner: createEntity(\"%s\") failed", meshName); }
     if (!PtrOk(e)) return 0;
     // 1.4.3: the editor's own step - the material the statue draws with. Without it athene.mesh is an invisible entity (its own
     // materials are not in the game). An Ogre exception here is the SEH 0xE06D7363 the __except takes; the entity is then dropped.
     EngineString mat; if (!StrMakeInline(mat, BANNER_MATERIAL)) return e;
     bool matOk = false;
     __try { ENT_setMaterialName(e, &mat, group); matOk = true; }
-    __except (EXCEPTION_EXECUTE_HANDLER) { Log("marker: setMaterialName(\"%s\") THREW - the statue would be invisible; dropped", BANNER_MATERIAL); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("marker: setMaterialName(\"%s\") failed", BANNER_MATERIAL); }
     if (!matOk) { __try { if (SM_destroyEntity) SM_destroyEntity(sm, e); } __except (EXCEPTION_EXECUTE_HANDLER) { } return 0; }
     return e;
 }
@@ -142,7 +141,7 @@ static bool BannerShow(const Vec3& at)
     void* cam = MainCamera(); if (!cam) { Log("banner: no camera yet"); return false; }
     void* sm = 0;
     __try { sm = CAM_getSceneManager(cam); } __except (EXCEPTION_EXECUTE_HANDLER) { sm = 0; }
-    if (!PtrOk(sm)) { Log("banner: the camera has no scene manager"); return false; }
+    if (!PtrOk(sm)) { ErrorLog("banner: the camera has no scene manager"); return false; }
     Vec3 p = at;                                              // 1.4.1: the point as given - the surface the cursor hit, roof or ground - no terrain override
     EngineString group; if (!StrMakeInline(group, "Autodetect")) return false;
     void* node = 0; void* ents[2] = { 0, 0 }; int made = 0; float aabb[6] = { 0, 0, 0, 0, 0, 0 }; bool haveAabb = false;
@@ -150,10 +149,10 @@ static bool BannerShow(const Vec3& at)
     __try
     {
         void* root = SM_getRootSceneNode(sm, 0);
-        if (!PtrOk(root)) { Log("marker: no root scene node"); return false; }
+        if (!PtrOk(root)) { ErrorLog("marker: no root scene node"); return false; }
         float zero[3] = { 0, 0, 0 }, ident[4] = { 1, 0, 0, 0 };   // Quaternion w, x, y, z
         node = SN_createChild(root, 0, zero, ident);
-        if (!PtrOk(node)) { Log("marker: createChildSceneNode returned null"); return false; }
+        if (!PtrOk(node)) { ErrorLog("marker: createChildSceneNode returned null"); return false; }
         for (int i = 0; i < BANNER_MESH_COUNT; i++)
         {
             void* e = BannerEntity(sm, BANNER_MESHES[i], &group);
@@ -164,7 +163,7 @@ static bool BannerShow(const Vec3& at)
         if (made == 0)
         {
             if (SM_destroySceneNode) SM_destroySceneNode(sm, node);
-            g_bannerDead = true; Log("marker: the mesh could not be made - DISARMED for this boot; the overlay flag serves while ALT is held");
+            g_bannerDead = true; ErrorLog("marker: the mesh could not be made - DISARMED for this boot; the overlay flag serves while ALT is held");
             return false;
         }
         // 1.4.2 (the owner, 2026-09-09: "the rally point item is invisible - it still works, just can't be seen"): the editor's marker
@@ -181,7 +180,7 @@ static bool BannerShow(const Vec3& at)
         ND_setPosition3(node, p.x, p.y + lift, p.z);
         SN_setVisible(node, false, true);                     // invisible until the modifier is held (RallyFlagUpdate)
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; g_bannerNode = 0; Log("marker: placing it faulted - DISARMED for this boot; the overlay flag serves"); return false; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; g_bannerNode = 0; ErrorLog("marker: placing it faulted - DISARMED for this boot; the overlay flag serves"); return false; }
     g_bannerSm = sm; g_bannerNode = node; g_bannerEnt[0] = ents[0]; g_bannerEnt[1] = ents[1]; g_bannerVisible = false;
     if (haveAabb) Log("marker: %s at %.0f, %.0f, %.0f, scale %.2f, lifted %.1f so its box stands on the surface - the mesh's own box: centre %.1f, %.1f, %.1f, half-size %.1f, %.1f, %.1f (so %.0f units tall as placed)", BANNER_MESHES[0], p.x, p.y, p.z, scale, (aabb[4] - aabb[1]) * scale, aabb[0], aabb[1], aabb[2], aabb[3], aabb[4], aabb[5], aabb[4] * 2.0f * scale);
     else Log("marker: %s at %.0f, %.0f, %.0f, scale %.2f (its box unread)", BANNER_MESHES[0], p.x, p.y, p.z, scale);
@@ -192,7 +191,7 @@ static void BannerSetVisible(bool on)
 {
     if (!g_bannerNode || g_bannerVisible == on) return;
     __try { SN_setVisible(g_bannerNode, on, true); g_bannerVisible = on; }
-    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; g_bannerNode = 0; Log("marker: showing/hiding it faulted - DISARMED for this boot"); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { g_bannerDead = true; g_bannerNode = 0; ErrorLog("marker: showing/hiding it faulted - DISARMED for this boot"); }
 }
 
 static void RallyFlagUpdate(bool show)

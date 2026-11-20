@@ -423,7 +423,7 @@ static void hook_addAValue(void* line, const void* text, int value)
         if (CB_setMaxListLength && CopyGuarded(&combo, (unsigned char*)line + 0x120, sizeof(combo)) && PtrOk(combo))
             CB_setMaxListLength(combo, 1000);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { Log("follow: filling the AI tab's list faulted"); }
+    __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("follow: filling the AI tab's list faulted"); }
 }
 
 // the boost map operator[] the AI tab uses on idata: "add rcx, 0x178" (GameData::idata) and the call after it
@@ -482,9 +482,9 @@ static void FollowClear()
 static void FollowWrite(void* sfs)
 {
     char path[MAX_PATH * 2];
-    if (!SFS_writeFile || !FollowPathOf(SFS_writeFile, sfs, path, sizeof(path))) { Log("follow: no path for %s - not saved", FOLLOW_FILE); return; }
+    if (!SFS_writeFile || !FollowPathOf(SFS_writeFile, sfs, path, sizeof(path))) { ErrorLog("follow: no path for %s - not saved", FOLLOW_FILE); return; }
     FILE* f = 0;
-    if (fopen_s(&f, path, "wb") != 0 || !f) { Log("follow: cannot write %s", path); return; }
+    if (fopen_s(&f, path, "wb") != 0 || !f) { ErrorLog("follow: cannot write %s", path); return; }
     fprintf(f, "Formations 1\ndefault\t%d\n", g_followDefault);
     for (int i = 0; i < g_followPickN; i++) fprintf(f, "squad\t%d\t%s\n", g_followPicks[i].shape, g_followPicks[i].name);
     fclose(f);
@@ -494,9 +494,12 @@ static void FollowWrite(void* sfs)
 static void FollowRead(void* sfs)
 {
     char path[MAX_PATH * 2];
-    if (!SFS_readFile || !FollowPathOf(SFS_readFile, sfs, path, sizeof(path))) { Log("follow: this save has no %s - the game's shape is the default", FOLLOW_FILE); return; }
+    if (!SFS_readFile) { ErrorLog("follow: save path API unavailable; cannot read %s", FOLLOW_FILE); return; }
+    if (!FollowPathOf(SFS_readFile, sfs, path, sizeof(path))) { Log("follow: this save has no %s - the game's shape is the default", FOLLOW_FILE); return; }
     FILE* f = 0;
-    if (fopen_s(&f, path, "rb") != 0 || !f) { Log("follow: cannot read %s", path); return; }
+    const errno_t openError = fopen_s(&f, path, "rb");
+    if (openError == ENOENT) { Log("follow: this save has no %s - the game's shape is the default", FOLLOW_FILE); return; }
+    if (openError || !f) { ErrorLog("follow: cannot read %s", path); return; }
     char line[256]; int n = 0;
     if (fgets(line, sizeof(line), f) && strncmp(line, "Formations 1", 12) == 0)
         while (fgets(line, sizeof(line), f))
@@ -516,14 +519,14 @@ static void FollowRead(void* sfs)
 
 static bool hook_sfsSaveGame(void* sfs, const void* path)
 {
-    __try { FollowWrite(sfs); } __except (EXCEPTION_EXECUTE_HANDLER) { Log("follow: writing %s faulted", FOLLOW_FILE); }
+    __try { FollowWrite(sfs); } __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("follow: writing %s faulted", FOLLOW_FILE); }
     return orig_sfsSaveGame(sfs, path);
 }
 static void hook_sfsLoadGame(void* sfs, const void* path)
 {
     orig_sfsLoadGame(sfs, path);
     FollowClear();
-    __try { FollowRead(sfs); } __except (EXCEPTION_EXECUTE_HANDLER) { Log("follow: reading %s faulted", FOLLOW_FILE); }
+    __try { FollowRead(sfs); } __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("follow: reading %s faulted", FOLLOW_FILE); }
 }
 static void hook_sfsNewGame(void* sfs)
 {
@@ -539,8 +542,8 @@ static void FollowInstall(HMODULE kl)
     g_followLang = formations_mcm::CurrentLang();
     HMODULE mygui = GetModuleHandleA("MyGUIEngine_x64.dll");
     if (mygui) CB_setMaxListLength = (CB_setMaxListLength_t)GetProcAddress(mygui, "?setMaxListLength@ComboBox@MyGUI@@QEAAXH@Z");
-    Log("  follow shapes: squad %s, name %s, faction data map %s", CH_getPlatoon ? "reachable" : "NOT reachable",
-        AP_getName ? "reachable" : "NOT reachable", GD_idataIndex ? "found in the AI tab's code" : "NOT found - follow shapes off");
+    LogAvailability(CH_getPlatoon && GD_idataIndex, "Follow formations", "squad or AI tab lookup failed");
+    LogAvailability(AP_getName != nullptr, "Squad names", "per-squad choices are unavailable");
     if (!CH_getPlatoon || !GD_idataIndex) return;
     Hook("Blackboard::getFormationPositionOffset",
          GetProcAddress(kl, "?getFormationPositionOffset@Blackboard@@QEAAAEBVVector3@Ogre@@PEAVCharacter@@@Z"),

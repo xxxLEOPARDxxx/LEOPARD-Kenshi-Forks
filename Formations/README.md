@@ -10,7 +10,7 @@ folder is that source unchanged.
 ## What the fork adds
 
 - **Follow formations.** The squad keeps a shape while it follows its leader, not only where a drag
-  ends. The game's "Follow Formation" list on the AI tab gets eleven shapes besides Random, Military and
+  ends. The game's "Follow Formation" list on the AI tab gets ten shapes besides Random, Military and
   Caravan: Wedge, Line, Ring, Rhombus, Square, Column of two, Pincers, Diamond, Moth, Chevron (sorted,
   shown without scrolling). It is the default for every player squad; in Mod Config Menu each squad of
   the loaded game can have its own. Only the follower's offset from the leader is replaced
@@ -48,3 +48,15 @@ world pointers or persistent file handles are added.
 reached through `GetProcAddress`. Shared headers (`ModConfigMenu.h`, `HoldKey.h`) are in
 [LEOPARD-Kenshi-Plugins](https://github.com/xxxLEOPARDxxx/LEOPARD-Kenshi-Plugins) (`shared/`); the
 per-squad page needs Mod Config Menu with API v6.
+
+## Release 3 / Выпуск 3
+
+English
+
+- Formation shortcuts appear in a game-themed popup attached just above the retractable character panel. The popup follows the panel and uses the active HUD theme.
+- Detailed logging is optional and off by default. The Mod Config Menu setting applies immediately. Errors are still recorded.
+
+Русский
+
+- Подсказка с клавишами построений оформлена в игровом стиле и примыкает к верхнему краю выдвижной панели персонажа. Она следует за панелью и использует активную тему HUD.
+- Подробный журнал по умолчанию выключен. Настройка в Mod Config Menu применяется сразу. Ошибки по-прежнему записываются.

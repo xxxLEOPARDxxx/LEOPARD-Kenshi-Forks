@@ -39,11 +39,17 @@
 #include <cstring>
 #include <cstdlib>
 #include <cmath>
+#include <atomic>
+#include <cerrno>
 
 // ---------------------------------------------------------------- logging
 static char    g_logPath[MAX_PATH] = {0};
 static char    g_dir[MAX_PATH] = {0};
 static HMODULE g_self = 0;
+static std::atomic<bool> g_debug{false};
+static SRWLOCK g_logLock = SRWLOCK_INIT;
+
+static bool DebugEnabled() { return g_debug.load(std::memory_order_relaxed); }
 
 static void LogInit()
 {
@@ -52,28 +58,44 @@ static void LogInit()
     else strcpy_s(dir, MAX_PATH, ".\\");
     strcpy_s(g_dir, MAX_PATH, dir);
     _snprintf_s(g_logPath, MAX_PATH, _TRUNCATE, "%sFormations_log.txt", dir);
-    FILE* f = 0;
-    if (fopen_s(&f, g_logPath, "w") == 0 && f)
+}
+
+static void WriteLog(const char* prefix, const char* fmt, va_list args)
+{
+    char message[1024];
+    _vsnprintf_s(message, sizeof(message), _TRUNCATE, fmt, args);
+    AcquireSRWLockExclusive(&g_logLock);
+    FILE* file = nullptr;
+    bool written = false;
+    if (g_logPath[0] && fopen_s(&file, g_logPath, "a") == 0 && file)
     {
-        fputs("Formations - squad formations for Kenshi\n", f);
-        fputs("Hold ALT, drag with the RIGHT mouse button across the ground: the selected characters take the shape along that line.\n", f);
-        fputs("While the drag is held, a small square marks where each character will stand (Ghost=0 in the settings turns them off).\n", f);
-        fputs("ALT + a plain right-CLICK (no drag) sends the selection to the point in order: the slowest character leads, and the rest keep the current shape behind him (Advance=0 in the settings gives the game's own follow instead).\n", f);
-        fputs("While ALT is held a readout lists the shapes.\n", f);
-        fputs("ALT+1 line  ALT+2 circle  ALT+3 rectangle  ALT+4 wedge  ALT+5 tight/loose.  (Every key and the modifier are yours to change in Formations_settings.txt.)\n", f);
-        fputs("ALT+X retreat: everyone standing runs to the rally point (or away from the fight) and picks up the wounded on the way.\n", f);
-        fputs("ALT+V sets the rally point under the cursor - a marker stands there while ALT is held (the editor's own town statue, 25 world units tall; MarkerHeight in the settings); ALT+V again on the marker clears it. Characters holding the game's own Medic job (the orders panel button, NUM7) carry the wounded to it on their own while a rally point exists, put them down there, and the Medic job heals them.\n", f);
-        fputs("With Hold=1 (the default) the drag also switches the game's own Hold on for them (the orders panel button / NUM1 releases it); Hold=0 leaves it alone. While ALT is held the game's plain right-click move does not fire.\n", f);
-        fputs("ALT above is the default modifier - any key or combination can be set (Modifier in the settings, or Mod Config Menu).\n\n", f);
-        fclose(f);
+        const bool buffered = fprintf(file, "%s%s\n", prefix, message) >= 0;
+        written = fclose(file) == 0 && buffered;
+    }
+    ReleaseSRWLockExclusive(&g_logLock);
+    if (!written && prefix[0])
+    {
+        OutputDebugStringA("Formations: ");
+        OutputDebugStringA(message);
+        OutputDebugStringA("\n");
     }
 }
+
 static void Log(const char* fmt, ...)
 {
-    FILE* f = 0;
-    if (fopen_s(&f, g_logPath, "a") != 0 || !f) return;
-    va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
-    fputc('\n', f); fclose(f);
+    if (!DebugEnabled()) return;
+    va_list args; va_start(args, fmt); WriteLog("", fmt, args); va_end(args);
+}
+
+static void ErrorLog(const char* fmt, ...)
+{
+    va_list args; va_start(args, fmt); WriteLog("ERROR: ", fmt, args); va_end(args);
+}
+
+static void LogAvailability(bool available, const char* feature, const char* failure)
+{
+    if (available) Log("%s available", feature);
+    else ErrorLog("%s unavailable: %s", feature, failure);
 }
 
 // ------------------------------------------------------- guarded reading
@@ -138,9 +160,10 @@ static bool InKenshiLib(void* fn)
 static void* Real(void* fn) { if (fn && KL_GetRealAddress && InKenshiLib(fn)) { __int64 r = KL_GetRealAddress(fn); if (r) return (void*)r; } return fn; }
 static bool Hook(const char* label, void* target, void* detour, void** orig)
 {
-    if (!target) { Log("  %-34s NOT FOUND", label); return false; }
+    if (!target) { ErrorLog("  %-34s NOT FOUND", label); return false; }
     int rc = KL_AddHook(Real(target), detour, orig);
-    Log("  %-34s %s", label, rc == 0 ? "hooked" : "FAILED");
+    if (rc == 0) Log("  %-34s hooked", label);
+    else ErrorLog("  %-34s FAILED (%d)", label, rc);
     return rc == 0;
 }
 
@@ -188,10 +211,21 @@ static float Spacing() { return g_set.spacing * (g_set.loose ? 2.0f : 1.0f); }
 static HoldKey::Key g_modKey;
 static bool ParseModifier() { g_modKey = HoldKey::Parse(g_set.modifier); return g_modKey.vk != 0; }
 
-static void SaveSettings()
+static bool SaveSettings(bool debug = DebugEnabled())
 {
-    FILE* f = 0;
-    if (!g_settingsPath[0] || fopen_s(&f, g_settingsPath, "w") != 0 || !f) return;
+    char temporary[MAX_PATH];
+    if (!g_settingsPath[0] || !GetTempFileNameA(g_dir, "Fmt", 0, temporary))
+    {
+        ErrorLog("settings: cannot create a temporary settings file");
+        return false;
+    }
+    FILE* f = nullptr;
+    if (fopen_s(&f, temporary, "w") != 0 || !f)
+    {
+        DeleteFileA(temporary);
+        ErrorLog("settings: cannot open the temporary settings file");
+        return false;
+    }
     fputs("# Formations - настройки\n", f);
     fputs("# Modifier: клавиша, которую держат при перетаскивании правой кнопкой и с клавишами фигур - ALT, CTRL, SHIFT, буква, F1-F12, NUM0-9, сочетание вроде CTRL+B\n", f);
     fprintf(f, "Modifier=%s\n", g_set.modifier);
@@ -209,18 +243,31 @@ static void SaveSettings()
     fprintf(f, "Loose=%d\n", g_set.loose);
     fputs("# Hold: 1 = построенным включается кнопка игры \"Держать\" (стоят на месте); 0 = встают в строй, но \"Держать\" не трогается\n", f);
     fprintf(f, "Hold=%d\n", g_set.hold);
+    fputs("# Retreat: расстояние отхода, если нет точки сбора, в единицах мира.\n", f);
+    fprintf(f, "Retreat=%.9g\n", g_set.retreat);
     fputs("# MarkerHeight: высота метки точки сбора в единицах мира (это статуя из редактора, data/meshes/athene.mesh; настенное знамя - примерно 25). Метка видна, только пока держишь модификатор.\n", f);
     fprintf(f, "MarkerHeight=%.0f\n", g_set.markerHeight);
     fputs("# Клавиши (нажимаются вместе с модификатором): буква или цифра, F1-F12, а также space, tab, enter, home, end, pageup, pagedown, insert, delete, numpad0-9, plus, minus, comma, period. Пусто или непонятное значение = клавиша выключена.\n", f);
     for (int i = 0; i < KEY_COUNT; i++) fprintf(f, "%s=%s\n", KEY_SETTING[i], g_set.keys[i]);
-    fclose(f);
+    fputs("# Debug: 1 = подробный журнал в Formations_log.txt.\n", f);
+    fprintf(f, "Debug=%d\n", debug ? 1 : 0);
+    const bool buffered = ferror(f) == 0;
+    if (fclose(f) == 0 && buffered && MoveFileExA(temporary, g_settingsPath, MOVEFILE_REPLACE_EXISTING))
+        return true;
+    DeleteFileA(temporary);
+    ErrorLog("settings: could not save %s", g_settingsPath);
+    return false;
 }
 static void LoadSettings()
 {
     _snprintf_s(g_settingsPath, MAX_PATH, _TRUNCATE, "%sFormations_settings.txt", g_dir);
-    FILE* f = 0;
-    if (fopen_s(&f, g_settingsPath, "r") != 0 || !f) { SaveSettings(); return; }
+    g_debug.store(false, std::memory_order_relaxed);
+    FILE* f = nullptr;
+    const errno_t openError = fopen_s(&f, g_settingsPath, "r");
+    if (openError == ENOENT) { SaveSettings(); return; }
+    if (openError || !f) { ErrorLog("settings: cannot read %s", g_settingsPath); return; }
     char line[256];
+    bool retiredScale = false;
     while (fgets(line, sizeof(line), f))
     {
         size_t n = strlen(line); while (n && (line[n-1] == '\n' || line[n-1] == '\r' || line[n-1] == ' ')) line[--n] = 0;
@@ -237,14 +284,18 @@ static void LoadSettings()
         else if (_stricmp(k, "Hold") == 0) g_set.hold = atoi(v) != 0;
         else if (_stricmp(k, "Retreat") == 0) g_set.retreat = (float)atof(v);
         else if (_stricmp(k, "MarkerHeight") == 0) { g_set.markerHeight = (float)atof(v); if (g_set.markerHeight < 2.0f) g_set.markerHeight = 2.0f; if (g_set.markerHeight > 300.0f) g_set.markerHeight = 300.0f; }
-        else if (_stricmp(k, "MarkerScale") == 0) Log("settings: MarkerScale (1.4.1) is retired - the marker is sized by MarkerHeight now (world units, default 25); the line is ignored");
+        else if (_stricmp(k, "MarkerScale") == 0) retiredScale = true;
+        else if (_stricmp(k, "Debug") == 0) g_debug.store(atoi(v) != 0, std::memory_order_relaxed);
         else { bool hit = false; for (int i = 0; i < KEY_COUNT && !hit; i++) if (_stricmp(k, KEY_SETTING[i]) == 0 || (i == KEY_LOOSE && _stricmp(k, "KeyTightLoose") == 0)) { strncpy_s(g_set.keys[i], sizeof(g_set.keys[i]), v, _TRUNCATE); hit = true; } }
     }
+    const bool readError = ferror(f) != 0;
     fclose(f);
-    if (!ParseModifier()) { Log("settings: Modifier=%s is not a key - ALT is used", g_set.modifier); strcpy_s(g_set.modifier, sizeof(g_set.modifier), "ALT"); ParseModifier(); }
-    for (int i = 0; i < KEY_COUNT; i++) if (!KeyOf(i)) Log("settings: %s=%s is not a key name - that key is OFF (a letter or digit, F1-F12, space, tab, enter, home, end, pageup, pagedown, insert, delete, numpad0-9, plus, minus, comma, period)", KEY_SETTING[i], g_set.keys[i]);
+    if (!ParseModifier()) { ErrorLog("settings: Modifier=%s is not a key - ALT is used", g_set.modifier); strcpy_s(g_set.modifier, sizeof(g_set.modifier), "ALT"); ParseModifier(); }
+    for (int i = 0; i < KEY_COUNT; i++) if (g_set.keys[i][0] && !KeyOf(i)) ErrorLog("settings: %s=%s is not a key name - that key is off", KEY_SETTING[i], g_set.keys[i]);
+    if (retiredScale) Log("settings: MarkerScale is retired - use MarkerHeight (default 25)");
     Log("keys: %s+%s line, +%s circle, +%s rectangle, +%s wedge, +%s tight/loose, +%s retreat, +%s rally (Formations_settings.txt)", g_set.modifier, g_set.keys[0], g_set.keys[1], g_set.keys[2], g_set.keys[3], g_set.keys[4], g_set.keys[5], g_set.keys[6]);
-    SaveSettings();   // the file always carries every key, so a player sees what to edit
+    if (readError) ErrorLog("settings: reading %s did not complete", g_settingsPath);
+    else SaveSettings(); // Include newly added keys without dropping existing values.
 }
 // A TEXT BOX HAS THE KEYBOARD (1.4.2, 2026-09-09): the game's own hotkeys stand down while a MyGUI widget holds key focus (the
 // core's ENGINE-mygui-input-7.md); a plugin that polls GetAsyncKeyState asks MyGUI::InputManager::isFocusKey() first or its keys
@@ -404,7 +455,11 @@ static int g_swallowed = 0;
 static void AdvanceStop(const char* why);                  // Advance.h, included later
 static void hook_playerMove(void* pi, const Vec3* pos, void* building)
 {
-    if (ModifierHeld()) { if (g_swallowed++ < 5) Log("move: the game's right-click move swallowed (modifier held)"); return; }
+    if (ModifierHeld())
+    {
+        if (DebugEnabled() && g_swallowed < 5) { ++g_swallowed; Log("move: the game's right-click move swallowed (modifier held)"); }
+        return;
+    }
     AdvanceStop("the player's own order");
     if (orig_playerMove) orig_playerMove(pi, pos, building);
 }
@@ -440,14 +495,18 @@ static bool CursorToSurface(Vec3& out, const char** what)
         UT_rayTrace(hit, &ray, MOUSE_SCAN_MASK);
         flag = hit[7] != 0;
         memcpy(&px, hit + 8, 4); memcpy(&py, hit + 12, 4); memcpy(&pz, hit + 16, 4);
-        if (PH_group) group = PH_group(hit);
-        if (PH_getBuilding) bld = PH_getBuilding(hit);
+        if (what && PH_group) group = PH_group(hit);
+        if (what && PH_getBuilding) bld = PH_getBuilding(hit);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { Log("surface: the game's trace faulted - DISARMED; the terrain march serves"); PH_ctor = 0; return false; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("surface: the game's trace faulted - DISARMED; the terrain march serves"); PH_ctor = 0; return false; }
     if (!flag) return false;
     out.x = px; out.y = py; out.z = pz;
-    static char whatBuf[64]; _snprintf_s(whatBuf, sizeof(whatBuf), _TRUNCATE, "%s (group %u)", bld ? "a building" : "the ground", (unsigned)group);
-    if (what) *what = whatBuf;
+    if (what)
+    {
+        static char whatBuf[64];
+        _snprintf_s(whatBuf, sizeof(whatBuf), _TRUNCATE, "%s (group %u)", bld ? "a building" : "the ground", (unsigned)group);
+        *what = whatBuf;
+    }
     return true;
 }
 // The cursor in the game window, 0..1 across the client area; the camera's ray
@@ -465,7 +524,12 @@ static bool CursorToGround(Vec3& out, int* dbgX = 0, int* dbgY = 0)
     // through the ORIGINAL of the out-pointer overload when it is hooked (the hook
     // would otherwise count our own call as the game's), else the export itself
     __try { if (orig_camRayOut) orig_camRayOut(cam, x01, y01, &ray); else CAM_getRay(cam, x01, y01, &ray); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { if (g_camDiag) Log("cast: getCameraToViewportRay faulted"); return false; }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        static volatile LONG reported = 0;
+        if (!InterlockedExchange(&reported, 1)) ErrorLog("cast: getCameraToViewportRay faulted");
+        return false;
+    }
     float dl = sqrtf(ray.dir.x * ray.dir.x + ray.dir.y * ray.dir.y + ray.dir.z * ray.dir.z);
     if (dl < 1e-6f) return false;
     ray.dir.x /= dl; ray.dir.y /= dl; ray.dir.z /= dl;
@@ -604,7 +668,7 @@ static int OrderToSlots()
         if (CH_setStandingOrder && g_set.hold)
         {
             __try { CH_setStandingOrder(ch, STANDING_HOLD, true); if (CH_getStandingOrder && CH_getStandingOrder(ch, STANDING_HOLD)) held++; }
-            __except (EXCEPTION_EXECUTE_HANDLER) { Log("order: setStandingOrder faulted - disarming"); CH_setStandingOrder = 0; }
+            __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("order: setStandingOrder faulted - disarming"); CH_setStandingOrder = 0; }
         }
         __try
         {
@@ -613,7 +677,7 @@ static int OrderToSlots()
             else continue;
             sent++;
         }
-        __except (EXCEPTION_EXECUTE_HANDLER) { Log("order: the move order faulted - disarming"); CH_playerMoveOrderDefault = 0; CH_addJob = 0; return sent; }
+        __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("order: the move order faulted - disarming"); CH_playerMoveOrderDefault = 0; CH_addJob = 0; return sent; }
     }
     Log("   hold %s for %d of %d; moved by %s", g_set.hold ? "on" : "left alone (Hold=0)", held, g_slotCount, CH_playerMoveOrderDefault ? "Character::playerMoveOrderDefault (the game's own click)" : "Character::addJob");
     return sent;
@@ -638,7 +702,7 @@ static void ApplyFormation()
         Vec3 p = { 0, 0, 0 }; bool okp = false;
         __try { CH_getPosition(g_members[0], &p); okp = true; } __except (EXCEPTION_EXECUTE_HANDLER) { }
         float dx = g_dragA.x - p.x, dz = g_dragA.z - p.z;
-        if (okp && dx * dx + dz * dz > 3000.0f * 3000.0f) { Log("formation: REFUSED - the drag (%.0f, %.0f) is %.0f units from the squad (%.0f, %.0f); the cast is wrong", g_dragA.x, g_dragA.z, sqrtf(dx * dx + dz * dz), p.x, p.z); return; }
+        if (okp && dx * dx + dz * dz > 3000.0f * 3000.0f) { ErrorLog("formation: REFUSED - the drag (%.0f, %.0f) is %.0f units from the squad (%.0f, %.0f); the cast is wrong", g_dragA.x, g_dragA.z, sqrtf(dx * dx + dz * dz), p.x, p.z); return; }
     }
     Vec3 slots[SQUAD_MAX];
     int k = Layout(g_set.shape, n, g_dragA, g_dragB, Spacing(), slots);
@@ -693,9 +757,9 @@ static void hook_mainLoop(void* self, float dt)
     if (rb && !g_rbDown && mod)
     {
         int cx = 0, cy = 0;
-        g_camDiag = true;                                  // one detailed trace per drag start, for the record
-        if (ReadSelection() > 0 && CH_getPosition) { Vec3 p = { 0, 0, 0 }; __try { CH_getPosition(g_members[0], &p); } __except (EXCEPTION_EXECUTE_HANDLER) { } Log("drag: first selected character at %.1f, %.1f, %.1f", p.x, p.y, p.z); }
-        if (CursorToGround(g_dragA, &cx, &cy)) { g_dragging = true; g_dragB = g_dragA; }
+        g_camDiag = DebugEnabled();                        // one detailed trace per drag start
+        if (ReadSelection() > 0 && g_camDiag && CH_getPosition) { Vec3 p = { 0, 0, 0 }; __try { CH_getPosition(g_members[0], &p); } __except (EXCEPTION_EXECUTE_HANDLER) { } Log("drag: first selected character at %.1f, %.1f, %.1f", p.x, p.y, p.z); }
+        if (CursorToGround(g_dragA, g_camDiag ? &cx : nullptr, g_camDiag ? &cy : nullptr)) { g_dragging = true; g_dragB = g_dragA; }
         else Log("drag: no ground under the cursor (client %d,%d; cameras seen %d; the game's cast camera %s)", cx, cy, g_camCount, g_castCam ? "known" : "NOT seen yet - move the mouse over the world first");
         g_camDiag = false;
     }
@@ -763,6 +827,11 @@ namespace formations_mcm
                                  "类似《骑马与砍杀》的阵型：按住修饰键并用右键拖动，所选角色会沿线排列" }};
     static const Text kSecMain = {{ "Formation", "Строй", "阵型" }};
     static const Text kSecKeys = {{ "Keys (pressed together with the modifier)", "Клавиши (вместе с модификатором)", "按键（与修饰键同时按下）" }};
+    static const Text kSecDiagnostics = {{ "Diagnostics", "Диагностика", "诊断" }};
+    static const Text kDebug = {{ "Detailed log", "Подробный журнал", "详细日志" }};
+    static const Text kDebugTip = {{ "Write formation, movement and HUD diagnostics to Formations_log.txt. Changes apply immediately.",
+                                     "Записывать подробности построений, перемещения и панели подсказок в Formations_log.txt. Изменения применяются сразу.",
+                                     "将阵型、移动和提示面板的诊断信息写入 Formations_log.txt。立即生效。" }};
     static const Text kModifier = {{ "Modifier", "Модификатор", "修饰键" }};
     static const Text kModifierTip = {{ "Key held while dragging with the right mouse button and with the shape keys. Click and press any key or combination. SHIFT clashes with the game's own shift-click: a slightly dragged click lines the squad up",
                                        "Клавиша, которую держат при перетаскивании правой кнопкой и с клавишами фигур. Нажмите на поле и затем любую клавишу или сочетание. SHIFT мешает очереди приказов игры: чуть смазанный щелчок строит отряд",
@@ -880,6 +949,14 @@ namespace formations_mcm
     }
     static int __cdecl GetFlag(void* ud, int* out) { *out = *static_cast<int*>(ud) ? 1 : 0; return 0; }
     static int __cdecl SetFlag(void* ud, int v, char*, unsigned) { *static_cast<int*>(ud) = v ? 1 : 0; SaveSettings(); return 0; }
+    static int __cdecl GetDebug(void*, int* out) { *out = DebugEnabled() ? 1 : 0; return 0; }
+    static int __cdecl SetDebug(void*, int value, char* err, unsigned size)
+    {
+        const bool enabled = value != 0;
+        if (!SaveSettings(enabled)) { Err(err, size, "cannot save Formations_settings.txt"); return 1; }
+        g_debug.store(enabled, std::memory_order_relaxed);
+        return 0;
+    }
     static int __cdecl GetMarker(void*, int* out) { *out = (int)(g_set.markerHeight + 0.5f); return 0; }
     static int __cdecl SetMarker(void*, int v, char*, unsigned)
     {
@@ -950,6 +1027,9 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
         api->section(api, T(kSecSquads));
         api->rows(api, &FollowRows, NULL);
     }
+    api->section(api, T(kSecDiagnostics));
+    api->toggleFn(api, T(kDebug), T(kDebugTip), &GetDebug, &SetDebug, NULL, 0);
+    if (defs) api->defaultValue(api, "0");
 }
 
 __declspec(dllexport) void startPlugin()
@@ -958,10 +1038,10 @@ __declspec(dllexport) void startPlugin()
     LoadSettings();
     g_uiLang = formations_mcm::CurrentLang();
     HMODULE kl = GetModuleHandleA("KenshiLib.dll"); if (!kl) kl = LoadLibraryA("KenshiLib.dll");
-    if (!kl) { Log("KenshiLib.dll not loaded - nothing to do"); return; }
+    if (!kl) { ErrorLog("KenshiLib.dll not loaded - nothing to do"); return; }
     KL_AddHook = (AddHook_t)GetProcAddress(kl, "?AddHook@KenshiLib@@YA?AW4HookStatus@1@PEAX0PEAPEAX@Z");
     KL_GetRealAddress = (GetRealAddress_t)GetProcAddress(kl, "?GetRealAddress@KenshiLib@@YA_JPEAX@Z");
-    if (!KL_AddHook) { Log("KenshiLib::AddHook not found - aborting"); return; }
+    if (!KL_AddHook) { ErrorLog("KenshiLib::AddHook not found - aborting"); return; }
     HMODULE ogre = GetModuleHandleA("OgreMain_x64.dll"); if (!ogre) ogre = LoadLibraryA("OgreMain_x64.dll");
     BannerResolve(ogre);   // 1.4: the rally banner's scene API (Flag.h)
 
@@ -976,7 +1056,7 @@ __declspec(dllexport) void startPlugin()
     UT_rayTrace = (UT_rayTrace_t)Real(GetProcAddress(kl, "?rayTrace@UtilityT@@SAXAEAVphysHit@@AEBVRay@Ogre@@I@Z"));
     PH_group = (PH_group_t)Real(GetProcAddress(kl, "?group@physHit@@QEBAGXZ"));
     PH_getBuilding = (PH_getBuilding_t)Real(GetProcAddress(kl, "?getBuilding@physHit@@QEAAPEAVBuilding@@XZ"));
-    Log("  the surface under the cursor       %s", (PH_ctor && UT_getMouseRay && UT_rayTrace) ? "reachable (UtilityT::getMouseRay + rayTrace into a physHit - the ghost building's own)" : "NOT reachable - the terrain march serves");
+    LogAvailability(PH_ctor && UT_getMouseRay && UT_rayTrace, "Cursor surface trace", "using terrain height");
     GhostInit(GetModuleHandleA("MyGUIEngine_x64.dll"), ogre);
     MovesInit(kl);
     formation_hud::Init(kl, GetModuleHandleA("MyGUIEngine_x64.dll"));
@@ -987,13 +1067,13 @@ __declspec(dllexport) void startPlugin()
             MG_inputManager = (IM_instance_t)GetProcAddress(mg, "?getInstancePtr@?$Singleton@VInputManager@MyGUI@@@MyGUI@@SAPEAVInputManager@2@XZ");
             MG_isFocusKey = (IM_bool_t)GetProcAddress(mg, "?isFocusKey@InputManager@MyGUI@@QEBA_NXZ");
         }
-        Log("  hotkeys stand down while a text box types   %s", (MG_inputManager && MG_isFocusKey) ? "yes (InputManager::isFocusKey)" : "NO - the keys fire inside text fields");
+        LogAvailability(MG_inputManager && MG_isFocusKey, "Text field focus check", "hotkeys can fire inside text fields");
     }
     CH_playerMoveOrderDefault = (CH_playerMove_t)Real(GetProcAddress(kl, "?playerMoveOrderDefault@Character@@UEAAXPEAVBuilding@@PEAVRootObject@@AEBVVector3@Ogre@@@Z"));
-    Log("  the game's own move order          %s", CH_playerMoveOrderDefault ? "reachable (Character::playerMoveOrderDefault)" : "NOT reachable - addJob instead");
+    LogAvailability(CH_playerMoveOrderDefault != nullptr, "Character::playerMoveOrderDefault", "using Character::addJob");
     Hook("PlayerInterface::playerMove", GetProcAddress(kl, "?playerMove@PlayerInterface@@QEAAXAEBVVector3@Ogre@@PEAVBuilding@@@Z"), (void*)&hook_playerMove, (void**)&orig_playerMove);
     CAM_getDerivedPos = ogre ? (camDerivedPos_t)GetProcAddress(ogre, "?getDerivedPosition@Camera@Ogre@@QEBAAEBVVector3@2@XZ") : 0;
-    Log("  camera derived position            %s", CAM_getDerivedPos ? "reachable" : "NOT reachable - no world shift, casts refused");
+    LogAvailability(CAM_getDerivedPos != nullptr, "Camera::getDerivedPosition", "cannot convert camera rays to world positions");
     if (ogre)
     {
         Hook("Camera::getCameraToViewportRay (val)", GetProcAddress(ogre, "?getCameraToViewportRay@Camera@Ogre@@QEBA?AVRay@2@MM@Z"), (void*)&hook_camRayVal, (void**)&orig_camRayVal);
@@ -1011,17 +1091,17 @@ __declspec(dllexport) void startPlugin()
     CH_isUnconcious = (CH_bool_t)Real(FindExportByPrefix(kl, "?isUnconcious@Character@@"));
     CH_isDead = (CH_bool_t)Real(FindExportByPrefix(kl, "?isDead@Character@@"));
     CH_isInCombatMode = (CH_combatMode_t)Real(GetProcAddress(kl, "?isInCombatMode@Character@@QEBA_N_N0@Z"));
-    Log("  combat mode (weapon out)           %s", CH_isInCombatMode ? "reachable" : "NOT reachable - hold pauses on attackers only");
+    LogAvailability(CH_isInCombatMode != nullptr, "Character::isInCombatMode", "hold pauses on attackers only");
     CH_setStandingOrder = (CH_setStanding_t)Real(GetProcAddress(kl, "?setStandingOrder@Character@@UEAAXW4StandingOrder@MessageForB@@_N@Z"));
     CH_getStandingOrder = (CH_getStanding_t)Real(GetProcAddress(kl, "?getStandingOrder@Character@@QEBA_NW4StandingOrder@MessageForB@@@Z"));
-    Log("  the game's hold stance             %s", CH_setStandingOrder ? "reachable (Character::setStandingOrder 12, the Hold button's call)" : "NOT reachable - the plugin's own regroup only");
+    LogAvailability(CH_setStandingOrder != nullptr, "Character::setStandingOrder", "using Formations' own regroup");
 
-    Log("  camera ray                         %s", CAM_getRay ? "reachable" : "NOT reachable");
-    Log("  terrain height (static)            %s", UT_terrainHeight ? "reachable" : "NOT reachable");
-    Log("  game camera position / ou          %s", (GW_getCameraPos && KL_ou) ? "reachable" : "NOT reachable (first camera seen is used)");
-    Log("  selection (players + isSelected)   %s", (PI_getAllPlayerCharacters && PI_isObjectSelected) ? "reachable" : "NOT reachable");
-    Log("  orders (Character::addJob)         %s", CH_addJob ? "reachable" : "NOT reachable");
-    Log("  combat/down/dead                   %s", (CH_attackers && CH_isDown && CH_isUnconcious && CH_isDead) ? "reachable" : "partly reachable");
+    LogAvailability(CAM_getRay != nullptr, "Camera ray", "cannot target the ground with the cursor");
+    LogAvailability(UT_terrainHeight != nullptr, "Terrain height", "cannot target the ground with the cursor");
+    LogAvailability(GW_getCameraPos && KL_ou, "World camera position", "cannot convert camera rays to world positions");
+    LogAvailability(PI_getAllPlayerCharacters && PI_isObjectSelected, "Player selection", "cannot enumerate selected characters");
+    LogAvailability(CH_addJob != nullptr, "Character::addJob", "alternate move order unavailable");
+    LogAvailability(CH_attackers && CH_isDown && CH_isUnconcious && CH_isDead, "Character state checks", "some combat or health states are unavailable");
     Log("\narmed - hold %s and drag with the right mouse button (the shape, game Hold on if Hold=1); %s + right-click = march, slowest leads; %s+1..4 shape (now: %s); %s+5 tight/loose (now: %s)\n",
         g_set.modifier, g_set.modifier, g_set.modifier, SHAPE_NAMES[g_set.shape], g_set.modifier, g_set.loose ? "loose" : "tight");
 }

@@ -65,8 +65,8 @@ static void RetreatInit()
     OR_hasPlayerOrder = (OR_hasTask_t)Real(GetProcAddress(kl, "?hasPlayerOrder@OrdersReceiver@@QEBA_NW4TaskType@@@Z"));
     CH_checkPlayerOrder = (CH_checkOrder_t)Real(GetProcAddress(kl, "?checkPlayerOrderForProblems@Character@@QEAA_NW4TaskType@@PEAVRootObject@@@Z"));
     CH_isBeingCarried = (CH_boolq_t)Real(GetProcAddress(kl, "?isBeingCarried@Character@@QEBA_NXZ"));
-    Log("  medics = the game's Medic job      %s", (CH_getOrdersReciever && OR_hasPermajob) ? "reachable (OrdersReceiver::hasPermajob 58)" : "NOT reachable - no medics");
-    Log("  the lift seen (isBeingCarried)     %s", CH_isBeingCarried ? "reachable" : "NOT reachable - the move follows the lift after 6 s blind");
+    LogAvailability(CH_getOrdersReciever && OR_hasPermajob, "Medic job detection", "automatic rally rescues are unavailable");
+    LogAvailability(CH_isBeingCarried != nullptr, "Carried character detection", "movement follows the lift after a delay");
 }
 
 static void ClearRally(const char* why)
@@ -86,7 +86,7 @@ static void SetRally()
     // 1.4.1: the point is the SURFACE the cursor is on - a roof, a wall top, the ground - from the ghost building's own trace; the terrain
     // march above is the fallback and the check on space (a hit far from the march's x,z is in the game's shifted space: the shift is added)
     Vec3 s; const char* what = 0; const char* placed = "the terrain march";
-    if (CursorToSurface(s, &what))
+    if (CursorToSurface(s, DebugEnabled() ? &what : nullptr))
     {
         float dx = s.x - p.x, dz = s.z - p.z;
         if (dx * dx + dz * dz > 500.0f * 500.0f) { s.x += g_lastShift.x; s.y += g_lastShift.y; s.z += g_lastShift.z; dx = s.x - p.x; dz = s.z - p.z; placed = "the game's trace, shifted into world space"; }
@@ -176,10 +176,11 @@ static bool StartCarry(int m, void* wounded, const Vec3& wpos, const Vec3& to, c
     ReleaseHold(med);
     bool problem = false;
     if (CH_checkPlayerOrder) { __try { problem = CH_checkPlayerOrder(med, TASK_LIFT_PERSON, wounded); } __except (EXCEPTION_EXECUTE_HANDLER) { } }
-    if (!ObjectOrder(med, TASK_LIFT_PERSON, wounded, false, &wpos)) { Log("%s %d: the lift order faulted", who, m); return false; }
-    bool took = HasTask(med, OR_hasPlayerOrder, TASK_LIFT_PERSON);
+    if (!ObjectOrder(med, TASK_LIFT_PERSON, wounded, false, &wpos)) { ErrorLog("%s %d: the lift order could not be placed", who, m); return false; }
+    const bool debug = DebugEnabled();
+    const bool took = debug && HasTask(med, OR_hasPlayerOrder, TASK_LIFT_PERSON);
     g_medicJob[m] = wounded; g_medicPhase[m] = 1; g_medicTo[m] = to; g_medicSince[m] = GetTickCount();
-    Log("%s %d: lift ordered%s%s", who, m, problem ? " - the game reports a problem" : "", took ? "" : " - NOT in his orders");
+    if (debug) Log("%s %d: lift ordered%s%s", who, m, problem ? " - the game reports a problem" : "", took ? "" : " - NOT in his orders");
     return true;
 }
 

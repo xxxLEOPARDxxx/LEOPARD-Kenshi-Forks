@@ -55,7 +55,7 @@ static void GhostInit(HMODULE mygui, HMODULE ogre)
         MG_setColour = (W_setColour_t)GetProcAddress(mygui, "?setColour@Widget@MyGUI@@QEAAXAEBUColour@2@@Z");
     }
     bool ok = CAM_getViewMatrix && FR_getProjectionMatrix && MG_getGui && MG_guiCreate && MG_setPosition && MG_setVisible;
-    Log("  ghost outlines                     %s", ok ? "reachable (view/projection matrices + MyGUI widgets)" : "NOT reachable - the drag shows nothing");
+    LogAvailability(ok, "Formation preview", "the drag shows no placement outlines");
     if (!ok) g_ghostDead = true;
 }
 
@@ -103,13 +103,13 @@ static void* GhostMake(int i)
     {
         void* gui = MG_getGui(); if (!PtrOk(gui)) { g_ghostDead = true; return 0; }
         w = MG_guiCreate(gui, &type, &skin, -100, -100, GHOST_SIZE, GHOST_SIZE, ALIGN_DEFAULT, &layer, &name);
-        if (!w) { g_ghostDead = true; Log("ghost: createWidgetT returned null - outlines off for this session"); return 0; }
+        if (!w) { g_ghostDead = true; ErrorLog("ghost: createWidgetT returned null - outlines off for this session"); return 0; }
         MgColour c = { 0.55f, 0.95f, 1.0f, 1.0f };
         if (MG_setColour) MG_setColour(w, &c);
         if (MG_setAlpha) MG_setAlpha(w, 0.85f);
         MG_setVisible(w, false);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) { g_ghostDead = true; Log("ghost: widget creation faulted - outlines off for this session"); return 0; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { g_ghostDead = true; ErrorLog("ghost: widget creation faulted - outlines off for this session"); return 0; }
     return w;
 }
 

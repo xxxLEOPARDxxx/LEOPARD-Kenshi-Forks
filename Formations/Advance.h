@@ -108,7 +108,7 @@ static int AdvanceStart(void* leader, const Vec3& to, const bool* able, int n)
     if (PI_assignSpeedGroup && PtrOk(g_playerIface))
     {
         __try { PI_assignSpeedGroup(g_playerIface, false); Log("advance: speed group assigned (the game's own 'as fast as the slowest')"); }
-        __except (EXCEPTION_EXECUTE_HANDLER) { Log("advance: assignSpeedGroup faulted - disarmed"); PI_assignSpeedGroup = 0; }
+        __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("advance: assignSpeedGroup faulted - disarmed"); PI_assignSpeedGroup = 0; }
     }
     return g_advN;
 }

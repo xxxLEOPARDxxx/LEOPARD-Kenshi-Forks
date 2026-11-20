@@ -199,7 +199,7 @@ namespace formation_hud
         if(!modifier){Hide();return;}
         FindAnchor(mainBar);
         if(!widgets.name||!inheritedVisible(widgets.name)){Hide();return;}
-        if(!Make()){disabled=true;Log("readout: could not create the HUD popup");return;}
+        if(!Make()){disabled=true;ErrorLog("readout: could not create the HUD popup");return;}
         UpdateCaption();
         const Point anchor=WidgetPosition(widgets.name);
         const int bountyTop=widgets.bounty&&inheritedVisible(widgets.bounty)?WidgetPosition(widgets.bounty).y:-1;
@@ -237,13 +237,17 @@ namespace formation_hud
         {
             disabled=true;
             __try {Discard();} __except(EXCEPTION_EXECUTE_HANDLER) {}
-            Log("readout: HUD popup failed");
+            ErrorLog("readout: HUD popup failed");
         }
     }
 
     static void Init(HMODULE kl,HMODULE mygui)
     {
-        if(!mygui||!MG_getGui||!MG_setVisible)return;
+        if(!mygui||!MG_getGui||!MG_setVisible)
+        {
+            ErrorLog("readout: HUD popup unavailable on this UI build");
+            return;
+        }
         getWidget=reinterpret_cast<GetWidget>(Real(GetProcAddress(kl,"?_getWidget@MainBarGUI@@QEAAPEAVWidget@MyGUI@@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z")));
         createPopup=reinterpret_cast<CreatePopup>(GetProcAddress(mygui,"?createWidgetT@Widget@MyGUI@@QEAAPEAV12@UWidgetStyle@2@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@1AEBU?$TCoord@H@types@2@UAlign@2@11@Z"));
         createChild=reinterpret_cast<CreateChild>(GetProcAddress(mygui,"?createWidgetT@Widget@MyGUI@@QEAAPEAV12@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0HHHHUAlign@2@0@Z"));
@@ -260,7 +264,7 @@ namespace formation_hud
         if(!getWidget||!createPopup||!createChild||!destroyWidget||!setProperty||!setCoord||
            !inheritedVisible||!absolutePosition||!measureText||!getManager||!registerUnlinker||!setCaption||!setFontHeight)
         {
-            Log("readout: HUD popup unavailable on this UI build");
+            ErrorLog("readout: HUD popup unavailable on this UI build");
             return;
         }
         Hook("MainBarGUI::update (formations HUD)",GetProcAddress(kl,"?_NV_update@MainBarGUI@@QEAAXXZ"),

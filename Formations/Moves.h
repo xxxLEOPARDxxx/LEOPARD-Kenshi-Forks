@@ -71,9 +71,10 @@ static void MovesInit(HMODULE kl)
     CS_getMaxRunSpeed = (CS_float_t)Real(GetProcAddress(kl, "?getMaxRunSpeed@CharStats@@QEAAMXZ"));
     CH_addOrder = (CH_addOrder_t)Real(GetProcAddress(kl, "?addOrder@Character@@QEAAXPEAVBuilding@@W4TaskType@@PEAVRootObject@@_N3AEBVVector3@Ogre@@@Z"));
     PI_assignSpeedGroup = (PI_speedGroup_t)Real(GetProcAddress(kl, "?assignSpeedGroup@PlayerInterface@@QEAAX_N@Z"));
-    Log("  speed group (the game's own pace)  %s", PI_assignSpeedGroup ? "reachable (PlayerInterface::assignSpeedGroup)" : "NOT reachable - followers run up and stop");
-    Log("  the slowest leads (movement ceiling) %s", (CH_getMovement && MV_getMaxSpeed) ? "reachable (Character::getMovement + AbstractMovementBase::getMaxSpeed)" : "NOT reachable - the first selected leads");
-    Log("  the follow order (Character::addOrder) %s, task %d", CH_addOrder ? "reachable" : "NOT reachable - followers get a one-shot move", g_set.followTask);
+    LogAvailability(PI_assignSpeedGroup != nullptr, "Group pace", "followers run up and stop");
+    LogAvailability(CH_getMovement && MV_getMaxSpeed, "Movement speed check", "the first selected character leads");
+    LogAvailability(CH_addOrder != nullptr, "Persistent follow order", "followers get a one-shot move");
+    Log("Follow task: %d", g_set.followTask);
 }
 
 // the engine's ceiling for this character right now; -1 when unreadable
@@ -83,9 +84,13 @@ static float CeilingOf(void* ch, float* runStat)
     __try
     {
         if (CH_getMovement && MV_getMaxSpeed) { void* mov = CH_getMovement(ch); if (PtrOk(mov)) m = MV_getMaxSpeed(mov); }
-        if (runStat) { *runStat = -1; if (CH_getStats && CS_getMaxRunSpeed) { void* st = CH_getStats(ch); if (PtrOk(st)) *runStat = CS_getMaxRunSpeed(st); } }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
+    if (runStat && CH_getStats && CS_getMaxRunSpeed)
+    {
+        __try { void* st = CH_getStats(ch); if (PtrOk(st)) *runStat = CS_getMaxRunSpeed(st); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { *runStat = -1; }
+    }
     return m;
 }
 
@@ -109,8 +114,9 @@ static void OrderlyMove(const Vec3& to)
 {
     int n = ReadSelection();
     if (n == 0) { Log("move: nothing selected"); return; }
-    if (!CH_playerMoveOrderDefault && !CH_addJob) { Log("move: no order door"); return; }
+    if (!CH_playerMoveOrderDefault && !CH_addJob) { ErrorLog("move: no move order API available"); return; }
     AdvanceStop("a new move");
+    const bool debug = DebugEnabled();
     int lead = -1; float slow = 1e30f; bool able[SQUAD_MAX];
     for (int i = 0; i < n; i++)
     {
@@ -118,14 +124,14 @@ static void OrderlyMove(const Vec3& to)
         const char* why = CharBusyWhy(ch);
         if (why && strcmp(why, "under attack") != 0) { Log("   %2d: skipped, %s", i, why); continue; }
         able[i] = true;
-        float run = -1; float c = CeilingOf(ch, &run);
-        Log("   %2d: ceiling %.2f  (run stat %.2f)", i, c, run);
+        float run = -1; float c = CeilingOf(ch, debug ? &run : nullptr);
+        if (debug) Log("   %2d: ceiling %.2f  (run stat %.2f)", i, c, run);
         if (c >= 0 && c < slow) { slow = c; lead = i; }
     }
     if (lead < 0) { for (int i = 0; i < n && lead < 0; i++) if (able[i]) lead = i; }   // ceilings unreadable: the first able one leads
     if (lead < 0) { Log("move: nobody able to move"); return; }
     void* leader = g_members[lead];
-    if (!GroundOrder(leader, &to)) { Log("move: the leader's order faulted"); return; }
+    if (!GroundOrder(leader, &to)) { ErrorLog("move: the leader's order faulted"); return; }
     if (g_set.advance)
     {
         int k = AdvanceStart(leader, to, able, n);
@@ -145,7 +151,7 @@ static void OrderlyMove(const Vec3& to)
             else CH_addJob(g_members[i], TASK_MOVE_CUS_ORDERED, 0, false, false, &to);
             followers++;
         }
-        __except (EXCEPTION_EXECUTE_HANDLER) { Log("move: a follow order faulted (slot %d)", i); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { ErrorLog("move: a follow order faulted (slot %d)", i); }
     }
     Log("move: the slowest leads - #%d (ceiling %.2f) to %.0f, %.0f; %d follow via %s", lead, slow < 1e29f ? slow : -1.0f, to.x, to.z, followers,
         CH_addOrder ? "Character::addOrder(FollowTask)" : CH_playerMoveOrderDefault ? "a one-shot move to the leader" : "addJob to the point");

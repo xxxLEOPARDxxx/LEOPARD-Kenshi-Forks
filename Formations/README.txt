@@ -82,3 +82,15 @@ D:\DEV\Kenshi\build_formations.ps1 (MSVC 2022, /utf-8). KenshiLib не
   вкладке ИИ по алфавиту и во всю высоту, своя фигура для каждого
   отряда в MCM (нужен ModConfigMenu с API v6), хранение в
   Formations.save в папке сейва.
+
+## Release 3 / Выпуск 3
+
+English
+
+- Formation shortcuts appear in a game-themed popup attached just above the retractable character panel. The popup follows the panel and uses the active HUD theme.
+- Detailed logging is optional and off by default. The Mod Config Menu setting applies immediately. Errors are still recorded.
+
+Русский
+
+- Подсказка с клавишами построений оформлена в игровом стиле и примыкает к верхнему краю выдвижной панели персонажа. Она следует за панелью и использует активную тему HUD.
+- Подробный журнал по умолчанию выключен. Настройка в Mod Config Menu применяется сразу. Ошибки по-прежнему записываются.
