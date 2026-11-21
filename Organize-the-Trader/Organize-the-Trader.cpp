@@ -1,6 +1,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 #include <kenshi/GameData.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -889,13 +890,21 @@ __declspec(dllexport) void startPlugin()
 
     const std::uintptr_t characterCreateLayoutAddress =
         KenshiLib::GetRealAddress(&Character::_NV_createInventoryLayout);
-    if (characterCreateLayoutAddress == 0
-        || KenshiLib::SUCCESS != KenshiLib::AddHook(
-            characterCreateLayoutAddress,
-            Character_createInventoryLayout_hook,
-            &g_characterCreateInventoryLayoutOrig))
+    const std::uintptr_t rootObjectCreateLayoutAddress =
+        KenshiLib::GetRealAddress(&RootObject::_NV_createInventoryLayout);
+    StartupHooks::Hook layoutObservers[] = {
+        StartupHooks::Hook(characterCreateLayoutAddress,
+                           Character_createInventoryLayout_hook, &g_characterCreateInventoryLayoutOrig),
+        StartupHooks::Hook(rootObjectCreateLayoutAddress != characterCreateLayoutAddress
+                               ? rootObjectCreateLayoutAddress : 0,
+                           RootObject_createInventoryLayout_hook, &g_rootObjectCreateInventoryLayoutOrig)
+    };
+    StartupHooks::Install(layoutObservers, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (!layoutObservers[0].installed)
     {
-        LogWarnLine("could not hook Character::_NV_createInventoryLayout; deferred createGUI binding may be unavailable");
+        LogWarnLine("Character::_NV_createInventoryLayout hook installation unconfirmed; deferred createGUI binding may be unavailable");
     }
     else
     {
@@ -905,16 +914,9 @@ __declspec(dllexport) void startPlugin()
         LogInfoLine(line.str());
     }
 
-    const std::uintptr_t rootObjectCreateLayoutAddress =
-        KenshiLib::GetRealAddress(&RootObject::_NV_createInventoryLayout);
-    if (rootObjectCreateLayoutAddress == 0
-        || rootObjectCreateLayoutAddress == characterCreateLayoutAddress
-        || KenshiLib::SUCCESS != KenshiLib::AddHook(
-            rootObjectCreateLayoutAddress,
-            RootObject_createInventoryLayout_hook,
-            &g_rootObjectCreateInventoryLayoutOrig))
+    if (!layoutObservers[1].installed)
     {
-        LogWarnLine("could not hook RootObject::_NV_createInventoryLayout; deferred createGUI binding for building/shop layouts may be unavailable");
+        LogWarnLine("RootObject::_NV_createInventoryLayout hook installation unconfirmed; deferred createGUI binding for building/shop layouts may be unavailable");
     }
     else
     {
