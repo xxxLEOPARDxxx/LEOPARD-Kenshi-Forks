@@ -19,6 +19,7 @@
 #include <algorithm>
 
 #include <Debug.h>
+#include <StartupHookBatch.h>
 #include <cstring>
 
 // Журнал. Автор писал всё подряд через ErrorLog: на каждое открытие
@@ -8059,36 +8060,19 @@ __declspec(dllexport) void startPlugin()
 
     LoadBetterLootingRules();
 
-    if (
-        KenshiLib::SUCCESS !=
-        KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(
-                &Inventory::getExcessLoot
-            ),
-            InventoryGetExcessLoot_hook,
-            &g_origInventoryGetExcessLoot
-        )
-    )
-    {
-        BlTrace(
-            "BetterLooting: AUTODEPOSIT_HOOK_FAILED getExcessLoot"
-        );
-    }
+    StartupHooks::Hook inventoryHooks[] = {
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&Inventory::getExcessLoot),
+            InventoryGetExcessLoot_hook, &g_origInventoryGetExcessLoot),
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&InventoryGUI::_NV_update),
+            InventoryGUIUpdate_hook, &g_origInventoryGUIUpdate)
+    };
+    StartupHooks::Install(inventoryHooks, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (inventoryHooks[0].installed)
+        BlTrace("BetterLooting: selective auto-deposit protection hook installed");
     else
-    {
-        BlTrace(
-            "BetterLooting: selective auto-deposit protection hook installed"
-        );
-    }
-
-
-    KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(
-            &InventoryGUI::_NV_update
-        ),
-        InventoryGUIUpdate_hook,
-        &g_origInventoryGUIUpdate
-    );
+        ErrorLog("BetterLooting: could not confirm getExcessLoot hook");
 
     const bool hideHookReady = KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&InventoryGUI::_NV_show),
@@ -8099,7 +8083,10 @@ __declspec(dllexport) void startPlugin()
     g_inventoryLifecycleReady = hideHookReady && destroyHookReady;
     if (!g_inventoryLifecycleReady)
         ErrorLog("BetterLooting: ERROR inventory lifetime hooks unavailable; radial loot disabled");
-    BlTrace("BetterLooting: live inventory update hook installed");
+    if (inventoryHooks[1].installed)
+        BlTrace("BetterLooting: live inventory update hook installed");
+    else
+        ErrorLog("BetterLooting: could not confirm live inventory update hook");
 
     // Настройки доступны во вкладке MCM.
 }

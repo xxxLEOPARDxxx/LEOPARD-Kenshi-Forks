@@ -6,6 +6,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
@@ -2608,61 +2609,38 @@ static int SaveManager_importGame_hook(SaveManager* self, const std::string& loc
     return result;
 }
 
-static bool TryInstallImportGameHook()
+static void InstallPauseObservers()
 {
-    if (SaveManager_importGame_orig != 0)
-        return true;
+    const bool needDialogue = Dialogue_startPlayerConversation_orig == 0;
+    const bool needWound = MedicalSystem_addWound_orig == 0;
+    const bool needImport = SaveManager_importGame_orig == 0;
     HMODULE const lib = GetModuleHandleA("KenshiLib.dll");
-    void* const stub = lib != 0 ? reinterpret_cast<void*>(GetProcAddress(lib,
+    void* const stub = needImport && lib != 0 ? reinterpret_cast<void*>(GetProcAddress(lib,
         "?importGame@SaveManager@@QEAAHAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@0H@Z")) : 0;
-    if (stub == 0)
+    StartupHooks::Hook observers[] = {
+        StartupHooks::Hook(needDialogue ? KenshiLib::GetRealAddress(&Dialogue::startPlayerConversation) : 0,
+            Dialogue_startPlayerConversation_hook, &Dialogue_startPlayerConversation_orig),
+        StartupHooks::Hook(needWound ? KenshiLib::GetRealAddress(&MedicalSystem::addWound) : 0,
+            MedicalSystem_addWound_hook, &MedicalSystem_addWound_orig),
+        StartupHooks::Hook(stub ? KenshiLib::GetRealAddress(stub) : 0,
+            SaveManager_importGame_hook, &SaveManager_importGame_orig)
+    };
+    StartupHooks::Install(observers, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (needDialogue)
     {
-        ErrorLog("Auto-Pause-on-Load WARN: SaveManager::importGame not exported - no pause after a save import");
-        return false;
-    }
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(stub),
-            reinterpret_cast<void*>(&SaveManager_importGame_hook),
-            reinterpret_cast<void**>(&SaveManager_importGame_orig)))
-        return true;
-    ErrorLog("Auto-Pause-on-Load WARN: failed to hook SaveManager::importGame - no pause after a save import");
-    return false;
-}
-
-static bool TryInstallAddWoundHook()
-{
-    if (MedicalSystem_addWound_orig != 0)
-        return true;
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(&MedicalSystem::addWound),
-            MedicalSystem_addWound_hook,
-            &MedicalSystem_addWound_orig))
-        return true;
-    ErrorLog("Auto-Pause-on-Load WARN: failed to install MedicalSystem::addWound hook (no pause on squad attack)");
-    return false;
-}
-
-static bool TryInstallDialogueStartPlayerConversationHook()
-{
-    if (Dialogue_startPlayerConversation_orig != 0)
-    {
-        return true;
-    }
-
-    if (KenshiLib::SUCCESS == KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(&Dialogue::startPlayerConversation),
-            Dialogue_startPlayerConversation_hook,
-            &Dialogue_startPlayerConversation_orig))
-    {
-        if (g_config.debugLogTransitions)
-        {
+        if (!observers[0].installed)
+            ErrorLog("Auto-Pause-on-Load WARN: could not confirm Dialogue::startPlayerConversation hook");
+        else if (g_config.debugLogTransitions)
             DebugLog("Auto-Pause-on-Load INFO: Dialogue::startPlayerConversation hook installed");
-        }
-        return true;
     }
-
-    ErrorLog("Auto-Pause-on-Load WARN: failed to install Dialogue::startPlayerConversation hook");
-    return false;
+    if (needWound && !observers[1].installed)
+        ErrorLog("Auto-Pause-on-Load WARN: could not confirm MedicalSystem::addWound hook");
+    if (needImport && !stub)
+        ErrorLog("Auto-Pause-on-Load WARN: SaveManager::importGame not exported - no pause after a save import");
+    else if (needImport && !observers[2].installed)
+        ErrorLog("Auto-Pause-on-Load WARN: could not confirm SaveManager::importGame hook");
 }
 
 static void PlayerInterface_updateUT_hook(PlayerInterface* thisptr)
@@ -2746,9 +2724,7 @@ __declspec(dllexport) void startPlugin()
     {
         ErrorLog("Auto-Pause-on-Load WARN: failed to install updateUT host at startup; pause runtime will remain inactive");
     }
-    TryInstallDialogueStartPlayerConversationHook();
-    TryInstallAddWoundHook();
-    TryInstallImportGameHook();
+    InstallPauseObservers();
 
     g_hasObservedLoadSignal = false;
     g_lastObservedLoadSignal = false;
