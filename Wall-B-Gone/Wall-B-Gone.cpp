@@ -7,6 +7,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 #include "emc/mod_hub_client.h"
 
 #include <kenshi/Globals.h>
@@ -453,14 +454,21 @@ __declspec(dllexport) void startPlugin()
     ConfigureModHubClient();
     StartModHubClient();
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(g_fnOptionsInit, OptionsWindowInitHook, &g_fnOptionsInitOrig))
+    StartupHooks::Hook optionsObservers[] = {
+        StartupHooks::Hook(g_fnOptionsInit, OptionsWindowInitHook, &g_fnOptionsInitOrig),
+        StartupHooks::Hook(g_fnOptionsSave, OptionsWindowSaveHook, &g_fnOptionsSaveOrig)
+    };
+    StartupHooks::Install(optionsObservers, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (!optionsObservers[0].installed)
     {
-        ErrorLog("Wall-B-Gone: Could not hook options init");
+        ErrorLog("Wall-B-Gone: could not confirm options init hook");
     }
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(g_fnOptionsSave, OptionsWindowSaveHook, &g_fnOptionsSaveOrig))
+    if (!optionsObservers[1].installed)
     {
-        ErrorLog("Wall-B-Gone: Could not hook options save");
+        ErrorLog("Wall-B-Gone: could not confirm options save hook");
     }
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
