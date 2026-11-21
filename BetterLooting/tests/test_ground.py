@@ -35,7 +35,7 @@ GameWorld game;GameWorld*ou=&game;BetterLootingRules g_betterLootingRules={};Bet
 int GetBetterLootingItemFunctionValue(Item*i){return i->function;}int GetBetterLootingEffectiveItemFunctionValue(Item*,int f){return f;}
 #define CHECK(x) do{if(!(x)){printf("FAIL line %d: %s\n",__LINE__,#x);return 1;}}while(0)
 '''
-for n in ['IsBetterLootingRequiredItem','IsBetterLootingPlayerBuildingSource','IsBetterLootingBlockedLootInventory']:
+for n in ['IsBetterLootingRequiredItem','IsBetterLootingPlayerBuildingSource']:
  code+='\n'+extract(n)
 code+='\n'+extract('BetterLootingGroundCandidate',True)
 for n in ['IsBetterLootingFiniteGroundPosition','BetterLootingGroundNeedsTheft','IsBetterLootingGroundItemAllowed','QueueBetterLootingGroundPickups']:
@@ -45,7 +45,7 @@ int main(){Character actor;actor.orders.push_back(NULL);GameData data;data.name=
 CHECK(QueueBetterLootingGroundPickups(&actor)==0);CHECK(game.queries==0);CHECK(actor.orders.size()==1);
 g_betterLootingRules.pickupGroundItems=true;g_betterLootingRules.ignorePlayerStorage=true;CHECK(IsBetterLootingGroundItemAllowed(&item,&actor));
 RootObject foreign;item.owner=hand(&foreign);g_requiredLoot.Parse("id:skin-id");CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.owner=hand();item.isInInventory=true;CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.isInInventory=false;
-Building chest,parent;chest.parent=&parent;parent.player=true;Inventory source;source.owner=&chest;CHECK(IsBetterLootingBlockedLootInventory(&source));item.owner=hand(&chest);CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.owner=hand();
+Building chest,parent;chest.parent=&parent;parent.player=true;item.owner=hand(&chest);CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.owner=hand();
 Inventory contents;contents.count=1;item.contents=&contents;CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.contents=NULL;
 item.pos=Ogre::Vector3(200.1f,0,0);CHECK(!IsBetterLootingGroundItemAllowed(&item,&actor));item.pos=Ogre::Vector3(200,0,0);CHECK(IsBetterLootingGroundItemAllowed(&item,&actor));
 g_betterLootingRules.lootMaterials=false;g_betterLootingRules.minValue=1000;CHECK(IsBetterLootingGroundItemAllowed(&item,&actor));

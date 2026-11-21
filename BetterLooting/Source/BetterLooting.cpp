@@ -163,11 +163,43 @@ static bool IsBetterLootingPlayerBuildingSource(RootObject* object)
     return false;
 }
 
+static bool IsBetterLootingPlayerCarriedCharacter(Character* character)
+{
+    if (character == NULL || !character->isBeingCarried())
+        return false;
+
+    // Resolve the carrier from the live player roster without retaining world references.
+    if (ou == NULL || ou->player == NULL)
+        return true;
+    const lektor<Character*>& players = ou->player->getAllPlayerCharacters();
+    for (lektor<Character*>::const_iterator it = players.begin(); it != players.end(); ++it)
+    {
+        Character* carrier = *it;
+        if (carrier != NULL && carrier->isCarryingSomething &&
+            carrier->getCarryingObject().getCharacter() == character)
+            return true;
+    }
+    return false;
+}
+
+static bool IsBetterLootingBlockedLootSource(RootObject* object)
+{
+    if (object == NULL)
+        return false;
+    if (object->getDataType() == CHARACTER)
+        return IsBetterLootingPlayerCarriedCharacter(static_cast<Character*>(object));
+    return g_betterLootingRules.ignorePlayerStorage && IsBetterLootingPlayerBuildingSource(object);
+}
+
 static bool IsBetterLootingBlockedLootInventory(Inventory* inventory)
 {
-    return g_betterLootingRules.ignorePlayerStorage && inventory != NULL &&
-        (IsBetterLootingPlayerBuildingSource(inventory->getOwner()) ||
-         IsBetterLootingPlayerBuildingSource(inventory->getCallbackObject()));
+    if (inventory == NULL)
+        return false;
+    RootObject* owner = inventory->getOwner();
+    if (IsBetterLootingBlockedLootSource(owner))
+        return true;
+    RootObject* callback = inventory->getCallbackObject();
+    return callback != owner && IsBetterLootingBlockedLootSource(callback);
 }
 
 // v100 не знает scoped enum, см. fix_bl_vc10.py.
@@ -2500,7 +2532,7 @@ static void ExecuteLootCandidate(
 
     if (IsBetterLootingBlockedLootInventory(sourceInventory))
     {
-        BlTrace("BetterLooting: TRANSFER_SKIP protected player building inventory");
+        BlTrace("BetterLooting: TRANSFER_SKIP protected loot source");
         return;
     }
 
@@ -3686,7 +3718,7 @@ static void EvaluateTargetInventory(
 
     if (IsBetterLootingBlockedLootInventory(inventory))
     {
-        BlTrace("BetterLooting: EVALUATE_SKIP protected player building inventory");
+        BlTrace("BetterLooting: EVALUATE_SKIP protected loot source");
         return;
     }
 
@@ -4547,10 +4579,7 @@ static bool IsBetterLootingCharacterTarget(
     }
 
 
-    //
-    // Nunca saquear personajes del jugador.
-    //
-
+    // Player characters are never loot targets.
     if (character->isPlayerCharacter())
     {
         return false;
@@ -4568,6 +4597,10 @@ static bool IsBetterLootingCharacterTarget(
     {
         return false;
     }
+
+
+    if (IsBetterLootingPlayerCarriedCharacter(character))
+        return false;
 
 
     Inventory* inventory =

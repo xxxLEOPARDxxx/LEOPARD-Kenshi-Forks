@@ -35,7 +35,8 @@ def transfer_core(src):
   r'LootDestinationName\(\s*(?:placement.window|placement.inventory, destinations)\s*\)',
   'LootDestinationName(PLACEMENT)',current)
  guard='    if (IsBetterLootingBlockedLootInventory(sourceInventory))\n    {\n        BlTrace("BetterLooting: TRANSFER_SKIP protected player building inventory");\n        return;\n    }'
- return nonblank(current.replace(guard,'',1))
+ return nonblank(current.replace(guard,'',1).replace(
+  guard.replace('protected player building inventory', 'protected loot source'), '', 1))
 
 assert transfer_core(new)==transfer_core(old), 'Transfer/rollback/ownership logic changed beyond current destination lookup'
 for name in ['EnumerateInventoryCandidates','CollectBetterLootingRadiusTargets','RunBetterLootingStoreAll','EvaluateBetterLootingStoreSourceInventory']:

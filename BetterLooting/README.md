@@ -14,10 +14,12 @@ Inherited gameplay features are described in the player guide; the list below re
 **Русский**
 - MCM и три языка; исправления переноса с KEO и правил краденого; восстановленная раскладка Alt+Insert.
 - Обязательные предметы, защита своих хранилищ и подбор с земли по близости. Подробности и настройки — ниже.
+- Автосбор пропускает живых и мёртвых персонажей, которых несёт на плечах любой боец игрока. После того как цель положили на землю, снова действуют обычные правила сбора.
 
 **English**
 - MCM and three languages; KEO transfer and theft fixes; restored Alt+Insert deposit.
 - Required items, protected player storage and nearest-first ground pickup. Details and settings are below.
+- Automatic looting skips living and dead characters carried by any player squad member. Once a target is put down, the usual looting rules apply again.
 
 ### Fork release history / История выпусков нашего форка
 
