@@ -13,7 +13,6 @@ def body(source,marker):
 clock=body(tick,'double planner_tick_detail::BehaviorNow(') if 'double planner_tick_detail::BehaviorNow(' in tick else 'double BehaviorNow(double rawNow){return rawNow;}'
 clock=clock.replace('double planner_tick_detail::BehaviorNow(', 'double BehaviorNow(')
 capture_expr=re.search(r'double now = ([^;]+);',body(capture,'int PlannerNoteOrder(')).group(1)
-merge_expr=re.search(r'double now = ([^;]+);',body(merge,'bool PlannerMergeGather(')).group(1)
 resume_prefix=body(merge,'void PlannerResumeFromGather(').split('TakeSnapshot();')[0]
 resume_convert=re.search(r'now = BehaviorNow\(now\);',resume_prefix)
 hold_expr=re.search(r'^\s+(.+ - m->holdTime)\),$',body(tick,'static PlanDropWhy SlotDropDue('),re.M).group(1)
@@ -36,7 +35,7 @@ void PlanStoreReset(){++resets;}void TakeSnapshot(){}int ReadPlayers(PlayerChar*
 bool TickSlot(int,const PlayerChar*,int,double now,bool){seenTick=now;++calls;return false;}
 void PlannerWaterRefresh(){}void MergeTick(double now){seenMerge=now;}void PlannerReportTick(double now){seenReport=now;}
 @CLOCK@
-double CaptureNow(){return @CAPTURE@;}double MergeNow(){return @MERGE@;}
+double CaptureNow(){return @CAPTURE@;}
 double ResumeNow(double now){@RESUME@ return now;}
 double HoldAge(double now,double held){struct Hold{double holdTime;}value={held};const Hold*m=&value;return @HOLD@;}
 void TickPlanSlots(const PlayerChar*,int n,double now,int budget){if(n>0)TickSlot(0,NULL,n,now,budget>0);}
@@ -46,7 +45,7 @@ int main(){OOT_ResetForTest();raw=100;double planned=CaptureNow();C(planned==100
  PlannerTick(NULL,101);C(calls==1&&resets==1&&seenTick==101,"initial actual tick stamps current active domain");
  paused=true;PlannerTick(NULL,102);int atPause=calls;PlannerTick(NULL,701);
  C(calls==atPause,"paused actual tick does not scan or replan slots");
- raw=701;C(CaptureNow()==101,"order issued while paused uses frozen active clock");C(MergeNow()==101,"merge lookup shares capture active domain");C(ResumeNow(701)==101,"gather resume rewrites share active domain");
+ raw=701;C(CaptureNow()==101,"order issued while paused uses frozen active clock");C(ResumeNow(701)==101,"gather resume rewrites share active domain");
  paused=false;PlannerTick(NULL,702);C(seenTick==102&&seenMerge==102,"resume does not age planner or merge through paused600s");C(HoldAge(seenTick,101)==1,"gather hold is not converted from active time twice");C(seenReport==702,"diagnostic heartbeat retains wall-time cadence");C(PlanReplanDue(Due(seenTick,planned))==PRW_NONE,"long pause cannot expire120s plan");
  PlanReplanIn in=Due(seenTick,planned);in.completeSince=101;C(PlanReplanDue(in)==PRW_NONE,"completion timeout excludes paused interval");in.completeSince=0;in.waitSince=101;in.loadedChangedSincePlan=1;C(PlanReplanDue(in)==PRW_NONE,"section wait timeout excludes paused interval");
  PlannerTick(NULL,708);in.now=seenTick;in.waitSince=0;in.completeSince=101;C(PlanReplanDue(in)==PRW_NONE,"completion remains below8 active seconds");PlannerTick(NULL,709);in.now=seenTick;C(PlanReplanDue(in)==PRW_ARRIVAL_TIMEOUT,"completion still expires at8 active seconds");
@@ -55,15 +54,15 @@ int main(){OOT_ResetForTest();raw=100;double planned=CaptureNow();C(planned==100
  paused=true;++gen;PlannerTick(NULL,821);C(resets==2,"generation reset still runs during pause");int before=calls;mode=PLANNER_OFF;PlannerTick(NULL,1400);C(calls==before,"routing OFF performs no planner work");
  std::printf("PASS %u actual planner clock boundary controls\n",checks);return 0;}
 '''
-code=code.replace('@CLOCK@',clock).replace('@CAPTURE@',capture_expr).replace('@MERGE@',merge_expr).replace('@RESUME@',resume_convert.group(0) if resume_convert else '').replace('@HOLD@',hold_expr).replace('@TICK@',body(tick,'void PlannerTick('))
+code=code.replace('@CLOCK@',clock).replace('@CAPTURE@',capture_expr).replace('@RESUME@',resume_convert.group(0) if resume_convert else '').replace('@HOLD@',hold_expr).replace('@TICK@',body(tick,'void PlannerTick('))
 VC=Path('C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC');SDK=Path('C:/Program Files/Microsoft SDKs/Windows/v7.1');env=os.environ.copy();env['INCLUDE']=f'{VC}/include;{SDK}/Include;{ROOT}/src';env['LIB']=f'{VC}/lib/amd64;{SDK}/Lib/x64'
 def run(name,source,opt,negative=False):
  file=OUT/(name+'.cpp');file.write_text(source);exe=OUT/(name+'.exe')
  p=subprocess.run([str(VC/'bin/amd64/cl.exe'),'/nologo','/EHsc','/'+opt,'/MT',str(file),str(ROOT/'src/planner/plan_policy.cpp'),str(ROOT/'src/movement/order_outcome_table.cpp'),str(ROOT/'src/movement/order_outcome_policy.cpp'),'/Fo'+str(OUT)+'\\','/Fe'+str(exe)],env=env,cwd=OUT,capture_output=True,text=True);print(p.stdout+p.stderr,end='');assert p.returncode==0
  p=subprocess.run([str(exe)],capture_output=True,text=True);print(p.stdout+p.stderr,end='');assert (p.returncode!=0 and 'FAIL ' in p.stdout) if negative else p.returncode==0
 for opt in ['Od','O2']:run('clock-'+opt,code,opt)
-mutants=[('raw-capture','double CaptureNow(){return '+capture_expr+';}','double CaptureNow(){return ElapsedSec();}'),('raw-merge','double MergeNow(){return '+merge_expr+';}','double MergeNow(){return ElapsedSec();}'),('raw-resume','double ResumeNow(double now){now = BehaviorNow(now); return now;}','double ResumeNow(double now){return now;}'),('raw-tick','TickPlanSlots(players, nPlayers, activeNow,','TickPlanSlots(players, nPlayers, now,'),('raw-merge-tick','MergeTick(activeNow);','MergeTick(now);'),('double-hold','return '+hold_expr+';}','return OOT_ActiveNow(now, ZonePauseIsPaused()) - m->holdTime;}')]
+mutants=[('raw-capture','double CaptureNow(){return '+capture_expr+';}','double CaptureNow(){return ElapsedSec();}'),('raw-resume','double ResumeNow(double now){now = BehaviorNow(now); return now;}','double ResumeNow(double now){return now;}'),('raw-tick','TickPlanSlots(players, nPlayers, activeNow,','TickPlanSlots(players, nPlayers, now,'),('raw-merge-tick','MergeTick(activeNow);','MergeTick(now);'),('double-hold','return '+hold_expr+';}','return OOT_ActiveNow(now, ZonePauseIsPaused()) - m->holdTime;}')]
 for name,before,after in mutants:
  assert before in code,name
  run('mutant-'+name,code.replace(before,after,1),'O2',True)
-print('PASS six compiled planner clock negative controls')
+print('PASS five compiled planner clock negative controls')

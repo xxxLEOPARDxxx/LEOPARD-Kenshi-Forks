@@ -143,7 +143,7 @@ static void Issue(const FollowRecord& r, const Follower& f)
 static void Capture(FollowRecord& r, int ri, int i, double now)
 {
 	Follower& f = r.members[i];
-	planner::PlannerDrop(f.character);
+	planner::PlannerDrop(f.character, false);
 	Issue(r, f);
 	f.following = 1;
 	f.seenTask = 0;
@@ -235,7 +235,7 @@ void FormationFollowAfterOrder(const uintptr_t* chars, int n)
 	for (int m = 1; m < grp.count && r.count < MAX_FORMATION_MEMBERS; ++m)
 	{
 		const FormationMember& mem = grp.members[m];
-		if (!mem.character)
+		if (!mem.character || mem.alone)
 			continue;
 		int i = r.count++;
 		Follower& f = r.members[i];
@@ -358,7 +358,7 @@ static bool GroupMayCapture(const FormationGroup& grp, uintptr_t character)
 {
 	for (int m = 0; m < grp.count; ++m)
 		if (grp.members[m].character == character)
-			return FollowMayCapture(true, grp.members[m].dispatched);
+			return FollowMayCapture(!grp.members[m].alone, grp.members[m].dispatched);
 	return FollowMayCapture(false, false);
 }
 

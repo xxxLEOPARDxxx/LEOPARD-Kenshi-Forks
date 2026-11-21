@@ -61,15 +61,11 @@ bool PlayersOverCap();
 // operations themselves are planner_search_ops.h's AdapterOps, and a node's centre its AdapterPosition.
 CoarseScratch* SearchScratch();
 void CrossingPoint(unsigned from, unsigned to, float out[3]);
-// The merge of a run-together order (planner_merge.cpp): from the order capture after the water
-// pre-pass, the index in chars of the member the formation leads with (0 unless on merged the order;
-// 0, uncounted, when the formation will not form a group for it); p prices its searches, and
-// memberM[k]/memberA[k] (the first PLAN_WATER_ORDER_MAX members' water and acid factors) and the order's
-// own orderOutdoors bit are kept for a member whose plan drops while it gathers. From the tick, the gather
-// walks' off-route reading.
+// Search an eligible run-together order. Returns the leader's index, or PLANNER_SKIP_FORMATION
+// if the requested merge failed in on. An accepted record is named by mergeOrder.
 int MergeOrder(const uintptr_t* chars, int n, const Located& goal, const float dest[3],
-               const PlanSearchParams& p, const float* memberM, const float* memberA, int orderOutdoors,
-               bool formationForms, int order, double now);
+               const PlanSearchParams& p, const float* memberM, const float* memberA,
+               int orderOutdoors, int order, double now, int* mergeOrder);
 void MergeTick(double now);
 
 } // namespace planner_tick_detail

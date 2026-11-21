@@ -32,15 +32,15 @@ namespace planner_merge_detail {
 
 const int    MERGE_RECORDS = 8;     // one per formation group slot
 const int    MERGE_PREFIX  = 64;    // a joining member's biased prefix, sampled
-const double MERGE_MATCH   = 1.0;   // the formation reads a record within this of its order
 
-// One order merged in on: what the formation reads at its creation, and the tick's walk reading.
+// An accepted route merge and the gather and resume data for its formation.
 struct MergeRecord
 {
 	int           order;                      // the capture's order number; 0 for a free record
 	double        time;
 	int           n;
 	int           anchor;
+	unsigned      worldGen;
 	uintptr_t     chars[PLAN_MERGE_MEMBERS];  // selection order
 	int           join[PLAN_MERGE_MEMBERS];   // the anchor-route index; -1 alone; the anchor 0
 	unsigned      prefix[PLAN_MERGE_MEMBERS][MERGE_PREFIX];
@@ -101,8 +101,7 @@ static void JoinMember(uintptr_t character, int k, const Located& goal, const fl
 	s_prefixCount[k] = PlanMergeSample(s_memberRoute.nodes, step + 1, s_prefix[k], MERGE_PREFIX);
 }
 
-// The anchor's route, then each other member's join; false when the anchor has no route (every member
-// then gathers at the anchor, as before).
+// The anchor's route, then each other member's join; false when the anchor has no route.
 static bool SearchJoins(const uintptr_t* chars, int n, int anchor, const float anchorPos[3], const Located& goal,
                         const float dest[3], const PlanSearchParams& p)
 {
@@ -187,13 +186,14 @@ static void Record(const uintptr_t* chars, int n, int anchor, const float gather
 	r.time = now;
 	r.n = n;
 	r.anchor = anchor;
+	r.worldGen = CgStoreGen();
+	memcpy(r.dest, dest, sizeof(r.dest));
+	memcpy(r.chars, chars, sizeof(chars[0]) * n);
 	memcpy(r.gather, gather, sizeof(r.gather));
 	r.gatherDist = gatherDist;
-	memcpy(r.dest, dest, sizeof(r.dest));
 	r.orderOutdoors = orderOutdoors;
 	for (int k = 0; k < n; ++k)
 	{
-		r.chars[k] = chars[k];
 		r.m[k] = k < PLAN_WATER_ORDER_MAX ? memberM[k] : 1.0f;
 		r.a[k] = k < PLAN_WATER_ORDER_MAX ? memberA[k] : 1.0f;
 		r.join[k] = s_join[k];
@@ -229,10 +229,8 @@ static void ReportMerge(int order, int mode, int anchor, float sum, const char* 
 
 int planner_tick_detail::MergeOrder(const uintptr_t* chars, int n, const Located& goal, const float dest[3],
                                     const PlanSearchParams& p, const float* memberM, const float* memberA,
-                                    int orderOutdoors, bool formationForms, int order, double now)
+                                    int orderOutdoors, int order, double now, int* mergeOrder)
 {
-	if (!formationForms || PlanStoreMode() == PLANNER_OFF || n < 2 || n > PLAN_MERGE_MEMBERS || !PlannerOrderRunTogether(chars, n))
-		return 0;
 	LONGLONG t0 = QpcNow();
 	int mode = PlanStoreMode();
 	for (int k = 0; k < n; ++k)
@@ -249,10 +247,12 @@ int planner_tick_detail::MergeOrder(const uintptr_t* chars, int n, const Located
 	int anchor = PlanMergeMedoid(s_xz, n, &sum);
 	float gather[3];
 	CharPos(chars[anchor], gather);
-	bool searched = g_plannerCfg.mergeBias > 1 && SearchJoins(chars, n, anchor, gather, goal, dest, p);
-	if (!searched)
+	const bool searchRequested = g_plannerCfg.mergeBias > 1;
+	const bool searched = searchRequested && SearchJoins(chars, n, anchor, gather, goal, dest, p);
+	const bool refused = searchRequested && !searched;
+	if (refused)
 		for (int k = 0; k < n; ++k)
-			s_join[k] = 0;
+			s_join[k] = -1;
 	s_join[anchor] = 0;
 	int gatherIndex = searched ? PlanMergeGatherIndex(s_join, n) : 0;
 	if (gatherIndex > 0)
@@ -262,16 +262,18 @@ int planner_tick_detail::MergeOrder(const uintptr_t* chars, int n, const Located
 	for (int k = 0; searched && k < n; ++k)
 		if (k != anchor)
 			InterlockedIncrement(s_join[k] >= 0 ? &c->mergeJoins : &c->mergeAlone);
-	if (mode == PLANNER_ON)
+	if (mode == PLANNER_ON && !refused)
 	{
+		*mergeOrder = order;
 		if (gatherIndex > 0)
 			InterlockedIncrement(&c->mergeMoved);
-		Record(chars, n, anchor, gather, GatherDistance(n, anchor, gatherIndex, gather), dest, memberM, memberA,
+		Record(chars, n, anchor, gather,
+		       GatherDistance(n, anchor, gatherIndex, gather), dest, memberM, memberA,
 		       orderOutdoors, order, now);
 	}
-	ReportMerge(order, mode, anchor, sum, searched ? "searched" : (g_plannerCfg.mergeBias > 1 ? "none" : "unbiased"),
+	ReportMerge(order, mode, anchor, sum, searched ? "searched" : (refused ? "none" : "unbiased"),
 	            n, gatherIndex, gather, QpcToMs(QpcNow() - t0));
-	return PlanMergeLeader(mode, anchor);
+	return mode == PLANNER_ON && refused ? PLANNER_SKIP_FORMATION : PlanMergeLeader(mode, anchor);
 }
 
 static bool InPlayerList(const uintptr_t* stuff, unsigned count, uintptr_t character)
@@ -308,10 +310,11 @@ void planner_tick_detail::MergeTick(double now)
 	uintptr_t* stuff = pi ? GetPlayerCharStuff(pi) : NULL;
 	if (!stuff || count == 0 || count > 200)
 		return;
+	const unsigned gen = CgStoreGen();
 	for (int i = 0; i < MERGE_RECORDS; ++i)
 	{
 		MergeRecord& r = s_records[i];
-		if (!r.order || r.resumed || now - r.time > PLAN_HOLD_SECONDS)
+		if (!r.order || r.worldGen != gen || r.resumed || now - r.time > PLAN_HOLD_SECONDS)
 			continue;
 		for (int k = 0; k < r.n; ++k)
 		{
@@ -328,71 +331,51 @@ void planner_tick_detail::MergeTick(double now)
 	}
 }
 
-bool PlannerMergeGather(const uintptr_t* chars, int n, float gather[3], unsigned char* alone, float* gatherDist)
+static MergeRecord* FindMergeRecord(int order)
+{
+	if (order <= 0) return NULL;
+	const unsigned gen = CgStoreGen();
+	for (int i = 0; i < MERGE_RECORDS; ++i)
+		if (s_records[i].order == order && s_records[i].worldGen == gen)
+			return &s_records[i];
+	return NULL;
+}
+
+static int RecordMember(const MergeRecord& r, uintptr_t character)
+{
+	for (int k = 0; k < r.n; ++k)
+		if (r.chars[k] == character)
+			return k;
+	return -1;
+}
+
+bool PlannerMergeGather(int order, const uintptr_t* chars, int n, float gather[3],
+                        unsigned char* alone, float* gatherDist)
 {
 	if (PlanStoreMode() != PLANNER_ON || !chars || n <= 0 || !gather || !alone || !gatherDist)
 		return false;
-	double now = BehaviorNow(ElapsedSec());
-	const MergeRecord* best = NULL;
-	for (int i = 0; i < MERGE_RECORDS; ++i)
-	{
-		const MergeRecord& r = s_records[i];
-		if (r.order && now - r.time <= MERGE_MATCH && r.chars[r.anchor] == chars[0] && (!best || r.order > best->order))
-			best = &r;
-	}
-	if (!best)
+	const MergeRecord* r = FindMergeRecord(order);
+	if (!r || r->n != n || r->chars[r->anchor] != chars[0])
 		return false;
-	memcpy(gather, best->gather, sizeof(best->gather));
-	*gatherDist = best->gatherDist;
 	for (int m = 0; m < n; ++m)
 	{
-		alone[m] = 0;
-		for (int k = 0; k < best->n; ++k)
-		{
-			if (best->chars[k] != chars[m])
-				continue;
-			alone[m] = best->join[k] < 0 ? 1 : 0;
-			break;
-		}
+		const int k = RecordMember(*r, chars[m]);
+		if (k < 0) return false;
+		alone[m] = r->join[k] < 0;
 	}
+	memcpy(gather, r->gather, sizeof(r->gather));
+	*gatherDist = r->gatherDist;
 	return true;
 }
 
-static bool Contains(const uintptr_t* chars, int n, uintptr_t character)
-{
-	for (int m = 0; m < n; ++m)
-		if (chars[m] == character)
-			return true;
-	return false;
-}
-
-// The newest unresumed record holding character whose anchor is one of the group's gathered members
-// chars[0..n) (a record of an earlier order whose group has gone names no live anchor here); *k its
-// index there. NULL when none.
-static const MergeRecord* GroupRecordOf(const uintptr_t* chars, int n, uintptr_t character, int* kOut)
-{
-	const MergeRecord* best = NULL;
-	for (int i = 0; i < MERGE_RECORDS; ++i)
-	{
-		const MergeRecord& r = s_records[i];
-		if (!r.order || r.resumed || (best && r.order < best->order) || !Contains(chars, n, r.chars[r.anchor]))
-			continue;
-		for (int k = 0; k < r.n; ++k)
-			if (r.chars[k] == character)
-			{
-				best = &r;
-				*kOut = k;
-				break;
-			}
-	}
-	return best;
-}
-
-void PlannerResumeFromGather(const uintptr_t* chars, int n, double now)
+void PlannerResumeFromGather(int order, const uintptr_t* chars, int n, double now)
 {
 	if (PlanStoreMode() != PLANNER_ON || !chars || n <= 0)
 		return;
 	now = BehaviorNow(now);
+	MergeRecord* r = FindMergeRecord(order);
+	if (r && r->resumed)
+		r = NULL;
 	TakeSnapshot();
 	ClearMemo();
 	for (int k = 0; k < n; ++k)
@@ -402,9 +385,8 @@ void PlannerResumeFromGather(const uintptr_t* chars, int n, double now)
 		PlanView v;
 		memset(&v, 0, sizeof(v));
 		bool haveSlot = slot >= 0 && PlanStoreRead(slot, &v) && v.cm == cm;
-		int rk = -1;
-		const MergeRecord* r = cm ? GroupRecordOf(chars, n, chars[k], &rk) : NULL;
-		int from = PlanMergeResumeFrom(r != NULL, r != NULL && r->join[rk] < 0, haveSlot,
+		const int rk = r && cm ? RecordMember(*r, chars[k]) : -1;
+		int from = PlanMergeResumeFrom(rk >= 0, rk >= 0 && r->join[rk] < 0, haveSlot,
 		                               haveSlot && PlanStoreMain(slot)->haveHold);
 		if (from == PMR_NONE)
 			continue;
@@ -422,11 +404,8 @@ void PlannerResumeFromGather(const uintptr_t* chars, int n, double now)
 		int verdict = PV_NONE;
 		WritePlan(cm, pos, goal, dest, *b, now, &verdict, 0, p, outdoors);
 	}
-	for (int i = 0; i < MERGE_RECORDS; ++i)
-		for (int k = 0; s_records[i].order && k < s_records[i].n; ++k)
-			for (int m = 0; m < n; ++m)
-				if (s_records[i].chars[k] == chars[m])
-					s_records[i].resumed = 1;
+	if (r)
+		r->resumed = 1;
 }
 
 } // namespace planner

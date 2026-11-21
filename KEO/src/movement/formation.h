@@ -75,7 +75,7 @@ extern FormationGroup formationGroups[MAX_FORMATION_GROUPS];
 // =========================================================================
 
 bool ApplyScatterPatch();
-void CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount);
+bool CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount, int mergeOrder);
 void PollFormationGroups();
 void ClearFormationGroups();
 

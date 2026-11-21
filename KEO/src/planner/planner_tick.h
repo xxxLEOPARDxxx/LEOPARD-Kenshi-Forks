@@ -6,17 +6,20 @@
 
 namespace planner {
 
+const int PLANNER_SKIP_FORMATION = -1;
+
 // Main thread, from hook_addOrderSelected's task-29 branch before the original: one plan per
 // selected character chars[0..n) toward location, whatever the order's two flags carry; a repeat
 // of the character's plan inside its first second is counted and skipped. formationForms is whether the
 // order hook's formation precondition holds (cohesion on, the scatter patch in, more than one character),
 // without which no run-together merge runs. Returns the index in chars of the member the formation group
-// leads with: the merge's anchor in on for a run-together order, else 0.
+// leads with, or PLANNER_SKIP_FORMATION when the requested route merge cannot be made.
+// mergeOrder receives the accepted record number, or 0.
 int PlannerNoteOrder(const uintptr_t* chars, int n, const float* location, void* destIndoors,
-                     bool shift, bool addDontClear, bool formationForms);
-// Main thread, from a non-move order (order_hook.cpp) or the stop key (island_cancel_hooks.cpp):
-// drop a character's plan.
-void PlannerDrop(uintptr_t character);
+                     bool shift, bool addDontClear, bool formationForms, int* mergeOrder);
+// Discard the character's plan. A player order also invalidates a recent formation decision.
+// A Follow issued by an existing formation only replaces the member's individual plan.
+void PlannerDrop(uintptr_t character, bool cancelFormationDecision = true);
 // Main thread, every frame after IslandTick (never during a save load).
 void PlannerTick(void* zoneMgr, double now);
 // Main thread: in on, whether the character's legged plan replaces the straight-line ahead enqueue.

@@ -204,8 +204,9 @@ void hook_addOrderSelected(void* thisPI, void* destIndoors, int task,
 
 		// The formation's own precondition below, less its speed-mode test, which the merge makes itself.
 		bool formationForms = movement::g_movementCfg.groupCohesionEnabled && scatterPatchApplied && collectedCount > 1;
+		int mergeOrder = 0;
 		int lead = planner::PlannerNoteOrder(collectedChars, collectedCount, location, destIndoors, shift, addDontClear,
-		                                     formationForms);
+		                                     formationForms, &mergeOrder);
 
 		// One order-outcome record per player move order, for every
 		// selected character (not just the ones movement-aware preload
@@ -245,8 +246,8 @@ void hook_addOrderSelected(void* thisPI, void* destIndoors, int task,
 				StorePlayerClickDest(collectedChars[c], location, clickNow);
 		}
 
-		// Group cohesion: create formation group for arrival scatter.
-		if (movement::g_movementCfg.groupCohesionEnabled && scatterPatchApplied && collectedCount > 1)
+		// A refused route merge leaves everyone on the native move order.
+		if (formationForms && lead != planner::PLANNER_SKIP_FORMATION)
 		{
 			bool allGrouped = true;
 			for (int c = 0; c < collectedCount; ++c)
@@ -265,13 +266,10 @@ void hook_addOrderSelected(void* thisPI, void* destIndoors, int task,
 					collectedChars[0] = collectedChars[lead];
 					collectedChars[lead] = first;
 				}
-				CreateFormationGroup(location, collectedChars, collectedCount);
-				formedGroup = true;
+				formedGroup = CreateFormationGroup(location, collectedChars, collectedCount, mergeOrder);
 			}
 		}
-		// A single-unit move, or a multi-unit move not all in "together" mode,
-		// does not (re-)form a group for these characters: drop any group
-		// membership they still carry from an earlier order.
+		// Retire the selected members' previous group ownership before issuing an independent move.
 		if (!formedGroup && collectedCount > 0)
 			FormationDetachCharacters(collectedChars, collectedCount);
 	}

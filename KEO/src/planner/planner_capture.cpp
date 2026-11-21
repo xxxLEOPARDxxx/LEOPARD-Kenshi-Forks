@@ -9,6 +9,9 @@
 #endif
 #include "planner/planner_tick.h"
 #include "planner/planner_tick_internal.h"
+#include "planner/planner_config.h"
+#include "planner/plan_merge.h"
+#include "movement/formation_members.h"
 #include "planner/plan_build.h"
 #include "planner/plan_policy.h"
 #include "planner/plan_store.h"
@@ -30,6 +33,35 @@ static int            s_orderSeq      = 0;
 static float          s_orderMult[PLAN_WATER_ORDER_MAX];   // the current order's water multipliers
 static float          s_orderAcid[PLAN_WATER_ORDER_MAX];   // the current order's acid factors
 static unsigned char  s_orderRepeat[PLAN_WATER_ORDER_MAX]; // 1 where the character's plan already answers it
+
+// The latest run-together command owns its decision even if an individual plan was dropped.
+struct RecentFormation
+{
+	int count;
+	unsigned worldGen;
+	double time;
+	float dest[3];
+	uintptr_t chars[PLAN_MERGE_MEMBERS];
+	uintptr_t leader;
+	int mergeOrder;
+	bool refused, outdoors;
+};
+
+static RecentFormation s_recentFormation;
+
+static void RememberFormation(const uintptr_t* chars, int n, const float dest[3], bool outdoors, double now,
+                              int lead, int mergeOrder)
+{
+	s_recentFormation.count = n;
+	s_recentFormation.worldGen = CgStoreGen();
+	s_recentFormation.time = now;
+	memcpy(s_recentFormation.dest, dest, sizeof(s_recentFormation.dest));
+	memcpy(s_recentFormation.chars, chars, sizeof(chars[0]) * n);
+	s_recentFormation.refused = lead == PLANNER_SKIP_FORMATION;
+	s_recentFormation.leader = s_recentFormation.refused ? 0 : chars[lead];
+	s_recentFormation.mergeOrder = mergeOrder;
+	s_recentFormation.outdoors = outdoors;
+}
 
 // ---- The order capture ---------------------------------------------------------------------------
 
@@ -144,13 +176,16 @@ static int MarkRepeats(const uintptr_t* chars, int n, const float dest[3], doubl
 // (a plain click sends the add flag set; the flags matter only to the engine's other orders), so
 // every captured move order is planned.
 int PlannerNoteOrder(const uintptr_t* chars, int n, const float* location, void* destIndoors, bool shift, bool addDontClear,
-                     bool formationForms)
+                     bool formationForms, int* mergeOrder)
 {
-	if (PlanStoreMode() == PLANNER_OFF) return 0;
+	*mergeOrder = 0;
+	const int mode = PlanStoreMode();
+	if (mode == PLANNER_OFF) return 0;
 	(void)shift;
 	(void)addDontClear;
 	if (!location)
 	{
+		s_recentFormation.count = 0;
 		InterlockedIncrement(&PlannerCountersGet()->noLocation);
 		return 0;
 	}
@@ -158,6 +193,7 @@ int PlannerNoteOrder(const uintptr_t* chars, int n, const float* location, void*
 		return 0;
 	if (PlayersOverCap())
 	{
+		s_recentFormation.count = 0;
 		// The tick validates no plan while over the cap, so an older plan never outlives a new order.
 		for (int k = 0; k < n; ++k)
 		{
@@ -170,20 +206,50 @@ int PlannerNoteOrder(const uintptr_t* chars, int n, const float* location, void*
 	int order = ++s_orderSeq;
 	float dest[3] = { location[0], location[1], location[2] };
 	double now = BehaviorNow(ElapsedSec());
-	if (MarkRepeats(chars, n, dest, now) == 0)
-		return 0;
+	const bool outdoors = destIndoors == NULL;
+	const bool runTogether = formationForms && n >= 2 && n <= PLAN_MERGE_MEMBERS && PlannerOrderRunTogether(chars, n);
+	const double age = now - s_recentFormation.time;
+	const bool sameCommand = mode == PLANNER_ON && runTogether && s_recentFormation.count == n &&
+	    s_recentFormation.worldGen == CgStoreGen() && s_recentFormation.outdoors == outdoors && age >= 0.0 &&
+	    PlanRepeatDue(s_recentFormation.dest, dest, age) &&
+	    FormationSameMemberSet(s_recentFormation.chars, n, chars, n);
+	int lead = 0;
+	if (sameCommand)
+	{
+		*mergeOrder = s_recentFormation.mergeOrder;
+		if (s_recentFormation.refused)
+			lead = PLANNER_SKIP_FORMATION;
+		else
+			for (int k = 0; k < n; ++k)
+				if (chars[k] == s_recentFormation.leader) { lead = k; break; }
+	}
+	else
+		s_recentFormation.count = 0;
+	if (MarkRepeats(chars, n, dest, now) == 0 && (sameCommand || !runTogether || mode != PLANNER_ON))
+		return lead;
 	TakeSnapshot();
 	Located goal;
 	if (!Locate(dest, &goal))
 	{
 		DropOrderPlans(chars, n, dest, now, &PlannerCountersGet()->goalUnlocated);
+		if (sameCommand)
+			return lead;
+		if (mode == PLANNER_ON && runTogether && g_plannerCfg.mergeBias > 1)
+		{
+			RememberFormation(chars, n, dest, outdoors, now, PLANNER_SKIP_FORMATION, 0);
+			return PLANNER_SKIP_FORMATION;
+		}
 		return 0;
 	}
 	ClearMemo();
 	PlannerOrderWater(chars, n, s_orderMult, s_orderAcid);
 	PlanSearchParams orderPrices = { s_orderMult[0], s_orderAcid[0] };
-	int lead = MergeOrder(chars, n, goal, dest, orderPrices, s_orderMult, s_orderAcid, destIndoors == NULL ? 1 : 0,
-	                      formationForms, order, now);
+	if (runTogether && !sameCommand)
+	{
+		lead = MergeOrder(chars, n, goal, dest, orderPrices, s_orderMult, s_orderAcid, outdoors, order, now, mergeOrder);
+		if (mode == PLANNER_ON)
+			RememberFormation(chars, n, dest, outdoors, now, lead, *mergeOrder);
+	}
 	for (int k = 0; k < n; ++k)
 	{
 		uintptr_t cm = MovementOf(chars[k]);
@@ -215,9 +281,12 @@ int PlannerNoteOrder(const uintptr_t* chars, int n, const float* location, void*
 	return lead;
 }
 
-void PlannerDrop(uintptr_t character)
+void PlannerDrop(uintptr_t character, bool cancelFormationDecision)
 {
 	if (PlanStoreMode() == PLANNER_OFF) return;
+	if (cancelFormationDecision)
+		for (int k = 0; k < s_recentFormation.count; ++k)
+			if (s_recentFormation.chars[k] == character) { s_recentFormation.count = 0; break; }
 	DropPlan(MovementOf(character), PDW_ORDER);
 }
 

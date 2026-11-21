@@ -9,6 +9,7 @@
 #include "movement/order_outcome.h"
 #include "movement/order_outcome_table.h"
 #include "planner/plan_store.h"
+#include "planner/plan_build.h"
 #include "planner/planner_merge.h"
 #include "movement/formation_follow.h"
 #include "movement/formation_pace.h"
@@ -29,7 +30,7 @@ struct GatherClock
 {
 	double timeout;
 	double startActive;
-	bool   merged;
+	int    mergeOrder;
 	double sendTime[MAX_FORMATION_MEMBERS_LIMIT];
 };
 
@@ -87,23 +88,6 @@ void ClearFormationGroups()
 	FormationPaceClear();
 }
 
-// A run-together order the route planner merged gathers at its gather point, and a member the merge
-// left alone (alone[i] for chars[i]) walks its own route to the destination; *gatherDist receives the
-// merge's farthest route distance to that point. When the planner did not merge this order nothing is
-// written and every member gathers at the leader. Returns whether it merged.
-static bool ReadPlannerMerge(FormationGroup& grp, const uintptr_t* chars, int charCount, unsigned char* alone,
-                             float* gatherDist)
-{
-	float gather[3];
-	int n = charCount < MAX_FORMATION_MEMBERS ? charCount : MAX_FORMATION_MEMBERS;
-	if (!planner::PlannerMergeGather(chars, n, gather, alone, gatherDist))
-		return false;
-	grp.startX = gather[0];
-	grp.startY = gather[1];
-	grp.startZ = gather[2];
-	return true;
-}
-
 // The group's speed in game units per second: the slowest Havok desired speed over the members that
 // gather (CharMovement::update writes a grouped character's every frame, standing or not; Havok speeds
 // are a tenth of a game unit); 0 when none reads positive. Game speed 1, so a faster game only shortens
@@ -119,38 +103,49 @@ static float GatherSpeedOf(uintptr_t cm, float slowest)
 	return (slowest > 0.0f && slowest < v) ? slowest : v;
 }
 
-void CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount)
+bool CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount, int mergeOrder)
 {
 	double now = ElapsedSec();
+	const float destination[3] = {
+		*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_x, 0),
+		*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_y, 4),
+		*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_z, 8)
+	};
+	unsigned char alone[MAX_FORMATION_MEMBERS_LIMIT] = { 0 };
+	float gather[3];
+	float mergeDist = 0.0f;
+	if (mergeOrder && !planner::PlannerMergeGather(mergeOrder, chars, charCount, gather, alone, &mergeDist))
+		return false;
 
-	// Debounce: if a recent group (< 500ms) has exactly this order's member
-	// set (order-independent), update its destination in-place instead of
-	// detach+recreate. Handles drag/shift-click paths where the game fires
-	// many rapid addOrderSelectedCharacters calls for the same selection —
-	// only the final destination matters for arrival scatter. A *different*
-	// set (a subset or a set sharing only some members) falls through to the
-	// normal detach-overlap-then-create path below, so a rapid subset order
-	// doesn't drag the whole squad's destination along with it.
+	// A click burst can reuse the same formation. A new destination or a new
+	// planner decision needs a fresh gather, even for the exact same roster.
 	for (int g = 0; g < MAX_FORMATION_GROUPS; ++g)
 	{
-		if (!formationGroups[g].active)
+		FormationGroup& group = formationGroups[g];
+		if (!group.active || s_gather[g].mergeOrder != mergeOrder ||
+		    (mergeOrder == 0 && now - group.createdTime > 0.5) || group.members[0].character != chars[0])
 			continue;
-		if (now - formationGroups[g].createdTime > 0.5)
+		const float previous[3] = { group.destX, group.destY, group.destZ };
+		if (!planner::PlanRepeatDue(previous, destination, 0.0))
 			continue;
 
 		uintptr_t existingChars[MAX_FORMATION_MEMBERS_LIMIT];
-		for (int m = 0; m < formationGroups[g].count; ++m)
-			existingChars[m] = formationGroups[g].members[m].character;
+		for (int m = 0; m < group.count; ++m)
+			existingChars[m] = group.members[m].character;
 
-		if (FormationSameMemberSet(existingChars, formationGroups[g].count, chars, charCount))
+		if (FormationSameMemberSet(existingChars, group.count, chars, charCount))
 		{
-			formationGroups[g].destX = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_x, 0));
-			formationGroups[g].destY = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_y, 4));
-			formationGroups[g].destZ = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_z, 8));
-			formationGroups[g].createdTime = now;
-			for (int m = 0; m < formationGroups[g].count; ++m)
-				formationGroups[g].members[m].dispatched = false;
-			return;
+			group.destX = destination[0];
+			group.destY = destination[1];
+			group.destZ = destination[2];
+			group.createdTime = now;
+			for (int m = 0; m < group.count; ++m)
+			{
+				group.members[m].dispatched = false;
+				if (!group.gathered)
+					group.members[m].gatherSent = false;
+			}
+			return true;
 		}
 	}
 
@@ -212,9 +207,9 @@ void CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount)
 		slot = oldestSlot;
 
 	FormationGroup& grp = formationGroups[slot];
-	grp.destX = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_x, 0));
-	grp.destY = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_y, 4));
-	grp.destZ = (*(const float*)KLIB_MEMBER(5, dest, Ogre__Vector3_z, 8));
+	grp.destX = destination[0];
+	grp.destY = destination[1];
+	grp.destZ = destination[2];
 	grp.count = 0;
 	grp.createdTime = now;
 	grp.active = true;
@@ -226,15 +221,18 @@ void CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount)
 		grp.gatherRadiusSq = gatherRadius * gatherRadius;
 	}
 
-	// Capture leader position as the gather point
-	grp.startX = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_x, OFF_CHAR_POS_X));
-	grp.startY = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_y, OFF_CHAR_POS_Y));
-	grp.startZ = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_z, OFF_CHAR_POS_Z));
-	unsigned char alone[MAX_FORMATION_MEMBERS_LIMIT] = { 0 };   // the merge's members left alone
-	float mergeDist = 0.0f;
+	if (mergeOrder == 0)
+	{
+		gather[0] = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_x, OFF_CHAR_POS_X));
+		gather[1] = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_y, OFF_CHAR_POS_Y));
+		gather[2] = *(float*)(KLIB_MEMBER(3, chars[0], RootObjectBase_pos_z, OFF_CHAR_POS_Z));
+	}
+	grp.startX = gather[0];
+	grp.startY = gather[1];
+	grp.startZ = gather[2];
 	GatherClock& gc = s_gather[slot];
 	memset(&gc, 0, sizeof(gc));
-	gc.merged = ReadPlannerMerge(grp, chars, charCount, alone, &mergeDist);
+	gc.mergeOrder = mergeOrder;
 	float farthestSq = 0.0f;
 	float speed = 0.0f;
 
@@ -319,6 +317,7 @@ void CreateFormationGroup(const float* dest, uintptr_t* chars, int charCount)
 			ss << " [pre-gathered]";
 		KEO_DETAIL(ss.str());
 	}
+	return true;
 }
 
 
@@ -449,7 +448,7 @@ bool PollFormationTimeout(FormationGroup& grp, PollFormationGroupCtx& c)
 {
 	// Stale timeout; a merged order's group outlives it while a member still walks to the destination.
 	double age = c.now - grp.createdTime;
-	bool merged = s_gather[c.g].merged;
+	bool merged = s_gather[c.g].mergeOrder != 0;
 	int walking = (age > FORMATION_TIMEOUT && merged) ? CountWalkingToDest(grp) : 0;
 	if (FormationTimeoutCancels(age, FORMATION_TIMEOUT, FORMATION_TIMEOUT_CEILING, merged, walking))
 	{
@@ -521,12 +520,12 @@ static int CollectTravelMembers(FormationGroup& grp, int* sendable)
 }
 
 // The route planner re-plans each member the travel send departs from where it stands, before the send.
-static void ResumePlannedMembers(const FormationGroup& grp, const int* sendable, int n, double now)
+static void ResumePlannedMembers(const FormationGroup& grp, const int* sendable, int n, double now, int mergeOrder)
 {
 	uintptr_t gathered[MAX_FORMATION_MEMBERS_LIMIT];
 	for (int i = 0; i < n; ++i)
 		gathered[i] = grp.members[sendable[i]].character;
-	planner::PlannerResumeFromGather(gathered, n, now);
+	planner::PlannerResumeFromGather(mergeOrder, gathered, n, now);
 }
 
 // Sends a member's gather order to pos through playerMoveOrderDefault (vtable+792). The route planner
@@ -632,7 +631,7 @@ bool PollFormationGather(FormationGroup& grp, PollFormationGroupCtx& c)
 
 			int sendable[MAX_FORMATION_MEMBERS_LIMIT];
 			int sendCount = CollectTravelMembers(grp, sendable);
-			ResumePlannedMembers(grp, sendable, sendCount, c.now);
+			ResumePlannedMembers(grp, sendable, sendCount, c.now, s_gather[c.g].mergeOrder);
 			// Send every departing member to the destination
 			int departed = 0;
 			for (int i = 0; i < sendCount; ++i)
