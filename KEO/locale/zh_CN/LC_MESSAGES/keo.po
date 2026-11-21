@@ -523,12 +523,12 @@ msgstr "避免构造存档解析器会立即丢弃的临时字段名。权限检
 
 
 #: src/fixes/fixes_config.cpp
-msgid "Speed up model bone weights"
-msgstr "加速模型骨骼权重准备"
+msgid "Speed up model preparation"
+msgstr "加速模型准备"
 
 #: src/fixes/fixes_config.cpp
-msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
-msgstr "减少导入和准备骨骼模型权重时的CPU开销。绑定顺序和最终权重保持相同。特殊或不受支持的情况保留正常处理。适用于受支持引擎版本中新加载的模型。"
+msgid "Speeds up skeletal weights and triangle connectivity when loading models. Bone weights, assignment order and geometry stay the same. Applies to newly loaded models on supported engine builds."
+msgstr "加速加载模型时的骨骼权重准备和三角形连接读取。骨骼权重、绑定顺序和几何形状保持不变。适用于受支持的引擎版本中新加载的模型。"
 
 msgid "Pathing repairs itself"
 msgstr "自动修复寻路"

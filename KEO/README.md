@@ -67,12 +67,15 @@ and the three bone-processing helpers are documented in the corresponding
 source's `leopard` verification reports; isolated helper ratios are not overall
 loading ratios.
 
-### Bone-weight and index preparation
+### Model weight and topology preparation
 
-**Speed up model bone weights** (`meshWeights`) is ON by default and switches
-live. It covers three independent supported stages: linear native-order weight
-normalization, ordered assignment import without a repeated root search, and
-bone lookup tables collected in a bounded8320-byte local bitset hierarchy.
+**Speed up model preparation** (`meshWeights`) is ON by default and switches
+live. It covers linear native-order weight normalization, ordered assignment
+import without a repeated root search, and bone lookup tables collected in a
+bounded 8320-byte local bitset hierarchy. Supported memory streams also decode
+complete triangle records in one pass. Ogre grows the output arrays and reads
+edge groups. Short reads, other stream types and other byte orders use the
+native triangle reader.
 Weights, equal-index order and sorted bone ranks remain unchanged. Ogre owns
 imported nodes and output-array growth; old table gaps and allocation-error
 partial state are preserved. Unusual weights, unordered imports and unsupported
@@ -202,13 +205,16 @@ KEO и требует кэширования навсетки. Штатные с
 в отчётах `leopard` соответствующих исходников; результаты отдельных функций
 не являются коэффициентами ускорения всей загрузки.
 
-### Подготовка весов и таблиц костей
+### Подготовка весов и топологии моделей
 
-**Ускорять подготовку весов моделей** (`meshWeights`) по умолчанию включено и
-переключается на ходу. Опция объединяет три независимых поддерживаемых этапа:
-линейную нормализацию весов в штатном порядке, импорт упорядоченных привязок
-без повторного поиска от корня и сбор таблиц костей локальной битовой структурой
-размером8320 байт. Веса, порядок одинаковых индексов и ранги костей сохраняются.
+**Ускорять подготовку моделей** (`meshWeights`) по умолчанию включено и
+переключается на ходу. Опция объединяет линейную нормализацию весов в штатном
+порядке, импорт упорядоченных привязок без повторного поиска от корня и сбор
+таблиц костей локальной битовой структурой размером 8320 байт. При загрузке из
+поддерживаемого потока памяти полные записи треугольников читаются за один
+проход. Ogre увеличивает выходные массивы и читает группы рёбер. Частичные
+чтения, другие типы потоков и другой порядок байтов обрабатываются штатно.
+Веса, порядок одинаковых индексов и ранги костей сохраняются.
 Узлами импорта и ростом выходных массивов управляет Ogre; старые промежутки
 таблиц и частичное состояние при ошибке выделения памяти сохранены. Необычные
 веса, неупорядоченный импорт и неподдерживаемые случаи оставляют соответствующий

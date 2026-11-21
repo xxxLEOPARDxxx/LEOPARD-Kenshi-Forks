@@ -50,6 +50,7 @@
 #include "fixes/world/mesh_weights.h"
 #include "fixes/world/bone_import.h"
 #include "fixes/world/bone_index.h"
+#include "fixes/world/edge_triangles.h"
 #include "fixes/world/model_clone_reserve.h"
 #include "fixes/world/material_reserve.h"
 #include "fixes/world/equipment_field_patch.h"
@@ -773,6 +774,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallMeshWeights,
 	InstallBoneImport,
 	InstallBoneIndex,
+	InstallEdgeTriangles,
 	InstallModelCloneReserve,
 	InstallMaterialReserve,
 	InstallEquipmentFieldLookup,

@@ -523,12 +523,12 @@ msgstr "Не создаёт временные имена полей, котор
 
 
 #: src/fixes/fixes_config.cpp
-msgid "Speed up model bone weights"
-msgstr "Ускорять подготовку весов моделей"
+msgid "Speed up model preparation"
+msgstr "Ускорять подготовку моделей"
 
 #: src/fixes/fixes_config.cpp
-msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
-msgstr "Уменьшает затраты CPU на импорт и подготовку весов скелетных моделей. Порядок привязок и итоговые веса сохраняются. Необычные или неподдерживаемые случаи обрабатываются штатно. Применяется к новым загружаемым моделям на поддерживаемых сборках движка."
+msgid "Speeds up skeletal weights and triangle connectivity when loading models. Bone weights, assignment order and geometry stay the same. Applies to newly loaded models on supported engine builds."
+msgstr "Ускоряет подготовку весов костей и чтение связей между треугольниками при загрузке моделей. Веса костей, порядок привязок и геометрия остаются прежними. Действует для новых моделей на поддерживаемых сборках движка."
 
 msgid "Pathing repairs itself"
 msgstr "Автовосстановление путей"

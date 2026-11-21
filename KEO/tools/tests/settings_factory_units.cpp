@@ -107,7 +107,7 @@ static void CheckSections()
 	      && render[1]->label == "Reuse held animation lock"
 	      && render[2]->label == "Avoid repeated animation state searches"
 	      && render[3]->label == "Prepare NPC skeleton storage"
-	      && render[4]->label == "Speed up model bone weights"
+	      && render[4]->label == "Speed up model preparation"
 	      && render[5]->label == "Prepare model storage"
 	      && render[6]->label == "Prepare copied material storage"
 	      && render[7]->label == "Speed up equipment property reads"

@@ -523,12 +523,12 @@ msgstr "Avoids constructing temporary field names that the save parser would imm
 
 
 #: src/fixes/fixes_config.cpp
-msgid "Speed up model bone weights"
-msgstr "Speed up model bone weights"
+msgid "Speed up model preparation"
+msgstr "Speed up model preparation"
 
 #: src/fixes/fixes_config.cpp
-msgid "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
-msgstr "Reduces CPU work while importing and preparing skeletal model weights. Preserves assignment order and resulting weights. Unusual or unsupported cases keep normal handling. Applies to newly loaded models on supported engine builds."
+msgid "Speeds up skeletal weights and triangle connectivity when loading models. Bone weights, assignment order and geometry stay the same. Applies to newly loaded models on supported engine builds."
+msgstr "Speeds up skeletal weights and triangle connectivity when loading models. Bone weights, assignment order and geometry stay the same. Applies to newly loaded models on supported engine builds."
 
 msgid "Pathing repairs itself"
 msgstr "Pathing repairs itself"
