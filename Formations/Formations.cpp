@@ -35,6 +35,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <StartupHookBatch.h>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -1071,13 +1072,27 @@ __declspec(dllexport) void startPlugin()
     }
     CH_playerMoveOrderDefault = (CH_playerMove_t)Real(GetProcAddress(kl, "?playerMoveOrderDefault@Character@@UEAAXPEAVBuilding@@PEAVRootObject@@AEBVVector3@Ogre@@@Z"));
     LogAvailability(CH_playerMoveOrderDefault != nullptr, "Character::playerMoveOrderDefault", "using Character::addJob");
-    Hook("PlayerInterface::playerMove", GetProcAddress(kl, "?playerMove@PlayerInterface@@QEAAXAEBVVector3@Ogre@@PEAVBuilding@@@Z"), (void*)&hook_playerMove, (void**)&orig_playerMove);
     CAM_getDerivedPos = ogre ? (camDerivedPos_t)GetProcAddress(ogre, "?getDerivedPosition@Camera@Ogre@@QEBAAEBVVector3@2@XZ") : 0;
     LogAvailability(CAM_getDerivedPos != nullptr, "Camera::getDerivedPosition", "cannot convert camera rays to world positions");
-    if (ogre)
+
+    StartupHooks::Hook observers[] = {
+        StartupHooks::Hook(Real(reinterpret_cast<void*>(GetProcAddress(
+                               kl, "?playerMove@PlayerInterface@@QEAAXAEBVVector3@Ogre@@PEAVBuilding@@@Z"))),
+                           &hook_playerMove, &orig_playerMove, "PlayerInterface::playerMove"),
+        StartupHooks::Hook(ogre ? GetProcAddress(ogre, "?getCameraToViewportRay@Camera@Ogre@@QEBA?AVRay@2@MM@Z") : nullptr,
+                           &hook_camRayVal, &orig_camRayVal, "Camera::getCameraToViewportRay (val)", ogre != nullptr),
+        StartupHooks::Hook(ogre ? GetProcAddress(ogre, "?getCameraToViewportRay@Camera@Ogre@@QEBAXMMPEAVRay@2@@Z") : nullptr,
+                           &hook_camRayOut, &orig_camRayOut, "Camera::getCameraToViewportRay (out)", ogre != nullptr)
+    };
+    StartupHooks::Install(observers, [](void* target, void* detour, void** original) {
+        return KL_AddHook(target, detour, original) == 0;
+    });
+    for (const StartupHooks::Hook& hook : observers)
     {
-        Hook("Camera::getCameraToViewportRay (val)", GetProcAddress(ogre, "?getCameraToViewportRay@Camera@Ogre@@QEBA?AVRay@2@MM@Z"), (void*)&hook_camRayVal, (void**)&orig_camRayVal);
-        Hook("Camera::getCameraToViewportRay (out)", GetProcAddress(ogre, "?getCameraToViewportRay@Camera@Ogre@@QEBAXMMPEAVRay@2@@Z"), (void*)&hook_camRayOut, (void**)&orig_camRayOut);
+        if (!hook.enabled) continue;
+        if (hook.installed) Log("  %-34s hooked", hook.name);
+        else if (!hook.target) ErrorLog("  %-34s NOT FOUND", hook.name);
+        else ErrorLog("  %-34s installation unconfirmed", hook.name);
     }
     UT_terrainHeight = (terrainH_t)Real(GetProcAddress(kl, "?getTerrainHeight@UtilityT@@SAMMM@Z"));
     GW_getCameraPos = (GW_getCameraPos_t)Real(GetProcAddress(kl, "?getCameraPos@GameWorld@@QEBA?BVVector3@Ogre@@XZ"));
