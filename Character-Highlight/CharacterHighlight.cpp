@@ -55,6 +55,7 @@
 #include <kenshi/StateBroadcastData.h>
 #include <kenshi/gui/ForgottenGUI.h>
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 #include <ogre/OgreMaterial.h>
 #include <ogre/OgreTechnique.h>
 #include <ogre/OgreEntity.h>
@@ -860,8 +861,15 @@ __declspec(dllexport) void startPlugin()
         ErrorLog("Character Highlight: could not install character-cursor hook");
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(KenshiLib::GetRealAddress(&GameWorld::_NV_mainLoop_GPUSensitiveStuff), &GameWorld__mainLoop_GPUSensitiveStuff_hook, &GameWorld__mainLoop_GPUSensitiveStuff_orig))
         ErrorLog("Character Highlight: could not install hook!");
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(KenshiLib::GetRealAddress(&GameWorld::removeFromUpdateListMain), &GameWorld_removeFromUpdateListMain_hook, &GameWorld_removeFromUpdateListMain_orig))
-        ErrorLog("Character Highlight: could not install hook!");
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(KenshiLib::GetRealAddress(&RenderToTextureotron::renderCharacter), &RenderToTextureotron_renderCharacter_hook, &RenderToTextureotron_renderCharacter_orig))
-        ErrorLog("Character Highlight: could not install hook!");
+    StartupHooks::Hook tintObservers[] = {
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&GameWorld::removeFromUpdateListMain), GameWorld_removeFromUpdateListMain_hook, &GameWorld_removeFromUpdateListMain_orig),
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&RenderToTextureotron::renderCharacter), RenderToTextureotron_renderCharacter_hook, &RenderToTextureotron_renderCharacter_orig)
+    };
+    StartupHooks::Install(tintObservers, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (!tintObservers[0].installed)
+        ErrorLog("Character Highlight: could not confirm update-list removal hook");
+    if (!tintObservers[1].installed)
+        ErrorLog("Character Highlight: could not confirm portrait hook");
 }

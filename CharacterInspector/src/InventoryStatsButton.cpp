@@ -11,6 +11,7 @@
 #include <Debug.h>
 #include <PluginDiagnostics.h>
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 
 #pragma warning(push)
 #pragma warning(disable: 4091)
@@ -626,40 +627,24 @@ namespace InventoryStatsButton
         }
         PluginDiagnostics::Write("Character Inspector: hooked InventoryGUI::_NV_update");
 
-        if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(&ForgottenGUI::update),
-                ForgottenGUI_update_hook,
-                &ForgottenGUI_update_orig))
+        StartupHooks::Hook windowObservers[] = {
+            StartupHooks::Hook(KenshiLib::GetRealAddress(&ForgottenGUI::update),
+                ForgottenGUI_update_hook, &ForgottenGUI_update_orig, "ForgottenGUI::update"),
+            StartupHooks::Hook(KenshiLib::GetRealAddress(&ForgottenGUI::closeAllInventories),
+                ForgottenGUI_closeAllInventories_hook, &ForgottenGUI_closeAllInventories_orig, "ForgottenGUI::closeAllInventories"),
+            StartupHooks::Hook(KenshiLib::GetRealAddress(&ForgottenGUI::closeAllWindows),
+                ForgottenGUI_closeAllWindows_hook, &ForgottenGUI_closeAllWindows_orig, "ForgottenGUI::closeAllWindows")
+        };
+        StartupHooks::Install(windowObservers, [](void* target, void* detour, void** original) {
+            return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+        });
+        for (size_t i = 0; i < sizeof(windowObservers) / sizeof(windowObservers[0]); ++i)
         {
-            ErrorLog("Character Inspector: failed to hook ForgottenGUI::update");
-        }
-        else
-        {
-            PluginDiagnostics::Write("Character Inspector: hooked ForgottenGUI::update");
-        }
-
-        if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(&ForgottenGUI::closeAllInventories),
-                ForgottenGUI_closeAllInventories_hook,
-                &ForgottenGUI_closeAllInventories_orig))
-        {
-            ErrorLog("Character Inspector: failed to hook ForgottenGUI::closeAllInventories");
-        }
-        else
-        {
-            PluginDiagnostics::Write("Character Inspector: hooked ForgottenGUI::closeAllInventories");
-        }
-
-        if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-                KenshiLib::GetRealAddress(&ForgottenGUI::closeAllWindows),
-                ForgottenGUI_closeAllWindows_hook,
-                &ForgottenGUI_closeAllWindows_orig))
-        {
-            ErrorLog("Character Inspector: failed to hook ForgottenGUI::closeAllWindows");
-        }
-        else
-        {
-            PluginDiagnostics::Write("Character Inspector: hooked ForgottenGUI::closeAllWindows");
+            const StartupHooks::Hook& observer = windowObservers[i];
+            if (observer.installed)
+                PluginDiagnostics::Write(std::string("Character Inspector: hooked ") + observer.name);
+            else
+                ErrorLog(std::string("Character Inspector: could not confirm hook ") + observer.name);
         }
 
         return true;
