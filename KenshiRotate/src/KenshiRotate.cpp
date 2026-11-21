@@ -5,6 +5,7 @@
 #include <Debug.h>
 #include <PluginDiagnostics.h>
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 
 #pragma warning(push)
 #pragma warning(disable: 4091) // '__declspec(dllimport)' ignored (BaseLayout.h)
@@ -685,12 +686,33 @@ void Item_loadInv_hook(Item* thisptr, GameDataContainer* container, GameData* st
 	}
 }
 
+static void ReportStartupHook(const char* name, bool installed)
+{
+	if (installed)
+		PluginDiagnostics::Write((std::string("[KenshiRotate] Hooked ") + name + " OK").c_str());
+	else
+	{
+		ErrorLog((std::string("[KenshiRotate] Failed to hook ") + name).c_str());
+		g_failedHookNames.push_back(name);
+	}
+}
+
 __declspec(dllexport) void startPlugin()
 {
 	PluginDiagnostics::Write("[KenshiRotate] Starting plugin...");
 
 	DetectLanguage();
 	RotateSettings::Init();
+
+	StartupHooks::Hook cleanup[] = {
+		StartupHooks::Hook(KenshiLib::GetRealAddress(&ItemAccess::_DESTRUCTOR), Item_destroy_hook, &Item_destroy_orig),
+		StartupHooks::Hook(KenshiLib::GetRealAddress(&InventoryIcon::_DESTRUCTOR), InventoryIcon_destroy_hook, &InventoryIcon_destroy_orig)
+	};
+	StartupHooks::Install(cleanup, [](void* target, void* detour, void** original) {
+		return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+	});
+	ReportStartupHook("Item::_DESTRUCTOR", cleanup[0].installed);
+	ReportStartupHook("InventoryIcon::_DESTRUCTOR", cleanup[1].installed);
 
 	// okFlag records the hooks required for rotation or a scoped merge policy.
 	struct HookEntry
@@ -711,8 +733,6 @@ __declspec(dllexport) void startPlugin()
 
 	HookEntry hooks[] =
 	{
-		HOOK_ENTRY("Item::_DESTRUCTOR",                      ItemAccess::_DESTRUCTOR,                        Item_destroy_hook,                  Item_destroy_orig,                  NULL),
-		HOOK_ENTRY("InventoryIcon::_DESTRUCTOR",             InventoryIcon::_DESTRUCTOR,                      InventoryIcon_destroy_hook,         InventoryIcon_destroy_orig,         NULL),
 		HOOK_ENTRY("InventoryGUI::_NV_update",                InventoryGUI::_NV_update,                       InventoryGUI_update_hook,          InventoryGUI_update_orig,          NULL),
 		HOOK_ENTRY("InventoryIcon::_CONSTRUCTOR",             InventoryIcon::_CONSTRUCTOR,                    InventoryIcon_ctor_hook,           InventoryIcon_ctor_orig,           NULL),
 		HOOK_ENTRY("InventorySectionGUI::getBestPositionSlot", InventorySectionGUI::getBestPositionSlot,      getBestPositionSlot_hook,          getBestPositionSlot_orig,          NULL),
@@ -731,17 +751,10 @@ __declspec(dllexport) void startPlugin()
 	for (size_t i = 0; i < hookCount; ++i)
 	{
 		const HookEntry& h = hooks[i];
-		if (KenshiLib::SUCCESS != KenshiLib::AddHook(h.realAddr, h.detour, h.origStore))
-		{
-			ErrorLog((std::string("[KenshiRotate] Failed to hook ") + h.name).c_str());
-			g_failedHookNames.push_back(h.name);
-		}
-		else
-		{
-			PluginDiagnostics::Write((std::string("[KenshiRotate] Hooked ") + h.name + " OK").c_str());
-			if (h.okFlag)
-				*h.okFlag = true;
-		}
+		const bool installed = KenshiLib::AddHook(h.realAddr, h.detour, h.origStore) == KenshiLib::SUCCESS;
+		ReportStartupHook(h.name, installed);
+		if (installed && h.okFlag)
+			*h.okFlag = true;
 	}
 
 	// TryRotateItem / TryRotateCursorItem / KenshiRotate_CanRotate each refuse
