@@ -139,9 +139,7 @@ static bool IndependentRow(HookRowId id){
      ||id==HOOK_ACTIVEPLATOON_CALC_POS||id==HOOK_FACTION_RELATIONS_UPDATE
      ||id==HOOK_GRAPH_POSITION_LOOKUP||id==HOOK_NAVMESH_FACE_AABB
      ||id==HOOK_SPEED_GROUP_GET_SPEED||id==HOOK_SCORE_FIND_FOOD_ON_GROUND
-     ||id==HOOK_RESET_UNLOAD_ZONES||id==HOOK_PROCESS_LOADING
-     ||id==HOOK_STOP_CHARACTERS_MOVEMENT||id==HOOK_ADD_JOB_SELECTED
-     ||id==HOOK_ADD_TASK_NEAREST;
+     ||id==HOOK_RESET_UNLOAD_ZONES||id==HOOK_PROCESS_LOADING;
 }
 
 bool BeginNativeHookBatch(HookBatch& batch){
@@ -174,16 +172,6 @@ static bool BeginIndependentHooks(){
 static void IndependentComplete(int row,const char*why){
  if(!why){InterlockedExchange(&s_installed[row],1);if(s_independentCount)++*s_independentCount;}
  if(s_independentDone[row])s_independentDone[row](why);
-}
-
-bool QueueStartupAuxHook(StartupAuxHookId id, void* target, void* detour,
-                         void** original, StartupAuxHookCompletion done)
-{
-	if (!s_independentPhase)
-		return false;
-	if (!s_independentBatch.Add(id, target, detour, original, done))
-		done(id, "batch-admission");
-	return true;
 }
 
 struct IndependentStartupScope {
@@ -392,34 +380,41 @@ static void InstallIslandHooks(int* installed, int*)
 // character task orders): each forwards to the original, then drops the
 // cancelled characters' tracked orders (islands.cpp). All three rows are
 // diagnostic (hook_manifest_rows.inc): a mismatch refuses that hook alone, and
-// the installed flags are published after the queue applies. They only observe
-// PlayerInterface calls, and no subsequent startup installer needs their state.
-template <HookRowId Row>
-static void CancelHookComplete(const char* why)
-{
-	if (why)
-		LogError(std::string("Island cancel: ") + g_hookPrologues[Row].name
-		         + " hook unconfirmed (" + why + ")");
-}
-
+// IslandSetCancelHooksInstalled tells the caller which ones it has. Independent of
+// preloadEnabled: they only observe PlayerInterface calls.
 static void InstallCancelHooks(int* installed, int*)
 {
-	HookInstallIndependent(HOOK_STOP_CHARACTERS_MOVEMENT, hook_stopCharactersMovement,
-	                       &game::g_hookOrig.orig_stopCharactersMovement, installed, true,
-	                       CancelHookComplete<HOOK_STOP_CHARACTERS_MOVEMENT>);
-	HookInstallIndependent(HOOK_ADD_JOB_SELECTED, hook_addJobSelected,
-	                       &game::g_hookOrig.orig_addJobSelected, installed, true,
-	                       CancelHookComplete<HOOK_ADD_JOB_SELECTED>);
-	HookInstallIndependent(HOOK_ADD_TASK_NEAREST, hook_addTaskNearest,
-	                       &game::g_hookOrig.orig_addTaskNearest, installed, true,
-	                       CancelHookComplete<HOOK_ADD_TASK_NEAREST>);
-}
+	bool stopOk = false;
+	bool jobOk = false;
+	bool taskOk = false;
 
-static void FinalizeCancelHooks()
-{
-	const bool stopOk = HookRowInstalled(HOOK_STOP_CHARACTERS_MOVEMENT);
-	const bool jobOk = HookRowInstalled(HOOK_ADD_JOB_SELECTED);
-	const bool taskOk = HookRowInstalled(HOOK_ADD_TASK_NEAREST);
+	if (HookInstall(HOOK_STOP_CHARACTERS_MOVEMENT, hook_stopCharactersMovement,
+			&game::g_hookOrig.orig_stopCharactersMovement, installed, true) == NULL)
+		stopOk = true;
+	else
+	{
+		game::g_hookOrig.orig_stopCharactersMovement = NULL;
+		LogError("FAILED to hook PlayerInterface::stopCharactersMovement (island cancel)");
+	}
+
+	if (HookInstall(HOOK_ADD_JOB_SELECTED, hook_addJobSelected,
+			&game::g_hookOrig.orig_addJobSelected, installed, true) == NULL)
+		jobOk = true;
+	else
+	{
+		game::g_hookOrig.orig_addJobSelected = NULL;
+		LogError("FAILED to hook PlayerInterface::addJobSelectedCharacters (island cancel)");
+	}
+
+	if (HookInstall(HOOK_ADD_TASK_NEAREST, hook_addTaskNearest,
+			&game::g_hookOrig.orig_addTaskNearest, installed, true) == NULL)
+		taskOk = true;
+	else
+	{
+		game::g_hookOrig.orig_addTaskNearest = NULL;
+		LogError("FAILED to hook PlayerInterface::addTaskNearestSelectedCharacter (island cancel)");
+	}
+
 	IslandSetCancelHooksInstalled(stopOk, jobOk, taskOk);
 
 	std::ostringstream cs;
@@ -872,7 +867,6 @@ void InstallHooks(int* installed, int* total)
 	for (size_t i = 0; i < sizeof(kInstallSteps) / sizeof(kInstallSteps[0]); ++i)
 		kInstallSteps[i](installed, total);
 	independentScope.Finish();
-	FinalizeCancelHooks();
 	// The enqueue observer installs after submit and is otherwise diagnostic.
 	PathPriorityFinalize(HookRowInstalled(HOOK_REQUEST_PATH),HookRowInstalled(HOOK_PATH_REQ_SUBMIT),
 		HookRowInstalled(HOOK_ENQUEUE_THREAD_SAFE),game::g_hookOrig.orig_requestPath && game::g_hookOrig.orig_pathReqSubmit && orig_enqueueThreadSafe);

@@ -12,7 +12,6 @@
 #include <cstddef>
 #include <string>
 #include <stdexcept>
-#include "plugin/hook_manifest.h"
 static unsigned checks=0;
 #define C(x) do{++checks;if(!(x)){printf("CHECK line%d %s\n",__LINE__,#x);return 1;}}while(0)
 typedef int(*SdkAdd)(void*,void*,void**);static SdkAdd sdkAdd=NULL;
@@ -27,13 +26,6 @@ namespace fixes{struct Config{bool materialReserveEnabled;};Config g_fixesCfg={t
 static void LogError(const std::string&){++errors;if(throwLog)throw std::runtime_error("logger");}
 #define KEO_DETAIL(x) ((void)0)
 static bool fakeHooks=false;static unsigned hookCalls=0;static int fakeStatus=0;static void*fakeOriginal=NULL;
-static bool useQueue=false;
-static StartupAuxHookCompletion queuedDone=NULL;
-static void** queuedOriginal=NULL;
-bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
- if(!useQueue||id!=STARTUP_AUX_MATERIAL_RESERVE)return false;
- queuedDone=done;queuedOriginal=original;return true;
-}
 namespace KenshiLib{enum Status{SUCCESS,FAILURE};Status AddHook(void*t,void*h,void**out){++hookCalls;if(fakeHooks){*out=fakeOriginal;return (Status)fakeStatus;}return (Status)sdkAdd(t,h,out);}}
 bool ReadModuleImageId(HMODULE m,DWORD*stamp,DWORD*size){const IMAGE_DOS_HEADER*d=(const IMAGE_DOS_HEADER*)m;if(d->e_magic!=IMAGE_DOS_SIGNATURE||d->e_lfanew<0||d->e_lfanew>1024*1024)return false;const IMAGE_NT_HEADERS64*n=(const IMAGE_NT_HEADERS64*)((const char*)m+d->e_lfanew);if(n->Signature!=IMAGE_NT_SIGNATURE||n->FileHeader.Machine!=IMAGE_FILE_MACHINE_AMD64)return false;*stamp=n->FileHeader.TimeDateStamp;*size=n->OptionalHeader.SizeOfImage;return true;}
 static bool nestedInject=false;static Ogre::Pass*nestedSource=NULL;static Ogre::Technique*nestedParent=NULL;static unsigned nestedUnits=0;
@@ -108,16 +100,6 @@ int main(){setvbuf(stdout,NULL,_IONBF,0);C(InitSdk()==0);Ogre::Root root("","","
  fakeSymbolFault=true;C(material_reserve::Admit(fakeModule)==NULL);fakeSymbolFault=false;
  fakeHooks=true;useFakeModule=true;for(unsigned mode=0;mode<4;++mode){material_reserve::tried=material_reserve::admitted=false;material_reserve::original=NULL;hookCalls=0;fakeStatus=mode&1;fakeOriginal=mode&2?NULL:(void*)ForwardAssign;
   material_reserve::Install(NULL,NULL);C(hookCalls==1);C((void*)material_reserve::original==fakeOriginal);C(material_reserve::admitted==(mode==0));material_reserve::Install(NULL,NULL);C(hookCalls==1);if(fakeOriginal){unsigned before=forwards,prepared=reserveCalls;C(material_reserve::Assign(NULL,NULL)==(void*)0x123456);C(forwards==before+1&&reserveCalls==prepared);}}
- useQueue=true;
- for(unsigned mode=0;mode<2;++mode){
-  material_reserve::tried=material_reserve::admitted=false;queuedDone=NULL;hookCalls=0;
-  material_reserve::Install(NULL,NULL);C(queuedDone&&hookCalls==0&&!material_reserve::admitted);
-  *queuedOriginal=(void*)&ForwardAssign;
-  queuedDone(STARTUP_AUX_MATERIAL_RESERVE,mode?"batch-apply":NULL);
-  C(material_reserve::admitted==(mode==0)&&material_reserve::original==ForwardAssign);
-  C(material_reserve::Assign(NULL,NULL)==(void*)0x123456);
- }
- useQueue=false;
  fakeHooks=useFakeModule=false;VirtualFree(fakeModule,0,MEM_RELEASE);fakeModule=NULL;material_reserve::tried=material_reserve::admitted=false;material_reserve::original=NULL;material_reserve::Install(NULL,NULL);C(material_reserve::admitted&&material_reserve::original!=NULL);
  C(sdkAdd((char*)ogre+0x37a690,(void*)&TextureCopy,(void**)&originalTextureCtor)==0);
  static const unsigned char freePrefix[]={0x48,0x85,0xd2,0x0f,0x84,0x27,0x01,0x00,0x00,0x48,0x89,0x4c,0x24,0x08,0x53,0x57,0x48,0x83,0xec,0x28};C(memcmp((char*)ogre+0x1a1340,freePrefix,sizeof(freePrefix))==0);

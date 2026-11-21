@@ -5,7 +5,6 @@
 #include "render/module_hooks.h"
 #endif
 #include "fixes/world/bone_import.h"
-#include "plugin/hook_manifest.h"
 #include <ogre/OgreSubMesh.h>
 #include <cstddef>
 #include <cstring>
@@ -36,21 +35,14 @@ static void*Admit(HMODULE module){
   return target;
  }__except(EXCEPTION_EXECUTE_HANDLER){return NULL;}
 }
-#if !defined(KEO_BONE_IMPORT_TEST) || defined(KEO_BONE_IMPORT_INIT_TEST)
-static void CompleteInstall(int,const char* why){
- if(why||!original){
-  LogError(std::string("Bone assignment import: hook failed (")+(why?why:"original")+"); original import retained");return;
- }
- admitted=true;KEO_DETAIL("Bone assignment import: current-end native insertion admitted for ordered records");
-}
-
+#ifndef KEO_BONE_IMPORT_TEST
 static void Install(){
  if(tried)return;tried=true;HMODULE module=GetModuleHandleA("OgreMain_x64.dll");void*target=Admit(module);
  if(!target){LogError("Bone assignment import: native method/layout contract refused; original import retained");return;}
  allocate=(bone_import::Allocate)((char*)module+0x1bb050);link=(bone_import::Link)((char*)module+0x1ba270);
- if(QueueStartupAuxHook(STARTUP_AUX_BONE_IMPORT,target,(void*)&Import,(void**)&original,CompleteInstall))return;
- const bool installed=KenshiLib::AddHook(target,(void*)&Import,(void**)&original)==KenshiLib::SUCCESS;
- CompleteInstall(STARTUP_AUX_BONE_IMPORT,installed?NULL:"hook");
+ // Preserve a published trampoline even if the SDK reports an install failure.
+ if(KenshiLib::AddHook(target,(void*)&Import,(void**)&original)!=KenshiLib::SUCCESS||!original){LogError("Bone assignment import: hook failed; original import retained");return;}
+ admitted=true;KEO_DETAIL("Bone assignment import: current-end native insertion admitted for ordered records");
 }
 #endif
 }

@@ -22,16 +22,6 @@ typedef int(*SdkAdd)(void*,void*,void**);static SdkAdd sdkAdd=NULL;
 #include <ogre/OgreSceneManager.h>
 #include <ogre/OgreEntity.h>
 #include <stdexcept>
-#include "plugin/hook_manifest.h"
-static bool useQueue=false;
-static unsigned queued=0;
-static StartupAuxHookCompletion queuedDone[2]={};
-static void** queuedOriginal[2]={};
-bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
- if(!useQueue)return false;
- if((queued==0&&id!=STARTUP_AUX_MORPH_POSE)||(queued==1&&id!=STARTUP_AUX_MORPH_POSE_CLEANUP)||queued>=2)return false;
- queuedDone[queued]=done;queuedOriginal[queued++]=original;return true;
-}
 static bool owner=true,verifiedGog=false;static unsigned errors=0;
 bool NativeProfileIsGog(){return verifiedGog;}
 bool IsMainThread();
@@ -136,22 +126,6 @@ static int AdmissionCases(HMODULE ogre){
   morph_pose_scope::Install(NULL,NULL);C(morph_pose_scope::tried&&morph_pose_scope::admitted==(fault==0));C(morph_pose_scope::cloneReady&&morph_pose_scope::createReady);C(hookCalls==((fault==1||fault==3)?1u:2u));
   if(fault==1||fault==2)C(morph_pose_scope::originalPose!=NULL);if(fault==2)C(morph_pose_scope::originalRemove!=NULL);unsigned before=hookCalls;morph_pose_scope::Install(NULL,NULL);C(before==hookCalls);
  }
- useQueue=true;
- for(unsigned fault=0;fault<4;++fault){
-  morph_pose_scope::tried=morph_pose_scope::admitted=false;
-  morph_pose_scope::originalPose=NULL;morph_pose_scope::originalRemove=NULL;
-  queued=hookCalls=0;
-  morph_pose_scope::Install(NULL,NULL);
-  C(queued==2&&hookCalls==0&&!morph_pose_scope::admitted&&!morph_pose_scope::Ready());
-  *queuedOriginal[0]=(void*)&DummyPose;
-  *queuedOriginal[1]=(void*)&DummyRemove;
-  queuedDone[0](STARTUP_AUX_MORPH_POSE,fault&1?"batch-apply":NULL);
-  C(!morph_pose_scope::admitted&&!morph_pose_scope::Ready());
-  queuedDone[1](STARTUP_AUX_MORPH_POSE_CLEANUP,fault&2?"batch-apply":NULL);
-  C(morph_pose_scope::admitted==(fault==0)&&morph_pose_scope::Ready()==(fault==0));
-  C(morph_pose_scope::originalPose==&DummyPose&&morph_pose_scope::originalRemove==&DummyRemove);
- }
- useQueue=false;
  fakeHooks=false;failHook=nullHook=hookCalls=0;morph_pose_scope::tried=morph_pose_scope::admitted=false;morph_pose_scope::originalPose=NULL;morph_pose_scope::originalRemove=NULL;return 0;
 }
 typedef void*(*ManagerCreate)(void*,void*,const void*,const void*,void*);

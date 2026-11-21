@@ -1,5 +1,4 @@
 #include "fixes/world/material_reserve.h"
-#include "plugin/hook_manifest.h"
 #include <windows.h>
 #include <intrin.h>
 #include <cstddef>
@@ -71,21 +70,16 @@ static void*Admit(HMODULE module){
   return target;
  }__except(EXCEPTION_EXECUTE_HANDLER){return NULL;}
 }
-static void CompleteInstall(int,const char* why){
- // A failed enable may still publish a trampoline. Keep it for forwarding;
- // no preparation is admitted unless installation and original both succeed.
- if(why||!original){
-  LogError(std::string("Material preparation: hook failed (")+(why?why:"original")+"); native copying retained");return;
- }
- admitted=true;KEO_DETAIL("Material preparation: bounded native copy-constructor storage admitted");
-}
 void Install(int*,int*){
  if(tried)return;tried=true;HMODULE module=KEO_MATERIAL_MODULE();void*target=Admit(module);
  if(!target){LogError("Material preparation: native copy contract refused; native copying retained");return;}
  moduleBase=(uintptr_t)module;
- if(QueueStartupAuxHook(STARTUP_AUX_MATERIAL_RESERVE,target,(void*)&Assign,(void**)&original,CompleteInstall))return;
- const bool installed=KenshiLib::AddHook(target,(void*)&Assign,(void**)&original)==KenshiLib::SUCCESS;
- CompleteInstall(STARTUP_AUX_MATERIAL_RESERVE,installed?NULL:"hook");
+ // A failed enable may still publish a trampoline. Keep it for forwarding;
+ // no preparation is admitted unless installation and original both succeed.
+ if(KenshiLib::AddHook(target,(void*)&Assign,(void**)&original)!=KenshiLib::SUCCESS||!original){
+  LogError("Material preparation: hook failed; native copying retained");return;
+ }
+ admitted=true;KEO_DETAIL("Material preparation: bounded native copy-constructor storage admitted");
 }
 }
 void InstallMaterialReserve(int*installed,int*total){material_reserve::Install(installed,total);}

@@ -7,21 +7,12 @@
 #include <cstdlib>
 #include <stdexcept>
 #include "save_gog_test_fixture.h"
-#include "plugin/hook_manifest.h"
 static bool countAlloc=false,failAlloc=false;
 static unsigned allocations=0,deallocations=0,checks=0,forwards=0;
 void*operator new(size_t n){if(countAlloc){++allocations;if(failAlloc)throw std::bad_alloc();}void*p=malloc(n?n:1);if(!p)throw std::bad_alloc();return p;}
 void operator delete(void*p){if(p&&countAlloc)++deallocations;free(p);}
 static bool owner=true;static uintptr_t caller=0;
 static HMODULE module=NULL;static unsigned hooks=0,errors=0;static int hookStatus=0;static bool nullOriginal=false;
-static bool queueStartup=false;
-static unsigned queued=0;
-static StartupAuxHookCompletion queuedDone=NULL;
-static void** queuedOriginal=NULL;
-bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
- if(!queueStartup||id!=STARTUP_AUX_SAVE_STRING_TRANSFER)return false;
- ++queued;queuedDone=done;queuedOriginal=original;return true;
-}
 bool IsMainThread(){return owner;}
 namespace fixes{struct Config{bool saveStringTransferEnabled;};Config g_fixesCfg={true};}
 static void LogError(const std::string&){++errors;}
@@ -106,19 +97,6 @@ int main(){
  C(save_string_transfer::Admit(module));
  for(size_t i=0;i<sizeof(save_string_transfer::proofs)/sizeof(save_string_transfer::proofs[0]);++i){const save_string_transfer::Proof&p=save_string_transfer::proofs[i];((char*)module)[p.rva]^=1;C(!save_string_transfer::Admit(module));((char*)module)[p.rva]^=1;}
  for(unsigned mode=0;mode<3;++mode){save_string_transfer::tried=save_string_transfer::admitted=false;hookStatus=mode==1?1:0;nullOriginal=mode==2;hooks=errors=0;save_string_transfer::Install(NULL,NULL);C(hooks==1&&save_string_transfer::admitted==(mode==0)&&errors==(mode==0?0u:1u));save_string_transfer::Install(NULL,NULL);C(hooks==1);}
- queueStartup=true;
- for(unsigned mode=0;mode<3;++mode){
-  save_string_transfer::tried=save_string_transfer::admitted=false;save_string_transfer::original=NULL;queued=hooks=errors=0;
-  save_string_transfer::Install(NULL,NULL);
-  C(queued==1&&hooks==0&&!save_string_transfer::admitted);
-  if(mode!=2)*queuedOriginal=reinterpret_cast<void*>(&Native);
-  queuedDone(STARTUP_AUX_SAVE_STRING_TRANSFER,mode==1?"batch-apply":NULL);
-  C(save_string_transfer::admitted==(mode==0)&&errors==(mode==0?0u:1u));
-  C(save_string_transfer::original==(mode==2?NULL:Native));
-  save_string_transfer::Install(NULL,NULL);
-  C(queued==1&&hooks==0);
- }
- queueStartup=false;
  VirtualFree(module,0,MEM_RELEASE);module=NULL;save_string_transfer::tried=save_string_transfer::admitted=false;hooks=errors=0;save_string_transfer::Install(NULL,NULL);C(hooks==0&&errors==1&&!save_string_transfer::admitted);
 #endif
  printf("PASS %u native-CRT save string checks; no game execution\n",checks);return 0;

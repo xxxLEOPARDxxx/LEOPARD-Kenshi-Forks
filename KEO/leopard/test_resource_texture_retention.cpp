@@ -12,30 +12,6 @@
 #include <ogre/OgreHardwarePixelBuffer.h>
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_gpu_store.h"
-#include "plugin/independent_hook_batch.h"
-static unsigned installQueueCalls=0,installApplyCalls=0,installImmediateCalls=0,installErrors=0;
-static int installQueueFailure=-1,installMissingOriginal=-1,installApplyResult=0;
-static bool installBatchAvailable=true;
-static void* installOriginals[2]={NULL,NULL};
-static void* installTargets[2]={NULL,NULL};
-static int QueueTextureHook(size_t,void* target,void*,void** original){
-    const int i=target==installTargets[0]?0:1;
-    ++installQueueCalls;
-    *original=i==installMissingOriginal?NULL:installOriginals[i];
-    return i==installQueueFailure?1:0;
-}
-static int ApplyTextureHooks(size_t){++installApplyCalls;return installApplyResult;}
-bool BeginNativeHookBatch(HookBatch& batch){return installBatchAvailable&&batch.Begin(1,QueueTextureHook,ApplyTextureHooks);}
-void FinishNativeHookBatch(HookBatch& batch){batch.Finish();}
-namespace KenshiLib {
-enum Status{SUCCESS};
-static Status AddHook(void* target,void*,void** original){
-    ++installImmediateCalls;
-    *original=installOriginals[target==installTargets[0]?0:1];return SUCCESS;
-}
-}
-static void LogError(const std::string&){++installErrors;}
-#define KEO_DETAIL(x) ((void)0)
 static bool mainOwner=true,budgetAllowed=true;
 static resource_gpu::U64 reserved=0;
 static unsigned deviceGeneration=1,ownerChecks=0;
@@ -98,33 +74,6 @@ static Ogre::TexturePtr*ManagerSpy(Ogre::TextureManager*self,Ogre::TexturePtr*ou
     ++forwarded;return nativeManagerLoad(self,out,name,group,type,mips,gamma,alpha,format,hw);
 }
 static void ImplSpy(Ogre::Texture*r){static_cast<Texture*>(r)->Body();}
-static int TestHookInstallation(){
-    using namespace resource_texture_retention;
-    CHECK(state==NULL&&!CaptureEnabled());
-    int managerTarget=0,implTarget=0;
-    installTargets[0]=&managerTarget;installTargets[1]=&implTarget;
-    installOriginals[0]=reinterpret_cast<void*>(&ManagerSpy);
-    installOriginals[1]=reinterpret_cast<void*>(&ImplSpy);
-    for(int mode=0;mode<7;++mode){
-        State fixtureState;
-        state=&fixtureState;
-        originalManagerLoad=NULL;originalLoadImpl=NULL;
-        installQueueCalls=installApplyCalls=installImmediateCalls=installErrors=0;
-        installBatchAvailable=mode!=1;
-        installApplyResult=mode==3?1:0;
-        installQueueFailure=mode==4?0:mode==5?1:-1;
-        installMissingOriginal=mode==6?1:-1;
-        InstallTextureHooks(installTargets[0],installTargets[1],mode!=2);
-        const bool expectBatch=mode!=1&&mode!=2;
-        CHECK(installQueueCalls==(expectBatch?2u:0u)&&installImmediateCalls==(expectBatch?0u:2u));
-        CHECK(installApplyCalls==(expectBatch&&mode!=6?1u:0u));
-        CHECK(fixtureState.stats.admitted==(mode<3)&&fixtureState.contractRefused==(mode>=3));
-        CHECK(!CaptureEnabled()&&installErrors==(mode>=3?1u:0u));
-        CHECK(originalManagerLoad==&ManagerSpy&&originalLoadImpl==(mode==6?NULL:&ImplSpy));
-        state=NULL;
-    }
-    return 0;
-}
 struct OutSlot {
     resource_gpu::U64 before;
     __declspec(align(16)) unsigned char storage[sizeof(Ogre::TexturePtr)];
@@ -204,7 +153,6 @@ static int TestLoadedResult(Manager&manager){
     Ogre::ResourceHandle handle=completed->getHandle();completed.setNull();manager.remove(handle);TickNow();return 0;
 }
 int main(){
-    CHECK(TestHookInstallation()==0);
     SetUnhandledExceptionFilter(Crash);
     Ogre::Root root("","","");Manager manager;
     resource_texture_retention::originalLoadImpl=&ImplSpy;

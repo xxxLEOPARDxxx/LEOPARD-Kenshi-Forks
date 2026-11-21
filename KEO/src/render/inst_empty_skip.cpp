@@ -5,7 +5,6 @@
 
 #include "render/scene_lever_policy.h"
 #include "render/module_hooks.h"
-#include "plugin/hook_manifest.h"
 #include "fixes/fixes_config.h"
 #include "base/core.h"
 #include <windows.h>
@@ -20,7 +19,6 @@ static const ModuleSite s_site = { "InstanceBatchHW::updateVertexBuffer", "OgreM
 typedef size_t (*UpdateVb_t)(void* batch, void* camera, const void* lodCamera);
 static UpdateVb_t s_orig = NULL;
 static const char* s_install = "not run";
-static bool s_shared = false;
 
 // Published by the tick; the detour reads it first.
 static volatile LONG s_mode = 0;
@@ -71,8 +69,13 @@ static size_t hook_UpdateVertexBuffer(void* batch, void* camera, const void* lod
 	return s_orig(batch, camera, lodCamera);
 }
 
-static void CompleteInstall(int, const char* why)
+void InstallInstEmptySkip(int* installed, int*)
 {
+	(void)installed;
+	const char* why = OgreSceneBuildRefusal(GetModuleHandleA(s_site.module));
+	bool shared = false;
+	if (!why && !InstallModuleHook(s_site, (void*)&hook_UpdateVertexBuffer, (void**)&s_orig, &shared))
+		why = "hook";
 	if (why)
 	{
 		s_install = why;
@@ -81,20 +84,8 @@ static void CompleteInstall(int, const char* why)
 	}
 	s_install = "ok";
 	std::ostringstream line;
-	line << "InstSkip: install=ok shared=" << (s_shared ? 1 : 0);
+	line << "InstSkip: install=ok shared=" << (shared ? 1 : 0);
 	KEO_DETAIL(line.str());
-}
-
-void InstallInstEmptySkip(int*, int*)
-{
-	const char* why = OgreSceneBuildRefusal(GetModuleHandleA(s_site.module));
-	if (why)
-	{
-		CompleteInstall(STARTUP_AUX_INST_EMPTY_SKIP, why);
-		return;
-	}
-	InstallStartupModuleHook(STARTUP_AUX_INST_EMPTY_SKIP, s_site,
-	                         (void*)&hook_UpdateVertexBuffer, (void**)&s_orig, &s_shared, CompleteInstall);
 }
 
 static bool InstallOk()

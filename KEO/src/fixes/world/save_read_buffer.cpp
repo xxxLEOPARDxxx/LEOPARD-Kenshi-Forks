@@ -1,6 +1,5 @@
 #include "fixes/world/save_read_buffer.h"
 #include "fixes/world/save_gog_native.h"
-#include "plugin/hook_manifest.h"
 #include <windows.h>
 #include <intrin.h>
 #include <fstream>
@@ -117,15 +116,6 @@ static bool Admit(HMODULE module){
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
 
-static void CompleteInstall(int,const char* why){
- if(why||!original){
-  LogError(std::string("Save read buffering: constructor hook failed (")+(why?why:"original")+"); normal reading retained");
-  return;
- }
- admitted=true;
- KEO_DETAIL("Save read buffering: exact fresh native save streams admitted");
-}
-
 void Install(int*,int*){
  if(tried)return;tried=true;
 #ifndef KEO_SAVE_MODULE
@@ -134,10 +124,8 @@ void Install(int*,int*){
  HMODULE game=KEO_SAVE_MODULE();
  if(!Admit(game)){LogError("Save read buffering: native stream contract refused; normal reading retained");return;}
  gameBase=(uintptr_t)game;
- void* target=(char*)game+layout->constructor;
- if(QueueStartupAuxHook(STARTUP_AUX_SAVE_READ_BUFFER,target,(void*)&Construct,(void**)&original,CompleteInstall))return;
- const bool installed=KenshiLib::AddHook(target,(void*)&Construct,(void**)&original)==KenshiLib::SUCCESS;
- CompleteInstall(STARTUP_AUX_SAVE_READ_BUFFER,installed?NULL:"hook");
+ if(KenshiLib::AddHook((char*)game+layout->constructor,(void*)&Construct,(void**)&original)!=KenshiLib::SUCCESS||!original){LogError("Save read buffering: constructor hook failed; normal reading retained");return;}
+ admitted=true;KEO_DETAIL("Save read buffering: exact fresh native save streams admitted");
 }
 }
 void InstallSaveReadBuffer(int*installed,int*total){save_read_buffer::Install(installed,total);}

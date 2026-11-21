@@ -7,7 +7,6 @@
 #include "fixes/world/mesh_weights.h"
 #include "fixes/world/mesh_weights_linear.h"
 #include "fixes/world/mesh_weights_contract.h"
-#include "plugin/hook_manifest.h"
 #include <cstddef>
 namespace mesh_weights_patch {
 typedef Ogre::Mesh::VertexBoneAssignmentList List;
@@ -40,21 +39,13 @@ static void*Admit(HMODULE module){
   return target;
  }__except(EXCEPTION_EXECUTE_HANDLER){return NULL;}
 }
-#if !defined(KEO_MESH_WEIGHT_TEST) || defined(KEO_MESH_WEIGHT_INIT_TEST)
-static void CompleteInstall(int,const char* why){
- if(why||!original){
-  LogError(std::string("Mesh weight preparation: hook failed (")+(why?why:"original")+"); original handling retained");return;
- }
- admitted=true;KEO_DETAIL("Mesh weight preparation: validated linear native weight traversal admitted");
-}
-
+#ifndef KEO_MESH_WEIGHT_TEST
 static void Install(){
  if(tried)return;tried=true;
  void*target=Admit(GetModuleHandleA("OgreMain_x64.dll"));
  if(!target){LogError("Mesh weight preparation: native function/ABI contract refused; original handling retained");return;}
- if(QueueStartupAuxHook(STARTUP_AUX_MESH_WEIGHTS,target,(void*)&Rationalise,(void**)&original,CompleteInstall))return;
- const bool installed=KenshiLib::AddHook(target,(void*)&Rationalise,(void**)&original)==KenshiLib::SUCCESS;
- CompleteInstall(STARTUP_AUX_MESH_WEIGHTS,installed?NULL:"hook");
+ if(KenshiLib::AddHook(target,(void*)&Rationalise,(void**)&original)!=KenshiLib::SUCCESS||!original){LogError("Mesh weight preparation: hook failed; original handling retained");return;}
+ admitted=true;KEO_DETAIL("Mesh weight preparation: validated linear native weight traversal admitted");
 }
 #endif
 }

@@ -1,5 +1,4 @@
 #include "fixes/world/skeleton_reserve.h"
-#include "plugin/hook_manifest.h"
 #include <ogre/OgreSkeleton.h>
 #include <cstring>
 #include <cstddef>
@@ -75,22 +74,16 @@ static void*Admit(HMODULE module){
         return target;
     }__except(EXCEPTION_EXECUTE_HANDLER){return NULL;}
 }
-static void CompleteInstall(int,const char* why){
-    // Keep any published trampoline on failure: the SDK can fail after creating
-    // one. An unadmitted wrapper must remain pure forwarding, never retry.
-    if(why||!original){
-        LogError(std::string("Skeleton preparation: hook failed (")+(why?why:"original")+"); native loading retained");return;
-    }
-    admitted=true;KEO_DETAIL("Skeleton preparation: bounded native bone-storage reservation admitted");
-}
-
 void Install(){
     if(tried)return;tried=true;
     void*target=Admit(KEO_SKELETON_MODULE());
     if(!target){LogError("Skeleton preparation: native layout/function contract refused; native loading retained");return;}
-    if(QueueStartupAuxHook(STARTUP_AUX_SKELETON_RESERVE,target,(void*)&Load,(void**)&original,CompleteInstall))return;
-    const bool installed=KenshiLib::AddHook(target,(void*)&Load,(void**)&original)==KenshiLib::SUCCESS;
-    CompleteInstall(STARTUP_AUX_SKELETON_RESERVE,installed?NULL:"hook");
+    // Keep any published trampoline on failure: the SDK can fail after creating
+    // one. An unadmitted wrapper must remain pure forwarding, never retry.
+    if(KenshiLib::AddHook(target,(void*)&Load,(void**)&original)!=KenshiLib::SUCCESS||!original){
+        LogError("Skeleton preparation: hook failed; native loading retained");return;
+    }
+    admitted=true;KEO_DETAIL("Skeleton preparation: bounded native bone-storage reservation admitted");
 }
 }
 void InstallSkeletonReserve(int*,int*){skeleton_reserve::Install();}

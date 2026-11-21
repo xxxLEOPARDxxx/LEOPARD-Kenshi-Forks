@@ -6,7 +6,7 @@
 // feature/patch may publish readiness from a queued hook's creation alone.
 class HookBatch {
 public:
- enum { CAPACITY=26 };
+ enum { CAPACITY=16 };
  typedef int (*Queue)(size_t,void*,void*,void**);
  typedef int (*Apply)(size_t);
  typedef void (*Complete)(int,const char*);

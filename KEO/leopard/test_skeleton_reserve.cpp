@@ -9,7 +9,6 @@
 #include <cstdio>
 #include <stdexcept>
 #include <cmath>
-#include "plugin/hook_manifest.h"
 static bool owner=true;
 bool IsMainThread(){return owner;}
 namespace fixes {struct Config{bool skeletonReserveEnabled;};Config g_fixesCfg={true};}
@@ -20,13 +19,6 @@ static bool overrideModule=false;
 void LogError(const std::string&){++errors;if(throwLogger)throw std::bad_alloc();}
 #define KEO_DETAIL(x) ((void)0)
 static void Native(void*);
-static bool useQueue=false;
-static StartupAuxHookCompletion queuedDone=NULL;
-static void** queuedOriginal=NULL;
-bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
- if(!useQueue||id!=STARTUP_AUX_SKELETON_RESERVE)return false;
- queuedDone=done;queuedOriginal=original;return true;
-}
 namespace KenshiLib {enum Status{SUCCESS,FAILURE};Status AddHook(void*,void*,void**p){++hookCalls;*p=(void*)&Native;return hookFailure?FAILURE:SUCCESS;}}
 bool ReadModuleImageId(HMODULE m,DWORD*stamp,DWORD*size){
  const IMAGE_DOS_HEADER*d=(const IMAGE_DOS_HEADER*)m;if(d->e_magic!=IMAGE_DOS_SIGNATURE||d->e_lfanew<0||d->e_lfanew>1024*1024)return false;
@@ -150,16 +142,6 @@ int main(){
  nt->OptionalHeader.SizeOfImage^=1;C(skeleton_reserve::Admit(moduleOverride)==NULL);nt->OptionalHeader.SizeOfImage^=1;
  skeleton_reserve::tried=skeleton_reserve::admitted=false;hookCalls=0;hookFailure=true;skeleton_reserve::Install();C(hookCalls==1&&!skeleton_reserve::admitted&&skeleton_reserve::original!=NULL);skeleton_reserve::Install();C(hookCalls==1);
  skeleton_reserve::tried=false;hookFailure=false;skeleton_reserve::Install();C(hookCalls==2&&skeleton_reserve::admitted);skeleton_reserve::Install();C(hookCalls==2);
- useQueue=true;
- for(unsigned mode=0;mode<2;++mode){
-  skeleton_reserve::tried=skeleton_reserve::admitted=false;queuedDone=NULL;hookCalls=0;
-  skeleton_reserve::Install();C(queuedDone&&hookCalls==0&&!skeleton_reserve::admitted);
-  *queuedOriginal=(void*)&Spy;
-  queuedDone(STARTUP_AUX_SKELETON_RESERVE,mode?"batch-apply":NULL);
-  C(skeleton_reserve::admitted==(mode==0)&&skeleton_reserve::original==Spy);
-  before=calls;skeleton_reserve::Load(NULL);C(calls==before+1);
- }
- useQueue=false;
  VirtualFree(fake,0,MEM_RELEASE);moduleOverride=NULL;overrideModule=false;
  std::printf("%u actual native skeleton checks\n",checks);return 0;
 }
