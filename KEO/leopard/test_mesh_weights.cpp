@@ -12,12 +12,29 @@
 #include <fstream>
 #include <vector>
 #include "fixes/world/mesh_weights_linear.h"
+#include "plugin/hook_manifest.h"
 namespace fixes{struct Config{bool meshWeightsEnabled;};static Config g_fixesCfg={true};}
 static DWORD ownerThread=GetCurrentThreadId();
 static bool IsMainThread(){return GetCurrentThreadId()==ownerThread;}
 static bool imageIdEnabled=true;
 static bool ReadModuleImageId(HMODULE module,DWORD*stamp,DWORD*size){if(!imageIdEnabled)return false;IMAGE_DOS_HEADER*dos=(IMAGE_DOS_HEADER*)module;IMAGE_NT_HEADERS64*nt=(IMAGE_NT_HEADERS64*)((char*)module+dos->e_lfanew);*stamp=nt->FileHeader.TimeDateStamp;*size=nt->OptionalHeader.SizeOfImage;return true;}
+static bool useQueue=false;
+static unsigned hookCalls=0,installErrors=0;
+static void* nextOriginal=NULL;
+static StartupAuxHookCompletion queuedDone=NULL;
+static void** queuedOriginal=NULL;
+bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
+ if(!useQueue||id!=STARTUP_AUX_MESH_WEIGHTS)return false;
+ queuedDone=done;queuedOriginal=original;return true;
+}
+namespace KenshiLib {
+enum Status{SUCCESS};
+static Status AddHook(void*,void*,void** original){++hookCalls;*original=nextOriginal;return SUCCESS;}
+}
+static void LogError(const std::string&){++installErrors;}
+#define KEO_DETAIL(x) ((void)0)
 #define KEO_MESH_WEIGHT_TEST
+#define KEO_MESH_WEIGHT_INIT_TEST
 #include "../src/fixes/world/mesh_weights.cpp"
 static unsigned checks=0;
 #define C(x) do{++checks;if(!(x)){printf("FAIL line %u: %s\n",__LINE__,#x);return 1;}}while(0)
@@ -32,6 +49,21 @@ static int Integration(Ogre::Mesh*m){
  for(unsigned k=0;k<sizeof(mesh_weights_patch::proofs)/sizeof(mesh_weights_patch::proofs[0]);++k){const mesh_weights_patch::Proof&p=mesh_weights_patch::proofs[k];for(unsigned j=0;j<p.size;++j){image[p.rva+j]^=1;C(!mesh_weights_patch::Validate(&image[0],image.size()));image[p.rva+j]^=1;}}
  mesh_weights_patch::original=&Native;
  for(unsigned mode=0;mode<5;++mode){List input;Add(input,0,7,.4f);List expected(input);unsigned short want=m->_rationaliseBoneAssignments(1,expected);fixes::g_fixesCfg.meshWeightsEnabled=mode!=1;mesh_weights_patch::admitted=mode!=2;DWORD saved=ownerThread;if(mode==3)ownerThread=0;if(mode==4){input.begin()->second.weight=2;expected=input;want=m->_rationaliseBoneAssignments(1,expected);}fallbackCalls=0;C(mesh_weights_patch::Rationalise(m,1,input)==want);C(Same(input,expected));C(fallbackCalls==(mode?1u:0u));ownerThread=saved;}
+ nextOriginal=(void*)&Native;
+ for(unsigned mode=0;mode<4;++mode){
+  useQueue=mode!=0;queuedDone=NULL;hookCalls=installErrors=0;
+  mesh_weights_patch::tried=mesh_weights_patch::admitted=false;
+  mesh_weights_patch::original=NULL;
+  mesh_weights_patch::Install();
+  if(useQueue){
+   C(queuedDone&&hookCalls==0&&!mesh_weights_patch::admitted);
+   if(mode!=3)*queuedOriginal=nextOriginal;
+   queuedDone(STARTUP_AUX_MESH_WEIGHTS,mode==2?"batch-apply":NULL);
+  }
+  C(hookCalls==(useQueue?0u:1u)&&installErrors==(mode>1?1u:0u));
+  C(mesh_weights_patch::admitted==(mode<2)&&mesh_weights_patch::original==(mode==3?NULL:&Native));
+ }
+ useQueue=false;mesh_weights_patch::original=&Native;
  fixes::g_fixesCfg.meshWeightsEnabled=true;mesh_weights_patch::admitted=true;return 0;
 }
 static int Oracle(Ogre::Mesh*m,const List&input,size_t vertices,bool eligible){

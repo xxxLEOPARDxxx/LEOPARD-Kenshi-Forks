@@ -14,7 +14,7 @@ static volatile LONG s_installed[HOOK_ROW_COUNT],s_gatePassed[HOOK_ROW_COUNT];
 static unsigned checks=0,queued=0,applied=0,immediate=0,verified=0,completed=0,refused=0;
 static int activeMask=15,applyResult=0,queueFailure=-1;
 static bool sdk=true,fresh=true,reenter=false,throwCompletion=false;
-static void**nativeOriginal[16];static uintptr_t queuedAddresses[16];static HookRowId rows[4]={HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK,HOOK_CHARACTER_PAUSED_UPDATE,HOOK_ACTIVEPLATOON_CALC_POS,HOOK_FACTION_RELATIONS_UPDATE};
+static void**nativeOriginal[HookBatch::CAPACITY];static uintptr_t queuedAddresses[HookBatch::CAPACITY];static HookRowId rows[4]={HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK,HOOK_CHARACTER_PAUSED_UPDATE,HOOK_ACTIVEPLATOON_CALC_POS,HOOK_FACTION_RELATIONS_UPDATE};
 static void* originals[4];static int installed=0;
 #define C(x) do{++checks;if(!(x)){std::fprintf(stderr,"FAIL %u %s\n",__LINE__,#x);throw 77;}}while(0)
 static int Native(int n){return n+7;}
@@ -56,29 +56,31 @@ int main(){try{
     HOOK_RESET_UNLOAD_ZONES, HOOK_PROCESS_LOADING, HOOK_STOP_CHARACTERS_MOVEMENT,
     HOOK_ADD_JOB_SELECTED, HOOK_ADD_TASK_NEAREST};
  const int addedCount=sizeof(added)/sizeof(added[0]);
- const int total=4+addedCount+2;
+ const StartupAuxHookId auxiliary[] = {STARTUP_AUX_SKELETON_RESERVE, STARTUP_AUX_MESH_WEIGHTS,
+    STARTUP_AUX_MATERIAL_RESERVE, STARTUP_AUX_SAVE_READ_BUFFER, STARTUP_AUX_SAVE_STRING_TRANSFER};
+ const int auxiliaryCount=sizeof(auxiliary)/sizeof(auxiliary[0]);
+ const int total=4+addedCount+auxiliaryCount;
  const int allActive=(1<<total)-1;
  for (int mask=0; mask<=allActive; ++mask) {
   Reset();
   void* extra[addedCount] = {};
-  void* saveRead=NULL;
-  void* saveString=NULL;
+  void* auxiliaryOriginals[auxiliaryCount] = {};
   activeMask=mask;
   applyResult=mask==allActive?0:1;
   {
    IndependentStartupScope scope(&installed);
    for(int i=0;i<4;++i) HookInstallIndependentRow(rows[i],(void*)1,&originals[i],&installed,true,Complete);
    for(int i=0;i<addedCount;++i) HookInstallIndependentRow(added[i],(void*)1,&extra[i],&installed,true,Complete);
-   C(QueueStartupAuxHook(STARTUP_AUX_SAVE_READ_BUFFER,(void*)16,(void*)1,&saveRead,CompleteAux));
-   C(QueueStartupAuxHook(STARTUP_AUX_SAVE_STRING_TRANSFER,(void*)17,(void*)1,&saveString,CompleteAux));
+   for(int i=0;i<auxiliaryCount;++i)
+    C(QueueStartupAuxHook(auxiliary[i],(void*)(uintptr_t)(16+i),(void*)1,&auxiliaryOriginals[i],CompleteAux));
    C(queued==0&&installed==0&&completed==0);
    scope.Finish();
   }
   C(queued==total&&applied==1&&completed==total);
-  C(installed==(mask==allActive?total-2:0)&&refused==(mask==allActive?0:total));
+  C(installed==(mask==allActive?total-auxiliaryCount:0)&&refused==(mask==allActive?0:total));
   C(s_allowFurtherNativeBatches==(mask==allActive));
   for(int i=0;i<addedCount;++i) C(extra[i]==(void*)&Native);
-  C(saveRead==(void*)&Native&&saveString==(void*)&Native);
+  for(int i=0;i<auxiliaryCount;++i) C(auxiliaryOriginals[i]==(void*)&Native);
  }
  C(!QueueStartupAuxHook(STARTUP_AUX_SAVE_READ_BUFFER,(void*)16,(void*)1,&originals[0],CompleteAux));
  const HookRowId cancelRows[] = {HOOK_STOP_CHARACTERS_MOVEMENT,HOOK_ADD_JOB_SELECTED,HOOK_ADD_TASK_NEAREST};

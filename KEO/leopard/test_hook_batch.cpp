@@ -3,7 +3,7 @@
 #include "plugin/independent_hook_batch.h"
 static unsigned checks=0,queues=0,applies=0,completions=0,immediates=0;
 static int queueFail=-1,applyFail=-1,queueThrow=-1,queueNull=-1;static bool applyThrow=false,reentry=false;static void* dummy=NULL;static size_t wantedId=0x11110000;
-static void**slots[16];static int seen[16];static HookBatch*current=NULL;
+static void**slots[HookBatch::CAPACITY];static int seen[HookBatch::CAPACITY];static HookBatch*current=NULL;
 #define C(x) do{++checks;if(!(x)){std::fprintf(stderr,"FAIL %u %s\n",__LINE__,#x);return 1;}}while(0)
 static void Complete(int,const char*);
 static int Queue(size_t id,void*t,void*,void**o){if(id!=wantedId)throw 11;int n=int(queues++);slots[n]=o;*o=n==queueNull?NULL:(void*)(size_t(0x1000)+size_t(t));if(reentry&&current){if(current->Collecting()||current->Add(15,(void*)1,(void*)2,&dummy,Complete))throw 91;}if(n==queueThrow)throw 92;return n==queueFail?1:0;}

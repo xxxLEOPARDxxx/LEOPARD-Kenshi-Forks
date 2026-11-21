@@ -59,7 +59,10 @@ inline void HookInstallIndependent(HookRowId id,Fn detour,Fn*orig,int*installed,
 enum StartupAuxHookId
 {
 	STARTUP_AUX_SAVE_READ_BUFFER = HOOK_ROW_COUNT,
-	STARTUP_AUX_SAVE_STRING_TRANSFER
+	STARTUP_AUX_SAVE_STRING_TRANSFER,
+	STARTUP_AUX_SKELETON_RESERVE,
+	STARTUP_AUX_MESH_WEIGHTS,
+	STARTUP_AUX_MATERIAL_RESERVE
 };
 typedef void (*StartupAuxHookCompletion)(int row, const char* why);
 // True means the active batch took ownership, including a reported refusal.
