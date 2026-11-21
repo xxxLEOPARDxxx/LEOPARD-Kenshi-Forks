@@ -176,6 +176,16 @@ static void IndependentComplete(int row,const char*why){
  if(s_independentDone[row])s_independentDone[row](why);
 }
 
+bool QueueStartupAuxHook(StartupAuxHookId id, void* target, void* detour,
+                         void** original, StartupAuxHookCompletion done)
+{
+	if (!s_independentPhase)
+		return false;
+	if (!s_independentBatch.Add(id, target, detour, original, done))
+		done(id, "batch-admission");
+	return true;
+}
+
 struct IndependentStartupScope {
  explicit IndependentStartupScope(int*count){s_independentPhase=BeginIndependentHooks();s_independentCount=s_independentPhase?count:NULL;}
  ~IndependentStartupScope(){s_independentCount=NULL;s_independentPhase=false;}

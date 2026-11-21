@@ -32,6 +32,7 @@ static void IslandSetCancelHooksInstalled(bool stop,bool job,bool task){cancelFl
 static void LogError(const std::string&){++cancelErrors;}
 #define KEO_DETAIL(x) do{}while(0)
 static void Complete(const char*why){++completed;if(why)++refused;if(throwCompletion)throw 33;}
+static void CompleteAux(int,const char*why){Complete(why);}
 static void OtherComplete(const char*why){C(why!=NULL);}
 static bool VerifyPrologueByRva(uintptr_t){++verified;return fresh;}
 static void*GameAddr(uintptr_t rva){return (void*)(rva+0x10000);}
@@ -55,25 +56,31 @@ int main(){try{
     HOOK_RESET_UNLOAD_ZONES, HOOK_PROCESS_LOADING, HOOK_STOP_CHARACTERS_MOVEMENT,
     HOOK_ADD_JOB_SELECTED, HOOK_ADD_TASK_NEAREST};
  const int addedCount=sizeof(added)/sizeof(added[0]);
- const int total=4+addedCount;
+ const int total=4+addedCount+2;
  const int allActive=(1<<total)-1;
  for (int mask=0; mask<=allActive; ++mask) {
   Reset();
   void* extra[addedCount] = {};
+  void* saveRead=NULL;
+  void* saveString=NULL;
   activeMask=mask;
   applyResult=mask==allActive?0:1;
   {
    IndependentStartupScope scope(&installed);
    for(int i=0;i<4;++i) HookInstallIndependentRow(rows[i],(void*)1,&originals[i],&installed,true,Complete);
    for(int i=0;i<addedCount;++i) HookInstallIndependentRow(added[i],(void*)1,&extra[i],&installed,true,Complete);
+   C(QueueStartupAuxHook(STARTUP_AUX_SAVE_READ_BUFFER,(void*)16,(void*)1,&saveRead,CompleteAux));
+   C(QueueStartupAuxHook(STARTUP_AUX_SAVE_STRING_TRANSFER,(void*)17,(void*)1,&saveString,CompleteAux));
    C(queued==0&&installed==0&&completed==0);
    scope.Finish();
   }
   C(queued==total&&applied==1&&completed==total);
-  C(installed==(mask==allActive?total:0)&&refused==(mask==allActive?0:total));
+  C(installed==(mask==allActive?total-2:0)&&refused==(mask==allActive?0:total));
   C(s_allowFurtherNativeBatches==(mask==allActive));
   for(int i=0;i<addedCount;++i) C(extra[i]==(void*)&Native);
+  C(saveRead==(void*)&Native&&saveString==(void*)&Native);
  }
+ C(!QueueStartupAuxHook(STARTUP_AUX_SAVE_READ_BUFFER,(void*)16,(void*)1,&originals[0],CompleteAux));
  const HookRowId cancelRows[] = {HOOK_STOP_CHARACTERS_MOVEMENT,HOOK_ADD_JOB_SELECTED,HOOK_ADD_TASK_NEAREST};
  for(int mode=0;mode<5;++mode){
   Reset();

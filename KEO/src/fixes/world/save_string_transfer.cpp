@@ -1,5 +1,6 @@
 #include "fixes/world/save_string_transfer.h"
 #include "fixes/world/save_gog_native.h"
+#include "plugin/hook_manifest.h"
 #include <windows.h>
 #include <intrin.h>
 #include <string>
@@ -89,6 +90,15 @@ static bool Admit(HMODULE module){
   return true;
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
+static void CompleteInstall(int,const char* why){
+ if(why||!original){
+  LogError(std::string("Save string transfer: hook failed (")+(why?why:"original")+"); normal parsing retained");
+  return;
+ }
+ admitted=true;
+ KEO_DETAIL("Save string transfer: owned parser temporaries admitted");
+}
+
 void Install(int*,int*){
  if(tried)return;tried=true;
 #ifndef KEO_SAVE_STRING_MODULE
@@ -97,8 +107,10 @@ void Install(int*,int*){
  HMODULE game=KEO_SAVE_STRING_MODULE();
  if(!Admit(game)){LogError("Save string transfer: native parser contract refused; normal parsing retained");return;}
  gameBase=(uintptr_t)game;
- if(KenshiLib::AddHook((char*)game+0xa47b0,(void*)&Push,(void**)&original)!=KenshiLib::SUCCESS||!original){LogError("Save string transfer: hook failed; normal parsing retained");return;}
- admitted=true;KEO_DETAIL("Save string transfer: owned parser temporaries admitted");
+ void* target=(char*)game+0xa47b0;
+ if(QueueStartupAuxHook(STARTUP_AUX_SAVE_STRING_TRANSFER,target,(void*)&Push,(void**)&original,CompleteInstall))return;
+ const bool installed=KenshiLib::AddHook(target,(void*)&Push,(void**)&original)==KenshiLib::SUCCESS;
+ CompleteInstall(STARTUP_AUX_SAVE_STRING_TRANSFER,installed?NULL:"hook");
 }
 }
 void InstallSaveStringTransfer(int*installed,int*total){save_string_transfer::Install(installed,total);}

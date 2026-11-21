@@ -54,6 +54,19 @@ inline void HookInstallIndependent(HookRowId id,Fn detour,Fn*orig,int*installed,
  HookInstallIndependentRow(id,(void*)detour,(void**)orig,installed,verify,done);
 }
 
+// Auxiliary hooks admit their own exact native contracts and are not counted
+// by the manifest. Values share the queue with manifest IDs and cannot alias.
+enum StartupAuxHookId
+{
+	STARTUP_AUX_SAVE_READ_BUFFER = HOOK_ROW_COUNT,
+	STARTUP_AUX_SAVE_STRING_TRANSFER
+};
+typedef void (*StartupAuxHookCompletion)(int row, const char* why);
+// True means the active batch took ownership, including a reported refusal.
+// Only false permits the caller to fall back to immediate installation.
+bool QueueStartupAuxHook(StartupAuxHookId id, void* target, void* detour,
+                         void** original, StartupAuxHookCompletion done);
+
 // Runs every startup install in its fixed order: the row groups, the module
 // installers and the non-hook steps between them. *total is the number of
 // counted rows wanted by the config as it stands on entry; *installed counts

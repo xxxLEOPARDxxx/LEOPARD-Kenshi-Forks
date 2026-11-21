@@ -9,7 +9,7 @@ def body(s,mark,semi=False):
 globals=raw[raw.index('static HookBatch s_independentBatch;'):raw.index('static bool IndependentRow(')]
 template=(ROOT/'leopard/test_hook_batch_adapter.cpp').read_text()
 def compose(s):
- marks=['static bool IndependentRow(','void FinishNativeHookBatch(','static void IndependentComplete(','struct IndependentStartupScope {',
+ marks=['static bool IndependentRow(','void FinishNativeHookBatch(','static void IndependentComplete(','bool QueueStartupAuxHook(','struct IndependentStartupScope {',
         'bool HookRowInstalled(','void HookInstallIndependentRow(','template <HookRowId Row>\nstatic void CancelHookComplete(',
         'static void InstallCancelHooks(','static void FinalizeCancelHooks(']
  prod='\n'.join(body(s,m,m=='struct IndependentStartupScope {')for m in marks)

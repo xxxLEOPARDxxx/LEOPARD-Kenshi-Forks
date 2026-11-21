@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <locale>
 #include <codecvt>
+#include "plugin/hook_manifest.h"
 static unsigned checks=0,errors=0,nativeCalls=0,setbufCalls=0;
 static bool owner=true,logThrows=false,nativeThrows=false,alternateReturn=false,preRead=false,closeEarly=false,wrongTable=false;
 static bool failSize=false;static int fault=0,seenMode=0,seenProtection=0,seenDerived=0;static uintptr_t suppliedCaller=0;static std::streamsize requested=0;
@@ -18,6 +19,14 @@ static void LogError(const std::string&){++errors;if(logThrows)throw std::runtim
 namespace fixes {struct Config{bool saveReadBufferEnabled;};Config g_fixesCfg={true};}
 #define KEO_DETAIL(x) ((void)0)
 static HMODULE module=NULL;static unsigned hooks=0;static int hookResult=0;static bool nullOriginal=false;
+static bool queueStartup=false;
+static unsigned queued=0;
+static StartupAuxHookCompletion queuedDone=NULL;
+static void** queuedOriginal=NULL;
+bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
+ if(!queueStartup||id!=STARTUP_AUX_SAVE_READ_BUFFER)return false;
+ ++queued;queuedDone=done;queuedOriginal=original;return true;
+}
 namespace KenshiLib {enum Status{SUCCESS,FAILURE};static Status AddHook(void*,void*,void**out){++hooks;*out=nullOriginal?NULL:(void*)0x12345;return (Status)hookResult;}}
 bool ReadModuleImageId(HMODULE m,DWORD*stamp,DWORD*size){const IMAGE_DOS_HEADER*d=(const IMAGE_DOS_HEADER*)m;if(d->e_magic!=IMAGE_DOS_SIGNATURE||d->e_lfanew<0||d->e_lfanew>1024*1024)return false;const IMAGE_NT_HEADERS64*n=(const IMAGE_NT_HEADERS64*)((char*)m+d->e_lfanew);if(n->Signature!=IMAGE_NT_SIGNATURE||n->FileHeader.Machine!=IMAGE_FILE_MACHINE_AMD64)return false;*stamp=n->FileHeader.TimeDateStamp;*size=n->OptionalHeader.SizeOfImage;return true;}
 static std::streambuf*Setbuf(std::filebuf*b,std::streamsize n){++setbufCalls;requested=n;if(fault==1){b->pubsetbuf(NULL,0);return NULL;}if(fault==2)throw std::bad_alloc();return b->pubsetbuf(NULL,n);}
@@ -66,6 +75,20 @@ static int Admission(){
  for(unsigned f=0;f<4;++f){save_read_buffer::tried=save_read_buffer::admitted=false;hooks=0;hookResult=f==1?1:0;nullOriginal=f==2;save_read_buffer::original=NULL;if(f==3)n->FileHeader.TimeDateStamp^=1;
   save_read_buffer::Install(NULL,NULL);C(save_read_buffer::tried);C(save_read_buffer::admitted==(f==0));C(hooks==(f==3?0u:1u));if(f==1)C(save_read_buffer::original==(save_read_buffer::CtorFn)0x12345);save_read_buffer::Install(NULL,NULL);C(hooks==(f==3?0u:1u));if(f==3)n->FileHeader.TimeDateStamp^=1;
  }
+ queueStartup=true;
+ for(unsigned mode=0;mode<3;++mode){
+  save_read_buffer::tried=save_read_buffer::admitted=false;save_read_buffer::original=NULL;queued=hooks=0;
+  const unsigned before=errors;
+  save_read_buffer::Install(NULL,NULL);
+  C(queued==1&&hooks==0&&!save_read_buffer::admitted);
+  if(mode!=2)*queuedOriginal=reinterpret_cast<void*>(&Native);
+  queuedDone(STARTUP_AUX_SAVE_READ_BUFFER,mode==1?"batch-apply":NULL);
+  C(save_read_buffer::admitted==(mode==0)&&errors==before+(mode==0?0u:1u));
+  C(save_read_buffer::original==(mode==2?NULL:Native));
+  save_read_buffer::Install(NULL,NULL);
+  C(queued==1&&hooks==0);
+ }
+ queueStartup=false;
  VirtualFree(module,0,MEM_RELEASE);module=NULL;return 0;
 }
 static std::vector<char>data;
