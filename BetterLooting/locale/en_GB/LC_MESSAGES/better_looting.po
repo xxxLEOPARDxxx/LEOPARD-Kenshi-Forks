@@ -201,3 +201,6 @@ msgstr "Saved"
 
 msgid "Slot %d"
 msgstr "Slot %d"
+
+msgid "Incomplete"
+msgstr "Incomplete"

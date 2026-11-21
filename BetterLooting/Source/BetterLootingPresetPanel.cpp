@@ -6,6 +6,8 @@
 #include <mygui/MyGUI_Button.h>
 #include <mygui/MyGUI_EditBox.h>
 #include <mygui/MyGUI_Gui.h>
+#include <mygui/MyGUI_TabControl.h>
+#include <mygui/MyGUI_TabItem.h>
 #include <kenshi/gui/OptionsWindow.h>
 #include <kenshi/gui/ToolTip.h>
 #include <algorithm>
@@ -27,7 +29,14 @@ namespace BetterLootingPresetPanel
             MyGUI::Button* clear;
         };
 
-        const int PresetAreaPercent = 25;
+        int PresetAreaPercent(int height)
+        {
+            const int minimumArea = 132;
+            if (height <= 0)
+                return 33;
+            const int percentage = (minimumArea * 100 + height - 1) / height;
+            return (std::min)(90, (std::max)(25, percentage));
+        }
 
         struct PanelLayout
         {
@@ -82,7 +91,7 @@ namespace BetterLootingPresetPanel
         Result g_result = Ok;
         std::string g_draftNames[SlotCount];
         bool g_restoreDrafts = false;
-        bool g_requestDetached = false;
+        MyGUI::IntSize g_layoutSize;
 
         void Tip(MyGUI::Widget* widget, const char* text)
         {
@@ -142,13 +151,15 @@ namespace BetterLootingPresetPanel
                 if (row.clear == NULL)
                     continue;
                 row.apply->setStateSelected(active);
-                row.apply->setEnabled(usable && occupied);
+                row.apply->setEnabled(usable && state.slots[i].valid);
                 row.save->setEnabled(usable);
                 row.clear->setEnabled(usable && occupied);
                 if (active && state.modified)
                     row.status->setCaption(Tr("Modified"));
                 else if (!occupied)
                     row.status->setCaption(Tr("Empty"));
+                else if (!state.slots[i].valid)
+                    row.status->setCaption(Tr("Incomplete"));
                 else
                     row.status->setCaption(Tr("Saved"));
             }
@@ -189,7 +200,6 @@ namespace BetterLootingPresetPanel
                 const Row& row = g_rows[i];
                 if (sender != row.apply && sender != row.save && sender != row.clear)
                     continue;
-                g_requestDetached = false;
                 g_pending.slot = i;
                 g_pending.operation = sender == row.save ? Save : (sender == row.clear ? Clear : Apply);
                 for (int j = 0; j < SlotCount; ++j)
@@ -225,24 +235,18 @@ namespace BetterLootingPresetPanel
 
         void __cdecl Detach(void*)
         {
-            // MCM changes the selection before it detaches the old page.
-            // A queued rebuild superseded by a different tab must not run later.
-            g_requestDetached = g_root.get() != NULL && g_pending.slot != -1 && PageStillSelected();
-            if (!g_requestDetached)
-                g_pending = Request();
+            MyGUI::Widget* root = g_root.get();
+            const bool applyRequest = root != NULL && root->getInheritedVisible() &&
+                g_pending.slot != -1 && PageStillSelected();
             DestroyPanel();
-        }
-
-        void __cdecl BeforeSettingsRows(MCM_Api*, void*)
-        {
-            if (!g_requestDetached || g_pending.slot == -1 || !PageStillSelected())
+            if (!applyRequest)
             {
                 g_pending = Request();
                 return;
             }
-            g_requestDetached = false;
-            // This callback runs after MCM's forced settings flush and
-            // before it reads the INI to build the replacement controls.
+
+            // A same-page refresh reaches this detach after MCM flushes its
+            // fields. Execute once here: the rebuild can defer or be replaced.
             const int slot = g_pending.slot;
             const Operation operation = g_pending.operation;
             g_pending.slot = -1;
@@ -270,11 +274,14 @@ namespace BetterLootingPresetPanel
         {
             MyGUI::Widget* area = static_cast<MyGUI::Widget*>(parent);
             MyGUI::Widget* previous = g_root.get();
-            // MCM can reattach on the same area after a pause before it
-            // processes its queued refresh. Keep that particular request.
-            if (g_pending.slot != -1 && previous != NULL && previous->getParent() == area)
+            // MCM also reattaches an unchanged area after a long frame.
+            // Keep the focused name edit and any unsaved text in that case.
+            if (area != NULL && previous != NULL && previous->getParent() == area &&
+                area->getSize() == g_layoutSize)
+            {
+                PaintStatus(ReadState(g_ini));
                 return;
-            g_requestDetached = false;
+            }
             g_pending = Request();
             DestroyPanel();
             if (area == NULL)
@@ -293,6 +300,7 @@ namespace BetterLootingPresetPanel
             MyGUI::Widget* root = area->createWidget<MyGUI::Widget>("PanelEmpty",
                 MyGUI::IntCoord(0, 0, size.width, size.height), MyGUI::Align::Stretch);
             g_root.set(root);
+            g_layoutSize = size;
 
             const State state = ReadState(g_ini);
             const MyGUI::Colour main = GameTheme::ReadableColour("Main", "#AFA68B");
@@ -345,7 +353,7 @@ namespace BetterLootingPresetPanel
 
     void Register(MCM_Api* api, const std::string& ini, void (__cdecl *reload)())
     {
-        if (api->version < 6 || api->customArea == NULL || api->rows == NULL)
+        if (api->version < 6 || api->customArea == NULL)
             return;
 
         HMODULE mcm = GetModuleHandleA("ModConfigMenu.dll");
@@ -361,10 +369,11 @@ namespace BetterLootingPresetPanel
         g_pageButton.reset();
         g_pending = Request();
         g_restoreDrafts = false;
-        g_requestDetached = false;
         g_result = Ok;
-        api->customArea(api, &Attach, &Detach, NULL, PresetAreaPercent);
-        api->rows(api, &BeforeSettingsRows, NULL);
+        OptionsWindow* options = OptionsWindow::getSingleton();
+        MyGUI::TabItem* tab = options != NULL && options->tabs != NULL && options->tabs->getItemCount() != 0
+            ? options->tabs->getItemAt(0) : NULL;
+        api->customArea(api, &Attach, &Detach, NULL, PresetAreaPercent(tab != NULL ? tab->getHeight() : 0));
     }
 
     void UpdateStatus()

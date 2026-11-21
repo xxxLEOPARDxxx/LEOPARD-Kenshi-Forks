@@ -49,6 +49,7 @@ namespace MyGUI {
     };
     struct Widget {
         Button button;
+        bool getInheritedVisible() const { return true; }
         template<class T> T* createWidget(const char* skin, const IntCoord&, int) {
             button.hasTextPart = std::string(skin) == "Kenshi_Button1Skin";
             return &button;
@@ -58,10 +59,10 @@ namespace MyGUI {
 void Tip(MyGUI::Button*, const char*) {}
 void OnButton(MyGUI::Widget*) {}
 struct MCM_Api {};
-struct WidgetRef {
-    MyGUI::Button* button;
-    WidgetRef() : button(NULL) {}
-    MyGUI::Button* get() const { return button; }
+template<class T> struct WidgetRef {
+    T* widget;
+    WidgetRef() : widget(NULL) {}
+    T* get() const { return widget; }
 };
 struct Request {
     int slot;
@@ -69,15 +70,16 @@ struct Request {
     std::string names[SlotCount];
     Request() : slot(-1), operation(Apply) {}
 };
-WidgetRef g_root,g_pageButton;
+WidgetRef<MyGUI::Widget> g_root;
+WidgetRef<MyGUI::Button> g_pageButton;
 Request g_pending;
-bool g_requestDetached=false,g_restoreDrafts=false;
+bool g_restoreDrafts=false;
 std::string g_ini,g_draftNames[SlotCount];
 Result g_result=Ok;
 void Reload() {}
 void (*g_reload)() = &Reload;
 void ErrorLog(const char*) {}
-void DestroyPanel() { g_root.button=NULL; }
+void DestroyPanel() { g_root.widget=NULL; }
 // @PRODUCTION_HANDOFF@
 int TestIconFont() {
     MyGUI::Widget parent;
@@ -92,9 +94,9 @@ int TestIconFont() {
 }
 int TestLayout() {
     // Heights of the native MCM settings pane, before reserving the slots.
-    const int sizes[][2]={{1120,865},{850,650},{420,480},{1800,1260}};
+    const int sizes[][2]={{1120,865},{850,650},{420,480},{550,407},{1800,1260}};
     for(size_t i=0;i<sizeof(sizes)/sizeof(sizes[0]);++i) {
-        const int width=sizes[i][0], area=sizes[i][1]*PresetAreaPercent/100;
+        const int width=sizes[i][0], area=sizes[i][1]*PresetAreaPercent(sizes[i][1])/100;
         const PanelLayout layout(width,area);
         CHECK(layout.fits);
         CHECK(layout.titleX > layout.labelX && layout.titleY >= 7);
@@ -106,28 +108,34 @@ int TestLayout() {
         const int lastBottom=layout.rowTop + (SlotCount-1)*layout.rowStep + layout.controlHeight;
         CHECK(lastBottom <= area && area-lastBottom <= layout.rowStep/2 + 14);
     }
-    CHECK(PresetAreaPercent <= 26);
+    CHECK(PresetAreaPercent(865) == 25);
+    CHECK(PresetAreaPercent(407) > 25);
     CHECK(!PanelLayout(160,100).fits);
     return 0;
 }
 int Test(const std::string& path) {
     MyGUI::Button mod(true,true);
     g_ini = path;
-    g_root.button = g_pageButton.button = &mod;
+    MyGUI::Widget panel;
+    g_root.widget = &panel;
+    g_pageButton.widget = &mod;
     g_pending.slot=0;
     g_pending.operation=Clear;
     mod.selected=false;
     Detach(NULL);
     mod.selected=true;
-    BeforeSettingsRows(NULL,NULL);
     CHECK(ReadState(path).slots[0].occupied);
 
-    g_root.button=&mod;
+    g_root.widget=&panel;
     g_pending.slot=0;
     g_pending.operation=Clear;
     Detach(NULL);
-    BeforeSettingsRows(NULL,NULL);
     CHECK(!ReadState(path).slots[0].occupied);
+    CHECK(g_pending.slot == -1);
+    CHECK(Execute(path,0,Save,"replacement") == Ok);
+    g_root.widget=&panel;
+    Detach(NULL);
+    CHECK(ReadState(path).slots[0].occupied);
     return 0;
 }
 }
@@ -209,6 +217,15 @@ int main(int argc, char** argv) {
     CHECK(WritePrivateProfileStringA("BetterLootingPreset1","LootRadius",NULL,ini));
     CHECK(Execute(path,0,Apply,"") == EmptySlot);
     CHECK(Read(path,"General","LootRadius") == "73.5");
+    CHECK(WritePrivateProfileStringA("BetterLootingPreset3","AllowStolen","1junk",ini));
+    CHECK(WritePrivateProfileStringA("BetterLootingPreset3","MinValue","corrupt",ini));
+    CHECK(WritePrivateProfileStringA("BetterLootingPreset3","MinValuePerKg","corrupt",ini));
+    const std::string malformed = Bytes(path);
+    CHECK(Execute(path,2,Apply,"") == EmptySlot);
+    CHECK(Bytes(path) == malformed);
+    CHECK(ReadState(path).slots[2].occupied && !ReadState(path).slots[2].valid);
+    CHECK(Execute(path,2,Clear,"") == Ok);
+    CHECK(!ReadState(path).slots[2].occupied);
     CHECK(PanelFixture::Test(path) == 0);
     CHECK(PanelFixture::TestLayout() == 0);
     CHECK(PanelFixture::TestIconFont() == 0);
@@ -221,7 +238,7 @@ def extract(signature, next_signature):
     start = panel.index(signature)
     return panel[start:panel.index(next_signature, start)].strip()
 code = '\n'.join([
-    extract('const int PresetAreaPercent', 'struct Request'),
+    extract('int PresetAreaPercent', 'struct Request'),
     extract('bool PageStillSelected()', 'void OnButton('),
     extract('MyGUI::Button* Button(', 'void DestroyPanel()'),
     extract('void __cdecl Detach(', 'void __cdecl Attach('),

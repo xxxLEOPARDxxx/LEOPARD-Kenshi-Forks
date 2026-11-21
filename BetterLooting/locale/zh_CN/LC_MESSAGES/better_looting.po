@@ -201,3 +201,6 @@ msgstr "已保存"
 
 msgid "Slot %d"
 msgstr "栏位 %d"
+
+msgid "Incomplete"
+msgstr "不完整"

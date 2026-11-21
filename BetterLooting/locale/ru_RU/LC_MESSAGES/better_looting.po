@@ -201,3 +201,6 @@ msgstr "Сохранён"
 
 msgid "Slot %d"
 msgstr "Слот %d"
+
+msgid "Incomplete"
+msgstr "Повреждён"

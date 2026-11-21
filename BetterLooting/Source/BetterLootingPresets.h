@@ -10,6 +10,7 @@ namespace BetterLootingPresets
     struct Slot
     {
         bool occupied;
+        bool valid;
         std::string name;
     };
 

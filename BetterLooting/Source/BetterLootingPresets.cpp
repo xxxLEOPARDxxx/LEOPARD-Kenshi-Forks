@@ -62,13 +62,20 @@ namespace BetterLootingPresets
 
         int ActiveSlot(const char* path)
         {
-            const unsigned selected = GetPrivateProfileIntA(Group, "Active", 0, path);
-            return selected >= 1 && selected <= SlotCount ? static_cast<int>(selected) - 1 : -1;
+            char value[3];
+            const DWORD length = GetPrivateProfileStringA(Group, "Active", "", value, sizeof(value), path);
+            return length == 1 && value[0] >= '1' && value[0] < '1' + SlotCount ? value[0] - '1' : -1;
         }
 
-        bool Occupied(const char* path, const char* section)
+        enum SlotFormat { Absent, Supported, Unsupported };
+
+        SlotFormat ReadFormat(const char* path, const char* section)
         {
-            return GetPrivateProfileIntA(section, "Format", 0, path) == 1;
+            char format[3];
+            const DWORD length = GetPrivateProfileStringA(section, "Format", Missing, format, sizeof(format), path);
+            if (length == 1 && format[0] == Missing[0])
+                return Absent;
+            return length == 1 && format[0] == '1' ? Supported : Unsupported;
         }
 
         bool ReadValues(const char* path, const char* slotSection, Values& result)
@@ -118,6 +125,17 @@ namespace BetterLootingPresets
                 if (left.fields[i] != right.fields[i])
                     return false;
             return true;
+        }
+
+        bool ReadPresetValues(const char* path, const char* section, Values& values)
+        {
+            if (!ReadValues(path, section, values))
+                return false;
+            // Format 1 only writes canonical numeric and toggle values.
+            // Reject damaged fields before they can change working rules.
+            Values normalized = values;
+            NormalizeMenuValues(normalized);
+            return SameValues(values, normalized);
         }
 
         bool WriteValue(const char* path, const char* section, const char* key, const std::string& value)
@@ -209,32 +227,31 @@ namespace BetterLootingPresets
         {
             const std::string section = SlotSection(i);
             Slot& slot = state.slots[i];
-            slot.occupied = Occupied(ini, section.c_str());
+            const SlotFormat format = ReadFormat(ini, section.c_str());
+            slot.occupied = format != Absent;
+            Values saved;
+            slot.valid = format == Supported && ReadPresetValues(ini, section.c_str(), saved);
             if (slot.occupied)
             {
                 char name[192];
                 GetPrivateProfileStringA(section.c_str(), "Name", "", name, sizeof(name), ini);
                 slot.name = name;
             }
-        }
-        if (state.active >= 0 && state.slots[state.active].occupied)
-        {
-            Values current, saved;
-            const std::string section = SlotSection(state.active);
-            if (!ReadValues(ini, section.c_str(), saved))
-                state.active = -1;
-            else if (!ReadValues(ini, NULL, current))
-                state.modified = true;
-            else
+            if (state.active == i)
             {
-                NormalizeMenuValues(saved);
-                NormalizeMenuValues(current);
-                state.modified = !SameValues(current, saved);
+                if (!slot.valid)
+                    state.active = -1;
+                else
+                {
+                    Values current;
+                    state.modified = !ReadValues(ini, NULL, current);
+                    if (!state.modified)
+                    {
+                        NormalizeMenuValues(current);
+                        state.modified = !SameValues(current, saved);
+                    }
+                }
             }
-        }
-        else
-        {
-            state.active = -1;
         }
         return state;
     }
@@ -253,13 +270,15 @@ namespace BetterLootingPresets
                 name.find('\0') != std::string::npos || !ReadValues(ini, NULL, values))
                 return ValueTooLong;
         }
-        else if (!Occupied(ini, slotSection) ||
-                 (operation == Apply && !ReadValues(ini, slotSection, values)))
+        else
         {
-            return EmptySlot;
+            const SlotFormat format = ReadFormat(ini, slotSection);
+            if (format == Absent ||
+                (operation == Apply && (format != Supported || !ReadPresetValues(ini, slotSection, values))))
+                return EmptySlot;
         }
 
-        if (operation != Clear)
+        if (operation == Save)
             NormalizeMenuValues(values);
         IniEdit edit(path);
         const char* staging = edit.Path();
