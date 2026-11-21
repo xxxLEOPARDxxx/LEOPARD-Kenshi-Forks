@@ -33,7 +33,8 @@ for opt in ('Od','O2'):
     result=subprocess.run(command,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
     (OUT/('build-'+opt+'.log')).write_bytes(result.stdout)
     if result.returncode:print(result.stdout.decode(errors='replace'));raise SystemExit(result.returncode)
-    for mode in ('gog','gog-tail-fail','gog-create-hook-fail','off','on','early','worker','capture-fail','capture-hook-fail','switch-hook-fail','switch-contract-fail','timing-fail','fallback','reentrant'):
+    for mode in ('gog','gog-tail-fail','gog-create-hook-fail','off','on','early','worker','capture-fail','capture-hook-fail','switch-hook-fail','switch-contract-fail','timing-fail','fallback','reentrant',
+                 'batch','batch-partial','batch-local-refusal','gog-batch'):
         result=subprocess.run([str(exe),mode],cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         (OUT/(opt+'-'+mode+'.log')).write_bytes(result.stdout)
         print(result.stdout.decode(errors='replace').strip())

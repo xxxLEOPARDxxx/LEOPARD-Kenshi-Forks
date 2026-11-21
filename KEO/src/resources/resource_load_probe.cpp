@@ -2,6 +2,7 @@
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_geometry.h"
 #include "fixes/world/morph_pose_scope.h"
+#include "plugin/independent_hook_batch.h"
 #ifndef RESOURCE_LOAD_PROBE_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -234,6 +235,27 @@ static bool Install(const char*name,uintptr_t rva,const unsigned char*bytes,Nati
 #if !defined(RESOURCE_LOAD_PROBE_TEST) || defined(RESOURCE_LOAD_PROBE_INIT_TEST)
 namespace resource_load_probe_detail {
 static bool captureAttempted=false,captureInitializationComplete=false,diagnosticsAttempted=false;
+
+static void InstallCompletionCaptures(void* texture2DSite,void* morphSwitchSite)
+{
+    HookBatch batch;
+    if(!texture2DSite||!morphSwitchSite||texture2DSite==morphSwitchSite||!BeginNativeHookBatch(batch)){
+        texture2DInstalled=InstallAdmitted("texture2D",texture2DSite,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
+        morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
+        return;
+    }
+
+    const char* textureWhy="batch-admission";
+    const char* morphWhy="batch-admission";
+    batch.AddResult(0,texture2DSite,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D),&textureWhy);
+    batch.AddResult(1,morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch),&morphWhy);
+    FinishNativeHookBatch(batch);
+    texture2DInstalled=!textureWhy;
+    morphSwitchInstalled=!morphWhy;
+    if(textureWhy)LogError(std::string("Resource loading probe: texture2D hook unconfirmed (")+textureWhy+")");
+    if(morphWhy)LogError(std::string("Resource loading probe: morphSwitch hook unconfirmed (")+morphWhy+")");
+}
+
 static void EnsureDiagnosticHooks(){
     // The mandatory output capture must finish its own attempt first. Mark
     // timing admission before installing anything so reentrant reports cannot
@@ -304,7 +326,6 @@ void ResourceLoadProbeInit(){
     };
     void* texture2DSite=known?AdmitModule(exe,stamp,size,gog?0x44a8f0:0x44ACD0,textureBytes):NULL;
     if(gog&&texture2DSite&&!AdmitModule(exe,stamp,size,0x44aa20,gogTextureContract))texture2DSite=NULL;
-    texture2DInstalled=InstallAdmitted("texture2D",texture2DSite,reinterpret_cast<void*>(&Texture2D),reinterpret_cast<void**>(&originalTexture2D));
     // The existing Switch seam supplies the final morph replacement to the
     // geometry cache even with diagnostics OFF. Never add a second detour.
     static const unsigned char morphSwitchBytes[32]={0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x30,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x50,0x48,0x89,0x6c,0x24,0x68};
@@ -314,7 +335,7 @@ void ResourceLoadProbeInit(){
     };
     void* morphSwitchSite=known?AdmitModule(exe,stamp,size,0x71920,morphSwitchBytes):NULL;
     if(gog&&morphSwitchSite&&!AdmitModule(exe,stamp,size,0x71a5a,gogMorphSwitchContract))morphSwitchSite=NULL;
-    morphSwitchInstalled=InstallAdmitted("morphSwitch",morphSwitchSite,reinterpret_cast<void*>(&SwitchBodyMesh),reinterpret_cast<void**>(&originalMorphSwitch));
+    InstallCompletionCaptures(texture2DSite,morphSwitchSite);
     // The functional body-morph scope needs this seam even with Debug OFF.
     // Diagnostics reuse the same wrapper instead of adding another detour.
     static const unsigned char morphCreateBytes[32]={0x48,0x8b,0xc4,0x48,0x89,0x50,0x10,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x81,0xec,0x80,0x00,0x00,0x00,0x48,0xc7,0x44,0x24,0x28,0xfe,0xff,0xff,0xff};

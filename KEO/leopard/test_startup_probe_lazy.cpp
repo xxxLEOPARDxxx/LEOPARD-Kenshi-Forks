@@ -8,12 +8,35 @@
 #include <cstdio>
 #include <cstdlib>
 #include "fixes/world/morph_pose_scope.h"
+#include "plugin/independent_hook_batch.h"
 static bool enabled=false,onMain=true,gog=false,failTextureContract=false,failSwitchContract=false,reenter=false,reenterTiming=false,inCapture=false;
 static bool morphCreateReady=false,failGogTail=false;
 static unsigned clocks=0,elapsedReads=0,errors=0,checks=0,earlyTiming=0;
 static double seconds=0;
 static std::string failHook,output;
 static std::vector<std::string> attempts;
+static bool batchRequested=false,batchApplyFailed=false;
+static unsigned queuedCaptures=0,batchApplies=0;
+static void* NativeTexture(void*,void*out){return out;}
+static void* NativeMorphSwitch(void*entity,void*){return entity;}
+static int QueueCapture(size_t,void*target,void*,void**original){
+    ++queuedCaptures;
+    const uintptr_t address=reinterpret_cast<uintptr_t>(target);
+    if(address==0x10071920){
+        attempts.push_back("morphSwitch");
+        *original=reinterpret_cast<void*>(&NativeMorphSwitch);
+    }else if(address==(gog?0x1044a8f0:0x1044acd0)){
+        attempts.push_back("texture2D");
+        *original=reinterpret_cast<void*>(&NativeTexture);
+    }else{
+        attempts.push_back("unexpected");
+        return 1;
+    }
+    return 0;
+}
+static int ApplyCapture(size_t){++batchApplies;return batchApplyFailed?1:0;}
+bool BeginNativeHookBatch(HookBatch& batch){return batchRequested&&batch.Begin(1,QueueCapture,ApplyCapture);}
+void FinishNativeHookBatch(HookBatch& batch){batch.Finish();}
 bool DetailedLogEnabled(){return enabled;}
 bool IsMainThread(){return onMain;}
 bool NativeProfileIsGog(){return gog;}
@@ -83,7 +106,29 @@ int main(int argc,char**argv){
         onMain=false;ResourceLoadProbeInit();ResourceLoadProbeReport();Check(attempts.empty(),"worker cannot claim owner initialization");onMain=true;
     }
     if(mode=="reentrant")reenter=reenterTiming=true;
+    batchRequested=mode=="batch"||mode=="batch-partial"||mode=="batch-local-refusal"||mode=="gog-batch";
+    batchApplyFailed=mode=="batch-partial";
+    if(mode=="batch-local-refusal")failTextureContract=true;
     ResourceLoadProbeInit();
+    if(batchRequested){
+        Check(queuedCaptures==(failTextureContract?0u:2u)&&batchApplies==(failTextureContract?0u:1u),
+            "resource capture hooks enter one batch when both are admitted");
+        Check(attempts.size()==3&&attempts[0]=="texture2D"&&attempts[1]=="morphSwitch"&&attempts[2]=="morphCreate",
+            "capture order is retained before the independent pose scope");
+        Check(morphCreateReady&&morphCreateInstalled,"pose scope gate remains independent of the batch result");
+        Check(morphSwitchInstalled==!batchApplyFailed&&texture2DInstalled==(!batchApplyFailed&&!failTextureContract),
+            "batch only confirms admitted and applied rows");
+        if(failTextureContract){
+            Check(originalMorphSwitch!=NULL&&originalTexture2D==NULL,"only the admitted fallback original is set");
+        }else{
+            int entity=0,output=0;
+            Check(Texture2D(&entity,&output)==&output&&SwitchBodyMesh(&entity,&output)==&entity,
+                "both capture detours forward to their originals even after partial apply");
+        }
+        ResourceLoadProbeInit();
+        Check(batchApplies==(failTextureContract?0u:1u)&&attempts.size()==3,"capture installation is attempted once");
+        printf("PASS %u production startup-init controls %s\n",checks,mode.c_str());return 0;
+    }
     if(gog){
         Check(attempts.size()==3&&Count("texture2D")==1&&Count("morphSwitch")==1&&Count("morphCreate")==1,
             "GOG installs only three existing functional hooks");
