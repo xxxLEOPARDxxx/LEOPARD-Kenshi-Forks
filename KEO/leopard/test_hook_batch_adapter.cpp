@@ -4,26 +4,40 @@
 #include <cstdio>
 #include <cstring>
 #include <new>
+#include <sstream>
 #include "plugin/hook_manifest.h"
 #include "plugin/independent_hook_batch.h"
-struct Prologue{uintptr_t rva;};
+struct Prologue{uintptr_t rva;const char*name;};
 static Prologue g_hookPrologues[HOOK_ROW_COUNT];
 static volatile LONG s_installed[HOOK_ROW_COUNT],s_gatePassed[HOOK_ROW_COUNT];
 // BATCH_GLOBALS
 static unsigned checks=0,queued=0,applied=0,immediate=0,verified=0,completed=0,refused=0;
 static int activeMask=15,applyResult=0,queueFailure=-1;
 static bool sdk=true,fresh=true,reenter=false,throwCompletion=false;
-static void**nativeOriginal[16];static HookRowId rows[4]={HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK,HOOK_CHARACTER_PAUSED_UPDATE,HOOK_ACTIVEPLATOON_CALC_POS,HOOK_FACTION_RELATIONS_UPDATE};
+static void**nativeOriginal[16];static uintptr_t queuedAddresses[16];static HookRowId rows[4]={HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK,HOOK_CHARACTER_PAUSED_UPDATE,HOOK_ACTIVEPLATOON_CALC_POS,HOOK_FACTION_RELATIONS_UPDATE};
 static void* originals[4];static int installed=0;
 #define C(x) do{++checks;if(!(x)){std::fprintf(stderr,"FAIL %u %s\n",__LINE__,#x);throw 77;}}while(0)
 static int Native(int n){return n+7;}
+typedef int (*CancelFn)(int);
+namespace game {
+static struct {
+ CancelFn orig_stopCharactersMovement,orig_addJobSelected,orig_addTaskNearest;
+} g_hookOrig;
+}
+static int hook_stopCharactersMovement(int n){return game::g_hookOrig.orig_stopCharactersMovement(n);}
+static int hook_addJobSelected(int n){return game::g_hookOrig.orig_addJobSelected(n);}
+static int hook_addTaskNearest(int n){return game::g_hookOrig.orig_addTaskNearest(n);}
+static unsigned cancelFlags=0,cancelErrors=0;
+static void IslandSetCancelHooksInstalled(bool stop,bool job,bool task){cancelFlags=stop+2*job+4*task;}
+static void LogError(const std::string&){++cancelErrors;}
+#define KEO_DETAIL(x) do{}while(0)
 static void Complete(const char*why){++completed;if(why)++refused;if(throwCompletion)throw 33;}
 static void OtherComplete(const char*why){C(why!=NULL);}
 static bool VerifyPrologueByRva(uintptr_t){++verified;return fresh;}
 static void*GameAddr(uintptr_t rva){return (void*)(rva+0x10000);}
 static HookAdmit HookInstallAdmitActual(bool v,bool ok,bool passed){return(v?ok:passed)?HOOK_ADMIT:HOOK_REFUSE_PROLOGUE;}
 #define HookInstallAdmit HookInstallAdmitActual
-static int Queue(size_t id,void*,void*,void**o){C(id==0x11110000);int i=int(queued++);nativeOriginal[i]=o;*o=i==queueFailure?NULL:(void*)&Native;return i==queueFailure?1:0;}
+static int Queue(size_t id,void*address,void*,void**o){C(id==0x11110000);int i=int(queued++);nativeOriginal[i]=o;queuedAddresses[i]=(uintptr_t)address;*o=i==queueFailure?NULL:(void*)&Native;return i==queueFailure?1:0;}
 static int Apply(size_t id){C(id==0x11110000);++applied;C(completed==0);for(unsigned i=0;i<queued;++i)if((activeMask&(1<<i))&&int(i)!=queueFailure){C(*nativeOriginal[i]!=NULL);C(((int(*)(int))*nativeOriginal[i])(3)==10);}if(reenter){unsigned n=verified;void*saved=originals[0];HookInstallIndependentRow(rows[0],(void*)1,&originals[0],&installed,true,OtherComplete);C(verified==n&&originals[0]==saved&&s_independentDone[rows[0]]==Complete);}return applyResult;}
 static bool BeginIndependentHooks(){return sdk&&s_independentBatch.Begin(0x11110000,Queue,Apply);}
 const char*HookInstallRow(HookRowId id,void*,void**o,int*n,bool){++immediate;*o=(void*)&Native;s_installed[id]=1;if(n)++*n;return NULL;}
@@ -38,7 +52,8 @@ int main(){try{
  Reset();throwCompletion=true;try{IndependentStartupScope scope(&installed);HookInstallIndependentRow(rows[0],(void*)1,&originals[0],&installed,true,Complete);scope.Finish();}catch(int x){C(x==33);}C(!s_independentPhase&&s_independentCount==NULL&&originals[0]==(void*)&Native);
  const HookRowId added[] = {HOOK_GRAPH_POSITION_LOOKUP, HOOK_NAVMESH_FACE_AABB,
     HOOK_SPEED_GROUP_GET_SPEED, HOOK_SCORE_FIND_FOOD_ON_GROUND,
-    HOOK_RESET_UNLOAD_ZONES, HOOK_PROCESS_LOADING};
+    HOOK_RESET_UNLOAD_ZONES, HOOK_PROCESS_LOADING, HOOK_STOP_CHARACTERS_MOVEMENT,
+    HOOK_ADD_JOB_SELECTED, HOOK_ADD_TASK_NEAREST};
  const int addedCount=sizeof(added)/sizeof(added[0]);
  const int total=4+addedCount;
  const int allActive=(1<<total)-1;
@@ -58,6 +73,35 @@ int main(){try{
   C(installed==(mask==allActive?total:0)&&refused==(mask==allActive?0:total));
   C(s_allowFurtherNativeBatches==(mask==allActive));
   for(int i=0;i<addedCount;++i) C(extra[i]==(void*)&Native);
+ }
+ const HookRowId cancelRows[] = {HOOK_STOP_CHARACTERS_MOVEMENT,HOOK_ADD_JOB_SELECTED,HOOK_ADD_TASK_NEAREST};
+ for(int mode=0;mode<5;++mode){
+  Reset();
+  cancelFlags=cancelErrors=0;
+  game::g_hookOrig.orig_stopCharactersMovement=game::g_hookOrig.orig_addJobSelected=game::g_hookOrig.orig_addTaskNearest=NULL;
+  for(int i=0;i<3;++i)g_hookPrologues[cancelRows[i]].name="cancel test hook";
+  sdk=mode!=1;
+  if(mode==2)queueFailure=1;
+  if(mode==3){activeMask=3;applyResult=1;}
+  if(mode==4)fresh=false;
+  {
+   IndependentStartupScope scope(&installed);
+   InstallCancelHooks(&installed,NULL);
+   if(sdk)C(queued==0&&immediate==0&&installed==0&&cancelFlags==0);
+   scope.Finish();
+   if(sdk&&fresh){
+    C(queued==3&&applied==1);
+    for(int i=0;i<3;++i)C(queuedAddresses[i]==(uintptr_t)GameAddr(g_hookPrologues[cancelRows[i]].rva));
+   }
+   FinalizeCancelHooks();
+  }
+  C(cancelFlags==(mode<2?7u:mode==2?5u:0u));
+  C(installed==(mode<2?3:mode==2?2:0));
+  C(cancelErrors==(mode<2?0u:mode==2?1u:3u));
+  if(fresh){
+   C(hook_stopCharactersMovement(2)==9&&hook_addTaskNearest(3)==10);
+   if(mode!=2)C(hook_addJobSelected(4)==11);
+  }
  }
  std::printf("PASS %u actual batch adapter controls\n",checks);return 0;
  }catch(...){return 1;}}
