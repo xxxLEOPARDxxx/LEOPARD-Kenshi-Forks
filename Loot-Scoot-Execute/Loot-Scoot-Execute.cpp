@@ -11,6 +11,7 @@
 #include <Debug.h>
 
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>

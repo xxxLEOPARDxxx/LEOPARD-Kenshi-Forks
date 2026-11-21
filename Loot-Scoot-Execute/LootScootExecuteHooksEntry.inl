@@ -346,20 +346,21 @@ __declspec(dllexport) void startPlugin()
         return;
     }
 
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(&PlayerInterface::newPlayerTaskSelectedCharacters),
-        PlayerInterface_newPlayerTask_hook,
-        &PlayerInterface_newPlayerTask_orig))
-    {
-        ErrorLog("Loot-Scoot-Execute WARN: could not hook newPlayerTaskSelectedCharacters - orders will not cancel executes");
-    }
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-        KenshiLib::GetRealAddress(&PlayerInterface::updateLastMoveWaypointSelectedCharacters),
-        PlayerInterface_moveWaypoint_hook,
-        &PlayerInterface_moveWaypoint_orig))
-    {
-        ErrorLog("Loot-Scoot-Execute WARN: could not hook move orders - a ground click will not cancel executes");
-    }
+    // Both observers cancel the transient execute order and forward to their
+    // own original. Permanent jobs have a separate, mandatory install below.
+    StartupHooks::Hook orderObservers[] = {
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&PlayerInterface::newPlayerTaskSelectedCharacters),
+                           PlayerInterface_newPlayerTask_hook, &PlayerInterface_newPlayerTask_orig),
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&PlayerInterface::updateLastMoveWaypointSelectedCharacters),
+                           PlayerInterface_moveWaypoint_hook, &PlayerInterface_moveWaypoint_orig)
+    };
+    StartupHooks::Install(orderObservers, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    if (!orderObservers[0].installed)
+        ErrorLog("Loot-Scoot-Execute WARN: task order observer installation unconfirmed");
+    if (!orderObservers[1].installed)
+        ErrorLog("Loot-Scoot-Execute WARN: movement order observer installation unconfirmed");
 
     const bool worldHookInstalled = KenshiLib::SUCCESS == KenshiLib::AddHook(
         KenshiLib::GetRealAddress(&GameWorld::_clearAndDestroyGameWorldStuff),

@@ -18,7 +18,8 @@ def check_native_abi():
     profiles = [
         ('Steam',Path('D:/SteamLibrary/steamapps/common/Kenshi/RE_Kenshi/Kenshi_x64.exe'),
          '504b362cde850d56afb1cea6f5b7b0ee014d9dd7b47e188599d91c804502cd3e',0x61C8C0,0x60DF70,0x51B7B0,0x60F2F0),
-        ('GOG',Path('D:/SteamLibrary/steamapps/common/Kenshi/_codex_work/20261105-keo-gog-native/re_kenshi/kenshi_GOG_x64.exe'),
+        ('GOG',Path(os.environ.get('KENSHI_GOG_EXE',
+                    'D:/SteamLibrary/steamapps/common/Kenshi/_codex_work/20261105-keo-gog-native/re_kenshi/kenshi_GOG_x64.exe')),
          '2defc287c813798b9682b93acf68d340da895cf5164d342145ba0faeb9024681',0x61CBD0,0x60E280,0x51BAC0,0x60F600)]
     for name,path,digest,ctor,register,node,score in profiles:
         assert hashlib.sha256(path.read_bytes()).hexdigest()==digest, name+' native executable identity'
