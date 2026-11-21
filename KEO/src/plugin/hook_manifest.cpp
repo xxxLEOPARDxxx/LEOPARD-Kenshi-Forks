@@ -58,6 +58,7 @@
 #include "fixes/world/animation_dirty_patch.h"
 #include "fixes/world/save_field_key_patch.h"
 #include "fixes/world/save_read_buffer.h"
+#include "fixes/world/save_transform_read.h"
 #include "fixes/world/save_string_transfer.h"
 #include "fixes/world/save_state_list_transfer.h"
 #include "fixes/world/save_instance_lookup.h"
@@ -779,6 +780,7 @@ static void (*const kInstallSteps[])(int*, int*) =
 	InstallMaterialReserve,
 	InstallEquipmentFieldLookup,
 	InstallSaveReadBuffer,
+	InstallSaveTransformRead,
 	InstallSaveFieldKeyReuse,
 	InstallSaveStringTransfer,
 	InstallSaveInstanceLookup,

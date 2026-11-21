@@ -380,7 +380,7 @@ const ConfigKey g_fixesConfigKeys[] =
       "Reduces temporary copying of shape data while the game builds a character's appearance. Each character keeps its own model and appearance. Does not change equipment, animation, rendering or spawn order. Supported engine builds only."),
 	CFG_OBOOL_LIVE("saveReadBuffer", FixesConfig, saveReadBufferEnabled, DOC, SHOW,
       "Batch save file reads",
-      "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."),
+      "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."),
 	CFG_OBOOL_LIVE("saveFieldKeyReuse", FixesConfig, saveFieldKeyReuseEnabled, DOC, SHOW,
       "Skip discarded save field keys",
       "Avoids constructing temporary field names that the save parser would immediately discard. Permission checks, final field names, values and loading order stay native. Supported engine builds only."),

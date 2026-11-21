@@ -380,8 +380,11 @@ being parsed. The native CRT owns the buffer and frees it at close; there is no
 new cache, worker, per-frame scan or retained save-file handle. Local stream tests
 show 50 versus 4 refills for 200003 single-byte reads, not measured game-load gains.
 One metadata query per eligible file is an added cost; the size threshold is a
-conservative policy, not a profiled optimum. CPU parsing and equipment assembly
-have not been rewritten. Details: `leopard/save-read-verification-20261116.md`.
+conservative policy, not a profiled optimum. Details: `leopard/save-read-verification-20261116.md`.
+
+On verified Steam and GOG builds, the option also reads an object's position
+and rotation in one 28-byte call when both fields are already in the native
+input buffer. Partial or unbuffered fields use the original two reads.
 
 **Укрупнять чтение сохранений** - настройка раздела «Производительность», включена
 по умолчанию и работает без перезапуска. Для новых поддерживаемых потоков чтения
@@ -394,8 +397,11 @@ have not been rewritten. Details: `leopard/save-read-verification-20261116.md`.
 сама стандартная библиотека при закрытии файла; нового кэша, рабочего потока или
 покадрового обхода нет. Проверки вне игры подтверждают 4 вместо 50 пополнений буфера
 для 200003 однобайтовых чтений. Ускорение загрузки игры не измерялось; дополнительный
-запрос размера имеет собственную стоимость. Разбор данных и сборка снаряжения
-не переписывались.
+запрос размера имеет собственную стоимость.
+
+На проверенных сборках Steam и GOG координаты и поворот объекта читаются одним
+вызовом на 28 байт, когда оба поля уже есть в штатном буфере. При нехватке данных
+в буфере движок читает поля по отдельности.
 
 ## Private body shape preparation / Подготовка форм тела (2026-11-16)
 

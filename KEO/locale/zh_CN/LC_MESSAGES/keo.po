@@ -476,8 +476,8 @@ msgstr "减少游戏复制模型和装备材质时重复进行的小块内存分
 msgid "Batch save file reads"
 msgstr "合并存档文件读取"
 
-msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
-msgstr "在受支持的引擎版本上，加载已保存的世界和小队数据时减少小块文件读取。存档格式、数值和解析规则保持不变。更改此选项后新打开的存档文件会使用该设置。"
+msgid "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."
+msgstr "为符合条件的存档文件使用更大的缓冲区。位置和旋转数据均已进入缓冲区时，合并读取这两个字段。存档格式和数值保持不变。仅适用于受支持的引擎版本。"
 
 #: src/fixes/fixes_config.cpp
 msgid "Transfer temporary save strings"

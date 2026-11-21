@@ -476,8 +476,8 @@ msgstr "Уменьшает повторные мелкие выделения п
 msgid "Batch save file reads"
 msgstr "Укрупнять чтение сохранений"
 
-msgid "Reduces small file reads while loading saved world and squad data on supported engine builds. Save format, values and parsing rules stay unchanged. Applies to save files opened after changing this option."
-msgstr "Сокращает мелкие чтения файлов при загрузке сохранённого мира и отрядов на поддерживаемых версиях движка. Формат сейва, значения и правила разбора не меняются. Применяется к файлам сохранения, открытым после изменения этой настройки."
+msgid "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."
+msgstr "Увеличивает буфер чтения для подходящих файлов сохранения. Координаты и поворот объекта читаются вместе, когда оба поля уже есть в буфере. Формат и данные сейва сохраняются. Работает на поддерживаемых версиях движка."
 
 #: src/fixes/fixes_config.cpp
 msgid "Transfer temporary save strings"
