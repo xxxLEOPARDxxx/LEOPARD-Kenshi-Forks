@@ -9,6 +9,7 @@ namespace planner {
 
 static const float GRID_ORIGIN = 147456.0f;
 static const float GRID_CELL   = 4608.0f;
+static const int   GRID_SIDE   = 64;
 
 static const double ARRIVAL_TIMEOUT_SECONDS = 8.0;
 static const double PLAN_AGE_SECONDS        = 120.0;
@@ -371,23 +372,24 @@ PlanReplanWhy PlanReplanDue(const PlanReplanIn& in)
 	return PRW_NONE;
 }
 
-int PlanFeedCells(const PlanLeg* legs, int n, int from, int ahead, int exteriorSlots, int* outXY)
+int PlanFeedCells(const PlanLeg* legs, int n, int from, int ahead, unsigned loadedMask, int exteriorSlots, int* outXY)
 {
 	if (n > PLAN_MAX_LEGS) n = PLAN_MAX_LEGS;
 	if (!legs || !outXY || ahead <= 0) return 0;
-	bool haveFrom = from >= 0 && from < n;
 	int count = 0;
-	for (int i = (from + 1 > 0) ? from + 1 : 0; i < n && count < ahead; ++i)
+	for (int i = from > 0 ? from : 0; i < n && count < ahead; ++i)
 	{
-		const PlanLeg& leg = legs[i];
-		if (leg.farSection >= exteriorSlots) continue;
-		if (haveFrom && leg.cellX == legs[from].cellX && leg.cellY == legs[from].cellY) continue;
+		const int dir = legs[i].farSection;
+		if (LegLoaded(loadedMask, i) || dir < 0 || dir >= exteriorSlots) continue;
+		// The portal lies on a seam and its coordinates can map to the section we are leaving.
+		const int x = dir % GRID_SIDE;
+		const int y = dir / GRID_SIDE;
 		bool seen = false;
 		for (int k = 0; k < count && !seen; ++k)
-			seen = outXY[k * 2] == leg.cellX && outXY[k * 2 + 1] == leg.cellY;
+			seen = outXY[k * 2] == x && outXY[k * 2 + 1] == y;
 		if (seen) continue;
-		outXY[count * 2]     = leg.cellX;
-		outXY[count * 2 + 1] = leg.cellY;
+		outXY[count * 2] = x;
+		outXY[count * 2 + 1] = y;
 		++count;
 	}
 	return count;

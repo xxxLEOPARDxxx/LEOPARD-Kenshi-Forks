@@ -27,7 +27,7 @@ code=r'''
 using namespace planner;
 unsigned checks=0;bool paused=false;double raw=0,seenTick=-1,seenMerge=-1,seenReport=-1;
 int mode=PLANNER_ON,calls=0,resets=0,preFrames=0;unsigned gen=1,s_storeGen=0;
-double s_lastTick=0;const double TICK_SECONDS=.25;const int PLAN_SLOTS=1,PLAYER_SCAN_MAX=1,REPLANS_PER_TICK=4;
+double s_lastTick=0,s_waitFeedAt[4]={};int s_replanCursor=0;const double TICK_SECONDS=.25;const int PLAN_SLOTS=1,PLAYER_SCAN_MAX=1,REPLANS_PER_TICK=4;
 struct PlayerChar{int unused;};
 void C(bool b,const char*s){++checks;if(!b){std::printf("FAIL %s\n",s);std::exit(1);}}
 bool ZonePauseIsPaused(){return paused;}double ElapsedSec(){return raw;}
@@ -39,6 +39,7 @@ void PlannerWaterRefresh(){}void MergeTick(double now){seenMerge=now;}void Plann
 double CaptureNow(){return @CAPTURE@;}double MergeNow(){return @MERGE@;}
 double ResumeNow(double now){@RESUME@ return now;}
 double HoldAge(double now,double held){struct Hold{double holdTime;}value={held};const Hold*m=&value;return @HOLD@;}
+void TickPlanSlots(const PlayerChar*,int n,double now,int budget){if(n>0)TickSlot(0,NULL,n,now,budget>0);}
 @TICK@
 PlanReplanIn Due(double now,double planned){PlanReplanIn in={};in.now=now;in.planTime=planned;in.distToPortal=100;in.waitSeconds=10;return in;}
 int main(){OOT_ResetForTest();raw=100;double planned=CaptureNow();C(planned==100,"capture begins in active seconds");
@@ -61,7 +62,7 @@ def run(name,source,opt,negative=False):
  p=subprocess.run([str(VC/'bin/amd64/cl.exe'),'/nologo','/EHsc','/'+opt,'/MT',str(file),str(ROOT/'src/planner/plan_policy.cpp'),str(ROOT/'src/movement/order_outcome_table.cpp'),str(ROOT/'src/movement/order_outcome_policy.cpp'),'/Fo'+str(OUT)+'\\','/Fe'+str(exe)],env=env,cwd=OUT,capture_output=True,text=True);print(p.stdout+p.stderr,end='');assert p.returncode==0
  p=subprocess.run([str(exe)],capture_output=True,text=True);print(p.stdout+p.stderr,end='');assert (p.returncode!=0 and 'FAIL ' in p.stdout) if negative else p.returncode==0
 for opt in ['Od','O2']:run('clock-'+opt,code,opt)
-mutants=[('raw-capture','double CaptureNow(){return '+capture_expr+';}','double CaptureNow(){return ElapsedSec();}'),('raw-merge','double MergeNow(){return '+merge_expr+';}','double MergeNow(){return ElapsedSec();}'),('raw-resume','double ResumeNow(double now){now = BehaviorNow(now); return now;}','double ResumeNow(double now){return now;}'),('raw-tick','TickSlot(slot, players, nPlayers, activeNow,','TickSlot(slot, players, nPlayers, now,'),('raw-merge-tick','MergeTick(activeNow);','MergeTick(now);'),('double-hold','return '+hold_expr+';}','return OOT_ActiveNow(now, ZonePauseIsPaused()) - m->holdTime;}')]
+mutants=[('raw-capture','double CaptureNow(){return '+capture_expr+';}','double CaptureNow(){return ElapsedSec();}'),('raw-merge','double MergeNow(){return '+merge_expr+';}','double MergeNow(){return ElapsedSec();}'),('raw-resume','double ResumeNow(double now){now = BehaviorNow(now); return now;}','double ResumeNow(double now){return now;}'),('raw-tick','TickPlanSlots(players, nPlayers, activeNow,','TickPlanSlots(players, nPlayers, now,'),('raw-merge-tick','MergeTick(activeNow);','MergeTick(now);'),('double-hold','return '+hold_expr+';}','return OOT_ActiveNow(now, ZonePauseIsPaused()) - m->holdTime;}')]
 for name,before,after in mutants:
  assert before in code,name
  run('mutant-'+name,code.replace(before,after,1),'O2',True)

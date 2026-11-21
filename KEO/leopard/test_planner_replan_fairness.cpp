@@ -13,6 +13,7 @@ static const int PLAYER_SCAN_MAX=200;
 static const double TICK_SECONDS=0.25;
 static double s_lastTick=0;static unsigned s_storeGen=1;
 static int s_replanCursor=0;
+static double s_waitFeedAt[4];
 static bool present[64],due[64],failure[64],paused=false;
 static unsigned keys[64],visits[64],attempts[64],mode=PLANNER_ON,gen=1;
 static unsigned resets=0,preFrames=0,snapshots=0,reports=0,water=0,merges=0;
@@ -72,7 +73,8 @@ int main(){
  mode=PLANNER_OFF;Step();C(Sum(keys)==prior&&s_replanCursor==cursor);
  mode=PLANNER_ON;paused=true;Step();C(Sum(keys)==prior&&s_replanCursor==cursor);
  paused=false;playerCount=-1;Step();C(Sum(keys)==prior&&s_replanCursor==cursor);
- playerCount=1;s_replanCursor=63;gen=2;Step();C(resets==1&&s_storeGen==2&&s_replanCursor==0&&Sum(visits)==1);
+ playerCount=1;s_replanCursor=63;gen=2;s_waitFeedAt[0]=99.0;Step();C(resets==1&&s_storeGen==2&&s_replanCursor==0&&Sum(visits)==1);
+ C(s_waitFeedAt[0]==0.0);
  s_replanCursor=41;gen=3;paused=true;Step();C(resets==2&&s_replanCursor==0);
  std::printf("PASS %u actual production planner scheduling controls (Debug-independent)\n",checks);return 0;
 }

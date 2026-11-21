@@ -253,9 +253,9 @@ struct PlanReplanIn
 // section now loaded); AGE (120 s); else NONE.
 PlanReplanWhy PlanReplanDue(const PlanReplanIn& in);
 
-// The preload feed: up to `ahead` distinct cells of legs from + 1 on, in route order, skipping
-// interior sections (farSection >= exteriorSlots) and the cell of leg `from`. Writes x,y pairs.
-int PlanFeedCells(const PlanLeg* legs, int n, int from, int ahead, int exteriorSlots, int* outXY);
+// The preload feed: up to ahead distinct unloaded exterior sections, beginning with the section
+// the character is about to cross into. Uses the directory index, not the portal's location.
+int PlanFeedCells(const PlanLeg* legs, int n, int from, int ahead, unsigned loadedMask, int exteriorSlots, int* outXY);
 
 // The install step's decision: off stays off; observe arms; on arms only with the hierarchical
 // player search on (a multi-cell leg under the straight-line heuristic caps).

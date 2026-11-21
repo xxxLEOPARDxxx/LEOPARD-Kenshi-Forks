@@ -29,6 +29,7 @@
 #include "movement/islands.h"
 #include "movement/order_outcome_table.h"
 #include "zone/zone_pause.h"
+#include "zone/zone_config.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,6 +44,7 @@ static_assert(PRW_COUNT == PLAN_REPLAN_REASONS, "one re-plan count per re-plan r
 namespace planner_tick_detail {
 
 const double TICK_SECONDS       = 0.25;
+const double WAIT_FEED_RETRY     = 2.0;
 const int    REPLANS_PER_TICK   = 4;
 const int    SNAP_SLOTS         = 1024;   // a packed face key's 10 collection-slot bits
 const int    MEMO_ENTRIES       = 8;
@@ -74,6 +76,7 @@ static int            s_legSpan     = 2;
 static int            s_legAim      = 0;
 static int            s_aheadTiles  = 3;
 static int            s_waitSeconds = 10;
+static double         s_waitFeedAt[CG_EXTERIOR_SLOTS];  // one retry clock per cell, shared by squad members
 
 // The loaded-set snapshot: the exterior cells as a 4,096-bit set, the interior uids and their
 // directory indices; s_loadedGen moves when the set changes. Main thread.
@@ -475,7 +478,8 @@ int planner_tick_detail::WritePlan(uintptr_t cm, const float pos[3], const Locat
 	InterlockedExchangeAdd(&c->legs, w.legCount);
 	if (w.holdInteriorPortal) InterlockedIncrement(&c->interiorHeld);
 	int xy[2 * 8];
-	int cells = PlanFeedCells(w.legs, w.legCount, w.firstLeg, s_aheadTiles, CG_EXTERIOR_SLOTS, xy);
+	const int feedCount = w.legCount - (w.routeTruncated ? 1 : 0);
+	int cells = PlanFeedCells(w.legs, feedCount, w.firstLeg, s_aheadTiles, w.loadedMask, CG_EXTERIOR_SLOTS, xy);
 	for (int i = 0; i < cells; ++i)
 		EnqueueCharacterZone(xy[2 * i], xy[2 * i + 1]);
 	return slot;
@@ -688,6 +692,23 @@ static PlanReplanWhy SlotReplanDue(int slot, const PlanView& v, double now, floa
 	return PlanReplanDue(in);
 }
 
+// The transition queue can discard an earlier request. While stopped at a portal, renew only
+// that portal's missing exterior section, with one throttled attempt shared across the squad.
+static void RetryWaitFeed(const PlanView& v, int feedCount, float distToPortal, double now)
+{
+	if (!s_aheadTiles || PlanStoreMode() != PLANNER_ON || v.verdict != PV_LEGGED ||
+	    !v.waiting || !(distToPortal < PLAN_REACH) || v.legIndex < 0 || v.legIndex >= feedCount)
+		return;
+	int xy[2];
+	if (!PlanFeedCells(v.legs, v.legIndex + 1, v.legIndex, 1, v.loadedMask, CG_EXTERIOR_SLOTS, xy))
+		return;
+	double& retryAt = s_waitFeedAt[v.legs[v.legIndex].farSection];
+	if (now < retryAt)
+		return;
+	retryAt = now + WAIT_FEED_RETRY;
+	EnqueueCharacterZone(xy[0], xy[1]);
+}
+
 // One armed slot: validation and drop, the loaded mask, the feed on an advance, the clocks and
 // the re-plan. Returns whether it attempted a re-plan (the tick's per-tick budget counts attempts).
 static bool TickSlot(int slot, const PlayerChar* players, int nPlayers, double now, bool mayReplan)
@@ -715,15 +736,18 @@ static bool TickSlot(int slot, const PlayerChar* players, int nPlayers, double n
 		PlanStoreSetLoaded(slot, mask);
 		v.loadedMask = mask;
 	}
+	const int feedCount = v.legCount - (v.routeTruncated ? 1 : 0);
 	if (PlanStoreTakeArrival(slot))
 	{
 		int xy[2 * 8];
-		int cells = PlanFeedCells(v.legs, v.legCount, v.legIndex, s_aheadTiles, CG_EXTERIOR_SLOTS, xy);
+		int cells = PlanFeedCells(v.legs, feedCount, v.legIndex, s_aheadTiles, v.loadedMask, CG_EXTERIOR_SLOTS, xy);
 		for (int i = 0; i < cells; ++i)
 			EnqueueCharacterZone(xy[2 * i], xy[2 * i + 1]);
 	}
 	bool onLeg = v.legIndex >= 0 && v.legIndex < v.legCount;
 	float distToPortal = onLeg ? PlanDistToPortal(v.legs[v.legIndex], pos, s_legAim) : 0.0f;
+	if (zone::g_zoneCfg.preloadEnabled)
+		RetryWaitFeed(v, feedCount, distToPortal, now);
 	UpdateClocks(slot, v, now, distToPortal, onLeg && !v.legs[v.legIndex].isDestination);
 	PlanReplanWhy why = mayReplan ? SlotReplanDue(slot, v, now, distToPortal) : PRW_NONE;
 	if (why == PRW_NONE)
@@ -772,6 +796,7 @@ void PlannerTick(void* zoneMgr, double now)
 		PlanStoreReset();
 		s_storeGen = gen;
 		s_replanCursor = 0;
+		memset(s_waitFeedAt, 0, sizeof(s_waitFeedAt));
 	}
 	// Keep load/generation retirement and wall-time reporting alive, but do not
 	// expire, replace or search character routes while simulation is paused.

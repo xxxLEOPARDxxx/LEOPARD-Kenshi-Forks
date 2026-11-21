@@ -560,22 +560,37 @@ static void CheckComplete()
 
 static void CheckFeed()
 {
-	PlanLeg legs[7];
-	MakeLeg(&legs[0], -4600.0f, ROW_Z, 11, 0);              // cell 31: the current leg
-	MakeLeg(&legs[1], -4500.0f, ROW_Z + 100.0f, 11, 0);     // cell 31 again: skipped
-	MakeLeg(&legs[2], 10.0f, ROW_Z, 5000, 0);               // an interior: skipped
-	MakeLeg(&legs[3], 20.0f, ROW_Z, 12, 0);                 // cell 32
-	MakeLeg(&legs[4], 30.0f, ROW_Z + 10.0f, 12, 0);         // cell 32 again: not repeated
-	MakeLeg(&legs[5], 4620.0f, ROW_Z, 13, 0);               // cell 33
-	MakeLeg(&legs[6], 9300.0f, ROW_Z, 14, 1);               // cell 34
+	PlanLeg legs[8];
+	MakeLeg(&legs[0], -4600.0f, ROW_Z, 30 * 64 + 31, 0);
+	MakeLeg(&legs[1], -4500.0f, ROW_Z, 30 * 64 + 31, 0);
+	MakeLeg(&legs[2], 10.0f, ROW_Z, 5000, 0);  // an interior
+	MakeLeg(&legs[3], 20.0f, ROW_Z, 30 * 64 + 32, 0);
+	MakeLeg(&legs[4], 30.0f, ROW_Z, 30 * 64 + 32, 0);
+	MakeLeg(&legs[5], 4620.0f, ROW_Z, 30 * 64 + 33, 0);
+	MakeLeg(&legs[6], 7000.0f, ROW_Z, -1, 0);  // unresolved
+	MakeLeg(&legs[7], 9300.0f, ROW_Z, 30 * 64 + 34, 1);
 	int xy[16];
 	memset(xy, -1, sizeof(xy));
-	int n = PlanFeedCells(legs, 7, 0, 2, 4096, xy);
+	int n = PlanFeedCells(legs, 8, 0, 2, 0x3u, 4096, xy);
 	bool two = n == 2 && xy[0] == 32 && xy[1] == 30 && xy[2] == 33 && xy[3] == 30 && xy[4] == -1;
-	n = PlanFeedCells(legs, 7, 0, 8, 4096, xy);
+	n = PlanFeedCells(legs, 8, 0, 8, 0x3u, 4096, xy);
 	bool all = n == 3 && xy[4] == 34 && xy[5] == 30;
-	int none = PlanFeedCells(legs, 7, 0, 0, 4096, xy) + PlanFeedCells(legs, 7, 6, 3, 4096, xy);
-	Check(two && all && none == 0, "feed: at most ahead distinct exterior cells after the current leg");
+	int none = PlanFeedCells(legs, 8, 0, 0, 0u, 4096, xy) + PlanFeedCells(legs, 8, 7, 3, 0x80u, 4096, xy);
+	Check(two && all && none == 0, "feed: bounded distinct exterior sections, skipping loaded, interior and unknown sections");
+}
+
+static void CheckPreloadAcrossSeam()
+{
+	PlanLeg legs[3];
+	MakeLeg(&legs[0], -4608.0f, ROW_Z, 30 * 64 + 30, 0);
+	MakeLeg(&legs[1], -4608.0f, -9216.0f, 29 * 64 + 30, 0);
+	MakeLeg(&legs[2], -6500.0f, -9400.0f, 29 * 64 + 30, 1);
+	int xy[4] = {-1, -1, -1, -1};
+	const int count = PlanFeedCells(legs, 3, 0, 2, 0u, 4096, xy);
+	Check(count == 2 && xy[0] == 30 && xy[1] == 30 && xy[2] == 30 && xy[3] == 29,
+	      "feed: queue the awaited far cell before the rest of a westbound route");
+	Check(PlanFeedCells(legs, 3, 1, 2, 0u, 4096, xy) == 1 && xy[0] == 30 && xy[1] == 29,
+	      "feed: after advancing, queue the next far cell and skip the previous one");
 }
 
 static void CheckArm()
@@ -1066,6 +1081,7 @@ int main()
 	CheckReplan();
 	CheckComplete();
 	CheckFeed();
+	CheckPreloadAcrossSeam();
 	CheckArm();
 	CheckWaterModes();
 	CheckWaterGroup();
