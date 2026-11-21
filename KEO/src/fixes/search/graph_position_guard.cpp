@@ -239,6 +239,21 @@ static unsigned __int64 hook_graphPositionLookup(void** ctxPtr, unsigned int pac
 	return 0;
 }
 
+static void CompleteGraphPositionGuard(const char* why)
+{
+	if (!why)
+	{
+		KEO_DETAIL(std::string("Graph position guard: installed, mode=")
+		       + (s_actMode ? "guard" : "observe")
+		       + " (a heartbeat line follows the first minute of searching)");
+	}
+	else
+	{
+		LogError(std::string("Graph position guard: installation unconfirmed (") + why
+		         + ")");
+	}
+}
+
 void InstallGraphPositionGuard(int* installed, int*)
 {
 	// The lever chooses the action (substitute or observe), never whether the
@@ -253,19 +268,6 @@ void InstallGraphPositionGuard(int* installed, int*)
 	s_qpf = f.QuadPart;
 	s_nextBeat = 0;
 
-	const char* why = HookInstall(HOOK_GRAPH_POSITION_LOOKUP, hook_graphPositionLookup,
-			&orig_graphPositionLookup, installed, true);
-
-	if (!why)
-	{
-		KEO_DETAIL(std::string("Graph position guard: installed, mode=")
-		       + (s_actMode ? "guard" : "observe")
-		       + " (a heartbeat line follows the first minute of searching)");
-	}
-	else
-	{
-		orig_graphPositionLookup = NULL;
-		LogError(std::string("Graph position guard: not installed (") + why
-		         + "); a cluster-graph search that meets a section with no graph instance still faults");
-	}
+	HookInstallIndependent(HOOK_GRAPH_POSITION_LOOKUP, hook_graphPositionLookup, &orig_graphPositionLookup,
+	                       installed, true, CompleteGraphPositionGuard);
 }

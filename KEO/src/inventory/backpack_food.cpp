@@ -50,39 +50,43 @@ static float __fastcall hook_scoreFindFoodOnGround(void* ai, const void* subject
 	return 0.0f;
 }
 
+// Startup only. The completion runs after the local preflight has returned.
+static bool s_foodCountShared = false;
+
+static void CompleteBackpackFood(const char* why)
+{
+	if (why)
+	{
+		LogError(std::string("BackpackFood: installation unconfirmed (") + why + ")");
+		return;
+	}
+	KEO_DETAIL(std::string("BackpackFood: installed shared=") +
+	           (s_foodCountShared ? "getNumFoodItems" : "none"));
+}
+
 void InstallBackpackFood(int* installed, int*)
 {
 	if (!HookRowWanted(HOOK_SCORE_FIND_FOOD_ON_GROUND)) return;
-	// The reader binds idempotently; unbound, the post-hook could never see a backpack.
-	const char* reader = NULL;   // set only when the reader refuses
-	const bool readerBound = BackpackReaderInit(&reader);
-	// The callee's head is checked before the post-hook can reach it, under the gate's own
-	// shared-site rule: an E9 or FF 25 jump over a matching tail is another plugin's detour, and
-	// calling the exe address still reaches the count.
-	const char* why = NULL;
+	const char* reader = NULL;
+	if (!BackpackReaderInit(&reader))
+	{
+		LogError(std::string("BackpackFood: reader refused: ") + (reader ? reader : "unknown"));
+		return;
+	}
+	// A callee detoured over a matching tail is still callable at its entry.
 	ByteRowLog rows;
 	ByteRowLogReset(&rows);
-	if (!readerBound)
-		why = "reader refused: ";
-	else if (!ByteRowCheck(&rows, "getNumFoodItems", BYTE_CHECK_CALLEE_HEAD,
-	                       (const unsigned char*)GameAddr(RVA_INVENTORY_GET_NUM_FOOD_ITEMS), NativeProfileBytes(RVA_INVENTORY_GET_NUM_FOOD_ITEMS,kGetNumFoodItemsHead,16), 16))
-		why = rows.why;
-	else
+	if (!ByteRowCheck(&rows, "getNumFoodItems", BYTE_CHECK_CALLEE_HEAD,
+	                  (const unsigned char*)GameAddr(RVA_INVENTORY_GET_NUM_FOOD_ITEMS),
+	                  NativeProfileBytes(RVA_INVENTORY_GET_NUM_FOOD_ITEMS, kGetNumFoodItemsHead, 16), 16))
 	{
-		// Before the install: the post-hook calls it as soon as it is in.
-		fn_getNumFoodItems = (getNumFoodItems_t)GameAddr(RVA_INVENTORY_GET_NUM_FOOD_ITEMS);
-		why = HookInstall(HOOK_SCORE_FIND_FOOD_ON_GROUND, hook_scoreFindFoodOnGround, &orig_scoreFindFoodOnGround, installed, true);
+		CompleteBackpackFood(rows.why);
+		return;
 	}
-	if (!why)
-	{
-		KEO_DETAIL(std::string("BackpackFood: installed shared=") + ByteRowShared(&rows));
-	}
-	else
-	{
-		orig_scoreFindFoodOnGround = NULL;
-		fn_getNumFoodItems = NULL;
-		LogError(std::string("BackpackFood: not installed (") + why + (reader ? reader : "") + "); food scoring stays vanilla");
-	}
+	fn_getNumFoodItems = (getNumFoodItems_t)GameAddr(RVA_INVENTORY_GET_NUM_FOOD_ITEMS);
+	s_foodCountShared = rows.sharedLen != 0;
+	HookInstallIndependent(HOOK_SCORE_FIND_FOOD_ON_GROUND, hook_scoreFindFoodOnGround,
+	                       &orig_scoreFindFoodOnGround, installed, true, CompleteBackpackFood);
 }
 
 long BackpackFoodCalls()

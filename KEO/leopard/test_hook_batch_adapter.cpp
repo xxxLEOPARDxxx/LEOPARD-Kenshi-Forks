@@ -36,5 +36,23 @@ int main(){try{
  Reset();fresh=false;{IndependentStartupScope scope(&installed);HookInstallIndependentRow(rows[0],(void*)1,&originals[0],&installed,true,Complete);scope.Finish();}C(queued==0&&installed==0&&refused==1);
  Reset();{IndependentStartupScope scope(&installed);HookInstallIndependentRow(HOOK_SHOW_LOADING_MESSAGE,(void*)1,&originals[0],&installed,true,OtherComplete);scope.Finish();}C(immediate==0&&queued==0);
  Reset();throwCompletion=true;try{IndependentStartupScope scope(&installed);HookInstallIndependentRow(rows[0],(void*)1,&originals[0],&installed,true,Complete);scope.Finish();}catch(int x){C(x==33);}C(!s_independentPhase&&s_independentCount==NULL&&originals[0]==(void*)&Native);
+ const HookRowId added[] = {HOOK_GRAPH_POSITION_LOOKUP, HOOK_NAVMESH_FACE_AABB,
+    HOOK_SPEED_GROUP_GET_SPEED, HOOK_SCORE_FIND_FOOD_ON_GROUND};
+ for (int mask=0; mask<256; ++mask) {
+  Reset();
+  void* extra[4] = {NULL,NULL,NULL,NULL};
+  activeMask=mask;
+  applyResult=mask==255?0:1;
+  {
+   IndependentStartupScope scope(&installed);
+   for(int i=0;i<4;++i) HookInstallIndependentRow(rows[i],(void*)1,&originals[i],&installed,true,Complete);
+   for(int i=0;i<4;++i) HookInstallIndependentRow(added[i],(void*)1,&extra[i],&installed,true,Complete);
+   C(queued==0&&installed==0&&completed==0);
+   scope.Finish();
+  }
+  C(queued==8&&applied==1&&completed==8);
+  C(installed==(mask==255?8:0)&&refused==(mask==255?0:8));
+  for(int i=0;i<4;++i) C(extra[i]==(void*)&Native);
+ }
  std::printf("PASS %u actual batch adapter controls\n",checks);return 0;
  }catch(...){return 1;}}

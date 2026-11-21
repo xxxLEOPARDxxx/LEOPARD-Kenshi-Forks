@@ -59,14 +59,8 @@ static float hook_getSpeed(void* group, void* who)
 	return speed * f;
 }
 
-void InstallFormationPace(int* installed, int*)
+static void CompleteFormationPace(const char* why)
 {
-	if (!HookRowWanted(HOOK_SPEED_GROUP_GET_SPEED))
-	{
-		KEO_DETAIL("Formation pace: pace=off");
-		return;
-	}
-	const char* why = HookInstall(HOOK_SPEED_GROUP_GET_SPEED, hook_getSpeed, &orig_getSpeed, installed, true);
 	if (why)
 	{
 		LogError(std::string("Formation pace: pace=refused(") + why + ")");
@@ -74,6 +68,17 @@ void InstallFormationPace(int* installed, int*)
 	}
 	InterlockedExchange(&s_armed, 1);
 	KEO_DETAIL("Formation pace: pace=ok");
+}
+
+void InstallFormationPace(int* installed, int*)
+{
+	if (!HookRowWanted(HOOK_SPEED_GROUP_GET_SPEED))
+	{
+		KEO_DETAIL("Formation pace: pace=off");
+		return;
+	}
+	HookInstallIndependent(HOOK_SPEED_GROUP_GET_SPEED, hook_getSpeed, &orig_getSpeed,
+	                       installed, true, CompleteFormationPace);
 }
 
 void FormationPaceResetGroup(int g)

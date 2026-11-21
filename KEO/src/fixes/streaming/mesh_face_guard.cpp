@@ -259,6 +259,23 @@ static void* hook_faceAabb(void* instance, int faceIndex, void* expand, void* ou
 	return expand;
 }
 
+static void CompleteMeshFaceGuard(const char* why)
+{
+	if (!why)
+	{
+		KEO_DETAIL("Mesh face guard: installed (a heartbeat line follows the first minute of cutting)");
+		// A baseline line at zero calls, so a session that never cuts a section
+		// reads as armed and quiet rather than as a session with no guard. The
+		// timer is left unarmed, so the first call still beats.
+		EmitHeartbeat();
+	}
+	else
+	{
+		LogError(std::string("Mesh face guard: installation unconfirmed (") + why
+		         + ")");
+	}
+}
+
 void InstallMeshFaceGuard(int* installed, int*)
 {
 	if (!HookRowWanted(HOOK_NAVMESH_FACE_AABB))
@@ -274,21 +291,6 @@ void InstallMeshFaceGuard(int* installed, int*)
 	fn_faceFromIndex = (faceFromIndex_t)GameAddr(RVA_NAVMESH_FACE_FROM_INDEX);
 	fn_edgeFromIndex = (edgeFromIndex_t)GameAddr(RVA_NAVMESH_EDGE_FROM_INDEX);
 
-	const char* why = HookInstall(HOOK_NAVMESH_FACE_AABB, hook_faceAabb,
-			&orig_faceAabb, installed, true);
-
-	if (!why)
-	{
-		KEO_DETAIL("Mesh face guard: installed (a heartbeat line follows the first minute of cutting)");
-		// A baseline line at zero calls, so a session that never cuts a section
-		// reads as armed and quiet rather than as a session with no guard. The
-		// timer is left unarmed, so the first call still beats.
-		EmitHeartbeat();
-	}
-	else
-	{
-		orig_faceAabb = NULL;
-		LogError(std::string("Mesh face guard: not installed (") + why
-		         + "); a face whose edge run leaves the instance still faults");
-	}
+	HookInstallIndependent(HOOK_NAVMESH_FACE_AABB, hook_faceAabb, &orig_faceAabb,
+	                       installed, true, CompleteMeshFaceGuard);
 }
