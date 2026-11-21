@@ -9,7 +9,7 @@ def body(s,mark,semi=False):
 globals=raw[raw.index('static HookBatch s_independentBatch;'):raw.index('static bool IndependentRow(')]
 template=(ROOT/'leopard/test_hook_batch_adapter.cpp').read_text()
 def compose(s):
- prod='\n'.join(body(s,m,m=='struct IndependentStartupScope {')for m in ['static bool IndependentRow(','static void IndependentComplete(','struct IndependentStartupScope {','void HookInstallIndependentRow('])
+ prod='\n'.join(body(s,m,m=='struct IndependentStartupScope {')for m in ['static bool IndependentRow(','void FinishNativeHookBatch(','static void IndependentComplete(','struct IndependentStartupScope {','void HookInstallIndependentRow('])
  return template.replace('// BATCH_GLOBALS',globals).replace('// ADAPTER_PRODUCTION',prod)
 vc=Path('C:/Program Files (x86)/Microsoft Visual Studio 10.0/VC');sdk=Path('C:/Program Files/Microsoft SDKs/Windows/v7.1');env=dict(os.environ,INCLUDE=str(vc/'include')+';'+str(sdk/'Include'),LIB=str(vc/'lib/amd64')+';'+str(sdk/'Lib/x64'));env['PATH']=str(vc/'bin/amd64')+';'+env['PATH']
 def run(name,opt,s):

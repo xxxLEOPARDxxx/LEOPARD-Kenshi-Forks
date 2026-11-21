@@ -19,12 +19,14 @@ public:
  }
  bool Collecting()const{return state==1;}
  bool Add(int row,void*target,void*detour,void**original,Complete done){
-  if(state!=1||count==CAPACITY||!target||!detour||!original||!done)return false;
-  for(int i=0;i<count;++i)if(rows[i].row==row)return false;
-  Row&r=rows[count++];r.row=row;r.target=target;r.detour=detour;r.original=original;r.done=done;r.why=NULL;return true;
+  return AddRow(row,target,detour,original,done,NULL);
  }
- void Finish(){
-  if(state!=1)return;
+ // The caller owns the result slot through Finish. Null means confirmed.
+ bool AddResult(int row,void*target,void*detour,void**original,const char**result){
+  return AddRow(row,target,detour,original,NULL,result);
+ }
+ bool Finish(){
+  if(state!=1)return false;
   state=2; // native/callback reentry must never append or reset this transaction
   bool originalsValid=true;
   for(int i=0;i<count;++i){
@@ -39,12 +41,27 @@ public:
   // Apply can partially enable. Retain EVERY original, do not retry through
   // AddHook, and conservatively publish no unconfirmed success in that case.
   state=3;
-  for(int i=0;i<count;++i){Row&r=rows[i];const char*why=!originalsValid?"batch-original":r.why?r.why:applied?NULL:"batch-apply";r.done(r.row,why);}
+  for(int i=0;i<count;++i){
+   Row&r=rows[i];const char*why=!originalsValid?"batch-original":r.why?r.why:applied?NULL:"batch-apply";
+   if(r.result)*r.result=why;
+   if(r.done)r.done(r.row,why);
+  }
+  const bool drained=!count||applied;
   count=0;
+  return drained;
  }
 private:
- struct Row{int row;void*target;void*detour;void**original;Complete done;const char*why;};
+ struct Row{int row;void*target;void*detour;void**original;Complete done;const char**result;const char*why;};
+ bool AddRow(int row,void*target,void*detour,void**original,Complete done,const char**result){
+  if(state!=1||count==CAPACITY||!target||!detour||!original||(!done&&!result))return false;
+  for(int i=0;i<count;++i)if(rows[i].row==row)return false;
+  Row&r=rows[count++];r.row=row;r.target=target;r.detour=detour;r.original=original;
+  r.done=done;r.result=result;r.why=NULL;return true;
+ }
  int state,count;size_t id;Queue queue;Apply apply;Row rows[CAPACITY];
  HookBatch(const HookBatch&);HookBatch&operator=(const HookBatch&);
 };
+// Uses the admitted SDK's queue/apply exports with the same caller module ID.
+bool BeginNativeHookBatch(HookBatch& batch);
+void FinishNativeHookBatch(HookBatch& batch);
 #endif

@@ -25,5 +25,21 @@ int main(){
 
  for(int fault=0;fault<4;++fault){Reset();HookBatch b;current=&b;reentry=true;if(fault==0)queueThrow=1;if(fault==1)queueNull=2;if(fault==2)applyThrow=true;C(b.Begin(wantedId,Queue,Apply));void* o[4]={0};for(int i=0;i<4;++i)C(b.Add(i,(void*)(size_t(i)+1),(void*)2,&o[i],Complete));C(!b.Add(0,(void*)1,(void*)2,&o[0],Complete));b.Finish();C(queues==4&&applies==(fault==1?0:1)&&completions==4);for(int i=0;i<4;++i){C(o[i]==(i==queueNull?NULL:(void*)(size_t(0x1001)+i)));C(seen[i]==(fault==1||fault==2||i==queueThrow?1:2));}b.Finish();C(completions==4);}
  Reset();HookBatch invalid;C(!invalid.Begin(wantedId,NULL,Apply));C(!invalid.Begin(wantedId,Queue,Apply));HookBatch invalidApply;C(!invalidApply.Begin(wantedId,Queue,NULL));HookBatch args;C(args.Begin(wantedId,Queue,Apply));void* invalidO=NULL;C(!args.Add(0,NULL,(void*)1,&invalidO,Complete));C(!args.Add(0,(void*)1,NULL,&invalidO,Complete));C(!args.Add(0,(void*)1,(void*)2,NULL,Complete));C(!args.Add(0,(void*)1,(void*)2,&invalidO,NULL));args.Finish();C(queues==0&&applies==0);
+ for(int fail=0;fail<3;++fail){
+  Reset();HookBatch b;C(b.Begin(wantedId,Queue,Apply));
+  void* original[3]={0};
+  const char* result[3]={"pending","pending","pending"};
+  if(fail==1)queueFail=1;
+  if(fail==2)applyFail=1;
+  for(int i=0;i<3;++i)C(b.AddResult(i,(void*)(size_t(i)+1),(void*)2,&original[i],&result[i]));
+  C(!strcmp(result[0],"pending")&&queues==0);
+  C(b.Finish()==(fail!=2));C(applies==1&&queues==3&&completions==0);
+  for(int i=0;i<3;++i){
+   C(original[i]==(void*)(size_t(0x1001)+i));
+   if(fail==2)C(result[i]&&!strcmp(result[i],"batch-apply"));
+   else if(fail==1&&i==1)C(result[i]&&!strcmp(result[i],"batch-queue"));
+   else C(result[i]==NULL);
+  }
+ }
  std::printf("PASS %u actual hook batch controls\n",checks);return 0;
 }

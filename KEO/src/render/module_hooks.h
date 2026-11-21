@@ -15,6 +15,9 @@ struct ModuleSite
 // The site's address in the loaded module, or NULL when the module or export is missing.
 void* ResolveModuleSite(const ModuleSite& site);
 
+// Applies the same address and prologue admission as InstallModuleHook.
+bool AdmitModuleHookSite(const ModuleSite& site, void* target);
+
 // Prologue-checks the site, then hooks it. False (with one log line) on any
 // refusal. *sharedOut is true when another plugin had detoured the site first.
 bool  InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* sharedOut);

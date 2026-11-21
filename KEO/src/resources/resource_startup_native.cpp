@@ -5,6 +5,7 @@
 #include "base/core.h"
 #include "base/log_admission.h"
 #include "game/klib_bindings.h"
+#include "plugin/independent_hook_batch.h"
 #include <cstring>
 #include <cstdio>
 #include "render/module_hooks.h"
@@ -131,9 +132,41 @@ void ResourceStartupNativeInit(){
     {0x40,0x56,0x48,0x83,0xec,0x40,0x48,0x8b,0xf1,0xe8,0x22,0xfb,0xff,0xff,0x84,0xc0}};
     const ModuleSite timed={"RAM startup timed heartbeat","OgreMain_x64.dll","?renderOneFrame@Root@Ogre@@QEAA_NM@Z",0,
     {0x40,0x56,0x48,0x83,0xec,0x40,0x48,0x8b,0xf1,0x48,0x8b,0x89,0x60,0x01,0x00,0x00}};
-    bool a=InstallModuleHook(add,(void*)&Add,(void**)&originalAdd,NULL);
-    bool f=InstallModuleHook(frame,(void*)&Frame,(void**)&originalFrame,NULL);
-    bool t=InstallModuleHook(timed,(void*)&Timed,(void**)&originalTimed,NULL);
-    KEO_DETAIL(std::string("Resource startup: locations=")+(a?"capture":"seed only")+" menuTick="+(f||t?"installed":"scene only"));
+    const ModuleSite* const sites[]={&add,&frame,&timed};
+    void* const detours[]={(void*)&Add,(void*)&Frame,(void*)&Timed};
+    void** const originals[]={(void**)&originalAdd,(void**)&originalFrame,(void**)&originalTimed};
+    bool installed[3]={};
+    void* targets[3]={};
+    HookBatch batch;
+    bool batched=BeginNativeHookBatch(batch);
+    if(batched){
+        for(int i=0;i<3;++i)targets[i]=ResolveModuleSite(*sites[i]);
+        // Only distinct entry points share a batch. Preserve the SDK's
+        // sequential chaining if a foreign export table aliases targets.
+        if((targets[0]&&(targets[0]==targets[1]||targets[0]==targets[2]))||
+           (targets[1]&&targets[1]==targets[2]))
+            batched=false;
+    }
+    if(batched){
+        const char* why[3]={"batch-admission","batch-admission","batch-admission"};
+        for(int i=0;i<3;++i){
+            if(AdmitModuleHookSite(*sites[i],targets[i]))
+                batch.AddResult(i,targets[i],detours[i],originals[i],&why[i]);
+            else
+                targets[i]=NULL; // admission already logged why this site was refused
+        }
+        FinishNativeHookBatch(batch);
+        for(int i=0;i<3;++i){
+            installed[i]=!why[i];
+            if(targets[i]&&why[i])
+                LogError(std::string("Resource startup: ")+sites[i]->name+" hook unconfirmed ("+why[i]+")");
+        }
+    }else{
+        for(int i=0;i<3;++i)installed[i]=InstallModuleHook(*sites[i],detours[i],originals[i],NULL);
+    }
+    KEO_DETAIL(std::string("Resource startup: locations=")+
+        (installed[0]?"capture":batched&&targets[0]?"unconfirmed":"seed only")+
+        " menuTick="+(installed[1]||installed[2]?"installed":
+                     batched&&(targets[1]||targets[2])?"unconfirmed":"scene only"));
 }
 #endif

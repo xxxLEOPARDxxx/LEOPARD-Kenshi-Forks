@@ -132,8 +132,7 @@ static bool s_independentPhase=false;
 static int* s_independentCount=NULL; // bounded to InstallHooks stack lifetime
 static HookInstallCompletion s_independentDone[HOOK_ROW_COUNT]={0};
 static bool s_independentClaimed[HOOK_ROW_COUNT]={0};
-static HookBatch::Queue s_nativeQueue=NULL;
-static HookBatch::Apply s_nativeApply=NULL;
+static bool s_allowFurtherNativeBatches=true;
 
 static bool IndependentRow(HookRowId id){
  return id==HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK||id==HOOK_CHARACTER_PAUSED_UPDATE
@@ -143,10 +142,10 @@ static bool IndependentRow(HookRowId id){
      ||id==HOOK_RESET_UNLOAD_ZONES||id==HOOK_PROCESS_LOADING;
 }
 
-static bool BeginIndependentHooks(){
+bool BeginNativeHookBatch(HookBatch& batch){
  // Public SDK wrappers choose different module IDs. Resolve the admitted
  // native exports directly and pass ONE caller ID to both operations.
- if(!NativeProfileVerifySdk())return false;
+ if(!s_allowFurtherNativeBatches||!NativeProfileVerifySdk())return false;
  HMODULE sdk=GetModuleHandleW(L"KenshiLib.dll"),caller=NULL;DWORD stamp=0,size=0;
  if(!ReadModuleImageId(sdk,&stamp,&size)||stamp!=0x6a8e4636u||size!=0xec000u)return false;
  void*q=(void*)GetProcAddress(sdk,"?QueueHookInternal@@YA?AW4HookStatus@KenshiLib@@_KPEAX1PEAPEAX@Z");
@@ -155,9 +154,19 @@ static bool BeginIndependentHooks(){
  static const unsigned char ab[16]={0x40,0x53,0x48,0x81,0xec,0xb0,0,0,0,0x48,0xc7,0x44,0x24,0x20,0xfe,0xff};
  if(q!=(char*)sdk+0x2540||a!=(char*)sdk+0x26a0||memcmp(q,qb,16)||memcmp(a,ab,16))return false;
  if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-     (LPCWSTR)&BeginIndependentHooks,&caller))return false;
- s_nativeQueue=(HookBatch::Queue)q;s_nativeApply=(HookBatch::Apply)a;
- return s_independentBatch.Begin((size_t)caller,s_nativeQueue,s_nativeApply);
+     (LPCWSTR)&BeginNativeHookBatch,&caller))return false;
+ return batch.Begin((size_t)caller,(HookBatch::Queue)q,(HookBatch::Apply)a);
+}
+
+void FinishNativeHookBatch(HookBatch& batch){
+ // A partial apply may leave pending rows under this DLL's owner ID. A
+ // later batch must not let the SDK retry those unconfirmed installations.
+ s_allowFurtherNativeBatches=false;
+ s_allowFurtherNativeBatches=batch.Finish();
+}
+
+static bool BeginIndependentHooks(){
+ return BeginNativeHookBatch(s_independentBatch);
 }
 
 static void IndependentComplete(int row,const char*why){
@@ -168,7 +177,7 @@ static void IndependentComplete(int row,const char*why){
 struct IndependentStartupScope {
  explicit IndependentStartupScope(int*count){s_independentPhase=BeginIndependentHooks();s_independentCount=s_independentPhase?count:NULL;}
  ~IndependentStartupScope(){s_independentCount=NULL;s_independentPhase=false;}
- void Finish(){if(s_independentPhase)s_independentBatch.Finish();s_independentCount=NULL;s_independentPhase=false;}
+ void Finish(){if(s_independentPhase)FinishNativeHookBatch(s_independentBatch);s_independentCount=NULL;s_independentPhase=false;}
 private:
  IndependentStartupScope(const IndependentStartupScope&);IndependentStartupScope&operator=(const IndependentStartupScope&);
 };

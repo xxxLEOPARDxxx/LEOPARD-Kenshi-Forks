@@ -14,10 +14,9 @@ void* ResolveModuleSite(const ModuleSite& site)
 	return (void*)((uintptr_t)m + site.rva);
 }
 
-bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* sharedOut)
+static bool CheckModuleHookSite(const ModuleSite& site, void* target, bool* sharedOut, char (&where)[96])
 {
 	if (sharedOut) *sharedOut = false;
-	void* target = ResolveModuleSite(site);
 	if (!target)
 	{
 		char line[160];
@@ -25,10 +24,22 @@ bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* 
 		LogError(line);
 		return false;
 	}
-	char where[96];
 	_snprintf_s(where, sizeof(where), _TRUNCATE, "%s+0x%llx", site.module,
 	            (unsigned long long)((uintptr_t)target - (uintptr_t)GetModuleHandleA(site.module)));
-	if (!VerifyPrologueAt(target, site.bytes, site.name, where, sharedOut))
+	return VerifyPrologueAt(target, site.bytes, site.name, where, sharedOut);
+}
+
+bool AdmitModuleHookSite(const ModuleSite& site, void* target)
+{
+	char where[96];
+	return CheckModuleHookSite(site, target, NULL, where);
+}
+
+bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* sharedOut)
+{
+	char where[96];
+	void* target = ResolveModuleSite(site);
+	if (!CheckModuleHookSite(site, target, sharedOut, where))
 		return false;
 	if (KenshiLib::AddHook(target, detour, orig) != KenshiLib::SUCCESS)
 	{

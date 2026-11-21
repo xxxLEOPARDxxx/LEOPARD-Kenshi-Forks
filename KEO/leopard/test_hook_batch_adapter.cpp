@@ -56,6 +56,7 @@ int main(){try{
   }
   C(queued==total&&applied==1&&completed==total);
   C(installed==(mask==allActive?total:0)&&refused==(mask==allActive?0:total));
+  C(s_allowFurtherNativeBatches==(mask==allActive));
   for(int i=0;i<addedCount;++i) C(extra[i]==(void*)&Native);
  }
  std::printf("PASS %u actual batch adapter controls\n",checks);return 0;
