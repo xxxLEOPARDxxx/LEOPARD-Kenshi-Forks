@@ -53,7 +53,8 @@ check(struct.unpack('<Q',read(renderer,0x7ce00,8))[0]-rbase==0x88248)
 check(struct.unpack('<6I',read(renderer,0x88248,24))==(1,0,0,0xb22c8,0x88270,0x88248))
 textureTypeName=b'.?AVD3D11Texture@Ogre@@\0'
 check(read(renderer,0xb22c8+16,len(textureTypeName))==textureTypeName)
-check('if(!ogre||!renderer)return;' in source and 'DWORD(now-state->lastAdmissionTick)<250' in source and 'TryInstallHooks();' in source)
+check('if(!ogre||!renderer)return;' in source and 'DWORD(now-state->lastAdmissionTick)<250' in source
+      and 'TryInstallHooks(true);' in source and 'TryInstallHooks(false);' in source)
 # Native manager signature forwards all stack args, calls Resource.load(false)
 # on the returned texture, and returns that same hidden output slot in RAX.
 check(read(ogre,0x3798db,15)==bytes.fromhex('f30f108424e0000000f30f11442448'))

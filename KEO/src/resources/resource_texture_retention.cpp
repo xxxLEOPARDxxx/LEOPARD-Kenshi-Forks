@@ -1,6 +1,7 @@
 #include "resources/resource_texture_retention.h"
 #include "resources/resource_gpu_store.h"
 #include "resources/retention_victim_index.h"
+#include "plugin/independent_hook_batch.h"
 #ifndef RESOURCE_TEXTURE_RETENTION_TEST
 #include "base/core.h"
 #include "base/log_admission.h"
@@ -32,7 +33,7 @@ struct State {
 static State*state=NULL;
 static volatile LONG captureEnabled=0;
 static bool CaptureEnabled(){return InterlockedCompareExchange(&captureEnabled,0,0)!=0;}
-static void TryInstallHooks();
+static void TryInstallHooks(bool atStartup);
 static void Publish(){state->stats.textures=unsigned(state->textures.size());state->stats.pending=state->count;}
 static void Release(Textures::iterator i){
     state->victims.Remove(i);
@@ -123,7 +124,7 @@ void ObserveLoadedResult(void* texturePtrOutput){
 }
 void Tick(bool on,U64 cap,U64 world){
     if(!state||!IsMainThread())return;
-    if(!state->stats.admitted&&!state->contractRefused)TryInstallHooks();
+    if(!state->stats.admitted&&!state->contractRefused)TryInstallHooks(false);
     const unsigned device=resource_gpu::DeviceGeneration();
     if(!on||!state->stats.admitted||state->world!=world||state->device!=device){
         if(state->on||state->count||!state->textures.empty())Clear();state->world=world;state->device=device;
@@ -202,8 +203,44 @@ static void LoadImpl(Ogre::Texture*r){
     // Resource::load has not published LOADED/mSize yet. Pending stays weak;
     // Tick must verify loaded and actual bytes before any persistent pin.
 }
-static void TryInstallHooks(){
+static void InstallTextureHooks(void* managerTarget, void* implTarget, bool atStartup){
+    // Both full contracts passed before either hook. A partial hook failure
+    // leaves the atomic capture gate OFF and wrappers forwarding only.
+    void** managerOriginal=reinterpret_cast<void**>(&originalManagerLoad);
+    void** implOriginal=reinterpret_cast<void**>(&originalLoadImpl);
+    void* managerDetour=reinterpret_cast<void*>(&ManagerLoad);
+    void* implDetour=reinterpret_cast<void*>(&LoadImpl);
+    const char* managerWhy=NULL;
+    const char* implWhy=NULL;
+    HookBatch batch;
+    if(atStartup&&BeginNativeHookBatch(batch)){
+        managerWhy="batch-admission";
+        implWhy="batch-admission";
+        batch.AddResult(0,managerTarget,managerDetour,managerOriginal,&managerWhy);
+        batch.AddResult(1,implTarget,implDetour,implOriginal,&implWhy);
+        FinishNativeHookBatch(batch);
+    }else{
+        if(KenshiLib::AddHook(managerTarget,managerDetour,managerOriginal)!=KenshiLib::SUCCESS||!originalManagerLoad)
+            managerWhy="hook";
+        else if(KenshiLib::AddHook(implTarget,implDetour,implOriginal)!=KenshiLib::SUCCESS||!originalLoadImpl)
+            implWhy="hook";
+    }
+    if(managerWhy){
+        state->contractRefused=true;
+        LogError(std::string("Texture retention: native TextureManager::load hook unconfirmed (")+managerWhy+")");
+        return;
+    }
+    if(implWhy){
+        state->contractRefused=true;
+        LogError(std::string("Texture retention: native D3D11Texture::loadImpl hook unconfirmed (")+implWhy+")");
+        return;
+    }
+    state->stats.admitted=true;KEO_DETAIL("Texture retention: narrow manager requests and real texture load completions admitted");
+}
+
+static void TryInstallHooks(bool atStartup){
 #ifdef RESOURCE_TEXTURE_RETENTION_TEST
+    (void)atStartup;
     state->stats.admitted=true;
 #else
     const DWORD now=GetTickCount();
@@ -242,16 +279,8 @@ static void TryInstallHooks(){
        strcmp(reinterpret_cast<const char*>(rendererBase+0xb22c8+16),".?AVD3D11Texture@Ogre@@")){
         state->contractRefused=true;LogError("Texture retention: narrow native texture contracts refused; ordinary native loading retained");return;
     }
-    // Both full contracts passed before either hook. A partial hook failure
-    // leaves the atomic capture gate OFF and wrappers forwarding only.
-    if(KenshiLib::AddHook(managerTarget,reinterpret_cast<void*>(&ManagerLoad),reinterpret_cast<void**>(&originalManagerLoad))!=KenshiLib::SUCCESS){
-        state->contractRefused=true;LogError("Texture retention: native TextureManager::load hook failed");return;
-    }
-    if(KenshiLib::AddHook(implTarget,reinterpret_cast<void*>(&LoadImpl),reinterpret_cast<void**>(&originalLoadImpl))!=KenshiLib::SUCCESS){
-        state->contractRefused=true;LogError("Texture retention: native D3D11Texture::loadImpl hook failed");return;
-    }
-    state->stats.admitted=true;KEO_DETAIL("Texture retention: narrow manager requests and real texture load completions admitted");
+    InstallTextureHooks(managerTarget,implTarget,atStartup);
 #endif
 }
-void Init(){if(!IsMainThread()||state)return;state=new State;TryInstallHooks();}
+void Init(){if(!IsMainThread()||state)return;state=new State;TryInstallHooks(true);}
 }
