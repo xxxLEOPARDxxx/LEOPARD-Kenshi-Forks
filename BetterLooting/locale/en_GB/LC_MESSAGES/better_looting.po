@@ -7,9 +7,6 @@ msgstr "Advanced"
 msgid "All"
 msgstr "All"
 
-msgid "All categories"
-msgstr "All categories"
-
 msgid "Allow stolen items"
 msgstr "Allow stolen items"
 
@@ -112,9 +109,6 @@ msgstr "Narcotics"
 msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
 msgstr "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
 
-msgid "No categories"
-msgstr "No categories"
-
 msgid "None"
 msgstr "None"
 
@@ -136,32 +130,14 @@ msgstr "Pick up ground items"
 msgid "Prefer backpack"
 msgstr "Prefer backpack"
 
-msgid "Profile: balanced"
-msgstr "Profile: balanced"
-
-msgid "Profile: money"
-msgstr "Profile: money"
-
-msgid "Profile: resources"
-msgstr "Profile: resources"
-
-msgid "Profiles"
-msgstr "Profiles"
+msgid "Preset slots"
+msgstr "Preset slots"
 
 msgid "Protect player storage"
 msgstr "Protect player storage"
 
 msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
 msgstr "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
-
-msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
-msgstr "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
-
-msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
-msgstr "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
-
-msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
-msgstr "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
 
 msgid "Restore defaults"
 msgstr "Restore defaults"
@@ -187,14 +163,38 @@ msgstr "Take money"
 msgid "Tools"
 msgstr "Tools"
 
-msgid "Turn every category below off"
-msgstr "Turn every category below off"
-
-msgid "Turn every category below on"
-msgstr "Turn every category below on"
-
 msgid "Weapons"
 msgstr "Weapons"
 
 msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
 msgstr "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
+
+msgid "Optional preset name. Click Save to store it with your current rules."
+msgstr "Optional preset name. Click Save to store it with your current rules."
+
+msgid "Apply this preset to the current looting rules."
+msgstr "Apply this preset to the current looting rules."
+
+msgid "Save your current looting rules in this slot."
+msgstr "Save your current looting rules in this slot."
+
+msgid "Clear this slot and keep your current looting rules."
+msgstr "Clear this slot and keep your current looting rules."
+
+msgid "Preset could not be saved. Shorten its name or item list."
+msgstr "Preset could not be saved. Shorten its name or item list."
+
+msgid "This preset is empty or incomplete."
+msgstr "This preset is empty or incomplete."
+
+msgid "Could not write the preset file. Check file permissions."
+msgstr "Could not write the preset file. Check file permissions."
+
+msgid "Modified"
+msgstr "Modified"
+
+msgid "Empty"
+msgstr "Empty"
+
+msgid "Saved"
+msgstr "Saved"

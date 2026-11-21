@@ -62,7 +62,9 @@ static void BlTrace(const std::string& message)
 
 #include "BetterLootingRules.h"
 #include "BetterLootingRequiredItems.h"
-#include "BetterLootingPanel.h"
+#include "BetterLootingPresetPanel.h"
+
+static void BetterLootingRequestStoreAll();
 
 // Определение здесь, а не в заголовке: файлов мода теперь два.
 BetterLootingRules g_betterLootingRules =
@@ -7803,18 +7805,10 @@ static void InventoryGUIUpdate_hook(
 }
 
 
-// ============================================================
-// BL_MYGUI_PANEL
-//
-// Окно настроек живёт в BetterLootingPanel.cpp и построено на родном
-// интерфейсе игры. Здесь остались только две точки, которыми панель
-// дотягивается до логики мода, и запись настроек в файл.
-// ============================================================
-
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 
-void BetterLootingRequestStoreAll()
+static void BetterLootingRequestStoreAll()
 {
     g_storeAllRequestedAt = GetTickCount();
 
@@ -7875,114 +7869,9 @@ static std::string BetterLootingIniPath()
 }
 
 
-static void BetterLootingWriteBool(
-    const std::string& path,
-    const char* section,
-    const char* key,
-    bool value
-)
-{
-    WritePrivateProfileStringA(
-        section,
-        key,
-        value ? "1" : "0",
-        path.c_str()
-    );
-}
-
-
-void BetterLootingSaveRules()
-{
-    const std::string path =
-        BetterLootingIniPath();
-
-    char buffer[64] = {};
-
-    sprintf_s(
-        buffer,
-        "%.2f",
-        g_betterLootingRules.lootRadius
-    );
-
-    WritePrivateProfileStringA(
-        "General",
-        "LootRadius",
-        buffer,
-        path.c_str()
-    );
-
-    sprintf_s(
-        buffer,
-        "%d",
-        g_betterLootingRules.minValue
-    );
-
-    WritePrivateProfileStringA(
-        "Rules",
-        "MinValue",
-        buffer,
-        path.c_str()
-    );
-
-    sprintf_s(
-        buffer,
-        "%.2f",
-        g_betterLootingRules.minValuePerKg
-    );
-
-    WritePrivateProfileStringA(
-        "Rules",
-        "MinValuePerKg",
-        buffer,
-        path.c_str()
-    );
-
-    if (g_requiredLootTextComplete)
-        WritePrivateProfileStringA("Rules", "RequiredItems", g_betterLootingRules.requiredItems.c_str(), path.c_str());
-    BetterLootingWriteBool(path, "Behavior", "IgnorePlayerStorage", g_betterLootingRules.ignorePlayerStorage);
-    BetterLootingWriteBool(path, "Behavior", "PickupGroundItems", g_betterLootingRules.pickupGroundItems);
-
-    BetterLootingWriteBool(path, "Rules", "AllowStolen", g_betterLootingRules.allowStolen);
-
-    BetterLootingWriteBool(path, "Categories", "Weapons", g_betterLootingRules.lootWeapons);
-    BetterLootingWriteBool(path, "Categories", "Armour", g_betterLootingRules.lootArmour);
-    BetterLootingWriteBool(path, "Categories", "Materials", g_betterLootingRules.lootMaterials);
-    BetterLootingWriteBool(path, "Categories", "Food", g_betterLootingRules.lootFood);
-    BetterLootingWriteBool(path, "Categories", "Medicine", g_betterLootingRules.lootMedicine);
-    BetterLootingWriteBool(path, "Categories", "Tools", g_betterLootingRules.lootTools);
-    BetterLootingWriteBool(path, "Categories", "Ammo", g_betterLootingRules.lootAmmo);
-    BetterLootingWriteBool(path, "Categories", "Blueprints", g_betterLootingRules.lootBlueprints);
-    BetterLootingWriteBool(path, "Categories", "Books", g_betterLootingRules.lootBooks);
-    BetterLootingWriteBool(path, "Categories", "Robotics", g_betterLootingRules.lootRobotics);
-    BetterLootingWriteBool(path, "Categories", "Narcotics", g_betterLootingRules.lootNarcotics);
-    BetterLootingWriteBool(path, "Categories", "SeveredLimbs", g_betterLootingRules.lootSeveredLimbs);
-    BetterLootingWriteBool(path, "Categories", "Other", g_betterLootingRules.lootOther);
-
-    BetterLootingWriteBool(path, "Behavior", "BestItemsFirst", g_betterLootingRules.bestItemsFirst);
-    BetterLootingWriteBool(path, "Behavior", "PreferBackpack", g_betterLootingRules.preferBackpack);
-
-    sprintf_s(
-        buffer,
-        "%d",
-        g_betterLootingRules.activationVirtualKey
-    );
-
-    WritePrivateProfileStringA(
-        "Behavior",
-        "ActivationVirtualKey",
-        buffer,
-        path.c_str()
-    );
-
-    BlTrace(
-        "BetterLooting: PANEL settings saved"
-    );
-}
-
-
 // ============================================================
 // Страница в ModConfigMenu (вкладка MCM окна «Настройки»). Без MCM мод
-// работает как раньше: настройки в BetterLooting.ini и в своей панели.
+// читает рабочие настройки из BetterLooting.ini.
 // MCM пишет ini и зовёт McmReload - правила перечитываются на ходу.
 // ============================================================
 #define KLOC_DOMAIN "better_looting"
@@ -7992,13 +7881,7 @@ void BetterLootingSaveRules()
 static void __cdecl McmReload()
 {
     LoadBetterLootingRules();
-}
-
-// Кнопки пресетов. После нажатия MCM перечитывает страницу из ini.
-static int __cdecl McmPreset(void* ud, char*, unsigned)
-{
-    BetterLootingApplyPreset(static_cast<int>(reinterpret_cast<intptr_t>(ud)));
-    return 0;
+    BetterLootingPresetPanel::UpdateStatus();
 }
 
 extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
@@ -8008,30 +7891,7 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     if (api->version >= 2)
         api->info(api, Tr("Collects loot around the selected character with one key and puts it away by your rules."));
 
-    static const char* const keyValues[] = {
-        "45", "36", "35", "46", "33", "34",
-        "112", "113", "114", "115", "116", "117", "118", "119", "120", "121", "122", "123" };
-    static const char* const keyLabels[] = {
-        "Insert", "Home", "End", "Delete", "PageUp", "PageDown",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
-
-    if (api->version >= 3)
-    {
-        api->section(api, Tr("Profiles"));
-        api->action(api, Tr("Profile: balanced"),
-                    Tr("Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"),
-                    &McmPreset, reinterpret_cast<void*>(0), 0);
-        api->action(api, Tr("Profile: money"),
-                    Tr("Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"),
-                    &McmPreset, reinterpret_cast<void*>(1), 0);
-        api->action(api, Tr("Profile: resources"),
-                    Tr("Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"),
-                    &McmPreset, reinterpret_cast<void*>(2), 0);
-        api->action(api, Tr("All categories"), Tr("Turn every category below on"),
-                    &McmPreset, reinterpret_cast<void*>(3), 0);
-        api->action(api, Tr("No categories"), Tr("Turn every category below off"),
-                    &McmPreset, reinterpret_cast<void*>(4), 0);
-    }
+    BetterLootingPresetPanel::Register(api, ini, &McmReload);
 
     api->section(api, Tr("Looting"));
     api->hotkey(api, "Behavior", "ActivationKey", Tr("Looting key"),
@@ -8060,12 +7920,12 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
     api->text(api, "Rules", "RequiredItems", Tr("Always take these items"),
               Tr("Exact item names or FCS IDs separated by semicolons. Optional prefixes: name:Animal Skin; name:Basic First Aid Kit; id:your-record-id. Ignores category and price filters, but still obeys theft, storage protection and capacity. Up to 128 entries."), "", 0);
     api->integer(api, "Rules", "MinValue", Tr("Minimum value"),
-                 Tr("Items cheaper than this are left where they are."), 0, 0, 5000, 0);
+                 Tr("Items cheaper than this are left where they are."), 500, 0, 5000, 0);
     api->number(api, "Rules", "MinValuePerKg", Tr("Minimum value per kg"),
                 Tr("Cuts off heavy items with a poor value to weight ratio."),
-                0.0f, 0.0f, 2000.0f, 1, 0);
+                300.0f, 0.0f, 2000.0f, 1, 0);
     api->toggle(api, "Rules", "AllowStolen", Tr("Allow stolen items"),
-                Tr("Pick up goods that still belong to someone else."), 1, 0);
+                Tr("Pick up goods that still belong to someone else."), 0, 0);
 
     struct Category { const char* key; const char* label; int def; };
     static const Category categories[] = {
@@ -8073,8 +7933,8 @@ extern "C" __declspec(dllexport) void MCM_Describe(MCM_Api* api)
         { "Materials", "Materials and resources", 1 }, { "Food", "Food", 1 },
         { "Medicine", "Medicine", 1 }, { "Tools", "Tools", 1 }, { "Ammo", "Ammo", 1 },
         { "Blueprints", "Blueprints", 1 }, { "Books", "Books", 1 },
-        { "Robotics", "Robotics", 1 }, { "Narcotics", "Narcotics", 1 },
-        { "SeveredLimbs", "Severed limbs", 1 }, { "Other", "Other", 1 } };
+        { "Robotics", "Robotics", 1 }, { "Narcotics", "Narcotics", 0 },
+        { "SeveredLimbs", "Severed limbs", 0 }, { "Other", "Other", 1 } };
     api->section(api, Tr("Categories"));
     for (size_t i = 0; i < sizeof(categories) / sizeof(categories[0]); ++i)
         api->toggle(api, "Categories", categories[i].key, Tr(categories[i].label),

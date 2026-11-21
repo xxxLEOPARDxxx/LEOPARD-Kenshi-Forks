@@ -45,8 +45,9 @@ for name in ['TryBetterLootingNearestCompatiblePlayerStorage','BuildBetterLootin
  current=extract(new,name)
  current=re.sub(r'    static BetterLootingRadiusScratch scratch;.*?    lektor<RootObject\*>& buildingTargets = scratch.buildings;', '    lektor<RootObject*> characterTargets;\n    lektor<RootObject*> buildingTargets;', current,flags=re.S)
  assert nonblank(current)==nonblank(extract(old,name)),name
-assert (root/'Source/BetterLootingPanel.cpp').read_text(encoding='utf-8-sig')==subprocess.check_output(['git','-C',str(root.parent),'show','15bdb01:BetterLooting/Source/BetterLootingPanel.cpp']).decode('utf-8-sig').replace('\r\n','\n')
-keys=set(re.findall(r'\bTr\("((?:[^"\\]|\\.)*)"\)',new))
+panel = (root/'Source/BetterLootingPresetPanel.cpp').read_text(encoding='utf-8-sig')
+assert 'BetterLootingApplyPreset' not in new and not (root/'Source/BetterLootingPanel.cpp').exists()
+keys=set(re.findall(r'\bTr\("((?:[^"\\]|\\.)*)"\)',new + panel))
 keys.update(re.findall(r'\{ "[A-Za-z]+", "([^"]+)", [01] \}',new))
 for lang in ['en_GB','ru_RU','zh_CN']:
  p=root/'locale'/lang/'LC_MESSAGES/better_looting.mo'
@@ -54,4 +55,4 @@ for lang in ['en_GB','ru_RU','zh_CN']:
  missing=sorted(k for k in keys if k not in t._catalog or not t._catalog[k])
  assert not missing,(lang,missing)
  print(lang,'all',len(keys),'UI keys translated;',len(t._catalog),'catalog records')
-print('PASS: transfer/merge-success accounting/rollback/ownership preserved beyond live destination lookup; enumeration, deposit, radius discovery and preset source preserved')
+print('PASS: transfer/merge-success accounting/rollback/ownership preserved beyond live destination lookup; enumeration, deposit, radius discovery preserved; new preset UI localized')

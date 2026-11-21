@@ -7,9 +7,6 @@ msgstr "Дополнительно"
 msgid "All"
 msgstr "Всё"
 
-msgid "All categories"
-msgstr "Все категории"
-
 msgid "Allow stolen items"
 msgstr "Брать краденое"
 
@@ -112,9 +109,6 @@ msgstr "Наркотики"
 msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
 msgstr "Не забирать вещи из инвентарей зданий игрока, включая открытые хранилища и мебель в зданиях игрока. Раскладка вещей не меняется."
 
-msgid "No categories"
-msgstr "Ни одной категории"
-
 msgid "None"
 msgstr "Ничего"
 
@@ -136,32 +130,14 @@ msgstr "Подбирать вещи с земли"
 msgid "Prefer backpack"
 msgstr "Сначала в рюкзак"
 
-msgid "Profile: balanced"
-msgstr "Профиль: баланс"
-
-msgid "Profile: money"
-msgstr "Профиль: деньги"
-
-msgid "Profile: resources"
-msgstr "Профиль: ресурсы"
-
-msgid "Profiles"
-msgstr "Профили"
+msgid "Preset slots"
+msgstr "Слоты пресетов"
 
 msgid "Protect player storage"
 msgstr "Защищать хранилища игрока"
 
 msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
 msgstr "Раскладывает вещи персонажа по ближайшим хранилищам, которые их принимают (руду - в ящик для руды, оружие - на стойку и так далее). Нажмите и введите клавишу или сочетание."
-
-msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
-msgstr "Радиус 20 м, от 500 и от 300 за кг; всё, кроме наркотиков и отрубленных конечностей"
-
-msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
-msgstr "Радиус 25 м, от 1000 и от 500 за кг; оружие, броня, чертежи, книги, робототехника, наркотики и прочее"
-
-msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
-msgstr "Радиус 30 м, любая цена; материалы, еда, медикаменты, инструменты, боеприпасы и робототехника"
 
 msgid "Restore defaults"
 msgstr "По умолчанию"
@@ -187,14 +163,38 @@ msgstr "Брать деньги"
 msgid "Tools"
 msgstr "Инструменты"
 
-msgid "Turn every category below off"
-msgstr "Выключить все категории ниже"
-
-msgid "Turn every category below on"
-msgstr "Включить все категории ниже"
-
 msgid "Weapons"
 msgstr "Оружие"
 
 msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
 msgstr "Писать каждый шаг сбора в RE_Kenshi_log.txt. Сбои пишутся в любом случае"
+
+msgid "Optional preset name. Click Save to store it with your current rules."
+msgstr "Имя пресета можно оставить пустым. Значок сохранения запишет имя вместе с текущими правилами."
+
+msgid "Apply this preset to the current looting rules."
+msgstr "Применить сохранённые правила сбора."
+
+msgid "Save your current looting rules in this slot."
+msgstr "Записать текущие правила сбора в этот слот."
+
+msgid "Clear this slot and keep your current looting rules."
+msgstr "Очистить слот. Текущие правила сбора сохранятся."
+
+msgid "Preset could not be saved. Shorten its name or item list."
+msgstr "Не удалось сохранить пресет. Сократите имя или список предметов."
+
+msgid "This preset is empty or incomplete."
+msgstr "Этот пресет пуст или заполнен не полностью."
+
+msgid "Could not write the preset file. Check file permissions."
+msgstr "Не удалось записать пресет. Проверьте права доступа к файлу."
+
+msgid "Modified"
+msgstr "Изменён"
+
+msgid "Empty"
+msgstr "Пусто"
+
+msgid "Saved"
+msgstr "Сохранён"

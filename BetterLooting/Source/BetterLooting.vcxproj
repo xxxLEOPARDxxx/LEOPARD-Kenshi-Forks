@@ -91,10 +91,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BetterLooting.cpp" />
-    <ClCompile Include="BetterLootingPanel.cpp" />
+    <ClCompile Include="BetterLootingPresetPanel.cpp" />
+    <ClCompile Include="BetterLootingPresets.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BetterLootingPanel.h" />
+    <ClInclude Include="BetterLootingPresetPanel.h" />
+    <ClInclude Include="BetterLootingPresets.h" />
     <ClInclude Include="BetterLootingRules.h" />
     <ClInclude Include="BetterLootingRequiredItems.h" />
   </ItemGroup>

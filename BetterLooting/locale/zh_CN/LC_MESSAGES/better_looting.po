@@ -7,9 +7,6 @@ msgstr "高级"
 msgid "All"
 msgstr "全部"
 
-msgid "All categories"
-msgstr "全部类别"
-
 msgid "Allow stolen items"
 msgstr "拾取赃物"
 
@@ -112,9 +109,6 @@ msgstr "毒品"
 msgid "Never loot player-owned building inventories, including open storage and furniture inside player buildings. Deposit is unchanged."
 msgstr "不拾取玩家建筑物品栏中的物品，包括已打开的储存和玩家建筑内的家具。存放功能不变。"
 
-msgid "No categories"
-msgstr "不选类别"
-
 msgid "None"
 msgstr "无"
 
@@ -136,32 +130,14 @@ msgstr "拾取地面物品"
 msgid "Prefer backpack"
 msgstr "优先背包"
 
-msgid "Profile: balanced"
-msgstr "方案：平衡"
-
-msgid "Profile: money"
-msgstr "方案：金钱"
-
-msgid "Profile: resources"
-msgstr "方案：资源"
-
-msgid "Profiles"
-msgstr "方案"
+msgid "Preset slots"
+msgstr "预设栏位"
 
 msgid "Protect player storage"
 msgstr "保护玩家储存"
 
 msgid "Puts the character's items away into nearby storage that accepts them (ore into the ore box, weapons into the weapon rack and so on). Click and press a key or combination."
 msgstr "把角色的物品放进附近可接收它们的储物箱（矿石放进矿石箱，武器放上武器架等）。点击后按下按键或组合键。"
-
-msgid "Radius 20 m, from 500 and from 300 per kg; everything except narcotics and severed limbs"
-msgstr "半径 20 米，价格 500 起、每公斤 300 起；除毒品和断肢外全部"
-
-msgid "Radius 25 m, from 1000 and from 500 per kg; weapons, armour, blueprints, books, robotics, narcotics and the rest"
-msgstr "半径 25 米，价格 1000 起、每公斤 500 起；武器、护甲、蓝图、书籍、机器人、毒品及其他"
-
-msgid "Radius 30 m, any price; materials, food, medicine, tools, ammo and robotics"
-msgstr "半径 30 米，任意价格；材料、食物、药品、工具、弹药和机器人"
 
 msgid "Restore defaults"
 msgstr "恢复默认"
@@ -187,14 +163,38 @@ msgstr "拾取钱币"
 msgid "Tools"
 msgstr "工具"
 
-msgid "Turn every category below off"
-msgstr "关闭下方所有类别"
-
-msgid "Turn every category below on"
-msgstr "开启下方所有类别"
-
 msgid "Weapons"
 msgstr "武器"
 
 msgid "Write every looting step to RE_Kenshi_log.txt. Failures are logged anyway"
 msgstr "将每一步拾取过程写入 RE_Kenshi_log.txt。出错信息总会记录"
+
+msgid "Optional preset name. Click Save to store it with your current rules."
+msgstr "预设名称可留空。点击保存图标即可将名称与当前规则一起保存。"
+
+msgid "Apply this preset to the current looting rules."
+msgstr "将此预设应用到当前搜刮规则。"
+
+msgid "Save your current looting rules in this slot."
+msgstr "将当前搜刮规则保存到此栏位。"
+
+msgid "Clear this slot and keep your current looting rules."
+msgstr "清空此栏位，保留当前搜刮规则。"
+
+msgid "Preset could not be saved. Shorten its name or item list."
+msgstr "无法保存预设。请缩短名称或物品列表。"
+
+msgid "This preset is empty or incomplete."
+msgstr "此预设为空或数据不完整。"
+
+msgid "Could not write the preset file. Check file permissions."
+msgstr "无法写入预设。请检查文件权限。"
+
+msgid "Modified"
+msgstr "已修改"
+
+msgid "Empty"
+msgstr "空"
+
+msgid "Saved"
+msgstr "已保存"
