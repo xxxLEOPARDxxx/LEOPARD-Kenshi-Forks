@@ -476,8 +476,8 @@ msgstr "Reduces repeated small memory allocations when the game copies materials
 msgid "Batch save file reads"
 msgstr "Batch save file reads"
 
-msgid "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."
-msgstr "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."
+msgid "Uses a larger buffer for eligible save files and groups consecutive fields already in the buffer. Save format and values stay unchanged. Supported engine builds only."
+msgstr "Uses a larger buffer for eligible save files and groups consecutive fields already in the buffer. Save format and values stay unchanged. Supported engine builds only."
 
 #: src/fixes/fixes_config.cpp
 msgid "Transfer temporary save strings"

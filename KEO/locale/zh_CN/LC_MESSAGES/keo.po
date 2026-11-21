@@ -476,8 +476,8 @@ msgstr "减少游戏复制模型和装备材质时重复进行的小块内存分
 msgid "Batch save file reads"
 msgstr "合并存档文件读取"
 
-msgid "Uses a larger buffer for eligible save files and reads position and rotation together when both are buffered. Save format and values stay unchanged. Supported engine builds only."
-msgstr "为符合条件的存档文件使用更大的缓冲区。位置和旋转数据均已进入缓冲区时，合并读取这两个字段。存档格式和数值保持不变。仅适用于受支持的引擎版本。"
+msgid "Uses a larger buffer for eligible save files and groups consecutive fields already in the buffer. Save format and values stay unchanged. Supported engine builds only."
+msgstr "为符合条件的存档文件使用更大的缓冲区，并合并读取缓冲区中连续的字段。存档格式和数值保持不变。仅适用于受支持的引擎版本。"
 
 #: src/fixes/fixes_config.cpp
 msgid "Transfer temporary save strings"

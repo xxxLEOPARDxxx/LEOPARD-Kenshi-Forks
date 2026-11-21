@@ -382,9 +382,12 @@ show 50 versus 4 refills for 200003 single-byte reads, not measured game-load ga
 One metadata query per eligible file is an added cost; the size threshold is a
 conservative policy, not a profiled optimum. Details: `leopard/save-read-verification-20261116.md`.
 
-On verified Steam and GOG builds, the option also reads an object's position
-and rotation in one 28-byte call when both fields are already in the native
-input buffer. Partial or unbuffered fields use the original two reads.
+On verified Steam and GOG builds, the option also groups consecutive fields
+already in the native input buffer. One 28-byte read covers position and rotation.
+Each of two 8-byte reads covers the record type and numeric ID or the last two
+reference arguments. The engine still checks the file version before deciding
+whether the reference has the additional arguments. Partial or unbuffered fields
+use the original two reads.
 
 **Укрупнять чтение сохранений** - настройка раздела «Производительность», включена
 по умолчанию и работает без перезапуска. Для новых поддерживаемых потоков чтения
@@ -399,9 +402,11 @@ input buffer. Partial or unbuffered fields use the original two reads.
 для 200003 однобайтовых чтений. Ускорение загрузки игры не измерялось; дополнительный
 запрос размера имеет собственную стоимость.
 
-На проверенных сборках Steam и GOG координаты и поворот объекта читаются одним
-вызовом на 28 байт, когда оба поля уже есть в штатном буфере. При нехватке данных
-в буфере движок читает поля по отдельности.
+На проверенных сборках Steam и GOG соседние поля из штатного буфера читаются
+вместе. Координаты и поворот читаются одним вызовом на 28 байт. Тип записи и её
+числовой ID, а также два последних параметра ссылки читаются парами по 8 байт.
+Наличие дополнительных параметров движок по-прежнему определяет по версии файла.
+При нехватке данных в буфере движок читает поля по отдельности.
 
 ## Private body shape preparation / Подготовка форм тела (2026-11-16)
 

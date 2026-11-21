@@ -18,11 +18,11 @@
 namespace save_transform_read {
 
 typedef void* (*ReadFn)(std::istream*, char*, std::streamsize);
-static const int positionBytes = 12;
-static const int rotationBytes = 16;
-static const int transformBytes = positionBytes + rotationBytes;
-static const int rotationOffset = 0x18; // Distance between the native stack locals.
+enum PairKind { PK_TRANSFORM, PK_RECORD_HEADER, PK_REFERENCE, PK_COUNT };
 static const int countOffset = 8;
+
+struct CallSites { unsigned char* first; unsigned char* second; };
+struct PatchedCall { const unsigned char* second; int32_t displacement; };
 
 struct Binding {
     ReadFn const volatile* readSlot;
@@ -42,8 +42,7 @@ static Binding binding = {};
 static volatile bool admitted = false;
 static unsigned char* island = NULL;
 static code_patch_threads::Set threads = {};
-static const unsigned char* rotationCall = NULL;
-static int32_t rotationCallDisplacement = 0;
+static PatchedCall patched[PK_COUNT] = {};
 #ifdef KEO_SAVE_TRANSFORM_TEST
 static bool testEnabled = true;
 #endif
@@ -56,7 +55,7 @@ static T Member(const void* object, int offset)
     return value;
 }
 
-static bool HasBufferedTransform(std::istream& stream)
+static bool HasBufferedBytes(std::istream& stream, int size)
 {
     const std::streambuf* buffer = stream.rdbuf();
     if (buffer != reinterpret_cast<const std::streambuf*>(reinterpret_cast<const char*>(&stream) + 0x10) ||
@@ -71,50 +70,53 @@ static bool HasBufferedTransform(std::istream& stream)
     // Native VC10 filebuf can bind its get area to the CRT FILE. Refuse any
     // other state: in particular, small get areas and EOF go through both calls.
     const FILE* file = Member<const FILE*>(buffer, 0x98);
-    return file && file->_cnt >= transformBytes && file->_ptr &&
+    return file && file->_cnt >= size && file->_ptr &&
            Member<const void*>(buffer, 0x40) == &file->_ptr &&
            Member<const void*>(buffer, 0x58) == &file->_cnt;
 }
 
-static __declspec(noinline) void* ReadPosition(std::istream* stream, char* position, std::streamsize size, char* rotation)
+template<PairKind Kind, int FirstBytes, int SecondBytes>
+static __declspec(noinline) void* ReadFirst(std::istream* stream, char* first, std::streamsize size, char* second)
 {
+    const int combined = FirstBytes + SecondBytes;
+    const PatchedCall& pair = patched[Kind];
     const ReadFn read = *binding.readSlot;
     if (!admitted || GetCurrentThreadId() != binding.ownerThread || !*binding.enabled ||
-        size != positionBytes || read != binding.nativeRead ||
-        Member<uint16_t>(rotationCall, 0) != 0x15ff ||
-        Member<int32_t>(rotationCall, 2) != rotationCallDisplacement ||
+        size != FirstBytes || read != binding.nativeRead ||
+        Member<uint16_t>(pair.second, 0) != 0x15ff ||
+        Member<int32_t>(pair.second, 2) != pair.displacement ||
         *binding.bulkReadSlot != binding.nativeBulkRead ||
         Member<uint64_t>(reinterpret_cast<const void*>(read), 0) != binding.readEntry ||
         Member<uint64_t>(binding.nativeBulkRead, 0) != binding.bulkReadEntry ||
-        !HasBufferedTransform(*stream))
+        !HasBufferedBytes(*stream, combined))
     {
-        read(stream, position, size);
+        read(stream, first, size);
         return stream;
     }
 
-    char bytes[transformBytes];
-    read(stream, bytes, transformBytes);
+    char bytes[combined];
+    read(stream, bytes, combined);
     const std::streamsize counted = stream->gcount();
-    std::streamsize lastCount = rotationBytes;
-    if (counted == transformBytes)
+    std::streamsize lastCount = SecondBytes;
+    if (counted == combined)
     {
-        std::memcpy(position, bytes, positionBytes);
-        std::memcpy(rotation, bytes + positionBytes, rotationBytes);
+        std::memcpy(first, bytes, FirstBytes);
+        std::memcpy(second, bytes + FirstBytes, SecondBytes);
     }
     else
     {
         // The private stream has the complete block buffered. Still preserve
         // partial writes and the second read's gcount if a read returns short.
-        const size_t available = counted > 0 && counted < transformBytes ? static_cast<size_t>(counted) : 0;
-        lastCount = available > positionBytes ? available - positionBytes : 0;
-        std::memcpy(position, bytes, available < positionBytes ? available : positionBytes);
+        const size_t available = counted > 0 && counted < combined ? static_cast<size_t>(counted) : 0;
+        lastCount = available > FirstBytes ? available - FirstBytes : 0;
+        std::memcpy(first, bytes, available < FirstBytes ? available : FirstBytes);
         if (lastCount)
-            std::memcpy(rotation, bytes + positionBytes, static_cast<size_t>(lastCount));
+            std::memcpy(second, bytes + FirstBytes, static_cast<size_t>(lastCount));
     }
     std::memcpy(reinterpret_cast<char*>(stream) + countOffset, &lastCount, sizeof(lastCount));
-    // All intervening argument-setup instructions preserve RAX. The next
-    // stub compares it with the rotation address to recognize a completed pair.
-    return rotation;
+    // The intervening native instructions preserve RAX. The next stub
+    // compares it with its own destination to recognize a completed pair.
+    return second;
 }
 
 static bool SetCallTarget(code_patch_batch::Edit& edit, unsigned char* site, const void* const* target)
@@ -136,49 +138,83 @@ static bool SetCallTarget(code_patch_batch::Edit& edit, unsigned char* site, con
     return true;
 }
 
-static bool Arm(unsigned char* positionSite, unsigned char* rotationSite)
-{
-    if (island)
-        return false;
-    unsigned char* page = AllocateNearPages(reinterpret_cast<uintptr_t>(positionSite), 4096);
-    if (!page)
-        return false;
+typedef void* (*ReadBridge)(std::istream*, char*, std::streamsize, char*);
+struct PairLayout { unsigned char displacement; ReadBridge bridge; };
+static const PairLayout layouts[PK_COUNT] = {
+    { 0x18, &ReadFirst<PK_TRANSFORM, 12, 16> },
+    { 0xf0, &ReadFirst<PK_RECORD_HEADER, 4, 4> }, // record ID local is 16 bytes before type
+    { 0x10, &ReadFirst<PK_REFERENCE, 4, 4> },
+};
 
+static bool BuildPair(unsigned char* page, const PairLayout& layout, const CallSites& sites,
+                      code_patch_batch::Edit* edits)
+{
+    if (!sites.second)
+        return false;
     // First CALL keeps its address and shadow space. Supply the second
     // destination in R9 and tail jump to the compiled, unwindable bridge.
-    const unsigned char positionStub[] = {0x4c, 0x8d, 0x4a, rotationOffset, 0xff, 0x25, 0, 0, 0, 0};
-    std::memcpy(page, positionStub, sizeof(positionStub));
-    const uintptr_t bridge = reinterpret_cast<uintptr_t>(&ReadPosition);
-    std::memcpy(page + sizeof(positionStub), &bridge, sizeof(bridge));
+    const unsigned char firstStub[] = {0x4c, 0x8d, 0x4a, layout.displacement, 0xff, 0x25, 0, 0, 0, 0};
+    std::memcpy(page, firstStub, sizeof(firstStub));
+    const uintptr_t bridge = reinterpret_cast<uintptr_t>(layout.bridge);
+    std::memcpy(page + sizeof(firstStub), &bridge, sizeof(bridge));
 
     // Compare the marker before touching RAX. On fallback, R11 carries the
     // native IAT slot address and we tail jump to its current target.
-    const unsigned char rotationStub[] = {
+    const unsigned char secondStub[] = {
         0x48, 0x39, 0xd0,                   // cmp rax, rdx
         0x75, 0x04,                         // jne forward
         0x48, 0x8b, 0xc1, 0xc3,             // mov rax, rcx; ret
         0x49, 0xbb, 0, 0, 0, 0, 0, 0, 0, 0, // forward: mov r11, slot
         0x41, 0xff, 0x23                    // jmp qword ptr [r11]
     };
-    std::memcpy(page + 32, rotationStub, sizeof(rotationStub));
+    std::memcpy(page + 32, secondStub, sizeof(secondStub));
     const uintptr_t slot = reinterpret_cast<uintptr_t>(binding.readSlot);
     std::memcpy(page + 43, &slot, sizeof(slot));
     const unsigned char* targets[] = {page, page + 32};
     std::memcpy(page + 64, targets, sizeof(targets));
 
-    code_patch_batch::Edit edits[2] = {};
     const void* const* targetSlots = reinterpret_cast<const void* const*>(page + 64);
+    return SetCallTarget(edits[0], sites.first, targetSlots) && SetCallTarget(edits[1], sites.second, targetSlots + 1);
+}
+
+static bool Arm(const CallSites (&sites)[PK_COUNT])
+{
+    if (island)
+        return false;
+    unsigned index = 0;
+    while (index < PK_COUNT && !sites[index].first) ++index;
+    if (index == PK_COUNT)
+        return false;
+    unsigned char* page = AllocateNearPages(reinterpret_cast<uintptr_t>(sites[index].first), 4096);
+    if (!page)
+        return false;
+
+    code_patch_batch::Edit edits[PK_COUNT * 2] = {};
+    PatchedCall prepared[PK_COUNT] = {};
+    unsigned count = 0;
+    const size_t bytesPerPair = 80;
+    for (; index < PK_COUNT; ++index)
+    {
+        if (!sites[index].first)
+            continue;
+        if (!BuildPair(page + index * bytesPerPair, layouts[index], sites[index], edits + count))
+        {
+            VirtualFree(page, 0, MEM_RELEASE);
+            return false;
+        }
+        prepared[index].second = sites[index].second;
+        prepared[index].displacement = Member<int32_t>(edits[count + 1].after, 2);
+        count += 2;
+    }
     DWORD oldProtection = 0;
-    if (!SetCallTarget(edits[0], positionSite, targetSlots) ||
-        !SetCallTarget(edits[1], rotationSite, targetSlots + 1) ||
-        !VirtualProtect(page, 4096, PAGE_EXECUTE_READ, &oldProtection) ||
-        !FlushInstructionCache(GetCurrentProcess(), page, 80))
+    if (!VirtualProtect(page, 4096, PAGE_EXECUTE_READ, &oldProtection) ||
+        !FlushInstructionCache(GetCurrentProcess(), page, PK_COUNT * bytesPerPair))
     {
         VirtualFree(page, 0, MEM_RELEASE);
         return false;
     }
     bool mayPublish = false;
-    const bool installed = code_patch_batch::Apply(edits, 2, &threads, &mayPublish);
+    const bool installed = code_patch_batch::Apply(edits, count, &threads, &mayPublish);
     if (mayPublish)
         island = page;
     else
@@ -187,8 +223,7 @@ static bool Arm(unsigned char* positionSite, unsigned char* rotationSite)
     // was already in flight also returns the stream, so the second still runs.
     if (installed)
     {
-        rotationCall = rotationSite;
-        rotationCallDisplacement = Member<int32_t>(edits[1].after, 2);
+        std::memcpy(patched, prepared, sizeof(patched));
         admitted = true;
     }
     return installed;
@@ -196,18 +231,34 @@ static bool Arm(unsigned char* positionSite, unsigned char* rotationSite)
 
 #ifndef KEO_SAVE_TRANSFORM_TEST
 
+struct PairContract {
+    save_gog_native::Window instructions[1];
+    unsigned first, second;
+};
+
 struct GameContract {
-    save_gog_native::Window instructions[3];
+    save_gog_native::Window locks[2];
+    PairContract pairs[PK_COUNT];
     uintptr_t readSlot, filebuf, bulkReadThunk, bulkReadSlot;
     uintptr_t lockThunk, unlockThunk;
 };
 
 static const GameContract steam = {
-    {{0x6c1d55, 59, 0xbead1fc9dfd2ff25ULL}, {0x12fb10, 48, 0x291ad94ff575a343ULL}, {0x12fb40, 48, 0xb370c7957bd5b34bULL}},
+    {{0x12fb10, 48, 0x291ad94ff575a343ULL}, {0x12fb40, 48, 0xb370c7957bd5b34bULL}},
+    {
+        {{{0x6c1d55, 59, 0xbead1fc9dfd2ff25ULL}}, 17, 40}, // position, rotation
+        {{{0x6c0c97, 77, 0x7bcf68d260f2cdc1ULL}}, 43, 63}, // record type, numeric ID
+        {{{0x6c18d0, 56, 0x15571aabf224835bULL}}, 20, 43}, // reference arguments 1 and 2
+    },
     0x2244258, 0x168ef18, 0xed6fb6, 0x2244518, 0x3f076, 0x4d437
 };
 static const GameContract gog = {
-    {{0x6c1665, 59, 0x4d449a4a85734f3cULL}, {0x12fa30, 48, 0xd424a77f376b8a93ULL}, {0x12fa60, 48, 0x38151ccaa5d2091bULL}},
+    {{0x12fa30, 48, 0xd424a77f376b8a93ULL}, {0x12fa60, 48, 0x38151ccaa5d2091bULL}},
+    {
+        {{{0x6c1665, 59, 0x4d449a4a85734f3cULL}}, 17, 40},
+        {{{0x6c05a7, 77, 0x66c1a3becd358deeULL}}, 43, 63},
+        {{{0x6c11e0, 56, 0xf9f535e146c4bf5bULL}}, 20, 43},
+    },
     0x22421c8, 0x168df18, 0xed66b6, 0x2242488, 0x3f0e4, 0x4d4af
 };
 static const save_gog_native::Window crtProof[] = {
@@ -233,7 +284,7 @@ static const GameContract* Admit(unsigned char* game, unsigned char* crt)
             contract = &gog;
         else if (stamp == 0x65d604d7 && imageSize == 0x232c000)
             contract = &steam;
-        if (!contract || !save_gog_native::Match(game, contract->instructions) ||
+        if (!contract || !save_gog_native::Match(game, contract->locks) ||
             !ReadModuleImageId(reinterpret_cast<HMODULE>(crt), &stamp, &imageSize) ||
             stamp != 0x580f7c45 || imageSize != 0x98000 || !save_gog_native::Match(crt, crtProof))
             return NULL;
@@ -247,8 +298,8 @@ static const GameContract* Admit(unsigned char* game, unsigned char* crt)
         const HMODULE runtime = GetModuleHandleA("MSVCR100.dll");
         if (Member<const void*>(game, static_cast<int>(contract->readSlot)) != nativeRead ||
             !runtime || Member<const void*>(table, 8) != lock || Member<const void*>(table, 0x10) != unlock ||
-            !ForwardingLock(lock, game + contract->instructions[1].rva, reinterpret_cast<const void*>(GetProcAddress(runtime, "_lock_file"))) ||
-            !ForwardingLock(unlock, game + contract->instructions[2].rva, reinterpret_cast<const void*>(GetProcAddress(runtime, "_unlock_file"))) ||
+            !ForwardingLock(lock, game + contract->locks[0].rva, reinterpret_cast<const void*>(GetProcAddress(runtime, "_lock_file"))) ||
+            !ForwardingLock(unlock, game + contract->locks[1].rva, reinterpret_cast<const void*>(GetProcAddress(runtime, "_unlock_file"))) ||
             Member<const void*>(table, 0x40) != thunk ||
             thunk[0] != 0xff || thunk[1] != 0x25 ||
             thunk + 6 + Member<int32_t>(thunk, 2) != game + contract->bulkReadSlot ||
@@ -273,6 +324,25 @@ static const GameContract* Admit(unsigned char* game, unsigned char* crt)
     }
 }
 
+static unsigned AdmitPairs(unsigned char* game, const GameContract& contract, CallSites (&sites)[PK_COUNT])
+{
+    unsigned count = 0;
+    __try {
+        for (unsigned i = 0; i < PK_COUNT; ++i) {
+            const PairContract& pair = contract.pairs[i];
+            if (!save_gog_native::Match(game, pair.instructions))
+                continue;
+            unsigned char* window = game + pair.instructions[0].rva;
+            sites[i].first = window + pair.first;
+            sites[i].second = window + pair.second;
+            ++count;
+        }
+        return count;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 0;
+    }
+}
+
 static_assert(sizeof(std::streamsize) == 8 && sizeof(std::ifstream) == 0x110 && sizeof(std::filebuf) == 0xa0,
               "native x64 VC10 stream layout");
 
@@ -285,14 +355,16 @@ static void Install()
     unsigned char* game = reinterpret_cast<unsigned char*>(GetModuleHandleA(NULL));
     unsigned char* crt = reinterpret_cast<unsigned char*>(GetModuleHandleA("MSVCP100.dll"));
     const GameContract* contract = Admit(game, crt);
-    const uintptr_t pair = contract ? contract->instructions[0].rva : 0;
-    if (!contract || !code_patch_threads::Prepare((GetDLLDirectory() + OPTIMIZER_LOG_NAME).c_str()) ||
-        !Arm(game + pair + 17, game + pair + 40))
+    CallSites sites[PK_COUNT] = {};
+    const unsigned count = contract ? AdmitPairs(game, *contract, sites) : 0;
+    if (!count || !code_patch_threads::Prepare((GetDLLDirectory() + OPTIMIZER_LOG_NAME).c_str()) || !Arm(sites))
     {
-        LogError("Save transform reading: native parser or stream contract refused");
+        LogError("Save read pairs: native parser or stream contract refused");
         return;
     }
-    KEO_DETAIL("Save transform reading: paired instance reads admitted");
+    if (count < PK_COUNT)
+        LogError("Save read pairs: unrecognized parser sites use native reads");
+    KEO_DETAIL("Save read pairs: buffered parser reads admitted");
 }
 #endif
 

@@ -15,12 +15,17 @@ sys.path.insert(0, 'D:/DEV/Kenshi/tools')
 from modread import Reader
 
 
-def transforms(data, allow_tail=False):
+PAIRS = ('transform', 'record header', 'reference arguments')
+WIDTHS = (28, 8, 8)
+
+
+def read_offsets(data, allow_tail=False):
     reader = Reader(data)
     assert reader.i32() == 15
     reader.i32()
-    offsets = []
+    offsets = ([], [], [])
     for _ in range(reader.i32()):
+        offsets[1].append(reader.p + 4)  # type and numeric ID follow the instance counter
         reader.p += 12  # instance counter, type, numeric ID
         reader.string()
         reader.string()
@@ -36,11 +41,12 @@ def transforms(data, allow_tail=False):
             reader.string()
             for _ in range(reader.i32()):
                 reader.string()
+                offsets[2].append(reader.p + 4)  # second and third argument
                 reader.p += 12  # saved v15 references have three integer arguments
         for _ in range(reader.i32()):
             reader.string()
             reader.string()
-            offsets.append(reader.p)
+            offsets[0].append(reader.p)
             reader.p += 28
             for _ in range(reader.i32()):
                 reader.string()
@@ -62,8 +68,8 @@ def fixtures(roots):
             if digest in known:
                 continue
             known.add(digest)
-            offsets = transforms(data, file.suffix != '.platoon')
-            if offsets:
+            offsets = read_offsets(data, file.suffix != '.platoon')
+            if any(offsets):
                 yield file, data, offsets
 
 
@@ -75,24 +81,29 @@ def main():
     exe = options.exe.resolve(strict=True)
     full = list(fixtures(options.saves))
     assert {file.suffix for file, _, _ in full} == {'.save', '.platoon', '.zone'}
-    print(f'{len(full)} complete v15 files, {sum(len(offsets) for _, _, offsets in full)} decoded transform offsets', flush=True)
+    print(f'{len(full)} complete v15 files', flush=True)
     build = exe.parent
     with tempfile.TemporaryDirectory(prefix='save-cuts-', dir=build) as work:
         stage = Path(work).resolve(strict=True)
         assert stage.parent == build
-        args = []
-        for file, data, offsets in full:
-            for offset in sorted({offsets[0], offsets[len(offsets) // 2], offsets[-1]}):
-                args.extend((str(file.resolve()), str(offset), str(len(data) - offset)))
-        for suffix in ('.save', '.platoon', '.zone'):
-            file, data, offsets = min((row for row in full if row[0].suffix == suffix), key=lambda row: row[2][0])
-            offset = offsets[0]
-            lengths = range(29) if suffix == '.save' else (0, 11, 12, 13, 27, 28)
-            for retained in lengths:
-                cut = stage / f'cut-{retained}{file.suffix}'
-                cut.write_bytes(data[:offset + retained])
-                args.extend((str(cut), str(offset), str(retained)))
-        subprocess.run([str(exe), *args], cwd=stage, check=True)
+        for kind, (name, width) in enumerate(zip(PAIRS, WIDTHS)):
+            files = [(file, data, offsets[kind]) for file, data, offsets in full if offsets[kind]]
+            suffixes = {file.suffix for file, _, _ in files}
+            assert {'.save', '.platoon'} <= suffixes
+            print(f'{name}: {sum(len(offsets) for _, _, offsets in files)} decoded offsets', flush=True)
+            args = []
+            for file, data, offsets in files:
+                for offset in sorted({offsets[0], offsets[len(offsets) // 2], offsets[-1]}):
+                    args.extend((str(file.resolve()), str(offset), str(len(data) - offset)))
+            for suffix in sorted(suffixes):
+                file, data, offsets = min((row for row in files if row[0].suffix == suffix), key=lambda row: row[2][0])
+                offset = offsets[0]
+                lengths = (0, 11, 12, 13, 27, 28) if kind == 0 and suffix != '.save' else range(width + 1)
+                for retained in lengths:
+                    cut = stage / f'cut-{kind}-{retained}{file.suffix}'
+                    cut.write_bytes(data[:offset + retained])
+                    args.extend((str(cut), str(offset), str(retained)))
+            subprocess.run([str(exe), str(kind), *args], cwd=stage, check=True)
 
 
 if __name__ == '__main__':
