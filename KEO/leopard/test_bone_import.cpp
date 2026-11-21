@@ -18,12 +18,29 @@
 #include "fixes/near_page.h"
 #include "fixes/code_patch_batch.h"
 #include "fixes/world/bone_import.h"
+#include "plugin/hook_manifest.h"
 namespace fixes{struct Config{bool meshWeightsEnabled;};static Config g_fixesCfg={true};}
 static DWORD ownerThread=GetCurrentThreadId();
 static bool IsMainThread(){return GetCurrentThreadId()==ownerThread;}
 static bool imageIdEnabled=true;
 static bool ReadModuleImageId(HMODULE module,DWORD*stamp,DWORD*size){if(!imageIdEnabled)return false;IMAGE_DOS_HEADER*dos=(IMAGE_DOS_HEADER*)module;IMAGE_NT_HEADERS64*nt=(IMAGE_NT_HEADERS64*)((char*)module+dos->e_lfanew);*stamp=nt->FileHeader.TimeDateStamp;*size=nt->OptionalHeader.SizeOfImage;return true;}
+static bool useQueue=false;
+static unsigned hookCalls=0,installErrors=0;
+static void* nextOriginal=NULL;
+static StartupAuxHookCompletion queuedDone=NULL;
+static void** queuedOriginal=NULL;
+bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
+ if(!useQueue||id!=STARTUP_AUX_BONE_IMPORT)return false;
+ queuedDone=done;queuedOriginal=original;return true;
+}
+namespace KenshiLib {
+enum Status {SUCCESS};
+static Status AddHook(void*,void*,void** original){++hookCalls;*original=nextOriginal;return SUCCESS;}
+}
+static void LogError(const std::string&){++installErrors;}
+#define KEO_DETAIL(x) ((void)0)
 #define KEO_BONE_IMPORT_TEST
+#define KEO_BONE_IMPORT_INIT_TEST
 #include "../src/fixes/world/bone_import_patch.cpp"
 static unsigned checks=0;
 #define C(x) do{++checks;if(!(x)){printf("FAIL line %u: %s\n",__LINE__,#x);return 1;}}while(0)
@@ -76,6 +93,21 @@ static int Integration(HMODULE module){
  C(bone_import_patch::Admit(module)==(char*)module+0x369330);imageIdEnabled=false;C(!bone_import_patch::Admit(module));imageIdEnabled=true;C(!bone_import_patch::Admit(NULL));DWORD saved=ownerThread;ownerThread=0;C(!bone_import_patch::Admit(module));ownerThread=saved;
  std::vector<unsigned char>image(0x9c9000,0);for(unsigned k=0;k<sizeof(bone_import_patch::proofs)/sizeof(bone_import_patch::proofs[0]);++k){const bone_import_patch::Proof&p=bone_import_patch::proofs[k];memcpy(&image[p.rva],p.bytes,p.size);}C(bone_import_patch::Validate(&image[0],image.size()));C(!bone_import_patch::Validate(&image[0],image.size()-1));
  for(unsigned k=0;k<sizeof(bone_import_patch::proofs)/sizeof(bone_import_patch::proofs[0]);++k){const bone_import_patch::Proof&p=bone_import_patch::proofs[k];for(unsigned j=0;j<p.size;++j){image[p.rva+j]^=1;C(!bone_import_patch::Validate(&image[0],image.size()));image[p.rva+j]^=1;}}
+ nextOriginal=(void*)native;
+ for(unsigned installMode=0;installMode<4;++installMode){
+  useQueue=installMode!=0;queuedDone=NULL;hookCalls=installErrors=0;
+  bone_import_patch::tried=bone_import_patch::admitted=false;
+  bone_import_patch::original=NULL;
+  bone_import_patch::Install();
+  if(useQueue){
+   C(queuedDone&&hookCalls==0&&!bone_import_patch::admitted);
+   if(installMode!=3)*queuedOriginal=nextOriginal;
+   queuedDone(STARTUP_AUX_BONE_IMPORT,installMode==2?"batch-apply":NULL);
+  }
+  C(hookCalls==(useQueue?0u:1u)&&installErrors==(installMode>1?1u:0u));
+  C(bone_import_patch::admitted==(installMode<2)&&(void*)bone_import_patch::original==(installMode==3?NULL:nextOriginal));
+ }
+ useQueue=false;
  bone_import_patch::original=Original;bone_import_patch::allocate=Allocate;bone_import_patch::link=Link;
  for(unsigned mode=0;mode<4;++mode){Access actual;actual.useSharedVertices=false;Ogre::VertexBoneAssignment value=Value(1,7,0x3f000000);originalCalls=allocations=0;bone_import_patch::admitted=mode!=1;fixes::g_fixesCfg.meshWeightsEnabled=mode!=2;if(mode==3)ownerThread=0;bone_import_patch::Import(&actual,&value);C(actual.mBoneAssignments.size()==1);C(originalCalls==(mode?1u:0u));C(allocations==(mode?0u:1u));ownerThread=saved;}
  bone_import_patch::admitted=true;fixes::g_fixesCfg.meshWeightsEnabled=true;return 0;

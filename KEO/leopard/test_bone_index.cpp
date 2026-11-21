@@ -15,11 +15,28 @@
 #include "fixes/near_page.h"
 #include "fixes/code_patch_batch.h"
 #include "fixes/world/bone_index.h"
+#include "plugin/hook_manifest.h"
 namespace fixes{struct Config{bool meshWeightsEnabled;};static Config g_fixesCfg={true};}
 static DWORD ownerThread=GetCurrentThreadId();static bool IsMainThread(){return GetCurrentThreadId()==ownerThread;}
 static bool imageIdEnabled=true;
 static bool ReadModuleImageId(HMODULE module,DWORD*stamp,DWORD*size){if(!imageIdEnabled)return false;IMAGE_DOS_HEADER*d=(IMAGE_DOS_HEADER*)module;IMAGE_NT_HEADERS64*n=(IMAGE_NT_HEADERS64*)((char*)module+d->e_lfanew);*stamp=n->FileHeader.TimeDateStamp;*size=n->OptionalHeader.SizeOfImage;return true;}
+static bool useQueue=false;
+static unsigned hookCalls=0,installErrors=0;
+static void* nextOriginal=NULL;
+static StartupAuxHookCompletion queuedDone=NULL;
+static void** queuedOriginal=NULL;
+bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
+ if(!useQueue||id!=STARTUP_AUX_BONE_INDEX)return false;
+ queuedDone=done;queuedOriginal=original;return true;
+}
+namespace KenshiLib {
+enum Status {SUCCESS};
+static Status AddHook(void*,void*,void** original){++hookCalls;*original=nextOriginal;return SUCCESS;}
+}
+static void LogError(const std::string&){++installErrors;}
+#define KEO_DETAIL(x) ((void)0)
 #define KEO_BONE_INDEX_TEST
+#define KEO_BONE_INDEX_INIT_TEST
 #include "../src/fixes/world/bone_index_patch.cpp"
 typedef Ogre::Mesh::VertexBoneAssignmentList List;typedef Ogre::Mesh::IndexMap Map;
 typedef void(*Native)(Ogre::Mesh*,const List&,Map&,Map&);
@@ -46,6 +63,21 @@ static int Integration(Ogre::Mesh*m,HMODULE dll){
  C(bone_index_patch::Admit(dll)==(char*)dll+0x1a5e30);imageIdEnabled=false;C(!bone_index_patch::Admit(dll));imageIdEnabled=true;C(!bone_index_patch::Admit(NULL));DWORD saved=ownerThread;ownerThread=0;C(!bone_index_patch::Admit(dll));ownerThread=saved;
  std::vector<unsigned char> image(0x9c9000,0);for(unsigned k=0;k<sizeof(bone_index_patch::proofs)/sizeof(bone_index_patch::proofs[0]);++k){const bone_index_patch::Proof&p=bone_index_patch::proofs[k];memcpy(&image[p.rva],p.bytes,p.size);}C(bone_index_patch::Validate(&image[0],image.size()));C(!bone_index_patch::Validate(&image[0],image.size()-1));
  for(unsigned k=0;k<sizeof(bone_index_patch::proofs)/sizeof(bone_index_patch::proofs[0]);++k){const bone_index_patch::Proof&p=bone_index_patch::proofs[k];for(unsigned j=0;j<p.size;++j){image[p.rva+j]^=1;C(!bone_index_patch::Validate(&image[0],image.size()));image[p.rva+j]^=1;}}
+ nextOriginal=(void*)Original;
+ for(unsigned installMode=0;installMode<4;++installMode){
+  useQueue=installMode!=0;queuedDone=NULL;hookCalls=installErrors=0;
+  bone_index_patch::tried=bone_index_patch::admitted=false;
+  bone_index_patch::original=NULL;
+  bone_index_patch::Install();
+  if(useQueue){
+   C(queuedDone&&hookCalls==0&&!bone_index_patch::admitted);
+   if(installMode!=3)*queuedOriginal=nextOriginal;
+   queuedDone(STARTUP_AUX_BONE_INDEX,installMode==2?"batch-apply":NULL);
+  }
+  C(hookCalls==(useQueue?0u:1u)&&installErrors==(installMode>1?1u:0u));
+  C(bone_index_patch::admitted==(installMode<2)&&(void*)bone_index_patch::original==(installMode==3?NULL:nextOriginal));
+ }
+ useQueue=false;
  bone_index_patch::original=Original;bone_index_patch::grow=Grow;List input;for(unsigned i=0;i<128;++i)Add(input,i,i%37);
  for(unsigned gate=0;gate<4;++gate){Map a,b;originalCalls=0;bone_index_patch::admitted=gate!=1;fixes::g_fixesCfg.meshWeightsEnabled=gate!=2;if(gate==3)ownerThread=0;bone_index_patch::Build(m,&input,&a,&b);C(originalCalls==(gate?1u:0u));C(a.size()==37&&b.size()==37);ownerThread=saved;}
  bone_index_patch::admitted=true;fixes::g_fixesCfg.meshWeightsEnabled=true;

@@ -5,6 +5,7 @@
 #include "render/module_hooks.h"
 #endif
 #include "fixes/world/bone_index.h"
+#include "plugin/hook_manifest.h"
 #include <ogre/OgreMesh.h>
 #include <cstring>
 #include "fixes/world/bone_index_contract.h"
@@ -30,13 +31,21 @@ static void*Admit(HMODULE module){
   return target;
  }__except(EXCEPTION_EXECUTE_HANDLER){return NULL;}
 }
-#ifndef KEO_BONE_INDEX_TEST
+#if !defined(KEO_BONE_INDEX_TEST) || defined(KEO_BONE_INDEX_INIT_TEST)
+static void CompleteInstall(int,const char* why){
+ if(why||!original){
+  LogError(std::string("Bone index preparation: hook failed (")+(why?why:"original")+"); original tables retained");return;
+ }
+ admitted=true;KEO_DETAIL("Bone index preparation: bounded unsigned bone collection admitted");
+}
+
 static void Install(){
  if(tried)return;tried=true;HMODULE module=GetModuleHandleA("OgreMain_x64.dll");void*target=Admit(module);
  if(!target){LogError("Bone index preparation: native method/layout contract refused; original tables retained");return;}
  grow=(bone_index::Grow)((char*)module+0x1b0570);
- if(KenshiLib::AddHook(target,(void*)&Build,(void**)&original)!=KenshiLib::SUCCESS||!original){LogError("Bone index preparation: hook failed; original tables retained");return;}
- admitted=true;KEO_DETAIL("Bone index preparation: bounded unsigned bone collection admitted");
+ if(QueueStartupAuxHook(STARTUP_AUX_BONE_INDEX,target,(void*)&Build,(void**)&original,CompleteInstall))return;
+ const bool installed=KenshiLib::AddHook(target,(void*)&Build,(void**)&original)==KenshiLib::SUCCESS;
+ CompleteInstall(STARTUP_AUX_BONE_INDEX,installed?NULL:"hook");
 }
 #endif
 }

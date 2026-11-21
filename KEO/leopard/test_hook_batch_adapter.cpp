@@ -57,6 +57,7 @@ int main(){try{
     HOOK_ADD_JOB_SELECTED, HOOK_ADD_TASK_NEAREST};
  const int addedCount=sizeof(added)/sizeof(added[0]);
  const StartupAuxHookId auxiliary[] = {STARTUP_AUX_SKELETON_RESERVE, STARTUP_AUX_MESH_WEIGHTS,
+    STARTUP_AUX_BONE_IMPORT, STARTUP_AUX_BONE_INDEX,
     STARTUP_AUX_MATERIAL_RESERVE, STARTUP_AUX_SAVE_READ_BUFFER, STARTUP_AUX_SAVE_STRING_TRANSFER};
  const int auxiliaryCount=sizeof(auxiliary)/sizeof(auxiliary[0]);
  const int total=4+addedCount+auxiliaryCount;
