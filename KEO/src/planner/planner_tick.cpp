@@ -626,8 +626,8 @@ static void ReportDrop(const PlanView& v, uintptr_t character, PlanDropWhy why, 
 #endif
 }
 
-// The slot's wait and completion clocks: a wait begins when the waiting word rises; a portal leg
-// is complete when the character stopped at its path's end outside the portal's reach.
+// Keep counting from an existing wait when a loaded portal still cannot supply a passage.
+// A portal leg is complete when the character stops at its path's end outside the portal's reach.
 static void UpdateClocks(int slot, const PlanView& v, double now, float distToPortal, bool portalLeg)
 {
 	PlanMainState* m = PlanStoreMain(slot);
@@ -682,6 +682,7 @@ static PlanReplanWhy SlotReplanDue(int slot, const PlanView& v, double now, floa
 	in.waitSeconds = s_waitSeconds;
 	in.loadedChangedSincePlan = m->loadedGenAtPlan != s_loadedGen;
 	in.awaitedLoaded = v.legIndex < PLAN_MAX_LEGS && ((v.loadedMask >> v.legIndex) & 1u) != 0;
+	in.portalRetry = v.waiting == PWS_PORTAL_RETRY;
 	in.rungs = v.rungs;
 	in.goalByFootprint = m->goalByFootprint;
 	in.goalLoaded = v.legCount > 0 && IsDirLoaded(v.legs[v.legCount - 1].farSection);
@@ -757,6 +758,8 @@ static bool TickSlot(int slot, const PlayerChar* players, int nPlayers, double n
 		InterlockedIncrement(&PlannerCountersGet()->replans);
 		InterlockedIncrement(&PlannerCountersGet()->replansBy[why]);
 	}
+	else if (why == PRW_WAIT && v.waiting == PWS_PORTAL_RETRY)
+		PlanStoreMain(slot)->waitSince = now; // A failed Locate must respect the same retry interval.
 	return true;
 }
 

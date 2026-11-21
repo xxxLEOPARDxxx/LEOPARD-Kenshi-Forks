@@ -72,7 +72,7 @@ uintptr_t PlanStoreKey(int slot);            // 0 for a free slot
 int  PlanStoreFind(uintptr_t cm);            // -1 when unplanned or the store is unarmed
 bool PlanStoreRead(int slot, PlanView* out); // false while the slot is rewritten, free, or twice torn
 bool PlanStoreAdvance(int slot, unsigned epoch, int fromLeg, int toLeg);   // the 64-bit CAS
-void PlanStoreSetWaiting(int slot, unsigned epoch, int waiting);           // ignored after a rewrite
+void PlanStoreSetWaiting(int slot, unsigned epoch, int leg, int waiting);  // ignored after a rewrite or advance
 void PlanStoreAddRung(int slot, unsigned epoch);
 void PlanStoreNoteArrival(int slot, unsigned epoch);    // sets the arrival word the tick consumes
 int  PlanStoreTakeArrival(int slot);                    // main thread: reads and clears it

@@ -416,6 +416,8 @@ static void CheckOwns()
 	      "owns: no waiting word or a direct plan is not owned");
 	Check(!PlanOwnsWait(PLANNER_ON, PV_LEGGED, 0, 1, 12.0f, FAR_WP, FAR_WP, false, 0, 0.0f), "owns: a halt at the portal is not owned (held wait)");
 	Check(!PlanOwnsWait(PLANNER_ON, PV_LEGGED, 0, 0, 7.0f, 5.0f, 3.0f, false, 0, 0.0f), "owns: a halt at the portal is not owned (arrival)");
+	Check(!PlanOwnsWait(PLANNER_ON, PV_LEGGED, 0, PWS_PORTAL_RETRY, 7.0f, 5.0f, 3.0f, true, 0, 0.0f),
+	      "owns: a missed portal snap leaves the stop to existing movement recovery");
 
 	bool subset = PLAN_REACH <= PARK_REACH && PLAN_POST_ARRIVAL == PARK_FAR_DEST;
 	int ownedWaits = 0;
@@ -503,6 +505,17 @@ static void CheckReplan()
 	in.waitSince = 991.0;
 	bool soon = PlanReplanDue(in) == PRW_NONE;
 	Check(wait && unchanged && arrived && soon, "replan: the wait needs a changed loaded set");
+
+	Quiet(&in);
+	in.portalRetry = 1;
+	in.awaitedLoaded = 1;
+	in.waitSince = 990.0;
+	bool missedFar = PlanReplanDue(in) == PRW_NONE;
+	in.distToPortal = 9.0f;
+	bool missedNear = PlanReplanDue(in) == PRW_WAIT;
+	in.waitSince = 991.0;
+	Check(missedFar && missedNear && PlanReplanDue(in) == PRW_NONE,
+	      "replan: a missed snap near the portal retries after the wait, with no loaded-set change");
 
 	Quiet(&in);
 	in.goalByFootprint = 1;

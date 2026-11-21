@@ -16,9 +16,8 @@ namespace plan_store_detail {
 
 struct PlanSlot
 {
-	volatile LONGLONG legWord;     // (epoch << 32) | legIndex; epoch odd while the main thread rewrites
+	volatile LONGLONG legWord;     // (epoch << 32) | (waiting << 16) | legIndex; odd epoch during rewrite
 	volatile LONG     loadedMask;  // main thread writes
-	volatile LONG     waiting;     // AI thread writes: 1 at a held recheck, 0 on an advance
 	volatile LONG     rungs;       // AI thread: rungs on the current leg, reset by the advance
 	volatile LONG     arrival;     // AI thread sets on an advance; the tick clears it
 	volatile LONG     consulted;   // AI thread: getZoneEdge calls with this plan
@@ -54,9 +53,9 @@ static PlanMoveDestReader s_moveDestReader = NULL;
 static int                s_legAim = 0;   // written once at the arm, before any reader runs
 static LONGLONG          s_preHoldTicks = 0;   // written once at the pre-arrival install
 
-static LONGLONG MakeWord(unsigned epoch, unsigned leg)
+static LONGLONG MakeWord(unsigned epoch, unsigned leg, unsigned waiting = PWS_NONE)
 {
-	return (LONGLONG)(((unsigned long long)epoch << 32) | leg);
+	return (LONGLONG)(((unsigned long long)epoch << 32) | (waiting << 16) | leg);
 }
 
 static unsigned EpochOf(LONGLONG word)
@@ -66,7 +65,12 @@ static unsigned EpochOf(LONGLONG word)
 
 static unsigned LegOf(LONGLONG word)
 {
-	return (unsigned)((unsigned long long)word & 0xFFFFFFFFull);
+	return (unsigned)word & 0xFFFFu;
+}
+
+static unsigned WaitingOf(LONGLONG word)
+{
+	return (unsigned)word >> 16;
 }
 
 // An interlocked load: a full compiler and processor fence, so a slot's plain fields are copied
@@ -82,33 +86,23 @@ static bool SlotInRange(int slot)
 }
 
 // Main thread: the slot's epoch goes odd; only this thread moves the epoch, so the value read is
-// the even one the last rewrite published. Returns that even epoch.
-static unsigned BeginRewrite(PlanSlot& s)
+// the even one the last rewrite published. Returns the last leg and wait, including
+// any transition the AI thread committed before the exchange.
+static LONGLONG BeginRewrite(PlanSlot& s)
 {
 	unsigned e = EpochOf(s.legWord);
-	InterlockedExchange64(&s.legWord, MakeWord(e + 1u, 0u));
-	return e;
-}
-
-// Main thread: as BeginRewrite, returning the current leg from the exchange itself, so an AI-thread
-// advance that landed before the exchange is kept.
-static unsigned BeginRewriteKeepLeg(PlanSlot& s, unsigned* leg)
-{
-	unsigned e = EpochOf(s.legWord);
-	*leg = LegOf(InterlockedExchange64(&s.legWord, MakeWord(e + 1u, 0u)));
-	return e;
+	return InterlockedExchange64(&s.legWord, MakeWord(e + 1u, 0u));
 }
 
 // Main thread: publishes the rewritten fields under the next even epoch, with the current leg.
-static void EndRewrite(PlanSlot& s, unsigned e, int leg)
+static void EndRewrite(PlanSlot& s, unsigned e, int leg, unsigned waiting = PWS_NONE)
 {
 	if (s_pauseInRewrite) s_pauseInRewrite(s_pauseInRewriteCtx);
-	InterlockedExchange64(&s.legWord, MakeWord(e + 2u, (unsigned)leg));
+	InterlockedExchange64(&s.legWord, MakeWord(e + 2u, (unsigned)leg, waiting));
 }
 
 static void ZeroWords(PlanSlot& s)
 {
-	InterlockedExchange(&s.waiting, 0);
 	InterlockedExchange(&s.rungs, 0);
 	InterlockedExchange(&s.arrival, 0);
 	InterlockedExchange(&s.consulted, 0);
@@ -118,7 +112,7 @@ static void ZeroWords(PlanSlot& s)
 // plan it held is refused.
 static void ClearSlot(PlanSlot& s)
 {
-	unsigned e = BeginRewrite(s);
+	unsigned e = EpochOf(BeginRewrite(s));
 	s.cm = 0;
 	s.verdict = PV_NONE;
 	s.legCount = 0;
@@ -183,7 +177,7 @@ int PlanStoreWrite(const PlanWrite& w)
 
 	PlanSlot& s = s_slots[slot];
 	bool keep = w.keepSends && s.cm == w.cm;
-	unsigned e = BeginRewrite(s);
+	unsigned e = EpochOf(BeginRewrite(s));
 	s.cm = w.cm;
 	s.verdict = w.verdict;
 	s.legCount = legCount;
@@ -284,7 +278,6 @@ bool PlanStoreRead(int slot, PlanView* out)
 		out->legCount = s.legCount;
 		out->routeTruncated = s.routeTruncated;
 		out->loadedMask = (unsigned)s.loadedMask;
-		out->waiting = (int)s.waiting;
 		out->rungs = (int)s.rungs;
 		memcpy(out->finalDest, s.finalDest, sizeof(out->finalDest));
 		memcpy(out->destAtPlan, s.destAtPlan, sizeof(out->destAtPlan));
@@ -301,6 +294,7 @@ bool PlanStoreRead(int slot, PlanView* out)
 		out->slot = slot;
 		out->epoch = e;
 		out->legIndex = (int)LegOf(w2);
+		out->waiting = (int)WaitingOf(w2);
 		return true;
 	}
 	return false;
@@ -309,32 +303,35 @@ bool PlanStoreRead(int slot, PlanView* out)
 // Any thread: succeeds only when neither the epoch nor the leg moved since the caller's read.
 bool PlanStoreAdvance(int slot, unsigned epoch, int fromLeg, int toLeg)
 {
-	if (!SlotInRange(slot) || (epoch & 1u) || fromLeg < 0 || toLeg < 0 || toLeg >= PLAN_MAX_LEGS)
+	if (!SlotInRange(slot) || (epoch & 1u) || fromLeg < 0 || fromLeg >= PLAN_MAX_LEGS || toLeg < 0 || toLeg >= PLAN_MAX_LEGS)
 	{
 		InterlockedIncrement(&s_counters.staleAdvance);
 		return false;
 	}
 	PlanSlot& s = s_slots[slot];
 	LONGLONG expect = MakeWord(epoch, (unsigned)fromLeg);
-	if (InterlockedCompareExchange64(&s.legWord, MakeWord(epoch, (unsigned)toLeg), expect) != expect)
+	do
 	{
-		InterlockedIncrement(&s_counters.staleAdvance);
-		return false;
-	}
-	InterlockedExchange(&s.rungs, 0);
-	return true;
+		const LONGLONG seen = InterlockedCompareExchange64(&s.legWord, MakeWord(epoch, (unsigned)toLeg), expect);
+		if (seen == expect)
+		{
+			InterlockedExchange(&s.rungs, 0);
+			return true;
+		}
+		expect = seen;
+	} while (EpochOf(expect) == epoch && LegOf(expect) == (unsigned)fromLeg);
+	InterlockedIncrement(&s_counters.staleAdvance);
+	return false;
 }
 
-// Any thread: a rewrite between the check and the write is caught by the second check, and the
-// value is taken back so the rewritten plan keeps its zero.
-void PlanStoreSetWaiting(int slot, unsigned epoch, int waiting)
+// Any thread: the wait belongs to the exact plan and leg that requested it.
+void PlanStoreSetWaiting(int slot, unsigned epoch, int leg, int waiting)
 {
 	if (!SlotInRange(slot) || (epoch & 1u)) return;
 	PlanSlot& s = s_slots[slot];
-	if (!EpochHolds(s, epoch)) return;
-	LONG v = waiting ? 1 : 0;
-	InterlockedExchange(&s.waiting, v);
-	if (v && !EpochHolds(s, epoch)) InterlockedCompareExchange(&s.waiting, 0, v);
+	const LONGLONG current = LoadWord(s);
+	if (EpochOf(current) == epoch && LegOf(current) == (unsigned)leg && WaitingOf(current) != (unsigned)waiting)
+		InterlockedCompareExchange64(&s.legWord, MakeWord(epoch, (unsigned)leg, (unsigned)waiting), current);
 }
 
 void PlanStoreAddRung(int slot, unsigned epoch)
@@ -516,6 +513,7 @@ int PlanStorePreSnap(int slot, unsigned epoch, int leg, int got)
 		return PLAN_PRE_SNAP_RETRY;
 	}
 	PlanStorePreSkip(slot, epoch, leg, PPS_SNAP);
+	PlanStoreSetWaiting(slot, epoch, leg, PWS_PORTAL_RETRY);
 	return PLAN_PRE_SNAP_BLOCK;
 }
 
@@ -551,8 +549,8 @@ int PlannerNoteModSend(uintptr_t cm, const float sent[3], int kind, double now)
 	// carry is one compare-exchange against the word read here: a word the AI thread resolved or
 	// replaced in between fails it and stays as that thread left it.
 	LONGLONG seen = InterlockedCompareExchange64(&s.preWord, 0, 0);
-	unsigned leg = 0;
-	unsigned e = BeginRewriteKeepLeg(s, &leg);
+	const LONGLONG previous = BeginRewrite(s);
+	const unsigned e = EpochOf(previous);
 	if (s.resendCount >= PLAN_RESEND_POINTS)
 	{
 		memmove(s.resend[0], s.resend[1], sizeof(s.resend[0]) * (PLAN_RESEND_POINTS - 1));
@@ -560,7 +558,7 @@ int PlannerNoteModSend(uintptr_t cm, const float sent[3], int kind, double now)
 	}
 	memcpy(s.resend[s.resendCount], sent, sizeof(s.resend[0]));
 	++s.resendCount;
-	EndRewrite(s, e, (int)leg);
+	EndRewrite(s, e, (int)LegOf(previous), WaitingOf(previous));
 	unsigned long long w = (unsigned long long)seen;
 	int state = (int)((w >> 16) & 0xFF);
 	if ((unsigned)(w >> 32) == e && (state & PLAN_PRE_STATE_MASK) != PLAN_PRE_NONE)

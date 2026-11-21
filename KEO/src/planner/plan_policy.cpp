@@ -146,14 +146,14 @@ static void EdgeRecheck(const PlanLeg* legs, int n, const PlanEdgeIn& in, PlanEd
 		LegPoint(legs, n, target, in, out, out->point);
 		return;
 	}
-	out->waiting = 1;
+	out->waiting = PWS_PORTAL;
 }
 
 void PlanEdgeStep(const PlanLeg* legs, int n, const PlanEdgeIn& in, PlanEdgeOut* out)
 {
 	out->action      = PEA_PASS;
 	out->newLegIndex = in.legIndex;
-	out->waiting     = 0;
+	out->waiting     = PWS_NONE;
 	out->rung        = 0;
 	out->aimed       = 0;
 	out->aimShift    = 0.0f;
@@ -342,8 +342,8 @@ bool PlanOwnsWait(int mode, int verdict, int legIsDestination, int waiting, floa
 	if (mode != PLANNER_ON || verdict != PV_LEGGED) return false;
 	if (!destIsPlans) return false;
 	if (preInFlight && posToPrePortal < PLAN_REACH) return true;
-	if (legIsDestination) return false;
-	if (waiting != 0 && distToPortal < PLAN_REACH) return true;
+	if (legIsDestination || waiting == PWS_PORTAL_RETRY) return false;
+	if (waiting == PWS_PORTAL && distToPortal < PLAN_REACH) return true;
 	return wpToPortal < PLAN_REACH && posToWp < PLAN_REACH;
 }
 
@@ -364,8 +364,8 @@ PlanReplanWhy PlanReplanDue(const PlanReplanIn& in)
 	if (in.completeSince > 0.0 && in.now - in.completeSince >= ARRIVAL_TIMEOUT_SECONDS && !nearPortal)
 		return PRW_ARRIVAL_TIMEOUT;
 	if (in.routeTruncated && in.legIndex == in.legCount - 2 && nearPortal) return PRW_ROUTE_END;
-	if (in.waitSince > 0.0 && in.now - in.waitSince >= (double)in.waitSeconds && !in.awaitedLoaded &&
-	    in.loadedChangedSincePlan)
+	if (in.waitSince > 0.0 && in.now - in.waitSince >= (double)in.waitSeconds &&
+	    (in.portalRetry ? nearPortal : (!in.awaitedLoaded && in.loadedChangedSincePlan)))
 		return PRW_WAIT;
 	if (in.goalByFootprint && in.goalLoaded) return PRW_GOAL_LOADED;
 	if (in.now - in.planTime >= PLAN_AGE_SECONDS) return PRW_AGE;

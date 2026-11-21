@@ -204,11 +204,11 @@ static void PreArrivalStep(uintptr_t cm, float dt)
 	if (sx * sx + sy * sy + sz * sz <= PRE_SAME_SQ)
 	{
 		PlanStorePreSkip(slot, v.epoch, v.legIndex, PPS_SAME);
+		PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_PORTAL_RETRY);
 		return;
 	}
 	if (!PlanStoreAdvance(slot, v.epoch, v.legIndex, o.target))
 		return;
-	PlanStoreSetWaiting(slot, v.epoch, 0);
 	PlanStoreNoteArrival(slot, v.epoch);
 	InterlockedIncrement(&PlannerCountersGet()->arrivals);
 	InterlockedIncrement(&PlannerCountersGet()->pre);

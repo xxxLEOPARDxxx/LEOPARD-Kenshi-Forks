@@ -214,13 +214,13 @@ static void StoreRows()
 	MakeWrite(&w, CM_A, 1.0f);
 	slot = PlanStoreWrite(w);
 	PlanStoreRead(slot, &v);
-	PlanStoreSetWaiting(slot, v.epoch, 1);
+	PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_PORTAL);
 	Check(PlanStoreRead(slot, &v) && v.waiting == 1, "store: a waiting word under the current epoch is set");
 	unsigned oldEpoch = v.epoch;
 	MakeWrite(&w, CM_A, 2.0f);
 	PlanStoreWrite(w);
 	Check(PlanStoreRead(slot, &v) && v.waiting == 0, "store: a rewrite clears the waiting word");
-	PlanStoreSetWaiting(slot, oldEpoch, 1);
+	PlanStoreSetWaiting(slot, oldEpoch, v.legIndex, PWS_PORTAL);
 	PlanStoreAddRung(slot, oldEpoch);
 	PlanStoreNoteArrival(slot, oldEpoch);
 	Check(PlanStoreRead(slot, &v) && v.waiting == 0 && v.rungs == 0 && PlanStoreTakeArrival(slot) == 0,
@@ -228,6 +228,11 @@ static void StoreRows()
 	PlanStoreNoteArrival(slot, v.epoch);
 	Check(PlanStoreTakeArrival(slot) == 1 && PlanStoreTakeArrival(slot) == 0,
 	      "store: the arrival word is taken once");
+	PlanStoreSetWaiting(slot, v.epoch, 0, PWS_PORTAL_RETRY);
+	Check(PlanStoreAdvance(slot, v.epoch, 0, 1), "store: a retry can advance on a usable passage");
+	PlanStoreSetWaiting(slot, v.epoch, 0, PWS_PORTAL_RETRY);
+	Check(PlanStoreRead(slot, &v) && v.legIndex == 1 && v.waiting == PWS_NONE,
+	      "store: a previous leg cannot publish its retry on the next leg");
 
 	PlanStoreNoteConsulted(slot);
 	PlanStoreNoteConsulted(slot);
@@ -272,7 +277,7 @@ static void HeldAtPortal(int mode)
 	MakeWrite(&w, CM_A, 1.0f);
 	int slot = PlanStoreWrite(w);
 	PlanStoreRead(slot, &v);
-	PlanStoreSetWaiting(slot, v.epoch, 1);
+	PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_PORTAL);
 	PlanStoreArm(mode);
 }
 
@@ -328,7 +333,7 @@ static void OwnsRows()
 	PlanView v;
 	int slot = PlanStoreFind(CM_A);
 	PlanStoreRead(slot, &v);
-	PlanStoreSetWaiting(slot, v.epoch, 0);
+	PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_NONE);
 	Check(!PlannerOwnsWait(CM_A, 1005.0f, 5.0f, 9000.0f, 9000.0f), "owns: a portal without the waiting word set is not owned");
 	Check(PlannerOwnsWait(CM_A, 1003.0f, 2.0f, 1005.0f, 0.0f), "owns: on owns a stop at the planner's waypoint at the portal");
 	s_fakeDest[0] = 1000.0f;
@@ -343,7 +348,7 @@ static void OwnsRows()
 	w.firstLeg = 2;
 	slot = PlanStoreWrite(w);
 	PlanStoreRead(slot, &v);
-	PlanStoreSetWaiting(slot, v.epoch, 1);
+	PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_PORTAL);
 	Check(v.legIndex == 2 && !PlannerOwnsWait(CM_A, 3000.0f, 0.0f, 9000.0f, 9000.0f), "owns: a destination leg is never owned");
 
 	Fresh(PLANNER_ON);
@@ -351,7 +356,7 @@ static void OwnsRows()
 	w.verdict = PV_DIRECT;
 	slot = PlanStoreWrite(w);
 	PlanStoreRead(slot, &v);
-	PlanStoreSetWaiting(slot, v.epoch, 1);
+	PlanStoreSetWaiting(slot, v.epoch, v.legIndex, PWS_PORTAL);
 	Check(!PlannerOwnsWait(CM_A, 1005.0f, 5.0f, 9000.0f, 9000.0f), "owns: a direct plan's wait is not owned");
 	PlanStoreSetMoveDestReader(NULL);
 	Fresh(PLANNER_OFF);
@@ -641,8 +646,8 @@ static void PreSnapRows()
 	Check(retryClean, "pre snap: a refused navmesh lock (-1) retries, counted in preBusy, no skip recorded, the leg unmarked");
 	int block = PlanStorePreSnap(slot, v.epoch, 0, 0);
 	Check(block == PLAN_PRE_SNAP_BLOCK && c->preSkip == skip + 1 && c->preSkipSnap == snap + 1 && c->preBusy == busy + 1
-	      && PlanStorePreBlocked(slot, v.epoch, 0),
-	      "pre snap: no face (0) after a retry is the leg's first skip, a counted SNAP block");
+	      && PlanStorePreBlocked(slot, v.epoch, 0) && PlanStoreRead(slot, &v) && v.legIndex == 0 && v.waiting == PWS_PORTAL_RETRY,
+	      "pre snap: a confirmed miss does not advance and reports recovery even before a native recheck");
 	int stray = PlanStorePreSnap(slot, v.epoch, 1, 5);
 	Check(stray == PLAN_PRE_SNAP_BLOCK && c->preSkipSnap == snap + 2 && PlanStorePreBlocked(slot, v.epoch, 1),
 	      "pre snap: any answer but 1 and -1 blocks as SNAP");

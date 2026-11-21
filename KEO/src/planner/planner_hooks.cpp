@@ -38,6 +38,8 @@ struct PlannerTls
 	int       islandSeen;  // isInIsland ran inside this call
 	int       flipped;     // the flip answered false (on) or would have (observe)
 	int       edgeSeen;    // getZoneEdge ran inside this call
+	unsigned  edgeEpoch;
+	int       edgeFrom, edgeTo; // a recheck proposal, valid only within this native call; -1 means none
 };
 // The engine's snap filter, built on the stack as the engine builds it on its heap.
 struct DoorHitFilterBytes { const void* vtable; unsigned refAndFlags; unsigned pad; };
@@ -76,11 +78,15 @@ static void hook_setDestinationVec3(void* cm, const float* dest, int priority, b
 		if (dest) { t_plan.dest[0] = dest[0]; t_plan.dest[1] = dest[1]; t_plan.dest[2] = dest[2]; }
 		t_plan.slot = InterlockedCompareExchange(&s_armed, 0, 0) ? PlanStoreFind((uintptr_t)cm) : -1;
 		t_plan.islandSeen = t_plan.flipped = t_plan.edgeSeen = 0;
+		t_plan.edgeTo = -1;
 		if (t_plan.slot >= 0 && cm && *(const int*)((const char*)cm + OFF_CMOV_EDGE_COUNTER) >= 17)
 			InterlockedIncrement(&PlannerCountersGet()->rung17);
 		orig_setDestinationVec3(cm, dest, priority, notVertical);
 		if (t_plan.slot >= 0)
 		{
+			// Native can keep its old path after the recheck and never call compute.
+			if (t_plan.edgeTo >= 0)
+				PlanStoreSetWaiting(t_plan.slot, t_plan.edgeEpoch, t_plan.edgeFrom, PWS_PORTAL_RETRY);
 			if (!t_plan.islandSeen)
 				InterlockedIncrement(&PlannerCountersGet()->roadPreempt);
 			else if (t_plan.flipped && !t_plan.edgeSeen)
@@ -95,10 +101,19 @@ static void hook_setDestinationVec3(void* cm, const float* dest, int priority, b
 	}
 }
 
+static bool EdgePlanIsCurrent(const PlannerTls& t, const PlanView& v, int leg)
+{
+	unsigned liveEpoch = 0;
+	int liveLeg = -1;
+	return PlanStoreMode() == PLANNER_ON && t.slot == v.slot && t.cm == v.cm
+	    && PlanStoreLeg(v.slot, &liveEpoch, &liveLeg) && liveEpoch == v.epoch && liveLeg == leg
+	    && PlanStoreKey(v.slot) == v.cm
+	    && PlanStoreLeg(v.slot, &liveEpoch, &liveLeg) && liveEpoch == v.epoch && liveLeg == leg;
+}
+
 // AI back thread, after the original computed its point. The planner's point for a planned
 // character's own edge-mode call in on; the original's point otherwise. Lock-free (the snap's
 // try-shared +0x200 is the engine's own, and it never blocks), allocation-free, no logging.
-// Every step past the pass writes the slot's waiting word, so an advance clears it.
 static float* hook_getZoneEdge(void* nm, float* retstr, const float* start, const float* target, float offset)
 {
 	float* r = orig_getZoneEdge(nm, retstr, start, target, offset);
@@ -110,57 +125,66 @@ static float* hook_getZoneEdge(void* nm, float* retstr, const float* start, cons
 	uintptr_t ra = (uintptr_t)_ReturnAddress();
 	int site = ra == s_retRecheck ? PES_RECHECK : (ra == s_retCompute ? PES_COMPUTE : PES_OTHER);
 	if (site == PES_OTHER) { InterlockedIncrement(&PlannerCountersGet()->notSite); return r; }
+	const int proposedLeg = site == PES_COMPUTE ? t.edgeTo : -1;
+	t.edgeTo = -1;
 	PlanView v;
 	if (!PlanStoreRead(t.slot, &v) || v.cm != t.cm)
 		return r;
 	if (!PlanEdgeSteers(s_mode, v.verdict, t.haveDest && PlanDestIsPlans(t.dest, v.finalDest, v.resend, v.resendCount)))
 		return r;
+	if (proposedLeg >= 0 && (t.edgeEpoch != v.epoch || t.edgeFrom != v.legIndex || proposedLeg >= v.legCount))
+		return r;
 	PlanEdgeIn in;
 	in.site = site; in.offset = offset; in.pos[0] = start[0]; in.pos[1] = start[1]; in.pos[2] = start[2];
-	in.legIndex = v.legIndex; in.loadedMask = v.loadedMask; in.legSpan = s_legSpan;
+	in.legIndex = proposedLeg >= 0 ? proposedLeg : v.legIndex;
+	in.loadedMask = v.loadedMask; in.legSpan = s_legSpan;
 	in.routeTruncated = v.routeTruncated;
 	in.aim = s_legAim; in.exteriorSlots = CG_EXTERIOR_SLOTS;
 	in.holdInteriorPortal = v.holdInteriorPortal;
 	PlanEdgeOut o;
 	PlanEdgeStep(v.legs, v.legCount, in, &o);
 	if (o.action == PEA_PASS) return r;
+	DoorHitFilterBytes f = { s_doorFilterVtable, 0xFFFF0001u, 0 };
+	float snapped[3];
+	unsigned key = 0;
+	const int got = fn_getClosestPoint(nm, o.point, 300.0f, 5.0f, &f, snapped, &key);
+	// The engine can move or replace the plan during the snap. Check the current
+	// leg before reporting a miss or committing a successful transition.
+	if (!EdgePlanIsCurrent(t, v, v.legIndex)) return r;
+	if (got != 1)
+	{
+		if (got != -1 || proposedLeg >= 0 || o.newLegIndex != v.legIndex)
+			PlanStoreSetWaiting(v.slot, v.epoch, v.legIndex, PWS_PORTAL_RETRY);
+		if (got != -1) // A busy navmesh is not a geometry miss.
+			InterlockedIncrement(&PlannerCountersGet()->snapFail);
+		return r;
+	}
+	if (proposedLeg >= 0)
+	{
+		if (!PlanStoreAdvance(v.slot, v.epoch, v.legIndex, proposedLeg) ||
+		    !EdgePlanIsCurrent(t, v, proposedLeg)) return r;
+		InterlockedIncrement(&PlannerCountersGet()->arrivals);
+		PlanStoreNoteArrival(v.slot, v.epoch);
+	}
+	else if (o.newLegIndex != v.legIndex)
+	{
+		// The recheck only decides whether native needs a new path. The following
+		// compute call must find its own point before the stored plan can advance.
+		t.edgeEpoch = v.epoch;
+		t.edgeFrom = v.legIndex;
+		t.edgeTo = o.newLegIndex;
+	}
+	else if (v.waiting != PWS_PORTAL_RETRY || o.waiting == PWS_PORTAL)
+		// A usable point on the old leg does not recover the missed passage.
+		PlanStoreSetWaiting(v.slot, v.epoch, v.legIndex, o.waiting);
 	if (o.aimed && site == PES_COMPUTE)
 	{
 		InterlockedIncrement(&PlannerCountersGet()->aimCount);
 		InterlockedExchangeAdd(&PlannerCountersGet()->aimShiftSum, (LONG)(o.aimShift + 0.5f));
 	}
-	if (o.newLegIndex != v.legIndex)
-	{
-		if (!PlanStoreAdvance(t.slot, v.epoch, v.legIndex, o.newLegIndex)) return r;
-		InterlockedIncrement(&PlannerCountersGet()->arrivals);
-		PlanStoreNoteArrival(t.slot, v.epoch);
-	}
-	PlanStoreSetWaiting(t.slot, v.epoch, o.waiting);
-	if (o.rung) { PlanStoreAddRung(t.slot, v.epoch); InterlockedIncrement(&PlannerCountersGet()->rungs); }
-	DoorHitFilterBytes f = { s_doorFilterVtable, 0xFFFF0001u, 0 };
-	float snapped[3];
-	unsigned key = 0;
-	const int got = fn_getClosestPoint(nm, o.point, 300.0f, 5.0f, &f, snapped, &key);
-	// Revalidate the plan after the native snap, before publishing either its
-	// snapped point or the raw fallback. Bracket the identity read with the
-	// packed epoch/leg loads; an advance by this call expects o.newLegIndex.
-	// This is a freshness check, not an atomic commit with a later cancellation.
-	unsigned liveEpoch = 0; int liveLeg = -1;
-	if (PlanStoreMode() != PLANNER_ON || t.slot != v.slot || t.cm != v.cm
-	    || !PlanStoreLeg(v.slot, &liveEpoch, &liveLeg) || liveEpoch != v.epoch || liveLeg != o.newLegIndex
-	    || PlanStoreKey(v.slot) != v.cm
-	    || !PlanStoreLeg(v.slot, &liveEpoch, &liveLeg) || liveEpoch != v.epoch || liveLeg != o.newLegIndex)
-		return r;
-	if (got == 1)
-	{
-		retstr[0] = snapped[0]; retstr[1] = snapped[1]; retstr[2] = snapped[2];
-		PlannerNoteSnap(PlanSnapDistance(o.point, snapped));
-	}
-	else
-	{
-		retstr[0] = o.point[0]; retstr[1] = o.point[1]; retstr[2] = o.point[2];
-		InterlockedIncrement(&PlannerCountersGet()->snapFail);
-	}
+	if (o.rung) { PlanStoreAddRung(v.slot, v.epoch); InterlockedIncrement(&PlannerCountersGet()->rungs); }
+	retstr[0] = snapped[0]; retstr[1] = snapped[1]; retstr[2] = snapped[2];
+	PlannerNoteSnap(PlanSnapDistance(o.point, snapped));
 	return retstr;
 }
 

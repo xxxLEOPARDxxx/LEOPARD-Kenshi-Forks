@@ -210,6 +210,8 @@ bool PlanEdgeSteers(int mode, int verdict, bool destMatches);
 // and off keep it.
 bool PlanReplacesAhead(int mode, int verdict);
 
+enum PlanWaitState { PWS_NONE = 0, PWS_PORTAL, PWS_PORTAL_RETRY };
+
 // Whether the planner owns a character's stop at its current portal (PlannerOwnsWait's pure half):
 // on, LEGGED and the movement destination the plan's (destIsPlans: a halt or a detour's hold point is
 // never owned); then, before the destination-leg exit, a pre-arrival request in flight for the leg the
@@ -241,6 +243,7 @@ struct PlanReplanIn
 	int    waitSeconds;          // plannerWaitSeconds
 	int    loadedChangedSincePlan;
 	int    awaitedLoaded;        // the current leg's far section is loaded (loadedMask bit legIndex): the bit the recheck gates on
+	int    portalRetry;          // the planner could not submit the next passage to native pathfinding
 	int    rungs;
 	int    goalByFootprint, goalLoaded;
 	int    legIndex, legCount, routeTruncated;
@@ -248,8 +251,8 @@ struct PlanReplanIn
 };
 // In this order: RUNGS (3 or more); ARRIVAL_TIMEOUT (complete for 8 s, never within PLAN_REACH);
 // ROUTE_END (a truncated route whose current leg is its last portal, legIndex == legCount - 2, with
-// the character within PLAN_REACH of it); WAIT (waiting for waitSeconds, the awaited section still
-// unloaded, the loaded set changed since the plan); GOAL_LOADED (located by footprint, the goal's
+// the character within PLAN_REACH of it); WAIT (waiting for waitSeconds after a missed passage near
+// the portal, or still awaiting a section after the loaded set changed); GOAL_LOADED (located by footprint, the goal's
 // section now loaded); AGE (120 s); else NONE.
 PlanReplanWhy PlanReplanDue(const PlanReplanIn& in);
 
