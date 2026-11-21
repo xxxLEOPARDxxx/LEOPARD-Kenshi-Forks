@@ -27,6 +27,7 @@
 #include <mygui/MyGUI_Delegate.h>
 
 #include <core/Functions.h>
+#include <StartupHookBatch.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -638,21 +639,22 @@ __declspec(dllexport) void startPlugin()
             KenshiLib::GetRealAddress(&GameWorld::_clearAndDestroyGameWorldStuff),
             (void*)&GameWorld_clear_hook,(void**)&GameWorld_clear_orig);
     if(!resetReady) ErrorLog("KillCounter: could not hook world cleanup; execution bridge disabled");
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(&Character::_NV_hitByMeleeAttack),
-            (void*)&hitByMeleeAttack_hook,
-            (void**)&hitByMeleeAttack_orig))
-        ErrorLog("KillCounter: could not hook Character::hitByMeleeAttack");
-    else
-        PluginDiagnostics::Write("KillCounter: hooked Character::hitByMeleeAttack");
-
-    if (KenshiLib::SUCCESS != KenshiLib::AddHook(
-            KenshiLib::GetRealAddress(&Character::iShotYou),
-            (void*)&iShotYou_hook,
-            (void**)&iShotYou_orig))
-        ErrorLog("KillCounter: could not hook Character::iShotYou");
-    else
-        PluginDiagnostics::Write("KillCounter: hooked Character::iShotYou");
+    StartupHooks::Hook damage[] = {
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&Character::_NV_hitByMeleeAttack),
+                           &hitByMeleeAttack_hook, &hitByMeleeAttack_orig, "Character::hitByMeleeAttack"),
+        StartupHooks::Hook(KenshiLib::GetRealAddress(&Character::iShotYou),
+                           &iShotYou_hook, &iShotYou_orig, "Character::iShotYou")
+    };
+    StartupHooks::Install(damage, [](void* target, void* detour, void** original) {
+        return KenshiLib::AddHook(target, detour, original) == KenshiLib::SUCCESS;
+    });
+    for (size_t i = 0; i < sizeof(damage)/sizeof(damage[0]); ++i)
+    {
+        if (damage[i].installed)
+            PluginDiagnostics::Write(std::string("KillCounter: hooked ") + damage[i].name);
+        else
+            ErrorLog(std::string("KillCounter: startup hook installation unconfirmed: ") + damage[i].name);
+    }
 
     if (KenshiLib::SUCCESS != KenshiLib::AddHook(
             KenshiLib::GetRealAddress(&Character::getStealthKOChance),
