@@ -139,7 +139,8 @@ static bool IndependentRow(HookRowId id){
  return id==HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK||id==HOOK_CHARACTER_PAUSED_UPDATE
      ||id==HOOK_ACTIVEPLATOON_CALC_POS||id==HOOK_FACTION_RELATIONS_UPDATE
      ||id==HOOK_GRAPH_POSITION_LOOKUP||id==HOOK_NAVMESH_FACE_AABB
-     ||id==HOOK_SPEED_GROUP_GET_SPEED||id==HOOK_SCORE_FIND_FOOD_ON_GROUND;
+     ||id==HOOK_SPEED_GROUP_GET_SPEED||id==HOOK_SCORE_FIND_FOOD_ON_GROUND
+     ||id==HOOK_RESET_UNLOAD_ZONES||id==HOOK_PROCESS_LOADING;
 }
 
 static bool BeginIndependentHooks(){
@@ -296,21 +297,24 @@ static void InstallDestroyListHook(int* installed, int*)
 // only when the mod preloads, but with none it only scans and logs. The
 // INI key saveLoadUnload chooses unload vs count-only, not the install.
 // VerifyPrologue before the patch, and the table row is fatal.
-static void InstallResetUnloadHook(int* installed, int*)
+static void ResetUnloadInstallComplete(const char* why)
 {
-	if (HookInstall(HOOK_RESET_UNLOAD_ZONES, hook_resetUnloadZones,
-			&orig_resetUnloadZones, installed, true) == NULL)
+	if (!why)
 	{
 		KEO_DETAIL(std::string("Save-load reset hook installed: saveLoadUnload=")
 		       + (zone::g_zoneCfg.saveLoadUnloadEnabled ? "on" : "off"));
 	}
 	else
 	{
-		orig_resetUnloadZones = NULL;
-		LogError("FAILED to hook the save-load reset unload (sub_14036C1E0); "
-		         "the ZM+8 edge still clears the mod's state, and the registry guard "
-		         "refuses surviving zones");
+		LogError(std::string("Save-load reset unload hook unconfirmed (") + why
+		         + "); the ZM+8 reset edge and registry guard remain available");
 	}
+}
+
+static void InstallResetUnloadHook(int* installed, int*)
+{
+	HookInstallIndependent(HOOK_RESET_UNLOAD_ZONES, hook_resetUnloadZones,
+	                       &orig_resetUnloadZones, installed, true, ResetUnloadInstallComplete);
 }
 
 // Movement-order tracking hook

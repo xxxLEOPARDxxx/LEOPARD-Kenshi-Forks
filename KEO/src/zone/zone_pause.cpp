@@ -88,6 +88,14 @@ static bool hook_processLoading(void* zoneMgr)
 	return result;
 }
 
+static void ZonePauseInstallComplete(const char* why)
+{
+	if (why)
+		LogError(std::string("Escape menu pause guard: installation unconfirmed (") + why + ")");
+	else
+		KEO_DETAIL("Escape menu pause guard: installed");
+}
+
 void InstallZonePauseGuard(int* installed, int*)
 {
 	if (!HookRowWanted(HOOK_PROCESS_LOADING))
@@ -114,14 +122,13 @@ void InstallZonePauseGuard(int* installed, int*)
 			why = "isPaused operands";
 	}
 
-	if (!why && HookInstall(HOOK_PROCESS_LOADING, hook_processLoading,
-			&orig_processLoading, installed, true) == NULL)
+	if (why)
 	{
-		KEO_DETAIL("Escape menu pause guard: installed");
+		ZonePauseInstallComplete(why);
 		return;
 	}
-	orig_processLoading = NULL;
-	LogError(std::string("Escape menu pause guard: not installed (") + (why ? why : "prologue/hook") + ")");
+	HookInstallIndependent(HOOK_PROCESS_LOADING, hook_processLoading,
+	                       &orig_processLoading, installed, true, ZonePauseInstallComplete);
 }
 
 bool ZonePauseIsPaused()
