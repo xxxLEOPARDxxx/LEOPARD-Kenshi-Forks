@@ -19,6 +19,16 @@
 #include <vector>
 #include <cstring>
 #include "fixes/world/morph_pose_scope.h"
+#include "plugin/hook_manifest.h"
+static bool useQueue=false;
+static unsigned queued=0;
+static StartupAuxHookCompletion queuedDone[2]={};
+static void** queuedOriginal[2]={};
+bool QueueStartupAuxHook(StartupAuxHookId id,void*,void*,void** original,StartupAuxHookCompletion done){
+ if(!useQueue)return false;
+ if((queued==0&&id!=STARTUP_AUX_MODEL_CLONE)||(queued==1&&id!=STARTUP_AUX_MODEL_CLONE_MANAGER)||queued>=2)return false;
+ queuedDone[queued]=done;queuedOriginal[queued++]=original;return true;
+}
 namespace morph_pose_scope {
 static unsigned bridgeClones=0,bridgeCaptures=0;static bool bridgeReady=false;
 void*Clone(CloneFn native,void*self,void*out,const void*name,const void*group,uintptr_t){++bridgeClones;return native(self,out,name,group);}
@@ -209,6 +219,22 @@ static int AdmissionCases(HMODULE ogre){
  for(unsigned fault=0;fault<5;++fault){model_clone_reserve::tried=model_clone_reserve::admitted=false;model_clone_reserve::originalClone=NULL;model_clone_reserve::originalCreate=NULL;hookCalls=0;failHook=fault<3?fault:0;nullHook=fault>=3?fault-2:0;
   model_clone_reserve::Install();C(model_clone_reserve::tried);C(model_clone_reserve::admitted==(fault==0));C(hookCalls==((fault==1||fault==3)?1u:2u));
   if(fault==1||fault==2)C(model_clone_reserve::originalClone!=NULL);if(fault==2)C(model_clone_reserve::originalCreate!=NULL);unsigned before=hookCalls;model_clone_reserve::Install();C(hookCalls==before);}
+ useQueue=true;
+ for(unsigned fault=0;fault<4;++fault){
+  model_clone_reserve::tried=model_clone_reserve::admitted=false;
+  model_clone_reserve::originalClone=NULL;model_clone_reserve::originalCreate=NULL;
+  queued=hookCalls=0;
+  model_clone_reserve::Install();
+  C(queued==2&&hookCalls==0&&!model_clone_reserve::admitted&&!morph_pose_scope::bridgeReady);
+  *queuedOriginal[0]=(void*)&FakeClone;
+  *queuedOriginal[1]=(void*)&FakeCreate;
+  queuedDone[0](STARTUP_AUX_MODEL_CLONE,fault&1?"batch-apply":NULL);
+  C(!model_clone_reserve::admitted&&!morph_pose_scope::bridgeReady);
+  queuedDone[1](STARTUP_AUX_MODEL_CLONE_MANAGER,fault&2?"batch-apply":NULL);
+  C(model_clone_reserve::admitted==(fault==0)&&morph_pose_scope::bridgeReady==(fault==0));
+  C(model_clone_reserve::originalClone==&FakeClone&&model_clone_reserve::originalCreate==&FakeCreate);
+ }
+ useQueue=false;
  fakeHooks=false;failHook=nullHook=0;overrideModule=false;moduleOverride=NULL;VirtualFree(fake,0,MEM_RELEASE);model_clone_reserve::tried=model_clone_reserve::admitted=false;model_clone_reserve::originalClone=NULL;model_clone_reserve::originalCreate=NULL;hookCalls=0;return 0;
 }
 static int PrepareCases(){

@@ -66,7 +66,11 @@ enum StartupAuxHookId
 	STARTUP_AUX_BONE_IMPORT,
 	STARTUP_AUX_BONE_INDEX,
 	STARTUP_AUX_INST_EMPTY_SKIP,
-	STARTUP_AUX_OGRE_JOIN_SPIN
+	STARTUP_AUX_OGRE_JOIN_SPIN,
+	STARTUP_AUX_MODEL_CLONE,
+	STARTUP_AUX_MODEL_CLONE_MANAGER,
+	STARTUP_AUX_MORPH_POSE,
+	STARTUP_AUX_MORPH_POSE_CLEANUP
 };
 typedef void (*StartupAuxHookCompletion)(int row, const char* why);
 // True means the active batch took ownership, including a reported refusal.

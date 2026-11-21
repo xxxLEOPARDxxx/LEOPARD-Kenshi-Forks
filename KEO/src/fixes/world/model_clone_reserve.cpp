@@ -1,4 +1,5 @@
 #include "fixes/world/model_clone_reserve.h"
+#include "plugin/hook_manifest.h"
 #include "fixes/world/morph_pose_scope.h"
 #include <windows.h>
 #include <intrin.h>
@@ -98,17 +99,36 @@ static bool Admit(HMODULE module){
   return true;
  }__except(EXCEPTION_EXECUTE_HANDLER){return false;}
 }
+static void PublishReady(){
+ admitted=true;morph_pose_scope::SetCloneHooksReady(true);KEO_DETAIL("Model clone preparation: bounded native pointer-vector preparation admitted");
+}
+
+static void CompletePair(int row,const char* why){
+ static bool firstInstalled=false;
+ if(row==STARTUP_AUX_MODEL_CLONE){
+  firstInstalled=!why&&originalClone;
+  if(!firstInstalled)LogError("Model clone preparation: clone hook failed; native loading retained");
+  return;
+ }
+ if(why||!originalCreate)LogError("Model clone preparation: manager hook failed; native loading retained");
+ else if(firstInstalled)PublishReady();
+}
+
 void Install(){
  if(tried)return;tried=true;
  morph_pose_scope::SetCloneHooksReady(false);
  HMODULE module=KEO_MODEL_CLONE_MODULE();
  if(!Admit(module)){LogError("Model clone preparation: native contract refused; native loading retained");return;}
  moduleBase=(uintptr_t)module;
+ if(QueueStartupAuxHook(STARTUP_AUX_MODEL_CLONE,(void*)(moduleBase+0x1a3ee0),(void*)&Clone,(void**)&originalClone,CompletePair)){
+  QueueStartupAuxHook(STARTUP_AUX_MODEL_CLONE_MANAGER,(void*)(moduleBase+0x1be970),(void*)&CreateManual,(void**)&originalCreate,CompletePair);
+  return;
+ }
  // Do not publish readiness from a half-installed pair. Preserve every SDK
  // trampoline even on failure, so any armed wrapper remains pure forwarding.
  if(KenshiLib::AddHook((void*)(moduleBase+0x1a3ee0),(void*)&Clone,(void**)&originalClone)!=KenshiLib::SUCCESS||!originalClone){LogError("Model clone preparation: clone hook failed; native loading retained");return;}
  if(KenshiLib::AddHook((void*)(moduleBase+0x1be970),(void*)&CreateManual,(void**)&originalCreate)!=KenshiLib::SUCCESS||!originalCreate){LogError("Model clone preparation: manager hook failed; native loading retained");return;}
- admitted=true;morph_pose_scope::SetCloneHooksReady(true);KEO_DETAIL("Model clone preparation: bounded native pointer-vector preparation admitted");
+ PublishReady();
 }
 }
 void InstallModelCloneReserve(int*,int*){model_clone_reserve::Install();}

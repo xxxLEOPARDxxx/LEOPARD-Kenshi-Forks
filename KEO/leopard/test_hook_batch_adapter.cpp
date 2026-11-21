@@ -67,11 +67,15 @@ int main(){try{
  const StartupAuxHookId auxiliary[] = {STARTUP_AUX_INST_EMPTY_SKIP, STARTUP_AUX_OGRE_JOIN_SPIN,
     STARTUP_AUX_SKELETON_RESERVE, STARTUP_AUX_MESH_WEIGHTS,
     STARTUP_AUX_BONE_IMPORT, STARTUP_AUX_BONE_INDEX,
-    STARTUP_AUX_MATERIAL_RESERVE, STARTUP_AUX_SAVE_READ_BUFFER, STARTUP_AUX_SAVE_STRING_TRANSFER};
+    STARTUP_AUX_MODEL_CLONE, STARTUP_AUX_MODEL_CLONE_MANAGER, STARTUP_AUX_MATERIAL_RESERVE,
+    STARTUP_AUX_SAVE_READ_BUFFER, STARTUP_AUX_SAVE_STRING_TRANSFER,
+    STARTUP_AUX_MORPH_POSE, STARTUP_AUX_MORPH_POSE_CLEANUP};
  const int auxiliaryCount=sizeof(auxiliary)/sizeof(auxiliary[0]);
  const int total=4+addedCount+auxiliaryCount;
  const int allActive=(1<<total)-1;
- const int priorMask=(1<<(total-2))-1;
+ // Sweep 20 variable slots, then cover every single refusal and full success
+ // across the larger real startup packet.
+ const int priorMask=(1<<20)-1;
  for (int control=0; control<=priorMask+total+1; ++control) {
   const int mask=control<=priorMask?control:control==priorMask+total+1?allActive:
                  allActive&~(1<<(control-priorMask-1));

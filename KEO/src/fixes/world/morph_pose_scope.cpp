@@ -1,4 +1,5 @@
 #include "fixes/world/morph_pose_scope.h"
+#include "plugin/hook_manifest.h"
 #include <windows.h>
 #include <intrin.h>
 #include <cstring>
@@ -227,12 +228,31 @@ static bool Admit(HMODULE ogre,HMODULE game){
 #ifndef KEO_MORPH_GAME_MODULE
 #define KEO_MORPH_GAME_MODULE() GetModuleHandleA(NULL)
 #endif
+static void PublishReady(){
+ admitted=true;KEO_DETAIL("Morph pose reuse: bounded private-morph pose leases admitted");
+}
+
+static void CompletePair(int row,const char* why){
+ static bool firstInstalled=false;
+ if(row==STARTUP_AUX_MORPH_POSE){
+  firstInstalled=!why&&originalPose;
+  if(!firstInstalled)Error("Morph pose reuse: pose hook failed; native cloning retained");
+  return;
+ }
+ if(why||!originalRemove)Error("Morph pose reuse: cleanup hook failed; native cloning retained");
+ else if(firstInstalled)PublishReady();
+}
+
 void Install(int*,int*){
  if(tried)return;tried=true;HMODULE ogre=KEO_MORPH_OGRE_MODULE(),game=KEO_MORPH_GAME_MODULE();
  if(!Admit(ogre,game)){Error("Morph pose reuse: native contracts refused; native cloning retained");return;}
  ogreBase=(uintptr_t)ogre;gameBase=(uintptr_t)game;
+ if(QueueStartupAuxHook(STARTUP_AUX_MORPH_POSE,(char*)ogre+0x229bf0,(void*)&Pose,(void**)&originalPose,CompletePair)){
+  QueueStartupAuxHook(STARTUP_AUX_MORPH_POSE_CLEANUP,(char*)ogre+0x1ab3c0,(void*)&Remove,(void**)&originalRemove,CompletePair);
+  return;
+ }
  if(KenshiLib::AddHook((char*)ogre+0x229bf0,(void*)&Pose,(void**)&originalPose)!=KenshiLib::SUCCESS||!originalPose){Error("Morph pose reuse: pose hook failed; native cloning retained");return;}
  if(KenshiLib::AddHook((char*)ogre+0x1ab3c0,(void*)&Remove,(void**)&originalRemove)!=KenshiLib::SUCCESS||!originalRemove){Error("Morph pose reuse: cleanup hook failed; native cloning retained");return;}
- admitted=true;KEO_DETAIL("Morph pose reuse: bounded private-morph pose leases admitted");
+ PublishReady();
 }
 }
