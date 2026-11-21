@@ -27,6 +27,43 @@ namespace BetterLootingPresetPanel
             MyGUI::Button* clear;
         };
 
+        const int PresetAreaPercent = 25;
+
+        struct PanelLayout
+        {
+            int titleX, titleY, titleHeight;
+            int labelX, statusX, statusWidth, editX, editWidth;
+            int rowTop, rowStep, controlHeight, buttonSize;
+            int gap, applyX, saveX, clearX;
+            bool fits;
+
+            PanelLayout(int width, int height)
+            {
+                // Use the same label/value columns and right gutter as the
+                // native options pane. The reserved height is shared by all
+                // five slots instead of accumulating empty space below them.
+                labelX = (std::max)(14, (std::min)(26, width / 48));
+                titleX = labelX + 9;
+                titleY = (std::max)(7, (std::min)(16, height / 14));
+                titleHeight = height >= 154 ? 27 : 20;
+                rowTop = titleY + titleHeight;
+                rowStep = (height - rowTop - 8) / SlotCount;
+                controlHeight = rowStep - (rowStep >= 25 ? 4 : 2);
+                buttonSize = (std::min)(33, controlHeight);
+                gap = 7;
+                const int right = width - (std::max)(27, (std::min)(58, width / 20));
+                clearX = right - buttonSize;
+                saveX = clearX - buttonSize - gap;
+                applyX = saveX - buttonSize - gap;
+
+                statusX = labelX + (std::max)(67, (std::min)(116, width / 12));
+                editX = (std::max)(width / 3, statusX + 56 + gap);
+                statusWidth = editX - statusX - gap;
+                editWidth = applyX - gap - editX;
+                fits = controlHeight >= 14 && editWidth >= 75;
+            }
+        };
+
         struct Request
         {
             int slot;
@@ -243,10 +280,8 @@ namespace BetterLootingPresetPanel
                 ErrorLog("BetterLooting: selected MCM page button unavailable");
 
             const MyGUI::IntSize size = area->getSize();
-            const int margin = 10, header = 22, gap = 4;
-            const int step = (std::min)(33, (size.height - header - gap) / SlotCount);
-            const int buttonSize = step - 2;
-            if (buttonSize < 14 || size.width < 190)
+            const PanelLayout layout(size.width, size.height);
+            if (!layout.fits)
             {
                 ErrorLog("BetterLooting: MCM custom area is too small for preset controls");
                 return;
@@ -257,36 +292,44 @@ namespace BetterLootingPresetPanel
 
             const State state = ReadState(g_ini);
             const MyGUI::Colour main = GameTheme::ReadableColour("Main", "#AFA68B");
-            const int right = size.width - margin;
-            const int applyX = right - 3 * (buttonSize + gap);
-            const int statusW = (std::min)(108, applyX / 3);
-            const int nameX = margin + 26;
-            const int nameW = applyX - nameX - statusW - 2 * gap;
-            Label(root, MyGUI::IntCoord(margin, 0, right - margin, header),
-                MyGUI::Align::Left, main)->setCaption(g_result == Ok ? Tr("Preset slots") : ErrorText(g_result));
+            const MyGUI::Colour section(0.93f, 0.86f, 0.56f);
+            Label(root, MyGUI::IntCoord(layout.titleX, layout.titleY, layout.editX - layout.titleX, layout.titleHeight),
+                MyGUI::Align::Left, section)->setCaption("[ " + std::string(Tr("Preset slots")) + " ]");
+            if (g_result != Ok)
+            {
+                Label(root, MyGUI::IntCoord(layout.editX, layout.titleY, size.width - layout.editX - 27, layout.titleHeight),
+                    MyGUI::Align::Left, section)->setCaption(ErrorText(g_result));
+            }
+            const int fontHeight = (std::min)(17, layout.controlHeight - 2);
 
             for (int i = 0; i < SlotCount; ++i)
             {
-                const int y = header + i * step;
+                const int y = layout.rowTop + i * layout.rowStep;
+                const int buttonY = y + (layout.controlHeight - layout.buttonSize) / 2;
                 Row& row = g_rows[i];
-                char number[8];
-                sprintf_s(number, "%d", i + 1);
-                Label(root, MyGUI::IntCoord(margin, y, 22, buttonSize),
-                      MyGUI::Align::Center, main)->setCaption(number);
-                row.name = root->createWidget<MyGUI::EditBox>(
-                    "Kenshi_EditBox", MyGUI::IntCoord(nameX, y, nameW, buttonSize), MyGUI::Align::Default);
+                char label[64];
+                sprintf_s(label, Tr("Slot %d"), i + 1);
+                MyGUI::TextBox* labelBox = Label(root,
+                    MyGUI::IntCoord(layout.labelX, y, layout.statusX - layout.labelX - layout.gap, layout.controlHeight),
+                    MyGUI::Align::Left, main);
+                labelBox->setFontHeight(fontHeight);
+                labelBox->setCaption(label);
+                row.name = root->createWidget<MyGUI::EditBox>("Kenshi_EditBox",
+                    MyGUI::IntCoord(layout.editX, y, layout.editWidth, layout.controlHeight), MyGUI::Align::Default);
                 row.name->setTextAlign(MyGUI::Align::Left | MyGUI::Align::VCenter);
+                row.name->setFontHeight(fontHeight);
                 row.name->setMaxTextLength(40);
                 row.name->setOnlyText(g_restoreDrafts ? g_draftNames[i] : state.slots[i].name);
                 Tip(row.name, Tr("Optional preset name. Click Save to store it with your current rules."));
-                row.status = Label(root, MyGUI::IntCoord(nameX + nameW + gap, y, statusW, buttonSize),
+                row.status = Label(root, MyGUI::IntCoord(layout.statusX, y, layout.statusWidth, layout.controlHeight),
                     MyGUI::Align::Left, main);
-                row.apply = Button(root, "Kenshi_TickBoxSkin", applyX, y, buttonSize,
+                row.status->setFontHeight(fontHeight);
+                row.apply = Button(root, "Kenshi_TickBoxSkin", layout.applyX, buttonY, layout.buttonSize,
                     Tr("Apply this preset to the current looting rules."));
-                row.save = Button(root, "Kenshi_Button1Skin", applyX + buttonSize + gap, y, buttonSize,
+                row.save = Button(root, "Kenshi_Button1Skin", layout.saveX, buttonY, layout.buttonSize,
                     Tr("Save your current looting rules in this slot."));
-                SaveIcon(row.save, buttonSize, main);
-                row.clear = Button(root, "Kenshi_CloseButtonSkin", applyX + 2 * (buttonSize + gap), y, buttonSize,
+                SaveIcon(row.save, layout.buttonSize, main);
+                row.clear = Button(root, "Kenshi_CloseButtonSkin", layout.clearX, buttonY, layout.buttonSize,
                     Tr("Clear this slot and keep your current looting rules."));
             }
             PaintStatus(state);
@@ -316,7 +359,7 @@ namespace BetterLootingPresetPanel
         g_restoreDrafts = false;
         g_requestDetached = false;
         g_result = Ok;
-        api->customArea(api, &Attach, &Detach, NULL, 38);
+        api->customArea(api, &Attach, &Detach, NULL, PresetAreaPercent);
         api->rows(api, &BeforeSettingsRows, NULL);
     }
 

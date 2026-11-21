@@ -6,6 +6,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = r'''
 #include <Windows.h>
+#include <algorithm>
 #include <cstdio>
 #include <fstream>
 #include <iterator>
@@ -55,6 +56,26 @@ void (*g_reload)() = &Reload;
 void ErrorLog(const char*) {}
 void DestroyPanel() { g_root.button=NULL; }
 // @PRODUCTION_HANDOFF@
+int TestLayout() {
+    // Heights of the native MCM settings pane, before reserving the slots.
+    const int sizes[][2]={{1120,865},{850,650},{420,480},{1800,1260}};
+    for(size_t i=0;i<sizeof(sizes)/sizeof(sizes[0]);++i) {
+        const int width=sizes[i][0], area=sizes[i][1]*PresetAreaPercent/100;
+        const PanelLayout layout(width,area);
+        CHECK(layout.fits);
+        CHECK(layout.titleX > layout.labelX && layout.titleY >= 7);
+        CHECK(layout.titleY + layout.titleHeight <= layout.rowTop);
+        CHECK(layout.editX >= width/3);
+        CHECK(layout.statusX + layout.statusWidth <= layout.editX);
+        CHECK(layout.applyX - (layout.editX + layout.editWidth) >= layout.gap);
+        CHECK(layout.clearX + layout.buttonSize <= width - 26);
+        const int lastBottom=layout.rowTop + (SlotCount-1)*layout.rowStep + layout.controlHeight;
+        CHECK(lastBottom <= area && area-lastBottom <= layout.rowStep/2 + 14);
+    }
+    CHECK(PresetAreaPercent <= 26);
+    CHECK(!PanelLayout(160,100).fits);
+    return 0;
+}
 int Test(const std::string& path) {
     MyGUI::Button mod = {true,true};
     g_ini = path;
@@ -155,6 +176,7 @@ int main(int argc, char** argv) {
     CHECK(Execute(path,0,Apply,"") == EmptySlot);
     CHECK(Read(path,"General","LootRadius") == "73.5");
     CHECK(PanelFixture::Test(path) == 0);
+    CHECK(PanelFixture::TestLayout() == 0);
     puts("PASS: five persistent presets, UTF-8 / long filters, apply/clear/dirty state, global keys, truncated input, locked file and incomplete profile");
 }
 '''
@@ -164,6 +186,7 @@ def extract(signature, next_signature):
     start = panel.index(signature)
     return panel[start:panel.index(next_signature, start)].strip()
 code = '\n'.join([
+    extract('const int PresetAreaPercent', 'struct Request'),
     extract('bool PageStillSelected()', 'void OnButton('),
     extract('void __cdecl Detach(', 'void __cdecl Attach('),
 ])

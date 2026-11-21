@@ -198,3 +198,6 @@ msgstr "Пусто"
 
 msgid "Saved"
 msgstr "Сохранён"
+
+msgid "Slot %d"
+msgstr "Слот %d"

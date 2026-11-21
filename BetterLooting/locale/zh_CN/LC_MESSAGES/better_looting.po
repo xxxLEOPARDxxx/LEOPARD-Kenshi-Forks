@@ -198,3 +198,6 @@ msgstr "空"
 
 msgid "Saved"
 msgstr "已保存"
+
+msgid "Slot %d"
+msgstr "栏位 %d"

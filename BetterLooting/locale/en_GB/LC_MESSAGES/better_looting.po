@@ -131,7 +131,7 @@ msgid "Prefer backpack"
 msgstr "Prefer backpack"
 
 msgid "Preset slots"
-msgstr "Preset slots"
+msgstr "PRESET SLOTS"
 
 msgid "Protect player storage"
 msgstr "Protect player storage"
@@ -198,3 +198,6 @@ msgstr "Empty"
 
 msgid "Saved"
 msgstr "Saved"
+
+msgid "Slot %d"
+msgstr "Slot %d"
