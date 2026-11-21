@@ -112,3 +112,13 @@ No option requires a restart. / Ни одна из этих настроек н�
 Original author / автор оригинала: **shutori** — [Shutori_Re_Kenshi_Source](https://github.com/shutori/Shutori_Re_Kenshi_Source), imported upstream commit `fa558095a92366484c4775e3579fefa750e37cf8`. Fork integration and fixes / интеграция и исправления форка: **LEOPARD**. Existing community translations are retained / прежний перевод сообщества сохранён. See [ORIGIN.md](ORIGIN.md) and [LICENSE](LICENSE), GNU GPL v3. Native foundation / основа: RE_Kenshi/KenshiLib; localization / локализация: Asur's shared `Localization.h`.
 
 Source modules: `src/InventoryStatsButton.cpp` (inventory controls), `StatsOverviewUI.cpp` / `BodySilhouette.cpp` (inspection UI), `GameProtectionAdapter.cpp` / `ProtectionModel.cpp` (protection data), `InspectorSettings.cpp` (MCM). Build with the development stand's `build.ps1 -SrcDir <this directory>\src -Name CharacterInspector` using its compatible VC10 x64 / KenshiLib environment.
+
+## Release 4 / Выпуск 4
+
+English
+
+- Reduced startup work for updating the inspection panel and tracking the closing of inventories and other windows.
+
+Русский
+
+- Ускорена стартовая настройка обновления панели осмотра и отслеживания закрытия инвентарей и других окон.

@@ -1,4 +1,4 @@
-# KEO (MCM fork) (QoL) - release 7
+# KEO (MCM fork) (QoL) - release 8
 
 ## English
 
@@ -702,3 +702,21 @@ eligible; accepted work is not automatically repeated after downstream failure.
 
 - На поддерживаемой сборке GOG 1.0.65 включены оптимизации загрузки сохранений, подготовки моделей и экипировки NPC, а также повторного использования ресурсов.
 - Восстановлена работа «Пополнять прилавок» с совместимыми выпусками StackSort на Steam и GOG. Порядок загрузки плагинов не важен.
+
+## Release 8 / Выпуск 8
+
+English
+
+- Faster initialization before the main menu with compatible KenshiLib.
+- Short movement orders stay closer to the selected point. Squads keep the current destination and gathering point when an order is replaced or the leader has no usable route.
+- Long trips request the next required area sooner and resume only when a usable passage is found.
+- Supported models prepare triangle connectivity faster. Buffered save loading reads related fields together on Steam and GOG.
+- Shop counter stocking remains compatible with Rotate Items 4.
+
+Русский
+
+- Ускорена инициализация до главного меню с совместимой версией KenshiLib.
+- Короткие приказы ведут ближе к выбранной точке. Отряд сохраняет актуальную цель и точку сбора при повторном приказе или отсутствии пути у ведущего.
+- На длинном маршруте следующий нужный участок запрашивается заранее. Отряд продолжает движение, когда найдена пригодная точка прохода.
+- Быстрее подготавливаются связи между треугольниками поддерживаемых моделей. На Steam и GOG связанные поля сейва читаются вместе, когда они уже в буфере.
+- Пополнение прилавка совместимо с Rotate Items 4.
