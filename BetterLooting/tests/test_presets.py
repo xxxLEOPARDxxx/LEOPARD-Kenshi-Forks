@@ -28,12 +28,35 @@ std::string Bytes(const std::string& path) {
 
 namespace PanelFixture {
 namespace MyGUI {
+    struct IntCoord { IntCoord(int, int, int, int) {} };
+    struct Align { enum { Default }; };
+    struct Widget;
+    typedef void (*Click)(Widget*);
+    Click newDelegate(Click click) { return click; }
+
     struct Button {
+        struct Event { void operator+=(Click) {} };
         bool selected, visible;
+        bool hasTextPart;
+        std::string font;
+        Event eventMouseButtonClick;
+        Button(bool s = false, bool v = true) : selected(s), visible(v), hasTextPart(false) {}
         bool getStateSelected() const { return selected; }
         bool getInheritedVisible() const { return visible; }
+        const void* getSubWidgetText() const { return hasTextPart ? this : NULL; }
+        void setFontName(const char* name) { font = name; }
+        void setNeedKeyFocus(bool) {}
+    };
+    struct Widget {
+        Button button;
+        template<class T> T* createWidget(const char* skin, const IntCoord&, int) {
+            button.hasTextPart = std::string(skin) == "Kenshi_Button1Skin";
+            return &button;
+        }
     };
 }
+void Tip(MyGUI::Button*, const char*) {}
+void OnButton(MyGUI::Widget*) {}
 struct MCM_Api {};
 struct WidgetRef {
     MyGUI::Button* button;
@@ -56,6 +79,17 @@ void (*g_reload)() = &Reload;
 void ErrorLog(const char*) {}
 void DestroyPanel() { g_root.button=NULL; }
 // @PRODUCTION_HANDOFF@
+int TestIconFont() {
+    MyGUI::Widget parent;
+    const MyGUI::Button* save = Button(&parent, "Kenshi_Button1Skin", 999, 42, 29, "Save");
+    CHECK(save->getSubWidgetText() != NULL);
+    // Native font refresh walks text layers even when the caption is empty.
+    CHECK(save->font == "Kenshi_PaintedTextFont_Medium");
+    MyGUI::Widget icons;
+    const MyGUI::Button* clear = Button(&icons, "Kenshi_CloseButtonSkin", 1035, 42, 29, "Clear");
+    CHECK(clear->getSubWidgetText() == NULL && clear->font.empty());
+    return 0;
+}
 int TestLayout() {
     // Heights of the native MCM settings pane, before reserving the slots.
     const int sizes[][2]={{1120,865},{850,650},{420,480},{1800,1260}};
@@ -77,7 +111,7 @@ int TestLayout() {
     return 0;
 }
 int Test(const std::string& path) {
-    MyGUI::Button mod = {true,true};
+    MyGUI::Button mod(true,true);
     g_ini = path;
     g_root.button = g_pageButton.button = &mod;
     g_pending.slot=0;
@@ -177,6 +211,7 @@ int main(int argc, char** argv) {
     CHECK(Read(path,"General","LootRadius") == "73.5");
     CHECK(PanelFixture::Test(path) == 0);
     CHECK(PanelFixture::TestLayout() == 0);
+    CHECK(PanelFixture::TestIconFont() == 0);
     puts("PASS: five persistent presets, UTF-8 / long filters, apply/clear/dirty state, global keys, truncated input, locked file and incomplete profile");
 }
 '''
@@ -188,6 +223,7 @@ def extract(signature, next_signature):
 code = '\n'.join([
     extract('const int PresetAreaPercent', 'struct Request'),
     extract('bool PageStillSelected()', 'void OnButton('),
+    extract('MyGUI::Button* Button(', 'void DestroyPanel()'),
     extract('void __cdecl Detach(', 'void __cdecl Attach('),
 ])
 FIXTURE = FIXTURE.replace('// @PRODUCTION_HANDOFF@',code)

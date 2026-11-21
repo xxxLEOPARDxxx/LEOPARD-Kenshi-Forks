@@ -203,6 +203,10 @@ namespace BetterLootingPresetPanel
         {
             MyGUI::Button* button = parent->createWidget<MyGUI::Button>(
                 skin, MyGUI::IntCoord(x, y, size, size), MyGUI::Align::Default);
+            // Kenshi rebinds every text layer when the options close.
+            // A captionless button skin can still have a text layer.
+            if (button->getSubWidgetText() != NULL)
+                button->setFontName("Kenshi_PaintedTextFont_Medium");
             button->setNeedKeyFocus(false);
             button->eventMouseButtonClick += MyGUI::newDelegate(&OnButton);
             Tip(button, tip);
