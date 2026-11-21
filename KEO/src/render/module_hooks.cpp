@@ -1,6 +1,7 @@
 #include "base/log_admission.h"
 #include "render/module_hooks.h"
 #include "base/core.h"
+#include "plugin/hook_manifest.h"
 #include <cstdio>
 #include <cstring>
 
@@ -35,13 +36,10 @@ bool AdmitModuleHookSite(const ModuleSite& site, void* target)
 	return CheckModuleHookSite(site, target, NULL, where);
 }
 
-bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* sharedOut)
+static bool EnableModuleHook(const ModuleSite& site, void* target, void* detour,
+                             void** original, const char* where)
 {
-	char where[96];
-	void* target = ResolveModuleSite(site);
-	if (!CheckModuleHookSite(site, target, sharedOut, where))
-		return false;
-	if (KenshiLib::AddHook(target, detour, orig) != KenshiLib::SUCCESS)
+	if (KenshiLib::AddHook(target, detour, original) != KenshiLib::SUCCESS)
 	{
 		char line[160];
 		_snprintf_s(line, sizeof(line), _TRUNCATE, "Render gate: %s AddHook failed at %s", site.name, where);
@@ -49,6 +47,31 @@ bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* 
 		return false;
 	}
 	return true;
+}
+
+bool InstallModuleHook(const ModuleSite& site, void* detour, void** orig, bool* sharedOut)
+{
+	char where[96];
+	void* target = ResolveModuleSite(site);
+	return CheckModuleHookSite(site, target, sharedOut, where)
+	    && EnableModuleHook(site, target, detour, orig, where);
+}
+
+void InstallStartupModuleHook(StartupAuxHookId id, const ModuleSite& site,
+                              void* detour, void** original, bool* sharedOut,
+                              StartupAuxHookCompletion done)
+{
+	char where[96];
+	void* target = ResolveModuleSite(site);
+	if (!CheckModuleHookSite(site, target, sharedOut, where))
+	{
+		done(id, "hook");
+		return;
+	}
+	if (QueueStartupAuxHook(id, target, detour, original, done))
+		return;
+	const bool installed = EnableModuleHook(site, target, detour, original, where);
+	done(id, installed ? (*original ? NULL : "original") : "hook");
 }
 
 void* PatchImportSlot(HMODULE importer, const char* exporterDll, const char* symbol,

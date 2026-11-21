@@ -8,6 +8,7 @@
 
 #include "render/ogre_worker_policy.h"
 #include "render/module_hooks.h"
+#include "plugin/hook_manifest.h"
 #include "base/core.h"
 #include "fixes/fixes_config.h"
 #include <windows.h>
@@ -121,7 +122,7 @@ static void hook_BarrierSync(void* b)
 	s_orig(b);
 }
 
-static const char* OgreSpinInstall()
+static const char* OgreSpinRefusal()
 {
 	HMODULE ogre = GetModuleHandleA(s_site.module);
 	if (!ogre)
@@ -131,18 +132,17 @@ static const char* OgreSpinInstall()
 		return "build";
 	if (ResolveModuleSite(s_site) != (void*)((uintptr_t)ogre + OGRE_BARRIER_SYNC_RVA))
 		return "export";
-	if (!InstallModuleHook(s_site, (void*)hook_BarrierSync, (void**)&s_orig, &s_shared))
-		return "hook";
-	LARGE_INTEGER f;
-	QueryPerformanceFrequency(&f);
-	s_freq = f.QuadPart;
 	return NULL;
 }
 
-void InstallOgreJoinSpin(int* installed, int*)
+static void CompleteInstall(int, const char* why)
 {
-	(void)installed;
-	const char* why = OgreSpinInstall();
+	if (!why)
+	{
+		LARGE_INTEGER f;
+		QueryPerformanceFrequency(&f);
+		s_freq = f.QuadPart;
+	}
 #ifdef KEO_DEBUG
 	s_installWhy = why;
 #endif
@@ -151,6 +151,18 @@ void InstallOgreJoinSpin(int* installed, int*)
 		ErrorLog(std::string("OgreSpin: install=refused(") + why + ")");
 	else
 		KEO_DETAIL(std::string("OgreSpin: install=ok shared=") + (s_shared ? "1" : "0"));
+}
+
+void InstallOgreJoinSpin(int*, int*)
+{
+	const char* why = OgreSpinRefusal();
+	if (why)
+	{
+		CompleteInstall(STARTUP_AUX_OGRE_JOIN_SPIN, why);
+		return;
+	}
+	InstallStartupModuleHook(STARTUP_AUX_OGRE_JOIN_SPIN, s_site,
+	                         (void*)hook_BarrierSync, (void**)&s_orig, &s_shared, CompleteInstall);
 }
 
 #ifdef KEO_DEBUG

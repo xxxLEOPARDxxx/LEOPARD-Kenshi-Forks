@@ -7,6 +7,7 @@
 #include <sstream>
 #include "plugin/hook_manifest.h"
 #include "plugin/independent_hook_batch.h"
+#include "render/module_hooks.h"
 struct Prologue{uintptr_t rva;const char*name;};
 static Prologue g_hookPrologues[HOOK_ROW_COUNT];
 static volatile LONG s_installed[HOOK_ROW_COUNT],s_gatePassed[HOOK_ROW_COUNT];
@@ -42,6 +43,13 @@ static int Queue(size_t id,void*address,void*,void**o){C(id==0x11110000);int i=i
 static int Apply(size_t id){C(id==0x11110000);++applied;C(completed==0);for(unsigned i=0;i<queued;++i)if((activeMask&(1<<i))&&int(i)!=queueFailure){C(*nativeOriginal[i]!=NULL);C(((int(*)(int))*nativeOriginal[i])(3)==10);}if(reenter){unsigned n=verified;void*saved=originals[0];HookInstallIndependentRow(rows[0],(void*)1,&originals[0],&installed,true,OtherComplete);C(verified==n&&originals[0]==saved&&s_independentDone[rows[0]]==Complete);}return applyResult;}
 static bool BeginIndependentHooks(){return sdk&&s_independentBatch.Begin(0x11110000,Queue,Apply);}
 const char*HookInstallRow(HookRowId id,void*,void**o,int*n,bool){++immediate;*o=(void*)&Native;s_installed[id]=1;if(n)++*n;return NULL;}
+void* ResolveModuleSite(const ModuleSite& site){return GameAddr(site.rva);}
+static bool CheckModuleHookSite(const ModuleSite&, void*, bool* sharedOut, char (&)[96]){
+ ++verified;*sharedOut=fresh;return fresh;
+}
+static bool EnableModuleHook(const ModuleSite&, void*, void*, void** original, const char*){
+ ++immediate;*original=(void*)&Native;return true;
+}
 // ADAPTER_PRODUCTION
 static void Reset(){s_independentBatch.~HookBatch();new(&s_independentBatch)HookBatch();s_independentPhase=false;s_independentCount=NULL;memset(s_independentDone,0,sizeof(s_independentDone));memset(s_independentClaimed,0,sizeof(s_independentClaimed));memset((void*)s_installed,0,sizeof(s_installed));memset((void*)s_gatePassed,0xff,sizeof(s_gatePassed));memset(originals,0,sizeof(originals));queued=applied=immediate=verified=completed=refused=0;installed=0;sdk=fresh=true;reenter=throwCompletion=false;queueFailure=-1;applyResult=0;activeMask=15;for(int i=0;i<HOOK_ROW_COUNT;++i)g_hookPrologues[i].rva=i+1;}
 int main(){try{
@@ -56,13 +64,17 @@ int main(){try{
     HOOK_RESET_UNLOAD_ZONES, HOOK_PROCESS_LOADING, HOOK_STOP_CHARACTERS_MOVEMENT,
     HOOK_ADD_JOB_SELECTED, HOOK_ADD_TASK_NEAREST};
  const int addedCount=sizeof(added)/sizeof(added[0]);
- const StartupAuxHookId auxiliary[] = {STARTUP_AUX_SKELETON_RESERVE, STARTUP_AUX_MESH_WEIGHTS,
+ const StartupAuxHookId auxiliary[] = {STARTUP_AUX_INST_EMPTY_SKIP, STARTUP_AUX_OGRE_JOIN_SPIN,
+    STARTUP_AUX_SKELETON_RESERVE, STARTUP_AUX_MESH_WEIGHTS,
     STARTUP_AUX_BONE_IMPORT, STARTUP_AUX_BONE_INDEX,
     STARTUP_AUX_MATERIAL_RESERVE, STARTUP_AUX_SAVE_READ_BUFFER, STARTUP_AUX_SAVE_STRING_TRANSFER};
  const int auxiliaryCount=sizeof(auxiliary)/sizeof(auxiliary[0]);
  const int total=4+addedCount+auxiliaryCount;
  const int allActive=(1<<total)-1;
- for (int mask=0; mask<=allActive; ++mask) {
+ const int priorMask=(1<<(total-2))-1;
+ for (int control=0; control<=priorMask+total+1; ++control) {
+  const int mask=control<=priorMask?control:control==priorMask+total+1?allActive:
+                 allActive&~(1<<(control-priorMask-1));
   Reset();
   void* extra[addedCount] = {};
   void* auxiliaryOriginals[auxiliaryCount] = {};
@@ -112,6 +124,21 @@ int main(){try{
    C(hook_stopCharactersMovement(2)==9&&hook_addTaskNearest(3)==10);
    if(mode!=2)C(hook_addJobSelected(4)==11);
   }
+ }
+ const ModuleSite site={"synthetic render hook","test.dll",NULL,1024,{}};
+ for(int mode=0;mode<4;++mode){
+  Reset();
+  bool shared=false;void* original=NULL;
+  sdk=mode!=1;fresh=mode!=3;applyResult=mode==2?1:0;
+  {
+   IndependentStartupScope scope(&installed);
+   InstallStartupModuleHook(STARTUP_AUX_INST_EMPTY_SKIP,site,(void*)1,&original,&shared,CompleteAux);
+   C(verified==1&&shared==fresh&&queued==0&&installed==0);
+   if(sdk&&fresh)C(completed==0&&immediate==0);
+   scope.Finish();
+  }
+  C(completed==1&&refused==(mode>=2?1u:0u)&&immediate==(mode==1?1u:0u));
+  C(queued==(mode==0||mode==2?1u:0u)&&original==(fresh?(void*)&Native:NULL));
  }
  std::printf("PASS %u actual batch adapter controls\n",checks);return 0;
  }catch(...){return 1;}}
