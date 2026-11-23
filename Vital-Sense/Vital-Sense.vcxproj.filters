@@ -18,6 +18,9 @@
     <ClCompile Include="Vital-Sense.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\vs_animation_cache_guard.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\vs_character_tint.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -48,6 +51,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\vs_appearance_extern.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vs_animation_cache_guard.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\vs_character_tint.h">
