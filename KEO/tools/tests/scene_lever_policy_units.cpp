@@ -484,6 +484,48 @@ static void TestInst()
 	Check(InstUploadDecide(false, b) == INST_OFF_MAIN, "inst: off the main thread runs");
 }
 
+// Old skeletal entities have two already-culled native work queues.
+static void TestOldAnimation()
+{
+	ResetSm();
+	uintptr_t first[3][3] = {}, second[3][3] = {};
+	Put(Sm(), 0x4A28, 3);
+	Put(Sm(), 0x4B78, (uintptr_t)first);
+	Put(Sm(), 0x4B80, 3);
+	Put(Sm(), 0x4B88, 3);
+	Put(Sm(), 0x4B90, (uintptr_t)second);
+	Put(Sm(), 0x4B98, 3);
+	Put(Sm(), 0x4BA0, 4);
+	Check(ForkOldAnimationIdle(Sm(), 4, false) && ForkOldAnimationIdle(Sm(), 4, true),
+	      "old animation: both empty worker queues are idle");
+
+	Check(!ForkOldAnimationIdle(Sm(), 3, false), "old animation: unexpected barrier party count runs natively");
+
+	first[2][1] = 1;
+	Check(!ForkOldAnimationIdle(Sm(), 4, false) && ForkOldAnimationIdle(Sm(), 4, true),
+	      "old animation: work in the last lane keeps that phase only");
+	first[2][1] = 0;
+	second[0][1] = 1;
+	Check(ForkOldAnimationIdle(Sm(), 4, false) && !ForkOldAnimationIdle(Sm(), 4, true),
+	      "old animation: the second phase may be busy independently");
+
+	second[0][1] = 0;
+
+	Put(Sm(), 0x4B80, 2);
+	Check(!ForkOldAnimationIdle(Sm(), 4, false), "old animation: lane count mismatch keeps the fork");
+	Put(Sm(), 0x4B80, 3);
+	Put(Sm(), 0x4B88, 2);
+	Check(!ForkOldAnimationIdle(Sm(), 4, false), "old animation: inconsistent capacity keeps the fork");
+	Put(Sm(), 0x4B88, 3);
+	Put(Sm(), 0x4B90, 0);
+	Check(!ForkOldAnimationIdle(Sm(), 4, true), "old animation: absent queue runs natively");
+	Put(Sm(), 0x4A28, 0);
+	Check(!ForkOldAnimationIdle(Sm(), 4, false), "old animation: zero workers run natively");
+	Put(Sm(), 0x4A28, FORK_MAX_LISTS + 1);
+	Check(!ForkOldAnimationIdle(Sm(), 4, false), "old animation: unexpected lane count runs natively");
+	Check(!ForkOldAnimationIdle(NULL, 4, false), "old animation: absent scene runs natively");
+}
+
 int main()
 {
 	TestR8();
@@ -495,5 +537,6 @@ int main()
 	TestRel32();
 	TestSite();
 	TestInst();
+	TestOldAnimation();
 	return CheckExit("scene_lever_policy_units");
 }

@@ -39,7 +39,7 @@ inline Lines Format(const Snapshot& s,double rate,Translate tr)
         result.text[1]+=Count(reused)+" "+tr("reference hits");
         if((s.geometryOn&&!s.geometryAdmitted)||(s.textureOn&&!s.textureAdmitted))result.text[1]+=" | "+std::string(tr("Unavailable"));
     }
-    const bool busy=(s.ramOn&&(s.ramPending||s.ramActive))||(s.gpuOn&&s.gpuPending);
+    const bool busy=HasWork(s);
     result.text[2]=tr(!s.ramOn&&!s.gpuOn?"Off":busy?(s.workPaused?"Paused":"Warming"):"Ready");
     if(StartupPending(s)){
         result.text[2]=std::string(tr("Startup resource warmup"))+": ";

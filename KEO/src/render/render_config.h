@@ -16,8 +16,8 @@ struct RenderConfig
 	float particleOffscreenSeconds;  // non-visible timeout handed to ParticleUniverse
 	float particleOffscreenMinAge;   // effect age (game seconds) before the timeout is set
 	char  particleLoopingNames[256]; // comma list of template-name substrings
-	bool  oldAnimSkip;               // skip the old-animation fork when nothing would update
-	bool  oldAnimDiag;               // DEV: count the passes oldAnimSkip could skip
+	bool  oldAnimSkip;               // skip empty old-animation worker queues
+	bool  oldAnimDiag;               // DEV: count the worker forks oldAnimSkip could skip
 	bool  gpuParamCache;             // cache shader constant definitions by map and name
 	bool  shadowReachCull;           // drop shadow casters that cannot reach a receiving pixel
 	bool  emptyPassSkip;             // Debug and InteriorMask compositor nodes off while they would draw nothing

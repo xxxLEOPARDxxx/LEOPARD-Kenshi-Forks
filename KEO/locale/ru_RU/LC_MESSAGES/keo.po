@@ -317,8 +317,8 @@ msgid "Show resource warmup text"
 msgstr "Показывать текст прогрева"
 
 
-msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
-msgstr "Показывает слева вверху объём RAM- и VRAM-кэша, скорость фонового чтения и оставшиеся запросы во время подготовки ресурсов. Автоматически скрывается после завершения работы и появляется при новых запросах. Очередь пополняется при движении; это не прогресс загрузки всего мира."
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The text stays visible after warmup until this option is turned off."
+msgstr "Показывает слева вверху объём кэша ОЗУ и видеопамяти, скорость фонового чтения и оставшиеся запросы. После прогрева текст остаётся на экране, пока эта настройка включена."
 
 
 msgid "remaining"

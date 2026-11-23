@@ -18,11 +18,117 @@
 #include "navmesh/nm_workers.h"
 #include "game/game.h"
 #include "base/core.h"
+#include "base/ini_names.h"
+#include "fixes/code_patch_batch.h"
+#include "fixes/near_page.h"
+#include "render/module_hooks.h"
 #include "plugin/hook_manifest.h"
 #include "base/config.h"
 #include "base/klib_include.h"
 #include <core/Functions.h>
 #include "base/klib_include_end.h"
+
+namespace {
+bool WriteTerrainBranch(unsigned char* displacement, uintptr_t destination)
+{
+	const __int64 relative = __int64(destination) - __int64(uintptr_t(displacement + 4));
+	if (relative < -2147483647LL - 1 || relative > 2147483647LL)
+		return false;
+	const int offset = int(relative);
+	memcpy(displacement, &offset, sizeof(offset));
+	return true;
+}
+
+bool EncodeTerrainDestroyStub(unsigned char* code, uintptr_t manager, uintptr_t normal, uintptr_t release)
+{
+	const unsigned char bytes[] = {
+		0x48,0x8b,0x1d,0,0,0,0, // mov rbx, [rip + ZoneManager]
+		0x48,0x85,0xdb,         // test rbx, rbx
+		0x0f,0x85,0,0,0,0,     // jnz native callback body
+		0x48,0x8b,0xd5,         // mov rdx, rbp (original MaterialPtr parameter)
+		0xe9,0,0,0,0            // jmp native release-only path
+	};
+	memcpy(code, bytes, sizeof(bytes));
+	return WriteTerrainBranch(code + 3, manager) &&
+	       WriteTerrainBranch(code + 12, normal) &&
+	       WriteTerrainBranch(code + 20, release);
+}
+
+void InstallTerrainDestroyGuard()
+{
+	// Only the running Steam RE_Kenshi image contains this exact body.
+	HMODULE game = GetModuleHandleW(NULL);
+	DWORD stamp = 0, size = 0;
+	if (!ReadModuleImageId(game, &stamp, &size) || stamp != 0x65d604d7u || size != 0x232c000u)
+		return;
+	unsigned char* base = reinterpret_cast<unsigned char*>(game);
+	const uintptr_t manager = uintptr_t(base) + 0x2133960;
+	unsigned char* site = base + 0xa1624f;
+	unsigned char* release = base + 0xa1620c;
+	const unsigned char original[] = {0x48,0x8b,0x1d,0x0a,0xd7,0x71,0x01};
+	const unsigned char callback[] = {
+		0x48,0x89,0x54,0x24,0x10,0x56,0x57,0x41,0x54,0x48,0x83,0xec,0x40,0x48,0xc7,0x44,
+		0x24,0x20,0xfe,0xff,0xff,0xff,0x48,0x89,0x5c,0x24,0x60,0x48,0x89,0x6c,0x24,0x78,
+		0x48,0x8b,0xea
+	};
+	const unsigned char releaseBytes[] = {
+		0x48,0x83,0x3a,0x00,0x74,0x2a,0x48,0x8b,0x42,0x08,0x83,0xc9,0xff,0xf0,0x0f,0xc1,
+		0x48,0x20,0xff,0xc9,0x75,0x1a,0x48,0x8b,0x4a,0x08,0x48,0x85,0xc9,0x74,0x11,
+		0x48,0x8b,0x01,0x33,0xd2,0xff,0x10,0x48,0x8b,0x4d,0x08,0xff,0x15,0xcc,0x15,0x83,0x01,
+		0x45,0x33,0xe4,0xe9,0x90,0x01,0x00,0x00
+	};
+	const unsigned char epilogue[] = {
+		0x4c,0x89,0x65,0x08,0x4c,0x89,0x65,0x00,0x48,0x8b,0x5c,0x24,0x60,0x48,0x8b,0x6c,
+		0x24,0x78,0x48,0x83,0xc4,0x40,0x41,0x5c,0x5f,0x5e,0xc3
+	};
+	const unsigned char resume[] = {0xf3,0x0f,0x10,0x50,0x08,0xf3,0x0f,0x10,0x08,0x48,0x8d,0x4c,0x24,0x70};
+	if (memcmp(site, original, sizeof(original)) ||
+	    memcmp(base + 0xa161e0, callback, sizeof(callback)) ||
+	    memcmp(release, releaseBytes, sizeof(releaseBytes)) ||
+	    memcmp(base + 0xa163d4, epilogue, sizeof(epilogue)) ||
+	    memcmp(site + sizeof(original), resume, sizeof(resume))) {
+		LogError("Terrain material shutdown guard: native callback contract refused");
+		return;
+	}
+	if (!code_patch_threads::Prepare((GetDLLDirectory() + OPTIMIZER_LOG_NAME).c_str())) {
+		LogError("Terrain material shutdown guard: emergency log unavailable");
+		return;
+	}
+	unsigned char* code = AllocateNearPages(uintptr_t(site), 4096);
+	if (!code) {
+		LogError("Terrain material shutdown guard: could not allocate branch island");
+		return;
+	}
+	code_patch_batch::Edit edit = {};
+	edit.address = site;
+	edit.size = sizeof(original);
+	memcpy(edit.before, original, sizeof(original));
+	edit.after[0] = 0xe9;
+	edit.after[5] = edit.after[6] = 0x90;
+	// Encode against the real instruction address, not the patch buffer.
+	const __int64 displacement = __int64(uintptr_t(code)) - __int64(uintptr_t(site + 5));
+	DWORD old = 0;
+	if (displacement < -2147483647LL - 1 || displacement > 2147483647LL ||
+	    !EncodeTerrainDestroyStub(code, manager, uintptr_t(site + sizeof(original)), uintptr_t(release)) ||
+	    !VirtualProtect(code, 4096, PAGE_EXECUTE_READ, &old) ||
+	    !FlushInstructionCache(GetCurrentProcess(), code, 24)) {
+		VirtualFree(code, 0, MEM_RELEASE);
+		LogError("Terrain material shutdown guard: could not seal branch island");
+		return;
+	}
+	const int relative = int(displacement);
+	memcpy(edit.after + 1, &relative, sizeof(relative));
+	code_patch_threads::Set threads = {};
+	bool mayPublish = false;
+	const bool armed = code_patch_batch::Apply(&edit, 1, &threads, &mayPublish);
+	if (!mayPublish)
+		VirtualFree(code, 0, MEM_RELEASE);
+	if (!armed)
+		LogError("Terrain material shutdown guard: callback patch failed");
+	else
+		KEO_DETAIL("Terrain material shutdown guard: native release-only path admitted");
+}
+}
 
 // ZoneManager::activateZoneMap(this, map, centre, range, type, timer). The
 // third argument is an iVector2 passed whole in a register and unused by the
@@ -175,6 +281,7 @@ static void InstallZoneMapUpdateHook(int* installed)
 void InstallZoneLifecycleHooks(int* installed, int*)
 {
 	ZoneHandoffInit();
+	InstallTerrainDestroyGuard();
 
 	if (HookInstall(HOOK_ACTIVATE_ZONEMAP, hook_activateZoneMap, &orig_activateZoneMap,
 	                installed, true) == NULL)

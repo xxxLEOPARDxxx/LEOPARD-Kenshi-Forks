@@ -123,6 +123,27 @@ bool ForkR1Idle(const unsigned char* sm)
 	return true;
 }
 
+bool ForkOldAnimationIdle(const unsigned char* sm, size_t barrierParties, bool secondPhase)
+{
+	if (!sm)
+		return false;
+	const size_t workers = Size(sm, 0x4A28);
+	if (!workers || workers > FORK_MAX_LISTS || barrierParties != workers + 1)
+		return false;
+
+	// Each phase's outer array holds one FastArray<Entity*> per worker.
+	const size_t queue = secondPhase ? 0x4B90 : 0x4B78;
+	const uintptr_t lanes = Ptr(sm, queue);
+	if (!lanes || Size(sm, queue + 8) != workers || Size(sm, queue + 16) < workers)
+		return false;
+	for (size_t i = 0; i < workers; ++i)
+	{
+		if (Size((const unsigned char*)lanes + i * VISIBLE_LIST_STRIDE, VISIBLE_LIST_SIZE))
+			return false;
+	}
+	return true;
+}
+
 bool ForkR7Idle(const unsigned char* sm)
 {
 	const uintptr_t* mgrs;

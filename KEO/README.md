@@ -48,8 +48,9 @@ Startup preparation reads registered local mesh/skeleton/texture resources
 within the configured memory limit; reaching that limit does not mean the
 entire game is loaded. It does not create NPCs early. RAM/VRAM limits and
 background reading speed are configurable; keep room for the rest of the game.
-These settings apply live. **Show warmup text** displays work at the upper left
-and hides it automatically when finished, returning when new work is queued.
+These settings apply live. **Show resource warmup text** displays the resource
+status at the upper left and stays visible after warmup while enabled.
+In a responsive title menu the startup reader uses blocks of up to 1 MiB.
 
 Under **Performance**, the loading improvements include skeleton/model and
 material storage preparation, model bone weights/index tables, body-shape
@@ -186,8 +187,9 @@ KEO и требует кэширования навсетки. Штатные с
 пределах выбранного лимита; достижение предела не означает загрузку всей игры.
 Прогрев не создаёт NPC заранее. Пределы ОЗУ/видеопамяти и скорость фонового
 чтения настраиваются; оставляйте память самой игре. Настройки применяются на
-ходу. **Показывать текст прогрева** выводит текущую работу слева сверху;
-после её завершения текст скрывается, а при новых запросах появляется снова.
+ходу. **Показывать текст прогрева** выводит состояние ресурсов слева сверху.
+После прогрева текст остаётся на экране, пока настройка включена.
+В отзывчивом главном меню файлы читаются блоками до 1 МиБ.
 
 В группе **Производительность** находятся ускорения подготовки памяти скелетов,
 моделей и материалов, весов и таблиц костей, форм тела, чтения снаряжения и
@@ -294,9 +296,9 @@ GPL-3.0, файл `LICENSE`. Файлы авторства и происхожд
 
 ### Startup RAM warmup reference / Справка по стартовому прогреву ОЗУ
 
-The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends; that does not mean every resource was loaded. **Show resource warmup text** displays the active startup scan/read or pending RAM/VRAM requests, then automatically hides when work finishes, including when the RAM limit ends startup. Retained cached files, models and textures do not keep it on screen. New resource requests make it reappear; after startup it shows current work rather than the old startup percentage. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
+The live option **Warm resources at startup** keeps its existing INI key `resourceStartupTextures` for compatibility. The default remains OFF. It requires the RAM resource cache and scans only copied, registered local filesystem roots. `.mesh` and `.skeleton` files share the existing 262144-file inventory limit with supported textures and are read first after the scan. The byte cache retains the configured RAM limit, memory reserve, per-file limit, native-request priority, cancellation and immutable-file identity checks. Startup never evicts existing cached files to cycle through the library. At the first capacity refusal it ends; that does not mean every resource was loaded. **Show resource warmup text** displays the startup scan and read progress and continues showing current RAM/VRAM totals and status after startup. Turn the option off to hide the text. The option does not create unseen NPCs, parse meshes, share character materials or preload model geometry on a worker. RAM file warmup does not remove save deserialization, world restoration, physics or per-character appearance work. Its actual effect on save-load time needs a separate measurement; source fixtures do not establish a gameplay speedup.
 
-Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости он заканчивается. Это не означает, что загружены все ресурсы. **Показывать текст прогрева** отображает активный стартовый обход/чтение или ожидающие запросы RAM/VRAM, затем автоматически скрывается после завершения работы, в том числе при остановке стартового прогрева по лимиту ОЗУ. Сохранённые в кэше файлы, модели и текстуры не удерживают надпись на экране. При новых запросах она появляется снова и после стартового прогрева показывает текущую работу вместо старого процента. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.
+Переключатель **Прогрев ресурсов при запуске** работает без перезапуска и сохраняет прежний ключ INI `resourceStartupTextures`. По умолчанию выключен; требует кэш ресурсов в ОЗУ. Обходятся только скопированные зарегистрированные локальные папки. Файлы `.mesh` и `.skeleton` делят прежний лимит списка 262144 файла с поддерживаемыми текстурами и читаются первыми после сбора списка. Сохраняются заданный лимит ОЗУ, резерв свободной памяти, предел одного файла, приоритет запросов игры, отмена и проверки неизменности файла. Стартовый прогрев не вытесняет готовые записи ради циклического обхода библиотеки: при первом отказе по вместимости он заканчивается. Это не означает, что загружены все ресурсы. **Показывать текст прогрева** показывает ход стартового обхода и чтения. После прогрева текст продолжает показывать текущие объёмы кэшей ОЗУ и видеопамяти и состояние очереди. Для скрытия текста отключите эту настройку. Прогрев не создаёт невидимых NPC, не разбирает модели, не объединяет материалы персонажей и не загружает геометрию моделей в рабочем потоке. Он не устраняет разбор сохранения, восстановление мира, физику или индивидуальную подготовку внешности. Влияние на время загрузки сохранения требует отдельного замера; проверки исходников не доказывают ускорение игры.
 
 ## Local NPC loading correction / Локальная правка загрузки NPC (2026-11-16)
 
@@ -720,3 +722,19 @@ English
 - На длинном маршруте следующий нужный участок запрашивается заранее. Отряд продолжает движение, когда найдена пригодная точка прохода.
 - Быстрее подготавливаются связи между треугольниками поддерживаемых моделей. На Steam и GOG связанные поля сейва читаются вместе, когда они уже в буфере.
 - Пополнение прилавка совместимо с Rotate Items 4.
+
+## Release 9 / Выпуск 9
+
+English
+
+- Startup resource warmup reads faster in the main menu. The configured background reading limit still applies during play.
+- The optional warmup text stays visible after warmup so you can see the current RAM and VRAM cache totals. Turn it off in MCM to hide it.
+- Empty character animation queues skip unnecessary worker starts on supported builds.
+- Added a safeguard against a crash when unloading terrain materials on exit.
+
+Русский
+
+- Ускорен стартовый прогрев ресурсов в главном меню. Во время игры действует настроенный лимит фонового чтения.
+- Текст прогрева остаётся на экране после завершения и показывает объём кэшей ОЗУ и видеопамяти. Его можно скрыть галочкой в MCM.
+- На поддерживаемых сборках пустые очереди анимации персонажей больше не запускают лишние рабочие потоки.
+- Добавлена защита от одного из вылетов при освобождении материалов рельефа на выходе из игры.

@@ -76,6 +76,8 @@ bool CullSlotIsBase(uintptr_t slot, uintptr_t baseCull, CullThunkCache* cache, c
 bool ForkR8Idle(const unsigned char* sm, uintptr_t baseCull, CullThunkCache* cache, const CullReaders* rd);
 // Skeleton animation: every manager's list is empty.
 bool ForkR1Idle(const unsigned char* sm);
+// Old skeletal entities: all worker lanes for this already-culled phase are empty.
+bool ForkOldAnimationIdle(const unsigned char* sm, size_t barrierParties, bool secondPhase);
 // Instance managers: none has a dynamic or a dirty static batch.
 bool ForkR7Idle(const unsigned char* sm);
 

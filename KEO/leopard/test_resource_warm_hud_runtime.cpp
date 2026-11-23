@@ -120,8 +120,8 @@ int main(){
     resourcesReady=false;clockMs+=250;ResourceWarmHudTick(true,s);C(live==0&&manager.refs.empty());
     resourcesReady=true;fontsReady=false;clockMs+=250;ResourceWarmHudTick(true,s);C(live==0&&errors==1);
     fontsReady=true;ResourceWarmHudTick(true,s);C(live==3&&NativeFontRefreshSafe(gui));
-    // A refused RAM snapshot is unknown: it cannot hide visible work, repaint
-    // zero counters, or create a waiting-startup HUD after work has retired.
+    // A refused RAM snapshot preserves the current captions and cannot
+    // create rows until a valid sample arrives.
     const int busyCreated=created,busyCaptions=captions,busyMeasurements=measurements;
     resource_warm_hud::Snapshot unknown={};unknown.ramOn=unknown.startupOn=true;
     clockMs+=1000;ResourceWarmHudTick(true,unknown);
@@ -132,53 +132,57 @@ int main(){
     ResourceWarmHudTick(false,unknown);C(live==0&&manager.refs.empty());
     ResourceWarmHudTick(true,unknown);C(live==0&&created==busyCreated);
     ResourceWarmHudTick(true,s);C(live==3);
-    // Completed startup must disappear even with retained cache occupancy.
+    // Completed startup keeps the same text widgets and shows current totals.
+    const int beforeCompletion=created;
     s.ramActive=false;s.ramPending=s.gpuPending=0;
     s.startupOn=s.startupDone=true;s.startupFiles=s.startupProcessed=200;
     s.ramBytes=4ULL<<30;s.ramFiles=200;s.gpuReady=20;s.gpuBytes=256ULL<<20;
     s.geometryOn=s.geometryAdmitted=s.textureOn=s.textureAdmitted=true;
     s.geometryBytes=512ULL<<20;s.geometryModels=42;s.textureBytes=128ULL<<20;s.textureCount=7;
-    clockMs+=250;ResourceWarmHudTick(true,s);C(live==0&&gui.roots.empty()&&manager.refs.empty());C(!state.sampled);
+    clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&created==beforeCompletion&&manager.refs.size()==1);
+    C(state.rows[0]->caption.find("4.0/8.0 GiB")!=std::string::npos);
+    C(state.rows[1]->caption.find("42 models")!=std::string::npos);
+    C(state.rows[2]->caption.find("Ready")==0);
     const int idleCreated=created,idleCaptions=captions,idleMeasurements=measurements;
     clockMs+=1000;ResourceWarmHudTick(true,unknown);
-    C(live==0&&created==idleCreated&&captions==idleCaptions&&measurements==idleMeasurements);
+    C(live==3&&created==idleCreated&&captions==idleCaptions&&measurements==idleMeasurements);
     for(int i=0;i<20;++i){clockMs+=250;ResourceWarmHudTick(true,s);}
-    C(created==idleCreated&&captions==idleCaptions&&measurements==idleMeasurements);
+    C(created==idleCreated&&captions==idleCaptions&&measurements==idleMeasurements+20*3);
+    ResourceWarmHudTick(false,s);C(live==0&&gui.roots.empty()&&manager.refs.empty()&&!state.sampled);
+    ResourceWarmHudTick(true,s);C(live==3&&manager.refs.size()==1&&state.rows[2]->caption.find("Ready")==0);
     // Reaching a capacity limit is terminal even before all files are read.
-    s.startupCapped=true;s.startupProcessed=17;ResourceWarmHudTick(true,s);C(live==0);
-    // New RAM work after startup must reappear with the current work status.
-    s.ramPending=1;ResourceWarmHudTick(true,s);C(live==3&&manager.refs.size()==1);
+    s.startupCapped=true;s.startupProcessed=17;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Ready")==0);
+    s.ramPending=1;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&manager.refs.size()==1);
     C(state.rows[2]->caption.find("Warming")!=std::string::npos);
     C(state.rows[2]->caption.find("Startup resource warmup")==std::string::npos);
     s.ramPending=0;s.ramActive=true;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3);
-    s.ramActive=false;ResourceWarmHudTick(true,s);C(live==0&&manager.refs.empty());
+    C(state.rows[2]->caption.find("Warming")==0);
+    s.ramActive=false;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Ready")==0);
     // Refused GPU snapshots are unknown even after startup has finished.
     resource_warm_hud::Snapshot unknownGpu=s;unknownGpu.gpuSnapshotValid=false;
     unknownGpu.ramSnapshotValid=true;unknownGpu.startupDone=true;
-    const int gpuIdleCreated=created;ResourceWarmHudTick(true,unknownGpu);C(live==0&&created==gpuIdleCreated);
-    // Pending GPU work independently keeps the HUD visible; ready entries do not.
-    s.gpuPending=1;ResourceWarmHudTick(true,s);C(live==3);
+    const int gpuIdleCreated=created;clockMs+=250;ResourceWarmHudTick(true,unknownGpu);C(live==3&&created==gpuIdleCreated&&state.rows[2]->caption.find("Ready")==0);
+    s.gpuPending=1;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Warming")==0);
     s.workPaused=true;clockMs+=250;ResourceWarmHudTick(true,s);C(state.rows[2]->caption.find("Paused")!=std::string::npos);
     const int gpuBusyCreated=created,gpuBusyCaptions=captions,gpuBusyMeasurements=measurements;
     clockMs+=1000;ResourceWarmHudTick(true,unknownGpu);
     C(live==3&&created==gpuBusyCreated&&captions==gpuBusyCaptions&&measurements==gpuBusyMeasurements);
     ResourceWarmHudTick(false,unknownGpu);C(live==0&&manager.refs.empty());
     ResourceWarmHudTick(true,s);C(live==3);
-    s.gpuPending=0;ResourceWarmHudTick(true,s);C(live==0);
+    s.gpuPending=0;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Ready")==0);
     // A new startup epoch waits/scans/reads before its terminal flag, including
     // the interval with zero pending requests between startup file reads.
     s.workPaused=false;s.startupDone=s.startupCapped=false;s.startupFiles=s.startupProcessed=0;
-    ResourceWarmHudTick(true,s);C(live==3);C(state.rows[2]->caption.find("Waiting for resource list")!=std::string::npos);
+    clockMs+=250;ResourceWarmHudTick(true,s);C(live==3);C(state.rows[2]->caption.find("Waiting for resource list")!=std::string::npos);
     s.startupScanning=true;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3);C(state.rows[2]->caption.find("Scanning resources")!=std::string::npos);
     s.startupScanning=false;s.startupFiles=200;s.startupProcessed=50;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3);C(state.rows[2]->caption.find("25%")!=std::string::npos);
-    s.startupDone=true;ResourceWarmHudTick(true,s);C(live==0&&manager.refs.empty());
+    s.startupDone=true;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Ready")==0);
     // Disabled subsystems cannot resurrect stale work counters or startup flags.
-    s.startupOn=false;ResourceWarmHudTick(true,s);C(live==0);
+    s.startupOn=false;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption.find("Ready")==0);
     s.ramOn=s.gpuOn=false;s.ramActive=true;s.ramPending=s.gpuPending=1;s.startupOn=true;s.startupDone=false;
-    ResourceWarmHudTick(true,s);C(live==0&&manager.refs.empty());
-    // With startup disabled, real work still appears and the existing master
-    // toggle retires all owned rows immediately.
-    s.ramOn=true;s.startupOn=false;ResourceWarmHudTick(true,s);C(live==3);
+    s.geometryOn=s.textureOn=false;
+    clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption=="Off");
+    s.ramOn=true;s.startupOn=false;clockMs+=250;ResourceWarmHudTick(true,s);C(live==3&&state.rows[2]->caption=="Warming");
     ResourceWarmHudTick(false,s);C(live==0&&manager.refs.empty());
     ResourceWarmHudCleanup();C(live==0&&manager.refs.empty());
     printf("Resource warm HUD actual runtime boundary %u checks PASS\n",checks);return 0;

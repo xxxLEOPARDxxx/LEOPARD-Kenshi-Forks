@@ -19,10 +19,9 @@ if (ROOT/'src/resources/resource_warm_hud.cpp').exists():
  run('runtime-build',[str(VC/'bin/amd64/cl.exe'),'/nologo','/EHsc','/O2',f'/I{OUT}',str(ROOT/'leopard/test_resource_warm_hud_runtime.cpp'),f'/Fo{OUT}/runtime.obj',f'/Fe{OUT}/runtime.exe'])
  run('runtime-run',[str(OUT/'runtime.exe')])
  for name,old,new in [
-  ('no-auto-hide','!enabled||(resource_warm_hud::KnownSnapshot(snapshot)&&!resource_warm_hud::HasWork(snapshot))','!enabled'),
+  ('ignore-toggle','if(!enabled){','if(false){'),
+  ('hide-after-completion','if(!enabled){','if(!enabled||(resource_warm_hud::KnownSnapshot(snapshot)&&!resource_warm_hud::HasWork(snapshot))){'),
   ('unknown-snapshot-updates','if(!resource_warm_hud::KnownSnapshot(snapshot))return;',''),
-  ('unknown-snapshot-hides','(resource_warm_hud::KnownSnapshot(snapshot)&&!resource_warm_hud::HasWork(snapshot))','!resource_warm_hud::HasWork(snapshot)'),
-  ('cache-keeps-visible','resource_warm_hud::HasWork(snapshot)','(resource_warm_hud::HasWork(snapshot)||snapshot.ramFiles||snapshot.gpuReady||snapshot.geometryModels||snapshot.textureCount)'),
   ('no-throttle','if(!resource_warm_hud::Due(now,state.at,state.sampled))return;',''),
   ('no-caption-cache','if(captions[i]!=lines.text[i])','if(true)'),
   ('no-row-unlink','for(int i=0;i<3;++i)if(widget==rows[i])rows[i]=NULL;',''),
@@ -50,14 +49,14 @@ if (ROOT/'src/resources/resource_warm_hud.cpp').exists():
   (mutant/'resource_warm_hud_policy.h').write_text(policy.replace(old,new),encoding='utf-8')
   run(name+'-build',[str(VC/'bin/amd64/cl.exe'),'/nologo','/EHsc','/O2',f'/I{mutant.parent}',f'/I{OUT}',str(ROOT/'leopard/test_resource_warm_hud_runtime.cpp'),f'/Fo{OUT}/{name}.obj',f'/Fe{OUT}/{name}.exe'])
   run(name+'-run',[str(OUT/(name+'.exe'))],False)
- print('Eighteen compiled HUD activity/font/lifecycle/performance negative controls rejected (CHECK exit 1)')
+ print('Seventeen compiled HUD activity/font/lifecycle/performance negative controls rejected (CHECK exit 1)')
  for label,unit in [('policy','test_resource_warm_hud.cpp'),('runtime','test_resource_warm_hud_runtime.cpp')]:
   run(label+'-debug-build',[str(VC/'bin/amd64/cl.exe'),'/nologo','/EHsc','/Od',f'/I{OUT}',str(ROOT/'leopard'/unit),f'/Fo{OUT}/{label}-debug.obj',f'/Fe{OUT}/{label}-debug.exe'])
   run(label+'-debug-run',[str(OUT/(label+'-debug.exe'))])
  run('native-compile',[str(VC/'bin/amd64/cl.exe'),'/nologo','/c','/EHsc','/O2','/GL','/MD','/W3','/DNDEBUG','/DWIN32_LEAN_AND_MEAN','/DBOOST_ALL_NO_LIB',str(ROOT/'src/resources/resource_warm_hud.cpp'),f'/Fo{OUT}/native.obj'])
  # Verify actual vanilla and installed Dark UI resource definitions. The native
  # raster/palette contrast still requires in-game visual acceptance.
- game=ROOT.parents[1]
+ game=Path(os.environ.get('KENSHI_GAME_DIR', r'D:\SteamLibrary\steamapps\common\Kenshi'))
  for label,path in [('vanilla',game/'data/gui/skins/kenshi_skins.xml'),('Dark UI Advanced',game/'mods/Dark UI Advanced/gui/skins/kenshi_skins.xml')]:
   xml=ET.parse(path).getroot()
   resources={node.attrib.get('name'):node for node in xml.iter('Resource')}

@@ -1,289 +1,200 @@
-#include "base/log_admission.h"
-#include "render/render_levers.h"
-#include "render/render_config.h"
-#include "render/module_hooks.h"
-#include "game/klib_member_contract.h"
 #include "base/core.h"
+#include "base/ini_names.h"
+#include "base/log_admission.h"
+#include "fixes/code_patch_batch.h"
+#include "fixes/near_page.h"
+#include "render/module_hooks.h"
+#include "render/ogre_worker_policy.h"
+#include "render/render_config.h"
+#include "render/render_levers.h"
+#include "render/scene_lever_policy.h"
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 
-// SceneManager::updateAllOldAnimations runs once per culled pass on the
-// render thread, after the cull's own fork has joined. It queues every
-// visible skeletal Entity, forks the worker pool twice to run
-// Entity::updateAnimation on them, then, back on this thread, pushes every
-// active tag point into its attached object's node and fires the frame
-// listeners' framePostAnimationUpdates. The forks are the cost; the tag
-// points and the listeners are not optional.
-//
-// The lever scans the same visible lists first with updateAnimation's own
-// early-out. When no queued entity would update, the forks would change
-// nothing, so it runs only the tail (tag points, listeners) and returns.
-
-#ifdef KEO_DEBUG
-static const bool DEV_BUILD = true;
-#else
-static const bool DEV_BUILD = false;
-#endif
-
-// Kenshi's SceneManager and OldSkeletonInstance, as updateAllOldAnimations
-// reads them (both differ from the Ogre 2.0 headers).
-static const size_t SM_WORKER_THREADS  = 0x4A28;  // size_t
-static const size_t SM_VISIBLE_OBJECTS = 0x4B48;  // per-thread arrays of {data, size, capacity}
-static const size_t VISIBLE_STRIDE     = 24;
-static const size_t VISIBLE_SIZE       = 8;
-static const size_t SKEL_TAG_POINTS    = 0x2A8;   // sentinel of a circular node list, next at +0
-static const size_t TAG_NODE_VALUE     = 0x18;    // TagPoint*
-
-// Kenshi's Ogre::Entity: the headers, built with NDEBUG as this DLL is,
-// place these 8 bytes lower.
-static const size_t ENT_ANIMATION_STATE = 0x1A8;  // AnimationStateSet*
-static const size_t ENT_ANIM_UPDATED    = 0x284;  // unsigned long: frame the animation was last applied
-static const size_t ENT_SKELETON        = 0x300;  // OldSkeletonInstance*
-static const size_t ENT_INITIALISED     = 0x308;  // bool
-static const size_t ENT_LAST_XFORM      = 0x30C;  // Matrix4: parent transform last applied
-
-static const size_t VT_GET_MOVABLE_TYPE   = 0x20;   // MovableObject: const std::string& ()
-static const size_t VT_MANUAL_BONES_DIRTY = 0x248;  // OldSkeletonInstance: bool ()
-
-// MSVC std::string: inline buffer or heap pointer at +0.
-static const size_t STR_SIZE   = 0x10;
-static const size_t STR_CAP    = 0x18;
-static const size_t STR_INLINE = 16;
-
-static const unsigned TYPE_HASH_SEED    = 0x3A8EFA67;
-static const int      POST_ANIM_MIN_OBJ = 15;   // listeners fire when thread 0 saw more
-static const size_t   MATRIX4_SIZE      = 64;
-
-typedef void        (*UpdateAllOldAnims_t)(void* scene);
-typedef const void* (*GetMovableType_t)(const void* obj);
-typedef bool        (*ManualBonesDirty_t)(const void* skel);
-typedef void        (*Murmur3_t)(const void* key, int len, unsigned seed, void* out);
-typedef bool        (*MatrixNotEqual_t)(const void* a, const void* b);
-typedef void        (*TagUpdateNode_t)(const void* tag);
-typedef void        (*FirePostAnim_t)(void* root);
-
-static UpdateAllOldAnims_t s_orig          = NULL;
-static const void*         s_entityType    = NULL;   // EntityFactory::FACTORY_TYPE_NAME
-static unsigned            s_entityHash    = 0;      // its type-name hash
-static Murmur3_t           s_murmur        = NULL;
-static MatrixNotEqual_t    s_matrixNe      = NULL;
-static TagUpdateNode_t     s_tagUpdateNode = NULL;
-static FirePostAnim_t      s_firePostAnim  = NULL;
-static void* const*        s_rootSingleton = NULL;
-static bool                s_tried         = false;
-static bool                s_installed     = false;
-
-static volatile LONG     s_calls     = 0;
-static volatile LONG     s_clean     = 0;   // scans that found nothing to update
-static volatile LONGLONG s_scanTicks = 0;
-
-// The skeletal entities of the last clean scan, in queue order. Render
-// thread only; a scan that finds more falls back to the original.
-static const int   MAX_SKELETAL = 4096;
-static const char* s_skeletal[MAX_SKELETAL];
-static int         s_skeletalCount = 0;
-
-static const ModuleSite s_site =
+// Ogre queues the old skeletons after culling each view, including shadows and
+// reflections. Requests 5 and 6 process those queues. Skip only a proven empty
+// fork/join pair, inside Ogre's function, so its tag points, callbacks, and queue
+// cleanup still run in the original order.
+namespace
 {
-	"SceneManager::updateAllOldAnimations", "OgreMain_x64.dll",
-	"?updateAllOldAnimations@SceneManager@Ogre@@IEAAXXZ", 0x2CA920,
-	{ 0x48,0x8B,0xC4,0x48,0x89,0x48,0x08,0x53,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41 }
+typedef void (*BarrierSync)(void*);
+static BarrierSync s_sync = NULL;
+static ForkPairState s_pairs[2];
+static bool s_tried = false;
+static bool s_installed = false;
+static code_patch_threads::Set s_threads = {0};
+
+static LONG s_calls = 0;
+static LONG s_idle = 0;
+static LONGLONG s_checkTicks = 0;
+
+static const size_t kFirstWorkerRva = 0x2CA860;
+static const size_t kSecondWorkerRva = 0x2CA8C0;
+static const size_t kPhaseRva = 0x2CAE07;
+static const size_t kCallOffsets[] = {20, 33, 58, 71};
+static const size_t kStubStride = 32;
+static const size_t kPageSize = 4096;
+
+static const unsigned char kBarrierEntry[] =
+{
+	0x48,0x83,0xEC,0x28,0x48,0x8B,0x41,0x08,0x4C,0x8B,0xC9,0x48,0x89,0x44,0x24,0x30
+};
+static const unsigned char kDispatchRead[] =
+{
+	0x48,0x63,0x83,0x18,0x4B,0x00,0x00,0x83,0xF8,0x0C,0x0F,0x87,0xF1,0x00,0x00,0x00,
+	0x41,0x8B,0x8C,0x84,0xB0,0xD7,0x2C,0x00,0x49,0x03,0xCC,0xFF,0xE1
+};
+static const unsigned char kDispatch[] =
+{
+	0x48,0x8B,0xD7,0x48,0x8B,0xCB,0xE8,0xA6,0xD1,0xFF,0xFF,0xEB,0x5A,
+	0x48,0x8B,0xD7,0x48,0x8B,0xCB,0xE8,0xF9,0xD1,0xFF,0xFF,0xEB,0x4D
+};
+static const uint32_t kDispatchEntries[] = {0x2CD6AF, 0x2CD6BC};
+static const unsigned char kFirstWorker[] =
+{
+	0x48,0x89,0x5C,0x24,0x08,0x57,0x48,0x83,0xEC,0x20,0x48,0x8B,
+	0x81,0x78,0x4B,0x00,0x00,0x4C,0x8D,0x04,0x52,0x4A,0x8B,0x1C,
+	0xC0,0x4A,0x8B,0x4C,0xC0,0x08,0x48,0x8D,0x3C,0xCB,0x48,0x3B,
+	0xDF,0x74,0x24,0x66,0x0F,0x1F,0x84,0x00,0x00,0x00,0x00,0x00,
+	0x48,0x8B,0x0B,0x48,0x83,0xB9,0x00,0x03,0x00,0x00,0x00,0x74,
+	0x05,0xE8,0x7E,0x6D,0xDF,0xFF,0x48,0x83,0xC3,0x08,0x48,0x3B,
+	0xDF,0x75,0xE5,0x48,0x8B,0x5C,0x24,0x30,0x48,0x83,0xC4,0x20,0x5F,0xC3
+};
+static const unsigned char kPhases[] =
+{
+	0x41,0xC7,0x84,0x24,0x18,0x4B,0x00,0x00,0x05,0x00,0x00,0x00,
+	0x49,0x8B,0x8C,0x24,0x20,0x4B,0x00,0x00,0xE8,0x20,0x51,0x11,
+	0x00,0x49,0x8B,0x8C,0x24,0x20,0x4B,0x00,0x00,0xE8,0x13,0x51,
+	0x11,0x00,0x41,0xC7,0x84,0x24,0x18,0x4B,0x00,0x00,0x06,0x00,
+	0x00,0x00,0x49,0x8B,0x8C,0x24,0x20,0x4B,0x00,0x00,0xE8,0xFA,
+	0x50,0x11,0x00,0x49,0x8B,0x8C,0x24,0x20,0x4B,0x00,0x00,0xE8,
+	0xED,0x50,0x11,0x00
 };
 
-template<typename T> static T At(const void* base, size_t off)
-{
-	return *(const T*)((const char*)base + off);
-}
-
-static unsigned TypeHash(const void* str)
-{
-	const void* data = At<size_t>(str, STR_CAP) >= STR_INLINE ? At<const void*>(str, 0) : str;
-	unsigned h = 0;
-	s_murmur(data, (int)At<size_t>(str, STR_SIZE), TYPE_HASH_SEED, &h);
-	return h;
-}
-
-// The original's Entity test compares type-name hashes; the name's own
-// address is a shortcut to the same answer.
-static bool IsEntity(const void* obj)
-{
-	GetMovableType_t getType = At<GetMovableType_t>(At<const void*>(obj, 0), VT_GET_MOVABLE_TYPE);
-	const void* type = getType(obj);
-	return type == s_entityType || TypeHash(type) == s_entityHash;
-}
-
-// Entity::updateAnimation's early-out, read for read: true when it would do
-// any work. A missing pointer it dereferences unchecked counts as work, so
-// the original runs.
-static bool AnimationWouldUpdate(const char* e)
-{
-	if (!At<unsigned char>(e, ENT_INITIALISED))
-		return false;
-	const void* skel = At<const void*>(e, ENT_SKELETON);
-	if (!skel)
-		return false;
-	const char* states = At<const char*>(e, ENT_ANIMATION_STATE);
-	if (!states)
-		return true;
-	if (At<unsigned>(e, ENT_ANIM_UPDATED) !=
-	    At<unsigned>(states, KLIB_OFF_AnimationStateSet_dirtyFrameNumber))
-		return true;
-	ManualBonesDirty_t manualDirty = At<ManualBonesDirty_t>(At<const void*>(skel, 0), VT_MANUAL_BONES_DIRTY);
-	if (manualDirty(skel))
-		return true;
-	const char* node = At<const char*>(e, KLIB_OFF_MovableObject_parentNode);
-	if (!node)
-		return true;
-	const char* xf = node + KLIB_OFF_Node_transform;
-	const char* derived = At<const char*>(xf, KLIB_OFF_Transform_derivedTransform);
-	if (!derived)
-		return true;
-	size_t index = At<unsigned char>(xf, KLIB_OFF_Transform_index);
-	return s_matrixNe(e + ENT_LAST_XFORM, derived + index * MATRIX4_SIZE);
-}
-
-enum ScanResult { SCAN_CLEAN, SCAN_DIRTY, SCAN_FULL };
-
-// Walks the visible lists as the original queues them: Entity-typed objects
-// with a skeleton instance.
-static ScanResult ScanVisible(const void* scene)
-{
-	s_skeletalCount = 0;
-	size_t threads = At<size_t>(scene, SM_WORKER_THREADS);
-	const char* arrays = At<const char*>(scene, SM_VISIBLE_OBJECTS);
-	if (threads && !arrays)
-		return SCAN_DIRTY;
-	for (size_t t = 0; t < threads; ++t)
-	{
-		const char* arr = arrays + t * VISIBLE_STRIDE;
-		const char* const* objs = At<const char* const*>(arr, 0);
-		size_t count = At<size_t>(arr, VISIBLE_SIZE);
-		for (size_t i = 0; i < count; ++i)
-		{
-			const char* obj = objs[i];
-			if (!obj)
-				return SCAN_DIRTY;
-			if (!IsEntity(obj) || !At<const void*>(obj, ENT_SKELETON))
-				continue;
-			if (AnimationWouldUpdate(obj))
-				return SCAN_DIRTY;
-			if (s_skeletalCount == MAX_SKELETAL)
-				return SCAN_FULL;
-			s_skeletal[s_skeletalCount++] = obj;
-		}
-	}
-	return SCAN_CLEAN;
-}
-
-// The original's work after its forks, for the entities of a clean scan.
-static void RunTail(const void* scene)
-{
-	for (int i = 0; i < s_skeletalCount; ++i)
-	{
-		const char* skel = At<const char*>(s_skeletal[i], ENT_SKELETON);
-		for (const char* n = At<const char*>(At<const char*>(skel, SKEL_TAG_POINTS), 0);
-		     n != At<const char*>(skel, SKEL_TAG_POINTS); n = At<const char*>(n, 0))
-			s_tagUpdateNode(At<const void*>(n, TAG_NODE_VALUE));
-	}
-	const char* arrays = At<const char*>(scene, SM_VISIBLE_OBJECTS);
-	if (arrays && At<int>(arrays, VISIBLE_SIZE) > POST_ANIM_MIN_OBJ && *s_rootSingleton)
-		s_firePostAnim(*s_rootSingleton);
-}
-
-// Render thread, once per culled pass: no allocation, lock or logging.
-static void hook_UpdateAllOldAnimations(void* scene)
-{
-	bool diag = DEV_BUILD && g_renderCfg.oldAnimDiag;
-	if (!diag && !g_renderCfg.oldAnimSkip)
-	{
-		s_orig(scene);
-		return;
-	}
-	InterlockedIncrement(&s_calls);
-	if (diag)
-	{
-		LARGE_INTEGER t0, t1;
-		QueryPerformanceCounter(&t0);
-		ScanResult r = ScanVisible(scene);
-		QueryPerformanceCounter(&t1);
-		InterlockedExchangeAdd64(&s_scanTicks, t1.QuadPart - t0.QuadPart);
-		if (r == SCAN_CLEAN)
-			InterlockedIncrement(&s_clean);
-		s_orig(scene);
-		return;
-	}
-	if (ScanVisible(scene) != SCAN_CLEAN)
-	{
-		s_orig(scene);
-		return;
-	}
-	InterlockedIncrement(&s_clean);
-	RunTail(scene);
-}
-
-// 0 off, 1 the lever, 2 the diagnostic (which wins when both are on).
 static int CurrentMode()
 {
-	if (DEV_BUILD && g_renderCfg.oldAnimDiag)
+#ifdef KEO_DEBUG
+	if (g_renderCfg.oldAnimDiag)
 		return 2;
+#endif
 	return g_renderCfg.oldAnimSkip ? 1 : 0;
 }
 
-static void DrainCounts(LONG* calls, LONG* clean, LONGLONG* ticks)
+static void SyncOldAnimation(void* barrier, const unsigned char* scene, int site)
 {
-	*calls = InterlockedExchange(&s_calls, 0);
-	*clean = InterlockedExchange(&s_clean, 0);
-	*ticks = InterlockedExchange64(&s_scanTicks, 0);
-}
-
-// Main thread, outside the render passes: a switch between off, the lever
-// and the diagnostic zeroes the counters, so no window mixes two modes.
-void OldAnim_MainThreadTick()
-{
-	static int modeWas = -1;   // -1 before the first tick
-	if (!s_installed)
-		return;
-	int mode = CurrentMode();
-	if (mode == modeWas)
-		return;
-	modeWas = mode;
-	LONG calls, clean;
-	LONGLONG ticks;
-	DrainCounts(&calls, &clean, &ticks);
-}
-
-std::string OldAnimStatsToken(LONG loops)
-{
-	LONG calls, clean;
-	LONGLONG ticks;
-	DrainCounts(&calls, &clean, &ticks);
-	if (!DetailedLogEnabled()) return std::string();
-	int mode = CurrentMode();
-	if (!s_installed || mode == 0)
-		return std::string();
-	double perLoop = loops > 0 ? 1.0 / (double)loops : 0.0;
-	std::ostringstream ss;
-	ss.setf(std::ios::fixed);
-	ss << std::setprecision(1) << " oldAnim=" << (double)calls * perLoop << "/"
-	   << (double)clean * perLoop << "/loop";
-	if (mode == 2)
+	if (IsMainThread() && s_installed)
 	{
-		LARGE_INTEGER freq;
-		QueryPerformanceFrequency(&freq);
-		double us = (freq.QuadPart && calls > 0)
-			? (double)ticks * 1e6 / (double)freq.QuadPart / (double)calls : 0.0;
-		ss << " scan=" << us << "us";
+		ForkPairState& pair = s_pairs[site / 2];
+		if (site & 1)
+		{
+			// A wait follows its own fire even if a setting changed.
+			if (ForkWait(&pair, true) == FORK_SKIP)
+				return;
+		}
+		else
+		{
+			const int mode = CurrentMode();
+			if (mode)
+			{
+				LARGE_INTEGER start, end;
+				if (mode == 2)
+					QueryPerformanceCounter(&start);
+				size_t parties = 0;
+				if (barrier)
+					memcpy(&parties, (const unsigned char*)barrier + OGRE_BARRIER_PARTIES, sizeof(parties));
+				const bool idle = ForkOldAnimationIdle(scene, parties, site >= 2);
+				if (mode == 2)
+				{
+					QueryPerformanceCounter(&end);
+					s_checkTicks += end.QuadPart - start.QuadPart;
+				}
+				++s_calls;
+				if (ForkFire(&pair, mode == 1, true, idle) == FORK_SKIP)
+				{
+					++s_idle;
+					return;
+				}
+				if (mode == 2 && idle)
+					++s_idle;
+			}
+		}
 	}
-	return ss.str();
+	s_sync(barrier);
 }
 
-static bool Resolve(HMODULE ogre, const char* symbol, void** out)
+static bool Admit(HMODULE ogre)
 {
-	*out = (void*)GetProcAddress(ogre, symbol);
-	if (*out)
-		return true;
-	LogError(std::string("Render: oldAnimSkip: OgreMain export missing: ") + symbol);
-	return false;
+	DWORD stamp = 0, size = 0;
+	if (!IsMainThread() || !ReadModuleImageId(ogre, &stamp, &size) ||
+	    stamp != OGRE_SCENE_BUILD_STAMP || size != OGRE_SCENE_BUILD_SIZE)
+		return false;
+
+	const unsigned char* base = (const unsigned char*)ogre;
+	// These functions are exported by ordinal only in the admitted DLL.
+	if ((const unsigned char*)GetProcAddress(ogre, MAKEINTRESOURCEA(8934)) != base + OGRE_BARRIER_SYNC_RVA ||
+	    (const unsigned char*)GetProcAddress(ogre, MAKEINTRESOURCEA(9121)) != base + kFirstWorkerRva ||
+	    (const unsigned char*)GetProcAddress(ogre, MAKEINTRESOURCEA(9122)) != base + kSecondWorkerRva)
+		return false;
+
+	unsigned char second[sizeof(kFirstWorker)];
+	memcpy(second, kFirstWorker, sizeof(second));
+	second[13] = 0x90; // read the second queue at SceneManager+0x4B90
+	second[62] = 0x1E; // the second worker calls the same pose routine from 0x60 bytes later
+	return memcmp(base + OGRE_BARRIER_SYNC_RVA, kBarrierEntry, sizeof(kBarrierEntry)) == 0 &&
+	       memcmp(base + kFirstWorkerRva, kFirstWorker, sizeof(kFirstWorker)) == 0 &&
+	       memcmp(base + kSecondWorkerRva, second, sizeof(second)) == 0 &&
+	       memcmp(base + 0x2CD615, kDispatchRead, sizeof(kDispatchRead)) == 0 &&
+	       memcmp(base + 0x2CD6AF, kDispatch, sizeof(kDispatch)) == 0 &&
+	       memcmp(base + 0x2CD7C4, kDispatchEntries, sizeof(kDispatchEntries)) == 0 &&
+	       memcmp(base + kPhaseRva, kPhases, sizeof(kPhases)) == 0;
+}
+
+static bool Arm(HMODULE ogre)
+{
+	const uintptr_t base = (uintptr_t)ogre;
+	unsigned char* page = AllocateNearPages(base, kPageSize);
+	if (!page)
+		return false;
+
+	code_patch_batch::Edit edits[4] = {};
+	for (int i = 0; i < 4; ++i)
+	{
+		unsigned char* stub = page + kStubStride * i;
+		code_patch_batch::Edit& edit = edits[i];
+		edit.address = (unsigned char*)(base + kPhaseRva + kCallOffsets[i]);
+		edit.size = 5;
+		memcpy(edit.before, kPhases + kCallOffsets[i], edit.size);
+		int32_t rel = 0;
+		if (BuildForkStub(stub, kStubStride, FORK_REG_R12, i, (uintptr_t)&SyncOldAnimation) != FORK_STUB_BYTES ||
+		    !Rel32To((uintptr_t)edit.address + edit.size, (uintptr_t)stub, &rel))
+		{
+			VirtualFree(page, 0, MEM_RELEASE);
+			return false;
+		}
+		edit.after[0] = 0xE8;
+		memcpy(edit.after + 1, &rel, sizeof(rel));
+	}
+
+	DWORD previous = 0;
+	if (!VirtualProtect(page, kPageSize, PAGE_EXECUTE_READ, &previous) ||
+	    !FlushInstructionCache(GetCurrentProcess(), page, 4 * kStubStride))
+	{
+		VirtualFree(page, 0, MEM_RELEASE);
+		return false;
+	}
+
+	s_sync = (BarrierSync)(base + OGRE_BARRIER_SYNC_RVA);
+	bool mayPublish = false;
+	const bool armed = code_patch_batch::Apply(edits, 4, &s_threads, &mayPublish);
+	if (!mayPublish)
+		VirtualFree(page, 0, MEM_RELEASE);
+	// Keep a possibly referenced stub page for the lifetime of Ogre. Until
+	// successful admission every stub unconditionally forwards to Barrier::sync.
+	if (armed)
+		s_pairs[0].live = s_pairs[1].live = true;
+	return armed;
+}
 }
 
 bool InstallOldAnimLever()
@@ -291,23 +202,52 @@ bool InstallOldAnimLever()
 	if (s_tried)
 		return s_installed;
 	s_tried = true;
-	HMODULE ogre = GetModuleHandleA(s_site.module);
-	if (!ogre)
+
+	HMODULE ogre = GetModuleHandleA("OgreMain_x64.dll");
+	if (!ogre || !Admit(ogre))
 	{
-		LogError("Render: oldAnimSkip: OgreMain not loaded");
+		LogError("Render: oldAnimSkip: native animation worker contract refused");
 		return false;
 	}
-	if (!Resolve(ogre, "?FACTORY_TYPE_NAME@EntityFactory@Ogre@@2V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@A",
-	             (void**)&s_entityType) ||
-	    !Resolve(ogre, "?MurmurHash3_x86_32@@YAXPEBXHIPEAX@Z", (void**)&s_murmur) ||
-	    !Resolve(ogre, "??9Matrix4@Ogre@@QEBA_NAEBV01@@Z", (void**)&s_matrixNe) ||
-	    !Resolve(ogre, "?updateNode@TagPoint@Ogre@@QEBAXXZ", (void**)&s_tagUpdateNode) ||
-	    !Resolve(ogre, "?_fireFrameListenerPostAnimationThreads@Root@Ogre@@QEAAXXZ", (void**)&s_firePostAnim) ||
-	    !Resolve(ogre, "?msSingleton@?$Singleton@VRoot@Ogre@@@Ogre@@1PEAVRoot@2@EA", (void**)&s_rootSingleton))
+	if (!code_patch_threads::Prepare((GetDLLDirectory() + OPTIMIZER_LOG_NAME).c_str()) || !Arm(ogre))
+	{
+		LogError("Render: oldAnimSkip: could not install paired animation worker hooks");
 		return false;
-	s_entityHash = TypeHash(s_entityType);
-	if (!InstallModuleHook(s_site, (void*)hook_UpdateAllOldAnimations, (void**)&s_orig, NULL))
-		return false;
+	}
 	s_installed = true;
 	return true;
+}
+
+void OldAnim_MainThreadTick()
+{
+	static int previousMode = -1;
+	const int mode = CurrentMode();
+	if (!s_installed || previousMode == mode)
+		return;
+	previousMode = mode;
+	s_calls = s_idle = 0;
+	s_checkTicks = 0;
+}
+
+std::string OldAnimStatsToken(LONG loops)
+{
+	const LONG calls = s_calls, idle = s_idle;
+	const LONGLONG ticks = s_checkTicks;
+	s_calls = s_idle = 0;
+	s_checkTicks = 0;
+	const int mode = CurrentMode();
+	if (!DetailedLogEnabled() || !s_installed || !mode)
+		return std::string();
+	const double perLoop = loops > 0 ? 1.0 / loops : 0.0;
+	std::ostringstream ss;
+	ss.setf(std::ios::fixed);
+	ss << std::setprecision(1) << " oldAnim=" << calls * perLoop << "/" << idle * perLoop << "/loop";
+	if (mode == 2)
+	{
+		LARGE_INTEGER freq;
+		QueryPerformanceFrequency(&freq);
+		const double us = freq.QuadPart && calls > 0 ? (double)ticks * 1e6 / freq.QuadPart / calls : 0.0;
+		ss << " scan=" << us << "us";
+	}
+	return ss.str();
 }

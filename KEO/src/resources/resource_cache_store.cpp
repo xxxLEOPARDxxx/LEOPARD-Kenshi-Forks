@@ -13,6 +13,7 @@
 namespace resource_cache {
 namespace {
 const size_t MaxEntries=262144, MaxQueue=128, Chunk=256*1024;
+const size_t MenuChunk = 1024 * 1024;
 const size_t MaxRoots=8192, MaxDirectories=65536, MaxStartupFiles=262144;
 const unsigned __int64 MaxFile=256ULL*1024*1024, MiB=1024ULL*1024;
 __declspec(align(8)) volatile LONGLONG allocated=0,hits=0,misses=0,queued=0,rejected=0,readBytes=0;
@@ -200,11 +201,11 @@ ReadResult ReadOne(const std::string&p,LONG epoch,LONG startupEpoch=-1,bool obse
         // while observed native opens wait behind it. Demand remains paced.
         if(speculative&&(!Load(backgroundAllowed)||(startup?HasRequests():HasDemandRequests())))return ReadDeferred;
         if(ReadCancelled(epoch,startupEpoch))return ReadCancelledResult;
-        DWORD count=DWORD((std::min)(Chunk,f->data.size()-offset)),got=0;
         DWORD start=GetTickCount();
+        const bool menuFast=StartupUnpaced(startup,start);
+        DWORD count=DWORD((std::min)(menuFast?MenuChunk:Chunk,f->data.size()-offset)),got=0;
         if(!ReadFile(h.h,&f->data[offset],count,&got,NULL)||got!=count)return ReadSkipped;
         offset+=got;InterlockedExchangeAdd64(&readBytes,got);
-        const bool menuFast=StartupUnpaced(startup,GetTickCount());
         if(startup){Guard g;if(!StartupCancelled(startupEpoch)){progress.startupReadBytes+=got;if(menuFast)progress.startupFastReadBytes+=got;}}
         if(menuFast){startupBurstBytes+=got;if(startupBurstBytes>=4*1024*1024){startupBurstBytes=0;Sleep(0);}continue;}
         startupBurstBytes=0;

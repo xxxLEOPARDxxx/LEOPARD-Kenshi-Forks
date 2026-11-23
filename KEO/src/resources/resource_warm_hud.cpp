@@ -78,7 +78,7 @@ struct HudState : MyGUI::IUnlinkWidget {
 void ResourceWarmHudTick(bool enabled,const resource_warm_hud::Snapshot& snapshot)
 {
     if(!IsMainThread())return;
-    if(!enabled||(resource_warm_hud::KnownSnapshot(snapshot)&&!resource_warm_hud::HasWork(snapshot))){if(state.manager)state.Clear();state.failed=false;return;}
+    if(!enabled){if(state.manager)state.Clear();state.failed=false;return;}
     MyGUI::Gui* gui=MyGUI::Gui::getInstancePtr();
     MyGUI::WidgetManager* manager=MyGUI::WidgetManager::getInstancePtr();
     if(!gui||!manager||!MyGUI::RenderManager::getInstancePtr()){state.Clear();return;}

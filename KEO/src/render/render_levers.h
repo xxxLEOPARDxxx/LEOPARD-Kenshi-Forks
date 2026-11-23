@@ -81,7 +81,7 @@ std::string ShadowReachStatsToken(double windowSec);
 // gpuParamCache is.
 void GpuParams_MainThreadTick();
 
-// Idempotent: the SceneManager::updateAllOldAnimations hook, shared by
+// Idempotent: the old-animation worker pair hooks, shared by
 // oldAnimSkip and oldAnimDiag.
 bool InstallOldAnimLever();
 // Main thread, from RenderLeversMainThreadTick: zeroes the counters when the

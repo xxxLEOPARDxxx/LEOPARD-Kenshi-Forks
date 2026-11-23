@@ -317,8 +317,8 @@ msgid "Show resource warmup text"
 msgstr "Show resource warmup text"
 
 
-msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
-msgstr "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left while resources are being prepared. Hides automatically when work finishes and reappears for new requests. The queue can grow as you move; this is not progress for the whole world."
+msgid "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The text stays visible after warmup until this option is turned off."
+msgstr "Shows RAM and VRAM cache use, background reading speed and remaining resource requests in the upper left. The text stays visible after warmup until this option is turned off."
 
 
 msgid "remaining"
