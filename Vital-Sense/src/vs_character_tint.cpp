@@ -33,6 +33,7 @@
 #include <vector>
 #include <algorithm>
 #include <map>
+#include <set>
 
 namespace vs_character_tint
 {
@@ -74,6 +75,10 @@ unsigned int gTintAnimalSampleLogCount = 0;
 DWORD gTintRelationSampleLogWindowStartMs = 0;
 unsigned int gTintRelationSampleLogCount = 0;
 DWORD gTintWarmupUntilMs = 0;
+const DWORD kFailedTintClearRetryMs = 250;
+const unsigned int kMaxTintClearAttempts = 3;
+std::set<ProbeHandleKey> gUnavailableTintHandles;
+unsigned int gUnavailableTintGeneration = 0;
 size_t gTintLastObservedActiveCharacterCount = 0;
 unsigned int gTintDiagHandleResolveCalls = 0;
 unsigned int gTintDiagHandleResolveHits = 0;
@@ -153,6 +158,8 @@ void FlushAnimalTintCloneReleases()
 void ResetTintRuntimeTracking(RuntimeStateView& state)
 {
     state.characterTintEntries.clear();
+    gUnavailableTintHandles.clear();
+    gUnavailableTintGeneration = 0;
     for (size_t i = 0; i < gAnimalTintMaterialCloneEntries.size(); ++i)
     {
         ReleaseAnimalTintClonesLater(gAnimalTintMaterialCloneEntries[i].cloneMaterials);
@@ -1012,6 +1019,26 @@ std::string BuildAnimalTintCloneName(const hand& targetHandle, size_t subEntityI
     return ss.str();
 }
 
+void RetireAnimalTintClone(Ogre::MaterialPtr& clone)
+{
+    // An old entity or portrait can still own a reference after its handle disappears.
+    // Neutralize that private material before giving up the registration.
+    ApplyTintToMaterialColourRequired(clone.getPointer(), kClearTintColour, false);
+    ReleaseAnimalTintCloneLater(clone);
+}
+
+bool HasAnimalTintClones(const AnimalTintMaterialCloneEntry& entry)
+{
+    for (size_t i = 0; i < entry.cloneMaterials.size(); ++i)
+    {
+        if (!entry.cloneMaterials[i].isNull())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::Entity* characterEntity)
 {
     const int entryIndex = FindAnimalTintCloneEntryByHandle(targetHandle);
@@ -1020,79 +1047,56 @@ bool RestoreAnimalTintMaterialClonesForEntity(const hand& targetHandle, Ogre::En
         return false;
     }
 
-    if (!characterEntity)
-    {
-        return false;
-    }
-
     AnimalTintMaterialCloneEntry& entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
-
     size_t subEntityCount = 0;
-    try
+    if (characterEntity)
     {
-        subEntityCount = characterEntity->getNumSubEntities();
-    }
-    catch (...)
-    {
-        return false;
-    }
-
-    if (subEntityCount < entry.originalMaterials.size())
-    {
-        return false;
+        try
+        {
+            subEntityCount = characterEntity->getNumSubEntities();
+        }
+        catch (...)
+        {
+            return false;
+        }
     }
 
-    bool restoredAny = false;
     bool restoredAll = true;
-    for (size_t i = 0; i < entry.originalMaterials.size(); ++i)
+    for (size_t i = 0; i < entry.cloneMaterials.size(); ++i)
     {
-        if (entry.originalMaterials[i].isNull())
+        Ogre::MaterialPtr& clone = entry.cloneMaterials[i];
+        if (clone.isNull())
         {
             continue;
         }
 
-        Ogre::SubEntity* subEntity = 0;
-        try
+        if (i < subEntityCount)
         {
-            subEntity = characterEntity->getSubEntity(i);
-        }
-        catch (...)
-        {
-            subEntity = 0;
-        }
-        if (!subEntity)
-        {
-            restoredAll = false;
-            continue;
+            try
+            {
+                Ogre::SubEntity* subEntity = characterEntity->getSubEntity(i);
+                if (subEntity && MaterialPtrsReferSameObject(subEntity->getMaterial(), clone))
+                {
+                    subEntity->setMaterial(entry.originalMaterials[i]);
+                }
+            }
+            catch (...)
+            {
+                ApplyTintToMaterialColourRequired(clone.getPointer(), kClearTintColour, false);
+                restoredAll = false;
+                continue;
+            }
         }
 
-        bool setOk = false;
-        try
-        {
-            subEntity->setMaterial(entry.originalMaterials[i]);
-            setOk = true;
-        }
-        catch (...)
-        {
-            setOk = false;
-        }
-        if (setOk)
-        {
-            restoredAny = true;
-        }
-        else
-        {
-            restoredAll = false;
-        }
+        RetireAnimalTintClone(clone);
+        entry.originalMaterials[i].setNull();
     }
 
     if (restoredAll)
     {
-        ReleaseAnimalTintClonesLater(entry.cloneMaterials);
         gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
     }
-
-    return restoredAny;
+    return restoredAll;
 }
 
 bool ApplyTintToEntityUsingAnimalMaterialClones(
@@ -1128,13 +1132,15 @@ bool ApplyTintToEntityUsingAnimalMaterialClones(
     }
 
     AnimalTintMaterialCloneEntry& entry = gAnimalTintMaterialCloneEntries[static_cast<size_t>(entryIndex)];
-    if (entry.originalMaterials.size() != subEntityCount || entry.cloneMaterials.size() != subEntityCount)
+    for (size_t i = subEntityCount; i < entry.cloneMaterials.size(); ++i)
     {
-        entry.originalMaterials.clear();
-        ReleaseAnimalTintClonesLater(entry.cloneMaterials);
-        entry.originalMaterials.resize(subEntityCount);
-        entry.cloneMaterials.resize(subEntityCount);
+        if (!entry.cloneMaterials[i].isNull())
+        {
+            RetireAnimalTintClone(entry.cloneMaterials[i]);
+        }
     }
+    entry.originalMaterials.resize(subEntityCount);
+    entry.cloneMaterials.resize(subEntityCount);
 
     bool appliedAny = false;
     for (size_t i = 0; i < subEntityCount; ++i)
@@ -1173,7 +1179,10 @@ bool ApplyTintToEntityUsingAnimalMaterialClones(
         if (!currentIsClone)
         {
             entry.originalMaterials[i] = currentMaterial;
-            ReleaseAnimalTintCloneLater(cloneMaterial);
+            if (!cloneMaterial.isNull())
+            {
+                RetireAnimalTintClone(cloneMaterial);
+            }
         }
         if (entry.originalMaterials[i].isNull())
         {
@@ -1207,25 +1216,46 @@ bool ApplyTintToEntityUsingAnimalMaterialClones(
         }
         if (!appliedTint)
         {
+            if (!currentIsClone)
+            {
+                ReleaseAnimalTintCloneLater(cloneMaterial);
+                entry.originalMaterials[i].setNull();
+            }
+            continue;
+        }
+        if (currentIsClone)
+        {
+            appliedAny = true;
             continue;
         }
 
-        bool setOk = false;
         try
         {
             subEntity->setMaterial(cloneMaterial);
-            setOk = true;
+            appliedAny = true;
         }
         catch (...)
         {
-            setOk = false;
-        }
-        if (setOk)
-        {
-            appliedAny = true;
+            // Check the actual binding in case the engine threw after assigning it.
+            try
+            {
+                if (!MaterialPtrsReferSameObject(subEntity->getMaterial(), cloneMaterial))
+                {
+                    ReleaseAnimalTintCloneLater(cloneMaterial);
+                    entry.originalMaterials[i].setNull();
+                }
+            }
+            catch (...)
+            {
+                // Keep an unconfirmed binding for the regular clear path.
+            }
         }
     }
 
+    if (!appliedAny && !HasAnimalTintClones(entry))
+    {
+        gAnimalTintMaterialCloneEntries.erase(gAnimalTintMaterialCloneEntries.begin() + entryIndex);
+    }
     return appliedAny;
 }
 
@@ -1904,16 +1934,13 @@ bool ApplyTintToCharacter(Character* candidate, const Ogre::ColourValue& colour,
     const bool wantsBodyHighlight = colour.a > 0.0f;
     if (!wantsBodyHighlight)
     {
-        bool restoredClone = false;
-        if (hasTargetHandle)
-        {
-            restoredClone = RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
-        }
         SetEntitySkeletonVisible(characterEntity, false);
-        const bool clearedByConstants =
-            ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
+        if (hasTargetHandle && FindAnimalTintCloneEntryByHandle(targetHandle) >= 0)
+        {
+            return RestoreAnimalTintMaterialClonesForEntity(targetHandle, characterEntity);
+        }
+        return ApplyTintToAppearanceMaterials(appearance, characterEntity, colour, depthOverride, pluginName)
             || ApplyTintToEntity(characterEntity, colour, depthOverride);
-        return restoredClone || clearedByConstants;
     }
 
     if (hasTargetHandle && (isAnimalCharacter || isSquadCharacter))
@@ -2104,7 +2131,9 @@ void BuildDesiredTintEntries(RuntimeStateView& state, std::vector<CharacterTintE
         CharacterTintEntry entry = {
             target.targetHandle,
             target.markerRelation,
-            TintBountyOf(state, target)
+            TintBountyOf(state, target),
+            0,
+            0
         };
         desiredEntries.push_back(entry);
     }
@@ -2207,33 +2236,73 @@ void ResetKoCharacterTintRuntime(RuntimeStateView& state)
     gTintLastObservedActiveCharacterCount = 0;
 }
 
+static bool IsTintClearDue(const CharacterTintEntry& entry, DWORD nowMs)
+{
+    return entry.nextClearAttemptMs == 0
+        || static_cast<LONG>(nowMs - entry.nextClearAttemptMs) >= 0;
+}
+
+static DWORD NextTintClearAttempt(DWORD nowMs)
+{
+    const DWORD nextMs = nowMs + kFailedTintClearRetryMs;
+    return nextMs != 0 ? nextMs : 1;
+}
+
+static bool ClearTintEntry(CharacterTintEntry& entry, Character* candidate, DWORD nowMs, const char* pluginName)
+{
+    const bool cleared = candidate
+        ? SetTintForCharacter(candidate, kClearTintColour, false, pluginName)
+        : RestoreAnimalTintMaterialClonesForEntity(entry.targetHandle, 0);
+    if (cleared)
+    {
+        ++gTintDiagCleared;
+        return true;
+    }
+    if (++entry.failedClearAttempts >= kMaxTintClearAttempts)
+    {
+        if (candidate && RestoreAnimalTintMaterialClonesForEntity(entry.targetHandle, 0))
+        {
+            ++gTintDiagCleared;
+        }
+        return true;
+    }
+
+    entry.nextClearAttemptMs = NextTintClearAttempt(nowMs);
+    return false;
+}
+
 void ClearKoCharacterTint(RuntimeStateView& state, const char* pluginName)
 {
     gTintDiagnosticsEnabled = state.config.debugLogDiagnostics;
+    if (gUnavailableTintGeneration != 0 || !gUnavailableTintHandles.empty())
+    {
+        gUnavailableTintHandles.clear();
+        gUnavailableTintGeneration = 0;
+    }
 
     if (state.characterTintEntries.empty() && gAnimalTintMaterialCloneEntries.empty())
     {
         return;
     }
 
-    std::vector<CharacterTintEntry> unclearedEntries;
-    unclearedEntries.reserve(state.characterTintEntries.size());
-
-    for (size_t i = 0; i < state.characterTintEntries.size(); ++i)
+    const DWORD nowMs = GetTickCount();
+    std::vector<CharacterTintEntry>& entries = state.characterTintEntries;
+    size_t retained = 0;
+    for (size_t i = 0; i < entries.size(); ++i)
     {
-        Character* candidate = ResolveTintCharacterByHandle(state.characterTintEntries[i].targetHandle);
-        if (SetTintForCharacter(candidate, kClearTintColour, false, pluginName))
+        CharacterTintEntry& entry = entries[i];
+        if (IsTintClearDue(entry, nowMs)
+            && ClearTintEntry(entry, ResolveTintCharacterByHandle(entry.targetHandle), nowMs, pluginName))
         {
-            ++gTintDiagCleared;
+            continue;
         }
-        else
+        if (retained != i)
         {
-            // Keep unresolved entries so clear can be retried when the entity becomes resolvable.
-            unclearedEntries.push_back(state.characterTintEntries[i]);
+            entries[retained] = entry;
         }
+        ++retained;
     }
-
-    state.characterTintEntries.swap(unclearedEntries);
+    entries.erase(entries.begin() + retained, entries.end());
     EmitTintDiagLogIfDue(pluginName);
 }
 
@@ -2260,6 +2329,14 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         return;
     }
 
+    const DWORD clearNowMs = GetTickCount();
+    const unsigned int generation = state.probeRuntimeCaches.generation;
+    if (gUnavailableTintGeneration != generation)
+    {
+        gUnavailableTintHandles.clear();
+        gUnavailableTintGeneration = generation;
+    }
+
     std::vector<CharacterTintEntry> rawDesiredEntries;
     BuildDesiredTintEntries(state, rawDesiredEntries);
 
@@ -2267,10 +2344,20 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
     desiredEntries.reserve(rawDesiredEntries.size());
     for (size_t i = 0; i < rawDesiredEntries.size(); ++i)
     {
-        ResolvedTintCandidate desired = {
-            rawDesiredEntries[i],
-            ResolveTintCharacterByHandle(rawDesiredEntries[i].targetHandle)
-        };
+        const CharacterTintEntry& tint = rawDesiredEntries[i];
+        if (!gUnavailableTintHandles.empty()
+            && gUnavailableTintHandles.count(MakeProbeHandleKey(tint.targetHandle)) != 0)
+        {
+            continue;
+        }
+
+        Character* candidate = ResolveTintCharacterByHandle(tint.targetHandle);
+        if (!candidate)
+        {
+            gUnavailableTintHandles.insert(MakeProbeHandleKey(tint.targetHandle));
+            continue;
+        }
+        ResolvedTintCandidate desired = {tint, candidate};
         desiredEntries.push_back(desired);
     }
 
@@ -2315,7 +2402,8 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
                 ++gTintDiagDesiredIndexMisses;
             }
         }
-        const bool keepCurrentTint = !tintConfigChanged
+        const bool keepCurrentTint = oldEntry.nextClearAttemptMs == 0
+            && !tintConfigChanged
             && hasDesiredEntry
             && (desiredEntries[desiredIndex].tintEntry.markerRelation == oldEntry.markerRelation)
             && (desiredEntries[desiredIndex].tintEntry.totalBounty == oldEntry.totalBounty);
@@ -2329,6 +2417,7 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             // своих копиях материала, их никто не трогает.
             Character* const keptCandidate = desiredEntries[desiredIndex].character;
             if (keptCandidate
+                && oldEntry.markerRelation != CachedKoTarget::RELATION_SQUAD
                 && !vs_character_lookup::IsAnimalCharacterSafe(keptCandidate)
                 && !vs_character_lookup::IsCharacterInPlayerSquadSafe(keptCandidate))
             {
@@ -2348,21 +2437,17 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             continue;
         }
 
-        Character* existingCandidate = hasDesiredEntry
-            ? desiredEntries[desiredIndex].character
-            : ResolveTintCharacterByHandle(oldEntry.targetHandle);
-        if (SetTintForCharacter(existingCandidate, kClearTintColour, false, pluginName))
+        CharacterTintEntry retained = oldEntry;
+        if (!IsTintClearDue(retained, clearNowMs)
+            || !ClearTintEntry(
+                retained,
+                hasDesiredEntry
+                    ? desiredEntries[desiredIndex].character
+                    : (gUnavailableTintHandles.count(MakeProbeHandleKey(oldEntry.targetHandle)) != 0
+                        ? 0 : ResolveTintCharacterByHandle(oldEntry.targetHandle)),
+                clearNowMs,
+                pluginName))
         {
-            ++gTintDiagCleared;
-        }
-        else
-        {
-            // Keep unresolved handles to retry clear instead of dropping stale tint state.
-            CharacterTintEntry retained = oldEntry;
-            if (hasDesiredEntry)
-            {
-                retained.markerRelation = desiredEntries[desiredIndex].tintEntry.markerRelation;
-            }
             retainedEntries.push_back(retained);
             retainedByHandle[MakeProbeHandleKey(retained.targetHandle)] = true;
             if (gTintDiagnosticsEnabled)
@@ -2446,6 +2531,13 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
         {
             nextEntries.push_back(desired.tintEntry);
         }
+        else if (FindAnimalTintCloneEntryByHandle(desired.tintEntry.targetHandle) >= 0)
+        {
+            // An interrupted attach can leave a private material that still needs cleanup.
+            CharacterTintEntry pending = desired.tintEntry;
+            pending.nextClearAttemptMs = NextTintClearAttempt(clearNowMs);
+            nextEntries.push_back(pending);
+        }
     }
 
     state.characterTintEntries.swap(nextEntries);
@@ -2480,8 +2572,15 @@ bool SuspendCharacterTintForPortrait(
     colourOut = DesiredTintColour(state, state.characterTintEntries[index]);
     depthOut = state.config.characterTintForceDepthOverride;
 
+    const CharacterTintEntry& entry = state.characterTintEntries[index];
+    const bool resumeAfterDraw = state.highlightRuntimeActive
+        && state.config.enableCharacterTint
+        && entry.nextClearAttemptMs == 0;
+    const bool hadClones = resumeAfterDraw && FindAnimalTintCloneEntryByHandle(entry.targetHandle) >= 0;
     bool hadException = false;
-    return TryApplyTintToCharacterSeh(character, &kClearTintColour, false, pluginName, &hadException);
+    const bool cleared = TryApplyTintToCharacterSeh(character, &kClearTintColour, false, pluginName, &hadException);
+    // Restore the visible tint after drawing the portrait, including partly restored models.
+    return resumeAfterDraw && (cleared || hadClones);
 }
 
 void ResumeCharacterTintAfterPortrait(

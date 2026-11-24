@@ -182,3 +182,15 @@ English
 
 - Текст состояния больше не обрезается рядом со знаком награды: иконка, символ и подпись получают достаточно места.
 - Учитываются длина подписи, размер шрифта и ширина всего маркера при размещении у края экрана.
+
+## Release 10 / Выпуск 10
+
+English
+
+- Markers and base body tint use faction standing. Fallen squad members keep their squad colour, and temporary aggression no longer makes neutrals appear as enemies.
+- Fixed highlight cleanup when characters disappear or their models change. Highlight materials are released, and missing targets are no longer checked every frame.
+
+Русский
+
+- Метки и базовая подсветка тела берут цвет из отношений фракций. Павшие бойцы сохраняют цвет своего отряда, а временная агрессия больше не красит нейтралов как врагов.
+- Исправлена очистка подсветки при исчезновении персонажей и смене моделей. Материалы подсветки освобождаются, а игра перестаёт проверять исчезнувших персонажей каждый кадр.
