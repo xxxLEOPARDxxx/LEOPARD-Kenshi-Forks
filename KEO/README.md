@@ -23,6 +23,8 @@ The settings are grouped as follows:
 
 MCM marks settings requiring a restart. The carried-weight option requires one; the three job switches take effect during play. Advanced settings are documented in the packaged `KEO.defaults.ini` template. KEO creates your personal `KEO.ini` for configuration. Preserve that personal file when updating.
 
+With **Backpack fixes** enabled, furnace jobs look for severed limbs in the main inventory and the worn backpack. The setting applies during play.
+
 ### Automatic path repair
 
 **Pathing repairs itself** uses the name from KenshiQOL's feature description.
@@ -149,6 +151,8 @@ GPL-3.0; see `LICENSE`. Attribution/provenance files accompany the package. Corr
 ### Возможности и настройки
 
 Сохранены предварительная загрузка местности, подготовка навсетки, графические оптимизации, игровые правки и работа с рюкзаками. Kenshi рассчитывает пути и управляет обычным движением отрядов. Задание Steel «Маршрут по точкам» передаёт игре обычные приказы движения. Настраиваются в **MCM > KEO**; без MCM остаётся исходная вкладка **Настройки > KEO**. Интерфейс поддерживает русский, английский и упрощённый китайский; для остальных языков используется английский.
+
+С включёнными исправлениями рюкзаков работа у печи учитывает отсечённые конечности и в основном инвентаре, и в надетом рюкзаке. Настройка действует сразу.
 
 Группы настроек:
 
@@ -736,3 +740,15 @@ English
 - Текст прогрева остаётся на экране после завершения и показывает объём кэшей ОЗУ и видеопамяти. Его можно скрыть галочкой в MCM.
 - На поддерживаемых сборках пустые очереди анимации персонажей больше не запускают лишние рабочие потоки.
 - Добавлена защита от одного из вылетов при освобождении материалов рельефа на выходе из игры.
+
+## Release 10 / Выпуск 10
+
+English
+
+- Ordinary movement and squad orders use Kenshi's own pathfinding. Area preloading, optional automatic navmesh repair and the Waypoint route job remain available.
+- With Backpack fixes enabled, furnace jobs also collect severed limbs from a worn backpack.
+
+Русский
+
+- Обычные приказы движения и движение отрядов используют штатный поиск пути Kenshi. Предзагрузка зон, необязательное автовосстановление навсетки и задание «Маршрут по точкам» остаются доступны.
+- С включёнными исправлениями рюкзаков персонажи относят в печь отсечённые конечности из надетого рюкзака.
