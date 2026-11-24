@@ -1,6 +1,10 @@
 #include "vs_character_lookup.h"
 
+#include "vs_types.h"
+
 #include <Windows.h>
+#include <kenshi/Faction.h>
+#include <kenshi/FactionRelations.h>
 #include <kenshi/GameWorld.h>
 #include <kenshi/Globals.h>
 #include <kenshi/PlayerInterface.h>
@@ -96,6 +100,13 @@ bool IsCharacterInPlayerSquadSafe(Character* candidate)
     bool inPlayerSquad = false;
     __try
     {
+        // A corpse can outlive its entry in the player's active roster.
+        const Faction* playerFaction = ou->player->participant;
+        if (playerFaction && candidate->owner == playerFaction)
+        {
+            return true;
+        }
+
         const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
         if (playerCharacters.valid())
         {
@@ -117,86 +128,71 @@ bool IsCharacterInPlayerSquadSafe(Character* candidate)
     return inPlayerSquad;
 }
 
-bool IsEnemyToAnyPlayerCharacterSafe(Character* candidate)
+static int ReadFactionRelation(const FactionRelations* relations, Faction* otherFaction)
 {
-    if (!candidate || !ou || !ou->player)
+    if (!relations)
     {
-        return false;
+        return CachedKoTarget::RELATION_NEUTRAL;
     }
 
-    bool isEnemy = false;
-    __try
+    // Native isEnemy/isAlly can insert a missing diplomatic record.
+    // Use their inclusive thresholds and the native default without changing the table.
+    const auto entry = relations->_factionRelations.find(otherFaction);
+    const bool hasEntry = entry != relations->_factionRelations.end();
+    const float standing = hasEntry ? entry->second.relation : relations->defaultFactionRelation;
+    if (standing <= -30.0f)
     {
-        const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
-        if (!playerCharacters.valid())
-        {
-            return false;
-        }
-
-        for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-        {
-            Character* playerCharacter = *it;
-            if (!playerCharacter || playerCharacter == candidate)
-            {
-                continue;
-            }
-
-            bool hostileToPlayerCharacter = false;
-            __try
-            {
-                hostileToPlayerCharacter = candidate->isEnemy(playerCharacter, true);
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = candidate->shouldIScrewThisGuyOver(playerCharacter);
-                }
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = candidate->areYouGonnaGetMe(playerCharacter);
-                }
-                if (!hostileToPlayerCharacter)
-                {
-                    hostileToPlayerCharacter = playerCharacter->areYouGonnaGetMe(candidate);
-                }
-            }
-            __except (EXCEPTION_EXECUTE_HANDLER)
-            {
-                hostileToPlayerCharacter = false;
-            }
-
-            if (hostileToPlayerCharacter)
-            {
-                isEnemy = true;
-                break;
-            }
-        }
+        return CachedKoTarget::RELATION_ENEMY;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER)
+    if (standing >= 50.0f || (hasEntry && entry->second.alliance))
     {
-        isEnemy = false;
+        return CachedKoTarget::RELATION_ALLY;
     }
-
-    return isEnemy;
+    return CachedKoTarget::RELATION_NEUTRAL;
 }
 
-bool IsSameFactionAsPlayerSafe(Character* candidate)
+int ResolveMarkerRelationSafe(Character* candidate, bool isPlayerSquadMember)
 {
-    if (!candidate || !ou || !ou->player)
+    if (!candidate || !ou)
     {
-        return false;
+        return CachedKoTarget::RELATION_NEUTRAL;
+    }
+    if (isPlayerSquadMember)
+    {
+        return CachedKoTarget::RELATION_SQUAD;
     }
 
-    bool sameFaction = false;
     __try
     {
-        Faction* playerFaction = ou->player->participant;
-        sameFaction = (playerFaction && candidate->owner == playerFaction);
+        Faction* const faction = candidate->owner;
+        Faction* const playerFaction = ou->player ? ou->player->participant : 0;
+        if (faction && playerFaction)
+        {
+            // Relation colours describe faction standing, regardless of temporary combat
+            // targets, disguise, or whether the character still has an active AI.
+            const int factionRelation = ReadFactionRelation(faction->relations, playerFaction);
+            if (factionRelation == CachedKoTarget::RELATION_ENEMY)
+            {
+                return CachedKoTarget::RELATION_ENEMY;
+            }
+            const int playerRelation = ReadFactionRelation(playerFaction->relations, faction);
+            if (playerRelation == CachedKoTarget::RELATION_ENEMY)
+            {
+                return CachedKoTarget::RELATION_ENEMY;
+            }
+            if (factionRelation == CachedKoTarget::RELATION_ALLY
+                || playerRelation == CachedKoTarget::RELATION_ALLY)
+            {
+                return CachedKoTarget::RELATION_ALLY;
+            }
+        }
     }
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
-        sameFaction = false;
+        return CachedKoTarget::RELATION_NEUTRAL;
     }
 
-    return sameFaction;
+    return CachedKoTarget::RELATION_NEUTRAL;
 }
 
 } // namespace vs_character_lookup

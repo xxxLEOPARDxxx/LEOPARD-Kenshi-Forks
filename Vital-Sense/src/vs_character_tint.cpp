@@ -1866,47 +1866,6 @@ AppearanceBase* GetCharacterAppearanceSafe(Character* candidate)
     return appearance;
 }
 
-int ResolveEffectiveTintRelationSafe(Character* candidate, int cachedRelation)
-{
-    if (!candidate)
-    {
-        if (cachedRelation == CachedKoTarget::RELATION_SQUAD
-            || cachedRelation == CachedKoTarget::RELATION_ALLY
-            || cachedRelation == CachedKoTarget::RELATION_ENEMY
-            || cachedRelation == CachedKoTarget::RELATION_NEUTRAL)
-        {
-            return cachedRelation;
-        }
-        return CachedKoTarget::RELATION_ENEMY;
-    }
-
-    if (vs_character_lookup::IsCharacterInPlayerSquadSafe(candidate))
-    {
-        return CachedKoTarget::RELATION_SQUAD;
-    }
-
-    // Keep tint relation aligned with probe/marker classification first.
-    if (cachedRelation == CachedKoTarget::RELATION_ENEMY
-        || cachedRelation == CachedKoTarget::RELATION_ALLY
-        || cachedRelation == CachedKoTarget::RELATION_NEUTRAL)
-    {
-        return cachedRelation;
-    }
-
-    if (vs_character_lookup::IsEnemyToAnyPlayerCharacterSafe(candidate))
-    {
-        return CachedKoTarget::RELATION_ENEMY;
-    }
-
-    if (vs_character_lookup::IsSameFactionAsPlayerSafe(candidate))
-    {
-        return CachedKoTarget::RELATION_ALLY;
-    }
-
-    // Default hostile unless we can prove squad/ally through direct runtime checks.
-    return CachedKoTarget::RELATION_ENEMY;
-}
-
 int ResolveTintApplyPriority(int markerRelation)
 {
     if (markerRelation == CachedKoTarget::RELATION_SQUAD)
@@ -2312,9 +2271,6 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             rawDesiredEntries[i],
             ResolveTintCharacterByHandle(rawDesiredEntries[i].targetHandle)
         };
-        desired.tintEntry.markerRelation = ResolveEffectiveTintRelationSafe(
-            desired.character,
-            desired.tintEntry.markerRelation);
         desiredEntries.push_back(desired);
     }
 
@@ -2443,14 +2399,8 @@ void SyncKoCharacterTint(RuntimeStateView& state, const char* pluginName)
             }
             if (gTintRelationSampleLogCount < 8)
             {
-                const bool inPlayerSquad = vs_character_lookup::IsCharacterInPlayerSquadSafe(desiredCandidate);
-                const bool enemyToPlayer = vs_character_lookup::IsEnemyToAnyPlayerCharacterSafe(desiredCandidate);
-                const bool sameFaction = vs_character_lookup::IsSameFactionAsPlayerSafe(desiredCandidate);
                 std::stringstream ss;
                 ss << "tint relation sample relation=" << desired.tintEntry.markerRelation
-                   << " in_squad=" << (inPlayerSquad ? "true" : "false")
-                   << " enemy=" << (enemyToPlayer ? "true" : "false")
-                   << " same_faction=" << (sameFaction ? "true" : "false")
                    << " colour_rgba=("
                    << tintColour.r << ","
                    << tintColour.g << ","

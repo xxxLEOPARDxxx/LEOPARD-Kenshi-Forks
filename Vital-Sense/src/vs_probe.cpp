@@ -11,7 +11,6 @@
 #include <kenshi/Globals.h>
 #include <kenshi/InputHandler.h>
 #include <kenshi/Kenshi.h>
-#include <kenshi/PlayerInterface.h>
 #include <kenshi/RaceData.h>
 
 #include <Windows.h>
@@ -637,197 +636,6 @@ bool IsGamePausedSafe()
     return paused;
 }
 
-bool IsPlayerSquadMember(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
-    if (!playerCharacters.valid())
-    {
-        return false;
-    }
-
-    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-    {
-        if (*it == candidate)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool IsEnemyToAnyPlayerCharacter(Character* candidate, const lektor<Character*>& playerCharacters)
-{
-    if (!candidate)
-    {
-        return false;
-    }
-
-    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-    {
-        Character* playerCharacter = *it;
-        if (!playerCharacter || playerCharacter == candidate)
-        {
-            continue;
-        }
-
-        bool isEnemy = false;
-        __try
-        {
-            isEnemy = candidate->isEnemy(playerCharacter, true);
-            if (!isEnemy)
-            {
-                isEnemy = candidate->shouldIScrewThisGuyOver(playerCharacter);
-            }
-            if (!isEnemy)
-            {
-                isEnemy = candidate->areYouGonnaGetMe(playerCharacter);
-            }
-            if (!isEnemy)
-            {
-                isEnemy = playerCharacter->areYouGonnaGetMe(candidate);
-            }
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            isEnemy = false;
-        }
-
-        if (isEnemy)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool IsAllyToAllPlayerCharacters(Character* candidate, const lektor<Character*>& playerCharacters)
-{
-    if (!candidate)
-    {
-        return false;
-    }
-
-    bool hasComparablePlayerCharacter = false;
-    for (lektor<Character*>::const_iterator it = playerCharacters.begin(); it != playerCharacters.end(); ++it)
-    {
-        Character* playerCharacter = *it;
-        if (!playerCharacter || playerCharacter == candidate)
-        {
-            continue;
-        }
-        hasComparablePlayerCharacter = true;
-
-        bool isAlly = false;
-        __try
-        {
-            isAlly = candidate->isAlly(playerCharacter, true);
-        }
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            return false;
-        }
-
-        if (!isAlly)
-        {
-            return false;
-        }
-    }
-
-    return hasComparablePlayerCharacter;
-}
-
-bool IsSameFactionAsPlayer(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return false;
-    }
-
-    Faction* playerFaction = ou->player->participant;
-    if (!playerFaction)
-    {
-        return false;
-    }
-
-    return candidate->owner == playerFaction;
-}
-
-bool IsAnimalCandidateSafe(Character* candidate)
-{
-    if (!candidate)
-    {
-        return false;
-    }
-
-    bool isAnimal = false;
-    __try
-    {
-        isAnimal = (candidate->isAnimal() != 0);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        isAnimal = false;
-    }
-    return isAnimal;
-}
-
-int ResolveMarkerRelation(Character* candidate)
-{
-    if (!candidate || !ou || !ou->player)
-    {
-        return CachedKoTarget::RELATION_ENEMY;
-    }
-
-    if (IsPlayerSquadMember(candidate))
-    {
-        return CachedKoTarget::RELATION_SQUAD;
-    }
-
-    const bool candidateIsAnimal = IsAnimalCandidateSafe(candidate);
-    const lektor<Character*>& playerCharacters = ou->player->playerCharacters;
-    if (playerCharacters.valid())
-    {
-        if (IsEnemyToAnyPlayerCharacter(candidate, playerCharacters))
-        {
-            return CachedKoTarget::RELATION_ENEMY;
-        }
-
-        if (candidateIsAnimal)
-        {
-            // Keep non-squad fauna from being misclassified as ally; hostile animals are enemies
-            // already (above). LEOPARD: the rest are neutral, not enemies.
-            return IsSameFactionAsPlayer(candidate)
-                ? CachedKoTarget::RELATION_ALLY
-                : CachedKoTarget::RELATION_NEUTRAL;
-        }
-
-        if (IsAllyToAllPlayerCharacters(candidate, playerCharacters))
-        {
-            return CachedKoTarget::RELATION_ALLY;
-        }
-    }
-
-    if (IsSameFactionAsPlayer(candidate))
-    {
-        return CachedKoTarget::RELATION_ALLY;
-    }
-
-    // LEOPARD (15.10.2026): neither hostile to any of the player's characters nor allied
-    // with all of them - neutral, as CharacterHighlight (KenshiLib_Examples) has it.
-    if (playerCharacters.valid())
-    {
-        return CachedKoTarget::RELATION_NEUTRAL;
-    }
-    return CachedKoTarget::RELATION_ENEMY;
-}
-
 int ResolveTotalBounty(Character* candidate)
 {
     if (!candidate)
@@ -894,22 +702,6 @@ bool TryReadCharacterSnapshotSafe(Character* candidate, bool& isOnScreen, Ogre::
         return false;
     }
     return true;
-}
-
-int ResolveMarkerRelationSafe(RuntimeStateView& state, Character* candidate)
-{
-    int markerRelation = CachedKoTarget::RELATION_ENEMY;
-    __try
-    {
-        markerRelation = ResolveMarkerRelation(candidate);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        markerRelation = CachedKoTarget::RELATION_ENEMY;
-    }
-
-    (void)state;
-    return markerRelation;
 }
 
 Character* ResolveDeathParadeCandidateSafe(hand targetHandle, Character* fallbackCandidate)
@@ -1093,20 +885,15 @@ void ProcessMarkerCandidate(
     }
 
     vs_probe_cache::ClearNotDownedCandidate(state, targetHandle);
-    const int markerRelation = ResolveMarkerRelationSafe(state, candidate);
-    int resolvedRelation = markerRelation;
-    if (speciesClassified && speciesInfo.isLikelySpider && markerRelation != CachedKoTarget::RELATION_SQUAD)
-    {
-        // Spider relation APIs are inconsistent across races/mods; enforce enemy tint/marker unless in squad.
-        resolvedRelation = CachedKoTarget::RELATION_ENEMY;
-    }
+    const int markerRelation =
+        vs_character_lookup::ResolveMarkerRelationSafe(candidate, isPlayerControlledCharacter);
 
     CachedKoTarget cachedTarget = {
         targetHandle,
         candidatePos,
         nowMs,
         markerState,
-        resolvedRelation,
+        markerRelation,
         totalBounty,
         state.probeRuntimeCaches.generation
     };

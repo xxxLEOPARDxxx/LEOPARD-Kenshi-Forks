@@ -9,7 +9,6 @@ bool TryReadCharacterHandleSafe(Character* candidate, hand* handleOut);
 Character* ResolveCharacterByHandleSafe(const hand& targetHandle);
 bool IsAnimalCharacterSafe(Character* candidate);
 bool IsCharacterInPlayerSquadSafe(Character* candidate);
-bool IsEnemyToAnyPlayerCharacterSafe(Character* candidate);
-bool IsSameFactionAsPlayerSafe(Character* candidate);
+int ResolveMarkerRelationSafe(Character* candidate, bool isPlayerSquadMember);
 
 } // namespace vs_character_lookup

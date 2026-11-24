@@ -79,7 +79,7 @@ Current keys:
 - `enable_unconscious`, `enable_recovery_coma`, `enable_dying`, `enable_playing_dead`, `enable_dead` (bool): per-state visibility toggles.
 - `unconscious_text`, `recovery_coma_text`, `dying_text`, `playing_dead_text`, `dead_text` (string): per-state text labels.
 - `unconscious_text_size_px`, `recovery_coma_text_size_px`, `dying_text_size_px`, `playing_dead_text_size_px`, `dead_text_size_px` (number): per-state text sizes.
-- `enemy_color_hex`, `ally_color_hex`, `squad_color_hex` (hex string): relation colors.
+- `enemy_color_hex`, `ally_color_hex`, `neutral_color_hex`, `squad_color_hex` (hex string): relation colors. Status text and base body tint use faction standing. Fallen squad members keep the squad color after leaving the active roster. The bounty tint option can override the body color.
 - `unconscious_icon_texture`, `recovery_coma_icon_texture`, `dying_icon_texture`, `playing_dead_icon_texture`, `dead_icon_texture` (string): per-state icon textures.
 - `unconscious_icon_size_px`, `recovery_coma_icon_size_px`, `dying_icon_size_px`, `playing_dead_icon_size_px`, `dead_icon_size_px` (number): per-state icon sizes.
 
@@ -109,7 +109,7 @@ It uses KenshiLib, which is released under GPLv3.
 - Утечка: клоны материалов подсветки животных убираются из MaterialManager (в обычном кадре, не во время загрузки).
 
 ## Изменения форка (15.10.2026)
-- Отношение «нейтрал» (`RELATION_NEUTRAL`) и цвет `neutral_color_hex` (#FFA64D): не враг ни одному своему персонажу и не союзник всем - как в CharacterHighlight (KenshiLib_Examples). Мирные дикие животные - тоже нейтралы, пауки - всегда враги.
+- Отношение «нейтрал» (`RELATION_NEUTRAL`) и цвет `neutral_color_hex` (#FFA64D): не враг ни одному своему персонажу и не союзник всем - как в CharacterHighlight (KenshiLib_Examples). Мирные дикие животные считались нейтралами, а пауки принудительно отмечались врагами. В текущем коде их цвет тоже определяется отношениями фракций.
 - В MCM четыре цвета отношений в разделе окраски (число строк - `kRelationColorSettingCount`).
 - `mod-config.json` при первом запуске создаётся копией `mod-config.defaults.json` (`IniDefaults::PrepareJson`) - больше нет «could not read mod-config.json» в журнале на чистой установке.
 - Число значков настраивается (16.10.2026): `max_markers` (8-256, по умолчанию 96), строка «Значков на экране» в MCM. Раньше было зашито 48, и брались первые 48 целей списка - в том числе за краем экрана, видимым значков не хватало. Теперь место получают только видимые цели, при переполнении - ближайшие к центру камеры.
