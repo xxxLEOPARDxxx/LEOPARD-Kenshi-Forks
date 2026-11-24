@@ -1702,7 +1702,7 @@ static void SettingsRowsTests()
 	Check(devOnlyRows >= 3 && SettingRows(dev) == SettingRows(prod) + devOnlyRows, "PROD hides the DEV-only rows");
 	Check(FindRow(dev, "Shadow reach") != NULL && FindRow(prod, "Shadow reach") == NULL, "shadowReachDiag is DEV-only");
 	Check(FindRow(prod, "Shader constant") == NULL, "gpuParamLookupDiag is DEV-only");
-	Check(FindRow(dev, "Animation pass counter") != NULL && FindRow(prod, "Animation pass counter") == NULL,
+	Check(FindRow(dev, "Animation worker counter (DEV)") != NULL && FindRow(prod, "Animation worker counter (DEV)") == NULL,
 	      "oldAnimDiag is DEV-only");
 	Check(FindRow(dev, "Constant upload counter") != NULL && FindRow(prod, "Constant upload counter") == NULL,
 	      "gpuUploadDiag is DEV-only");

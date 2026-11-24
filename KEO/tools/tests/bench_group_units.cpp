@@ -440,10 +440,10 @@ static void ShippingSwitchTests()
 	Groups("d1", "each/1/3+25:hullSameSkip=on", "d2", "each/1/3+25:hullSameSkip=on;reflectionHalfRate=true");
 	Check(BenchGroupLeverCount(Find("d1")) == 1 && BenchGroupLeverCount(Find("d2")) == 2 && !HasLineWith("DEV-only"),
 	      "shipping: promoted switches resolve as benchmark levers in DEV and PROD");
-	Groups("d3", "each/1/3+25:movementTrace=true;reflectionHalfRate=true");
+	Groups("d3", "each/1/3+25:sectionKeyProbe=true;reflectionHalfRate=true");
 #ifdef KEO_DEBUG
 	Check(BenchGroupLeverCount(Find("d3")) == 1 &&
-	      HasLine("Bench: group d3: movementTrace is startup-only, dropped"),
+	      HasLine("Bench: group d3: sectionKeyProbe is startup-only, dropped"),
 	      "shipping: a genuine DEV diagnostic remains unavailable as a live lever");
 #else
 	Check(BenchGroupLeverCount(Find("d3")) == 1 && HasLineWith("(1 DEV-only levers dropped)"),
