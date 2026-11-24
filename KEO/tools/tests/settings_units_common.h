@@ -18,8 +18,8 @@
 static const char* const RENDER_TITLE = "Render and particles";
 static const char* const MODULE_TITLES[] =
 {
-	"Zone loading", "Navmesh", "Pathfinding", "Movement and orders", "Crash guards and probes",
-	"Inventory and jobs", "Route planner", "Settings panel"
+	"Zone loading", "Navmesh", "Crash guards and probes",
+	"Inventory and jobs", "Settings panel"
 };
 
 // The PROD page's rows in display order, by key and section: the settings an
@@ -35,7 +35,7 @@ static const ProdRow kProdPage[] =
 {
 	{ "preload", "Zone loading" }, { "navmeshWorkerCount", "Zone loading" },
 	{ "zoneLifeRetainRadius", "Zone loading" }, { "zoneLifeSquadRadius", "Zone loading" },
-	{ "zoneRetentionMaxHeld", "Zone loading" }, { "plannerAheadTiles", "Zone loading" },
+	{ "zoneRetentionMaxHeld", "Zone loading" },
 	{ "navmeshDiskCacheMaxMB", "Zone loading" },
 	{ "resourceRamCache", "Resource memory" }, { "resourceRamGiB", "Resource memory" },
 	{ "resourceReadMBps", "Resource memory" }, { "resourcePrefetch", "Resource memory" },
@@ -57,8 +57,6 @@ static const ProdRow kProdPage[] =
 	{ "saveStringTransfer", "Performance" },
 	{ "particleStepCap", "Performance" },
 	{ "foliagePageBudgetMs", "Performance" },
-	{ "keoRouting", "Squad movement" }, { "groupCohesion", "Squad movement" }, { "formationGatherPace", "Squad movement" },
-	{ "k7PostDeathHold", "Squad movement" }, { "plannerMode", "Squad movement" },
 	{ "autoNavmeshRepair", "Gameplay fixes" },
 	{ "townClaimFix", "Gameplay fixes" }, { "throwOutFix", "Gameplay fixes" },
 	{ "throwOutHoldMinutes", "Gameplay fixes" }, { "wallSpliceFix", "Gameplay fixes" },
@@ -69,8 +67,8 @@ static const ProdRow kProdPage[] =
 	{ "Debug", "Logging" },
 	{ NULL, NULL }
 };
-static const int PROD_PAGE_ROWS = 50;
-static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Squad movement", "Gameplay fixes",
+static const int PROD_PAGE_ROWS = 44;
+static const char* const PROD_SECTIONS[] = { "Zone loading", "Resource memory", "Performance", "Gameplay fixes",
 	"Backpacks and jobs", "Logging" };
 
 static void CheckNamed(bool ok, const std::string& what)
@@ -183,7 +181,7 @@ static const char* SectionOf(const ConfigModule& mod, const ConfigKey& k, bool d
 static std::vector<const SettingsRow*> ModuleSections(const std::vector<SettingsRow>& rows)
 {
 	std::vector<const SettingsRow*> out;
-	for (int m = 0; m < 8; ++m)
+	for (int m = 0; m < 5; ++m)
 	{
 		std::vector<const SettingsRow*> sec = Section(rows, MODULE_TITLES[m]);
 		out.insert(out.end(), sec.begin(), sec.end());

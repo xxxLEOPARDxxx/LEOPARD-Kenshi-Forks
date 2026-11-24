@@ -12,8 +12,6 @@
 #include "navmesh/cache/nm_auto_rebuild.h"
 #include "navmesh/generation/nm_misspar.h"
 #include "movement/tracking.h"
-#include "movement/formation.h"
-#include "movement/islands.h"
 #include "zone/camera_zone_hook.h"
 #include "navmesh/scheduling/navmesh_sched.h"
 #include "zone/preload/zone_cycle_stats.h"
@@ -124,8 +122,6 @@ static void ClearPreloadStateImpl(bool clearNavMeshCache)
 	numWatched = 0;
 	if (clearNavMeshCache)
 		ClearNavMeshCache();
-	ClearFormationGroups();
-	IslandReset();
 	ZoneHandoffOnWorldReset();
 	// A world replacement removes every piece of geometry at once, so it is
 	// a boundary in its own right; the epoch keeps counting across it, since
@@ -165,7 +161,7 @@ void ClearPreloadStateForLoad()
 //
 // SaveManager::loadGame sets the ZoneManager loading byte (ZM+8) and the game
 // clears it with state 5. Everything the mod tracks (preloaded ZoneMap*,
-// watched characters, formation groups, island components) names objects that
+// watched characters) names objects that
 // the load destroys, so the whole state is dropped on the rising edge of that
 // byte, and again if the ZoneManager pointer itself changes. While the byte is
 // set, preload processing is skipped: nothing we could preload survives.
@@ -189,8 +185,7 @@ static void ClearModStateForLoad()
 	resource_texture_retention::Clear();
 	ResourceForwardReset();
 	ResourceWarmHudCleanup();
-	ClearPreloadStateForLoad();  // also clears formation groups, the island overlay
-	                             // and the deferred destroy-list queue
+	ClearPreloadStateForLoad();  // also clears the deferred destroy-list queue
 	charZonesQueued = 0;
 	// The coverage counters describe the loaded world's preload paths, so a
 	// new world starts them over rather than carrying the old one's totals.

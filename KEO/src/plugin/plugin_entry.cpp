@@ -345,10 +345,6 @@ bool CheckBuildGate(EntryCtx& ctx)
 		zone::g_zoneCfg.preloadEnabled       = false;
 		zone::g_zoneCfg.movementAwareEnabled = false;
 		navmesh::g_navmeshCfg.cachingEnabled       = false;
-		movement::g_movementCfg.islandFixEnabled     = false;
-		movement::g_movementCfg.cfg_islandFarSpan    = 0;
-		movement::g_movementCfg.groupCohesionEnabled = false;
-		pathfind::g_pathfindCfg.pathfindDiagEnabled   = false;
 		LogInitBanner(0, 0, "FAILED", 0, 0, "off(gate)");
 		return false;
 	}
@@ -371,12 +367,10 @@ void LogStartupLayout()
 {
 	if (!DetailedLogEnabled()) return;
 	// Startup layout record: the sizes of WatchedCharacter and SchedMoverInfo.
-	// The "(PATHFIND_STEP=4)" suffix stays only to keep the line's format stable.
 	{
 		std::ostringstream ss;
 		ss << "sizeof(WatchedCharacter)=" << sizeof(WatchedCharacter)
-		   << " sizeof(SchedMoverInfo)=" << sizeof(SchedMoverInfo)
-		   << " (PATHFIND_STEP=" << 4 << ")";
+		   << " sizeof(SchedMoverInfo)=" << sizeof(SchedMoverInfo);
 		KEO_DETAIL(ss.str());
 	}
 }

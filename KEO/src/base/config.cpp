@@ -6,7 +6,6 @@
 #include "base/ini_names.h"
 #include "base/legacy_ini_import.h"
 #include "render/render_config.h"
-#include "movement/movement_config.h"
 #include "gui/requested_settings.h"
 #include <cstdio>
 #include <cstring>
@@ -248,7 +247,6 @@ void LoadConfig(const std::string& dllDir)
 void FinalizeConfig()
 {
 	if (!CaptureRequestedSettings()) LogError("Requested config snapshot exceeds settings bounds; editor unavailable");
-	movement::ApplyRoutingSwitch(&LogDetail);   // LEOPARD fork: keoRouting=false, before any hook installs
 
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);

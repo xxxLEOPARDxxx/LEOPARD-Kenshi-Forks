@@ -21,10 +21,7 @@ enum HookWant
 	HOOK_WANT_MOVEMENT_AWARE,     // movementAware
 	HOOK_WANT_DESTROY_LIST,       // destroyListDiag or destroyListDefer
 	HOOK_WANT_CACHING,            // caching
-	HOOK_WANT_PATHFIND_DIAG,      // pathfindDiag
-	HOOK_WANT_PATH_EXTRACT,       // pathfindDiag and pathExtractGuard
-	HOOK_WANT_ADD_INSTANCE,       // detailedLog and (pathfindDiag+sectionStamp, or navMeshLife)
-	HOOK_WANT_GATE_PASS,          // gatePassDiag
+	HOOK_WANT_ADD_INSTANCE,       // detailedLog and (sectionStamp or navMeshLife)
 	HOOK_WANT_ESCAPE_PAUSE,       // escapePauseGuard
 	HOOK_WANT_CORPSE_PIN,         // corpsePin
 	HOOK_WANT_NEST_GUARD,         // nestValidationGuard
@@ -35,12 +32,7 @@ enum HookWant
 	HOOK_WANT_NAVMESH_LIFE,       // detailedLog and navMeshLife
 	HOOK_WANT_UNSTITCH_PROBE,     // unstitchProbe
 	HOOK_WANT_SECTION_KEY_PROBE,  // sectionKeyProbe
-	HOOK_WANT_GRAPH_HEURISTIC,    // graphHeuristicGuard or playerHierarchical != off
-	HOOK_WANT_FIND_PATH_FULL,     // pathfindDiag or playerHierarchical != off
-	HOOK_WANT_CLUSTER_CROSS_COST, // clusterCrossCost or plannerMode != off
-	HOOK_WANT_PLANNER,            // plannerMode != off
-	HOOK_WANT_GATHER_PACE,        // formationGatherPace
-	HOOK_WANT_PLANNER_PRE_ARRIVAL, // plannerMode == on and plannerPreArrivalMs > 0
+	HOOK_WANT_GRAPH_HEURISTIC,    // graphHeuristicGuard
 	HOOK_WANT_TOWN_CLAIM,         // townClaimFix
 	HOOK_WANT_THROWOUT,           // throwOutFix
 	HOOK_WANT_BACKPACK_FOOD,      // backpackFoodScore
@@ -71,16 +63,8 @@ struct HookWantInputs
 	bool sectionKeyProbe;
 	bool movementAware;
 	bool caching;
-	bool pathfindDiag;
-	bool pathExtractGuard;
 	bool sectionStamp;
-	bool gatePassDiag;
 	bool graphHeuristicGuard;
-	bool playerHierarchical;  // playerHierarchical != off
-	bool clusterCrossCost;
-	bool planner;  // plannerMode != off
-	bool gatherPace;          // formationGatherPace
-	bool preArrival;          // plannerMode == on and plannerPreArrivalMs > 0
 	bool townClaim;           // townClaimFix
 	bool throwOut;            // throwOutFix
 	bool backpackFood;        // backpackFoodScore

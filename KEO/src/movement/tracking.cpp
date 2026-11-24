@@ -10,7 +10,6 @@
 #include "zone/zone_life.h"
 #include "zone/retention/zone_retention.h"
 #include "zone/retention/zone_retention_policy.h"
-#include "planner/planner_tick.h"
 
 // Registry evictions. Defined here, where they happen; the counter line that
 // prints it lives in pathfind_hooks.cpp, which not every variant compiles.
@@ -110,7 +109,7 @@ bool AddWatchedCharacter(uintptr_t character, uintptr_t charMovement,
 		}
 	}
 
-	if (numWatched >= WatchedCapacity(movement::g_movementCfg.playerCharRegistryEnabled))
+	if (numWatched >= WatchedCapacity(zone::g_zoneCfg.playerCharRegistryEnabled))
 	{
 		// The oldest entry with no move order may be overwritten in place; an
 		// entry carrying one never is, so a full registry drops the add.
@@ -120,7 +119,7 @@ bool AddWatchedCharacter(uintptr_t character, uintptr_t charMovement,
 			slots[i].hasMoveOrder = watchedChars[i].hasMoveOrder;
 			slots[i].addedTime    = watchedChars[i].addedTime;
 		}
-		int evictIdx = movement::g_movementCfg.playerCharRegistryEnabled
+		int evictIdx = zone::g_zoneCfg.playerCharRegistryEnabled
 		             ? ChooseWatchedEvictSlot(slots, numWatched) : -1;
 		if (evictIdx >= 0)
 		{
@@ -280,7 +279,7 @@ static bool ScanCellKept(void* zoneMgr, int gx, int gy, int rCamera, int rSquad)
 
 void ScanCharacterZones(void* zoneMgr)
 {
-	if (movement::g_movementCfg.playerCharRegistryEnabled)
+	if (zone::g_zoneCfg.playerCharRegistryEnabled)
 		EnsurePlayerCharsWatched();
 
 	// Per-character grid scan: one 3x3 (or 2x2, when the preload budget is
@@ -421,7 +420,6 @@ void ScanCharacterZones(void* zoneMgr)
 // cell (x, y and diagonal) and returns how many the queue took.
 static int EnqueueAheadOfMover(int i, int curGX, int curGY)
 {
-	if (planner::PlannerRouteReplacesAhead(watchedChars[i].character)) return 0;   // the route planner queues this character's route tiles instead
 	int edgePreloads = 0;
 	int dirX = 0, dirY = 0;
 	if (watchedChars[i].destZoneX > curGX) dirX = 1;
@@ -519,7 +517,7 @@ void PollActiveMovers(void* zoneMgr, double now)
 			// Arrived. With the registry on the entry is downgraded to a
 			// baseline one and the scan keeps owning its lifetime, so the
 			// zone it stands in keeps ranking; without it, it is dropped.
-			if (movement::g_movementCfg.playerCharRegistryEnabled)
+			if (zone::g_zoneCfg.playerCharRegistryEnabled)
 			{
 				if (watchedChars[i].hasMoveOrder)
 				{

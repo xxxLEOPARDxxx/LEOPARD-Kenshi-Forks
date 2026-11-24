@@ -15,8 +15,6 @@ int BenchLoadedZoneCount() { return 0; }
 namespace config_modules_units_detail {
 struct Owner { const char* key; const char* module; };
 struct Expected { const char* name; const char* title; size_t size; const void* defaults; };
-struct PlannerField { const char* key; int planner::PlannerConfig::* field; int value; };
-struct PlannerLine { const char* key; const char* text; int planner::PlannerConfig::* field; int value; };
 }
 using namespace config_modules_units_detail;
 
@@ -32,16 +30,9 @@ static const Owner kOwners[] =
 	{ "resourceGpuGiB", "zone" }, { "resourceWarmHud", "zone" },
 	{ "movementAware", "zone" },
 	{ "caching", "navmesh" },
-	{ "keoRouting", "movement" },
-	{ "groupCohesion", "movement" },
-	{ "pathfindDiag", "pathfind" },
-	{ "islandFix", "movement" },
-	{ "islandFarSpan", "movement" },
-	{ "islandEdgeRing", "movement" },
-	{ "playerCharRegistry", "movement" },
+	{ "playerCharRegistry", "zone" },
 	{ "reprioFast", "navmesh" },
 	{ "routeTier", "navmesh" },
-	{ "pathExtractGuard", "fixes" },
 	{ "sectionStamp", "fixes" },
 	{ "navMeshUpdateGuard", "fixes" },
 	{ "destroyListDiag", "fixes" },
@@ -52,22 +43,11 @@ static const Owner kOwners[] =
 	{ "zoneRetention", "zone" },
 	{ "islandReadinessRule", "zone" },
 	{ "readinessOverrides", "zone" },
-	{ "npcWaitDiag", "pathfind" },
-	{ "gatePassDiag", "pathfind" },
-	{ "pathCostLines", "pathfind" },
 	{ "zoneLifeUnload", "zone" },
-	{ "islandDeletedReissue", "movement" },
-	{ "k7PostDeathHold", "movement" },
-	{ "k7DestReadyGate", "movement" },
-	{ "k7ArrivalTrigger", "movement" },
-	{ "formationFollow", "movement" },
-	{ "formationGatherPace", "movement" },
-	{ "movementTrace", "movement" },
 	{ "navmeshVanillaPruning", "navmesh" },
 	{ "navmeshNeighbourSeeds", "navmesh" },
 	{ "navmeshBuildLockNarrow", "navmesh" },
 	{ "navmeshStallThrottle", "navmesh" },
-	{ "clusterGraphBypass", "pathfind" },
 	{ "unstitchGuard", "fixes" },
 	{ "stitchSourceLines", "fixes" },
 	{ "graphVisitorGuard", "fixes" },
@@ -82,7 +62,6 @@ static const Owner kOwners[] =
 	{ "d3dStateSkip", "fixes" },
 	{ "stitchByteGuard", "fixes" },
 	{ "navmeshAdjExclusion", "navmesh" },
-	{ "playerRepathTier", "pathfind" },
 	{ "navMeshLife", "fixes" },
 	{ "unstitchProbe", "fixes" },
 	{ "sectionKeyProbe", "fixes" },
@@ -113,9 +92,6 @@ static const Owner kOwners[] =
 	{ "saveInstanceLookup", "fixes" },
 	{ "saveStringTransfer", "fixes" },
 	{ "graphHeuristicGuard", "fixes" },
-	{ "playerHierarchical", "pathfind" },
-	{ "playerHierOnCap", "pathfind" },
-	{ "clusterCrossCost", "fixes" },
 	{ "ogreJoinSpinUs", "fixes" },
 	{ "zoneGeometryMode", "zone" },
 	{ "camFocus", "zone" },
@@ -132,18 +108,6 @@ static const Owner kOwners[] =
 	{ "zoneLifeSquadRadius", "zone" },
 	{ "zoneRetentionMaxHeld", "zone" },
 	{ "zoneLifeIdleSeconds", "zone" },
-	{ "plannerMode", "planner" },
-	{ "plannerLegSpan", "planner" },
-	{ "plannerBaseBuild", "planner" },
-	{ "plannerAheadTiles", "planner" },
-	{ "plannerWaitSeconds", "planner" },
-	{ "plannerWaterCost", "planner" },
-	{ "plannerWaterEngine", "planner" },
-	{ "plannerAcidCost", "planner" },
-	{ "plannerPreArrivalMs", "planner" },
-	{ "plannerLegAim", "planner" },
-	{ "plannerMergeBias", "planner" },
-	{ "plannerMergeDetour", "planner" },
 	{ "townClaimFix", "fixes" },
 	{ "throwOutFix", "fixes" },
 	{ "throwOutHoldMinutes", "fixes" },
@@ -167,11 +131,8 @@ static const Expected kExpected[] =
 	{ "render", "Render and particles", sizeof(RenderConfig), &kRenderDefaults },
 	{ "zone", "Zone loading", sizeof(zone::ZoneConfig), &zone::kZoneDefaults },
 	{ "navmesh", "Navmesh", sizeof(navmesh::NavMeshConfig), &navmesh::kNavMeshDefaults },
-	{ "pathfind", "Pathfinding", sizeof(pathfind::PathfindConfig), &pathfind::kPathfindDefaults },
-	{ "movement", "Movement and orders", sizeof(movement::MovementConfig), &movement::kMovementDefaults },
 	{ "fixes", "Crash guards and probes", sizeof(fixes::FixesConfig), &fixes::kFixesDefaults },
 	{ "inventory", "Inventory and jobs", sizeof(keo_inventory::InventoryConfig), &keo_inventory::kInventoryDefaults },
-	{ "planner", "Route planner", sizeof(planner::PlannerConfig), &planner::kPlannerDefaults },
 	{ "gui", "Settings panel", sizeof(keo_gui::GuiConfig), &keo_gui::kGuiDefaults },
 	{ "core", "Benchmark and retired keys", 0, NULL }
 };
@@ -184,103 +145,23 @@ static void Fail(const char* key, const std::string& reason)
 
 static void DiscardLog(const std::string&) {}
 
-// The planner's fields as the process starts and an empty INI loads them: no line applied, then
-// the load's clamp.
-static const PlannerField kPlannerEmptyIni[] =
+// Retired navigation preferences are accepted only as ignored legacy keys.
+static void CheckRemovedRouteKeys()
 {
-	{ "plannerMode", &planner::PlannerConfig::mode, 2 },
-	{ "plannerLegSpan", &planner::PlannerConfig::legSpan, 2 },
-	{ "plannerBaseBuild", &planner::PlannerConfig::baseBuild, 1 },
-	{ "plannerAheadTiles", &planner::PlannerConfig::aheadTiles, 3 },
-	{ "plannerWaitSeconds", &planner::PlannerConfig::waitSeconds, 10 },
-	{ "plannerWaterCost", &planner::PlannerConfig::waterCost, 2 },
-	{ "plannerWaterEngine", &planner::PlannerConfig::waterEngine, 1 },
-	{ "plannerAcidCost", &planner::PlannerConfig::acidCost, 3 },
-	{ "plannerPreArrivalMs", &planner::PlannerConfig::preArrivalMs, 1000 },
-	{ "plannerLegAim", &planner::PlannerConfig::legAim, 1 },
-	{ "plannerMergeBias", &planner::PlannerConfig::mergeBias, 3 },
-	{ "plannerMergeDetour", &planner::PlannerConfig::mergeDetour, 15 },
-};
-
-// Each planner key's default text and values inside its range, as an INI line loads them.
-static const PlannerLine kPlannerLines[] =
-{
-	{ "plannerMode", "on", &planner::PlannerConfig::mode, 2 },
-	{ "plannerMode", "off", &planner::PlannerConfig::mode, 0 },
-	{ "plannerMode", "observe", &planner::PlannerConfig::mode, 1 },
-	{ "plannerLegSpan", "2", &planner::PlannerConfig::legSpan, 2 },
-	{ "plannerLegSpan", "1", &planner::PlannerConfig::legSpan, 1 },
-	{ "plannerLegSpan", "8", &planner::PlannerConfig::legSpan, 8 },
-	{ "plannerBaseBuild", "true", &planner::PlannerConfig::baseBuild, 1 },
-	{ "plannerBaseBuild", "false", &planner::PlannerConfig::baseBuild, 0 },
-	{ "plannerAheadTiles", "3", &planner::PlannerConfig::aheadTiles, 3 },
-	{ "plannerAheadTiles", "0", &planner::PlannerConfig::aheadTiles, 0 },
-	{ "plannerAheadTiles", "8", &planner::PlannerConfig::aheadTiles, 8 },
-	{ "plannerWaitSeconds", "10", &planner::PlannerConfig::waitSeconds, 10 },
-	{ "plannerWaitSeconds", "1", &planner::PlannerConfig::waitSeconds, 1 },
-	{ "plannerWaitSeconds", "60", &planner::PlannerConfig::waitSeconds, 60 },
-	{ "plannerWaterCost", "dynamic", &planner::PlannerConfig::waterCost, 2 },
-	{ "plannerWaterCost", "off", &planner::PlannerConfig::waterCost, 0 },
-	{ "plannerWaterCost", "floor", &planner::PlannerConfig::waterCost, 1 },
-	{ "plannerWaterCost", "engine", &planner::PlannerConfig::waterCost, 3 },
-	{ "plannerWaterEngine", "match", &planner::PlannerConfig::waterEngine, 1 },
-	{ "plannerWaterEngine", "off", &planner::PlannerConfig::waterEngine, 0 },
-	{ "plannerAcidCost", "3", &planner::PlannerConfig::acidCost, 3 },
-	{ "plannerAcidCost", "1", &planner::PlannerConfig::acidCost, 1 },
-	{ "plannerAcidCost", "10", &planner::PlannerConfig::acidCost, 10 },
-	{ "plannerPreArrivalMs", "1000", &planner::PlannerConfig::preArrivalMs, 1000 },
-	{ "plannerPreArrivalMs", "0", &planner::PlannerConfig::preArrivalMs, 0 },
-	{ "plannerPreArrivalMs", "3000", &planner::PlannerConfig::preArrivalMs, 3000 },
-	{ "plannerLegAim", "true", &planner::PlannerConfig::legAim, 1 },
-	{ "plannerLegAim", "false", &planner::PlannerConfig::legAim, 0 },
-	{ "plannerMergeBias", "3", &planner::PlannerConfig::mergeBias, 3 },
-	{ "plannerMergeBias", "1", &planner::PlannerConfig::mergeBias, 1 },
-	{ "plannerMergeBias", "10", &planner::PlannerConfig::mergeBias, 10 },
-	{ "plannerMergeDetour", "15", &planner::PlannerConfig::mergeDetour, 15 },
-	{ "plannerMergeDetour", "0", &planner::PlannerConfig::mergeDetour, 0 },
-	{ "plannerMergeDetour", "100", &planner::PlannerConfig::mergeDetour, 100 },
-};
-
-// One INI line through the loader, then the load's clamp, from the compiled defaults with the
-// line's field set apart, so a refused line leaves the marker; the field as loaded.
-static int LoadPlannerLine(const char* key, const char* text, int planner::PlannerConfig::* field, ConfigLoadState* st)
-{
-	planner::g_plannerCfg = planner::kPlannerDefaults;
-	planner::g_plannerCfg.*field = -7;
-	ConfigApplyLine(key, text, 1, st, &DiscardLog);
-	ConfigClampLoaded(&DiscardLog);
-	return planner::g_plannerCfg.*field;
-}
-
-static void CheckPlannerKeys()
-{
-	const planner::PlannerConfig held = planner::g_plannerCfg;
-	ConfigClampLoaded(&DiscardLog);
-	for (size_t i = 0; i < sizeof(kPlannerEmptyIni) / sizeof(kPlannerEmptyIni[0]); ++i)
-	{
-		const PlannerField& f = kPlannerEmptyIni[i];
-		if (planner::g_plannerCfg.*f.field != f.value) Fail(f.key, "an empty INI does not load the default");
-	}
-	for (size_t i = 0; i < sizeof(kPlannerLines) / sizeof(kPlannerLines[0]); ++i)
-	{
-		const PlannerLine& l = kPlannerLines[i];
-		ConfigLoadState st;
-		int v = LoadPlannerLine(l.key, l.text, l.field, &st);
-		if (v != l.value || st.overrides != 1 || st.unrecognised != 0)
-		{
-			std::ostringstream ss;
-			ss << l.key << "=" << l.text << " loads " << v << ", want " << l.value;
-			Fail(l.key, ss.str());
-		}
-	}
-
-	// A ranged key refuses a value below its range and clamps one above it to the top.
-	ConfigLoadState below, above;
-	Check(LoadPlannerLine("plannerLegSpan", "0", &planner::PlannerConfig::legSpan, &below) == -7
-	      && below.overrides == 0 && below.unrecognised == 1, "planner: plannerLegSpan=0 is refused");
-	Check(LoadPlannerLine("plannerLegSpan", "9", &planner::PlannerConfig::legSpan, &above) == 8
-	      && above.overrides == 1, "planner: plannerLegSpan=9 loads as 8");
-	planner::g_plannerCfg = held;
+ const char* keys[] = {"pathfindDiag","npcWaitDiag","gatePassDiag","pathCostLines","clusterGraphBypass","playerRepathTier","playerHierarchical","playerHierOnCap","groupCohesion","islandFix","islandFarSpan","islandEdgeRing","islandDeletedReissue","k7PostDeathHold","k7DestReadyGate","k7ArrivalTrigger","formationFollow","formationGatherPace","movementTrace","keoRouting","plannerMode","plannerLegSpan","plannerBaseBuild","plannerAheadTiles","plannerWaitSeconds","plannerWaterCost","plannerWaterEngine","plannerAcidCost","plannerPreArrivalMs","plannerLegAim","plannerMergeBias","plannerMergeDetour","pathExtractGuard","clusterCrossCost" };
+ const zone::ZoneConfig zoneBefore = zone::g_zoneCfg;
+ const navmesh::NavMeshConfig navBefore = navmesh::g_navmeshCfg;
+ ConfigLoadState state;
+ for (unsigned i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
+  Check(FindConfigKey(keys[i], NULL) == NULL, "removed route key has no active writer");
+  ConfigApplyLine(keys[i], "true", int(i + 1), &state, &DiscardLog);
+  ConfigApplyLine(keys[i], "on", int(i + 1), &state, &DiscardLog);
+ }
+ Check(state.overrides == 0 && state.unrecognised == 0 && state.retired == 34,
+       "all removed route keys are ignored once, never applied");
+ Check(!memcmp(&zoneBefore, &zone::g_zoneCfg, sizeof(zoneBefore)) &&
+       !memcmp(&navBefore, &navmesh::g_navmeshCfg, sizeof(navBefore)),
+       "legacy route keys cannot change retained streaming settings");
 }
 
 // The retain radius as an empty INI loads it, and as an explicit line inside its range loads it.
@@ -427,13 +308,13 @@ static void CheckLiveRowStorable()
 
 int main()
 {
-	Check(kConfigModuleCount == 10 && kConfigModuleCount <= CONFIG_MODULE_MAX, "ten modules within stage capacity");
+	Check(kConfigModuleCount == 7 && kConfigModuleCount <= CONFIG_MODULE_MAX, "seven modules within stage capacity");
 	std::set<std::string> names;
 	int moduleKeys = 0, activeCore = 0, retiredCore = 0, debug = 0;
 	for (int m = 0; m < kConfigModuleCount; ++m)
 	{
 		const ConfigModule& mod = kConfigModules[m];
-		if (m >= 10) { Fail(mod.name, "unexpected module"); continue; }
+		if (m >= 7) { Fail(mod.name, "unexpected module"); continue; }
 		const Expected& e = kExpected[m];
 		if (strcmp(mod.name, e.name) || strcmp(mod.title, e.title)) Fail(mod.name, "module order or title");
 		if (mod.state)
@@ -455,7 +336,7 @@ int main()
 			if (k.debugOnlyReader)
 			{
 				++debug;
-				if (strcmp(k.name, "unstitchProbe") && strcmp(k.name, "sectionKeyProbe") && strcmp(k.name, "formationFollow") && strcmp(k.name, "movementTrace")) Fail(k.name, "unexpected debugOnlyReader");
+				if (strcmp(k.name, "unstitchProbe") && strcmp(k.name, "sectionKeyProbe")) Fail(k.name, "unexpected debugOnlyReader");
 			}
 			if (mod.state)
 			{
@@ -463,7 +344,7 @@ int main()
 				if (k.offset + k.size > mod.stateSize) Fail(k.name, "offset outside state");
 				if (!offsets.insert(k.offset).second) Fail(k.name, "duplicate offset");
 				size_t width = k.kind == CK_BOOL ? 1 : k.kind == CK_INT || k.kind == CK_FLOAT ? 4 : k.kind == CK_DOUBLE ? 8 : k.size;
-				if (k.kind == CK_CUSTOM) width = strcmp(k.name, "islandEdgeRing") == 0 ? sizeof(bool) : sizeof(int);
+				if (k.kind == CK_CUSTOM) width = sizeof(int);
 				// Render scalar rows preserve the legacy zero size; their kind supplies the width.
 				if (k.size != width && (strcmp(mod.name, "render") || k.size != 0)) Fail(k.name, "kind width");
 				if (k.offset + width > mod.stateSize) Fail(k.name, "kind width outside state");
@@ -483,7 +364,7 @@ int main()
 		}
 		if (i == CONFIG_STAGE_MAX) Fail(mod.name, "no table end within stage capacity");
 	}
-	Check(moduleKeys == 145 && activeCore == 2 && retiredCore == 23 && debug == 4, "module and core row counts");
+	Check(moduleKeys == 111 && activeCore == 2 && retiredCore == 57 && debug == 2, "module and core row counts");
 	const char* const removed[] = { "npcFailMemo", "rqStructClear", "ogreWorkerPriority", "factionSelfGuard" };
 	for (int i = 0; i < 4; ++i)
 		Check(FindConfigKey(removed[i], NULL) == NULL, "removed switches have no config row");
@@ -494,7 +375,7 @@ int main()
 		if (!k) Fail(kOwners[i].key, std::string("expected in ") + kOwners[i].module + ", missing");
 		else if (strcmp(mod->name, kOwners[i].module)) Fail(kOwners[i].key, std::string("expected in ") + kOwners[i].module + ", found in " + mod->name);
 	}
-	CheckPlannerKeys();
+	CheckRemovedRouteKeys();
 	CheckZoneRetainRadius();
 	CheckZoneSquadRadiusAndCap();
 	CheckResourceLimits();

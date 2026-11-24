@@ -13,8 +13,6 @@
 #include "zone/preload/coverage_stats.h"
 #include "movement/tracking.h"
 #include "navmesh/scheduling/navmesh_sched.h"
-#include "pathfind/astar_cost.h"
-#include "pathfind/gate_pass.h"
 #include "navmesh/cache/nm_force_rebuild.h"
 
 // Transition state (defined here, declared in transition.h)
@@ -360,7 +358,6 @@ void hook_showLoadingMessage(void* thisPtr, bool on)
 		transitionEndTid = GetCurrentThreadId();
 		transitionEndGen = InterlockedCompareExchange(&transitionGen, 0, 0);
 		InterlockedExchange(&transitionEndPending, 1);
-		GatePassNoteDismissal(transitionEndQpc.QuadPart, transitionEndGen, IsMainThread());
 	}
 
 	if (on)
@@ -392,10 +389,6 @@ void TransitionCompleteIfPending()
 	if (!superseded)
 	{
 		isTransitionActive = false;
-		// A completed transition is a bracket that closed without being
-		// superseded, and not opened by a rebuild key press -- the denominator
-		// AstarCap:'s per-100-transitions rate divides by.
-		if (!rebuild) AstarCostOnTransitionClosed();
 	}
 
 	// Report the arrival here rather than in the hook: this is the main thread,
@@ -455,8 +448,6 @@ void TransitionCompleteIfPending()
 	// destroyListOE diagnostic: dlIns=<main>/<other> from the inserter hook, and the
 	// off-main-thread call sites the first time any are recorded.
 	ss << DestroyListStatsSuffix();
-	if (pathfind::g_pathfindCfg.gatePassDiagEnabled)
-		ss << GatePassTransitionToken(transitionEndGen, transitionEndQpc.QuadPart);
 
 	// Main-thread frames per zone-manager state for slow transitions.
 	// The counts belong to this bracket only if their generation matches the

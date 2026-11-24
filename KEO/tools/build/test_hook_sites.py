@@ -87,15 +87,14 @@ def parse_rows(text):
 
 
 def find_calls(files):
-    """(id, path) for the first argument of every HookInstall(/HookInstallRow(
-    call, and for every HOOK_ id in the initialiser of an array ending `Rows`
+    """(id, path) for the first argument of every manifest install call, and for every HOOK_ id in the initialiser of an array ending `Rows`
     that a call is passed. files maps a path to its text."""
     calls = []
     for path in sorted(files):
         text = strip_comments(files[path], blank_literals=True)
-        for m in re.finditer(r'\bHookInstall(?:Row)?\s*\(\s*(HOOK_\w+)', text):
+        for m in re.finditer(r'\bHookInstall(?:Row|Independent(?:Row)?)?\s*\(\s*(HOOK_\w+)', text):
             calls.append((m.group(1), path))
-        passed = set(re.findall(r'\bHookInstall(?:Row)?\s*\(\s*(\w+Rows)\s*\[', text))
+        passed = set(re.findall(r'\bHookInstall(?:Row|Independent(?:Row)?)?\s*\(\s*(\w+Rows)\s*\[', text))
         for m in re.finditer(r'\b(\w+Rows)\s*\[[^\]]*\]\s*=\s*\{([^}]*)\}', text):
             if m.group(1) in passed:
                 for rid in re.findall(r'\bHOOK_\w+', m.group(2)):
@@ -281,8 +280,7 @@ def row_conditions(text):
 
 
 def find_uses(files):
-    """(id, path, line, conditions) for every HookInstall(/HookInstallRow(/
-    HookRowWanted(/HookRowInstalled( call naming a HOOK_ id, and for every
+    """(id, path, line, conditions) for every manifest install or status check naming a HOOK_ id, and for every
     HOOK_ id in the initialiser of an array ending `Rows` that a call is passed
     (the same rule find_calls uses), taken at that id's own line."""
     uses = []
@@ -290,10 +288,10 @@ def find_uses(files):
         raw = files[path]
         text = strip_comments(raw, blank_literals=True)
         conds = directive_conditions(raw)
-        for m in re.finditer(r'\b(?:HookInstall|HookInstallRow|HookRowWanted|HookRowInstalled)\s*\(\s*(HOOK_\w+)', text):
+        for m in re.finditer(r'\b(?:HookInstall(?:Row|Independent(?:Row)?)?|HookRowWanted|HookRowInstalled)\s*\(\s*(HOOK_\w+)', text):
             line = text.count('\n', 0, m.start()) + 1
             uses.append((m.group(1), path, line, conds[line - 1]))
-        passed = set(re.findall(r'\bHookInstall(?:Row)?\s*\(\s*(\w+Rows)\s*\[', text))
+        passed = set(re.findall(r'\bHookInstall(?:Row|Independent(?:Row)?)?\s*\(\s*(\w+Rows)\s*\[', text))
         for m in re.finditer(r'\b(\w+Rows)\s*\[[^\]]*\]\s*=\s*\{([^}]*)\}', text):
             if m.group(1) not in passed:
                 continue
@@ -356,7 +354,7 @@ def check_typed_casts(files):
     problems = []
     for path in sorted(files):
         text = strip_comments(files[path], blank_literals=True)
-        for m in re.finditer(r'\bHookInstall\s*\(', text):
+        for m in re.finditer(r'\bHookInstall(?:Independent)?\s*\(', text):
             depth, i = 1, m.end()
             while i < len(text) and depth:
                 depth += (text[i] == '(') - (text[i] == ')')
@@ -511,6 +509,12 @@ class ParseTests(unittest.TestCase):
     def test_typed_install_calls_counted(self):
         self.assertEqual(sorted(rid for rid, _ in find_calls({'typed.cpp': TYPED})),
                          ['HOOK_A', 'HOOK_P1', 'HOOK_P2'])
+
+    def test_independent_install_checks_the_manifest(self):
+        path = 'batch.cpp'
+        files = {path: 'HookInstallIndependent(HOOK_A, detour, &original, count, true, done);'}
+        self.assertEqual(find_calls(files), [('HOOK_A', path)])
+        self.assertEqual([entry[:3] for entry in find_uses(files)], [('HOOK_A', path, 1)])
 
     def test_forwarder_names_no_row(self):
         files = {'hook_manifest.h': FORWARDER}

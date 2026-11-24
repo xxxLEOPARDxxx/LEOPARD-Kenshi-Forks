@@ -5,8 +5,6 @@
 #include "navmesh/nm_workers.h"
 #include "navmesh/generation/nm_misspar.h"
 #include "movement/tracking.h"
-#include "movement/formation.h"
-#include "movement/islands.h"
 #include "zone/camera_zone_hook.h"
 #include "navmesh/scheduling/navmesh_sched.h"
 #include "zone/preload/zone_cycle_stats.h"

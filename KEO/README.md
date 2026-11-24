@@ -1,4 +1,4 @@
-# KEO (MCM fork) (QoL) - release 8
+# KEO (MCM fork) (QoL)
 
 ## English
 
@@ -11,13 +11,12 @@ This fork is a temporary measure to maintain bug fixes, MCM configuration and su
 
 ### Features and settings
 
-KEO retains the original area preloading, path preparation, route planning, squad movement, rendering options, gameplay fixes and backpack handling. These features belong to the original author. Use **MCM > KEO** to configure them; without MCM, the original **Options > KEO** tab remains available. The interface supports English, Russian and Simplified Chinese. Other game-interface languages use English.
+KEO retains area preloading, navmesh preparation, rendering options, gameplay fixes and backpack handling from the original mod. Kenshi calculates routes and handles ordinary squad movement. The optional Steel waypoint job sends ordinary movement orders to Kenshi. Use **MCM > KEO** to configure them; without MCM, the original **Options > KEO** tab remains available. The interface supports English, Russian and Simplified Chinese. Other game-interface languages use English.
 
 The settings are grouped as follows:
 
-- **Zone loading:** preloading, path-preparation workers, retained area radii and limits, route look-ahead, and the disk-cache limit.
+- **Zone loading:** preloading, path-preparation workers, retained area radii and limits, and the disk-cache limit.
 - **Performance:** particle and scenery processing budgets. No fixed FPS gain is promised.
-- **Squad movement:** optional KEO routing, group cohesion, gathering pace, resuming move orders after combat and route-planner mode. Swimming and dangerous water affect route choices. Long trips may still stop short; a repeated move order can continue them.
 - **Gameplay fixes:** player-building ownership, repeated throw-out handling and paths around walls. Native city path-readiness checks are retained when areas reload.
 - **Backpacks and jobs:** backpack handling, the operator's maximum collection load, optional carried weight and three independent jobs.
 - **Logging:** Detailed log is last and OFF by default. Errors remain visible. Enable it to reproduce a report, then disable it after collecting the logs.
@@ -149,13 +148,12 @@ GPL-3.0; see `LICENSE`. Attribution/provenance files accompany the package. Corr
 
 ### Возможности и настройки
 
-Сохранены исходные возможности автора: предварительная загрузка местности, подготовка путей, планирование маршрутов, движение отрядов, графические оптимизации, игровые правки и работа с рюкзаками. Настраиваются в **MCM > KEO**; без MCM остаётся исходная вкладка **Настройки > KEO**. Интерфейс поддерживает русский, английский и упрощённый китайский; для остальных языков используется английский.
+Сохранены предварительная загрузка местности, подготовка навсетки, графические оптимизации, игровые правки и работа с рюкзаками. Kenshi рассчитывает пути и управляет обычным движением отрядов. Задание Steel «Маршрут по точкам» передаёт игре обычные приказы движения. Настраиваются в **MCM > KEO**; без MCM остаётся исходная вкладка **Настройки > KEO**. Интерфейс поддерживает русский, английский и упрощённый китайский; для остальных языков используется английский.
 
 Группы настроек:
 
-- **Загрузка местности:** предварительная подгрузка, потоки подготовки путей, радиусы и лимиты удерживаемых областей, подготовка маршрута вперёд и размер дискового кэша.
+- **Загрузка местности:** предварительная подгрузка, потоки подготовки путей, радиусы и лимиты удерживаемых областей и размер дискового кэша.
 - **Производительность:** бюджеты обработки частиц и окружения. Фиксированный прирост FPS не обещается.
-- **Движение отряда:** маршрутизация KEO, согласованное движение, темп сбора группы, возобновление движения после боя и режим планировщика. При выборе пути учитываются плавание и опасная вода. Дальние переходы ещё могут прерываться; повторный приказ помогает продолжить движение.
 - **Игровые исправления:** принадлежность построек игрока, повторяющийся вынос нарушителей и пути возле стен. При повторной загрузке городов сохраняются штатные проверки готовности пути.
 - **Рюкзаки и работа:** работа с рюкзаками, предел нагрузки перед доставкой, переносимый вес и три независимых задания.
 - **Журнал:** последний переключатель, по умолчанию выключен. Ошибки остаются видимыми. Включайте подробный журнал для воспроизведения проблемы и выключайте после сбора данных.

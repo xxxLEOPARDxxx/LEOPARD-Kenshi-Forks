@@ -126,7 +126,7 @@ static void CheckFallback()
 	std::vector<SettingsRow> rows;
 	keo_gui::AddPlayerSections(kSettingsPlaces, &st, &rows);
 	std::vector<std::string> full = Headers(rows);
-	Check(full.size() == 7 && full[6] == PROD_SECTIONS[6], "fallback: the full table leaves no other section");
+	Check(full.size() == 6 && full[5] == PROD_SECTIONS[5], "fallback: the full table leaves no other section");
 
 	// The table without one Zone loading key, its module's title being a
 	// player section's.
@@ -147,12 +147,12 @@ static void CheckFallback()
 	for (size_t i = 0; i < headers.size(); ++i)
 		for (size_t j = i + 1; j < headers.size(); ++j)
 			unique = unique && headers[i] != headers[j];
-	Check(unique && headers.size() == 8 && headers[7] == keo_gui::OTHER_SETTINGS_TITLE,
+	Check(unique && headers.size() == 7 && headers[6] == keo_gui::OTHER_SETTINGS_TITLE,
 	      "fallback: one Other settings section after the player ones");
 	const ConfigModule* mod = NULL;
 	const ConfigKey* k = FindConfigKey(dropped, &mod);
 	std::vector<const SettingsRow*> other = Section(rows, keo_gui::OTHER_SETTINGS_TITLE);
-	Check(k && other.size() == 1 && other[0]->label == RowLabel(*k) && Section(rows, "Zone loading").size() == 6,
+	Check(k && other.size() == 1 && other[0]->label == RowLabel(*k) && Section(rows, "Zone loading").size() == 5,
 	      "fallback: the unplaced key alone under Other settings");
 }
 
@@ -200,22 +200,20 @@ static void CheckGroups()
 	SettingsStaging st;
 	StageAll(&st);
 	std::vector<SettingsRow> prod = Rows(&st, false, NULL);
-	static const char* const kMembers[16][2] =
+	static const char* const kMembers[12][2] =
 	{
 		{ "throwOutFix", "throwOutHoldMinutes" },
 		{ "backpackFixes", "operatorHoldUntil" },
 		{ "backpackFixes", "operatorFillPercent" },
-		{ "keoRouting", "groupCohesion" }, { "keoRouting", "formationGatherPace" },
-		{ "keoRouting", "k7PostDeathHold" }, { "keoRouting", "plannerMode" },
 		{ "resourceRamCache", "resourceRamGiB" }, { "resourceRamCache", "resourceReadMBps" },
 		{ "resourceRamCache", "resourcePrefetch" }, { "resourceRamCache", "resourceGpuWarm" },
 		{ "resourceRamCache", "resourceStartupTextures" }, { "resourceRamCache", "resourceGeometryWarm" },
 		{ "resourceRamCache", "resourceTextureRetention" }, { "resourceRamCache", "resourceGpuGiB" },
 		{ "resourceRamCache", "resourceWarmHud" }
 	};
-	const int memberOffset[] = { 1, 1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+	const int memberOffset[] = { 1, 1, 2, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 	bool follows = true;
-	for (int g = 0; g < 16; ++g)
+	for (int g = 0; g < 12; ++g)
 	{
 		int head = OnlyRowOf(prod, kMembers[g][0]);
 		int member = OnlyRowOf(prod, kMembers[g][1]);
@@ -236,7 +234,7 @@ static void CheckGroups()
 			continue;
 		++gatedRows;
 		bool known = false;
-		for (int g = 0; g < 16; ++g)
+		for (int g = 0; g < 12; ++g)
 		{
 			std::vector<int> heads = RowsOf(prod, kMembers[g][0]);
 			std::vector<int> members = RowsOf(prod, kMembers[g][1]);
@@ -250,7 +248,7 @@ static void CheckGroups()
 		}
 		gated = gated && known && (size_t)h < prod.size() && prod[h].kind == SR_CHECKBOX;
 	}
-	Check(gated && gatedRows == 16, "groups: each member's enabledByRow is its head's row, a checkbox");
+	Check(gated && gatedRows == 12, "groups: each member's enabledByRow is its head's row, a checkbox");
 
 	// The table with the throw-out slider placed before its checkbox.
 	std::vector<keo_gui::SettingsPlace> places;

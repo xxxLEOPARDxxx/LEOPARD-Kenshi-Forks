@@ -228,16 +228,7 @@ std::vector<KeyValue> TemplateKeys(const std::string& text)
 
 const char* const kUndocumented[] =
 {
-	"caching", "camLogInterval", "clusterCrossCost", "deferral", "destroyListDefer", "destroyListDiag",
-	"formationFollow",
-	"gatePassDiag",
-	"graphHeuristicGuard", "graphPositionGuard", "groupCohesion", "islandDeletedReissue", "islandFix",
-	"islandReadinessRule", "keoRouting", "movementAware", "movementTrace", "navmeshDiskCacheMaxMB", "navmeshNeighbourSeeds",
-	"navmeshVanillaPruning", "npcWaitDiag", "pathfindDiag", "plannerAcidCost", "plannerAheadTiles", "plannerBaseBuild",
-	"plannerLegAim", "plannerLegSpan", "plannerMergeBias", "plannerMergeDetour", "plannerMode", "plannerPreArrivalMs", "plannerWaitSeconds", "plannerWaterCost", "plannerWaterEngine", "playerHierOnCap", "playerHierarchical",
-	"preload", "preloadKeepAliveSeconds",
-	"priorityBoost", "readinessOverrides", "saveLoadUnload", "zoneLifeIdleSeconds",
-	"zoneLifeUnload", NULL
+	"caching", "camLogInterval", "deferral", "destroyListDefer", "destroyListDiag", "graphHeuristicGuard", "graphPositionGuard", "islandReadinessRule", "movementAware", "navmeshDiskCacheMaxMB", "navmeshNeighbourSeeds", "navmeshVanillaPruning", "preload", "preloadKeepAliveSeconds", "priorityBoost", "readinessOverrides", "saveLoadUnload", "zoneLifeIdleSeconds", "zoneLifeUnload", NULL
 };
 
 void CheckNamed(bool ok, const std::string& what)
@@ -265,7 +256,7 @@ void CheckTemplateAndDefaults(const ConfigModule& core, const ConfigModule& rend
 	std::string text = ReadFile("KEO.ini", &ok);
 	Check(ok, "KEO.ini found at the repository root");
 	std::vector<KeyValue> tmpl = TemplateKeys(text);
-	Check(tmpl.size() == 126, "template has 126 documented key lines");
+	Check(tmpl.size() == 116, "template has 116 documented key lines");
 
 	// 1. Every template line names a documented, active row...
 	std::vector<std::string> missing;
@@ -297,7 +288,7 @@ void CheckTemplateAndDefaults(const ConfigModule& core, const ConfigModule& rend
 		}
 	}
 
-	// 2. The undocumented rows are exactly the known 43.
+	// 2. The undocumented rows are exactly the known 19.
 	{
 		std::vector<std::string> undoc, want;
 		for (int m = 0; m < kConfigModuleCount; ++m)
@@ -307,7 +298,7 @@ void CheckTemplateAndDefaults(const ConfigModule& core, const ConfigModule& rend
 		for (int i = 0; kUndocumented[i]; ++i)
 			want.push_back(kUndocumented[i]);
 		std::sort(undoc.begin(), undoc.end());
-		Check(undoc.size() == 43, "undocumented rows: 43");
+		Check(undoc.size() == 19, "undocumented rows: 19");
 		for (size_t i = 0; i < undoc.size(); ++i)
 			CheckNamed(std::binary_search(want.begin(), want.end(), undoc[i]), "undocumented " + undoc[i]);
 		for (size_t i = 0; i < want.size(); ++i)
@@ -366,29 +357,28 @@ void CheckGoldenSample(const ConfigModule& core)
 	}
 
 	Check(zone::g_zoneCfg.preloadEnabled == true, "sample preloadEnabled");
-	Check(movement::g_movementCfg.cfg_islandFarSpan == 5, "sample cfg_islandFarSpan");
 	Check(zone::g_zoneCfg.cfg_camFocusHardMult == 2.5f, "sample cfg_camFocusHardMult");
 	Check(zone::g_zoneCfg.cfg_camLogInterval == 20.0, "sample cfg_camLogInterval");
 	Check(fixes::g_fixesCfg.cfg_stitchSourceLines == 32, "sample cfg_stitchSourceLines");
-	Check(movement::g_movementCfg.islandEdgeRingEnabled == false, "sample islandEdgeRingEnabled");
-	Check(movement::g_movementCfg.cfg_k7PostDeathHold == K7_HOLD_OBSERVE, "sample cfg_k7PostDeathHold");
-	Check(pathfind::g_pathfindCfg.clusterGraphBypassMode == CGB_MEASURE, "sample clusterGraphBypassMode");
 	Check(g_renderCfg.particleStepCapSpeed == 4.0f, "sample g_renderCfg.particleStepCapSpeed");
 	Check(g_benchSlots[0].hour == 12.0f, "sample g_benchSlots[0].hour");
 
-	Check(st.overrides == (IsDev() ? 15 : 14), "sample overrides");
+	Check(st.overrides == (IsDev() ? 10 : 9), "sample overrides");
 	Check(st.unrecognised == 2, "sample unrecognised");
-	Check(st.retired == 1, "sample retired");
+	Check(st.retired == 5, "sample retired");
 	Check(st.debugIgnored.size() == (IsDev() ? 0u : 1u), "sample DEV-only ignored");
 	Check(ConfigSummaryLine(ConfigLoadState(), 0).empty(), "empty config summary");
 	std::string summary = IsDev()
-		? "Config: 15 setting(s) loaded from INI, 2 unrecognised, 1 retired, dup=2 (unrecognised listed above, left at their defaults)"
-		: "Config: 14 setting(s) loaded from INI, 2 unrecognised, 1 retired, dup=2, 1 DEV-only ignored (unrecognised listed above, left at their defaults)";
-	Check(ConfigSummaryLine(st, 2) == summary, "sample summary");
+		? "Config: 10 setting(s) loaded from INI, 2 unrecognised, 5 retired, dup=1 (unrecognised listed above, left at their defaults)"
+		: "Config: 9 setting(s) loaded from INI, 2 unrecognised, 5 retired, dup=1, 1 DEV-only ignored (unrecognised listed above, left at their defaults)";
+	Check(ConfigSummaryLine(st, 1) == summary, "sample summary");
 
 	std::vector<std::string> want;
+	want.push_back("Config: retired key 'islandFarSpan' ignored");
 	want.push_back("Config: unknown or invalid key 'stitchSourceLines'");
-	want.push_back("Config: islandEdgeRing=observe is a retired value; read as false");
+	want.push_back("Config: retired key 'islandEdgeRing' ignored");
+	want.push_back("Config: retired key 'k7PostDeathHold' ignored");
+	want.push_back("Config: retired key 'clusterGraphBypass' ignored");
 	want.push_back("Config: zoneGeometryMode 'bogus' refused; only contentOnly is available");
 	want.push_back("Config: retired key 'squadPathCache' ignored");
 	want.push_back("Config: unknown or invalid key 'foo'");
@@ -411,7 +401,7 @@ void CheckGoldenSample(const ConfigModule& core)
 		if (d.key == "preload" && d.firstLine == 1 && d.lastLine == 15) preloadDup = true;
 		if (d.key == "clusterGraphBypass" && d.firstLine == 8 && d.lastLine == 9) cgbDup = true;
 	}
-	Check(dups == 2 && preloadDup && cgbDup, "sample duplicates: preload 1..15, clusterGraphBypass 8..9");
+	Check(dups == 1 && preloadDup && !cgbDup, "sample duplicates: only active preload 1..15; retired graph key does not count");
 
 	RestoreSnapshot(core);
 }
@@ -487,7 +477,6 @@ void CheckClamps(const ConfigModule& core)
 	zone::g_zoneCfg.cfg_zoneLifeRetainRadius = 5;
 	zone::g_zoneCfg.cfg_zoneLifeSquadRadius = 5;
 	zone::g_zoneCfg.cfg_zoneRetentionMaxHeld = 3;
-	movement::g_movementCfg.cfg_islandFarSpan = 9;
 	zone::g_zoneCfg.cfg_zoneLifeIdleSeconds = 4.0;
 	fixes::g_fixesCfg.throwOutHoldMinutes = 0;
 	Captured().clear();
@@ -504,7 +493,6 @@ void CheckClamps(const ConfigModule& core)
 	want.push_back("Config: zoneLifeRetainRadius=5 clamped to max 4");
 	want.push_back("Config: zoneLifeSquadRadius=5 clamped to max 4");
 	want.push_back("Config: zoneRetentionMaxHeld=3 clamped to min 12");
-	want.push_back("Config: islandFarSpan=9 clamped to max 8");
 	want.push_back("Config: zoneLifeIdleSeconds=4 clamped to min 5");
 	want.push_back("Config: throwOutHoldMinutes=0 clamped to min 1");
 	Check(Captured() == want, "every other clamp bound, in order");
@@ -556,7 +544,7 @@ void CheckCoreWriter(const ConfigModule& core)
 	for (int m = 0; m < kConfigModuleCount; ++m)
 		if (kConfigModules[m].state && strcmp(kConfigModules[m].name, "render"))
 			ConfigIniEntries(kConfigModules[m], kConfigModules[m].state, kConfigModules[m].defaults, &e);
-	Check(e.size() == 138u,
+	Check(e.size() == 109u,
 	      "writer: core entries, every active row but the custom rows without choices");
 	bool appends = false;
 	for (size_t i = 0; i < e.size(); ++i)
@@ -564,8 +552,8 @@ void CheckCoreWriter(const ConfigModule& core)
 	Check(!appends, "writer: core entries at the defaults append nothing");
 
 	zone::g_zoneCfg.preloadEnabled = false;
-	movement::g_movementCfg.cfg_islandFarSpan = 5;
-	pathfind::g_pathfindCfg.clusterGraphBypassMode = CGB_MEASURE;
+	zone::g_zoneCfg.playerCharRegistryEnabled = false;
+	navmesh::g_navmeshCfg.cfg_navmeshWorkerCount = 3;
 	e.clear();
 	for (int m = 0; m < kConfigModuleCount; ++m)
 		if (kConfigModules[m].state && strcmp(kConfigModules[m].name, "render"))
@@ -578,8 +566,8 @@ void CheckCoreWriter(const ConfigModule& core)
 			continue;
 		++changed;
 		if (e[i].key == "preload" && e[i].value == "false" && e[i].kind == INI_BOOL) preload = true;
-		if (e[i].key == "islandFarSpan" && e[i].value == "5" && e[i].kind == INI_INT) span = true;
-		if (e[i].key == "clusterGraphBypass" && e[i].value == "measure" && e[i].kind == INI_TEXT) cgb = true;
+		if (e[i].key == "navmeshWorkerCount" && e[i].value == "3" && e[i].kind == INI_INT) span = true;
+		if (e[i].key == "playerCharRegistry" && e[i].value == "false" && e[i].kind == INI_BOOL) cgb = true;
 	}
 	Check(changed == 3 && preload && span && cgb,
 	      "writer: core entries append exactly the three changed rows, with their INI text");
@@ -631,7 +619,7 @@ void CheckGoldenRecord(const ConfigModule& core)
 		if (!fl[i].empty() && eq != std::string::npos)
 			want.push_back(KeyValue(fl[i].substr(0, eq), fl[i].substr(eq + 1)));
 	}
-	Check(want.size() == 167u, "golden record key count");
+	Check(want.size() == 133u, "golden record key count");
 	CheckNamed(got.size() == want.size(), "golden count");
 	for (size_t i = 0; i < got.size(); ++i)
 	{
@@ -677,8 +665,8 @@ void CheckTables()
 		}
 		Check(mod.keys[i].name == NULL, "tables end");
 	}
-	Check(kConfigModuleCount == 10, "tables end: ten modules");
-	Check(active == 169 && retired == 23, "tables end: active and retired rows");
+	Check(kConfigModuleCount == 7, "tables end: seven retained modules");
+	Check(active == 135 && retired == 57, "tables end: active and retired rows");
 	Check(coreActive == 2 && renderActive == 22, "tables end: rows per module");
 	std::printf("  tables: %d module(s), %d active row(s) (core %d, render %d), %d retired\n",
 	            kConfigModuleCount, active, coreActive, renderActive, retired);

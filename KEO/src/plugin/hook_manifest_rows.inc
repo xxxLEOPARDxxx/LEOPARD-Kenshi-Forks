@@ -10,8 +10,8 @@
 // STANDING RULE: every site the mod writes to adds a row here; its installer
 // reaches it through HookInstallRow. A site with no row is a site that
 // installs blind on an unknown build. startPlugin verifies every row before
-// installing anything, and the scatter byte-patch in formation.cpp shares
-// addOrderSelected's row with the hook on the same function.
+// installing anything. The order hook only observes streaming targets and dispatches
+// the optional Steel waypoint action.
 //
 // Every byte was read from the Steam 1.0.65 IDB (mcp__ida__read_data, 16 bytes
 // at the RVA) — never from a KenshiLib header comment, which
@@ -49,7 +49,7 @@
 	         0x40,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x48,0x81,0xEC,0xB0,0x00,0x00,0x00,0x48)
 	HOOK_ROW(HOOK_UPDATE_CAMERA_ZONE, "updateCameraZone", RVA_UPDATE_CAMERA_ZONE, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
 	         0x48,0x8B,0xC4,0x48,0x89,0x50,0x10,0x48,0x89,0x48,0x08,0x55,0x56,0x57,0x41,0x54)
-	// Hook target and, in FULL builds, the scatter patch's scan base.
+	// Observe the destination for streaming without changing the order.
 	HOOK_ROW(HOOK_ADD_ORDER_SELECTED, "addOrderSelected", RVA_ADD_ORDER_SELECTED, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_MOVEMENT_AWARE, HOOK_CAP_NONE,
 	         0x48,0x8B,0xC4,0x48,0x89,0x48,0x08,0x55,0x41,0x56,0x48,0x8D,0x68,0x98,0x48,0x81)
 	// destroyListOE inserter. The row is unconditional because the install is
@@ -87,13 +87,6 @@
 	// before this fix existed.
 	HOOK_ROW(HOOK_ACTIVEPLATOON_CALC_POS, "calculateCurrentPos", RVA_ACTIVEPLATOON_CALC_POS, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_CORPSE_PIN, HOOK_CAP_NONE,
 	         0x48,0x89,0x5C,0x24,0x20,0x56,0x48,0x83,0xEC,0x40,0x83,0x79,0x58,0x00,0x48,0x8B)
-
-	// SpeedGroup::getSpeed (src/movement/formation_pace.cpp), post-call: `mov [rsp+10h],rdx; push rbx;
-	// push rbp; push r13; sub rsp,60h`, thirteen whole bytes, then a RIP-relative load. Wanted while
-	// formationGatherPace is on. diagnostic = true: a mismatch refuses the gather pacing alone, and the
-	// gather walks at the group's own pace as it did before.
-	HOOK_ROW(HOOK_SPEED_GROUP_GET_SPEED, "getSpeed", RVA_SPEED_GROUP_GET_SPEED, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_GATHER_PACE, HOOK_CAP_NONE,
-	         0x48,0x89,0x54,0x24,0x10,0x53,0x55,0x41,0x55,0x48,0x83,0xEC,0x60,0x48,0x8B,0x05)
 
 	// FactionRelations::update (src/fixes/world/faction_relations.cpp), entry: one whole five-byte
 	// `cmp qword ptr [rcx+40h],0`, position-independent; KEOProfiler may detour the same entry. The
@@ -251,8 +244,6 @@
 	// are two whole register-relative instructions with no branch. Wanted while clusterCrossCost
 	// or plannerMode is set. diagnostic = true: a mismatch refuses both the cost fix and the
 	// planner's live overlay, and without it the connect behaves as vanilla does.
-	HOOK_ROW(HOOK_GRAPH_INSTANCE_CONNECT, "graphInstanceConnect", RVA_GRAPH_INSTANCE_CONNECT, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_CLUSTER_CROSS_COST, HOOK_CAP_NONE,
-	         0x4C,0x8B,0xDC,0x49,0x89,0x53,0x10,0x49,0x89,0x4B,0x08,0x53,0x55,0x48,0x81,0xEC)
 
 	// The per-face AABB step (src/fixes/streaming/mesh_face_guard.cpp): the five bytes a
 	// detour takes are one whole `mov [rsp+18h],r8`. Present in every build,
@@ -368,31 +359,6 @@
 	         0x4C,0x8B,0xDC,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x40)
 #endif
 
-	// --- hook_manifest.cpp, island overlay ---
-	HOOK_ROW(HOOK_ISINISLAND_IMPL, "isInIsland", RVA_ISINISLAND_IMPL, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x48,0x85,0xD2,0x74,0x0B,0x8B,0x42,0x20,0x39,0x41,0x20,0x75,0x03,0xB0,0x01,0xC3)
-	HOOK_ROW(HOOK_GETISLAND_IMPL, "getIsland", RVA_GETISLAND_IMPL, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x48,0x89,0x5C,0x24,0x18,0x48,0x89,0x6C,0x24,0x20,0x57,0x48,0x83,0xEC,0x20,0x48)
-	// --- src/planner/planner_hooks.cpp, the route planner ---
-	// setDestination_Vec3: the five bytes a detour takes are four whole pushes, no branch and no
-	// jump target among them; its one reference is vtable slot 18 through a thunk. getZoneEdge:
-	// mov rax,rsp; push rbp; push rdi, whole and position-independent. Wanted only while plannerMode
-	// is set. diagnostic = true: a mismatch refuses the planner alone, and without these rows both
-	// functions run as vanilla does.
-	HOOK_ROW(HOOK_SET_DESTINATION_VEC3, "setDestinationVec3", RVA_SET_DESTINATION_VEC3, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_PLANNER, HOOK_CAP_NONE,
-	         0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x48,0x8D,0xAC,0x24,0x10)
-	HOOK_ROW(HOOK_GET_ZONE_EDGE, "getZoneEdge", RVA_GET_ZONE_EDGE, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_PLANNER, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x55,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x48,0x8D,0x68,0xA9,0x48)
-	// CharMovement::update (src/planner/planner_prearrival.cpp), pre-call: mov rax,rsp; push rbp; push rsi,
-	// whole and position-independent, and no jump targets them; KEOProfiler detours the same entry with
-	// the same bytes. Wanted only while plannerMode is on and plannerPreArrivalMs > 0. diagnostic = true: a
-	// mismatch turns the pre-arrival request off alone, and the planner keeps its portal protocol.
-	HOOK_ROW(HOOK_CHARMOVEMENT_UPDATE, "charMovementUpdate", RVA_CHARMOVEMENT_UPDATE, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_PLANNER_PRE_ARRIVAL, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8D)
-	// Character::updateOnScreenCheck (src/fixes/world/onscreen_stagger.cpp), entry: push rbx; push
-	// r14; sub rsp,68h, whole and position-independent to byte 8; KEOProfiler times its two call
-	// sites, not the entry. Installed in every build for its live key. diagnostic =
-	// true: a mismatch refuses the stagger alone, and every check runs as vanilla's.
 	HOOK_ROW(HOOK_CHARACTER_UPDATE_ONSCREEN_CHECK, "updateOnScreenCheck", RVA_CHARACTER_UPDATE_ONSCREEN_CHECK, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
 	         0x40,0x53,0x41,0x56,0x48,0x83,0xEC,0x68,0x44,0x0F,0xB6,0xB1,0xA9,0x01,0x00,0x00)
 
@@ -403,23 +369,6 @@
 	HOOK_ROW(HOOK_CHARACTER_PAUSED_UPDATE, "pausedUpdate", RVA_CHARACTER_PAUSED_UPDATE, HOOK_DIAGNOSTIC, HOOK_BY_MODULE, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
 	         0x40,0x53,0x48,0x83,0xEC,0x30,0x48,0x8B,0x01,0x0F,0xB6,0x91,0xE5,0x00,0x00,0x00)
 
-	// --- hook_manifest.cpp, player cancel hooks ---
-	// Bytes read from the IDB (ida MCP read_data/disassemble).
-	// All three prologues are position-independent over the bytes a detour
-	// takes (push rbx; sub rsp,20h / push rbx; push rbp; push r14 /
-	// push rbx; push r12; push r14).
-	// diagnostic = true: these only observe the player's cancels. A mismatch
-	// refuses that hook alone; hook_manifest.cpp records which one installed
-	// (IslandSetCancelHooksInstalled) so the deleted-order re-issue logic can turn
-	// itself off instead of misreading a cancel it never saw.
-	HOOK_ROW(HOOK_STOP_CHARACTERS_MOVEMENT, "stopCharactersMovement", RVA_STOP_CHARACTERS_MOVEMENT, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x40,0x53,0x48,0x83,0xEC,0x20,0x48,0x83,0xB9,0x28,0x02,0x00,0x00,0x00,0x48,0x8B)
-	HOOK_ROW(HOOK_ADD_JOB_SELECTED, "addJobSelected", RVA_ADD_JOB_SELECTED, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x40,0x53,0x55,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x48,0x8B,0xEA,0x33,0xD2,0x45)
-	HOOK_ROW(HOOK_ADD_TASK_NEAREST, "addTaskNearest", RVA_ADD_TASK_NEAREST, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x40,0x53,0x41,0x54,0x41,0x56,0x41,0x57,0x48,0x81,0xEC,0xC8,0x00,0x00,0x00,0x4C)
-
-	// --- hook_manifest.cpp, navmesh cache ---
 	HOOK_ROW(HOOK_DISPATCH_JOB, "dispatchJob", RVA_DISPATCH_JOB, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_CACHING, HOOK_CAP_NONE,
 	         0x48,0x89,0x6C,0x24,0x20,0x56,0x48,0x83,0xEC,0x30,0x48,0x8D,0xA9,0x88,0x00,0x00)
 	// NavMesh::generate(ZoneMap*) (src/navmesh/cache/nm_force_rebuild.cpp): mov rax,rsp; push rsi;
@@ -464,42 +413,8 @@
 	         0x48,0x8B,0xC4,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8D)
 
 	// --- hook_manifest.cpp, pathfinding ---
-	HOOK_ROW(HOOK_CS_FIND_PATH, "csFindPath", RVA_CS_FIND_PATH, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATHFIND_DIAG, HOOK_CAP_NONE,
-	         0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x48,0x8D,0x6C,0x24,0x98,0x48,0x81)
-	HOOK_ROW(HOOK_CS_CHECK_FACE_CONN, "csCheckFaceConn", RVA_CS_CHECK_FACE_CONN, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATHFIND_DIAG, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x55,0x48,0x8D,0x68,0xA1,0x48,0x81,0xEC,0xF0,0x00,0x00,0x00,0x48)
-	HOOK_ROW(HOOK_FIND_PATH_FULL, "findPathFull", RVA_FIND_PATH_FULL, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_FIND_PATH_FULL, HOOK_CAP_NONE,
-	         0x48,0x89,0x4C,0x24,0x08,0x55,0x56,0x41,0x54,0x41,0x55,0x41,0x57,0x48,0x8D,0xAC)
-	HOOK_ROW(HOOK_REQUEST_PATH, "requestPath", RVA_REQUEST_PATH, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATHFIND_DIAG, HOOK_CAP_NONE,
-	         0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57)
-	HOOK_ROW(HOOK_PATH_REQ_SUBMIT, "pathReqSubmit", RVA_PATH_REQ_SUBMIT, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATHFIND_DIAG, HOOK_CAP_NONE,
-	         0x48,0x89,0x54,0x24,0x10,0x55,0x56,0x57,0x48,0x83,0xEC,0x30,0x48,0xC7,0x44,0x24)
-	HOOK_ROW(HOOK_CS_FIND_PATH_FALLBACK, "csFindPathFallback", RVA_CS_FIND_PATH_FALLBACK, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATHFIND_DIAG, HOOK_CAP_NONE,
-	         0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x48,0x8D,0xAC,0x24,0x60)
-	HOOK_ROW(HOOK_CONTENT_STREAM_CALLEE_0X8869, "contentStreamCallee_0x8869", RVA_CONTENT_STREAM_CALLEE_0X8869, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_PATH_EXTRACT, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x53,0x55,0x57,0x41,0x56,0x41,0x57,0x48,0x83,0xEC,0x70,0x0F,0x57)
 	HOOK_ROW(HOOK_ADD_INSTANCE, "addInstance", RVA_ADD_INSTANCE, HOOK_FATAL, HOOK_BY_STARTUP, HOOK_WANT_ADD_INSTANCE, HOOK_CAP_NONE,
 	         0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57)
-
-	// --- hook_manifest.cpp, path-worker-pool instrumentation ---
-	// Bytes read from the IDB (ida MCP disassemble).
-	// diagnostic = true: these four are the PathPool
-	// instrumentation, except the enqueue entry also hosts the paired priority
-	// publication bridge. A mismatch disables that tier capability too, not the
-	// rest of the plugin. A mismatch here
-	// must turn PathPool off, not refuse the whole plugin -- each install
-	// site (hook_manifest.cpp) re-checks its own row via VerifyPrologueByRva anyway,
-	// so this row only decides whether a mismatch is fatal to the plugin.
-	HOOK_ROW(HOOK_CONTENT_STREAM, "contentStream", RVA_CONTENT_STREAM, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8D,0x68,0xB8)
-	HOOK_ROW(HOOK_DEQUEUE_WORK, "dequeueWork", RVA_DEQUEUE_WORK, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x48,0x89,0x5C,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xEC,0x20,0x48)
-	HOOK_ROW(HOOK_ENQUEUE_THREAD_SAFE, "enqueueThreadSafe", RVA_ENQUEUE_THREAD_SAFE, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_ALWAYS, HOOK_CAP_NONE,
-	         0x48,0x89,0x5C,0x24,0x08,0x57,0x48,0x83,0xEC,0x20,0x48,0x8B,0xD9,0xB9,0x10,0x00)
-	HOOK_ROW(HOOK_GATES_UPDATE_CODES, "gatesUpdateCodes", RVA_GATES_UPDATE_CODES, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_GATE_PASS, HOOK_CAP_NONE,
-	         0x48,0x8B,0xC4,0x55,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,0x48,0x8D,0xA8,0xA8)
-	HOOK_ROW(HOOK_GATES_FIND_PATH, "gatesFindPath", RVA_GATES_FIND_PATH, HOOK_DIAGNOSTIC, HOOK_BY_STARTUP, HOOK_WANT_GATE_PASS, HOOK_CAP_NONE,
-	         0x40,0x57,0x48,0x81,0xEC,0xB0,0x00,0x00,0x00,0x48,0xC7,0x44,0x24,0x20,0xFE,0xFF)
 
 	// --- render levers (src/render/) ---
 	// diagnostic = true: a mismatch refuses that lever alone.

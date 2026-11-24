@@ -34,8 +34,8 @@ static const char* const SUITE_NAME = "settings_factory_units";
 #else
 static const char* const SUITE_NAME = "settings_factory_prod_units";
 #endif
-static const size_t CORE_ROWS_DEV = 137;
-static const int DEV_ONLY_ROWS = 108;
+static const size_t CORE_ROWS_DEV = 108;
+static const int DEV_ONLY_ROWS = 85;
 
 // ---- Sections --------------------------------------------------------------
 
@@ -49,15 +49,15 @@ static void CheckSections()
 
 	// DEV: every module section, then the Benchmark section.
 	std::vector<std::string> dev = Headers(Rows(&st, true, &bench));
-	bool sections = dev.size() == 10 && dev[0] == RENDER_TITLE && dev[9] == "Benchmark";
-	for (int i = 0; sections && i < 8; ++i) sections = dev[i + 1] == MODULE_TITLES[i];
+	bool sections = dev.size() == 7 && dev[0] == RENDER_TITLE && dev[6] == "Benchmark";
+	for (int i = 0; sections && i < 5; ++i) sections = dev[i + 1] == MODULE_TITLES[i];
 	Check(sections, "Sections: DEV");
 
 	// PROD: only the sections that keep a row, and no Benchmark.
 	std::vector<SettingsRow> rows = Rows(&st, false, &bench);
 	std::vector<std::string> prod = Headers(rows);
-	sections = prod.size() == 7;
-	for (int i = 0; sections && i < 7; ++i) sections = prod[i] == PROD_SECTIONS[i];
+	sections = prod.size() == 6;
+	for (int i = 0; sections && i < 6; ++i) sections = prod[i] == PROD_SECTIONS[i];
 	Check(sections, "Sections: PROD");
 	Check(!rows.empty() && rows[0].kind == SR_HEADER && rows[0].label == PROD_SECTIONS[0],
 	      "the page opens with its first section's heading");
@@ -177,8 +177,8 @@ static void CheckRowCounts()
 	std::vector<SettingsRow> dev = Rows(&st, true, NULL), prod = Rows(&st, false, NULL);
 	Check(ModuleSections(dev).size() == CORE_ROWS_DEV, "core rows dev");
 	Check(Section(dev, RENDER_TITLE).size() == 21, "render rows dev");
-	Check(Section(prod, "Zone loading").size() == 7 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 15
-	      && Section(prod, "Squad movement").size() == 5 && Section(prod, "Gameplay fixes").size() == 5
+	Check(Section(prod, "Zone loading").size() == 6 && Section(prod, "Resource memory").size() == 10 && Section(prod, "Performance").size() == 15
+	      && Section(prod, "Squad movement").empty() && Section(prod, "Gameplay fixes").size() == 5
 	      && Section(prod, "Backpacks and jobs").size() == 7, "player section rows prod");
 }
 
@@ -278,31 +278,31 @@ static void CheckDevOnly()
 
 static void CheckNumericRows()
 {
-	int c = ModuleFor("islandFarSpan");
+	int c = ModuleFor("zoneLifeRetainRadius");
 	const ConfigModule& core = kConfigModules[c];
 	SettingsStaging saved;
 	StageAll(&saved);
 	SettingsStaging st = saved;
 	std::vector<SettingsRow> dev = Rows(&st, true, NULL), prod = Rows(&st, false, NULL);
 
-	int far = KeyIndex(core, "islandFarSpan");
+	int far = KeyIndex(core, "zoneLifeRetainRadius");
 	const SettingsRow* r = far >= 0 && core.keys[far].label ? FindLabel(dev, RowLabel(core.keys[far])) : NULL;
-	Check(r && r->kind == SR_SLIDER && r->lo == 0.0f && r->hi == 8.0f && r->stepExp == 0
-	      && r->floatPtr == &st.module[c].slots[far].f, "islandFarSpan: an integer slider, 0 to 8 in whole steps");
+	Check(r && r->kind == SR_SLIDER && r->lo == 1.0f && r->hi == 4.0f && r->stepExp == 0
+	      && r->floatPtr == &st.module[c].slots[far].f, "zoneLifeRetainRadius: an integer slider, 1 to 4 in whole steps");
 	if (r)
 	{
 		std::vector<IniEntry> e;
-		*r->floatPtr = 5.0f;
+		*r->floatPtr = 4.0f;
 		int n = ModuleStageEntries(core, st.module[c], saved.module[c], &e);
-		Check(OneEntry(e, n, "islandFarSpan", "5", INI_INT, true), "islandFarSpan: 5.0 writes islandFarSpan=5");
+		Check(OneEntry(e, n, "zoneLifeRetainRadius", "4", INI_INT, true), "zoneLifeRetainRadius: 4.0 writes zoneLifeRetainRadius=4");
 		e.clear();
-		*r->floatPtr = 4.6f;
+		*r->floatPtr = 2.6f;
 		n = ModuleStageEntries(core, st.module[c], saved.module[c], &e);
-		Check(OneEntry(e, n, "islandFarSpan", "5", INI_INT, true), "islandFarSpan: 4.6 writes islandFarSpan=5");
+		Check(OneEntry(e, n, "zoneLifeRetainRadius", "3", INI_INT, true), "zoneLifeRetainRadius: 2.6 writes zoneLifeRetainRadius=3");
 		e.clear();
-		*r->floatPtr = 2.4f;
+		*r->floatPtr = 1.4f;
 		n = ModuleStageEntries(core, st.module[c], saved.module[c], &e);
-		Check(n == 0 && e.empty(), "islandFarSpan: a value that rounds to the saved one writes nothing");
+		Check(n == 0 && e.empty(), "zoneLifeRetainRadius: a value that rounds to the saved one writes nothing");
 	}
 
 	int f = ModuleFor("stitchSourceLines");
@@ -317,7 +317,7 @@ static void CheckNumericRows()
 	Check(none, "stitchSourceLines has no row in either build");
 
 	// Every slider's default and maximum lie on its grid, from sliderLo.
-	for (int mm = 1; mm < 8; ++mm)
+	for (int mm = 1; mm < kConfigModuleCount; ++mm)
 	for (int i = 0; kConfigModules[mm].keys[i].name; ++i)
 	{
 		const ConfigModule& mod = kConfigModules[mm];
@@ -510,84 +510,34 @@ static void CheckOneKey()
 	      "one key: deferral=false");
 }
 
+// A retained DEV-only off/on control still saves and loads each choice.
 static void CheckCustomDropBox()
 {
-	int c = ModuleFor("k7PostDeathHold");
-	const ConfigModule& core = kConfigModules[c];
-	int k7 = KeyIndex(core, "k7PostDeathHold");
-	SettingsStaging saved;
-	StageAll(&saved);
-	SettingsStaging st = saved;
-
-	// PROD leaves the DEV-only Observe out, unless the row already holds it.
-	if (k7 >= 0 && core.keys[k7].label)
-	{
-		std::vector<SettingsRow> prod = Rows(&st, false, NULL);
-		const SettingsRow* p = FindLabel(prod, RowLabel(core.keys[k7]));
-		Check(st.module[c].slots[k7].i != K7_HOLD_OBSERVE && p && p->choices.size() == 2
-		      && p->choices[0].first == "Off" && p->choices[1].first == "On", "custom drop box: PROD shows Off and On");
-		SettingsStaging held = saved;
-		held.module[c].slots[k7].i = K7_HOLD_OBSERVE;
-		prod = Rows(&held, false, NULL);
-		p = FindLabel(prod, RowLabel(core.keys[k7]));
-		Check(p && p->choices.size() == 3 && p->choices[1].second == K7_HOLD_OBSERVE,
-		      "custom drop box: PROD keeps Observe while the row holds it");
-	}
-
-	std::vector<SettingsRow> rows = Rows(&st, true, NULL);
-	const SettingsRow* r = k7 >= 0 && core.keys[k7].label ? FindLabel(rows, RowLabel(core.keys[k7])) : NULL;
-	bool ok = r && r->kind == SR_DROPBOX && r->intPtr == &st.module[c].slots[k7].i && r->choices.size() == 3
-	       && r->choices[0].first == "Off" && r->choices[0].second == K7_HOLD_OFF
-	       && r->choices[1].first == "Observe" && r->choices[1].second == K7_HOLD_OBSERVE
-	       && r->choices[2].first == "On" && r->choices[2].second == K7_HOLD_ON;
-	Check(ok, "custom drop box: DEV shows Off, Observe and On");
-	if (!ok)
-		return;
-	const char* want[3] = { "false", "observe", "true" };
-	int held = movement::g_movementCfg.cfg_k7PostDeathHold;
-	for (int i = 0; i < 3; ++i)
-	{
-		saved.module[c].slots[k7].i = -1;
-		*r->intPtr = r->choices[i].second;
-		std::vector<IniEntry> e;
-		int n = ModuleStageEntries(core, st.module[c], saved.module[c], &e);
-		Check(n == 1 && e.size() == 1 && e[0].key == "k7PostDeathHold" && e[0].value == want[i],
-		      "custom drop box: writes false, observe or true");
-		movement::g_movementCfg.cfg_k7PostDeathHold = -1;
-		Check(n == 1 && ConfigApplyValue(core, core.keys[k7], e[0].value, &DiscardLog)
-		      && movement::g_movementCfg.cfg_k7PostDeathHold == r->choices[i].second, "custom drop box: the written value parses back");
-	}
-	movement::g_movementCfg.cfg_k7PostDeathHold = held;
-}
-
-// The route planner's drop box: Observe is DEV-only, so PROD offers Off and On and keeps Observe
-// only while the row holds it, and DEV offers all three.
-static void CheckPlannerModeRow()
-{
-	int c = ModuleFor("plannerMode");
-	int pm = c >= 0 ? KeyIndex(kConfigModules[c], "plannerMode") : -1;
-	Check(pm >= 0 && kConfigModules[c].keys[pm].label, "Observe is DEV-only: the plannerMode row");
-	if (pm < 0 || !kConfigModules[c].keys[pm].label)
-		return;
-	const ConfigKey& k = kConfigModules[c].keys[pm];
-	SettingsStaging st;
-	StageAll(&st);
-	std::vector<SettingsRow> prod = Rows(&st, false, NULL), dev = Rows(&st, true, NULL);
-	const SettingsRow* p = FindLabel(prod, RowLabel(k));
-	Check(st.module[c].slots[pm].i == planner::PLANNER_ON && p && p->kind == SR_DROPBOX && p->choices.size() == 2
-	      && p->choices[0].first == "Off" && p->choices[0].second == planner::PLANNER_OFF
-	      && p->choices[1].first == "On" && p->choices[1].second == planner::PLANNER_ON,
-	      "Observe is DEV-only: PROD shows Off and On");
-	const SettingsRow* d = FindLabel(dev, RowLabel(k));
-	Check(d && d->kind == SR_DROPBOX && d->choices.size() == 3
-	      && d->choices[1].first == "Observe" && d->choices[1].second == planner::PLANNER_OBSERVE,
-	      "Observe is DEV-only: DEV shows Off, Observe and On");
-	SettingsStaging held = st;
-	held.module[c].slots[pm].i = planner::PLANNER_OBSERVE;
-	prod = Rows(&held, false, NULL);
-	p = FindLabel(prod, RowLabel(k));
-	Check(p && p->choices.size() == 3 && p->choices[1].second == planner::PLANNER_OBSERVE,
-	      "Observe is DEV-only: PROD keeps Observe while the row holds it");
+ const int m = ModuleFor("hullSameSkip");
+ const ConfigModule& module = kConfigModules[m];
+ const int k = KeyIndex(module, "hullSameSkip");
+ SettingsStaging saved; StageAll(&saved);
+ SettingsStaging st = saved;
+ std::vector<SettingsRow> prod = Rows(&st, false, NULL), dev = Rows(&st, true, NULL);
+ const SettingsRow* row = FindLabel(dev, RowLabel(module.keys[k]));
+ const bool ready = row && row->kind == SR_DROPBOX && row->intPtr == &st.module[m].slots[k].i
+  && row->choices.size() == 2 && row->choices[0].second == 0 && row->choices[0].first == "Off"
+  && row->choices[1].second == 1 && row->choices[1].first == "On";
+ Check(ready && !FindLabel(prod, RowLabel(module.keys[k])), "custom choice remains DEV-only off/on");
+ if (!ready) return;
+ const int held = fixes::g_fixesCfg.cfg_hullSameSkip;
+ for (int i = 0; i < 2; ++i) {
+  saved.module[m].slots[k].i = -1;
+  *row->intPtr = row->choices[i].second;
+  std::vector<IniEntry> entries;
+  const int n = ModuleStageEntries(module, st.module[m], saved.module[m], &entries);
+  Check(n == 1 && entries.size() == 1 && entries[0].key == "hullSameSkip"
+    && entries[0].value == (i ? "on" : "off"), "custom choice writes exact off/on value");
+  fixes::g_fixesCfg.cfg_hullSameSkip = -1;
+  Check(n == 1 && ConfigApplyValue(module, module.keys[k], entries[0].value, &DiscardLog)
+    && fixes::g_fixesCfg.cfg_hullSameSkip == i, "custom choice parses its saved value");
+ }
+ fixes::g_fixesCfg.cfg_hullSameSkip = held;
 }
 
 // Every row the page shows saves: a change through its bound pointer gives
@@ -829,8 +779,8 @@ static void CheckCommitClamp()
 	      "commit clamp: camFocusMaxDist 250 writes 500");
 	Check(OneValue(CommitEntries("camFocusMaxDist", 60000.0f), "camFocusMaxDist", "50000"),
 	      "commit clamp: camFocusMaxDist 60000 writes 50000");
-	Check(OneValue(CommitEntries("islandFarSpan", 12.0f), "islandFarSpan", "8"),
-	      "commit clamp: islandFarSpan 12 writes 8");
+	Check(OneValue(CommitEntries("zoneLifeRetainRadius", 12.0f), "zoneLifeRetainRadius", "4"),
+	      "commit clamp: zoneLifeRetainRadius 12 writes 4");
 	Check(OneValue(CommitEntries("navmeshDiskCacheMaxMB", 10.0f), "navmeshDiskCacheMaxMB", "32"),
 	      "commit clamp: navmeshDiskCacheMaxMB 10 writes 32");
 	Check(OneValue(CommitEntries("zoneLifeIdleSeconds", 1.5f), "zoneLifeIdleSeconds", "5"),
@@ -846,10 +796,10 @@ static void CheckCommitClamp()
 	// so it clamps to the bound the next start loads.
 	Check(OneValue(CommitEntries("navmeshDiskCacheMaxMB", 1e11f), "navmeshDiskCacheMaxMB", "8192"),
 	      "commit clamp: navmeshDiskCacheMaxMB 1e11 writes 8192");
-	Check(OneValue(CommitEntries("islandFarSpan", 1e11f), "islandFarSpan", "8"),
-	      "commit clamp: islandFarSpan 1e11 writes 8");
-	Check(OneValue(CommitEntries("islandFarSpan", -1e11f), "islandFarSpan", "0"),
-	      "commit clamp: islandFarSpan -1e11 writes 0");
+	Check(OneValue(CommitEntries("zoneLifeRetainRadius", 1e11f), "zoneLifeRetainRadius", "4"),
+	      "commit clamp: zoneLifeRetainRadius 1e11 writes 4");
+	Check(CommitEntries("zoneLifeRetainRadius", -1e11f).empty(),
+	      "commit clamp: zoneLifeRetainRadius below minimum returns to saved default without a write");
 	{
 		int ci = ModuleFor("navmeshDiskCacheMaxMB");
 		const ConfigModule& cm = kConfigModules[ci];
@@ -863,19 +813,19 @@ static void CheckCommitClamp()
 	}
 
 	// An integer slider's fraction does not survive the close.
-	int c = ModuleFor("islandFarSpan");
+	int c = ModuleFor("zoneLifeRetainRadius");
 	const ConfigModule& core = kConfigModules[c];
-	int far = KeyIndex(core, "islandFarSpan");
+	int far = KeyIndex(core, "zoneLifeRetainRadius");
 	SettingsStaging saved;
 	StageAll(&saved);
 	SettingsStaging st = saved;
 	std::vector<std::string> notes;
-	st.module[c].slots[far].f = (float)movement::g_movementCfg.cfg_islandFarSpan + 0.4f;
+	st.module[c].slots[far].f = (float)zone::g_zoneCfg.cfg_zoneLifeRetainRadius + 0.4f;
 	ClampSettings(&st, saved, g_renderCfg, &DiscardLog, &notes);
-	Check(st.module[c].slots[far].f == (float)movement::g_movementCfg.cfg_islandFarSpan, "commit clamp: islandFarSpan keeps no fraction");
-	st.module[c].slots[far].f = 4.6f;
+	Check(st.module[c].slots[far].f == (float)zone::g_zoneCfg.cfg_zoneLifeRetainRadius, "commit clamp: zoneLifeRetainRadius keeps no fraction");
+	st.module[c].slots[far].f = 2.6f;
 	ClampSettings(&st, saved, g_renderCfg, &DiscardLog, &notes);
-	Check(st.module[c].slots[far].f == 5.0f, "commit clamp: islandFarSpan 4.6 stays 5");
+	Check(st.module[c].slots[far].f == 3.0f, "commit clamp: zoneLifeRetainRadius 2.6 stays 3");
 }
 
 // Every shown row of every module through a close and the next start: a
@@ -1372,7 +1322,6 @@ int main()
 	CheckWorkerRow();
 	CheckOneKey();
 	CheckCustomDropBox();
-	CheckPlannerModeRow();
 	CheckEveryRowSaves();
 	CheckStageReads();
 	CheckCommitClamp();

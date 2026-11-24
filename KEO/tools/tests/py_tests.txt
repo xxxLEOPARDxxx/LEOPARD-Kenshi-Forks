@@ -18,3 +18,4 @@
 100 tools\tests\test_nm_force_rebuild_delivery.py when=src/navmesh/cache/nm_force_rebuild*,tools/tests/test_nm_force_rebuild_delivery.py
 101 tools\tests\test_splice_ring_delivery.py when=src/navmesh/construction/splice_ring*,src/navmesh/construction/splice_seam.cpp,tools/tests/splice_ring_delivery.cpp,tools/tests/test_splice_ring_delivery.py
 102 tools\tests\test_stitch_diagnostic_boundaries.py when=src/fixes/stitch/stitch_source*,src/fixes/stitch/stitch_byte_guard.cpp,tools/tests/test_stitch_diagnostic_boundaries.py
+103 tools\tests\test_stock_navigation.py when=src/zone/preload/preload_order.*,src/plugin/hook_manifest*,src/gui/settings_layout.cpp,tools/build/coresrc.txt,tools/tests/test_stock_navigation.py

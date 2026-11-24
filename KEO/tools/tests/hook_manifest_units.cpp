@@ -114,16 +114,8 @@ static const InputField kFields[] =
 #endif
 	{ "movementAware",       &HookWantInputs::movementAware,       &zone::g_zoneCfg.movementAwareEnabled },
 	{ "caching",             &HookWantInputs::caching,             &navmesh::g_navmeshCfg.cachingEnabled },
-	{ "pathfindDiag",        &HookWantInputs::pathfindDiag,        &pathfind::g_pathfindCfg.pathfindDiagEnabled },
-	{ "pathExtractGuard",    &HookWantInputs::pathExtractGuard,    &fixes::g_fixesCfg.pathExtractGuardEnabled },
 	{ "sectionStamp",        &HookWantInputs::sectionStamp,        &fixes::g_fixesCfg.sectionStampEnabled },
-	{ "gatePassDiag",        &HookWantInputs::gatePassDiag,        &pathfind::g_pathfindCfg.gatePassDiagEnabled },
 	{ "graphHeuristicGuard", &HookWantInputs::graphHeuristicGuard, NULL },
-	{ "playerHierarchical",  &HookWantInputs::playerHierarchical,  NULL },
-	{ "clusterCrossCost",    &HookWantInputs::clusterCrossCost,    NULL },
-	{ "planner", &HookWantInputs::planner, NULL },
-	{ "gatherPace",          &HookWantInputs::gatherPace,          &movement::g_movementCfg.formationGatherPaceEnabled },
-	{ "preArrival",          &HookWantInputs::preArrival,          NULL },
 	{ "townClaim",           &HookWantInputs::townClaim,           &fixes::g_fixesCfg.townClaimFixEnabled },
 	{ "throwOut",            &HookWantInputs::throwOut,            &fixes::g_fixesCfg.throwOutFixEnabled },
 	{ "backpackFood",        &HookWantInputs::backpackFood,        &keo_inventory::g_inventoryCfg.backpackFoodScoreEnabled },
@@ -142,7 +134,7 @@ static int FieldIndex(const char* name)
 }
 
 // The DEV defaults: every key true but detailedLog, unstitchProbe,
-// graphHeuristicGuard and clusterCrossCost.
+// graphHeuristicGuard .
 static HookWantInputs DevDefaults()
 {
 	HookWantInputs in;
@@ -151,7 +143,6 @@ static HookWantInputs DevDefaults()
 	in.unstitchProbe = false;
 	in.detailedLog = false;
 	in.graphHeuristicGuard = false;
-	in.clusterCrossCost = false;
 	return in;
 }
 
@@ -160,7 +151,6 @@ static HookWantInputs ProdDefaults()
 {
 	HookWantInputs in = DevDefaults();
 	in.destroyListDiag  = false;
-	in.gatePassDiag     = false;
 	in.sectionKeyProbe  = false;
 	return in;
 }
@@ -279,15 +269,10 @@ static const Flip kFlips[] =
 	{ "destroyListDiag and destroyListDefer", { "destroyListDiag", "destroyListDefer" },
 	  { "destroyListInsert" } },
 	{ "caching", { "caching" }, { "dispatchJob", "navMeshGenerate", "navMeshGenerateAabb" } },
-	{ "pathfindDiag", { "pathfindDiag" },
-	  { "csFindPath", "csCheckFaceConn", "requestPath", "pathReqSubmit", "csFindPathFallback",
-	    "contentStreamCallee_0x8869" } },
-	{ "pathExtractGuard", { "pathExtractGuard" }, { "contentStreamCallee_0x8869" } },
 	{ "sectionStamp", { "sectionStamp" }, { NULL } },
 	{ "navMeshLife", { "navMeshLife" }, { "removeInstance" } },
 	{ "sectionStamp and navMeshLife", { "sectionStamp", "navMeshLife" },
 	  { "addInstance", "removeInstance" } },
-	{ "gatePassDiag", { "gatePassDiag" }, { "gatesUpdateCodes", "gatesFindPath" } },
 	{ "escapePauseGuard", { "escapePauseGuard" }, { "processLoading" } },
 	{ "corpsePin", { "corpsePin" }, { "calculateCurrentPos" } },
 #if ZONEHAND_STEP >= 2
@@ -302,16 +287,7 @@ static const Flip kFlips[] =
 	{ "meshFaceGuard", { "meshFaceGuard" }, { "navMeshFaceAabb" } },
 	{ "unstitchProbe", { "unstitchProbe" }, { "deleteInstance" } },
 	{ "sectionKeyProbe", { "sectionKeyProbe" }, { "clearanceResetKeys", "sectionCutLookup" } },
-	{ "graphHeuristicGuard", { "graphHeuristicGuard" }, { NULL } },
-	{ "playerHierarchical", { "playerHierarchical" }, { "graphHeuristicGoalAdjacent", "graphHeuristicClusterCentre", "graphHeuristicCoarseSeed" } },
-	{ "pathfindDiag and playerHierarchical", { "pathfindDiag", "playerHierarchical" },
-	  { "csFindPath", "csCheckFaceConn", "findPathFull", "requestPath", "pathReqSubmit",
-	    "csFindPathFallback", "contentStreamCallee_0x8869", "graphHeuristicGoalAdjacent",
-	    "graphHeuristicClusterCentre", "graphHeuristicCoarseSeed" } },
-	{ "clusterCrossCost", { "clusterCrossCost" }, { NULL } },
-	{ "plannerMode", { "planner" }, { "graphInstanceConnect", "getZoneEdge", "setDestinationVec3" } },
-	{ "gatherPace", { "gatherPace" }, { "getSpeed" } },
-	{ "preArrival", { "preArrival" }, { "charMovementUpdate" } },
+	{ "graphHeuristicGuard", { "graphHeuristicGuard" }, { "graphHeuristicGoalAdjacent", "graphHeuristicClusterCentre", "graphHeuristicCoarseSeed" } },
 	{ "townClaim", { "townClaim" }, { "builderPlace", "createBuilding" } },
 	{ "throwOut", { "throwOut" }, { "getDropped", "takeOutsideTick", "takeOutsidePathImpossible", "findKOIntruderTown" } },
 	{ "backpackFood", { "backpackFood" }, { "scoreFindFoodOnGround" } },
@@ -395,43 +371,7 @@ static void CheckInputMapping()
 	fixes::g_fixesCfg.graphHeuristicGuardOn = savedHeuristic;
 	Check(SameInputs(heuristic, base, FieldIndex("graphHeuristicGuard")), "inputs graphHeuristicGuard");
 
-	// playerHierarchical is an int key too, on by default: off flips exactly its input, observe keeps it.
-	const int savedHier = pathfind::g_pathfindCfg.playerHierarchicalMode;
-	pathfind::g_pathfindCfg.playerHierarchicalMode = AHIER_OFF;
-	HookWantInputs hierOff = HookWantInputsFromConfig();
-	pathfind::g_pathfindCfg.playerHierarchicalMode = AHIER_OBSERVE;
-	HookWantInputs hierObserve = HookWantInputsFromConfig();
-	pathfind::g_pathfindCfg.playerHierarchicalMode = savedHier;
-	Check(SameInputs(hierOff, base, FieldIndex("playerHierarchical")), "inputs playerHierarchical off");
-	Check(SameInputs(hierObserve, base, -1), "inputs playerHierarchical observe");
 
-	// clusterCrossCost is an int key as well.
-	const int savedCross = fixes::g_fixesCfg.clusterCrossCostOn;
-	fixes::g_fixesCfg.clusterCrossCostOn = 1;
-	HookWantInputs cross = HookWantInputsFromConfig();
-	fixes::g_fixesCfg.clusterCrossCostOn = savedCross;
-	Check(SameInputs(cross, base, FieldIndex("clusterCrossCost")), "inputs clusterCrossCost");
-
-	// plannerMode is an int key, on by default: off flips the planner input and the pre-arrival one
-	// (which needs on), observe flips the pre-arrival input alone.
-	const int savedPlanner = planner::g_plannerCfg.mode;
-	planner::g_plannerCfg.mode = planner::PLANNER_OFF;
-	HookWantInputs plannerOff = HookWantInputsFromConfig();
-	planner::g_plannerCfg.mode = planner::PLANNER_OBSERVE;
-	HookWantInputs plannerObserve = HookWantInputsFromConfig();
-	planner::g_plannerCfg.mode = savedPlanner;
-	HookWantInputs plannerOffPre = plannerOff;
-	plannerOffPre.preArrival = !plannerOffPre.preArrival;
-	Check(SameInputs(plannerOffPre, base, FieldIndex("planner")) && plannerOff.preArrival == false,
-	      "inputs plannerMode off");
-	Check(SameInputs(plannerObserve, base, FieldIndex("preArrival")), "inputs plannerMode observe");
-
-	// plannerPreArrivalMs is an int key too, 1000 by default: 0 flips exactly the pre-arrival input.
-	const int savedPre = planner::g_plannerCfg.preArrivalMs;
-	planner::g_plannerCfg.preArrivalMs = 0;
-	HookWantInputs preOff = HookWantInputsFromConfig();
-	planner::g_plannerCfg.preArrivalMs = savedPre;
-	Check(SameInputs(preOff, base, FieldIndex("preArrival")), "inputs plannerPreArrivalMs 0");
 }
 
 // The rows carrying HOOK_CAP_WORKER_POOL are exactly navMeshStop and
@@ -467,14 +407,14 @@ int main()
 {
 	CheckInstallAdmit();
 #if ZONEHAND_STEP >= 3
-	CheckVariant(kDevRows, kDevCount, "dev", 93, 78, 75, 25, 53, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 88, 73, 69, 25, 48, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 71, 56, 50, 8, 48, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 66, 51, 46, 8, 43, ProdDefaults());
 #elif ZONEHAND_STEP == 2
-	CheckVariant(kDevRows, kDevCount, "dev", 92, 77, 74, 25, 52, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 87, 72, 68, 25, 47, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 70, 55, 49, 8, 47, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 65, 50, 45, 8, 42, ProdDefaults());
 #else
-	CheckVariant(kDevRows, kDevCount, "dev", 89, 74, 71, 25, 49, DevDefaults());
-	CheckVariant(kProdRows, kProdCount, "prod", 84, 69, 65, 25, 44, ProdDefaults());
+	CheckVariant(kDevRows, kDevCount, "dev", 67, 52, 46, 8, 44, DevDefaults());
+	CheckVariant(kProdRows, kProdCount, "prod", 62, 47, 42, 8, 39, ProdDefaults());
 #endif
 	CheckDevMinusProd();
 	CheckWantTruthTable();

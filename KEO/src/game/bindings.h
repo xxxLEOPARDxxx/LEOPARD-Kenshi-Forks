@@ -111,20 +111,6 @@ typedef void  (*havokCleanup_t)(void* buf8);
 typedef void  (*havokCtxCleanup_t)(void* ctx128);
 
 
-// Island routing: lektor<ZoneMap*> growth (thunk 0x16630 -> 0x37E3A0)
-typedef void (*lektorReserve_t)(void* lektor, unsigned int newCapacity);
-
-// Path request queue enqueue
-typedef void (*enqueuePathReq_t)(void* queueBase, void** itemPtr);
-
-
-// Havok::contentStreamCallee_0x8869 (path-result extraction loop). 4-arg
-// fastcall. Our hook SEH-wraps it and on AV rolls back a4[2] so the game sees
-// "no new edges produced" -> treats as no path, retries cleanly.
-typedef unsigned __int64 (*contentStreamCallee0x8869_t)(void* manager,
-                                                         unsigned int faceKey,
-                                                         void* searchOutput,
-                                                         unsigned int* resultBuf);
 // hkaiStreamingCollection::addInstance. 5-arg fastcall; mutates m_instances.
 // Hooked so we can timestamp the last mutation and gate our cache injection.
 typedef void (*addInstance_t)(void* collection, __int64 sectionData,
@@ -264,10 +250,8 @@ struct GameFunctions
 	havokCtxCleanup_t        fn_havokCtxCleanup;
 
 	// Island routing: lektor<ZoneMap*> growth (thunk 0x16630 -> 0x37E3A0)
-	lektorReserve_t          fn_lektorReserve;
 
 	// Path request queue enqueue
-	enqueuePathReq_t         fn_enqueuePathReq;
 };
 
 // The main-thread installs write these trampolines through HookInstallRow's
@@ -278,8 +262,7 @@ struct GameFunctions
 // the game calls them.
 struct HookOriginals
 {
-	// Path-result extraction and navmesh instance mutation
-	contentStreamCallee0x8869_t  orig_contentStreamCallee0x8869;
+	// Navmesh instance registration observer
 	addInstance_t                orig_addInstance;
 
 	// Zone, movement order and dispatch hooks
@@ -292,25 +275,8 @@ struct HookOriginals
 	// Generation input diagnostics
 	nmResultPopulate_t           orig_nmResultPopulate;
 
-	// Island routing hooks
-	isInIsland_t                 orig_isInIsland;
-	getIsland_t                  orig_getIsland;
-
-	// Player-cancel hooks
-	stopCharactersMovement_t     orig_stopCharactersMovement;
-	addJobSelected_t             orig_addJobSelected;
-	addTaskNearest_t             orig_addTaskNearest;
-
-	// No install; stays NULL
+	// Native generation wrapper binding.
 	realGenerate_t               orig_realGenerate;
-
-	// Pathfinding hooks
-	csFindPath_t                 orig_csFindPath;
-	csCheckFaceConn_t            orig_csCheckFaceConn;
-	findPathFull_t               orig_findPathFull;
-	requestPath_t                orig_requestPath;
-	pathReqSubmit_t              orig_pathReqSubmit;
-	csFindPathFallback_t         orig_csFindPathFallback;
 };
 
 extern GameFunctions g_gameFn;

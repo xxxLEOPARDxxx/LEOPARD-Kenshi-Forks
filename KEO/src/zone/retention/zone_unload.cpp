@@ -10,7 +10,6 @@
 #include "zone/transition.h"
 #include "navmesh/nm_workers.h"
 #include "movement/tracking.h"
-#include "movement/islands.h"
 #include "zone/geometry/zone_geometry_epoch.h"
 #include "zone/retention/zone_save_rule.h"
 
@@ -357,7 +356,6 @@ ZlUnloadResult UnloadModZone(void* zm, void* zone, bool save, const char* why)
 	}
 	// deactivateZoneMap zeroed zone+0x20 and raised _needCalculateIslands; the
 	// overlay's mark for the zone drops at this rebuild (flags now 0/0).
-	IslandRequestRebuild();
 	ZlNoteUnloaded(cell, now);
 
 	{

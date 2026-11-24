@@ -22,7 +22,6 @@
 void InitGameBindings(uintptr_t base);
 
 
-#include "pathfind/path_pool_bindings.h"
 
 // hkaiKeycode::validate: zeroes the byte at RCX, checks the embedded key, and
 // writes 1 on success. Each of its five callers (realGenerate and four

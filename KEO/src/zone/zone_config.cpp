@@ -22,6 +22,7 @@ const ZoneConfig kZoneDefaults =
 	true, // deferralEnabled
 	true, // preloadEnabled
 	true, // movementAwareEnabled
+	true, // playerCharRegistryEnabled
 	true, // saveLoadUnloadEnabled
 	true, // escapePauseGuardEnabled
 	true, // townGuardEnabled
@@ -117,6 +118,9 @@ const ConfigKey g_zoneConfigKeys[] =
 	CFG_OBOOL("movementAware", ZoneConfig, movementAwareEnabled,         NDOC, DEVROW,
 	  "Movement-aware preloading",
 	  "Watches player move orders and preloads the zones toward each destination."),
+	CFG_OBOOL("playerCharRegistry", ZoneConfig, playerCharRegistryEnabled, DOC, DEVROW,
+	  "Watch every player character",
+	  "Tracks the zones occupied by player characters for zone loading and navmesh scheduling."),
 	CFG_OBOOL("saveLoadUnload", ZoneConfig, saveLoadUnloadEnabled,        NDOC, DEVROW,
 	  "Unload mod zones at save load",
 	  "At a save load's reset, unloads every zone the mod still holds and clears its state. Off only"

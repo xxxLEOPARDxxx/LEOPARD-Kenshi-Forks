@@ -22,6 +22,7 @@ struct ZoneConfig
 	bool preloadEnabled;
 
 	bool movementAwareEnabled;
+	bool playerCharRegistryEnabled;
 
 	// saveLoadUnload: the save-load crash fix (preload_saveload.cpp,
 	// hook_resetUnloadZones). At the game's save-load reset, after it unloads the

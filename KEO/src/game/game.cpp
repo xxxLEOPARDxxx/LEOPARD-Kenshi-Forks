@@ -73,15 +73,6 @@ extern const unsigned char g_gameStringReleaseBytes[16] =
 
 resetUnloadZones_t      orig_resetUnloadZones      = NULL;   // save-load reset
 
-// Path-worker-pool instrumentation hooks + isPriorityPath (game.h's
-// path-worker-pool block). Storage only; the hooks' orig_ pointers are filled
-// by KenshiLib::AddHook in hook_manifest.cpp, not here.
-contentStream_t      orig_contentStream      = NULL;
-dequeueWork_t        orig_dequeueWork        = NULL;
-enqueueThreadSafe_t  orig_enqueueThreadSafe  = NULL;
-gatesUpdateCodes_t   orig_gatesUpdateCodes   = NULL;
-isPriorityPath_t     fn_isPriorityPath       = NULL;
-
 // =========================================================================
 // InitGameBindings — resolve all function pointers from gameBase
 // =========================================================================
@@ -134,14 +125,6 @@ void InitGameBindings(uintptr_t base)
 	game::g_gameFn.fn_havokPostRegInit      = (havokPostRegInit_t)      GameAddr(RVA_HAVOK_POST_REG_INIT);
 	game::g_gameFn.fn_havokCleanup          = (havokCleanup_t)          GameAddr(RVA_HAVOK_CLEANUP);
 	game::g_gameFn.fn_havokCtxCleanup       = (havokCtxCleanup_t)       GameAddr(RVA_HAVOK_CTX_CLEANUP);
-
-	// Island routing
-	game::g_gameFn.fn_lektorReserve         = (lektorReserve_t)         GameAddr(RVA_LEKTOR_RESERVE);
-
-	game::g_gameFn.fn_enqueuePathReq        = (enqueuePathReq_t)        GameAddr(RVA_ENQUEUE_PATH_REQ);
-
-
-	fn_isPriorityPath        = (isPriorityPath_t)        GameAddr(RVA_IS_PRIORITY_PATH);
 
 	// Readiness classification (readiness_hook.cpp).
 	fn_lookupSection         = (lookupSection_t)         GameAddr(RVA_LOOKUP_SECTION);

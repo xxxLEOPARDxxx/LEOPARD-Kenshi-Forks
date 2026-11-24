@@ -22,15 +22,8 @@
 #include "diag/squad_watch.h"
 #include "zone/preload/coverage_stats.h"
 #include "movement/tracking.h"
-#include "movement/formation.h"
-#include "pathfind/pathfinding.h"
-#include "pathfind/player_repath_tier.h"
-#include "pathfind/npc_cap_requester.h"
 #include "navmesh/scheduling/navmesh_sched.h"
 #include "movement/mover_policy.h"
-#include "movement/islands.h"
-#include "pathfind/path_pool.h"
-#include "pathfind/gate_pass.h"
 #include "render/render_levers.h"
 #include "render/ogre_join_spin.h"
 #include "bench/bench_runner.h"
@@ -55,8 +48,6 @@
 #include "zone/geometry/zone_geometry_epoch.h"
 #include "zone/retention/zone_retention.h"
 #include "zone/preload/camera_focus.h"
-#include "planner/coarse_graph_base.h"
-#include "planner/planner_tick.h"
 #include "plugin/profiler_image.h"
 #include "plugin/hook_manifest.h"
 #include "resources/resource_cache.h"
@@ -243,7 +234,6 @@ static bool CameraZoneSaveLoad(void* zoneMgr)
 	// Drop all mod state across a save load, and do no preload work while
 	// the game is loading one (every pointer we would cache is about to die).
 	bool saveLoading = PreloadCheckSaveLoad(zoneMgr);
-	planner::PlannerOnFrame(zoneMgr, saveLoading);
 
 	// destroyListOE mitigation (destroy_list_defer.h): perform the inserts that background threads
 	// queued instead of writing the container themselves. It runs after the
@@ -267,16 +257,7 @@ static bool CameraZoneTicks(void* zoneMgr, bool saveLoading)
 	// frame even when the first dispatch happens during a load.
 	FlushDeferredLogLines();
 
-	// Every frame, save load included: path-worker-pool instrumentation (it
-	// detects save loads itself), then the
-	// readiness config/target/Readiness lines (cumulative session counters,
-	// no game pointers kept).
-	double tickNow = ElapsedSec();
-	PathPoolTickMain(tickNow);
-	GatePassTickMain();
-#ifdef KEO_DEBUG
-	NpcCapRequesterTick(tickNow);
-#endif
+	const double tickNow = ElapsedSec();
 	ReadinessReportTick(tickNow);
 	InstallSectionDiagnosticsOnDemand();
 	RenderLeversMainThreadTick(saveLoading);
@@ -339,15 +320,7 @@ static bool CameraZoneTicks(void* zoneMgr, bool saveLoading)
 	ZoneRetentionBeginFrame(zoneMgr);
 #endif
 
-	if (saveLoading)
-	{
-		// Drop the previous session's HavokCharacter* set rather than let it
-		// sit unrefreshed through the load: a reused address on the far side
-		// could otherwise match a character it was never published for.
-		PlayerRepathTierClear();
-		return false;
-	}
-	return true;
+	return !saveLoading;
 }
 
 // Main thread: sample reporting time after save-load refusal, before preload gates.
@@ -368,31 +341,7 @@ static double CameraZoneReports(void* zoneMgr)
 	if (!gridCalibrated)
 		CalibrateZoneGrid(zoneMgr);
 
-	// Island routing overlay: Set B signature, component rebuild, parked-squad
-	// re-issue, diagnostics (main thread; hooks read the published snapshot)
-	IslandTick(zoneMgr, now);
-	planner::PlannerTick(zoneMgr, now);
-
-	// Republish the player-owned HavokCharacter* set every frame (main
-	// thread; hook_requestPath reads the published snapshot, main or AI
-	// back thread)
-	PlayerRepathTierPublish(now);
-
-	// NavMesh cache diagnostic: report background thread job count
 	LogNavMeshCacheStats(now);
-
-	// Pathfinding diagnostic: report A* search budget stats
-	LogPathfindDiagStats(now);
-	LogPhase12Stats(now);
-	LogPathGuardStats(now);
-
-	// Player movement state: the engine's arrival flag is transient, so it is
-	// latched every frame; the stuck report itself throttles to 1 s.
-	SamplePlayerArrivals();
-	PollPlayerMovementState(now);
-
-	// Multi-call path probe: dump captured entries after window expires
-	DumpPathProbe(now);
 	return now;
 }
 
@@ -615,9 +564,6 @@ static bool CameraZoneFocusAndPreload(void* zoneMgr, void* cameraPos, double now
 		}
 	}
 
-	// --- Group cohesion: poll formation groups for arrival scatter ---
-	if (movement::g_movementCfg.groupCohesionEnabled && scatterPatchApplied)
-		PollFormationGroups();
 	return true;
 }
 

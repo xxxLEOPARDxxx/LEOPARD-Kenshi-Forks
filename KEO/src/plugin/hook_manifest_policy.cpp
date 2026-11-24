@@ -12,10 +12,8 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 	case HOOK_WANT_MOVEMENT_AWARE:    return in.movementAware;
 	case HOOK_WANT_DESTROY_LIST:      return in.destroyListDiag || in.destroyListDefer;
 	case HOOK_WANT_CACHING:           return in.caching;
-	case HOOK_WANT_PATHFIND_DIAG:     return in.pathfindDiag;
-	case HOOK_WANT_PATH_EXTRACT:      return in.pathfindDiag && in.pathExtractGuard;
-	case HOOK_WANT_ADD_INSTANCE:      return in.detailedLog && ((in.pathfindDiag && in.sectionStamp) || in.navMeshLife);
-	case HOOK_WANT_GATE_PASS:         return in.gatePassDiag;
+	case HOOK_WANT_ADD_INSTANCE:      return in.detailedLog && (in.sectionStamp || in.navMeshLife);
+	case HOOK_WANT_GRAPH_HEURISTIC:   return in.graphHeuristicGuard;
 	case HOOK_WANT_ESCAPE_PAUSE:      return in.escapePauseGuard;
 	case HOOK_WANT_CORPSE_PIN:        return in.corpsePin;
 	case HOOK_WANT_NEST_GUARD:        return in.nestValidationGuard;
@@ -26,12 +24,6 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 	case HOOK_WANT_NAVMESH_LIFE:      return in.detailedLog && in.navMeshLife;
 	case HOOK_WANT_UNSTITCH_PROBE:    return in.unstitchProbe;
 	case HOOK_WANT_SECTION_KEY_PROBE: return in.sectionKeyProbe;
-	case HOOK_WANT_GRAPH_HEURISTIC:   return in.graphHeuristicGuard || in.playerHierarchical;
-	case HOOK_WANT_FIND_PATH_FULL:    return in.pathfindDiag || in.playerHierarchical;
-	case HOOK_WANT_CLUSTER_CROSS_COST: return in.clusterCrossCost || in.planner;
-	case HOOK_WANT_PLANNER:            return in.planner;
-	case HOOK_WANT_GATHER_PACE:       return in.gatherPace;
-	case HOOK_WANT_PLANNER_PRE_ARRIVAL: return in.preArrival;
 	case HOOK_WANT_TOWN_CLAIM:        return in.townClaim;
 	case HOOK_WANT_THROWOUT:          return in.throwOut;
 	case HOOK_WANT_BACKPACK_FOOD:     return in.backpackFood;
@@ -45,7 +37,7 @@ bool HookWantEval(HookWant want, const HookWantInputs& in)
 
 HookWantInputs HookWantInputsFromConfig()
 {
-	HookWantInputs in;
+	HookWantInputs in = {};
 	in.detailedLog        = keo_gui::g_guiCfg.debugLogging;
 	in.destroyListDiag     = fixes::g_fixesCfg.destroyListDiagEnabled;
 	in.destroyListDefer    = fixes::g_fixesCfg.destroyListDeferEnabled;
@@ -66,16 +58,8 @@ HookWantInputs HookWantInputsFromConfig()
 #endif
 	in.movementAware       = zone::g_zoneCfg.movementAwareEnabled;
 	in.caching             = navmesh::g_navmeshCfg.cachingEnabled;
-	in.pathfindDiag        = pathfind::g_pathfindCfg.pathfindDiagEnabled;
-	in.pathExtractGuard    = fixes::g_fixesCfg.pathExtractGuardEnabled;
 	in.sectionStamp        = fixes::g_fixesCfg.sectionStampEnabled;
-	in.gatePassDiag        = pathfind::g_pathfindCfg.gatePassDiagEnabled;
 	in.graphHeuristicGuard = fixes::g_fixesCfg.graphHeuristicGuardOn != 0;
-	in.playerHierarchical  = pathfind::g_pathfindCfg.playerHierarchicalMode != AHIER_OFF;
-	in.clusterCrossCost    = fixes::g_fixesCfg.clusterCrossCostOn != 0;
-	in.planner = planner::g_plannerCfg.mode != planner::PLANNER_OFF;
-	in.gatherPace = movement::g_movementCfg.formationGatherPaceEnabled;
-	in.preArrival = planner::g_plannerCfg.mode == planner::PLANNER_ON && planner::g_plannerCfg.preArrivalMs > 0;
 	in.townClaim           = fixes::g_fixesCfg.townClaimFixEnabled;
 	in.throwOut            = fixes::g_fixesCfg.throwOutFixEnabled;
 	in.backpackFood        = keo_inventory::g_inventoryCfg.backpackFoodScoreEnabled;

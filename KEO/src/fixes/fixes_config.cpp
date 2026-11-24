@@ -67,17 +67,6 @@ static bool ParseRelationsSelfFind(const std::string& val, ConfigLogFn log)
 	return false;
 }
 
-// clusterCrossCost: a boolean stored as 1 or 0; anything else is refused.
-static bool ParseClusterCrossCost(const std::string& val, ConfigLogFn log)
-{
-	(void)log;
-	bool b;
-	if (!ParseBool(val, &b))
-		return false;
-	fixes::g_fixesCfg.clusterCrossCostOn = b ? 1 : 0;
-	return true;
-}
-
 static const ConfigChoice kHullSameSkipChoices[] = { { "off", 0, "Off" }, { "on", 1, "On" } };
 
 // hullSameSkip: off or on; anything else is refused.
@@ -233,10 +222,7 @@ namespace fixes {
 
 const ConfigKey g_fixesConfigKeys[] =
 {
-	CFG_OBOOL("pathExtractGuard", FixesConfig, pathExtractGuardEnabled,      DOC, DEVROW,
-	  "Path extraction guard",
-	  "A fault while reading a path result rolls it back to no new edges instead of crashing; the"
-	  " character re-paths on the next tick."),
+
 	CFG_OBOOL("sectionStamp", FixesConfig, sectionStampEnabled,          DOC, DEVROW,
 	  "Navmesh section insert counter",
 	  "Counts every instance the navmesh streaming collection takes, on the PathGuard: log line."),
@@ -403,7 +389,7 @@ const ConfigKey g_fixesConfigKeys[] =
 	  "Thrown-out hold in game minutes",
 	  "How long a thrown-out body stays off the town's throw-out search if it does not wake first."),
 	CFG_OCUSTOM("graphHeuristicGuard", FixesConfig, graphHeuristicGuardOn, ParseGraphHeuristicGuard, NDOC),
-	CFG_OCUSTOM("clusterCrossCost", FixesConfig, clusterCrossCostOn, ParseClusterCrossCost, NDOC),
+
 	CFG_OROW_L("ogreJoinSpinUs", CK_CUSTOM, FixesConfig, cfg_ogreJoinSpinUs, 1.0f, 0.0f, INT_MIN, false, DOC,
 	           ParseOgreJoinSpinUs, "Ogre barrier join spin",
 	           "Before the main thread blocks waiting for Ogre's worker threads, it checks for this long whether"

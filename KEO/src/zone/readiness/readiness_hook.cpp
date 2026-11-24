@@ -12,7 +12,6 @@
 #include <intrin.h>
 #pragma intrinsic(_ReturnAddress)
 #include "zone/hooks_internal.h"
-#include "movement/islands.h"
 #include "zone/readiness/zone_readiness_contract.h"
 #include "zone/readiness/zone_readiness_ledger_bridge.h"
 #include "zone/readiness/zone_readiness_classify.h"
@@ -509,7 +508,6 @@ bool hook_isContentPending(void* manager, void* zonePos)
 	if (!DetailedLogEnabled()) return result;
 #endif
 	int sectionCount = *(int*)(KLIB_MEMBER(4, (uintptr_t)manager, NavMesh_addList_count, OFF_RDY_SM_PENDING_SECTIONS));
-	IslandCountReadiness(!result, !result && sectionCount > 0);
 
 #if ZONEHAND_STEP >= 2
 	// The contract's two inputs, read for every call the hook is asked
