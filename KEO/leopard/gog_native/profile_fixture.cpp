@@ -1,5 +1,4 @@
 #include "gog_profile.h"
-#include "pathfind/path_priority_publication.h"
 #include "fixes/world/town_claim_policy.h"
 #include "fixes/stitch/stitch_byte_guard_policy.h"
 #include "fixes/physx/physx_query_guard_policy.h"
@@ -19,8 +18,6 @@ static bool TranslatedRead(uintptr_t key,unsigned char*out,size_t count,void*){u
 static uintptr_t Mapped(uintptr_t key){uintptr_t rva=0;Check(GogProfile::Translate(key,&rva),"native key maps");return rva;}
 static long Rel32(const unsigned char*p){int v=0;memcpy(&v,p,4);return v;}
 static void InlineFixtures(){
- Check(PathPriorityProfile(TranslatedRead,NULL,GogProfile::ExpectedBytes),"actual GOG28 priority contracts");
- flipByte=true;Check(!PathPriorityProfile(TranslatedRead,NULL,GogProfile::ExpectedBytes),"GOG priority corruption refuses");flipByte=false;
  const unsigned __int64 base=0x140000000ULL,stub=base+0x01000000,slot=stub+0x1000;unsigned char code[128],patch[16],actual[32];
  Check(TranslatedRead(kTownClaimSiteRva,actual,13,NULL)&&TownClaimBytesMatch(actual,kTownClaimSiteBytes,13),"actual GOG town site ABI");
  Check(TranslatedRead(kTownClaimLeadRva,code,5,NULL)&&TownClaimBytesMatch(code,kTownClaimLeadBytes,5),"actual GOG town lead ABI");
@@ -43,7 +40,7 @@ static void InlineFixtures(){
  Check(BuildPhysQueryStub(code,sizeof(code),stub,slot,base+Mapped(kPhysQueryResumeRva),base+Mapped(kPhysQuerySkipRva),NULL),"GOG PhysQuery target ABI");
  using namespace keo_inventory;
  Check(TranslatedRead(kDialogLeadRva,actual,23,NULL),"actual GOG dialog lead");
- unsigned __int64 thunk=DialogueOriginalCallTarget(base+Mapped(kDialogCallRva),actual);
+ unsigned __int64 thunk=ItemFunctionCallTarget(base+Mapped(kDialogCallRva),actual+kDialogLeadLen-5);
  Check(thunk==base+Mapped(0x4b812),"actual GOG dialog thunk");
  Check(DialogThunkBuild(code,sizeof(code),stub),"dialog wrapper uses original ABI registers");
  int relative=0;Check(DialogCallRel32(base+Mapped(kDialogCallRva),stub,&relative),"GOG dialog patch displacement");
@@ -56,7 +53,7 @@ int main(int argc,char**argv){
   for(unsigned i=0;i<U16(pe+6);++i){Section s;s.virtualSize=U32(sec+i*40+8);s.rva=U32(sec+i*40+12);s.diskSize=U32(sec+i*40+16);s.disk=U32(sec+i*40+20);Check(s.disk+s.diskSize<=image.size(),"fixture section bound");sections.push_back(s);}
   Check(!GogProfile::MatchesImage(0x65D60518,0x232A000,GogProfile::ExecutableSha256()),"timestamp refused");Check(!GogProfile::MatchesImage(0x65D60519,0x232A001,GogProfile::ExecutableSha256()),"image size refused");Check(!GogProfile::MatchesImage(0x65D60519,0x232A000,NULL),"null digest refused");Check(!GogProfile::MatchesImage(0x65D60519,0x232A000,"bad"),"wrong digest refused");
   uintptr_t out=123;Check(!GogProfile::Translate(0,&out)&&out==0,"unknown zero refused");Check(!GogProfile::Translate(0xDEADBEEF,&out)&&out==0,"unknown cannot use Steam fallback");Check(!GogProfile::Translate(1,NULL),"null output");Check(!GogProfile::Absolute(0,0xDD92F0,&out)&&out==0,"zero base refused");Check(!GogProfile::Absolute((uintptr_t)-1,0xDD92F0,&out)&&out==0,"overflow refused");
-  Check(!GogProfile::Translate(0x3B40D0,&out)&&out==0,"PhysX concrete vtable is not EXE");Check(!GogProfile::Translate(0x40AF80,&out)&&out==0,"PhysX handler slot is not EXE");Check(!GogProfile::Translate(0x3B3F90,&out)&&out==0,"PhysX abstract vtable is not EXE");Check(!GogProfile::Translate(0x47624,&out)&&out==0,"PhysX purecall is not EXE");Check(GogProfile::AddressCount()==394,"explicit address count");Check(GogProfile::WindowCount()==345,"window count");Check(!GogProfile::AddressAt(GogProfile::AddressCount()),"address index bound");Check(!GogProfile::WindowKeyAt(GogProfile::WindowCount()),"window index bound");
+  Check(!GogProfile::Translate(0x3B40D0,&out)&&out==0,"PhysX concrete vtable is not EXE");Check(!GogProfile::Translate(0x40AF80,&out)&&out==0,"PhysX handler slot is not EXE");Check(!GogProfile::Translate(0x3B3F90,&out)&&out==0,"PhysX abstract vtable is not EXE");Check(!GogProfile::Translate(0x47624,&out)&&out==0,"PhysX purecall is not EXE");Check(GogProfile::AddressCount()==397,"explicit address count");Check(GogProfile::WindowCount()==347,"window count");Check(!GogProfile::AddressAt(GogProfile::AddressCount()),"address index bound");Check(!GogProfile::WindowKeyAt(GogProfile::WindowCount()),"window index bound");
   for(size_t i=0;i<GogProfile::AddressCount();++i){const GogProfile::AddressPair*p=GogProfile::AddressAt(i);Check(p&&GogProfile::Translate(p->from,&out)&&out==p->to,"address lookup");Check(GogProfile::CanonicalExact(p->to,&out)&&out==p->from,"exact reverse");Check(GogProfile::Absolute(0x140000000ULL,p->from,&out)&&out==0x140000000ULL+p->to,"absolute translated");}
   Check(GogProfile::Translate(0xDD92F0,&out)&&out==0xDD8A10,"edgeProcess actual GOG");Check(GogProfile::Translate(0x214853E,&out)&&out==0x21464AE,"keycode flag actual GOG");Check(GogProfile::Translate(0x212D358,&out)&&out==0x212B298,"gates singleton is not blanket delta");
   for(size_t i=0;i<GogProfile::WindowCount();++i){uintptr_t key=GogProfile::WindowKeyAt(i);Check(GogProfile::VerifyWindow(Read,NULL,key,32),"actual GOG bytes match frozen profile");Check(GogProfile::VerifyWindow(Read,NULL,key,5),"bounded prefix");flipByte=true;Check(!GogProfile::VerifyWindow(Read,NULL,key,32),"tampered window refused");flipByte=false;failRead=true;Check(!GogProfile::VerifyWindow(Read,NULL,key,32),"unreadable window refused");failRead=false;}

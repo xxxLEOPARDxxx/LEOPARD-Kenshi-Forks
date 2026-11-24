@@ -112,12 +112,12 @@ static const unsigned char kJThunk[5] = { 0xE9, 0xA9, 0x9E, 0x6F, 0x00 };
 
 static void CheckTarget()
 {
-	CHECK(DialogueOriginalCallTarget(0x6789AAULL, kLead) == 0x4B812ULL,
+	CHECK(ItemFunctionCallTarget(0x6789AAULL, kLead + 18) == 0x4B812ULL,
 	      "target: the lead's call reaches the j_ thunk");
 	unsigned char moved[23];
 	memcpy(moved, kLead, sizeof(moved));
 	moved[19] ^= 0x10;
-	CHECK(DialogueOriginalCallTarget(0x6789AAULL, moved) == 0x4B812ULL + 0x10,
+	CHECK(ItemFunctionCallTarget(0x6789AAULL, moved + 18) == 0x4B812ULL + 0x10,
 	      "target: a changed rel32 byte moves the target");
 	unsigned __int64 to = 0;
 	CHECK(DialogJumpTarget(0x4B812ULL, kJThunk, &to) && to == 0x7456C0ULL,

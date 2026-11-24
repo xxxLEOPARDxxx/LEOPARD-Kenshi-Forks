@@ -462,7 +462,7 @@ void InstallHooksAndGuards(const EntryCtx& ctx)
 	fixes::InstallTownClaimPatch(ctx.gateOk);
 	// A mid-function rel32, off the gate banner like the guards above; written now, before any
 	// world exists, because its four bytes are not aligned for one store.
-	keo_inventory::InstallDialogueItemFunctionPatch(ctx.gateOk);
+	keo_inventory::InstallBackpackItemFunctionPatches(ctx.gateOk);
 
 	KeoMcmSetRuntimeReady(installed == totalHooks && ctx.renderInstalled == ctx.renderWanted);
 

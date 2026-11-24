@@ -58,9 +58,9 @@ static __int64 ReadRel32(const unsigned char* p)
 	return (__int64)(int)u;
 }
 
-unsigned __int64 DialogueOriginalCallTarget(unsigned __int64 callAddr, const unsigned char lead[23])
+unsigned __int64 ItemFunctionCallTarget(unsigned __int64 callAddr, const unsigned char call[5])
 {
-	return callAddr + 5 + (unsigned __int64)ReadRel32(lead + kDialogLeadLen - 4);
+	return call && call[0] == 0xE8 ? callAddr + 5 + (unsigned __int64)ReadRel32(call + 1) : 0;
 }
 
 bool DialogJumpTarget(unsigned __int64 thunkAddr, const unsigned char bytes[5], unsigned __int64* targetOut)

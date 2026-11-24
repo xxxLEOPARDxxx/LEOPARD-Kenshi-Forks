@@ -33,7 +33,7 @@ bool DialogCallRel32(unsigned __int64 callAddr, unsigned __int64 thunkAddr, int*
 
 // Where the lead's own E8 rel32 (its last five bytes) sends the call at callAddr: callAddr + 5 +
 // rel32. The caller has checked the lead first.
-unsigned __int64 DialogueOriginalCallTarget(unsigned __int64 callAddr, const unsigned char lead[23]);
+unsigned __int64 ItemFunctionCallTarget(unsigned __int64 callAddr, const unsigned char call[5]);
 
 // A jump thunk's target: E9 rel32 at thunkAddr reaches thunkAddr + 5 + rel32. False when the
 // bytes are not an E9.

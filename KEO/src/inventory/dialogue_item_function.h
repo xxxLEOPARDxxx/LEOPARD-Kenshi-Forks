@@ -7,7 +7,7 @@ namespace keo_inventory {
 
 // Main thread, at startPlugin before any world exists: verifies the call site and writes it while
 // backpackDialogueFunction is on and the build gate passed. Logs one line either way.
-void InstallDialogueItemFunctionPatch(bool gateOk);
+void InstallBackpackItemFunctionPatches(bool gateOk);
 // Any thread.
 void DialogueItemFunctionCounters(long* calls, long* backpackHits);
 

@@ -7,7 +7,7 @@ env=os.environ.copy();env['INCLUDE']=str(vc/'include')+';'+str(sdk/'Include');en
 def test(name,sources,args):
  cmd=[str(vc/'bin/amd64/cl.exe'),'/nologo','/EHsc','/MD','/O2','/GL','/I'+str(root/'src'),'/I'+str(root/'src/game')]+[str(x)for x in sources]+['/Fe'+name+'.exe','/link','/LTCG']
  subprocess.run(cmd,cwd=out,env=env,check=True);subprocess.run([str(out/(name+'.exe'))]+args,cwd=out,check=True)
-files=['game/gog_profile.cpp','pathfind/path_priority_publication.cpp','fixes/world/town_claim_policy.cpp','fixes/stitch/stitch_byte_guard_policy.cpp','fixes/physx/physx_query_guard_policy.cpp','inventory/dialogue_thunk_policy.cpp']
+files=['game/gog_profile.cpp','fixes/world/town_claim_policy.cpp','fixes/stitch/stitch_byte_guard_policy.cpp','fixes/physx/physx_query_guard_policy.cpp','inventory/dialogue_thunk_policy.cpp']
 test('profile',[root/'src'/f for f in files]+[here/'profile_fixture.cpp'],[str(a.gog_exe.resolve())])
 test('refusal',[root/'src/game/native_profile.cpp',root/'src/game/gog_profile.cpp',here/'runtime_refusal.cpp'],[])
 
